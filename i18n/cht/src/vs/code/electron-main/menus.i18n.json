@@ -146,6 +146,7 @@
 	"miConditionalBreakpoint": "條件式中斷點(&&C)...",
 	"miColumnBreakpoint": "資料行中斷點(&&O)",
 	"miFunctionBreakpoint": "函式中斷點(&&F}...",
+	"miLogPoint": "&&記錄點...",
 	"miNewBreakpoint": "新增中斷點(&&N)",
 	"miEnableAllBreakpoints": "啟用所有中斷點",
 	"miDisableAllBreakpoints": "停用所有中斷點(&&L)",

@@ -100,6 +100,7 @@ export class Colorizer {
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,
@@ -152,6 +153,7 @@ function _fakeColorize(lines: string[], tabSize: number): string {
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,
@@ -186,6 +188,7 @@ function _actualColorize(lines: string[], tabSize: number, tokenizationSupport: 
 		let renderResult = renderViewLine(new RenderLineInput(
 			false,
 			line,
+			false,
 			isBasicASCII,
 			containsRTL,
 			0,

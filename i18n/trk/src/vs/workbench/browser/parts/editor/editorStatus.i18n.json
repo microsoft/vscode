@@ -17,6 +17,7 @@
 	"screenReaderDetectedExtra": "Bir Ekran Okuyucu kullanmıyorsanız, lütfen `editor.accessibilitySupport` ayarını \"off\" olarak değiştirin",
 	"disableTabMode": "Erişilebilirlik Modunu Devre Dışı Bırak",
 	"gotoLine": "Satıra Git",
+	"selectIndentation": "Girinti Seç",
 	"selectEncoding": "Kodlamayı Seç",
 	"selectEOL": "Satır Sonu Sıralamasını Seç",
 	"selectLanguageMode": "Dil Modunu Seç",

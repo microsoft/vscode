@@ -21,6 +21,7 @@
 	"disconnectDebug": "中斷連接",
 	"continueDebug": "繼續",
 	"pauseDebug": "暫停",
+	"terminateThread": "終止執行緒",
 	"restartFrame": "重新啟動框架",
 	"removeBreakpoint": "移除中斷點",
 	"removeAllBreakpoints": "移除所有中斷點",

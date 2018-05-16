@@ -128,7 +128,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(null, actual.type);
 			assert.equal('expectedName', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('expectedPublisher.expectedname', actual.id);
+			assert.equal('expectedpublisher.expectedname', actual.id);
 			assert.equal('expectedPublisher', actual.publisher);
 			assert.equal('expectedPublisherDisplayName', actual.publisherDisplayName);
 			assert.equal('1.5', actual.version);
@@ -186,7 +186,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal(LocalExtensionType.User, actual.type);
 		assert.equal('local1', actual.name);
 		assert.equal('localDisplayName1', actual.displayName);
-		assert.equal('localPublisher1.local1', actual.id);
+		assert.equal('localpublisher1.local1', actual.id);
 		assert.equal('localPublisher1', actual.publisher);
 		assert.equal('1.1.0', actual.version);
 		assert.equal('1.1.0', actual.latestVersion);
@@ -205,7 +205,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal(LocalExtensionType.System, actual.type);
 		assert.equal('local2', actual.name);
 		assert.equal('localDisplayName2', actual.displayName);
-		assert.equal('localPublisher2.local2', actual.id);
+		assert.equal('localpublisher2.local2', actual.id);
 		assert.equal('localPublisher2', actual.publisher);
 		assert.equal('1.2.0', actual.version);
 		assert.equal('1.2.0', actual.latestVersion);
@@ -278,7 +278,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(LocalExtensionType.User, actual.type);
 			assert.equal('local1', actual.name);
 			assert.equal('expectedDisplayName', actual.displayName);
-			assert.equal('localPublisher1.local1', actual.id);
+			assert.equal('localpublisher1.local1', actual.id);
 			assert.equal('localPublisher1', actual.publisher);
 			assert.equal('1.1.0', actual.version);
 			assert.equal('1.5.0', actual.latestVersion);
@@ -297,7 +297,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(LocalExtensionType.System, actual.type);
 			assert.equal('local2', actual.name);
 			assert.equal('localDisplayName2', actual.displayName);
-			assert.equal('localPublisher2.local2', actual.id);
+			assert.equal('localpublisher2.local2', actual.id);
 			assert.equal('localPublisher2', actual.publisher);
 			assert.equal('1.2.0', actual.version);
 			assert.equal('1.2.0', actual.latestVersion);
@@ -838,6 +838,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationService.stubPromise(IDialogService, 'show', 1);
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.Disabled)
@@ -858,7 +859,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.Disabled)
@@ -884,6 +885,52 @@ suite('ExtensionsWorkbenchService Test', () => {
 			});
 	});
 
+	test('test disable both dependency and dependent do not promot and do not fail', () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Enabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				const target = sinon.spy();
+				instantiationService.stub(IDialogService, 'show', Promise.resolve().then(target));
+				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.Disabled)
+					.then(() => {
+						assert.ok(!target.called);
+						assert.equal(testObject.local[0].enablementState, EnablementState.Disabled);
+						assert.equal(testObject.local[1].enablementState, EnablementState.Disabled);
+					});
+			});
+	});
+
+	test('test enable both dependency and dependent do not promot and do not fail', () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				const target = sinon.spy();
+				instantiationService.stub(IDialogService, 'show', Promise.resolve().then(target));
+				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.Enabled)
+					.then(() => {
+						assert.ok(!target.called);
+						assert.equal(testObject.local[0].enablementState, EnablementState.Enabled);
+						assert.equal(testObject.local[1].enablementState, EnablementState.Enabled);
+					});
+			});
+	});
+
 	test('test disable extension does not fail if its dependency is a dependent of other but chosen to disable only itself', () => {
 		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
 		const extensionB = aLocalExtension('b');
@@ -894,6 +941,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationService.stubPromise(IDialogService, 'show', 1);
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.Disabled)
@@ -913,7 +961,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 				return testObject.setEnablement(testObject.local[0], EnablementState.Disabled).then(() => assert.fail('Should fail'), error => assert.ok(true));
 			});
@@ -929,7 +977,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
@@ -951,7 +999,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
@@ -973,7 +1021,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
@@ -992,7 +1040,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Enabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
-				instantiationService.stubPromise(IDialogService, 'show', 1);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
@@ -1015,10 +1063,77 @@ suite('ExtensionsWorkbenchService Test', () => {
 			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
 			.then(() => {
 				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationService.stubPromise(IDialogService, 'show', 0);
 				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
 
 				return testObject.setEnablement(testObject.local[0], EnablementState.Enabled)
 					.then(() => {
+						assert.equal(testObject.local[0].enablementState, EnablementState.Enabled);
+						assert.equal(testObject.local[1].enablementState, EnablementState.Enabled);
+					});
+			});
+	});
+
+	test('test enable extension with dependencies does not enable if cancelled', () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				instantiationService.stubPromise(IDialogService, 'show', 1);
+				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+				return testObject.setEnablement(testObject.local[0], EnablementState.Enabled)
+					.then(() => {
+						assert.equal(testObject.local[0].enablementState, EnablementState.Disabled);
+						assert.equal(testObject.local[1].enablementState, EnablementState.Disabled);
+					});
+			});
+	});
+
+	test('test enable extension with dependencies does not prompt if dependency is enabled already', () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Enabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				const target = sinon.spy();
+				instantiationService.stubPromise(IDialogService, 'show', Promise.resolve().then(target));
+				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+				return testObject.setEnablement(testObject.local[0], EnablementState.Enabled)
+					.then(() => {
+						assert.ok(!target.called);
+						assert.equal(testObject.local[0].enablementState, EnablementState.Enabled);
+					});
+			});
+	});
+
+	test('test enable extension with dependency does not prompt if both are enabled', () => {
+		const extensionA = aLocalExtension('a', { extensionDependencies: ['pub.b'] });
+		const extensionB = aLocalExtension('b');
+		const extensionC = aLocalExtension('c');
+
+		return instantiationService.get(IExtensionEnablementService).setEnablement(extensionA, EnablementState.Disabled)
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionB, EnablementState.Disabled))
+			.then(() => instantiationService.get(IExtensionEnablementService).setEnablement(extensionC, EnablementState.Disabled))
+			.then(() => {
+				instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [extensionA, extensionB, extensionC]);
+				const target = sinon.spy();
+				instantiationService.stubPromise(IDialogService, 'show', Promise.resolve().then(target));
+				testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+				return testObject.setEnablement([testObject.local[1], testObject.local[0]], EnablementState.Enabled)
+					.then(() => {
+						assert.ok(!target.called);
 						assert.equal(testObject.local[0].enablementState, EnablementState.Enabled);
 						assert.equal(testObject.local[1].enablementState, EnablementState.Enabled);
 					});

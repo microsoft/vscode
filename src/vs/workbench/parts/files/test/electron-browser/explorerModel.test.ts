@@ -108,8 +108,10 @@ suite('Files - View Model', () => {
 		s2.addChild(s3);
 		s3.addChild(s4);
 
+		assert.strictEqual(s1.getChild(s2.name), s2);
 		const s2renamed = createStat('/otherpath', 'otherpath', true, true, 8096, d);
 		s2.rename(s2renamed);
+		assert.strictEqual(s1.getChild(s2.name), s2);
 
 		// Verify the paths have changed including children
 		assert.strictEqual(s2.name, s2renamed.name);
@@ -119,6 +121,7 @@ suite('Files - View Model', () => {
 
 		const s4renamed = createStat('/otherpath/to/statother.js', 'statother.js', true, false, 8096, d);
 		s4.rename(s4renamed);
+		assert.strictEqual(s3.getChild(s4.name), s4);
 		assert.strictEqual(s4.name, s4renamed.name);
 		assert.strictEqual(s4.resource.fsPath, s4renamed.resource.fsPath);
 	});
@@ -241,12 +244,6 @@ suite('Files - View Model', () => {
 		assert(validateFileName(wsFolder, 'all/slashes/are/same') === null);
 		assert(validateFileName(wsFolder, 'theres/one/different\\slash') === null);
 		assert(validateFileName(wsFolder, '/slashAtBeginning') !== null);
-
-		// validation should detect if user tries to add a child to a file
-		const fileInRoot = createStat('/fileInRoot', 'fileInRoot', false, false, 8096, d);
-		wsFolder.addChild(fileInRoot);
-		assert(validateFileName(wsFolder, 'fileInRoot/aChild') !== null);
-		wsFolder.removeChild(fileInRoot);
 
 		// attempting to add a child to a deeply nested file
 		const s1 = createStat('/path', 'path', true, false, 8096, d);

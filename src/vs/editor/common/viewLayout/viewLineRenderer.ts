@@ -36,6 +36,7 @@ export class RenderLineInput {
 
 	public readonly useMonospaceOptimizations: boolean;
 	public readonly lineContent: string;
+	public readonly continuesWithWrappedLine: boolean;
 	public readonly isBasicASCII: boolean;
 	public readonly containsRTL: boolean;
 	public readonly fauxIndentLength: number;
@@ -51,6 +52,7 @@ export class RenderLineInput {
 	constructor(
 		useMonospaceOptimizations: boolean,
 		lineContent: string,
+		continuesWithWrappedLine: boolean,
 		isBasicASCII: boolean,
 		containsRTL: boolean,
 		fauxIndentLength: number,
@@ -65,6 +67,7 @@ export class RenderLineInput {
 	) {
 		this.useMonospaceOptimizations = useMonospaceOptimizations;
 		this.lineContent = lineContent;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.isBasicASCII = isBasicASCII;
 		this.containsRTL = containsRTL;
 		this.fauxIndentLength = fauxIndentLength;
@@ -88,6 +91,7 @@ export class RenderLineInput {
 		return (
 			this.useMonospaceOptimizations === other.useMonospaceOptimizations
 			&& this.lineContent === other.lineContent
+			&& this.continuesWithWrappedLine === other.continuesWithWrappedLine
 			&& this.isBasicASCII === other.isBasicASCII
 			&& this.containsRTL === other.containsRTL
 			&& this.fauxIndentLength === other.fauxIndentLength
@@ -331,7 +335,7 @@ function resolveRenderLineInput(input: RenderLineInput): ResolvedRenderLineInput
 
 	let tokens = transformAndRemoveOverflowing(input.lineTokens, input.fauxIndentLength, len);
 	if (input.renderWhitespace === RenderWhitespace.All || input.renderWhitespace === RenderWhitespace.Boundary) {
-		tokens = _applyRenderWhitespace(lineContent, len, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
+		tokens = _applyRenderWhitespace(lineContent, len, input.continuesWithWrappedLine, tokens, input.fauxIndentLength, input.tabSize, useMonospaceOptimizations, input.renderWhitespace === RenderWhitespace.Boundary);
 	}
 	let containsForeignElements = ForeignElementType.None;
 	if (input.lineDecorations.length > 0) {
@@ -437,7 +441,7 @@ function splitLargeTokens(lineContent: string, tokens: LinePart[]): LinePart[] {
  * Moreover, a token is created for every visual indent because on some fonts the glyphs used for rendering whitespace (&rarr; or &middot;) do not have the same width as &nbsp;.
  * The rendering phase will generate `style="width:..."` for these tokens.
  */
-function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, onlyBoundary: boolean): LinePart[] {
+function _applyRenderWhitespace(lineContent: string, len: number, continuesWithWrappedLine: boolean, tokens: LinePart[], fauxIndentLength: number, tabSize: number, useMonospaceOptimizations: boolean, onlyBoundary: boolean): LinePart[] {
 
 	let result: LinePart[] = [], resultLen = 0;
 	let tokenIndex = 0;
@@ -527,13 +531,22 @@ function _applyRenderWhitespace(lineContent: string, len: number, tokens: LinePa
 		}
 	}
 
+	let generateWhitespace = false;
 	if (wasInWhitespace) {
 		// was in whitespace token
-		result[resultLen++] = new LinePart(len, 'vs-whitespace');
-	} else {
-		// was in regular token
-		result[resultLen++] = new LinePart(len, tokenType);
+		if (continuesWithWrappedLine && onlyBoundary) {
+			let lastCharCode = (len > 0 ? lineContent.charCodeAt(len - 1) : CharCode.Null);
+			let prevCharCode = (len > 1 ? lineContent.charCodeAt(len - 2) : CharCode.Null);
+			let isSingleTrailingSpace = (lastCharCode === CharCode.Space && (prevCharCode !== CharCode.Space && prevCharCode !== CharCode.Tab));
+			if (!isSingleTrailingSpace) {
+				generateWhitespace = true;
+			}
+		} else {
+			generateWhitespace = true;
+		}
 	}
+
+	result[resultLen++] = new LinePart(len, generateWhitespace ? 'vs-whitespace' : tokenType);
 
 	return result;
 }
@@ -675,7 +688,11 @@ function _renderLine(input: ResolvedRenderLineInput, sb: IStringBuilder): Render
 					tabsCharDelta += insertSpacesCount - 1;
 					charOffsetInPart += insertSpacesCount - 1;
 					if (insertSpacesCount > 0) {
-						sb.write1(0x2192); // &rarr;
+						if (insertSpacesCount > 1) {
+							sb.write1(0x2192); // RIGHTWARDS ARROW
+						} else {
+							sb.write1(0xffeb); // HALFWIDTH RIGHTWARDS ARROW
+						}
 						insertSpacesCount--;
 					}
 					while (insertSpacesCount > 0) {

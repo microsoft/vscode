@@ -24,7 +24,7 @@ export const EditorZoom: IEditorZoom = new class implements IEditorZoom {
 	}
 
 	public setZoomLevel(zoomLevel: number): void {
-		zoomLevel = Math.min(Math.max(-9, zoomLevel), 9);
+		zoomLevel = Math.min(Math.max(-5, zoomLevel), 20);
 		if (this._zoomLevel === zoomLevel) {
 			return;
 		}

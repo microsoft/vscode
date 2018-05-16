@@ -22,5 +22,5 @@
 	"command.debug": "デバッグ",
 	"command.openScript": "Open",
 	"npm.scriptInvalid": "スクリプト '{0}' が見つかりませんでした。ビューを更新してください。",
-	"npm.noDebugOptions": "'{0}' のデバッグを起動できませんでした。スクリプトに node debug オプションを含める必要があります: '--nolazy --inspect-brk=port'、[詳細](https://code.visualstudio.com/docs/nodejs/nodejs-debugging#_launch-configuration-support-for-npm-and-other-tools)`"
+	"npm.noDebugOptions": "スクリプトの Node デバッグ オプションが不足しているため、\"{0}\" をデバッグ起動できません。例: --inspect-brk\"。"
 }

@@ -50,7 +50,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 			item.parameters.forEach((p, i, a) => {
 				const parameter = new ParameterInformation(
 					Previewer.plain(p.displayParts),
-					Previewer.plain(p.documentation));
+					Previewer.markdownDocumentation(p.documentation, []));
 
 				signature.label += parameter.label;
 				signature.parameters.push(parameter);
@@ -59,7 +59,7 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 				}
 			});
 			signature.label += Previewer.plain(item.suffixDisplayParts);
-			signature.documentation = Previewer.markdownDocumentation(item.documentation, item.tags);
+			signature.documentation = Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param'));
 			result.signatures.push(signature);
 		});
 

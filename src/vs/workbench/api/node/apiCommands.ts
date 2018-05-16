@@ -32,7 +32,7 @@ export class PreviewHTMLAPICommand {
 	public static execute(executor: ICommandsExecutor, uri: URI, position?: vscode.ViewColumn, label?: string, options?: any): Thenable<any> {
 		return executor.executeCommand('_workbench.previewHtml',
 			uri,
-			typeof position === 'number' && typeConverters.fromViewColumn(position),
+			typeof position === 'number' && typeConverters.ViewColumn.from(position),
 			label,
 			options
 		);
@@ -59,8 +59,8 @@ export class DiffAPICommand {
 			left, right,
 			label,
 			undefined,
-			typeConverters.toTextEditorOptions(options),
-			options ? typeConverters.fromViewColumn(options.viewColumn) : undefined
+			typeConverters.TextEditorOptions.from(options),
+			options ? typeConverters.ViewColumn.from(options.viewColumn) : undefined
 		]);
 	}
 }
@@ -74,10 +74,10 @@ export class OpenAPICommand {
 
 		if (columnOrOptions) {
 			if (typeof columnOrOptions === 'number') {
-				column = typeConverters.fromViewColumn(columnOrOptions);
+				column = typeConverters.ViewColumn.from(columnOrOptions);
 			} else {
-				options = typeConverters.toTextEditorOptions(columnOrOptions);
-				column = typeConverters.fromViewColumn(columnOrOptions.viewColumn);
+				options = typeConverters.TextEditorOptions.from(columnOrOptions);
+				column = typeConverters.ViewColumn.from(columnOrOptions.viewColumn);
 			}
 		}
 

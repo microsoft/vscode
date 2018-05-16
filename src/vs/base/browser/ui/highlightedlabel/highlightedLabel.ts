@@ -18,6 +18,7 @@ export class HighlightedLabel implements IDisposable {
 
 	private domNode: HTMLElement;
 	private text: string;
+	private title: string;
 	private highlights: IHighlight[];
 	private didEverRender: boolean;
 
@@ -32,11 +33,14 @@ export class HighlightedLabel implements IDisposable {
 		return this.domNode;
 	}
 
-	set(text: string, highlights: IHighlight[] = []) {
+	set(text: string, highlights: IHighlight[] = [], title?: string) {
 		if (!text) {
 			text = '';
 		}
-		if (this.didEverRender && this.text === text && objects.equals(this.highlights, highlights)) {
+		if (!title) {
+			title = text;
+		}
+		if (this.didEverRender && this.text === text && this.title === title && objects.equals(this.highlights, highlights)) {
 			return;
 		}
 
@@ -45,6 +49,7 @@ export class HighlightedLabel implements IDisposable {
 		}
 
 		this.text = text;
+		this.title = title || text;
 		this.highlights = highlights;
 		this.render();
 	}
@@ -80,6 +85,7 @@ export class HighlightedLabel implements IDisposable {
 		}
 
 		this.domNode.innerHTML = htmlContent.join('');
+		this.domNode.title = this.title;
 		this.didEverRender = true;
 	}
 

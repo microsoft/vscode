@@ -695,10 +695,12 @@ export class TaskSorter {
 
 export enum TaskEventKind {
 	Start = 'start',
+	ProcessStarted = 'processStarted',
 	Active = 'active',
 	Inactive = 'inactive',
 	Changed = 'changed',
 	Terminated = 'terminated',
+	ProcessEnded = 'processEnded',
 	End = 'end'
 }
 
@@ -714,22 +716,34 @@ export interface TaskEvent {
 	taskName?: string;
 	runType?: TaskRunType;
 	group?: string;
+	processId?: number;
+	exitCode?: number;
 	__task?: Task;
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.Start | TaskEventKind.End, task: Task);
-	export function create(kind: TaskEventKind.Changed);
-	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
+	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
+	export function create(kind: TaskEventKind.Changed): TaskEvent;
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
 		if (task) {
-			return Object.freeze({
+			let result = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
+				processId: undefined,
+				exitCode: undefined,
 				__task: task,
-			});
+			};
+			if (kind === TaskEventKind.ProcessStarted) {
+				result.processId = processIdOrExitCode;
+			} else if (kind === TaskEventKind.ProcessEnded) {
+				result.exitCode = processIdOrExitCode;
+			}
+			return Object.freeze(result);
 		} else {
 			return Object.freeze({ kind: TaskEventKind.Changed });
 		}

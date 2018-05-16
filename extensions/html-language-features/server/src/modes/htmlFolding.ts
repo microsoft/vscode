@@ -87,5 +87,14 @@ function limitRanges(ranges: FoldingRange[], maxRanges: number) {
 			entries += n;
 		}
 	}
-	return ranges.filter((r, index) => (typeof nestingLevels[index] === 'number') && nestingLevels[index] < maxLevel);
+	let result = [];
+	for (let i = 0; i < ranges.length; i++) {
+		let level = nestingLevels[i];
+		if (typeof level === 'number') {
+			if (level < maxLevel || (level === maxLevel && entries++ < maxRanges)) {
+				result.push(ranges[i]);
+			}
+		}
+	}
+	return result;
 }

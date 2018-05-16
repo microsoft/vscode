@@ -14,6 +14,7 @@
 	"fileInvalidPath": "잘못된 파일 리소스({0})",
 	"fileIsDirectoryError": "파일이 디렉터리입니다.",
 	"fileNotModifiedError": "파일 수정 안 됨",
+	"fileTooLargeForHeapError": "이 크기의 파일을 열려면 VS Code를 다시 시작하여 더 많은 메모리를 사용하도록 허용해야 합니다.",
 	"fileTooLargeError": "파일이 너무 커서 열 수 없음",
 	"fileNotFoundError": "파일을 찾을 수 없습니다({0}).",
 	"fileBinaryError": "파일이 이진인 것 같으므로 테스트로 열 수 없습니다.",

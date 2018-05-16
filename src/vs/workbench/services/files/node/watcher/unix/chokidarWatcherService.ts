@@ -15,6 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { FileChangeType } from 'vs/platform/files/common/files';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import * as strings from 'vs/base/common/strings';
+import { normalizeNFC } from 'vs/base/common/normalization';
 import { realcaseSync } from 'vs/base/node/extfs';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as watcher from 'vs/workbench/services/files/node/watcher/common';
@@ -74,7 +75,7 @@ export class ChokidarWatcherService implements IWatcherService {
 				if (isMacintosh) {
 					// Mac: uses NFD unicode form on disk, but we want NFC
 					// See also https://github.com/nodejs/node/issues/2165
-					path = strings.normalizeNFC(path);
+					path = normalizeNFC(path);
 				}
 
 				if (path.indexOf(realBasePath) < 0) {

@@ -40,7 +40,7 @@ suite('Editor - Range decorations', () => {
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
-		codeEditor = createTestCodeEditor(model);
+		codeEditor = createTestCodeEditor({ model: model });
 		mockEditorService(codeEditor.getModel().uri);
 
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });
@@ -144,9 +144,9 @@ suite('Editor - Range decorations', () => {
 		return model;
 	}
 
-	function mockEditorService(editorInput: IEditorInput);
-	function mockEditorService(resource: URI);
-	function mockEditorService(arg: any) {
+	function mockEditorService(editorInput: IEditorInput): void;
+	function mockEditorService(resource: URI): void;
+	function mockEditorService(arg: any): void {
 		let editorInput: IEditorInput = arg instanceof URI ? instantiationService.createInstance(FileEditorInput, arg, void 0) : arg;
 		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}

@@ -10,7 +10,7 @@ import { sequence, always } from 'vs/base/common/async';
 import { illegalState } from 'vs/base/common/errors';
 import { ExtHostDocumentSaveParticipantShape, MainThreadTextEditorsShape, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { TextEdit } from 'vs/workbench/api/node/extHostTypes';
-import { fromRange, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
+import { Range, TextDocumentSaveReason, EndOfLine } from 'vs/workbench/api/node/extHostTypeConverters';
 import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import * as vscode from 'vscode';
@@ -151,7 +151,7 @@ export class ExtHostDocumentSaveParticipant implements ExtHostDocumentSavePartic
 				if (Array.isArray(value) && (<vscode.TextEdit[]>value).every(e => e instanceof TextEdit)) {
 					for (const { newText, newEol, range } of value) {
 						resourceEdit.edits.push({
-							range: range && fromRange(range),
+							range: range && Range.from(range),
 							text: newText,
 							eol: EndOfLine.from(newEol)
 						});

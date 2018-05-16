@@ -36,7 +36,7 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, LocalSelectionTransfer, DraggedEditorIdentifier } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -529,7 +529,6 @@ export class TabsTitleControl extends TitleControl {
 		tabContainer.appendChild(tabCloseContainer);
 
 		const actionRunner = new TabActionRunner(() => this.context, index);
-		this.tabDisposeables.push(actionRunner);
 
 		const bar = new ActionBar(tabCloseContainer, { ariaLabel: nls.localize('araLabelTabActions', "Tab actions"), actionRunner });
 		bar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
@@ -537,7 +536,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, editorLabel]));
+		this.tabDisposeables.push(combinedDisposable([disposable, bar, actionRunner, editorLabel]));
 
 		return tabContainer;
 	}
@@ -975,6 +974,38 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				width: 100%;
 				border: 1px solid transparent;
 				border-bottom-color: ${tabUnfocusedActiveBorder};
+			}
+		`);
+	}
+
+	const tabActiveBorderTop = theme.getColor(TAB_ACTIVE_BORDER_TOP);
+	if (tabActiveBorderTop) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active::before {
+				content: "";
+				position: absolute;
+				top: -1px;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-top-color: ${tabActiveBorderTop};
+			}
+		`);
+	}
+
+	const tabUnfocusedActiveBorderTop = theme.getColor(TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+	if (tabUnfocusedActiveBorderTop) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.active::before {
+				content: "";
+				position: absolute;
+				top: -1px;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-top-color: ${tabUnfocusedActiveBorderTop};
 			}
 		`);
 	}

@@ -289,7 +289,7 @@ export class CodeApplication {
 
 			// Create driver
 			if (this.environmentService.driverHandle) {
-				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
+				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
 					this.logService.info('Driver started at:', this.environmentService.driverHandle);
 					this.toDispose.push(server);
 				});

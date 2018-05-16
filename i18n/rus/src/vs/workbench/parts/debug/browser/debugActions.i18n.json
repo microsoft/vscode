@@ -21,6 +21,7 @@
 	"disconnectDebug": "Отключить",
 	"continueDebug": "Продолжить",
 	"pauseDebug": "Приостановить",
+	"terminateThread": "Завершить поток",
 	"restartFrame": "Перезапустить кадр",
 	"removeBreakpoint": "Удалить точку останова",
 	"removeAllBreakpoints": "Удалить все точки останова",

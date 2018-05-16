@@ -13,7 +13,7 @@ import { IWatcherService, IWatcherRequest } from 'vs/workbench/services/files/no
 import { TPromise, ProgressCallback, TValueCallback, ErrorCallback } from 'vs/base/common/winjs.base';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { FileChangeType } from 'vs/platform/files/common/files';
-import { normalizeNFC } from 'vs/base/common/strings';
+import { normalizeNFC } from 'vs/base/common/normalization';
 
 const nsfwActionToRawChangeType: { [key: number]: number } = [];
 nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;

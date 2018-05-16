@@ -65,10 +65,10 @@ export abstract class ViewletPanel extends Panel {
 		this.actionRunner = options.actionRunner;
 	}
 
-	render(container: HTMLElement): void {
-		super.render(container);
+	render(): void {
+		super.render();
 
-		const focusTracker = trackFocus(container);
+		const focusTracker = trackFocus(this.element);
 		this.disposables.push(focusTracker);
 		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
 	}
@@ -100,7 +100,10 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		if (this.element) {
+			this.element.focus();
+			this._onDidFocus.fire();
+		}
 	}
 
 	private setActions(): void {

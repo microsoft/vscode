@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Editors } from '../editor/editors';
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 export class QuickOpen {
@@ -16,14 +15,18 @@ export class QuickOpen {
 	static QUICK_OPEN_ENTRY_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry';
 	static QUICK_OPEN_ENTRY_LABEL_SELECTOR = 'div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties .monaco-tree-row .quick-open-entry .label-name';
 
-	constructor(private code: Code, private commands: Commands, private editors: Editors) { }
+	constructor(private code: Code, private editors: Editors) { }
 
 	async openQuickOpen(value: string): Promise<void> {
 		let retries = 0;
 
 		// other parts of code might steal focus away from quickopen :(
 		while (retries < 5) {
-			await this.commands.runCommand('workbench.action.quickOpen');
+			if (process.platform === 'darwin') {
+				await this.code.dispatchKeybinding('cmd+p');
+			} else {
+				await this.code.dispatchKeybinding('ctrl+p');
+			}
 
 			try {
 				await this.waitForQuickOpenOpened(10);
@@ -43,7 +46,7 @@ export class QuickOpen {
 	}
 
 	async closeQuickOpen(): Promise<void> {
-		await this.commands.runCommand('workbench.action.closeQuickOpen');
+		await this.code.dispatchKeybinding('escape');
 		await this.waitForQuickOpenClosed();
 	}
 
@@ -97,7 +100,11 @@ export class QuickOpen {
 		let retries = 0;
 
 		while (++retries < 10) {
-			await this.commands.runCommand('workbench.action.gotoSymbol');
+			if (process.platform === 'darwin') {
+				await this.code.dispatchKeybinding('cmd+shift+o');
+			} else {
+				await this.code.dispatchKeybinding('ctrl+shift+o');
+			}
 
 			const text = await this.code.waitForTextContent('div[aria-label="Quick Picker"] .monaco-tree-rows.show-twisties div.monaco-tree-row .quick-open-entry .monaco-icon-label .label-name .monaco-highlighted-label span');
 

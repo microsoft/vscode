@@ -25,7 +25,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -150,10 +150,10 @@ class NeverShowAgain {
 
 	private readonly key: string;
 
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: IDisposable) => {
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: INotificationHandle) => {
 
 		// Hide notification
-		notification.dispose();
+		notification.close();
 
 		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
@@ -194,14 +194,14 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		notificationService.prompt(
+		const handle = notificationService.prompt(
 			severity.Info,
 			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					neverShowAgain.action.run();
+					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
 			}]
@@ -384,14 +384,14 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		this.notificationService.prompt(
+		const handle = this.notificationService.prompt(
 			severity.Info,
 			nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					neverShowAgain.action.run();
+					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
 			}]

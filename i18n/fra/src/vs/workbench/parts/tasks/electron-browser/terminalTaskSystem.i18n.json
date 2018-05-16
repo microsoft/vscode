@@ -11,6 +11,6 @@
 	"TerminalTaskSystem.terminalName": "Tâche - {0}",
 	"closeTerminal": "Appuyez sur n’importe quelle touche pour fermer le terminal.",
 	"reuseTerminal": "Le terminal sera réutilisé par les tâches, appuyez sur une touche pour le fermer.",
-	"TerminalTaskSystem": "Impossible d'exécuter une commande d'interpréteur de commandes sur un lecteur UNC.",
+	"TerminalTaskSystem": "Impossible d'exécuter une commande d'interpréteur de commandes sur un lecteur UNC à l'aide de cmd.exe.",
 	"unkownProblemMatcher": "Impossible de résoudre le détecteur de problèmes {0}. Le détecteur est ignoré"
 }

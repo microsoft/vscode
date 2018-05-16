@@ -34,10 +34,6 @@ class State {
 	}
 }
 
-// --- shared state between grow and shrink actions
-var state: State = null;
-var ignoreSelection = false;
-
 // -- action implementation
 
 class SmartSelectController implements IEditorContribution {
@@ -49,12 +45,16 @@ class SmartSelectController implements IEditorContribution {
 	}
 
 	private _tokenSelectionSupport: TokenSelectionSupport;
+	private _state: State;
+	private _ignoreSelection: boolean;
 
 	constructor(
 		private editor: ICodeEditor,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		this._tokenSelectionSupport = instantiationService.createInstance(TokenSelectionSupport);
+		this._state = null;
+		this._ignoreSelection = false;
 	}
 
 	public dispose(): void {
@@ -66,35 +66,35 @@ class SmartSelectController implements IEditorContribution {
 
 	public run(forward: boolean): TPromise<void> {
 
-		var selection = this.editor.getSelection();
-		var model = this.editor.getModel();
+		const selection = this.editor.getSelection();
+		const model = this.editor.getModel();
 
 		// forget about current state
-		if (state) {
-			if (state.editor !== this.editor) {
-				state = null;
+		if (this._state) {
+			if (this._state.editor !== this.editor) {
+				this._state = null;
 			}
 		}
 
-		var promise: TPromise<void> = TPromise.as(null);
-		if (!state) {
+		let promise: TPromise<void> = TPromise.as(null);
+		if (!this._state) {
 			promise = this._tokenSelectionSupport.getRangesToPosition(model.uri, selection.getStartPosition()).then((elements: ILogicalSelectionEntry[]) => {
 
 				if (arrays.isFalsyOrEmpty(elements)) {
 					return;
 				}
 
-				var lastState: State;
+				let lastState: State;
 				elements.filter((element) => {
 					// filter ranges inside the selection
-					var selection = this.editor.getSelection();
-					var range = new Range(element.range.startLineNumber, element.range.startColumn, element.range.endLineNumber, element.range.endColumn);
+					const selection = this.editor.getSelection();
+					const range = new Range(element.range.startLineNumber, element.range.startColumn, element.range.endLineNumber, element.range.endColumn);
 					return range.containsPosition(selection.getStartPosition()) && range.containsPosition(selection.getEndPosition());
 
 				}).forEach((element) => {
 					// create ranges
-					var range = element.range;
-					var state = new State(this.editor);
+					const range = element.range;
+					const state = new State(this.editor);
 					state.selection = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
 					if (lastState) {
 						state.next = lastState;
@@ -104,19 +104,19 @@ class SmartSelectController implements IEditorContribution {
 				});
 
 				// insert current selection
-				var editorState = new State(this.editor);
+				const editorState = new State(this.editor);
 				editorState.next = lastState;
 				if (lastState) {
 					lastState.previous = editorState;
 				}
-				state = editorState;
+				this._state = editorState;
 
 				// listen to caret move and forget about state
-				var unhook = this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
-					if (ignoreSelection) {
+				const unhook = this.editor.onDidChangeCursorPosition((e: ICursorPositionChangedEvent) => {
+					if (this._ignoreSelection) {
 						return;
 					}
-					state = null;
+					this._state = null;
 					unhook.dispose();
 				});
 			});
@@ -124,20 +124,20 @@ class SmartSelectController implements IEditorContribution {
 
 		return promise.then(() => {
 
-			if (!state) {
+			if (!this._state) {
 				return;
 			}
 
-			state = forward ? state.next : state.previous;
-			if (!state) {
+			this._state = forward ? this._state.next : this._state.previous;
+			if (!this._state) {
 				return;
 			}
 
-			ignoreSelection = true;
+			this._ignoreSelection = true;
 			try {
-				this.editor.setSelection(state.selection);
+				this.editor.setSelection(this._state.selection);
 			} finally {
-				ignoreSelection = false;
+				this._ignoreSelection = false;
 			}
 
 			return;

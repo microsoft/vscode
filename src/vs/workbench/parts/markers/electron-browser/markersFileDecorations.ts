@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { editorErrorForeground, editorWarningForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -50,7 +50,7 @@ class MarkersDecorationsProvider implements IDecorationsProvider {
 			bubble: true,
 			tooltip: markers.length === 1 ? localize('tooltip.1', "1 problem in this file") : localize('tooltip.N', "{0} problems in this file", markers.length),
 			letter: markers.length < 10 ? markers.length.toString() : '+9',
-			color: first.severity === MarkerSeverity.Error ? editorErrorForeground : editorWarningForeground,
+			color: first.severity === MarkerSeverity.Error ? listErrorForeground : listWarningForeground,
 		};
 	}
 }

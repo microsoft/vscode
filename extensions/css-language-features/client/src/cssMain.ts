@@ -10,7 +10,7 @@ const localize = nls.loadMessageBundle();
 
 import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeKind, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -27,14 +27,7 @@ export function activate(context: ExtensionContext) {
 		debug: { module: serverModule, transport: TransportKind.ipc, options: debugOptions }
 	};
 
-	let documentSelector = [
-		{ language: 'css', scheme: 'file' },
-		{ language: 'css', scheme: 'untitled' },
-		{ language: 'scss', scheme: 'file' },
-		{ language: 'scss', scheme: 'untitled' },
-		{ language: 'less', scheme: 'file' },
-		{ language: 'less', scheme: 'untitled' },
-	];
+	let documentSelector = ['css', 'scss', 'less'];
 
 	// Options to control the language client
 	let clientOptions: LanguageClientOptions = {
@@ -124,17 +117,18 @@ export function activate(context: ExtensionContext) {
 	}
 
 	function initFoldingProvider(): Disposable {
-		const kinds: { [value: string]: FoldingRangeKind } = Object.create(null);
-		function getKind(value: string | undefined) {
-			if (!value) {
-				return void 0;
+		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
+			if (kind) {
+				switch (kind) {
+					case LSFoldingRangeKind.Comment:
+						return FoldingRangeKind.Comment;
+					case LSFoldingRangeKind.Imports:
+						return FoldingRangeKind.Imports;
+					case LSFoldingRangeKind.Region:
+						return FoldingRangeKind.Region;
+				}
 			}
-			let kind = kinds[value];
-			if (!kind) {
-				kind = new FoldingRangeKind(value);
-				kinds[value] = kind;
-			}
-			return kind;
+			return void 0;
 		}
 		return languages.registerFoldingRangeProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {

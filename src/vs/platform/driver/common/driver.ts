@@ -34,12 +34,12 @@ export interface IDriver {
 	doubleClick(windowId: number, selector: string): TPromise<void>;
 	move(windowId: number, selector: string): TPromise<void>;
 	setValue(windowId: number, selector: string, text: string): TPromise<void>;
-	paste(windowId: number, selector: string, text: string): TPromise<void>;
 	getTitle(windowId: number): TPromise<string>;
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
 	getElements(windowId: number, selector: string, recursive?: boolean): TPromise<IElement[]>;
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void>;
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]>;
+	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void>;
 }
 //*END
 
@@ -52,12 +52,12 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'doubleClick', arg: [number, string]): TPromise<void>;
 	call(command: 'move', arg: [number, string]): TPromise<void>;
 	call(command: 'setValue', arg: [number, string, string]): TPromise<void>;
-	call(command: 'paste', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTitle', arg: [number]): TPromise<string>;
 	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
 	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTerminalBuffer', arg: [number, string]): TPromise<string[]>;
+	call(command: 'writeInTerminal', arg: [number, string, string]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -75,12 +75,12 @@ export class DriverChannel implements IDriverChannel {
 			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
 			case 'move': return this.driver.move(arg[0], arg[1]);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
-			case 'paste': return this.driver.paste(arg[0], arg[1], arg[2]);
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
+			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
 		}
 
 		return undefined;
@@ -125,10 +125,6 @@ export class DriverChannelClient implements IDriver {
 		return this.channel.call('setValue', [windowId, selector, text]);
 	}
 
-	paste(windowId: number, selector: string, text: string): TPromise<void> {
-		return this.channel.call('paste', [windowId, selector, text]);
-	}
-
 	getTitle(windowId: number): TPromise<string> {
 		return this.channel.call('getTitle', [windowId]);
 	}
@@ -148,15 +144,23 @@ export class DriverChannelClient implements IDriver {
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
 		return this.channel.call('getTerminalBuffer', [windowId, selector]);
 	}
+
+	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
+		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+	}
+}
+
+export interface IDriverOptions {
+	verbose: boolean;
 }
 
 export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): TPromise<void>;
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions>;
 	reloadWindowDriver(windowId: number): TPromise<void>;
 }
 
 export interface IWindowDriverRegistryChannel extends IChannel {
-	call(command: 'registerWindowDriver', arg: number): TPromise<void>;
+	call(command: 'registerWindowDriver', arg: number): TPromise<IDriverOptions>;
 	call(command: 'reloadWindowDriver', arg: number): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -181,7 +185,7 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 	constructor(private channel: IWindowDriverRegistryChannel) { }
 
-	registerWindowDriver(windowId: number): TPromise<void> {
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
 		return this.channel.call('registerWindowDriver', windowId);
 	}
 
@@ -195,12 +199,12 @@ export interface IWindowDriver {
 	doubleClick(selector: string): TPromise<void>;
 	move(selector: string): TPromise<void>;
 	setValue(selector: string, text: string): TPromise<void>;
-	paste(selector: string, text: string): TPromise<void>;
 	getTitle(): TPromise<string>;
 	isActiveElement(selector: string): TPromise<boolean>;
 	getElements(selector: string, recursive: boolean): TPromise<IElement[]>;
 	typeInEditor(selector: string, text: string): TPromise<void>;
 	getTerminalBuffer(selector: string): TPromise<string[]>;
+	writeInTerminal(selector: string, text: string): TPromise<void>;
 }
 
 export interface IWindowDriverChannel extends IChannel {
@@ -208,12 +212,12 @@ export interface IWindowDriverChannel extends IChannel {
 	call(command: 'doubleClick', arg: string): TPromise<void>;
 	call(command: 'move', arg: string): TPromise<void>;
 	call(command: 'setValue', arg: [string, string]): TPromise<void>;
-	call(command: 'paste', arg: [string, string]): TPromise<void>;
 	call(command: 'getTitle'): TPromise<string>;
 	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
 	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [string, string]): TPromise<void>;
 	call(command: 'getTerminalBuffer', arg: string): TPromise<string[]>;
+	call(command: 'writeInTerminal', arg: [string, string]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -227,12 +231,12 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'doubleClick': return this.driver.doubleClick(arg);
 			case 'move': return this.driver.move(arg);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
-			case 'paste': return this.driver.paste(arg[0], arg[1]);
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
+			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
 		}
 
 		return undefined;
@@ -261,10 +265,6 @@ export class WindowDriverChannelClient implements IWindowDriver {
 		return this.channel.call('setValue', [selector, text]);
 	}
 
-	paste(selector: string, text: string): TPromise<void> {
-		return this.channel.call('paste', [selector, text]);
-	}
-
 	getTitle(): TPromise<string> {
 		return this.channel.call('getTitle');
 	}
@@ -283,5 +283,9 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	getTerminalBuffer(selector: string): TPromise<string[]> {
 		return this.channel.call('getTerminalBuffer', selector);
+	}
+
+	writeInTerminal(selector: string, text: string): TPromise<void> {
+		return this.channel.call('writeInTerminal', [selector, text]);
 	}
 }

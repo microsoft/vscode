@@ -14,6 +14,7 @@
 	"fileInvalidPath": "Geçersiz dosya kaynağı ({0})",
 	"fileIsDirectoryError": "Dosya bir dizindir",
 	"fileNotModifiedError": "Dosya şu tarihten beri değiştirilmemiş:",
+	"fileTooLargeForHeapError": "Bu büyüklükte bir dosyayı açmak için, VS Code'u yeniden başlatmanız ve daha fazla bellek kullanmasına izin vermeniz gerekir",
 	"fileTooLargeError": "Dosya, açmak için çok büyük",
 	"fileNotFoundError": "Dosya bulunamadı ({0})",
 	"fileBinaryError": "Dosya ikili olarak görünüyor ve metin olarak açılamıyor",

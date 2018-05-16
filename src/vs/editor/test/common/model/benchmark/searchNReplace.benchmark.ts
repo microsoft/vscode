@@ -11,7 +11,7 @@ import { BenchmarkSuite } from 'vs/editor/test/common/model/benchmark/benchmarkU
 let fileSizes = [1, 1000, 64 * 1000, 32 * 1000 * 1000];
 
 for (let fileSize of fileSizes) {
-	let chunks = [];
+	let chunks: string[] = [];
 
 	let chunkCnt = Math.floor(fileSize / (64 * 1000));
 	if (chunkCnt === 0) {

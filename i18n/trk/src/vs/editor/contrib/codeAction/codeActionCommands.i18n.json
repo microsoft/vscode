@@ -8,5 +8,12 @@
 	],
 	"quickFixWithKb": "Düzeltmeleri Göster ({0})",
 	"quickFix": "Düzeltmeleri Göster",
-	"organizeImports.label": "İçe Aktarımları Düzenle"
+	"quickfix.trigger.label": "Hızlı Düzeltme...",
+	"editor.action.quickFix.noneMessage": "Hiçbir kod eylemi mevcut değil",
+	"refactor.label": "Elden Geçir...",
+	"editor.action.refactor.noneMessage": "Elden geçirme mevcut değil",
+	"source.label": "Kaynak Eylemi...",
+	"editor.action.source.noneMessage": "Hiçbir kaynak eylemi mevcut değil",
+	"organizeImports.label": "İçe Aktarımları Düzenle",
+	"editor.action.organize.noneMessage": "İçe aktarımları düzenle eylemi mevcut değil"
 }

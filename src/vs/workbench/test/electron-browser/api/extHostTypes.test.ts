@@ -182,8 +182,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => (range as any).start = null);
-		assert.throws(() => (range as any).start = new types.Position(0, 3));
+		assert.throws(() => { (range as any).start = null; });
+		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
 	test('Range, toJSON', function () {
@@ -512,5 +512,11 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+	});
+
+	test('instanceof doesn\'t work for FileSystemError #49386', function () {
+		const error = types.FileSystemError.Unavailable('foo');
+		assert.ok(error instanceof Error);
+		assert.ok(error instanceof types.FileSystemError);
 	});
 });

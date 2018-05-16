@@ -105,7 +105,5 @@
 	"selectionClipboard": "Controla se a área primária de transferência Linux deve ser suportada.",
 	"sideBySide": "Controla se o editor de diff mostra as diff lado a lado ou inline.",
 	"ignoreTrimWhitespace": "Controla se o editor de diff mostra alterações nos espaços iniciais ou finais como diferenças",
-	"largeFileSize": "Controles de limite de tamanho do arquivo em bytes além do qual são aplicadas as regras de otimização especial",
-	"largeFileLineCount": "Limite de tamanho de arquivo de controles em termos de número de linhas, além do qual são aplicadas as regras de otimização especial",
 	"renderIndicators": "Controla se o editor de diff mostra indicadores +/- para alterações adicionadas/removidas"
 }

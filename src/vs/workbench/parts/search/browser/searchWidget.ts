@@ -38,8 +38,9 @@ export interface ISearchWidgetOptions {
 	isRegex?: boolean;
 	isCaseSensitive?: boolean;
 	isWholeWords?: boolean;
-	history?: string[];
+	searchHistory?: string[];
 	historyLimit?: number;
+	replaceHistory?: string[];
 }
 
 class ReplaceAllAction extends Action {
@@ -96,6 +97,7 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 
 	private searchHistory: HistoryNavigator<string>;
+	private replaceHistory: HistoryNavigator<string>;
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string;
 
@@ -128,7 +130,8 @@ export class SearchWidget extends Widget {
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-		this.searchHistory = new HistoryNavigator<string>(options.history, options.historyLimit);
+		this.searchHistory = new HistoryNavigator<string>(options.searchHistory, options.historyLimit);
+		this.replaceHistory = new HistoryNavigator<string>(options.replaceHistory, options.historyLimit);
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.keyBindingService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.keyBindingService);
@@ -176,8 +179,12 @@ export class SearchWidget extends Widget {
 		}
 	}
 
-	public getHistory(): string[] {
+	public getSearchHistory(): string[] {
 		return this.searchHistory.getHistory();
+	}
+
+	public getReplaceHistory(): string[] {
+		return this.replaceHistory.getHistory();
 	}
 
 	public clearHistory(): void {
@@ -201,6 +208,26 @@ export class SearchWidget extends Widget {
 		}
 		if (previous) {
 			this.searchInput.setValue(previous);
+		}
+	}
+
+	public showNextReplaceTerm() {
+		let next = this.replaceHistory.next();
+		if (next) {
+			this.replaceInput.value = next;
+		}
+	}
+
+	public showPreviousReplaceTerm() {
+		let previous;
+		if (this.replaceInput.value.length === 0) {
+			previous = this.replaceHistory.current();
+		} else {
+			this.replaceHistory.addIfNotPresent(this.replaceInput.value);
+			previous = this.replaceHistory.previous();
+		}
+		if (previous) {
+			this.replaceInput.value = previous;
 		}
 	}
 
@@ -254,6 +281,12 @@ export class SearchWidget extends Widget {
 		this.searchInput.setWholeWords(!!options.isWholeWords);
 		this._register(this.onSearchSubmit(() => {
 			this.searchHistory.add(this.searchInput.getValue());
+		}));
+
+		this._register(this.onReplaceValueChanged(() => {
+			if ((this.replaceHistory.current() !== this.replaceInput.value) && (this.replaceInput.value)) {
+				this.replaceHistory.add(this.replaceInput.value);
+			}
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));

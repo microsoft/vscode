@@ -25,5 +25,6 @@
 	"peekViewEditorBackground": "Gözetleme görünümü düzenleyicisinin arka plan rengi.",
 	"peekViewEditorGutterBackground": "Gözetleme görünümü düzenleyicisindeki oluğun arka plan rengi.",
 	"peekViewResultsMatchHighlight": "Gözetleme görünümü sonuç listesindeki eşleşme vurgusu rengi.",
-	"peekViewEditorMatchHighlight": "Gözetleme görünümü düzenleyicisindeki eşleşme vurgusu rengi."
+	"peekViewEditorMatchHighlight": "Gözetleme görünümü düzenleyicisindeki eşleşme vurgusu rengi.",
+	"peekViewEditorMatchHighlightBorder": "Gözetleme görünümü düzenleyicisindeki eşleşme vurgusu kenarlığı."
 }
