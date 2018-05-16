@@ -115,7 +115,9 @@ export class ResetGridEditorAction extends Action {
 			}
 
 			await TPromise.join(group.editors.map(editor => group.closeEditor(editor)));
-			this.nextEditorGroupsService.removeGroup(group);
+			if (this.nextEditorGroupsService.getGroup(group.id)) {
+				this.nextEditorGroupsService.removeGroup(group);
+			}
 		}
 
 		return TPromise.as(void 0);

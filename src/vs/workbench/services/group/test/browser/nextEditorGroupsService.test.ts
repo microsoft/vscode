@@ -301,7 +301,7 @@ suite('Editor groups service (editor2)', () => {
 			assert.equal(rightGroup.count, 1);
 			assert.ok(rightGroup.activeEditor instanceof TestEditorInput);
 
-			part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+			part.mergeGroup(rootGroup, rightGroup, { mode: MergeGroupMode.MOVE_EDITORS });
 			assert.equal(rootGroup.count, 0);
 
 			part.mergeGroup(rootGroup, downGroup);

@@ -90,6 +90,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	//#endregion
 
 	private _group: EditorGroup;
+	private _disposed: boolean;
 
 	private active: boolean;
 	private dimension: Dimension;
@@ -489,15 +490,19 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		return this._label;
 	}
 
+	get disposed(): boolean {
+		return this._disposed;
+	}
+
+	get whenRestored(): Thenable<void> {
+		return this._whenRestored;
+	}
+
 	setLabel(label: string): void {
 		if (this._label !== label) {
 			this._label = label;
 			this._onDidLabelChange.fire();
 		}
-	}
-
-	get whenRestored(): Thenable<void> {
-		return this._whenRestored;
 	}
 
 	setActive(isActive: boolean): void {
@@ -1178,6 +1183,8 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	}
 
 	dispose(): void {
+		this._disposed = true;
+
 		this._onWillDispose.fire();
 
 		this.titleAreaControl.dispose();

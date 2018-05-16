@@ -496,36 +496,29 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	}
 
 	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
-		const groupView = this.assertGroupView(group);
-		const locationView = this.assertGroupView(location);
+		const sourceView = this.assertGroupView(group);
+		const targetView = this.assertGroupView(location);
 
-		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
-
-		// Target is same view: we first need to create the new group and then merge
-		// all editors of the group into it to preserve the view state.
-		let targetView: INextEditorGroupView;
-		if (groupView.id === locationView.id) {
-			targetView = this.doAddGroup(groupView, direction);
-			this.mergeGroup(groupView, targetView, { mode: MergeGroupMode.MOVE_EDITORS_KEEP_GROUP });
+		if (sourceView.id === targetView.id) {
+			throw new Error('Cannot move group into its own');
 		}
 
-		// Target is different view: operation is a simple remove and add
-		else {
-			targetView = groupView;
-			this.gridWidget.removeView(targetView, Sizing.Distribute);
-			this.gridWidget.addView(targetView, Sizing.Distribute, locationView, this.toGridViewDirection(direction));
-		}
+		const groupHasFocus = isAncestor(document.activeElement, sourceView.element);
+
+		// Move is a simple remove and add of the same view
+		this.gridWidget.removeView(sourceView, Sizing.Distribute);
+		this.gridWidget.addView(sourceView, Sizing.Distribute, targetView, this.toGridViewDirection(direction));
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this.focusGroup(targetView);
+			this.focusGroup(sourceView);
 		}
 
 		// Event
-		this._onDidMoveGroup.fire(groupView);
+		this._onDidMoveGroup.fire(sourceView);
 
-		return targetView;
+		return sourceView;
 	}
 
 	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
@@ -564,8 +557,8 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 			index++;
 		});
 
-		// Remove source (unless prevented)
-		if (!options || options.mode === MergeGroupMode.MOVE_EDITORS_REMOVE_GROUP) {
+		// Remove source if the view is now empty and not already removed
+		if (sourceView.isEmpty() && !sourceView.disposed /* could have been disposed already via workbench.editor.closeEmptyGroups setting */) {
 			this.removeGroup(sourceView);
 		}
 

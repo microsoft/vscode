@@ -52,8 +52,7 @@ export interface IAddGroupOptions {
 
 export enum MergeGroupMode {
 	COPY_EDITORS,
-	MOVE_EDITORS_REMOVE_GROUP,
-	MOVE_EDITORS_KEEP_GROUP
+	MOVE_EDITORS
 }
 
 export interface IMergeGroupOptions {
