@@ -8,7 +8,8 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { toWinJsPromise } from 'vs/base/common/async';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,7 +55,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@ITextEditorService private readonly _editorService: ITextEditorService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -209,13 +210,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
-		return this._editorService.openEditor({
+		return toWinJsPromise(this._editorService.openTextEditor({
 			resource: ref.uri,
 			options: { selection: range }
 		}).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
-			if (!openedEditor || openedEditor.getControl() !== this._editor) {
+			if (!openedEditor || openedEditor !== this._editor) {
 				// TODO@Alex TODO@Joh
 				// when opening the current reference we might end up
 				// in a different editor instance. that means we also have
@@ -233,12 +234,12 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		}, (err) => {
 			this._ignoreModelChangeEvent = false;
 			onUnexpectedError(err);
-		});
+		}));
 	}
 
 	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
-		this._editorService.openEditor({
+		this._editorService.openTextEditor({
 			resource: uri,
 			options: { selection: range }
 		}, sideBySide);

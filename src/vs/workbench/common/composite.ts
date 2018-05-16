@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IAction, IActionItem } from 'vs/base/common/actions';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
 
 export interface IComposite {
 

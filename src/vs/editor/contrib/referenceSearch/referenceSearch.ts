@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -24,7 +24,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
@@ -103,10 +103,9 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, position');
 	}
 
-	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
+	return accessor.get(ITextEditorService).openTextEditor({ resource }).then(control => {
 
-		let control = editor.getControl();
-		if (!isCodeEditor(control)) {
+		if (!control) {
 			return undefined;
 		}
 
@@ -126,10 +125,9 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, uri expected');
 	}
 
-	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
+	return accessor.get(ITextEditorService).openTextEditor({ resource }).then(control => {
 
-		let control = editor.getControl();
-		if (!isCodeEditor(control)) {
+		if (!control) {
 			return undefined;
 		}
 

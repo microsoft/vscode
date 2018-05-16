@@ -6,8 +6,8 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorInput, IEditorModel, GroupIdentifier } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorInput, EditorModel, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';

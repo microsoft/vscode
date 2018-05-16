@@ -9,7 +9,7 @@ import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IComposite } from 'vs/workbench/common/composite';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';

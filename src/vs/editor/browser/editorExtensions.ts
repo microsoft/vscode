@@ -16,7 +16,7 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -86,7 +86,7 @@ export abstract class Command {
 //#region EditorCommand
 
 function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(IEditorService);
+	const editorService = accessor.get(ITextEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	return getCodeEditor(activeEditor);
 }

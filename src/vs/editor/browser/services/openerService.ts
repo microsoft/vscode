@@ -9,7 +9,8 @@ import * as dom from 'vs/base/browser/dom';
 import { parse } from 'vs/base/common/marshalling';
 import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { toWinJsPromise } from 'vs/base/common/async';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { normalize } from 'vs/base/common/paths';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -22,7 +23,7 @@ export class OpenerService implements IOpenerService {
 	_serviceBrand: any;
 
 	constructor(
-		@IEditorService private readonly _editorService: IEditorService,
+		@ITextEditorService private readonly _editorService: ITextEditorService,
 		@ICommandService private readonly _commandService: ICommandService,
 		@optional(ITelemetryService) private _telemetryService: ITelemetryService = NullTelemetryService
 	) {
@@ -81,7 +82,7 @@ export class OpenerService implements IOpenerService {
 			} else if (resource.scheme === Schemas.file) {
 				resource = resource.with({ path: normalize(resource.path) }); // workaround for non-normalized paths (https://github.com/Microsoft/vscode/issues/12954)
 			}
-			promise = this._editorService.openEditor({ resource, options: { selection, } }, options && options.openToSide);
+			promise = toWinJsPromise(this._editorService.openTextEditor({ resource, options: { selection, } }, options && options.openToSide));
 		}
 
 		return promise;

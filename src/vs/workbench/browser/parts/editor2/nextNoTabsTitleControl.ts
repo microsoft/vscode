@@ -6,10 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/nextNoTabsTitleControl';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
 import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
-import { Verbosity, IEditorInput } from 'vs/platform/editor/common/editor';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';

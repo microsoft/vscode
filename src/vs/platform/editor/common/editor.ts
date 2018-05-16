@@ -6,21 +6,7 @@
 
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { Event } from 'vs/base/common/event';
-import { IDisposable } from 'vs/base/common/lifecycle';
-
-export const IEditorService = createDecorator<IEditorService>('editorService');
-
-export interface IEditorService {
-
-	_serviceBrand: any;
-
-	/**
-	 * Specific overload to open an instance of IResourceInput.
-	 */
-	openEditor(input: IResourceInput, sideBySide?: boolean): TPromise<IEditor>;
-}
 
 export interface IEditorModel {
 
@@ -69,189 +55,6 @@ export interface IResourceInput extends IBaseResourceInput {
 	 * The encoding of the text input if known.
 	 */
 	encoding?: string;
-}
-
-export interface IUntitledResourceInput extends IBaseResourceInput {
-
-	/**
-	 * Optional resource. If the resource is not provided a new untitled file is created.
-	 */
-	resource?: URI;
-
-	/**
-	 * Optional file path. Using the file resource will associate the file to the untitled resource.
-	 */
-	filePath?: string;
-
-	/**
-	 * Optional language of the untitled resource.
-	 */
-	language?: string;
-
-	/**
-	 * Optional contents of the untitled resource.
-	 */
-	contents?: string;
-
-	/**
-	 * Optional encoding of the untitled resource.
-	 */
-	encoding?: string;
-}
-
-export interface IResourceDiffInput extends IBaseResourceInput {
-
-	/**
-	 * The left hand side URI to open inside a diff editor.
-	 */
-	leftResource: URI;
-
-	/**
-	 * The right hand side URI to open inside a diff editor.
-	 */
-	rightResource: URI;
-}
-
-export interface IResourceSideBySideInput extends IBaseResourceInput {
-
-	/**
-	 * The right hand side URI to open inside a side by side editor.
-	 */
-	masterResource: URI;
-
-	/**
-	 * The left hand side URI to open inside a side by side editor.
-	 */
-	detailResource: URI;
-}
-
-/**
- * Marker interface for the editor control
- */
-export interface IEditorControl { }
-
-export type GroupIdentifier = number;
-
-export interface IEditor {
-
-	/**
-	 * The assigned input of this editor.
-	 */
-	input: IEditorInput;
-
-	/**
-	 * The assigned options of this editor.
-	 */
-	options: IEditorOptions;
-
-	/**
-	 * The assigned group this editor is showing in.
-	 */
-	group: GroupIdentifier;
-
-	/**
-	 * Returns the unique identifier of this editor.
-	 */
-	getId(): string;
-
-	/**
-	 * Returns the underlying control of this editor.
-	 */
-	getControl(): IEditorControl;
-
-	/**
-	 * Asks the underlying control to focus.
-	 */
-	focus(): void;
-
-	/**
-	 * Finds out if this editor is visible or not.
-	 */
-	isVisible(): boolean;
-}
-
-/**
- * Possible locations for opening an editor.
- */
-export enum Position {
-
-	/** Opens the editor in the first position replacing the input currently showing */
-	ONE = 0,
-
-	/** Opens the editor in the second position replacing the input currently showing */
-	TWO = 1,
-
-	/** Opens the editor in the third most position replacing the input currently showing */
-	THREE = 2
-}
-
-export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
-
-export enum Verbosity {
-	SHORT,
-	MEDIUM,
-	LONG
-}
-
-export interface IRevertOptions {
-
-	/**
-	 *  Forces to load the contents of the editor again even if the editor is not dirty.
-	 */
-	force?: boolean;
-
-	/**
-	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
-	 */
-	soft?: boolean;
-}
-
-export interface IEditorInput extends IDisposable {
-
-	/**
-	 * Triggered when this input is disposed.
-	 */
-	onDispose: Event<void>;
-
-	/**
-	 * Returns the associated resource of this input.
-	 */
-	getResource(): URI;
-
-	/**
-	 * Returns the display name of this input.
-	 */
-	getName(): string;
-
-	/**
-	 * Returns the display description of this input.
-	 */
-	getDescription(verbosity?: Verbosity): string;
-
-	/**
-	 * Returns the display title of this input.
-	 */
-	getTitle(verbosity?: Verbosity): string;
-
-	/**
-	 * Resolves the input.
-	 */
-	resolve(): TPromise<IEditorModel>;
-
-	/**
-	 * Returns if this input is dirty or not.
-	 */
-	isDirty(): boolean;
-
-	/**
-	 * Reverts this input.
-	 */
-	revert(options?: IRevertOptions): TPromise<boolean>;
-
-	/**
-	 * Returns if the other object matches this input.
-	 */
-	matches(other: any): boolean;
 }
 
 export interface IEditorOptions {
@@ -325,3 +128,24 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 */
 	revealInCenterIfOutsideViewport?: boolean;
 }
+
+//#region TODO@grid obsolete
+
+/**
+ * Possible locations for opening an editor.
+ */
+export enum Position {
+
+	/** Opens the editor in the first position replacing the input currently showing */
+	ONE = 0,
+
+	/** Opens the editor in the second position replacing the input currently showing */
+	TWO = 1,
+
+	/** Opens the editor in the third most position replacing the input currently showing */
+	THREE = 2
+}
+
+export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
+
+//#endregion

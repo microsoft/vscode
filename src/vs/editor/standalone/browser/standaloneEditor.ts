@@ -21,7 +21,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData, IMarker } from 'vs/platform/markers/common/markers';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -45,9 +45,9 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 
 	// The editorService is a lovely beast. It needs to point back to the code editor instance...
 	let simpleEditorService: SimpleEditorService = null;
-	if (!services.has(IEditorService)) {
+	if (!services.has(ITextEditorService)) {
 		simpleEditorService = new SimpleEditorService();
-		services.set(IEditorService, simpleEditorService);
+		services.set(ITextEditorService, simpleEditorService);
 	}
 
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
@@ -57,7 +57,7 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 	}
 
 	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(IEditorService), services.get(ICommandService)));
+		services.set(IOpenerService, new OpenerService(services.get(ITextEditorService), services.get(ICommandService)));
 	}
 
 	let result = callback(services);

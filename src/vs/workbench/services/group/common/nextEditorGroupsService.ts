@@ -7,8 +7,8 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
-import { IEditorInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 

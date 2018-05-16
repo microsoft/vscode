@@ -22,7 +22,7 @@ import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/co
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
@@ -1621,7 +1621,7 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 }
 
 function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(IEditorService);
+	const editorService = accessor.get(ITextEditorService);
 	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
 	return getCodeEditor(activeEditor);
 }

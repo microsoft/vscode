@@ -6,8 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, IEditor } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';

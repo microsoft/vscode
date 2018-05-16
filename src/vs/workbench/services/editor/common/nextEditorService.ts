@@ -6,8 +6,8 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';

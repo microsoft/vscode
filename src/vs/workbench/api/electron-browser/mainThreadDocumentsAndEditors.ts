@@ -13,7 +13,8 @@ import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, IText
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';

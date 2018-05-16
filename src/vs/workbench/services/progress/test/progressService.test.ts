@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';

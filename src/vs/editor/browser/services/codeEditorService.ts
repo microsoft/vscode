@@ -8,7 +8,6 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
-import { IEditor } from 'vs/platform/editor/common/editor';
 import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
@@ -46,7 +45,7 @@ export interface ICodeEditorService {
 /**
  * Uses `editor.getControl()` and returns either a `codeEditor` or a `diffEditor` or nothing.
  */
-export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
+export function getCodeOrDiffEditor(editor: { getControl: () => any }): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
 	if (editor) {
 		let control = editor.getControl();
 		if (control) {
@@ -74,7 +73,7 @@ export function getCodeOrDiffEditor(editor: IEditor): { codeEditor: ICodeEditor;
 /**
  * Uses `editor.getControl()` and returns either the code editor, or the modified editor of a diff editor or nothing.
  */
-export function getCodeEditor(editor: IEditor): ICodeEditor {
+export function getCodeEditor(editor: { getControl: () => any }): ICodeEditor {
 	let r = getCodeOrDiffEditor(editor);
 	return r.codeEditor || (r.diffEditor && <ICodeEditor>r.diffEditor.getModifiedEditor()) || null;
 }

@@ -12,7 +12,7 @@ import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import * as arrays from 'vs/base/common/arrays';
-import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, IEditorInput } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -35,7 +35,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';

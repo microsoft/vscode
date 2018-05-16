@@ -6,8 +6,8 @@
 'use strict';
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IResourceInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditor, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { GroupIdentifier, IFileEditorInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,13 +29,14 @@ import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { toWinJsPromise } from 'vs/base/common/async';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
-export class NextEditorService extends Disposable implements INextEditorService {
+export class NextEditorService extends Disposable implements INextEditorService, ITextEditorService {
 
 	_serviceBrand: any;
 
@@ -167,6 +168,27 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	get visibleEditors(): IEditorInput[] {
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
 	}
+
+	//#region openTextEditor()
+
+	openTextEditor(editor: IResourceInput, sideBySide?: boolean): Thenable<ICodeEditor> {
+		return this.openEditor(editor, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(control => {
+			if (!control) {
+				return null;
+			}
+
+			if (control) {
+				const widget = control.getControl();
+				if (isCodeEditor(widget)) {
+					return widget;
+				}
+			}
+
+			return null;
+		});
+	}
+
+	//#endregion
 
 	//#region openEditor()
 

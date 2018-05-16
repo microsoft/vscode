@@ -6,8 +6,8 @@
 'use strict';
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { Position, IEditorInput } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, IEditorGroup, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorStacksModel, IEditorGroup, IEditorOpeningEvent, IEditorInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 
 export enum GroupArrangement {

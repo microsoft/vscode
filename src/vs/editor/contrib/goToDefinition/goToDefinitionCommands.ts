@@ -10,7 +10,8 @@ import { alert } from 'vs/base/browser/ui/aria/aria';
 import { KeyCode, KeyMod, KeyChord } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { toWinJsPromise } from 'vs/base/common/async';
 import { Range } from 'vs/editor/common/core/range';
 import { registerEditorAction, IActionOptions, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { Location } from 'vs/editor/common/modes';
@@ -50,7 +51,7 @@ export class DefinitionAction extends EditorAction {
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		const notificationService = accessor.get(INotificationService);
-		const editorService = accessor.get(IEditorService);
+		const editorService = accessor.get(ITextEditorService);
 		const progressService = accessor.get(IProgressService);
 
 		const model = editor.getModel();
@@ -125,7 +126,7 @@ export class DefinitionAction extends EditorAction {
 		return model.references.length > 1 && nls.localize('meta.title', " – {0} definitions", model.references.length);
 	}
 
-	private _onResult(editorService: IEditorService, editor: ICodeEditor, model: ReferencesModel) {
+	private _onResult(editorService: ITextEditorService, editor: ICodeEditor, model: ReferencesModel) {
 
 		const msg = model.getAriaMessage();
 		alert(msg);
@@ -144,21 +145,19 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editorService: IEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
+	private _openReference(editorService: ITextEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
 		let { uri, range } = reference;
-		return editorService.openEditor({
+		return toWinJsPromise(editorService.openTextEditor({
 			resource: uri,
 			options: {
 				selection: Range.collapseToStart(range),
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
-		}, sideBySide).then(editor => {
-			return editor && <ICodeEditor>editor.getControl();
-		});
+		}, sideBySide));
 	}
 
-	private _openInPeek(editorService: IEditorService, target: ICodeEditor, model: ReferencesModel) {
+	private _openInPeek(editorService: ITextEditorService, target: ICodeEditor, model: ReferencesModel) {
 		let controller = ReferencesController.get(target);
 		if (controller) {
 			controller.toggleWidget(target.getSelection(), TPromise.as(model), {

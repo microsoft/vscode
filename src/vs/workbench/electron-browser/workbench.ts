@@ -21,9 +21,9 @@ import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileS
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
-import { IResourceDiffInput, IUntitledResourceInput, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -115,6 +115,7 @@ import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEdit
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -192,7 +193,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 
-	private editorService: INextEditorService;
+	private editorService: NextEditorService;
 	private editorGroupsService: INextEditorGroupsService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
@@ -388,6 +389,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(NextEditorService);
 		serviceCollection.set(INextEditorService, this.editorService);
+		serviceCollection.set(ITextEditorService, this.editorService);
 
 		// Opener service
 		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));

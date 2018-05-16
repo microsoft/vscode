@@ -7,7 +7,8 @@
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { OpenerService } from 'vs/editor/browser/services/openerService';
 
@@ -15,10 +16,12 @@ suite('OpenerService', function () {
 
 	let lastInput: IResourceInput;
 
-	const editorService = new class implements IEditorService {
+	const editorService = new class implements ITextEditorService {
 		_serviceBrand: any;
-		openEditor(input: IResourceInput): any {
+		openTextEditor(input: IResourceInput): any {
 			lastInput = input;
+
+			return TPromise.as(null);
 		}
 	};
 

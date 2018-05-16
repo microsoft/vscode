@@ -10,7 +10,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, GroupIdentifier } from 'vs/platform/editor/common/editor';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -48,11 +49,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
 
-export class SimpleEditor implements IEditor {
-
-	public input: IEditorInput;
-	public options: IEditorOptions;
-	public group: GroupIdentifier;
+export class SimpleEditor {
 
 	public _widget: editorCommon.IEditor;
 
@@ -107,7 +104,7 @@ export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-export class SimpleEditorService implements IEditorService {
+export class SimpleEditorService implements ITextEditorService {
 	public _serviceBrand: any;
 
 	private editor: SimpleEditor;
@@ -125,7 +122,7 @@ export class SimpleEditorService implements IEditorService {
 		this.openEditorDelegate = openEditorDelegate;
 	}
 
-	public openEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<IEditor> {
+	public openTextEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
 		return TPromise.as(this.editor.withTypedEditor(
 			(editor) => this.doOpenEditor(editor, typedData),
 			(diffEditor) => (
@@ -135,7 +132,7 @@ export class SimpleEditorService implements IEditorService {
 		));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
+	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): ICodeEditor {
 		let model = this.findModel(editor, data);
 		if (!model) {
 			if (data.resource) {
@@ -147,7 +144,7 @@ export class SimpleEditorService implements IEditorService {
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
 						dom.windowOpenNoOpener(data.resource.toString());
-						return this.editor;
+						return this.editor.getControl() as ICodeEditor;
 					}
 				}
 			}
@@ -169,7 +166,7 @@ export class SimpleEditorService implements IEditorService {
 			}
 		}
 
-		return this.editor;
+		return this.editor.getControl() as ICodeEditor;
 	}
 
 	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {

@@ -9,8 +9,8 @@ import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 
 class InspectKeyMap extends EditorAction {
 

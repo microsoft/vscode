@@ -11,7 +11,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
-import { IEditorInput, IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position, Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,6 +37,49 @@ export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
  * Binary diff editor id.
  */
 export const BINARY_DIFF_EDITOR_ID = 'workbench.editors.binaryResourceDiffEditor';
+
+export interface IEditor {
+
+	/**
+	 * The assigned input of this editor.
+	 */
+	input: IEditorInput;
+
+	/**
+	 * The assigned options of this editor.
+	 */
+	options: IEditorOptions;
+
+	/**
+	 * The assigned group this editor is showing in.
+	 */
+	group: GroupIdentifier;
+
+	/**
+	 * Returns the unique identifier of this editor.
+	 */
+	getId(): string;
+
+	/**
+	 * Returns the underlying control of this editor.
+	 */
+	getControl(): IEditorControl;
+
+	/**
+	 * Asks the underlying control to focus.
+	 */
+	focus(): void;
+
+	/**
+	 * Finds out if this editor is visible or not.
+	 */
+	isVisible(): boolean;
+}
+
+/**
+ * Marker interface for the editor control
+ */
+export interface IEditorControl { }
 
 export interface IFileInputFactory {
 
@@ -89,6 +132,127 @@ export interface IEditorInputFactory {
 	 * the value returned from the serialize() method.
 	 */
 	deserialize(instantiationService: IInstantiationService, serializedEditorInput: string): EditorInput;
+}
+
+export interface IUntitledResourceInput extends IBaseResourceInput {
+
+	/**
+	 * Optional resource. If the resource is not provided a new untitled file is created.
+	 */
+	resource?: URI;
+
+	/**
+	 * Optional file path. Using the file resource will associate the file to the untitled resource.
+	 */
+	filePath?: string;
+
+	/**
+	 * Optional language of the untitled resource.
+	 */
+	language?: string;
+
+	/**
+	 * Optional contents of the untitled resource.
+	 */
+	contents?: string;
+
+	/**
+	 * Optional encoding of the untitled resource.
+	 */
+	encoding?: string;
+}
+
+export interface IResourceDiffInput extends IBaseResourceInput {
+
+	/**
+	 * The left hand side URI to open inside a diff editor.
+	 */
+	leftResource: URI;
+
+	/**
+	 * The right hand side URI to open inside a diff editor.
+	 */
+	rightResource: URI;
+}
+
+export interface IResourceSideBySideInput extends IBaseResourceInput {
+
+	/**
+	 * The right hand side URI to open inside a side by side editor.
+	 */
+	masterResource: URI;
+
+	/**
+	 * The left hand side URI to open inside a side by side editor.
+	 */
+	detailResource: URI;
+}
+
+export enum Verbosity {
+	SHORT,
+	MEDIUM,
+	LONG
+}
+
+export interface IRevertOptions {
+
+	/**
+	 *  Forces to load the contents of the editor again even if the editor is not dirty.
+	 */
+	force?: boolean;
+
+	/**
+	 * A soft revert will clear dirty state of an editor but will not attempt to load it.
+	 */
+	soft?: boolean;
+}
+
+export interface IEditorInput extends IDisposable {
+
+	/**
+	 * Triggered when this input is disposed.
+	 */
+	onDispose: Event<void>;
+
+	/**
+	 * Returns the associated resource of this input.
+	 */
+	getResource(): URI;
+
+	/**
+	 * Returns the display name of this input.
+	 */
+	getName(): string;
+
+	/**
+	 * Returns the display description of this input.
+	 */
+	getDescription(verbosity?: Verbosity): string;
+
+	/**
+	 * Returns the display title of this input.
+	 */
+	getTitle(verbosity?: Verbosity): string;
+
+	/**
+	 * Resolves the input.
+	 */
+	resolve(): TPromise<IEditorModel>;
+
+	/**
+	 * Returns if this input is dirty or not.
+	 */
+	isDirty(): boolean;
+
+	/**
+	 * Reverts this input.
+	 */
+	revert(options?: IRevertOptions): TPromise<boolean>;
+
+	/**
+	 * Returns if the other object matches this input.
+	 */
+	matches(other: any): boolean;
 }
 
 /**
