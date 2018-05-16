@@ -31,7 +31,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
-import { isUndefined } from 'vs/base/common/types';
+import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -599,13 +599,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = viewStateA && !isUndefined(viewStateA.order) ? viewStateA.order : a.order;
-				const orderB = viewStateB && !isUndefined(viewStateB.order) ? viewStateB.order : b.order;
+				const orderA = viewStateA ? viewStateA.order : a.order;
+				const orderB = viewStateB ? viewStateB.order : b.order;
 
-				if (orderB === void 0 || orderB === null) {
+				if (isUndefinedOrNull(orderB)) {
 					return -1;
 				}
-				if (orderA === void 0 || orderA === null) {
+				if (isUndefinedOrNull(orderA)) {
 					return 1;
 				}
 
