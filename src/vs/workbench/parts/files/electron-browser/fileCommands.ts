@@ -41,7 +41,7 @@ import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 // Commands
 
@@ -266,12 +266,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	},
 	id: OPEN_TO_SIDE_COMMAND_ID, handler: (accessor, resource: URI | object) => {
 		const editorService = accessor.get(INextEditorService);
-		const editorGroupService = accessor.get(INextEditorGroupsService);
 		const listService = accessor.get(IListService);
 		const fileService = accessor.get(IFileService);
 		const tree = listService.lastFocusedList;
 		const resources = getMultiSelectedResources(resource, listService, editorService);
-		const activeGroup = editorGroupService.activeGroup;
 
 		// Remove highlight
 		if (tree instanceof Tree) {
@@ -282,15 +280,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		if (resources.length) {
 			return fileService.resolveFiles(resources.map(resource => ({ resource }))).then(resolved => {
 				const editors = resolved.filter(r => r.success && !r.stat.isDirectory).map(r => ({
-					resource: r.stat.resource,
-					options: { preserveFocus: false }
+					resource: r.stat.resource
 				}));
 
-				return editorService.openEditors(editors, SIDE_GROUP).then(() => {
-					if (activeGroup) {
-						editorGroupService.focusGroup(editorGroupService.findNeighbourGroup(activeGroup, GroupDirection.RIGHT));
-					}
-				});
+				return editorService.openEditors(editors, SIDE_GROUP);
 			});
 		}
 

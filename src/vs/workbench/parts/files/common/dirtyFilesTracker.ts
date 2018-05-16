@@ -11,7 +11,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { platform, Platform } from 'vs/base/common/platform';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -31,7 +30,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@INextEditorGroupsService privateeditorGroupService: INextEditorGroupsService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@INextEditorService private editorService: INextEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
@@ -91,7 +90,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	private doOpenDirtyResources(resources: URI[]): void {
 		const activeEditor = this.editorService.activeControl;
-		const activePosition = activeEditor ? activeEditor.group : Position.ONE;
+		const activeGroup = activeEditor ? activeEditor.group : this.editorGroupService.activeGroup.id;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
@@ -99,7 +98,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 				resource,
 				options: { inactive: true, pinned: true, preserveFocus: true }
 			};
-		}), activePosition).then(undefined, errors.onUnexpectedError);
+		}), activeGroup).then(undefined, errors.onUnexpectedError);
 	}
 
 	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {

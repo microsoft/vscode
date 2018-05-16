@@ -77,10 +77,10 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	private registerListeners(): void {
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChanged(): void {
 		let isActiveEditorSaveConflictResolution = false;
 		let activeConflictResolutionResource: URI;
 
@@ -317,7 +317,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	const editor = editorService.activeControl;
 	const input = editor.input;
-	const position = editor.group;
+	const group = editor.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -335,12 +335,12 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 			return model.save().then(() => {
 
 				// Reopen file input
-				return editorService.openEditor({ resource: model.getResource() }, position).then(() => {
+				return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 					// Clean up
 					input.dispose();
 					reference.dispose();
-					editorService.closeEditor(input, position);
+					editorService.closeEditor(input, group);
 				});
 			});
 		});
@@ -353,7 +353,7 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 	const editor = editorService.activeControl;
 	const input = editor.input;
-	const position = editor.group;
+	const group = editor.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -364,12 +364,12 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 		return model.revert().then(() => {
 
 			// Reopen file input
-			return editorService.openEditor({ resource: model.getResource() }, position).then(() => {
+			return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 				// Clean up
 				input.dispose();
 				reference.dispose();
-				editorService.closeEditor(input, position);
+				editorService.closeEditor(input, group);
 			});
 		});
 	});
