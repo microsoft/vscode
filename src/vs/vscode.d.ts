@@ -5871,6 +5871,21 @@ declare module 'vscode' {
 	export interface TreeView<T> extends Disposable {
 
 		/**
+		 * Event that is fired when an element is expanded
+		 */
+		readonly onDidExpandElement: Event<T>;
+
+		/**
+		 * Event that is fired when an element is collapsed
+		 */
+		readonly onDidCollapseElement: Event<T>;
+
+		/**
+		 * Currently selected elements.
+		 */
+		readonly selectedElements: T[];
+
+		/**
 		 * Reveal an element. By default revealed element is selected.
 		 *
 		 * In order to not to select, set the option `select` to `false`.
