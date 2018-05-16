@@ -31,6 +31,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
+import { isUndefined } from 'vs/base/common/types';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -301,7 +302,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
 		let viewState = this.viewsStates.get(id);
 		if (!viewState) {
-			return TPromise.as(null);
+			const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(v => v.id === id)[0];
+			if (viewDescriptor && viewDescriptor.hideByDefault) {
+				viewState = { collapsed: viewDescriptor.collapsed, order: viewDescriptor.order, isHidden: void 0, size: void 0 };
+				this.viewsStates.set(id, viewState);
+			} else {
+				return TPromise.as(null);
+			}
 		}
 
 		viewState.isHidden = !!this.getView(id);
@@ -579,8 +586,8 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 			.sort((a, b) => {
 				const viewStateA = this.viewsStates.get(a.id);
 				const viewStateB = this.viewsStates.get(b.id);
-				const orderA = viewStateA ? viewStateA.order : a.order;
-				const orderB = viewStateB ? viewStateB.order : b.order;
+				const orderA = viewStateA && !isUndefined(viewStateA.order) ? viewStateA.order : a.order;
+				const orderB = viewStateB && !isUndefined(viewStateB.order) ? viewStateB.order : b.order;
 
 				if (orderB === void 0 || orderB === null) {
 					return -1;

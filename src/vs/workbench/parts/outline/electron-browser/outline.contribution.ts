@@ -15,7 +15,8 @@ const _outlineDesc = <IViewDescriptor>{
 	ctor: OutlinePanel,
 	location: ViewLocation.Explorer,
 	canToggleVisibility: true,
-	hideByDefault: true
+	hideByDefault: true,
+	order: 2
 };
 
 ViewsRegistry.registerViews([_outlineDesc]);
