@@ -103,9 +103,7 @@ class NavBar {
 		const run = () => this._update(id);
 		const action = new Action(id, label, null, true, run);
 
-		if (!action.tooltip) {
-			action.tooltip = tooltip;
-		}
+		action.tooltip = tooltip;
 
 		this.actions.push(action);
 		this.actionbar.push(action);
