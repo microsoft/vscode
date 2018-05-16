@@ -49,30 +49,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
 
-export class SimpleEditor {
-
-	public _widget: editorCommon.IEditor;
-
-	constructor(editor: editorCommon.IEditor) {
-		this._widget = editor;
-	}
-
-	public getId(): string { return 'editor'; }
-	public getControl(): editorCommon.IEditor { return this._widget; }
-	public focus(): void { this._widget.focus(); }
-	public isVisible(): boolean { return true; }
-
-	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (isCodeEditor(this._widget)) {
-			// Single Editor
-			return codeEditorCallback(<ICodeEditor>this._widget);
-		} else {
-			// Diff Editor
-			return diffEditorCallback(<IDiffEditor>this._widget);
-		}
-	}
-}
-
 export class SimpleModel implements ITextEditorModel {
 
 	private model: ITextModel;
@@ -104,10 +80,20 @@ export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
+function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
+	if (isCodeEditor(widget)) {
+		// Single Editor
+		return codeEditorCallback(<ICodeEditor>widget);
+	} else {
+		// Diff Editor
+		return diffEditorCallback(<IDiffEditor>widget);
+	}
+}
+
 export class SimpleEditorService implements ITextEditorService {
 	public _serviceBrand: any;
 
-	private editor: SimpleEditor;
+	private editor: editorCommon.IEditor;
 	private openEditorDelegate: IOpenEditorDelegate;
 
 	constructor() {
@@ -115,7 +101,7 @@ export class SimpleEditorService implements ITextEditorService {
 	}
 
 	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
+		this.editor = editor;
 	}
 
 	public setOpenEditorDelegate(openEditorDelegate: IOpenEditorDelegate): void {
@@ -123,7 +109,7 @@ export class SimpleEditorService implements ITextEditorService {
 	}
 
 	public openTextEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
-		return TPromise.as(this.editor.withTypedEditor(
+		return TPromise.as(withTypedEditor(this.editor,
 			(editor) => this.doOpenEditor(editor, typedData),
 			(diffEditor) => (
 				this.doOpenEditor(diffEditor.getOriginalEditor(), typedData) ||
@@ -144,7 +130,7 @@ export class SimpleEditorService implements ITextEditorService {
 					if (schema === Schemas.http || schema === Schemas.https) {
 						// This is a fully qualified http or https URL
 						dom.windowOpenNoOpener(data.resource.toString());
-						return this.editor.getControl() as ICodeEditor;
+						return editor;
 					}
 				}
 			}
@@ -166,7 +152,7 @@ export class SimpleEditorService implements ITextEditorService {
 			}
 		}
 
-		return this.editor.getControl() as ICodeEditor;
+		return editor;
 	}
 
 	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
@@ -182,16 +168,16 @@ export class SimpleEditorService implements ITextEditorService {
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: SimpleEditor;
+	private editor: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
+		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		let model: ITextModel;
 
-		model = this.editor.withTypedEditor(
+		model = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
 		);
