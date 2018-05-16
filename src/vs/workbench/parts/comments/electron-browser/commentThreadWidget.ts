@@ -197,7 +197,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this._secondaryHeading = $('span.dirname').appendTo(titleElement).getHTMLElement();
 		this._metaHeading = $('span.meta').appendTo(titleElement).getHTMLElement();
 
-		let primaryHeading = 'Reviewers:';
+		let primaryHeading = 'Participants:';
 		$(this._primaryHeading).safeInnerHtml(primaryHeading);
 		this._primaryHeading.setAttribute('aria-label', primaryHeading);
 

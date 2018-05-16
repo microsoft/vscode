@@ -54,7 +54,7 @@
         },
         {
           "id": "prStatus",
-          "name": "Changes From Pull Request",
+          "name": "Changes In Pull Request",
           "when": "git:ispr"
         }
       ]
@@ -69,7 +69,7 @@
       },
       {
         "command": "pr.pick",
-        "title": "Checkout Source Branch"
+        "title": "Checkout Pull Request"
       },
       {
         "command": "pr.openInGitHub",

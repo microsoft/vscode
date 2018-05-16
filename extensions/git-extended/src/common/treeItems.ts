@@ -52,13 +52,13 @@ export class PRGroupTreeItem implements vscode.TreeItem {
 				this.label = 'All';
 				break;
 			case PRType.RequestReview:
-				this.label = 'Request Review';
+				this.label = 'Waiting For My Review';
 				break;
 			case PRType.ReviewedByMe:
 				this.label = 'Reviewed By Me';
 				break;
 			case PRType.Mine:
-				this.label = 'Mine';
+				this.label = 'Created By Me';
 				break;
 			case PRType.LocalPullRequest:
 				this.label = 'Local Pull Request Branches';
