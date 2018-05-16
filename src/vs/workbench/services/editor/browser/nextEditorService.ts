@@ -419,14 +419,6 @@ export class NextEditorService extends Disposable implements INextEditorService,
 
 	//#endregion
 
-	//#region closeEditor()
-
-	closeEditor(editor: IEditorInput, group: INextEditorGroup | GroupIdentifier): TPromise<void> {
-		return (typeof group === 'number' ? this.nextEditorGroupsService.getGroup(group) : group).closeEditor(editor);
-	}
-
-	//#endregion
-
 	//#region invokeWithinEditorContext()
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {

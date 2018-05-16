@@ -119,7 +119,7 @@ suite('Editor service (editor2)', () => {
 			assert.equal(willOpenEditorEventCounter, 1);
 
 			// Close input
-			service.closeEditor(input, editor.group);
+			part.getGroup(editor.group).closeEditor(input);
 			assert.equal(willCloseEditorListenerCounter, 1);
 			assert.equal(didCloseEditorListenerCounter, 1);
 			assert.equal(activeEditorChangeEventCounter, 2);
@@ -305,10 +305,10 @@ suite('Editor service (editor2)', () => {
 			return service.openEditor(input, { pinned: true }, rightGroup).then(editor => {
 
 				// Close input
-				return service.closeEditor(input, rootGroup).then(() => {
+				return rootGroup.closeEditor(input).then(() => {
 					assert.equal(input.isDisposed(), false);
 
-					return service.closeEditor(input, rightGroup).then(() => {
+					return rightGroup.closeEditor(input).then(() => {
 						assert.equal(input.isDisposed(), true);
 					});
 				});
@@ -339,12 +339,12 @@ suite('Editor service (editor2)', () => {
 			return service.openEditor(diffInput, { pinned: true }, rightGroup).then(editor => {
 
 				// Close input
-				return service.closeEditor(diffInput, rootGroup).then(() => {
+				return rootGroup.closeEditor(diffInput).then(() => {
 					assert.equal(diffInput.isDisposed(), false);
 					assert.equal(input.isDisposed(), false);
 					assert.equal(otherInput.isDisposed(), false);
 
-					return service.closeEditor(diffInput, rightGroup).then(() => {
+					return rightGroup.closeEditor(diffInput).then(() => {
 						assert.equal(diffInput.isDisposed(), true);
 						assert.equal(input.isDisposed(), true);
 						assert.equal(otherInput.isDisposed(), true);
@@ -373,7 +373,7 @@ suite('Editor service (editor2)', () => {
 		return service.openEditor(diffInput, { pinned: true }).then(editor => {
 
 			// Close input
-			return service.closeEditor(diffInput, editor.group).then(() => {
+			return part.getGroup(editor.group).closeEditor(diffInput).then(() => {
 				assert.equal(diffInput.isDisposed(), true);
 				assert.equal(otherInput.isDisposed(), true);
 				assert.equal(input.isDisposed(), true);
@@ -401,7 +401,7 @@ suite('Editor service (editor2)', () => {
 			return service.openEditor(input, { pinned: true }).then(editor => {
 
 				// Close input
-				return service.closeEditor(diffInput, editor.group).then(() => {
+				return part.getGroup(editor.group).closeEditor(diffInput).then(() => {
 					assert.equal(diffInput.isDisposed(), true);
 					assert.equal(otherInput.isDisposed(), true);
 					assert.equal(input.isDisposed(), false);

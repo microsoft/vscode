@@ -208,7 +208,7 @@ export class TextFileEditor extends BaseTextEditor {
 	private openAsFolder(input: FileEditorInput): boolean {
 
 		// Since we cannot open a folder, we have to restore the previous input if any and close the editor
-		this.editorService.closeEditor(this.input, this.group).then(() => {
+		this.editorGroupService.getGroup(this.group).closeEditor(this.input).then(() => {
 
 			// Best we can do is to reveal the folder in the explorer
 			if (this.contextService.isInsideWorkspace(input.getResource())) {

@@ -886,10 +886,6 @@ export class TestNextEditorService implements INextEditorService {
 		return false;
 	}
 
-	closeEditor(editor: IEditorInput, group: number | INextEditorGroup): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	replaceEditors(editors: any, group: any) {
 		return TPromise.as(void 0);
 	}

@@ -195,7 +195,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			const element = focused.length ? focused[0] : undefined;
 			if (element instanceof OpenEditor) {
 				if (isMiddleClick) {
-					this.editorService.closeEditor(element.editor, element.groupId).done(null, errors.onUnexpectedError);
+					element.group.closeEditor(element.editor).done(null, errors.onUnexpectedError);
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}

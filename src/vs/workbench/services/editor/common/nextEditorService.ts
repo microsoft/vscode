@@ -148,14 +148,6 @@ export interface INextEditorService {
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean;
 
 	/**
-	 * Closes an editor in an editor group.
-	 *
-	 * @param editor the editor to close
-	 * @param group the target group of the editor
-	 */
-	closeEditor(editor: IEditorInput, group: INextEditorGroup | GroupIdentifier): TPromise<void>;
-
-	/**
 	 * Invoke a function in the context of the services of the active editor.
 	 */
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T;

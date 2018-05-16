@@ -34,6 +34,7 @@ import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -312,12 +313,13 @@ class OverwriteReadonlyAction extends Action {
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(INextEditorService);
+	const editorGroupService = accessor.get(INextEditorGroupsService);
 	const resolverService = accessor.get(ITextModelService);
 	const modelService = accessor.get(IModelService);
 
-	const editor = editorService.activeControl;
-	const input = editor.input;
-	const group = editor.group;
+	const control = editorService.activeControl;
+	const editor = control.input;
+	const group = control.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -338,9 +340,9 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 				return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 					// Clean up
-					input.dispose();
+					editorGroupService.getGroup(group).closeEditor(editor);
+					editor.dispose();
 					reference.dispose();
-					editorService.closeEditor(input, group);
 				});
 			});
 		});
@@ -349,11 +351,12 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(INextEditorService);
+	const editorGroupService = accessor.get(INextEditorGroupsService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const editor = editorService.activeControl;
-	const input = editor.input;
-	const group = editor.group;
+	const control = editorService.activeControl;
+	const editor = control.input;
+	const group = control.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -367,9 +370,9 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 			return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 				// Clean up
-				input.dispose();
+				editorGroupService.getGroup(group).closeEditor(editor);
+				editor.dispose();
 				reference.dispose();
-				editorService.closeEditor(input, group);
 			});
 		});
 	});
