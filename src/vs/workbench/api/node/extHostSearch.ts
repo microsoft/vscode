@@ -10,7 +10,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
-import { isEqualOrParent } from 'vs/base/common/paths';
 import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
@@ -119,8 +118,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 }
 
 /**
- * TODO@roblou
- * Discards sibling clauses (for now) and 'false' patterns
+ *  Computes the patterns that the provider handles. Discards sibling clauses and 'false' patterns
  */
 function resolvePatternsForProvider(globalPattern: glob.IExpression, folderPattern: glob.IExpression): string[] {
 	const merged = {
@@ -324,7 +322,6 @@ class FileSearchEngine {
 	// private filesWalked: number;
 	// private directoriesWalked: number;
 
-	private folderExcludePatterns: Map<string, AbsoluteAndRelativeParsedExpression>;
 	private globalExcludePattern: glob.ParsedExpression;
 
 	constructor(private config: ISearchQuery, private provider: vscode.SearchProvider, private _pfs: typeof pfs) {
@@ -345,29 +342,6 @@ class FileSearchEngine {
 		}
 
 		this.globalExcludePattern = config.excludePattern && glob.parse(config.excludePattern);
-		this.folderExcludePatterns = new Map<string, AbsoluteAndRelativeParsedExpression>();
-
-		config.folderQueries.forEach(folderQuery => {
-			const folderExcludeExpression: glob.IExpression = {
-				...(this.config.excludePattern || {}),
-				...(folderQuery.excludePattern || {})
-			};
-
-			// Add excludes for other root folders
-			const folderString = URI.from(folderQuery.folder).fsPath;
-			config.folderQueries
-				.map(rootFolderQuery => rootFolderQuery.folder)
-				.filter(rootFolder => rootFolder !== folderQuery.folder)
-				.forEach(otherRootFolder => {
-					// Exclude nested root folders
-					const otherString = URI.from(otherRootFolder).toString();
-					if (isEqualOrParent(otherString, folderString)) {
-						folderExcludeExpression[path.relative(folderString, otherString)] = true;
-					}
-				});
-
-			this.folderExcludePatterns.set(folderString, new AbsoluteAndRelativeParsedExpression(folderExcludeExpression, folderString));
-		});
 	}
 
 	public cancel(): void {
@@ -444,6 +418,13 @@ class FileSearchEngine {
 			let filePatternSeen = false;
 			const tree = this.initDirectoryTree();
 
+			const folderExcludeExpression: glob.IExpression = {
+				...(this.config.excludePattern || {}),
+				...(fq.excludePattern || {})
+			};
+			const parsedFolderExcludeExpression = glob.parse(folderExcludeExpression);
+			const noSiblingsClauses = !hasSiblingClauses(folderExcludeExpression);
+
 			const onProviderResult = (result: URI) => {
 				if (this.isCanceled) {
 					return;
@@ -461,11 +442,6 @@ class FileSearchEngine {
 					const basename = path.basename(relativePath);
 					this.matchFile(onResult, { base: folderStr, relativePath, basename });
 
-					// if (this.isLimitHit) {
-					// 	killCmd();
-					// 	break;
-					// }
-
 					return;
 				}
 
@@ -473,8 +449,6 @@ class FileSearchEngine {
 				this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
 			};
 
-			const allFolderExcludes = this.folderExcludePatterns.get(fq.folder.fsPath);
-			const noSiblingsClauses = !allFolderExcludes || !allFolderExcludes.hasSiblingClauses();
 			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
@@ -501,7 +475,7 @@ class FileSearchEngine {
 						}
 					}
 
-					this.matchDirectoryTree(tree, folderStr, onResult);
+					this.matchDirectoryTree(tree, folderStr, parsedFolderExcludeExpression, onResult);
 					return null;
 				}).then(
 					() => {
@@ -562,9 +536,8 @@ class FileSearchEngine {
 		add(relativeFile);
 	}
 
-	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, onResult: (result: IInternalFileMatch) => void) {
+	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, excludePattern: glob.ParsedExpression, onResult: (result: IInternalFileMatch) => void) {
 		const self = this;
-		const excludePattern = this.folderExcludePatterns.get(rootFolder);
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
 			// self.directoriesWalked++;
@@ -576,7 +549,7 @@ class FileSearchEngine {
 				// If the user searches for the exact file name, we adjust the glob matching
 				// to ignore filtering by siblings because the user seems to know what she
 				// is searching for and we want to include the result in that case anyway
-				if (excludePattern.test(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
+				if (excludePattern(relativePath, basename, () => filePattern !== basename ? entries.map(entry => entry.basename) : [])) {
 					continue;
 				}
 
@@ -684,81 +657,14 @@ class FileSearchEngine {
 	}
 }
 
-/**
- * This class exists to provide one interface on top of two ParsedExpressions, one for absolute expressions and one for relative expressions.
- * The absolute and relative expressions don't "have" to be kept separate, but this keeps us from having to path.join every single
- * file searched, it's only used for a text search with a searchPath
- */
-class AbsoluteAndRelativeParsedExpression {
-	private absoluteParsedExpr: glob.ParsedExpression;
-	private relativeParsedExpr: glob.ParsedExpression;
-
-	private _hasSiblingClauses = false;
-
-	constructor(public expression: glob.IExpression, private root: string) {
-		this.init(expression);
-	}
-
-	/**
-	 * Split the IExpression into its absolute and relative components, and glob.parse them separately.
-	 */
-	private init(expr: glob.IExpression): void {
-		let absoluteGlobExpr: glob.IExpression;
-		let relativeGlobExpr: glob.IExpression;
-		Object.keys(expr)
-			.filter(key => expr[key])
-			.forEach(key => {
-				if (path.isAbsolute(key)) {
-					absoluteGlobExpr = absoluteGlobExpr || glob.getEmptyExpression();
-					absoluteGlobExpr[key] = expr[key];
-				} else {
-					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
-					relativeGlobExpr[key] = expr[key];
-				}
-
-				if (typeof expr[key] !== 'boolean') {
-					this._hasSiblingClauses = true;
-				}
-			});
-
-		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
-		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
-	}
-
-	public hasSiblingClauses(): boolean {
-		return this._hasSiblingClauses;
-	}
-
-	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {
-		return (this.relativeParsedExpr && this.relativeParsedExpr(_path, basename, siblingsFn)) ||
-			(this.absoluteParsedExpr && this.absoluteParsedExpr(path.join(this.root, _path), basename, siblingsFn));
-	}
-
-	public getBasenameTerms(): string[] {
-		const basenameTerms = [];
-		if (this.absoluteParsedExpr) {
-			basenameTerms.push(...glob.getBasenameTerms(this.absoluteParsedExpr));
+function hasSiblingClauses(pattern: glob.IExpression): boolean {
+	for (let key in pattern) {
+		if (typeof pattern[key] !== 'boolean') {
+			return true;
 		}
-
-		if (this.relativeParsedExpr) {
-			basenameTerms.push(...glob.getBasenameTerms(this.relativeParsedExpr));
-		}
-
-		return basenameTerms;
 	}
 
-	public getPathTerms(): string[] {
-		const pathTerms = [];
-		if (this.absoluteParsedExpr) {
-			pathTerms.push(...glob.getPathTerms(this.absoluteParsedExpr));
-		}
-
-		if (this.relativeParsedExpr) {
-			pathTerms.push(...glob.getPathTerms(this.relativeParsedExpr));
-		}
-
-		return pathTerms;
-	}
+	return false;
 }
 
 interface ISearchComplete {

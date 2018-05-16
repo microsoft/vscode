@@ -476,8 +476,8 @@ suite('ExtHostSearch', () => {
 
 			const results = await runFileSearch(query);
 			assert.equal(results.length, 1);
-			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 			compareURIs(results, reportedResults.slice(0, 1));
+			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
 		test('max results = 2', async () => {
@@ -512,8 +512,8 @@ suite('ExtHostSearch', () => {
 
 			const results = await runFileSearch(query);
 			assert.equal(results.length, 2);
-			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 			compareURIs(results, reportedResults.slice(0, 2));
+			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
 		// Mock fs?
