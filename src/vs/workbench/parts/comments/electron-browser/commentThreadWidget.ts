@@ -303,9 +303,21 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._localToDispose.push(this.editor.onMouseDown(e => this.onEditorMouseDown(e)));
 		this._localToDispose.push(this.editor.onMouseUp(e => this.onEditorMouseUp(e)));
-		this._localToDispose.push(this.editor.onDidChangeModelContent(() => {
-			if (this._commentGlyph.getPosition().position.lineNumber !== this.position.lineNumber) {
+		this._localToDispose.push(this.editor.onDidChangeModelContent((e) => {
+			// If the widget has been opened, the position is set and can be relied on for updating the glyph position
+			if (this.position && this.position.lineNumber !== this._commentGlyph.getPosition().position.lineNumber) {
 				this._commentGlyph.setLineNumber(this.position.lineNumber);
+				this.editor.layoutContentWidget(this._commentGlyph);
+			} else {
+				// Otherwise manually calculate position change :(
+				const positionChange = e.changes.map(change => {
+					if (change.range.startLineNumber < change.range.endLineNumber) {
+						return change.range.startLineNumber - change.range.endLineNumber;
+					} else {
+						return change.text.split(e.eol).length - 1;
+					}
+				}).reduce((prev, curr) => prev + curr, 0);
+				this._commentGlyph.setLineNumber(this._commentGlyph.getPosition().position.lineNumber + positionChange);
 				this.editor.layoutContentWidget(this._commentGlyph);
 			}
 		}));
