@@ -954,7 +954,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				content: "";
 				position: absolute;
 				bottom: -1px;
-				left: -0.5px;
+				left: -1px;
 				z-index: 2;
 				width: 100%;
 				border: 1px solid transparent;
@@ -970,7 +970,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 				content: "";
 				position: absolute;
 				bottom: -1px;
-				left: -0.5px;
+				left: -1px;
 				z-index: 2;
 				width: 100%;
 				border: 1px solid transparent;
