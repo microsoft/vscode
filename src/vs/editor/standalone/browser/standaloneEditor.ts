@@ -13,7 +13,7 @@ import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } fr
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenerService } from 'vs/platform/opener/browser/openerService';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
 import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
