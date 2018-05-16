@@ -46,6 +46,8 @@ export class QuickFixController implements IEditorContribution {
 	private _lightBulbWidget: LightBulbWidget;
 	private _disposables: IDisposable[] = [];
 
+	private _activeRequest: TPromise<CodeAction[]> | undefined;
+
 	constructor(editor: ICodeEditor,
 		@IMarkerService markerService: IMarkerService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -76,6 +78,15 @@ export class QuickFixController implements IEditorContribution {
 	}
 
 	private _onCodeActionsEvent(e: CodeActionsComputeEvent): void {
+		if (this._activeRequest) {
+			this._activeRequest.cancel();
+			this._activeRequest = undefined;
+		}
+
+		if (e && e.actions) {
+			this._activeRequest = e.actions;
+		}
+
 		if (e && e.trigger.filter && e.trigger.filter.kind) {
 			// Triggered for specific scope
 			// Apply if we only have one action or requested autoApply, otherwise show menu

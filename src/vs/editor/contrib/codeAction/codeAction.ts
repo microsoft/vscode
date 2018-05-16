@@ -5,7 +5,7 @@
 
 import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
@@ -28,6 +28,10 @@ export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Sele
 			}
 			return providedCodeActions.filter(action => isValidAction(filter, action));
 		}, (err): CodeAction[] => {
+			if (isPromiseCanceledError(err)) {
+				throw err;
+			}
+
 			onUnexpectedExternalError(err);
 			return [];
 		});
