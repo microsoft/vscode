@@ -181,9 +181,9 @@ export function mapOldPositionToNew(patch: string, line: number): number {
 		let diffHunk = diffIter.value;
 
 		if (diffHunk.oldLineNumber > line) {
-			continue;
+			// No-op
 		} else if (diffHunk.oldLineNumber + diffHunk.oldLength - 1 < line) {
-			delta = diffHunk.newLength - diffHunk.oldLength;
+			delta += diffHunk.newLength - diffHunk.oldLength;
 		} else {
 			return line + delta;
 		}
