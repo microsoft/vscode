@@ -113,6 +113,10 @@
 	padding: 0 0.4em;
 }
 
+.monaco-editor .review-widget .body .comment-body img {
+	max-width: 100%;
+}
+
 .monaco-editor .review-widget .body .comment-form {
 	margin: 0 20px;
 	padding: 8px 0;
