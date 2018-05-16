@@ -876,7 +876,9 @@ export class TerminalInstance implements ITerminalInstance {
 				// is to fix an issue where dragging the window to the top of the screen to maximize
 				// on Winodws/Linux would fire an event saying that the terminal was not visible.
 				// This should only force a refresh if one is needed.
-				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				if (this._xterm.getOption('rendererType') === 'canvas') {
+					(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				}
 			}
 		}
 
