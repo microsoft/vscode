@@ -349,12 +349,12 @@ class FileSearchEngine {
 
 		config.folderQueries.forEach(folderQuery => {
 			const folderExcludeExpression: glob.IExpression = {
-				...(folderQuery.excludePattern || {}),
-				...(this.config.excludePattern || {})
+				...(this.config.excludePattern || {}),
+				...(folderQuery.excludePattern || {})
 			};
 
 			// Add excludes for other root folders
-			const folderString = URI.from(folderQuery.folder).toString();
+			const folderString = URI.from(folderQuery.folder).fsPath;
 			config.folderQueries
 				.map(rootFolderQuery => rootFolderQuery.folder)
 				.filter(rootFolder => rootFolder !== folderQuery.folder)
@@ -469,8 +469,8 @@ class FileSearchEngine {
 				this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
 			};
 
-			// TODO@roblou
-			const noSiblingsClauses = true;
+			const allFolderExcludes = this.folderExcludePatterns.get(fq.folder.fsPath);
+			const noSiblingsClauses = !allFolderExcludes || !allFolderExcludes.hasSiblingClauses();
 			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
@@ -691,6 +691,8 @@ class AbsoluteAndRelativeParsedExpression {
 	private absoluteParsedExpr: glob.ParsedExpression;
 	private relativeParsedExpr: glob.ParsedExpression;
 
+	private _hasSiblingClauses = false;
+
 	constructor(public expression: glob.IExpression, private root: string) {
 		this.init(expression);
 	}
@@ -711,10 +713,18 @@ class AbsoluteAndRelativeParsedExpression {
 					relativeGlobExpr = relativeGlobExpr || glob.getEmptyExpression();
 					relativeGlobExpr[key] = expr[key];
 				}
+
+				if (typeof expr[key] !== 'boolean') {
+					this._hasSiblingClauses = true;
+				}
 			});
 
 		this.absoluteParsedExpr = absoluteGlobExpr && glob.parse(absoluteGlobExpr, { trimForExclusions: true });
 		this.relativeParsedExpr = relativeGlobExpr && glob.parse(relativeGlobExpr, { trimForExclusions: true });
+	}
+
+	public hasSiblingClauses(): boolean {
+		return this._hasSiblingClauses;
 	}
 
 	public test(_path: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): string | TPromise<string> {

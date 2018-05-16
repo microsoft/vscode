@@ -103,13 +103,15 @@ suite('ExtHostSearch', () => {
 
 		function makeFileResult(root: URI, relativePath: string): URI {
 			return URI.file(
-				path.join(root.toString(), relativePath));
+				path.join(root.fsPath, relativePath));
 		}
 
-		function compareURIs(a: URI[], b: URI[]) {
+		function compareURIs(actual: URI[], expected: URI[]) {
+			const sortAndStringify = (arr: URI[]) => arr.sort().map(u => u.toString());
+
 			assert.deepEqual(
-				a.map(u => u.toString()),
-				b.map(u => u.toString()));
+				sortAndStringify(actual),
+				sortAndStringify(expected));
 		}
 
 		test('no results', async () => {
@@ -313,6 +315,106 @@ suite('ExtHostSearch', () => {
 			};
 
 			await runFileSearch(query);
+		});
+
+		test('basic sibling exclude clause', async () => {
+			const reportedResults = [
+				makeFileResult(rootFolderA, 'file1.ts'),
+				makeFileResult(rootFolderA, 'file1.js'),
+			];
+
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					reportedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				excludePattern: {
+					'*.js': {
+						when: '$(basename).ts'
+					}
+				},
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const results = await runFileSearch(query);
+			compareURIs(
+				results,
+				[
+					makeFileResult(rootFolderA, 'file1.ts')
+				]);
+		});
+
+		test('multiroot sibling exclude clause', async () => {
+
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					let reportedResults;
+					if (options.folder.fsPath === rootFolderA.fsPath) {
+						reportedResults = [
+							makeFileResult(rootFolderA, 'folder/fileA.scss'),
+							makeFileResult(rootFolderA, 'folder/fileA.css'),
+							makeFileResult(rootFolderA, 'folder/file2.css')
+						];
+					} else {
+						reportedResults = [
+							makeFileResult(rootFolderB, 'fileB.ts'),
+							makeFileResult(rootFolderB, 'fileB.js'),
+							makeFileResult(rootFolderB, 'file3.js')
+						];
+					}
+
+					reportedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				excludePattern: {
+					'*.js': {
+						when: '$(basename).ts'
+					},
+					'*.css': true
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						excludePattern: {
+							'folder/*.css': {
+								when: '$(basename).scss'
+							}
+						}
+					},
+					{
+						folder: rootFolderB,
+						excludePattern: {
+							'*.js': false
+						}
+					}
+				]
+			};
+
+			const results = await runFileSearch(query);
+			compareURIs(
+				results,
+				[
+					makeFileResult(rootFolderA, 'folder/fileA.scss'),
+					makeFileResult(rootFolderA, 'folder/file2.css'),
+
+					makeFileResult(rootFolderB, 'fileB.ts'),
+					makeFileResult(rootFolderB, 'fileB.js'),
+					makeFileResult(rootFolderB, 'file3.js'),
+				]);
 		});
 
 		// Mock fs?
