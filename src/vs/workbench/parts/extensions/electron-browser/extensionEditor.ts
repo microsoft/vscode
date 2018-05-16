@@ -23,7 +23,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
@@ -484,6 +484,7 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
+					this.renderViewContainers(content, manifest, layout),
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout)
 				];
@@ -607,6 +608,32 @@ export class ExtensionEditor extends BaseEditor {
 				...contrib.map(d => $('tr', null,
 					$('td', null, d.label),
 					$('td', null, d.type)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.viewsContainers || {};
+
+		let viewContainers = <{ id: string, title: string, location: string }[]>Object.keys(contrib).reduce((result, location) => {
+			let viewContainersForLocation: IViewContainer[] = contrib[location];
+			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
+			return result;
+		}, []);
+
+		if (!viewContainers.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
+			$('table', null,
+				$('tr', null, $('th', null, localize('view container id', "ID")), $('th', null, localize('view container title', "Title")), $('th', null, localize('view container location', "Where"))),
+				...viewContainers.map(viewContainer => $('tr', null, $('td', null, viewContainer.id), $('td', null, viewContainer.title), $('td', null, viewContainer.location)))
 			)
 		);
 
