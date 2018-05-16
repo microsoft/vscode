@@ -18,6 +18,7 @@ suite('OpenerService', function () {
 
 	const editorService = new class implements ITextEditorService {
 		_serviceBrand: any;
+		activeTextEditorControl: null;
 		openTextEditor(input: IResourceInput): any {
 			lastInput = input;
 

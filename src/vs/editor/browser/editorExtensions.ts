@@ -18,8 +18,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
 import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 
 export type ServicesAccessor = ServicesAccessor;
@@ -85,10 +85,19 @@ export abstract class Command {
 
 //#region EditorCommand
 
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
+function getActiveEditor(accessor: ServicesAccessor): ICodeEditor {
 	const editorService = accessor.get(ITextEditorService);
-	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	return getCodeEditor(activeEditor);
+
+	let activeEditor = editorService.activeTextEditorControl;
+	if (isCodeEditor(activeEditor)) {
+		return activeEditor;
+	}
+
+	if (isDiffEditor(activeEditor)) {
+		return activeEditor.getModifiedEditor();
+	}
+
+	return null;
 }
 
 export interface IContributionCommandOptions<T> extends ICommandOptions {
@@ -128,8 +137,8 @@ export abstract class EditorCommand extends Command {
 		let editor = codeEditorService.getFocusedCodeEditor();
 
 		if (!editor) {
-			// Fallback to use what the workbench considers the active editor
-			editor = getWorkbenchActiveEditor(accessor);
+			// Fallback to use the active editor
+			editor = getActiveEditor(accessor);
 		}
 
 		if (!editor) {

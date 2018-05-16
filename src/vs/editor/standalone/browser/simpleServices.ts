@@ -100,6 +100,10 @@ export class SimpleEditorService implements ITextEditorService {
 		this.openEditorDelegate = null;
 	}
 
+	get activeTextEditorControl(): editorCommon.IEditor {
+		return null;
+	}
+
 	public setEditor(editor: editorCommon.IEditor): void {
 		this.editor = editor;
 	}
