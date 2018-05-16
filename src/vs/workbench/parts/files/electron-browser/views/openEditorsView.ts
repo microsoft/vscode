@@ -495,7 +495,7 @@ class EditorGroupRenderer implements IRenderer<INextEditorGroup, IEditorGroupTem
 
 	renderElement(editorGroup: INextEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
 		templateData.editorGroup = editorGroup;
-		templateData.name.textContent = `Group <${editorGroup.id}>`;
+		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = { groupId: editorGroup.id };
 	}
 
