@@ -11,7 +11,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
-import { size, first } from 'vs/base/common/collections';
+import { first, size } from 'vs/base/common/collections';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 
 export type FuzzyScore = [number, number[]];
@@ -113,36 +113,14 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	readonly id = 'root';
-	readonly parent = undefined;
+	static create(textModel: ITextModel): TPromise<OutlineModel> {
+		let result = new OutlineModel(textModel);
+		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
 
-	private _groups: { [id: string]: OutlineGroup; } = Object.create(null);
-	children: { [id: string]: OutlineGroup | OutlineElement; } = Object.create(null);
-	request: TPromise<any>;
+			let id = TreeElement.findId(`provider_${index}`, result);
+			let group = new OutlineGroup(id, result, provider, index);
 
-	constructor(readonly textModel: ITextModel) {
-		super();
-		this._makeRequest();
-	}
-
-	dispose(): void {
-		this.request.cancel();
-	}
-
-	refresh(): void {
-		this.request.cancel();
-		this._groups = Object.create(null);
-		this.children = Object.create(null);
-		this._makeRequest();
-	}
-
-	private _makeRequest(): void {
-		let promises = DocumentSymbolProviderRegistry.ordered(this.textModel).map((provider, index) => {
-
-			let id = TreeElement.findId(`provider_${index}`, this);
-			let group = new OutlineGroup(id, this, provider, index);
-
-			return asWinJsPromise(token => provider.provideDocumentSymbols(this.textModel, token)).then(result => {
+			return asWinJsPromise(token => provider.provideDocumentSymbols(result.textModel, token)).then(result => {
 				if (!isFalsyOrEmpty(result)) {
 					for (const info of result) {
 						OutlineModel._makeOutlineElement(info, group);
@@ -153,23 +131,37 @@ export class OutlineModel extends TreeElement {
 				//todo@joh capture error in group
 				return group;
 			}).then(group => {
-				this._groups[id] = group;
+				result._groups[id] = group;
 			});
 		});
 
-		this.request = TPromise.join(promises).then(() => {
-			if (size(this._groups) !== 1) {
-				this.children = this._groups;
-				return;
+		return TPromise.join(promises).then(() => {
+
+			let count = 0;
+			for (const key in result._groups) {
+				let group = result._groups[key];
+				if (first(group.children) === undefined) { // empty
+					delete result._groups[key];
+				} else {
+					count += 1;
+				}
 			}
 
-			// adopt all elements of the first group
-			let group = first(this._groups);
-			for (let key in group.children) {
-				let child = group.children[key];
-				child.parent = this;
-				this.children[child.id] = child;
+			if (count !== 1) {
+				//
+				result.children = result._groups;
+
+			} else {
+				// adopt all elements of the first group
+				let group = first(result._groups);
+				for (let key in group.children) {
+					let child = group.children[key];
+					child.parent = result;
+					result.children[child.id] = child;
+				}
 			}
+
+			return result;
 		});
 	}
 
@@ -182,6 +174,32 @@ export class OutlineModel extends TreeElement {
 			}
 		}
 		container.children[res.id] = res;
+	}
+
+	readonly id = 'root';
+	readonly parent = undefined;
+
+	private _groups: { [id: string]: OutlineGroup; } = Object.create(null);
+	children: { [id: string]: OutlineGroup | OutlineElement; } = Object.create(null);
+
+	private constructor(readonly textModel: ITextModel) {
+		super();
+	}
+
+	dispose(): void {
+
+	}
+
+	adopt(other: OutlineModel): boolean {
+		if (this.textModel.uri.toString() !== other.textModel.uri.toString()) {
+			return false;
+		}
+		if (size(this._groups) !== size(other._groups)) {
+			return false;
+		}
+		this._groups = other._groups;
+		this.children = other.children;
+		return true;
 	}
 
 	updateMatches(pattern: string): OutlineElement {

@@ -84,9 +84,6 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	async getChildren(tree: ITree, element: TreeElement): TPromise<TreeElement[]> {
-		if (element instanceof OutlineModel) {
-			await element.request;
-		}
 		let res = values(element.children);
 		// console.log(element.id + ' with children ' + res.length);
 		return res;
@@ -212,8 +209,6 @@ export class OutlineTreeState {
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
 		}
-
-		await model.request;
 
 		// expansion
 		let items: TreeElement[] = [];
