@@ -56,7 +56,7 @@
 	-webkit-app-region: no-drag;
 	margin: 0 10px;
 	position: relative;
-	z-index: 100;
+	z-index: 99;
 	order: 2;
 }
 
@@ -81,15 +81,16 @@
 	margin-left: auto;
 	text-align: center;
 	position: relative;
-	z-index: 100;
-	bottom: calc(1.5em / 12);
+	z-index: 99;
+	/* bottom: calc(1.5em / 12); */
 	order: 4;
 	-webkit-app-region: no-drag;
+	height: 100%;
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
 	width: calc(10em / 12);
-	height: calc(10em / 12);
+	height: 100%;
 	shape-rendering: crispEdges;
 	text-align: center;
 }

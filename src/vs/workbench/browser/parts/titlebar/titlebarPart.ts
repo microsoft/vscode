@@ -48,7 +48,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	private static readonly TITLE_SEPARATOR = isMacintosh ? ' — ' : ' - '; // macOS uses special - separator
 
 	private titleContainer: Builder;
-	private menubarContainer: Builder;
 	private title: Builder;
 	private pendingTitle: string;
 	private initialTitleFontSize: number;
@@ -240,10 +239,6 @@ export class TitlebarPart extends Part implements ITitleService {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
-		}
-
-		if (isWindows) {
-			this.menubarContainer = $(this.titleContainer).div({ class: 'menubar-container' });
 		}
 
 		// Title
@@ -444,10 +439,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleContainer.style({ fontSize: `${this.initialTitleFontSize / getZoomFactor()}px` });
 
 		return super.layout(dimension);
-	}
-
-	public getMenubarContainer(): Builder {
-		return this.menubarContainer;
 	}
 }
 

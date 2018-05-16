@@ -3,17 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench > .part.titlebar > .menubar-container {
+.monaco-workbench > .part.menubar {
 	display: flex;
-	position: relative;
-	z-index: 100;
+	position: absolute;
 	height: 29px;
-	-webkit-app-region: no-drag;
 	order: 3;
 	box-sizing: border-box;
+	margin-left: 35px;
 }
 
-.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button {
+.monaco-workbench > .part.menubar > .menubar-menu-button {
 	display: flex;
 	align-items: center;
 	line-height: 25px;
@@ -21,15 +20,16 @@
 	box-sizing: border-box;
 	padding: 0px 5px;
 	position: relative;
-	z-index: 900;
+	z-index: 10;
 	cursor: pointer;
+	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench > .part.titlebar > .menubar-container > .menubar-menu-button:hover {
+.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.titlebar.light > .menubar-container > .menubar-menu-button:hover {
+.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 

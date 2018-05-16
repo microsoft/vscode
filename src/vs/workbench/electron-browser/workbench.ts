@@ -1257,7 +1257,11 @@ export class Workbench implements IPartService {
 	}
 
 	private createMenubarPart(): void {
-		const menubarContainer = this.titlebarPart.getMenubarContainer();
+		const menubarContainer = $(this.workbench).div({
+			'class': ['part', 'menubar'],
+			id: Identifiers.MENUBAR_PART,
+			role: 'menubar'
+		});
 		this.menubarPart.create(menubarContainer.getHTMLElement());
 	}
 
