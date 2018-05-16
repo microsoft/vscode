@@ -52,6 +52,7 @@
 
 .monaco-workbench > .part > .title > .title-actions .action-label {
 	display: block;
+	margin: 0 2px; /* overwrite default margin so it's even */
 	height: 35px;
 	line-height: 35px;
 	min-width: 28px;
