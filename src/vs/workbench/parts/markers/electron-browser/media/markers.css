@@ -5,9 +5,11 @@
 
 .monaco-action-bar .action-item.markers-panel-action-filter {
 	cursor: default;
-	margin: 4px 10px 0 0;
+	margin: 0 8px;
 	min-width: 150px;
 	max-width: 500px;
+	display: flex;
+	align-items: center;
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter {
@@ -19,7 +21,9 @@
 }
 
 .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
-	height: 25px;
+	height: 24px;
+	font-size: 12px;
+	flex: 1;
 }
 
 .vs .monaco-action-bar .action-item.markers-panel-action-filter .monaco-inputbox {
@@ -30,8 +34,10 @@
 .markers-panel-action-filter > .markers-panel-filter-controls {
 	position: absolute;
 	top: 0px;
+	bottom: 0;
 	right: 4px;
 	display: flex;
+	align-items: center;
 }
 
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge {
@@ -43,10 +49,6 @@
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.hidden,
 .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-badge.small {
 	display: none;
-}
-
-.markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {
-	margin: 3px 0 0 3px;
 }
 
 .vs .markers-panel-action-filter > .markers-panel-filter-controls > .markers-panel-filter-filesExclude {

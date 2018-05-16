@@ -105,4 +105,7 @@
 	max-width: 170px;
 	min-width: 60px;
 	margin-right: 10px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
 }
