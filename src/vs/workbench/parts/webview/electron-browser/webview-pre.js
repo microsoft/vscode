@@ -258,7 +258,7 @@
 
 			blockquote {
 				background: var(--vscode-textBlockQuote-background);
-				border-color: var(vscode-textBlockQuote-border);
+				border-color: var(--vscode-textBlockQuote-border);
 			}
 
 			::-webkit-scrollbar {
