@@ -216,7 +216,7 @@
 			defaultStyles.id = '_defaultStyles';
 
 			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-]/gi, '')};`;
+				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
 			});
 			defaultStyles.innerHTML = `
 			:root { ${vars.join('\n')} }
