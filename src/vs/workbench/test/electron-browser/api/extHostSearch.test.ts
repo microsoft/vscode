@@ -43,6 +43,9 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 		}
 	}
 
+	$handleTelemetry(eventName: string, data: any): void {
+	}
+
 	dispose() {
 	}
 }
