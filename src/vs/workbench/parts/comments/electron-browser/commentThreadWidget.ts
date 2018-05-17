@@ -100,6 +100,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _commentEditor: ICodeEditor;
 	private _commentsElement: HTMLElement;
 	private _commentElements: CommentNode[];
+	private _commentForm: HTMLElement;
+	private _reviewThreadReplyButton: HTMLElement;
 	private _resizeObserver: any;
 	private _onDidClose = new Emitter<ReviewZoneWidget>();
 	private _isCollapsed;
@@ -337,8 +339,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		const hasExistingComments = this._commentThread.comments.length > 0;
-		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
-		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions());
+		this._commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, this._commentForm, SimpleCommentEditor.getEditorOptions());
 		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
 		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
 		const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
@@ -349,37 +351,18 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.setCommentEditorDecorations();
 
 		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-		if (hasExistingComments) {
-			const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
-			reviewThreadReplyButton.title = 'Reply...';
-			reviewThreadReplyButton.textContent = 'Reply...';
-			// bind click/escape actions for reviewThreadReplyButton and textArea
-			reviewThreadReplyButton.onclick = () => {
-				if (!dom.hasClass(commentForm, 'expand')) {
-					dom.addClass(commentForm, 'expand');
-					this._commentEditor.focus();
-				}
-			};
-
-			this._commentEditor.onDidBlurEditor(() => {
-				if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(commentForm, 'expand')) {
-					dom.removeClass(commentForm, 'expand');
-				}
-			});
-		} else {
-			dom.addClass(commentForm, 'expand');
-		}
+		this.createCommentButton();
 
 		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
 			const hasExistingComments = this._commentThread.comments.length > 0;
 			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
-				if (dom.hasClass(commentForm, 'expand')) {
-					dom.removeClass(commentForm, 'expand');
+				if (dom.hasClass(this._commentForm, 'expand')) {
+					dom.removeClass(this._commentForm, 'expand');
 				}
 			}
 		}));
 
-		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
+		const formActions = $('.form-actions').appendTo(this._commentForm).getHTMLElement();
 
 		const button = new Button(formActions);
 		attachButtonStyler(button, this.themeService);
@@ -405,6 +388,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 
 			this._commentEditor.setValue('');
+			if (dom.hasClass(this._commentForm, 'expand')) {
+				dom.removeClass(this._commentForm, 'expand');
+			}
+
 			if (newCommentThread) {
 				this.update(newCommentThread);
 			}
@@ -431,6 +418,30 @@ export class ReviewZoneWidget extends ZoneWidget {
 		// If there are no existing comments, place focus on the text area. This must be done after show, which also moves focus.
 		if (this._commentThread.reply && !this._commentThread.comments.length) {
 			this._commentEditor.focus();
+		}
+	}
+
+	createCommentButton() {
+		const hasExistingComments = this._commentThread.comments.length > 0;
+		if (hasExistingComments) {
+			this._reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(this._commentForm).getHTMLElement();
+			this._reviewThreadReplyButton.title = 'Reply...';
+			this._reviewThreadReplyButton.textContent = 'Reply...';
+			// bind click/escape actions for reviewThreadReplyButton and textArea
+			this._reviewThreadReplyButton.onclick = () => {
+				if (!dom.hasClass(this._commentForm, 'expand')) {
+					dom.addClass(this._commentForm, 'expand');
+					this._commentEditor.focus();
+				}
+			};
+
+			this._commentEditor.onDidBlurEditor(() => {
+				if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
+					dom.removeClass(this._commentForm, 'expand');
+				}
+			});
+		} else {
+			dom.addClass(this._commentForm, 'expand');
 		}
 	}
 
@@ -533,8 +544,10 @@ export class ReviewZoneWidget extends ZoneWidget {
 		this.editor.changeDecorations(accessor => {
 			accessor.deltaDecorations(this._decorationIDs, []);
 		});
-		this.editor.removeContentWidget(this._commentGlyph);
-		this._commentGlyph = null;
+		if (this._commentGlyph) {
+			this.editor.removeContentWidget(this._commentGlyph);
+			this._commentGlyph = null;
+		}
 		this._localToDispose.forEach(local => local.dispose());
 		this._onDidClose.fire();
 	}

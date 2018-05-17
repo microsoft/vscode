@@ -427,9 +427,6 @@ registerThemingParticipant((theme, collector) => {
 	let monacoEditorBackground = theme.getColor(peekViewEditorBackground);
 	if (monacoEditorBackground) {
 		collector.addRule(
-			`.monaco-editor .review-widget .body .monaco-editor {` +
-			`	background-color: ${monacoEditorBackground}` +
-			`}` +
 			`.monaco-editor .review-widget .body .comment-form .review-thread-reply-button {` +
 			`	background-color: ${monacoEditorBackground}` +
 			`}`
