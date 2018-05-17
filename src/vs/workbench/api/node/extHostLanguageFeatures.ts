@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation, SymbolInformation } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, Hierarchy, SymbolInformation2 } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -44,14 +44,14 @@ class OutlineAdapter {
 				return undefined;
 			}
 			let [probe] = value;
-			if (!(probe instanceof HierarchicalSymbolInformation)) {
-				value = OutlineAdapter._asSymbolTree(<SymbolInformation[]>value);
+			if (!(probe instanceof Hierarchy)) {
+				value = OutlineAdapter._asSymbolHierarchy(<SymbolInformation[]>value);
 			}
-			return (<HierarchicalSymbolInformation[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
+			return (<Hierarchy<SymbolInformation2>[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
 		});
 	}
 
-	private static _asSymbolTree(info: SymbolInformation[]): vscode.HierarchicalSymbolInformation[] {
+	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.Hierarchy<SymbolInformation2>[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		info = info.slice(0).sort((a, b) => {
@@ -61,10 +61,10 @@ class OutlineAdapter {
 			}
 			return res;
 		});
-		let res: HierarchicalSymbolInformation[] = [];
-		let parentStack: HierarchicalSymbolInformation[] = [];
+		let res: Hierarchy<SymbolInformation2>[] = [];
+		let parentStack: Hierarchy<SymbolInformation2>[] = [];
 		for (let i = 0; i < info.length; i++) {
-			let element = new HierarchicalSymbolInformation(info[i].name, '', info[i].kind, info[i].location, info[i].location.range);
+			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
 			while (true) {
 				if (parentStack.length === 0) {
 					parentStack.push(element);
@@ -72,7 +72,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (parent.range.contains(element.range)) {
+				if (parent.parent.range.contains(element.parent.range)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;

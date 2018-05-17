@@ -876,19 +876,24 @@ export class SymbolInformation {
 	}
 }
 
-export class HierarchicalSymbolInformation {
-	name: string;
-	location: Location;
-	detail: string;
-	kind: SymbolKind;
-	range: Range;
-	children: HierarchicalSymbolInformation[];
+export class SymbolInformation2 extends SymbolInformation {
 
-	constructor(name: string, detail: string, kind: SymbolKind, location: Location, range: Range) {
-		this.name = name;
-		this.kind = kind;
-		this.location = location;
+	detail: string;
+	range: Range;
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
+		super(name, kind, undefined, location);
+		this.detail = detail;
 		this.range = range;
+	}
+}
+
+export class Hierarchy<T> {
+	parent: T;
+	children: Hierarchy<T>[];
+
+	constructor(parent: T) {
+		this.parent = parent;
 		this.children = [];
 	}
 }
