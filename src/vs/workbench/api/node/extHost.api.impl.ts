@@ -621,6 +621,32 @@ export function createApiFactory(
 			}
 		};
 
+		const tasks: typeof vscode.tasks = {
+			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
+				return extHostTask.registerTaskProvider(extension, provider);
+			},
+			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
+				return extHostTask.fetchTasks(filter);
+			}),
+			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+				return extHostTask.executeTask(extension, task);
+			}),
+			get taskExecutions(): vscode.TaskExecution[] {
+				return extHostTask.taskExecutions;
+			},
+			onDidStartTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
+			},
+			onDidEndTask: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
+			},
+			onDidStartTaskProcess: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidStartTaskProcess(listeners, thisArgs, disposables);
+			},
+			onDidEndTaskProcess: (listeners, thisArgs?, disposables?) => {
+				return extHostTask.onDidEndTaskProcess(listeners, thisArgs, disposables);
+			}
+		};
 
 		return <typeof vscode>{
 			version: pkg.version,
@@ -633,6 +659,7 @@ export function createApiFactory(
 			workspace,
 			scm,
 			debug,
+			tasks,
 			// types
 			Breakpoint: extHostTypes.Breakpoint,
 			CancellationTokenSource: CancellationTokenSource,

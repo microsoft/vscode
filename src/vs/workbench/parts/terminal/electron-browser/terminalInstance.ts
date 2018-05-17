@@ -249,19 +249,22 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(undefined, true);
+		const config = this._configHelper.config;
 		this._xterm = new Terminal({
-			scrollback: this._configHelper.config.scrollback,
+			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
-			fontWeight: this._configHelper.config.fontWeight,
-			fontWeightBold: this._configHelper.config.fontWeightBold,
+			fontWeight: config.fontWeight,
+			fontWeightBold: config.fontWeightBold,
 			fontSize: font.fontSize,
 			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
-			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
+			bellStyle: config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
-			macOptionIsMeta: this._configHelper.config.macOptionIsMeta,
-			rightClickSelectsWord: this._configHelper.config.rightClickBehavior === 'selectWord'
+			macOptionIsMeta: config.macOptionIsMeta,
+			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
+			// TODO: Guess whether to use canvas or dom better
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -487,7 +490,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			const buffer = (<any>this._xterm.buffer);
 			this._sendLineData(buffer, buffer.ybase + buffer.y);
-			this._xterm.destroy();
+			this._xterm.dispose();
 			this._xterm = null;
 		}
 		if (this._processManager) {
@@ -876,7 +879,9 @@ export class TerminalInstance implements ITerminalInstance {
 				// is to fix an issue where dragging the window to the top of the screen to maximize
 				// on Winodws/Linux would fire an event saying that the terminal was not visible.
 				// This should only force a refresh if one is needed.
-				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				if (this._xterm.getOption('rendererType') === 'canvas') {
+					(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				}
 			}
 		}
 

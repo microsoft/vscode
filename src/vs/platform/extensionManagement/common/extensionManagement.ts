@@ -76,6 +76,11 @@ export interface ITheme {
 	label: string;
 }
 
+export interface IViewContainer {
+	id: string;
+	title: string;
+}
+
 export interface IView {
 	id: string;
 	name: string;
@@ -99,6 +104,7 @@ export interface IExtensionContributions {
 	snippets?: ISnippet[];
 	themes?: ITheme[];
 	iconThemes?: ITheme[];
+	viewsContainers?: { [location: string]: IViewContainer[] };
 	views?: { [location: string]: IView[] };
 	colors?: IColor[];
 	localizations?: ILocalization[];

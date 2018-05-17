@@ -94,8 +94,13 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		options.minimap = { enabled: false };
 
 		const outputConfig = this.baseConfigurationService.getValue('[Log]');
-		if (outputConfig && outputConfig['editor.minimap.enabled']) {
-			options.minimap = { enabled: true };
+		if (outputConfig) {
+			if (outputConfig['editor.minimap.enabled']) {
+				options.minimap = { enabled: true };
+			}
+			if ('editor.wordWrap' in outputConfig) {
+				options.wordWrap = outputConfig['editor.wordWrap'];
+			}
 		}
 
 		return options;

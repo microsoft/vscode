@@ -41,6 +41,7 @@ import { OutlineElement, OutlineModel } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
 
 class RequestState {
 
@@ -85,7 +86,6 @@ class RequestOracle {
 	}
 
 	private _update(): void {
-		dispose(this._sessionDisposable);
 
 		let editor = this._workbenchEditorService.getActiveEditor();
 		let control = editor && editor.getControl();
@@ -112,6 +112,7 @@ class RequestOracle {
 			// prevent unneccesary changes...
 			return;
 		}
+		dispose(this._sessionDisposable);
 		this._lastState = thisState;
 		this._callback(codeEditor);
 
@@ -374,12 +375,23 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		dom.removeClass(this._domNode, 'message');
 
-		let model: OutlineModel;
 		let textModel = editor.getModel();
+		let modelPromise = OutlineModel.create(textModel);
+		this._editorDisposables.push({ dispose() { modelPromise.cancel(); } });
+
+		let model: OutlineModel;
+		try {
+			model = await modelPromise;
+		} catch (e) {
+			if (!isPromiseCanceledError(e)) {
+				onUnexpectedError(e);
+			}
+			return;
+		}
+
 		let oldModel = <OutlineModel>this._tree.getInput();
 
-		if (oldModel && oldModel.textModel.uri.toString() === textModel.uri.toString()) {
-			oldModel.refresh();
+		if (oldModel && oldModel.adopt(model)) {
 			this._tree.refresh(undefined, true);
 			model = oldModel;
 
@@ -389,14 +401,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 				let state = OutlineTreeState.capture(this._tree);
 				this._treeStates.set(oldModel.textModel.uri.toString(), state);
 			}
-			model = new OutlineModel(textModel);
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
 			OutlineTreeState.restore(this._tree, state);
 		}
-
-		// wait for the actual model to work with...
-		await model.request;
 
 		this._input.enable();
 

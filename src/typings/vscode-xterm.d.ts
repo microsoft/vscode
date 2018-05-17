@@ -14,6 +14,11 @@ declare module 'vscode-xterm' {
 	export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
 	/**
+	 * A string representing a renderer type.
+	 */
+	export type RendererType = 'dom' | 'canvas';
+
+	/**
 	 * An object containing start up options for the terminal.
 	 */
 	export interface ITerminalOptions {
@@ -53,6 +58,11 @@ declare module 'vscode-xterm' {
 		 * Whether input should be disabled.
 		 */
 		disableStdin?: boolean;
+
+		/**
+		 * Whether to draw bold text in bright colors. The default is true.
+		 */
+		drawBoldTextInBrightColors?: boolean;
 
 		/**
 		 * Whether to enable the rendering of bold text.
@@ -95,6 +105,23 @@ declare module 'vscode-xterm' {
 		 * Whether to treat option as the meta key.
 		 */
 		macOptionIsMeta?: boolean;
+
+		/**
+		 * (EXPERIMENTAL) The type of renderer to use, this allows using the
+		 * fallback DOM renderer when canvas is too slow for the environment. The
+		 * following features do not work when the DOM renderer is used:
+		 *
+		 * - Links
+		 * - Line height
+		 * - Letter spacing
+		 * - Cursor blink
+		 * - Cursor style
+		 *
+		 * This option is marked as experiemental because it will eventually be
+		 * moved to an addon. You can only set this option in the constructor (not
+		 * setOption).
+		 */
+		rendererType?: RendererType;
 
 		/**
 		 * Whether to select the word under the cursor on right click, this is
@@ -251,7 +278,7 @@ declare module 'vscode-xterm' {
 	/**
 	 * The class that represents an xterm.js terminal.
 	 */
-	export class Terminal implements IEventEmitter {
+	export class Terminal implements IEventEmitter, IDisposable {
 		/**
 		 * The element containing the terminal.
 		 */
@@ -451,8 +478,16 @@ declare module 'vscode-xterm' {
 		 */
 		selectLines(start: number, end: number): void;
 
+		/*
+		 * Disposes of the terminal, detaching it from the DOM and removing any
+		 * active listeners.
+		 */
+		dispose(): void;
+
 		/**
 		 * Destroys the terminal and detaches it from the DOM.
+		 *
+		 * @deprecated Use dispose() instead.
 		 */
 		destroy(): void;
 
@@ -499,7 +534,7 @@ declare module 'vscode-xterm' {
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.
 		 */
-		getOption(key: 'bellSound' | 'bellStyle' | 'cursorStyle' | 'fontFamily' | 'fontWeight' | 'fontWeightBold' | 'termName'): string;
+		getOption(key: 'bellSound' | 'bellStyle' | 'cursorStyle' | 'fontFamily' | 'fontWeight' | 'fontWeightBold' | 'rendererType' | 'termName'): string;
 		/**
 		 * Retrieves an option's value from the terminal.
 		 * @param key The option key.

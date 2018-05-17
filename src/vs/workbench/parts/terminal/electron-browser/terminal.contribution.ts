@@ -182,11 +182,17 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': platform.isMacintosh
 		},
+		'terminal.integrated.rendererType': {
+			'type': 'string',
+			'enum': ['auto', 'canvas', 'dom'],
+			default: 'auto',
+			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered, the options are \"canvas\" for the standard canvas renderer, \"dom\" for the fallback DOM-based renderer or \"auto\" which lets VS Code guess which will be best. This setting needs VS Code to reload in order to take effect for new terminals.")
+		},
 		'terminal.integrated.rightClickBehavior': {
 			'type': 'string',
 			'enum': ['default', 'copyPaste', 'selectWord'],
 			default: platform.isMacintosh ? 'selectWord' : platform.isWindows ? 'copyPaste' : 'default',
-			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are 'default', 'copyPaste', and 'selectWord'. 'default' will show the context menu, 'copyPaste' will copy when there is a selection otherwise paste, 'selectWord' will select the word under the cursor and show the context menu.")
+			description: nls.localize('terminal.integrated.rightClickBehavior', "Controls how terminal reacts to right click, possibilities are \"default\", \"copyPaste\", and \"selectWord\". \"default\" will show the context menu, \"copyPaste\" will copy when there is a selection otherwise paste, \"selectWord\" will select the word under the cursor and show the context menu.")
 		},
 		'terminal.integrated.cwd': {
 			'description': nls.localize('terminal.integrated.cwd', "An explicit start path where the terminal will be launched, this is used as the current working directory (cwd) for the shell process. This may be particularly useful in workspace settings if the root directory is not a convenient cwd."),

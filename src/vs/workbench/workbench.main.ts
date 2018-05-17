@@ -50,7 +50,6 @@ import 'vs/workbench/parts/files/electron-browser/files.contribution';
 import 'vs/workbench/parts/backup/common/backup.contribution';
 
 import 'vs/workbench/parts/stats/node/stats.contribution';
-import 'vs/workbench/parts/cache/node/cache.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately

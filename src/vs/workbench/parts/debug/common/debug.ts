@@ -134,7 +134,6 @@ export interface IRawSession {
 }
 
 export enum SessionState {
-	INACTIVE,
 	ATTACH,
 	LAUNCH
 }
@@ -347,7 +346,7 @@ export enum State {
 
 export interface IDebugConfiguration {
 	allowBreakpointsEverywhere: boolean;
-	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
+	openDebug: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart' | 'openOnDebugBreak';
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;

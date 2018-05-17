@@ -802,11 +802,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
 		DOM.toggleClass(template.parent, 'is-expanded', entry.isExpanded);
 
-		let titleTooltip = entry.key;
-		if (entry.isConfigured) {
-			titleTooltip += ' - ' + localize('configuredTitleToolip', "This setting is configured");
-		}
-
+		const titleTooltip = entry.key;
 		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
 		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
 		template.categoryElement.title = titleTooltip;
@@ -845,8 +841,13 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.toDispose.push(resetButton);
 
 		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
-		template.overridesElement.textContent = entry.overriddenScopeList.length ? `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})` :
-			'';
+		let overridesElementText = entry.isConfigured ? 'Modified ' : '';
+
+		if (entry.overriddenScopeList.length) {
+			overridesElementText = overridesElementText + `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})`;
+		}
+
+		template.overridesElement.textContent = overridesElementText;
 	}
 
 	private renderValue(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
