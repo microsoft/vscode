@@ -1081,6 +1081,11 @@ function incrementFileName(name: string, isFolder: boolean): string {
 		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
 	}
 
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+	}
+
 	// file/folder=>file.1/folder.1
 	return strings.format('{0}.1', name);
 }
