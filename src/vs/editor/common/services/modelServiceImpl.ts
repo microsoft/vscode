@@ -11,7 +11,7 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMarker, IMarkerService, MarkerSeverity, WellKnownMarkerTags } from 'vs/platform/markers/common/markers';
+import { IMarker, IMarkerService, MarkerSeverity, MarkerTag } from 'vs/platform/markers/common/markers';
 import { Range } from 'vs/editor/common/core/range';
 import { TextModel, createTextBuffer } from 'vs/editor/common/model/textModel';
 import { IMode, LanguageIdentifier } from 'vs/editor/common/modes';
@@ -131,7 +131,7 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (!marker.customTags || marker.customTags.indexOf(WellKnownMarkerTags.Unnecessary) === -1) {
+				if (!marker.customTags || marker.customTags.indexOf(MarkerTag.Unnecessary) === -1) {
 					className = ClassName.EditorHintDecoration;
 				}
 				zIndex = 0;
@@ -158,7 +158,7 @@ class ModelMarkerHandler {
 		}
 
 		if (marker.customTags) {
-			if (marker.customTags.indexOf(WellKnownMarkerTags.Unnecessary) === -1) {
+			if (marker.customTags.indexOf(MarkerTag.Unnecessary) !== -1) {
 				inlineClassName = ClassName.EditorUnnecessaryDecoration;
 			}
 		}

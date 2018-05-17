@@ -38,8 +38,8 @@ export interface IRelatedInformation {
 	endColumn: number;
 }
 
-export enum WellKnownMarkerTags {
-	Unnecessary = 'unnecessary'
+export enum MarkerTag {
+	Unnecessary = 1,
 }
 
 export enum MarkerSeverity {
@@ -87,7 +87,7 @@ export interface IMarkerData {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
-	customTags?: string[];
+	customTags?: MarkerTag[];
 }
 
 export interface IResourceMarker {
@@ -107,7 +107,7 @@ export interface IMarker {
 	endLineNumber: number;
 	endColumn: number;
 	relatedInformation?: IRelatedInformation[];
-	customTags?: string[];
+	customTags?: MarkerTag[];
 }
 
 export interface MarkerStatistics {

@@ -20,7 +20,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -88,6 +88,16 @@ export namespace Position {
 	}
 }
 
+export namespace DiagnosticTag {
+	export function from(value: vscode.DiagnosticTag): MarkerTag {
+		switch (value) {
+			case types.DiagnosticTag.Unnecessary:
+				return MarkerTag.Unnecessary;
+		}
+		return undefined;
+	}
+}
+
 export namespace Diagnostic {
 	export function from(value: vscode.Diagnostic): IMarkerData {
 		return {
@@ -97,7 +107,7 @@ export namespace Diagnostic {
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
-			customTags: value.customTags,
+			customTags: Array.isArray(value.customTags) ? value.customTags.map(DiagnosticTag.from) : undefined,
 		};
 	}
 }

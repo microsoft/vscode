@@ -674,7 +674,7 @@ export class SnippetString {
 }
 
 export enum DiagnosticTag {
-	Unnecessary = 'unnecessary',
+	Unnecessary = 1,
 }
 
 export enum DiagnosticSeverity {
