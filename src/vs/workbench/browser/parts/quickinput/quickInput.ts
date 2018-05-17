@@ -33,7 +33,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Action } from 'vs/base/common/actions';
 
@@ -369,7 +369,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -550,9 +550,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private restoreFocus(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.focus();
 		}
 	}
 

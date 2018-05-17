@@ -14,13 +14,12 @@ import { $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { Part } from 'vs/workbench/browser/part';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -229,7 +228,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IThemeService private themeService: IThemeService
 	) {
 		this.entry = entry;
@@ -301,10 +300,9 @@ class StatusBarEntryItem implements IStatusbarItem {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
-		const activeEditor = this.editorService.getActiveEditor();
-		const codeEditor = getCodeEditor(activeEditor);
-		if (codeEditor) {
-			codeEditor.focus();
+		const activeTextEditorControl = this.editorService.activeTextEditorControl;
+		if (activeTextEditorControl) {
+			activeTextEditorControl.focus();
 		}
 
 		/* __GDPR__

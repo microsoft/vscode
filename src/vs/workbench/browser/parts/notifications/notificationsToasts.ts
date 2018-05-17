@@ -16,7 +16,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -64,7 +64,7 @@ export class NotificationsToasts extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -250,9 +250,9 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private focusEditor(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.focus();
 		}
 	}
 

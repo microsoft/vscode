@@ -18,7 +18,7 @@ import { NotificationsList } from 'vs/workbench/browser/parts/notifications/noti
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, removeClass, isAncestor, Dimension } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
@@ -45,7 +45,7 @@ export class NotificationsCenter extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(themeService);
@@ -205,9 +205,9 @@ export class NotificationsCenter extends Themable {
 	}
 
 	private focusEditor(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.focus();
 		}
 	}
 

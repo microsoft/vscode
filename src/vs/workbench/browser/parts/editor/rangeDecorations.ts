@@ -6,7 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -28,7 +28,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	private readonly _onHighlightRemoved: Emitter<void> = new Emitter<void>();
 	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
 
-	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@INextEditorService private editorService: INextEditorService) {
 	}
 
 	public removeHighlightRange() {
@@ -55,11 +55,11 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor {
-		const activeInput = this.editorService.getActiveEditorInput();
-		const resource = activeInput && activeInput.getResource();
+		const activeEditor = this.editorService.activeEditor;
+		const resource = activeEditor && activeEditor.getResource();
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return <ICodeEditor>this.editorService.getActiveEditor().getControl();
+				return this.editorService.activeTextEditorControl as ICodeEditor;
 			}
 		}
 		return null;

@@ -10,11 +10,10 @@ import { Action } from 'vs/base/common/actions';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { join, dirname } from 'vs/base/common/paths';
 import { isWindows } from 'vs/base/common/platform';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 function getVSCodeBaseFolder(): string {
 	let workingDir = process.cwd();
@@ -32,7 +31,7 @@ export class GridOpenEditorsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
 	) {
 		super(id, label);
@@ -50,7 +49,7 @@ export class GridOpenEditorsAction extends Action {
 			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextTabsTitleControl.ts'),
 			join(workingDir, 'src/vs/workbench/browser/parts/editor2/nextTitleControl.ts')
 		].map(input => {
-			return this.legacyEditorService.createInput({ resource: URI.file(input) }) as EditorInput;
+			return this.editorService.createInput({ resource: URI.file(input) }) as EditorInput;
 		});
 
 		const firstGroup = this.nextEditorGroupsService.activeGroup;
@@ -67,28 +66,6 @@ export class GridOpenEditorsAction extends Action {
 		thirdGroup.openEditor(inputs[6], { inactive: true, pinned: true });
 
 		this.nextEditorGroupsService.addGroup(firstGroup, GroupDirection.RIGHT); // play with empty group
-
-		return TPromise.as(void 0);
-	}
-}
-
-export class GridOpenOneEditorAction extends Action {
-
-	static readonly ID = 'workbench.action.gridOpenOneEditor';
-	static readonly LABEL = localize('gridOpenOneEditor', "Open One Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
-		this.nextEditorGroupsService.activeGroup.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput);
 
 		return TPromise.as(void 0);
 	}
@@ -119,48 +96,6 @@ export class ResetGridEditorAction extends Action {
 				this.nextEditorGroupsService.removeGroup(group);
 			}
 		}
-
-		return TPromise.as(void 0);
-	}
-}
-
-export class GridOpenOneEditorSideBySideAction extends Action {
-
-	static readonly ID = 'workbench.action.gridOpenOneEditorSideBySide';
-	static readonly LABEL = localize('gridOpenOneEditorSideBySide', "Open One Editor Side by Side");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private legacyEditorService: IWorkbenchEditorService,
-		@INextEditorService private editorService: INextEditorService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		const path = join(getVSCodeBaseFolder(), 'src/vs/workbench/browser/parts/editor/editor.contribution.ts');
-		this.editorService.openEditor(this.legacyEditorService.createInput({ resource: URI.file(path) }) as EditorInput, null, SIDE_GROUP);
-
-		return TPromise.as(void 0);
-	}
-}
-
-export class GridCloseActiveEditorAction extends Action {
-
-	static readonly ID = 'workbench.action.gridCloseActiveEditor';
-	static readonly LABEL = localize('gridCloseActiveEditor', "Close Active Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
-	) {
-		super(id, label);
-	}
-
-	run(): TPromise<any> {
-		this.nextEditorGroupsService.activeGroup.closeEditor();
 
 		return TPromise.as(void 0);
 	}
