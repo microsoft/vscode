@@ -335,16 +335,22 @@ class QueryGlobTester {
 	/**
 	 * Guaranteed async.
 	 */
-	public async includedInQuery(testPath: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): TPromise<boolean> {
-		if (this._parsedExcludeExpression && await this._parsedExcludeExpression(testPath, basename, siblingsFn)) {
-			return false;
-		}
+	public includedInQuery(testPath: string, basename?: string, siblingsFn?: () => string[] | TPromise<string[]>): TPromise<boolean> {
+		const excludeP = this._parsedExcludeExpression ?
+			TPromise.as(this._parsedExcludeExpression(testPath, basename, siblingsFn)).then(result => !!result) :
+			TPromise.wrap(false);
 
-		if (this._parsedIncludeExpression && !await this._parsedIncludeExpression(testPath, basename, siblingsFn)) {
-			return false;
-		}
+		return excludeP.then(excluded => {
+			if (excluded) {
+				return false;
+			}
 
-		return true;
+			return this._parsedIncludeExpression ?
+				TPromise.as(this._parsedIncludeExpression(testPath, basename, siblingsFn)).then(result => !result) :
+				TPromise.wrap(true);
+		}).then(included => {
+			return included;
+		});
 	}
 
 	public hasSiblingExcludeClauses(): boolean {
