@@ -15,13 +15,13 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -34,8 +34,8 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -57,7 +57,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
-			this.editorOpeningListener = this.editorGroupService.onEditorOpening(e => this.onEditorOpening(e));
+			this.editorOpeningListener = this.editorService.onWillOpenEditor(e => this.onEditorOpening(e));
 		}
 	}
 
@@ -74,7 +74,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		const group = this.nextEditorGroupService.getGroup(event.groupId);
+		const group = this.editorGroupService.getGroup(event.groupId);
 		if (group.isOpened(event.editor)) {
 			return;
 		}

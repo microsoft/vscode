@@ -10,12 +10,9 @@ import { workbenchInstantiationService, TestNextEditorService } from 'vs/workben
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import * as WorkbenchEditorService from 'vs/workbench/services/editor/common/editorService';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { IEditorInput } from 'vs/workbench/common/editor';
-import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -42,7 +39,6 @@ suite('Editor - Range decorations', () => {
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
 		codeEditor = createTestCodeEditor({ model: model });
-		mockEditorService(codeEditor.getModel().uri);
 
 		instantiationService.stub(INextEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
 		instantiationService.stub(INextEditorService, 'activeTextEditorControl', codeEditor);
@@ -136,7 +132,6 @@ suite('Editor - Range decorations', () => {
 	function prepareActiveEditor(resource: string): TextModel {
 		let model = aModel(URI.file(resource));
 		codeEditor.setModel(model);
-		mockEditorService(model.uri);
 		return model;
 	}
 
@@ -144,13 +139,6 @@ suite('Editor - Range decorations', () => {
 		let model = TextModel.createFromString(content, TextModel.DEFAULT_CREATION_OPTIONS, null, resource);
 		modelsToDispose.push(model);
 		return model;
-	}
-
-	function mockEditorService(editorInput: IEditorInput): void;
-	function mockEditorService(resource: URI): void;
-	function mockEditorService(arg: any): void {
-		let editorInput: IEditorInput = arg instanceof URI ? instantiationService.createInstance(FileEditorInput, arg, void 0) : arg;
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditorInput', editorInput);
 	}
 
 	function rangeHighlightDecorations(m: TextModel): IRange[] {

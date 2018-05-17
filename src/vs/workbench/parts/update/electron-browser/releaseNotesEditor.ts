@@ -24,7 +24,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { Position } from 'vs/platform/editor/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
@@ -60,7 +60,7 @@ export class ReleaseNotesManager {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@INextEditorService private readonly _editorService: INextEditorService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 	) { }
 
@@ -72,16 +72,16 @@ export class ReleaseNotesManager {
 		const html = await this.renderBody(releaseNoteText);
 		const title = nls.localize('releaseNotesInputName', "Release Notes: {0}", version);
 
-		const activeEditor = this._editorService.getActiveEditor();
+		const activeControl = this._editorService.activeControl;
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeEditor ? activeEditor.group : undefined, false); // TODO@grid [EXTENSIONS] adopt group identifier
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : undefined, false); // TODO@grid [EXTENSIONS] adopt group identifier
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
 				title,
-				{ viewColumn: activeEditor ? activeEditor.group : Position.ONE, preserveFocus: false }, // TODO@grid [EXTENSIONS] adopt group identifier
+				{ viewColumn: activeControl ? activeControl.group : Position.ONE, preserveFocus: false }, // TODO@grid [EXTENSIONS] adopt group identifier
 				{ tryRestoreScrollPosition: true, enableFindWidget: true },
 				undefined, {
 					onDidClickLink: uri => this.onDidClickLink(uri),

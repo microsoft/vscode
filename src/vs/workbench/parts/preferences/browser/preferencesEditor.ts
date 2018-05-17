@@ -37,7 +37,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { IPreferencesRenderer, DefaultSettingsRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer, FolderSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
@@ -85,7 +84,7 @@ export class PreferencesEditor extends BaseEditor {
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -242,7 +241,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private switchSettings(target: SettingsTarget): void {
 		// Focus the editor if this editor is not active editor
-		if (this.editorService.getActiveEditor() !== this) {
+		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
@@ -1238,9 +1237,9 @@ registerEditorContribution(SettingsEditorContribution);
 abstract class SettingsCommand extends Command {
 
 	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
-		if (activeEditor instanceof PreferencesEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(INextEditorService).activeControl;
+		if (activeControl instanceof PreferencesEditor) {
+			return activeControl;
 		}
 		return null;
 

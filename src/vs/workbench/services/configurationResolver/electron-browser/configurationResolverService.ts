@@ -15,14 +15,13 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { localize } from 'vs/nls';
-
 
 export class ConfigurationResolverService implements IConfigurationResolverService {
 	_serviceBrand: any;
@@ -30,7 +29,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	constructor(
 		envVariables: IProcessEnvironment,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@INextEditorService editorService: INextEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,
@@ -51,38 +50,32 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				return environmentService['execPath'];
 			},
 			getFilePath: (): string | undefined => {
-				let input = editorService.getActiveEditorInput();
-				if (input instanceof DiffEditorInput) {
-					input = input.modifiedInput;
+				let activeEditor = editorService.activeEditor;
+				if (activeEditor instanceof DiffEditorInput) {
+					activeEditor = activeEditor.modifiedInput;
 				}
-				const fileResource = toResource(input, { filter: Schemas.file });
+				const fileResource = toResource(activeEditor, { filter: Schemas.file });
 				if (!fileResource) {
 					return undefined;
 				}
 				return paths.normalize(fileResource.fsPath, true);
 			},
 			getSelectedText: (): string | undefined => {
-				const activeEditor = editorService.getActiveEditor();
-				if (activeEditor) {
-					const editorControl = (<ICodeEditor>activeEditor.getControl());
-					if (editorControl) {
-						const editorModel = editorControl.getModel();
-						const editorSelection = editorControl.getSelection();
-						if (editorModel && editorSelection) {
-							return editorModel.getValueInRange(editorSelection);
-						}
+				const editorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(editorControl)) {
+					const editorModel = editorControl.getModel();
+					const editorSelection = editorControl.getSelection();
+					if (editorModel && editorSelection) {
+						return editorModel.getValueInRange(editorSelection);
 					}
 				}
 				return undefined;
 			},
 			getLineNumber: (): string => {
-				const activeEditor = editorService.getActiveEditor();
-				if (activeEditor) {
-					const editorControl = (<ICodeEditor>activeEditor.getControl());
-					if (editorControl) {
-						const lineNumber = editorControl.getSelection().positionLineNumber;
-						return String(lineNumber);
-					}
+				const editorControl = editorService.activeTextEditorControl;
+				if (isCodeEditor(editorControl)) {
+					const lineNumber = editorControl.getSelection().positionLineNumber;
+					return String(lineNumber);
 				}
 				return undefined;
 			}

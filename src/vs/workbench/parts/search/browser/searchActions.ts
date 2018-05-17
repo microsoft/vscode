@@ -14,7 +14,7 @@ import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
 import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
 import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
@@ -288,10 +288,10 @@ export class FocusPreviousInputAction extends Action {
 }
 
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
-	const editorService = accessor.get(IWorkbenchEditorService);
-	const editor = editorService.getActiveEditor();
-	if (editor) {
-		editor.focus();
+	const editorService = accessor.get(INextEditorService);
+	const activeControl = editorService.activeControl;
+	if (activeControl) {
+		activeControl.focus();
 	}
 	return TPromise.as(true);
 };
@@ -663,7 +663,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	constructor(private viewer: ITree, private element: Match, private viewlet: SearchView,
 		@IReplaceService private replaceService: IReplaceService,
 		@IKeybindingService keyBindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+		@INextEditorService private editorService: INextEditorService) {
 		super(Constants.ReplaceActionId, appendKeyBindingLabel(ReplaceAction.LABEL, keyBindingService.lookupKeybinding(Constants.ReplaceActionId), keyBindingService), 'action-replace');
 	}
 
@@ -728,8 +728,8 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 	}
 
 	private hasToOpenFile(): boolean {
-		const activeInput = this.editorService.getActiveEditorInput();
-		const file = activeInput ? activeInput.getResource() : void 0;
+		const activeEditor = this.editorService.activeEditor;
+		const file = activeEditor ? activeEditor.getResource() : void 0;
 		if (file) {
 			return file.toString() === this.element.parent().resource().toString();
 		}

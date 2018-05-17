@@ -43,7 +43,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -988,9 +988,9 @@ class ShowExtensionEditorFindCommand extends Command {
 	}
 
 	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(INextEditorService).activeControl as ExtensionEditor;
+		if (activeControl instanceof ExtensionEditor) {
+			return activeControl;
 		}
 		return null;
 	}
@@ -1021,9 +1021,9 @@ class ShowExtensionEditorFindTermCommand extends Command {
 	}
 
 	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(INextEditorService).activeControl as ExtensionEditor;
+		if (activeControl instanceof ExtensionEditor) {
+			return activeControl;
 		}
 		return null;
 	}

@@ -12,12 +12,10 @@ import * as strings from 'vs/base/common/strings';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { EditorInput, IEditor } from 'vs/workbench/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import { Position as EditorPosition, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFileService, FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -38,7 +36,7 @@ import { parse } from 'vs/base/common/json';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const emptyEditableSettingsContent = '{\n}';
@@ -59,10 +57,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private _defaultFolderSettingsContentModel: DefaultSettings;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@INextEditorService private nextEditorService: INextEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@INotificationService private notificationService: INotificationService,
@@ -173,7 +169,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openRawDefaultSettings(): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource }, EditorPosition.ONE);
+		return this.editorService.openEditor({ resource: this.defaultSettingsRawResource });
 	}
 
 	openRawUserSettings(): TPromise<IEditor> {
@@ -208,9 +204,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.input instanceof PreferencesEditorInput) {
-			return this.doSwitchSettings(target, resource, activeEditor.input, this.nextEditorGroupService.getGroup(activeEditor.group)).then(() => null);
+		const activeControl = this.editorService.activeControl;
+		if (activeControl && activeControl.input instanceof PreferencesEditorInput) {
+			return this.doSwitchSettings(target, resource, activeControl.input, this.editorGroupService.getGroup(activeControl.group)).then(() => null);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => null);
 		}
@@ -229,16 +225,13 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 			// Create as needed and open in editor
 			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
-				return this.editorService.openEditors([
-					{ input: { resource: this.defaultKeybindingsResource, options: { pinned: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }, position: EditorPosition.ONE },
-					{ input: { resource: editableKeybindings, options: { pinned: true } }, position: EditorPosition.TWO },
-				]).then(() => {
-					this.editorGroupService.focusGroup(EditorPosition.TWO);
-				});
+				return TPromise.join([
+					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
+					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, SIDE_GROUP)
+				]).then(editors => void 0);
 			});
-
 		}
-		return this.nextEditorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
+		return this.editorService.openEditor(this.instantiationService.createInstance(KeybindingsEditorInput), { pinned: true }).then(() => null);
 	}
 
 	configureSettingsForLanguage(language: string): void {
@@ -253,7 +246,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: INextEditorGroup = this.nextEditorGroupService.activeGroup): TPromise<IEditor> {
+	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: INextEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
 		const editorInput = this.getActiveSettingsEditorInput(group);
 		if (editorInput && editorInput.master.getResource().fsPath !== resource.fsPath) {
 			return this.doSwitchSettings(configurationTarget, resource, editorInput, group);
@@ -275,9 +268,9 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 					const defaultPreferencesEditorInput = this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(configurationTarget));
 					const preferencesEditorInput = new PreferencesEditorInput(this.getPreferencesEditorInputName(configurationTarget, resource), editableSettingsEditorInput.getDescription(), defaultPreferencesEditorInput, <EditorInput>editableSettingsEditorInput);
 					this.lastOpenedSettingsInput = preferencesEditorInput;
-					return this.nextEditorService.openEditor(preferencesEditorInput, options, group);
+					return this.editorService.openEditor(preferencesEditorInput, options, group);
 				}
-				return this.nextEditorService.openEditor(editableSettingsEditorInput, options, group);
+				return this.editorService.openEditor(editableSettingsEditorInput, options, group);
 			});
 	}
 
@@ -296,7 +289,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 			});
 	}
 
-	private getActiveSettingsEditorInput(group: INextEditorGroup = this.nextEditorGroupService.activeGroup): PreferencesEditorInput {
+	private getActiveSettingsEditorInput(group: INextEditorGroup = this.editorGroupService.activeGroup): PreferencesEditorInput {
 		return <PreferencesEditorInput>group.editors.filter(e => e instanceof PreferencesEditorInput)[0];
 	}
 

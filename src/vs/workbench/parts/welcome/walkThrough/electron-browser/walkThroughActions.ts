@@ -5,7 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
@@ -18,15 +18,15 @@ export class WalkThroughArrowUpAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowUp();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowUp();
 		}
 		return null;
 	}
@@ -40,15 +40,15 @@ export class WalkThroughArrowDownAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowDown();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowDown();
 		}
 		return null;
 	}
@@ -62,15 +62,15 @@ export class WalkThroughPageUpAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageUp();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageUp();
 		}
 		return null;
 	}
@@ -84,15 +84,15 @@ export class WalkThroughPageDownAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<void> {
-		const editor = this.editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageDown();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageDown();
 		}
 		return null;
 	}

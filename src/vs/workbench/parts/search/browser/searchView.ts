@@ -24,13 +24,13 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
 import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo, VIEW_ID } from 'vs/platform/search/common/search';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -117,8 +117,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
@@ -715,7 +715,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.getActiveEditor()) {
+		if (visible && !this.editorService.activeEditor) {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, true);
@@ -887,11 +887,11 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private getSearchTextFromEditor(): string {
-		if (!this.editorService.getActiveEditor()) {
+		if (!this.editorService.activeEditor) {
 			return null;
 		}
 
-		let editorControl = this.editorService.getActiveEditor().getControl();
+		let editorControl = this.editorService.activeTextEditorControl;
 		if (isDiffEditor(editorControl)) {
 			if (editorControl.getOriginalEditor().hasTextFocus()) {
 				editorControl = editorControl.getOriginalEditor();
@@ -1432,7 +1432,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				selection,
 				revealIfVisible: true
 			}
-		}, sideBySide).then(editor => {
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
 					(<ICodeEditor>editor.getControl()).getModel(),
