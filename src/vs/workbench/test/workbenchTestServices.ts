@@ -792,6 +792,7 @@ export class TestNextEditorGroup implements INextEditorGroup {
 	onWillDispose: Event<void> = Event.None;
 	onDidLabelChange: Event<void> = Event.None;
 	onDidActiveEditorChange: Event<void> = Event.None;
+	onDidOpenEditor: Event<IEditorInput> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;
