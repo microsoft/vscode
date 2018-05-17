@@ -524,6 +524,47 @@ suite('ExtHostSearch', () => {
 			assert(wasCanceled, 'Expected to be canceled when hitting limit');
 		});
 
+		test('multiroot max results', async () => {
+			let cancels = 0;
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+					token.onCancellationRequested(() => cancels++);
+
+					// Provice results async so it has a chance to invoke every provider
+					return new TPromise(r => process.nextTick(r))
+						.then(() => {
+							[
+								'file1.ts',
+								'file2.ts',
+								'file3.ts',
+							].forEach(f => {
+								progress.report(makeAbsoluteURI(options.folder, f));
+							});
+						});
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+
+				filePattern: '',
+				maxResults: 2,
+
+				folderQueries: [
+					{
+						folder: rootFolderA
+					},
+					{
+						folder: rootFolderB
+					}
+				]
+			};
+
+			const results = await runFileSearch(query);
+			assert.equal(results.length, 2); // Don't care which 2 we got
+			assert.equal(cancels, 2, 'Expected all invocations to be canceled when hitting limit');
+		});
+
 		test('respects filePattern', async () => {
 			const reportedResults = [
 				makeAbsoluteURI(rootFolderA, 'file1.ts'),
@@ -913,6 +954,99 @@ suite('ExtHostSearch', () => {
 				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.ts')),
 				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.js')),
 				makeTextResult(makeAbsoluteURI(rootFolderB, 'file3.js'))]);
+		});
+
+		test('max results = 1', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts'))
+			];
+
+			let wasCanceled = false;
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					token.onCancellationRequested(() => wasCanceled = true);
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				maxResults: 1,
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults.slice(0, 1));
+			assert(wasCanceled, 'Expected to be canceled');
+		});
+
+		test('max results = 2', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file3.ts'))
+			];
+
+			let wasCanceled = false;
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					token.onCancellationRequested(() => wasCanceled = true);
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				maxResults: 2,
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults.slice(0, 2));
+			assert(wasCanceled, 'Expected to be canceled');
+		});
+
+		test('multiroot max results', async () => {
+			let cancels = 0;
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					token.onCancellationRequested(() => cancels++);
+					return new TPromise(r => process.nextTick(r))
+						.then(() => {
+							[
+								'file1.ts',
+								'file2.ts',
+								'file3.ts',
+							].forEach(f => progress.report(makeTextResult(makeAbsoluteURI(options.folder, f))));
+						});
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				maxResults: 2,
+
+				folderQueries: [
+					{ folder: rootFolderA },
+					{ folder: rootFolderB }
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assert.equal(results.length, 2);
+			assert.equal(cancels, 2);
 		});
 	});
 });
