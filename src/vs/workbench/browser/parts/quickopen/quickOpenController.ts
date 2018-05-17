@@ -56,6 +56,7 @@ import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addClass } from 'vs/base/browser/dom';
 import { INextEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 const HELP_PREFIX = '?';
 
@@ -101,6 +102,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 
 	constructor(
 		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -573,7 +575,7 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		if (reason !== HideReason.FOCUS_LOST) {
-			this.restoreFocus(); // focus back to editor unless user clicked somewhere else
+			this.editorGroupService.activeGroup.focus(); // focus back to editor group unless user clicked somewhere else
 		}
 
 		// Reset context keys
@@ -621,15 +623,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		return new QuickOpenModel(entries, this.actionProvider);
-	}
-
-	private restoreFocus(): void {
-
-		// Try to focus active editor
-		const editorControl = this.editorService.activeControl;
-		if (editorControl) {
-			editorControl.focus();
-		}
 	}
 
 	private onType(value: string): void {

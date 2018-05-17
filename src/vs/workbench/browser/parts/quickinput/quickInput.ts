@@ -33,7 +33,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Action } from 'vs/base/common/actions';
 
@@ -369,7 +369,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -534,7 +534,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 						this.inQuickOpen('quickInput', false);
 						this.ui.container.style.display = 'none';
 						if (!focusLost) {
-							this.restoreFocus();
+							this.editorGroupService.activeGroup.focus();
 						}
 					});
 				result.then(null, onUnexpectedError);
@@ -544,16 +544,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inQuickOpen('quickInput', false);
 		this.ui.container.style.display = 'none';
 		if (!focusLost) {
-			this.restoreFocus();
+			this.editorGroupService.activeGroup.focus();
 		}
 		return TPromise.as(undefined);
-	}
-
-	private restoreFocus(): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			activeControl.focus();
-		}
 	}
 
 	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {

@@ -191,7 +191,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchShutdown: boolean;
 
 	private editorService: NextEditorService;
-	private editorGroupsService: INextEditorGroupsService;
+	private editorGroupService: INextEditorGroupsService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
@@ -382,7 +382,7 @@ export class Workbench extends Disposable implements IPartService {
 		const restorePreviousEditorState = !this.hasInitialFilesToOpen;
 		this.editorPart = this.instantiationService.createInstance(NextEditorPart, Identifiers.EDITOR_PART, restorePreviousEditorState);
 		this._register(toDisposable(() => this.editorPart.shutdown()));
-		this.editorGroupsService = this.editorPart;
+		this.editorGroupService = this.editorPart;
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(NextEditorService);
 		serviceCollection.set(INextEditorService, this.editorService);
@@ -598,19 +598,19 @@ export class Workbench extends Disposable implements IPartService {
 				activeEditorGroupEmpty.reset();
 			}
 
-			if (this.editorGroupsService.count > 1) {
+			if (this.editorGroupService.count > 1) {
 				multipleEditorGroups.set(true);
 			} else {
 				multipleEditorGroups.reset();
 			}
 		};
 
-		this.editorGroupsService.whenRestored.then(() => updateEditorContextKeys());
+		this.editorGroupService.whenRestored.then(() => updateEditorContextKeys());
 
 		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
-		this._register(this.editorGroupsService.onDidAddGroup(() => updateEditorContextKeys()));
-		this._register(this.editorGroupsService.onDidRemoveGroup(() => updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
+		this._register(this.editorGroupService.onDidRemoveGroup(() => updateEditorContextKeys()));
 
 		const inputFocused = InputFocusedContext.bindTo(this.contextKeyService);
 		this._register(DOM.addDisposableListener(window, 'focusin', () => {
@@ -635,7 +635,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Editorpart
 		perf.mark('willRestoreEditors');
-		restorePromises.push(this.editorGroupsService.whenRestored.then(() => {
+		restorePromises.push(this.editorGroupService.whenRestored.then(() => {
 			return this.resolveEditorsToOpen().then(inputs => {
 				if (inputs.length) {
 					return this.editorService.openEditors(inputs);
@@ -739,7 +739,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Empty workbench
 		else if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY && this.openUntitledFile()) {
-			const isEmpty = this.editorGroupsService.count === 1 && this.editorGroupsService.activeGroup.count === 0;
+			const isEmpty = this.editorGroupService.count === 1 && this.editorGroupService.activeGroup.count === 0;
 			if (!isEmpty) {
 				return TPromise.as([]); // do not open any empty untitled file if we restored editors from previous session
 			}
@@ -1212,10 +1212,7 @@ export class Workbench extends Disposable implements IPartService {
 			// Status bar and activity bar visibility come from settings -> update their visibility.
 			this.onDidUpdateConfiguration(true);
 
-			const activeEditor = this.editorService.activeControl;
-			if (activeEditor) {
-				activeEditor.focus();
-			}
+			this.editorGroupService.activeGroup.focus();
 
 			toggleFullScreen = this.zenMode.transitionedToFullScreen && browser.isFullscreen();
 		}
@@ -1250,19 +1247,19 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Enter Centered Editor Layout
 		if (active) {
-			if (this.editorGroupsService.count === 1) {
-				const activeGroup = this.editorGroupsService.activeGroup;
-				this.editorGroupsService.addGroup(activeGroup, GroupDirection.LEFT);
-				this.editorGroupsService.addGroup(activeGroup, GroupDirection.RIGHT);
+			if (this.editorGroupService.count === 1) {
+				const activeGroup = this.editorGroupService.activeGroup;
+				this.editorGroupService.addGroup(activeGroup, GroupDirection.LEFT);
+				this.editorGroupService.addGroup(activeGroup, GroupDirection.RIGHT);
 			}
 		}
 
 		// Leave Centered Editor Layout
 		else {
-			if (this.editorGroupsService.count === 3) {
-				this.editorGroupsService.groups.forEach(group => {
+			if (this.editorGroupService.count === 3) {
+				this.editorGroupService.groups.forEach(group => {
 					if (group.count === 0) {
-						this.editorGroupsService.removeGroup(group);
+						this.editorGroupService.removeGroup(group);
 					}
 				});
 			}
@@ -1309,14 +1306,13 @@ export class Workbench extends Disposable implements IPartService {
 		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.sidebarPart.getActiveViewlet()) {
 			promise = this.sidebarPart.hideActiveViewlet().then(() => {
-				const activeEditor = this.editorService.activeControl;
 				const activePanel = this.panelPart.getActivePanel();
 
 				// Pass Focus to Editor or Panel if Sidebar is now hidden
 				if (this.hasFocus(Parts.PANEL_PART) && activePanel) {
 					activePanel.focus();
-				} else if (activeEditor) {
-					activeEditor.focus();
+				} else {
+					this.editorGroupService.activeGroup.focus();
 				}
 			});
 		}
@@ -1360,12 +1356,7 @@ export class Workbench extends Disposable implements IPartService {
 		let promise = TPromise.wrap<any>(null);
 		if (hidden && this.panelPart.getActivePanel()) {
 			promise = this.panelPart.hideActivePanel().then(() => {
-
-				// Pass Focus to Editor if Panel part is now hidden
-				const editor = this.editorService.activeControl;
-				if (editor) {
-					editor.focus();
-				}
+				this.editorGroupService.activeGroup.focus(); // Pass focus to editor group if panel part is now hidden
 			});
 		}
 

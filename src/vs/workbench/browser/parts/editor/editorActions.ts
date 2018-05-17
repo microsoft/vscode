@@ -315,16 +315,13 @@ export class FocusActiveGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			activeEditor.focus();
-		}
+		this.editorGroupService.activeGroup.focus();
 
 		return TPromise.as(true);
 	}
@@ -699,24 +696,25 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.input) {
-			const input = activeEditor.input;
-			const position = activeEditor.group;
+		const activeControl = this.editorService.activeControl;
+		if (activeControl && activeControl.input) {
+			const editor = activeControl.input;
+			const group = this.editorGroupService.getGroup(activeControl.group);
 
 			// first try a normal revert where the contents of the editor are restored
-			return activeEditor.input.revert().then(() => this.editorService.closeEditor(position, input), error => {
+			return editor.revert().then(() => group.closeEditor(editor), error => {
 				// if that fails, since we are about to close the editor, we accept that
 				// the editor cannot be reverted and instead do a soft revert that just
 				// enables us to close the editor. With this, a user can always close a
 				// dirty editor even when reverting fails.
-				return activeEditor.input.revert({ soft: true }).then(() => this.editorService.closeEditor(position, input));
+				return editor.revert({ soft: true }).then(() => group.closeEditor(editor));
 			});
 		}
 
@@ -732,20 +730,29 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private groupService: IEditorGroupService
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private groupService: INextEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		const editor = getTarget(this.editorService, this.groupService, context);
-		if (editor) {
-			return this.editorService.closeEditors(editor.position, { except: editor.input, direction: CloseDirection.LEFT });
+		const { group, editor } = getTarget(this.editorService, this.groupService, context);
+		if (group && editor) {
+			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor });
 		}
 
 		return TPromise.as(false);
 	}
+}
+
+function getTarget(editorService: INextEditorService, editorGroupService: INextEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: INextEditorGroup } {
+	if (context) {
+		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
+	}
+
+	// Fallback to active group
+	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
 export class CloseAllEditorsAction extends Action {
@@ -950,19 +957,6 @@ export class MaximizeGroupAction extends Action {
 
 		return TPromise.as(false);
 	}
-}
-
-function getTarget(editorService: IWorkbenchEditorService, editorGroupService: IEditorGroupService, context?: IEditorIdentifier): { input: IEditorInput, position: Position } {
-	if (context) {
-		return { input: context.editor, position: editorGroupService.getStacksModel().positionOfGroup(editorGroupService.getStacksModel().getGroup(context.groupId)) };
-	}
-
-	const activeEditor = editorService.getActiveEditor();
-	if (activeEditor) {
-		return { input: activeEditor.input, position: activeEditor.group };
-	}
-
-	return null;
 }
 
 export abstract class BaseNavigateEditorAction extends Action {
@@ -1380,18 +1374,16 @@ export class FocusLastEditorInStackAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const active = this.editorService.getActiveEditor();
-		if (active) {
-			const group = this.editorGroupService.getStacksModel().groupAt(active.group);
-			const editor = group.getEditor(group.count - 1);
-
+		const activeGroup = this.editorGroupService.activeGroup;
+		if (activeGroup) {
+			const editor = activeGroup.getEditor(activeGroup.count - 1);
 			if (editor) {
 				return this.editorService.openEditor(editor);
 			}

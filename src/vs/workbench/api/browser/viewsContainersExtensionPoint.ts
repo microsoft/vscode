@@ -29,7 +29,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -184,9 +184,9 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@INextEditorService editorService: INextEditorService
+					@INextEditorGroupsService editorGroupService: INextEditorGroupsService
 				) {
-					super(id, label, id, viewletService, editorService);
+					super(id, label, id, viewletService, editorGroupService);
 				}
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

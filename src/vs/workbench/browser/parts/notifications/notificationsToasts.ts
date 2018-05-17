@@ -16,7 +16,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -64,7 +64,7 @@ export class NotificationsToasts extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -219,11 +219,11 @@ export class NotificationsToasts extends Themable {
 
 	private removeToast(item: INotificationViewItem): void {
 		const notificationToast = this.mapNotificationToToast.get(item);
-		let focusEditor = false;
+		let focusGroup = false;
 		if (notificationToast) {
 			const toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
 			if (toastHasDOMFocus) {
-				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+				focusGroup = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
 			}
 
 			// Listeners
@@ -242,17 +242,10 @@ export class NotificationsToasts extends Themable {
 		else {
 			this.doHide();
 
-			// Move focus to editor as needed
-			if (focusEditor) {
-				this.focusEditor();
+			// Move focus back to editor group as needed
+			if (focusGroup) {
+				this.editorGroupService.activeGroup.focus();
 			}
-		}
-	}
-
-	private focusEditor(): void {
-		const activeControl = this.editorService.activeControl;
-		if (activeControl) {
-			activeControl.focus();
 		}
 	}
 
@@ -273,12 +266,12 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public hide(): void {
-		const focusEditor = isAncestor(document.activeElement, this.notificationsToastsContainer);
+		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
 
 		this.removeToasts();
 
-		if (focusEditor) {
-			this.focusEditor();
+		if (focusGroup) {
+			this.editorGroupService.activeGroup.focus();
 		}
 	}
 

@@ -19,15 +19,15 @@ import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
 	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @INextEditorService editorService: INextEditorService) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @INextEditorGroupsService editorGroupService: INextEditorGroupsService) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
 }
 

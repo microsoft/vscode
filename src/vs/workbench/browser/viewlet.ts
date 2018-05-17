@@ -17,7 +17,7 @@ import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/togg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -120,12 +120,12 @@ export class ToggleViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@INextEditorService private editorService: INextEditorService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
 	) {
 		super(id, name);
 
 		this.viewletId = viewletId;
-		this.enabled = !!this.viewletService && !!this.editorService;
+		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
 	public run(): TPromise<any> {
@@ -135,11 +135,8 @@ export class ToggleViewletAction extends Action {
 			return this.viewletService.openViewlet(this.viewletId, true);
 		}
 
-		// Otherwise pass focus to editor if possible
-		const editor = this.editorService.activeControl;
-		if (editor) {
-			editor.focus();
-		}
+		// Otherwise pass focus to editor group
+		this.editorGroupService.activeGroup.focus();
 
 		return TPromise.as(true);
 	}
