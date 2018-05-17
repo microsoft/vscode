@@ -1058,7 +1058,7 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 	return candidate;
 }
 
-function incrementFileName(name: string, isFolder: boolean): string {
+export function incrementFileName(name: string, isFolder: boolean): string {
 
 	// file.1.txt=>file.2.txt
 	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
