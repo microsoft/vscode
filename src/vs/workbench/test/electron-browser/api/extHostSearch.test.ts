@@ -6,6 +6,7 @@
 
 import * as assert from 'assert';
 import * as path from 'path';
+import * as extfs from 'vs/base/node/extfs';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
@@ -45,6 +46,8 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 	dispose() {
 	}
 }
+
+let mockExtfs: Partial<typeof extfs>;
 
 suite('ExtHostSearch', () => {
 	async function registerTestSearchProvider(provider: vscode.SearchProvider): TPromise<void> {
@@ -103,7 +106,9 @@ suite('ExtHostSearch', () => {
 		mockMainThreadSearch = new MockMainThreadSearch();
 
 		rpcProtocol.set(MainContext.MainThreadSearch, mockMainThreadSearch);
-		extHostSearch = new ExtHostSearch(rpcProtocol, null);
+
+		mockExtfs = {};
+		extHostSearch = new ExtHostSearch(rpcProtocol, null, mockExtfs as typeof extfs);
 	});
 
 	teardown(() => {
@@ -579,6 +584,14 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
+		function makeTextResult(uri: URI): vscode.TextSearchResult {
+			return {
+				preview: makePreview('foo'),
+				range: new Range(0, 0, 0, 3),
+				uri
+			};
+		}
+
 		function getSimpleQuery(): ISearchQuery {
 			return {
 				type: QueryType.Text,
@@ -643,16 +656,8 @@ suite('ExtHostSearch', () => {
 
 		test('basic results', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				{
-					preview: makePreview('foo'),
-					range: new Range(0, 0, 0, 3),
-					uri: makeAbsoluteURI(rootFolderA, 'file1.ts')
-				},
-				{
-					preview: makePreview('bar'),
-					range: new Range(1, 0, 1, 3),
-					uri: makeAbsoluteURI(rootFolderA, 'file2.ts')
-				}
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts'))
 			];
 
 			await registerTestSearchProvider({
@@ -664,6 +669,247 @@ suite('ExtHostSearch', () => {
 
 			const results = await runTextSearch(getPattern('foo'), getSimpleQuery());
 			assertResults(results, providedResults);
+		});
+
+		test('all provider calls get global include/excludes', async () => {
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					assert.equal(options.includes.length, 1);
+					assert.equal(options.excludes.length, 1);
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: IRawSearchQuery = {
+				type: QueryType.Text,
+
+				includePattern: {
+					'*.ts': true
+				},
+
+				excludePattern: {
+					'*.js': true
+				},
+
+				folderQueries: [
+					{ folder: rootFolderA },
+					{ folder: rootFolderB }
+				]
+			};
+
+			await runTextSearch(getPattern('foo'), query);
+		});
+
+		test('global/local include/excludes combined', async () => {
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					if (options.folder.toString() === rootFolderA.toString()) {
+						assert.deepEqual(options.includes.sort(), ['*.ts', 'foo']);
+						assert.deepEqual(options.excludes.sort(), ['*.js', 'bar']);
+					} else {
+						assert.deepEqual(options.includes.sort(), ['*.ts']);
+						assert.deepEqual(options.excludes.sort(), ['*.js']);
+					}
+
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: IRawSearchQuery = {
+				type: QueryType.Text,
+
+				includePattern: {
+					'*.ts': true
+				},
+				excludePattern: {
+					'*.js': true
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						includePattern: {
+							'foo': true
+						},
+						excludePattern: {
+							'bar': true
+						}
+					},
+					{ folder: rootFolderB }
+				]
+			};
+
+			await runTextSearch(getPattern('foo'), query);
+		});
+
+		test('include/excludes resolved correctly', async () => {
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					assert.deepEqual(options.includes.sort(), ['*.jsx', '*.ts']);
+					assert.deepEqual(options.excludes.sort(), []);
+
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				includePattern: {
+					'*.ts': true,
+					'*.jsx': false
+				},
+				excludePattern: {
+					'*.js': true,
+					'*.tsx': false
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						includePattern: {
+							'*.jsx': true
+						},
+						excludePattern: {
+							'*.js': false
+						}
+					}
+				]
+			};
+
+			await runTextSearch(getPattern('foo'), query);
+		});
+
+		test('provider fail', async () => {
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					throw new Error('Provider fail');
+				}
+			});
+
+			try {
+				await runTextSearch(getPattern('foo'), getSimpleQuery());
+				assert(false, 'Expected to fail');
+			} catch {
+				// expected to fail
+			}
+		});
+
+		test('basic sibling clause', async () => {
+			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
+				if (_path === rootFolderA.fsPath) {
+					callback(null, [
+						'file1.js',
+						'file1.ts'
+					]);
+				} else {
+					callback(new Error('Wrong path'), null);
+				}
+			};
+
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.js')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts'))
+			];
+
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				excludePattern: {
+					'*.js': {
+						when: '$(basename).ts'
+					}
+				},
+
+				folderQueries: [
+					{ folder: rootFolderA }
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults.slice(1));
+		});
+
+		test('multiroot sibling clause', async () => {
+			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
+				if (_path === makeAbsoluteURI(rootFolderA, 'folder').fsPath) {
+					callback(null, [
+						'fileA.scss',
+						'fileA.css',
+						'file2.css'
+					]);
+				} else if (_path === rootFolderB.fsPath) {
+					callback(null, [
+						'fileB.ts',
+						'fileB.js',
+						'file3.js'
+					]);
+				} else {
+					callback(new Error('Wrong path'), null);
+				}
+			};
+
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					let reportedResults;
+					if (options.folder.fsPath === rootFolderA.fsPath) {
+						reportedResults = [
+							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.scss')),
+							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.css')),
+							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/file2.css'))
+						];
+					} else {
+						reportedResults = [
+							makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.ts')),
+							makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.js')),
+							makeTextResult(makeAbsoluteURI(rootFolderB, 'file3.js'))
+						];
+					}
+
+					reportedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			});
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				excludePattern: {
+					'*.js': {
+						when: '$(basename).ts'
+					},
+					'*.css': true
+				},
+				folderQueries: [
+					{
+						folder: rootFolderA,
+						excludePattern: {
+							'folder/*.css': {
+								when: '$(basename).scss'
+							}
+						}
+					},
+					{
+						folder: rootFolderB,
+						excludePattern: {
+							'*.js': false
+						}
+					}
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, [
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.scss')),
+				makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/file2.css')),
+				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.ts')),
+				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.js')),
+				makeTextResult(makeAbsoluteURI(rootFolderB, 'file3.js'))]);
 		});
 	});
 });
