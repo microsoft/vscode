@@ -15,7 +15,6 @@ import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Schemas } from 'vs/base/common/network';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { DefaultEndOfLine } from 'vs/editor/common/model';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -29,7 +28,7 @@ import { ITree, IDragAndDropData } from 'vs/base/parts/tree/browser/tree';
 import { isWindows } from 'vs/base/common/platform';
 import { coalesce } from 'vs/base/common/arrays';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { basenameOrAuthority } from 'vs/base/common/resources';
 import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -386,18 +385,17 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
 	const backupFileService = accessor.get(IBackupFileService);
-	const editorService = accessor.get(IWorkbenchEditorService);
+	const editorService = accessor.get(INextEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
 	files.forEach(file => {
 
 		// Try to find editor view state from the visible editors that match given resource
 		let viewState: IEditorViewState;
-		const editors = editorService.getVisibleEditors();
-		for (let i = 0; i < editors.length; i++) {
-			const editor = editors[i];
-			const codeEditor = getCodeEditor(editor);
-			if (codeEditor) {
+		const codeEditors = editorService.visibleTextEditorControls;
+		for (let i = 0; i < codeEditors.length; i++) {
+			const codeEditor = codeEditors[i];
+			if (isCodeEditor(codeEditor)) {
 				const model = codeEditor.getModel();
 				if (model && model.uri && model.uri.toString() === file.resource.toString()) {
 					viewState = codeEditor.saveViewState();

@@ -22,7 +22,8 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const ActiveEditorMovePositioning = {
@@ -203,8 +204,8 @@ function registerDiffEditorCommands(): void {
 	});
 
 	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
-		let editorService = accessor.get(IWorkbenchEditorService);
-		const candidates = [editorService.getActiveEditor(), ...editorService.getVisibleEditors()].filter(e => e instanceof TextDiffEditor);
+		const editorService = accessor.get(INextEditorService);
+		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
 			next ? (<TextDiffEditor>candidates[0]).getDiffNavigator().next() : (<TextDiffEditor>candidates[0]).getDiffNavigator().previous();
@@ -217,21 +218,14 @@ function registerDiffEditorCommands(): void {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resource, context: IEditorCommandsContext) => {
-			const editorService = accessor.get(IWorkbenchEditorService);
-			const editorGroupService = accessor.get(IEditorGroupService);
+			const editorService = accessor.get(INextEditorService);
+			const editorGroupService = accessor.get(INextEditorGroupsService);
 
-			let editor: IEditor;
-			if (context) {
-				const position = positionAndInput(editorGroupService, editorService, context).position;
-				editor = editorService.getVisibleEditors()[position];
-			} else {
-				editor = editorService.getActiveEditor();
-			}
-
-			if (editor instanceof TextDiffEditor) {
-				const control = editor.getControl();
-				const isInlineMode = !control.renderSideBySide;
-				control.updateOptions(<IDiffEditorOptions>{
+			const { control } = resolveCommandsContext(editorGroupService, editorService, context);
+			if (control instanceof TextDiffEditor) {
+				const widget = control.getControl();
+				const isInlineMode = !widget.renderSideBySide;
+				widget.updateOptions(<IDiffEditorOptions>{
 					renderSideBySide: isInlineMode
 				});
 			}
@@ -253,12 +247,12 @@ function registerOpenEditorAtIndexCommands(): void {
 			primary: KeyMod.Alt | toKeyCode(visibleIndex),
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
 			handler: accessor => {
-				const editorService = accessor.get(IWorkbenchEditorService);
-				const editorGroupService = accessor.get(IEditorGroupService);
+				const editorService = accessor.get(INextEditorService);
+				const editorGroupService = accessor.get(INextEditorGroupsService);
 
-				const active = editorService.getActiveEditor();
-				if (active) {
-					const group = editorGroupService.getStacksModel().groupAt(active.group);
+				const activeControl = editorService.activeControl;
+				if (activeControl) {
+					const group = editorGroupService.getGroup(activeControl.group);
 					const editor = group.getEditor(editorIndex);
 
 					if (editor) {
@@ -457,13 +451,12 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupService);
-			const editorService = accessor.get(IWorkbenchEditorService);
+			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorService = accessor.get(INextEditorService);
 
-			const { position, input } = positionAndInput(editorGroupService, editorService, context);
-
-			if (typeof position === 'number' && input) {
-				return editorService.closeEditors(position, { except: input, direction: CloseDirection.RIGHT });
+			const { group, editor } = resolveCommandsContext(editorGroupService, editorService, context);
+			if (group && editor) {
+				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
 
 			return TPromise.as(false);
@@ -476,13 +469,12 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(IEditorGroupService);
-			const editorService = accessor.get(IWorkbenchEditorService);
+			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorService = accessor.get(INextEditorService);
 
-			const { position, input } = positionAndInput(editorGroupService, editorService, context);
-
-			if (typeof position === 'number' && input) {
-				return editorGroupService.pinEditor(position, input);
+			const { group, editor } = resolveCommandsContext(editorGroupService, editorService, context);
+			if (group && editor) {
+				return group.pinEditor(editor);
 			}
 
 			return TPromise.as(false);
@@ -517,16 +509,6 @@ function registerEditorCommands() {
 			return quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
 		}
 	});
-
-	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: '_workbench.printStacksModel',
-		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(0),
-		handler(accessor: ServicesAccessor) {
-			console.log(`${accessor.get(IEditorGroupService).getStacksModel().toString()}\n\n`);
-		},
-		when: void 0,
-		primary: void 0
-	});
 }
 
 function positionAndInput(editorGroupService: IEditorGroupService, editorService: IWorkbenchEditorService, context?: IEditorCommandsContext): { position: Position, input: IEditorInput } {
@@ -545,6 +527,23 @@ function positionAndInput(editorGroupService: IEditorGroupService, editorService
 	}
 
 	return { position, input };
+}
+
+function resolveCommandsContext(editorGroupService: INextEditorGroupsService, editorService: INextEditorService, context?: IEditorCommandsContext): { group: INextEditorGroup, editor: IEditorInput, control: IEditor } {
+
+	// Resolve from context
+	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
+	let editor = group && typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : undefined;
+	let control = group ? group.activeControl : undefined;
+
+	// Fallback to active group as needed
+	if (!group) {
+		group = editorGroupService.activeGroup;
+		editor = <EditorInput>group.activeEditor;
+		control = group.activeControl;
+	}
+
+	return { group, editor, control };
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService, editorGroupService: INextEditorGroupsService): IEditorCommandsContext[] {
