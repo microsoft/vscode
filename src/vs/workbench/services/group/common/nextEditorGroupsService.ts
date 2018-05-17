@@ -288,6 +288,22 @@ export interface INextEditorGroup {
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
+	 * Emitted when an editor is about to open. This can be prevented from
+	 * the provided event.
+	 */
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
+
+	/**
+	 * Emitted when an editor has opened successfully.
+	 */
+	readonly onDidOpenEditor: Event<IEditorInput>;
+
+	/**
+	 * Emitted when an editor failed to open.
+	 */
+	readonly onDidOpenEditorFail: Event<IEditorInput>;
+
+	/**
 	 * Emitted when an editor of this group is about to get closed.
 	 *
 	 * Listeners can for example save view state now before the
@@ -299,17 +315,6 @@ export interface INextEditorGroup {
 	 * Emitted when an editor of this group is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
-	 * Emitted when an editor is about to open. This can be prevented from
-	 * the provided event.
-	 */
-	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
-
-	/**
-	 * Emitted when an editor failed to open.
-	 */
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
 
 	/**
 	 * An event for when the label of the group changes.

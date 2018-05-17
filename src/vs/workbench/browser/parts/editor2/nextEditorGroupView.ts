@@ -78,14 +78,17 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
 
+	private _onDidOpenEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onDidOpenEditor(): Event<EditorInput> { return this._onDidOpenEditor.event; }
+
+	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
+	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
+
 	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
 
 	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
-
-	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
 
 	//#endregion
 
@@ -365,6 +368,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update container
 		this.updateContainer();
+
+		// Event
+		this._onDidOpenEditor.fire(editor);
 	}
 
 	private onDidEditorClose(event: EditorCloseEvent): void {
@@ -389,9 +395,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			}
 		});
 
-		// After close
-		this._onDidCloseEditor.fire(event);
-
 		/* __GDPR__
 			"editorClosed" : {
 				"${include}": [
@@ -403,6 +406,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update container
 		this.updateContainer();
+
+		// Event
+		this._onDidCloseEditor.fire(event);
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {

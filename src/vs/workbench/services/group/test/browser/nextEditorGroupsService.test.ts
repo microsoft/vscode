@@ -356,6 +356,16 @@ suite('Editor groups service (editor2)', () => {
 			activeEditorChangeCounter++;
 		});
 
+		let editorWillOpenCounter = 0;
+		const editorWillOpenListener = group.onWillOpenEditor(() => {
+			editorWillOpenCounter++;
+		});
+
+		let editorDidOpenCounter = 0;
+		const editorDidOpenListener = group.onDidOpenEditor(() => {
+			editorDidOpenCounter++;
+		});
+
 		let editorCloseCounter = 0;
 		const editorCloseListener = group.onDidCloseEditor(() => {
 			editorCloseCounter++;
@@ -364,10 +374,6 @@ suite('Editor groups service (editor2)', () => {
 		let editorWillCloseCounter = 0;
 		const editorWillCloseListener = group.onWillCloseEditor(() => {
 			editorWillCloseCounter++;
-		});
-		let editorWillOpenCounter = 0;
-		const editorWillOpenListener = group.onWillOpenEditor(() => {
-			editorWillOpenCounter++;
 		});
 
 		const input = new TestEditorInput(URI.file('foo/bar'));
@@ -382,6 +388,7 @@ suite('Editor groups service (editor2)', () => {
 				assert.equal(group.isEmpty(), false);
 				assert.equal(group.count, 2);
 				assert.equal(editorWillOpenCounter, 2);
+				assert.equal(editorDidOpenCounter, 2);
 				assert.equal(activeEditorChangeCounter, 1);
 				assert.equal(group.getEditor(0), input);
 				assert.equal(group.getEditor(1), inputInactive);
@@ -413,6 +420,7 @@ suite('Editor groups service (editor2)', () => {
 						editorCloseListener.dispose();
 						editorWillCloseListener.dispose();
 						editorWillOpenListener.dispose();
+						editorDidOpenListener.dispose();
 						part.dispose();
 					});
 				});
