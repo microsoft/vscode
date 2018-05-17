@@ -8,8 +8,8 @@
 import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import 'vs/css!./media/menubarpart';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
-import { IMenuService, ICommandAction, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
+import { IMenuService, MenuId, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -35,6 +35,7 @@ export class MenubarPart extends Part {
 	private topLevelMenus: {
 		'File': IMenu;
 		'Edit': IMenu;
+		[index: string]: IMenu;
 	};
 
 	private customMenus: {
@@ -74,31 +75,40 @@ export class MenubarPart extends Part {
 	}
 
 	private setupNativeMenubar(): void {
-		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarActions());
+		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 	}
 
-	private getMenubarActions(): ICommandAction[][] {
-		let ret: ICommandAction[][] = [];
-		ret.push([]);
+	private getMenubarMenus(): IMenubarMenu[] {
+		let ret: IMenubarMenu[] = [];
 
-		let i = 0;
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
+			let menubarMenu: IMenubarMenu = { items: [] };
 			let groups = menu.getActions();
 			for (let group of groups) {
 				const [, actions] = group;
 				actions.forEach(menuItemAction => {
-
-					ret[i].push({
+					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItemAction.id,
-						title: menuItemAction.label
-					});
+						label: menuItemAction.label,
+						checked: menuItemAction.checked,
+						enabled: menuItemAction.enabled
+					};
+
+					menubarMenu.items.push(menubarMenuItem);
 				});
+
+				menubarMenu.items.push({ id: 'vscode.menubar.separator' });
 			}
 
-			i++;
+			if (menubarMenu.items.length > 0) {
+				menubarMenu.items.pop();
+			}
+
+			ret.push(menubarMenu);
 		}
 
+		console.log(ret);
 		return ret;
 	}
 
@@ -119,6 +129,11 @@ export class MenubarPart extends Part {
 			let groups = menu.getActions();
 			for (let group of groups) {
 				const [, actions] = group;
+
+				actions.map((action: MenuItemAction) => {
+					action.label = action.label.replace(/\(&&\w\)|&&/g, '');
+				});
+
 				this.customMenus[menuTitle].actions.push(...actions);
 				this.customMenus[menuTitle].actions.push(new Separator());
 			}

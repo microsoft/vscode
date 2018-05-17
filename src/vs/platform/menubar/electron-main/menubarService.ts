@@ -5,11 +5,10 @@
 
 'use strict';
 
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu } from 'vs/platform/menubar/common/menubar';
 import { Menubar } from 'vs/code/electron-main/menubar';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class MenubarService implements IMenubarService {
@@ -25,11 +24,11 @@ export class MenubarService implements IMenubarService {
 		this._menubar = this.instantiationService.createInstance(Menubar);
 	}
 
-	updateMenubar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+	updateMenubar(windowId: number, menus: IMenubarMenu[]): TPromise<void> {
 		this.logService.trace('menubarService#updateMenubar', windowId);
 
 		if (this._menubar) {
-			this._menubar.updateMenu(items);
+			this._menubar.updateMenu(menus);
 		}
 
 		return TPromise.as(null);

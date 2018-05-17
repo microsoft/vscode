@@ -5,12 +5,11 @@
 
 'use strict';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu } from 'vs/platform/menubar/common/menubar';
 
 export interface IMenubarChannel extends IChannel {
-	call(command: 'updateMenubar', arg: [number, ICommandAction[][]]): TPromise<void>;
+	call(command: 'updateMenubar', arg: [number, IMenubarMenu[]]): TPromise<void>;
 	call(command: string, arg?: any): TPromise<any>;
 }
 
@@ -32,7 +31,7 @@ export class MenubarChannelClient implements IMenubarService {
 
 	constructor(private channel: IMenubarChannel) { }
 
-	updateMenubar(windowId: number, items: ICommandAction[][]): TPromise<void> {
-		return this.channel.call('updateMenubar', [windowId, items]);
+	updateMenubar(windowId: number, menus: IMenubarMenu[]): TPromise<void> {
+		return this.channel.call('updateMenubar', [windowId, menus]);
 	}
 }

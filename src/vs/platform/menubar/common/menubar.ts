@@ -6,7 +6,6 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 
 export const IMenubarService = createDecorator<IMenubarService>('menubarService');
@@ -14,5 +13,20 @@ export const IMenubarService = createDecorator<IMenubarService>('menubarService'
 export interface IMenubarService {
 	_serviceBrand: any;
 
-	updateMenubar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+	updateMenubar(windowId: number, menus: IMenubarMenu[]): TPromise<void>;
+}
+
+export interface IMenubarMenu {
+	items: Array<IMenubarMenuItemAction | IMenubarMenuItemSeparator>;
+}
+
+export interface IMenubarMenuItemAction {
+	id: string;
+	label: string;
+	checked: boolean;
+	enabled: boolean;
+}
+
+export interface IMenubarMenuItemSeparator {
+	id: 'vscode.menubar.separator';
 }

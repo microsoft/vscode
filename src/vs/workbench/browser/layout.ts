@@ -63,6 +63,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 	private parent: HTMLElement;
 	private workbenchContainer: HTMLElement;
 	private titlebar: Part;
+	private menubar: Part;
 	private activitybar: Part;
 	private editor: Part;
 	private sidebar: Part;
@@ -94,6 +95,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		workbenchContainer: HTMLElement,
 		parts: {
 			titlebar: Part,
+			menubar: Part,
 			activitybar: Part,
 			editor: Part,
 			sidebar: Part,
@@ -115,6 +117,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 		this.parent = parent;
 		this.workbenchContainer = workbenchContainer;
 		this.titlebar = parts.titlebar;
+		this.menubar = parts.menubar;
 		this.activitybar = parts.activitybar;
 		this.editor = parts.editor;
 		this.sidebar = parts.sidebar;
@@ -455,6 +458,7 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 
 		const isActivityBarHidden = !this.partService.isVisible(Parts.ACTIVITYBAR_PART);
 		const isTitlebarHidden = !this.partService.isVisible(Parts.TITLEBAR_PART);
+		const isMenubarHidden = !this.partService.isVisible(Parts.MENUBAR_PART);
 		const isPanelHidden = !this.partService.isVisible(Parts.PANEL_PART);
 		const isStatusbarHidden = !this.partService.isVisible(Parts.STATUSBAR_PART);
 		const isSidebarHidden = !this.partService.isVisible(Parts.SIDEBAR_PART);
@@ -600,6 +604,14 @@ export class WorkbenchLayout implements IVerticalSashLayoutProvider, IHorizontal
 			hide(titleContainer);
 		} else {
 			show(titleContainer);
+		}
+
+		// Menubar
+		const menubarContainer = this.menubar.getContainer();
+		if (isMenubarHidden) {
+			hide(menubarContainer);
+		} else {
+			show(menubarContainer);
 		}
 
 		// Editor Part and Panel part

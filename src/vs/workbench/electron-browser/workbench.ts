@@ -778,6 +778,8 @@ export class Workbench implements IPartService {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
+			case Parts.MENUBAR_PART:
+				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1182,6 +1184,7 @@ export class Workbench implements IPartService {
 			this.workbench.getHTMLElement(),			// Workbench Container
 			{
 				titlebar: this.titlebarPart,			// Title Bar
+				menubar: this.menubarPart,					// Menubar
 				activitybar: this.activitybarPart,		// Activity Bar
 				editor: this.editorPart,				// Editor
 				sidebar: this.sidebarPart,				// Sidebar

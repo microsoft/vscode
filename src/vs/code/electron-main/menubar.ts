@@ -23,7 +23,7 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
 
 // interface IExtensionViewlet {
 // 	id: string;
@@ -65,7 +65,7 @@ export class Menubar {
 
 	private nativeTabMenuItems: Electron.MenuItem[];
 
-	private menubarMenus: ICommandAction[][];
+	private menubarMenus: IMenubarMenu[];
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -177,7 +177,7 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: ICommandAction[][]) {
+	updateMenu(menus: IMenubarMenu[]) {
 		this.menubarMenus = menus;
 		this.scheduleUpdateMenu();
 	}
@@ -367,16 +367,21 @@ export class Menubar {
 	}
 
 	private setFileMenu(fileMenu: Electron.Menu): void {
-		const hasNoWindows = (this.windowsMainService.getWindowCount() === 0);
+		//const hasNoWindows = (this.windowsMainService.getWindowCount() === 0);
 
-		if (!this.menubarMenus) {
+		if (!this.menubarMenus || !this.menubarMenus[0] || !this.menubarMenus[0].items || this.menubarMenus[0].items.length === 0) {
 			return;
 		}
 
-		this.menubarMenus[0].forEach((action: ICommandAction) => {
-			let menuItem: Electron.MenuItem;
-			menuItem = this.createMenuItem(action.title.toString(), action.id);
-			fileMenu.append(menuItem);
+		this.menubarMenus[0].items.forEach((item: IMenubarMenuItemAction | IMenubarMenuItemSeparator) => {
+			if (item.id === 'vscode.menubar.separator') {
+				fileMenu.append(__separator__());
+			} else {
+				let menuItem: Electron.MenuItem;
+				let action: IMenubarMenuItemAction = <IMenubarMenuItemAction>item;
+				menuItem = this.createMenuItem(action.label, action.id, action.enabled, action.checked);
+				fileMenu.append(menuItem);
+			}
 		});
 
 
