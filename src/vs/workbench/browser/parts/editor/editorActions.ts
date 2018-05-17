@@ -15,7 +15,7 @@ import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry,
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { Position, IResourceInput, POSITIONS } from 'vs/platform/editor/common/editor';
+import { Position, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
@@ -651,7 +651,7 @@ export class CloseOneEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+		@INextEditorGroupsService private editorGroupsService: INextEditorGroupsService
 	) {
 		super(id, label, 'close-editor-action');
 	}
@@ -660,7 +660,7 @@ export class CloseOneEditorAction extends Action {
 		let group: INextEditorGroup;
 		let editorIndex: number;
 		if (context) {
-			group = this.nextEditorGroupsService.getGroup(context.groupId);
+			group = this.editorGroupsService.getGroup(context.groupId);
 
 			if (group) {
 				editorIndex = context.editorIndex; // only allow editor at index if group is valid
@@ -668,7 +668,7 @@ export class CloseOneEditorAction extends Action {
 		}
 
 		if (!group) {
-			group = this.nextEditorGroupsService.activeGroup;
+			group = this.editorGroupsService.activeGroup;
 		}
 
 		// Close specific editor in group
@@ -764,7 +764,7 @@ export class CloseAllEditorsAction extends Action {
 		id: string,
 		label: string,
 		@ITextFileService private textFileService: ITextFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
 	) {
 		super(id, label, 'action-close-all-files');
 	}
@@ -773,7 +773,7 @@ export class CloseAllEditorsAction extends Action {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
-			return this.editorService.closeEditors();
+			return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
 		}
 
 		// Otherwise ask for combined confirmation
@@ -791,7 +791,7 @@ export class CloseAllEditorsAction extends Action {
 
 			return saveOrRevertPromise.then(success => {
 				if (success) {
-					return this.editorService.closeEditors();
+					return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
 				}
 
 				return void 0;
@@ -808,26 +808,20 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 	) {
 		super(id, label);
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.groupId)) : null;
-		if (typeof position !== 'number') {
-			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor) {
-				position = activeEditor.group;
+		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
+		return TPromise.join(this.editorGroupService.groups.map(g => {
+			if (g.id === groupToSkip.id) {
+				return TPromise.as(null);
 			}
-		}
 
-		if (typeof position === 'number') {
-			return this.editorService.closeEditors(POSITIONS.filter(p => p !== position));
-		}
-
-		return TPromise.as(false);
+			return g.closeAllEditors();
+		}));
 	}
 }
 
