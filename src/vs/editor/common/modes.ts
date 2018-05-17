@@ -993,13 +993,17 @@ export interface CommentThreadChangedEvent {
 
 
 export interface DocumentCommentProvider {
-	provideDocumentComments(model: model.ITextModel, token: CancellationToken): Promise<CommentInfo>;
+	provideDocumentComments(resource: URI, token: CancellationToken): Promise<CommentInfo>;
+	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 
 
 export interface WorkspaceCommentProvider {
 	provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+	createNewCommentThread(resource: URI, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+	replyToCommentThread(resource: URI, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 	onDidChangeCommentThreads(): Event<CommentThreadChangedEvent>;
 }
 

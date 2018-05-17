@@ -119,7 +119,7 @@ export class ReviewController implements IEditorContribution {
 
 			this._commentInfos.forEach(info => {
 				info.threads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
+					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService, this.commentService);
 					zoneWidget.display(thread.range.startLineNumber);
 					this._commentWidgets.push(zoneWidget);
 				});
@@ -214,7 +214,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, e.owner, thread, thread.reply, {}, this.themeService, this.commandService);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, e.owner, thread, thread.reply, {}, this.themeService, this.commandService, this.commentService);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -243,7 +243,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, replyCommand, {}, this.themeService, this.commandService);
+		}, replyCommand, {}, this.themeService, this.commandService, this.commentService);
 
 		this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -356,7 +356,7 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService, this.commentService);
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});

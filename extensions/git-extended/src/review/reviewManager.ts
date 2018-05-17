@@ -38,7 +38,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _comments: Comment[] = [];
 	private _commentsCache: Map<String, Comment[]>;
 	private _localFileChanges: FileChangeTreeItem[] = [];
-	private _reply: vscode.Command = null;
 	private _lastCommitSha: string;
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
@@ -161,50 +160,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 		await this.getPullRequestData(pr);
 		await this.prFileChangesProvider.showPullRequestFileChanges(this._localFileChanges);
 
-		this._command = vscode.commands.registerCommand(this._prNumber + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
-			try {
-				if (thread && thread.threadId) {
-					let ret = await pr.createCommentReply(text, thread.threadId);
-					return {
-						commentId: ret.data.id,
-						body: new vscode.MarkdownString(ret.data.body),
-						userName: ret.data.user.login,
-						gravatar: ret.data.user.avatar_url
-					};
-				} else {
-					let fileName = uri.path;
-					let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
-					if (matchedFiles && matchedFiles.length) {
-						let matchedFile = matchedFiles[0];
-						// git diff sha -- fileName
-						let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
-						let position = mapHeadLineToDiffHunkPosition(matchedFile.patch, contentDiff, range.start.line);
-
-						if (position < 0) {
-							return;
-						}
-
-						// there is no thread Id, which means it's a new thread
-						let ret = await pr.createComment(text, matchedFile.fileName, position);
-
-						return {
-							commentId: ret.data.id,
-							body: new vscode.MarkdownString(ret.data.body),
-							userName: ret.data.user.login,
-							gravatar: ret.data.user.avatar_url
-						};
-					}
-				}
-			} catch (e) {
-				return null;
-			}
-		});
-
-		this._reply = {
-			command: this._prNumber + '-post',
-			title: 'Add comment'
-		};
-
 		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
 
@@ -212,6 +167,59 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this.statusBarItem.command = 'pr.openInGitHub';
 		this.statusBarItem.show();
 		vscode.commands.executeCommand('pr.refreshList');
+	}
+
+	private async replyToCommentThread(document: vscode.TextDocument, range: vscode.Range, thread: vscode.CommentThread, text: string) {
+		try {
+			let ret = await this._pr.createCommentReply(text, thread.threadId);
+			thread.comments.push({
+				commentId: ret.data.id,
+				body: new vscode.MarkdownString(ret.data.body),
+				userName: ret.data.user.login,
+				gravatar: ret.data.user.avatar_url
+			});
+			return thread;
+		} catch (e) {
+			return null;
+		}
+	}
+	private async createNewCommentThread(document: vscode.TextDocument, range: vscode.Range, text: string) {
+		try {
+			let uri = document.uri;
+			let fileName = uri.path;
+			let matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
+			if (matchedFiles && matchedFiles.length) {
+				let matchedFile = matchedFiles[0];
+				// git diff sha -- fileName
+				let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
+				let position = mapHeadLineToDiffHunkPosition(matchedFile.patch, contentDiff, range.start.line);
+
+				if (position < 0) {
+					return;
+				}
+
+				// there is no thread Id, which means it's a new thread
+				let ret = await this._pr.createComment(text, matchedFile.fileName, position);
+
+				let comment = {
+					commentId: ret.data.id,
+					body: new vscode.MarkdownString(ret.data.body),
+					userName: ret.data.user.login,
+					gravatar: ret.data.user.avatar_url
+				};
+
+				let commentThread: vscode.CommentThread = {
+					threadId: comment.commentId,
+					resource: uri,
+					range: range,
+					comments: [comment]
+				};
+
+				return commentThread;
+			}
+		} catch (e) {
+			return null;
+		}
 	}
 
 	private async updateComments(): Promise<void> {
@@ -363,8 +371,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 							gravatar: comment.user.avatar_url
 						};
 					}),
-					collapsibleState: collapsibleState,
-					postReviewComment: this._reply
+					collapsibleState: collapsibleState
 				});
 			}
 
@@ -473,9 +480,10 @@ export class ReviewManager implements vscode.DecorationProvider {
 				return {
 					threads: this.commentsToCommentThreads(matchingComments, document.uri.scheme === 'file' ? vscode.CommentThreadCollapsibleState.Collapsed : vscode.CommentThreadCollapsibleState.Expanded),
 					commentingRanges: ranges,
-					postReviewComment: this._reply
 				};
-			}
+			},
+			createNewCommentThread: this.createNewCommentThread.bind(this),
+			replyToCommentThread: this.replyToCommentThread.bind(this)
 		});
 
 		this._workspaceCommentProvider = vscode.workspace.registerWorkspaceCommentProvider({
@@ -485,7 +493,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 					return this.commentsToCommentThreads(fileChange.comments);
 				}));
 				return comments.reduce((prev, curr) => prev.concat(curr), []);
-			}
+			},
+			createNewCommentThread: this.createNewCommentThread.bind(this),
+			replyToCommentThread: this.replyToCommentThread.bind(this)
 		});
 	}
 

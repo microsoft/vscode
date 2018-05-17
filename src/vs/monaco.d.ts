@@ -5162,12 +5162,16 @@ declare namespace monaco.languages {
 	}
 
 	export interface DocumentCommentProvider {
-		provideDocumentComments(model: editor.ITextModel, token: CancellationToken): Promise<CommentInfo>;
+		provideDocumentComments(resource: Uri, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 
 	export interface WorkspaceCommentProvider {
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 

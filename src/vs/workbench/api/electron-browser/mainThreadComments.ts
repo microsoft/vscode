@@ -58,12 +58,21 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			});
 
 			for (const handle of keys(this._documentProviders)) {
-				_commentService.registerDataProvider({
-					provideDocumentComments: async (model, token) => {
-						return this._proxy.$provideDocumentComments(handle, model.uri);
-					},
-					onDidChangeCommentThreads: null
-				});
+				_commentService.registerDataProvider(
+					handle,
+					{
+						provideDocumentComments: async (uri, token) => {
+							return this._proxy.$provideDocumentComments(handle, uri);
+						},
+						onDidChangeCommentThreads: null,
+						createNewCommentThread: async (uri, range, text, token) => {
+							return this._proxy.$createNewCommentThread(handle, uri, range, text);
+						},
+						replyToCommentThread: async (uri, range, thread, text, token) => {
+							return this._proxy.$replyToCommentThread(handle, uri, range, thread, text);
+						}
+					}
+				);
 			}
 		});
 	}

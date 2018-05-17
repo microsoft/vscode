@@ -430,7 +430,6 @@ declare module 'vscode' {
 	interface CommentInfo {
 		threads: CommentThread[];
 		commentingRanges?: Range[];
-		postReviewComment?: Command;
 	}
 
 	export enum CommentThreadCollapsibleState {
@@ -450,7 +449,6 @@ declare module 'vscode' {
 		range: Range;
 		comments: Comment[];
 		collapsibleState?: CommentThreadCollapsibleState;
-		postReviewComment?: Command;
 	}
 
 	interface Comment {
@@ -479,11 +477,16 @@ declare module 'vscode' {
 
 	interface DocumentCommentProvider {
 		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
 		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
 	}
 
 	interface WorkspaceCommentProvider {
 		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
 		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
 	}
 

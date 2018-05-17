@@ -31,6 +31,9 @@ import { transparent, editorForeground } from 'vs/platform/theme/common/colorReg
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from '../../../../base/common/keyCodes';
+import { ICommentService } from '../../../services/comments/electron-browser/commentService';
+import { Range } from 'vs/editor/common/core/range';
+
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
@@ -45,7 +48,7 @@ export class CommentNode {
 	public get domNode(): HTMLElement {
 		return this._domNode;
 	}
-	constructor(public comment: modes.Comment, ) {
+	constructor(public comment: modes.Comment) {
 		this._domNode = $('div.review-comment').getHTMLElement();
 		this._domNode.tabIndex = 0;
 		let avatar = $('div.avatar-container').appendTo(this._domNode).getHTMLElement();
@@ -56,7 +59,7 @@ export class CommentNode {
 		let header = $('div').appendTo(commentDetailsContainer).getHTMLElement();
 		let author = $('strong.author').appendTo(header).getHTMLElement();
 		author.innerText = comment.userName;
-		this._body = $('comment-body').appendTo(commentDetailsContainer).getHTMLElement();
+		this._body = $('div.comment-body').appendTo(commentDetailsContainer).getHTMLElement();
 		this._md = renderMarkdown(comment.body);
 		this._body.appendChild(this._md);
 
@@ -126,7 +129,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		replyCommand: modes.Command,
 		options: IOptions = {},
 		private readonly themeService: IThemeService,
-		private readonly commandService: ICommandService
+		private readonly commandService: ICommandService,
+		private readonly commentService: ICommentService
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
@@ -289,6 +293,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._commentThread = commentThread;
 		this._commentElements = newCommentNodeList;
+		let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
+		$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
@@ -335,71 +341,80 @@ export class ReviewZoneWidget extends ZoneWidget {
 			this._commentsElement.appendChild(newCommentNode.domNode);
 		}
 
-		if (this._commentThread.reply) {
-			const hasExistingComments = this._commentThread.comments.length > 0;
-			const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
-			this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions());
-			const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
-			const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
-			const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
-			this._localToDispose.push(model);
-			this._commentEditor.setModel(model);
-			this._localToDispose.push(this._commentEditor);
-			this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
-			this.setCommentEditorDecorations();
+		const hasExistingComments = this._commentThread.comments.length > 0;
+		const commentForm = $('.comment-form').appendTo(this._bodyElement).getHTMLElement();
+		this._commentEditor = this.instantiationService.createInstance(SimpleCommentEditor, commentForm, SimpleCommentEditor.getEditorOptions());
+		const modeId = hasExistingComments ? this._commentThread.threadId : ++INMEM_MODEL_ID;
+		const resource = URI.parse(`${COMMENT_SCHEME}:commentinput-${modeId}.md`);
+		const model = this.modelService.createModel('', this.modeService.getOrCreateModeByFilenameOrFirstLine(resource.path), resource, true);
+		this._localToDispose.push(model);
+		this._commentEditor.setModel(model);
+		this._localToDispose.push(this._commentEditor);
+		this._localToDispose.push(this._commentEditor.getModel().onDidChangeContent(() => this.setCommentEditorDecorations()));
+		this.setCommentEditorDecorations();
 
-			// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
-			if (hasExistingComments) {
-				const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
-				reviewThreadReplyButton.title = 'Reply...';
-				reviewThreadReplyButton.textContent = 'Reply...';
-				// bind click/escape actions for reviewThreadReplyButton and textArea
-				reviewThreadReplyButton.onclick = () => {
-					if (!dom.hasClass(commentForm, 'expand')) {
-						dom.addClass(commentForm, 'expand');
-						this._commentEditor.focus();
-					}
-				};
-
-				this._commentEditor.onDidBlurEditor(() => {
-					if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(commentForm, 'expand')) {
-						dom.removeClass(commentForm, 'expand');
-					}
-				});
-			} else {
-				dom.addClass(commentForm, 'expand');
-			}
-
-			this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
-				const hasExistingComments = this._commentThread.comments.length > 0;
-				if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
-					if (dom.hasClass(commentForm, 'expand')) {
-						dom.removeClass(commentForm, 'expand');
-					}
+		// Only add the additional step of clicking a reply button to expand the textarea when there are existing comments
+		if (hasExistingComments) {
+			const reviewThreadReplyButton = <HTMLButtonElement>$('button.review-thread-reply-button').appendTo(commentForm).getHTMLElement();
+			reviewThreadReplyButton.title = 'Reply...';
+			reviewThreadReplyButton.textContent = 'Reply...';
+			// bind click/escape actions for reviewThreadReplyButton and textArea
+			reviewThreadReplyButton.onclick = () => {
+				if (!dom.hasClass(commentForm, 'expand')) {
+					dom.addClass(commentForm, 'expand');
+					this._commentEditor.focus();
 				}
-			}));
+			};
 
-			const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
-
-			const button = new Button(formActions);
-			attachButtonStyler(button, this.themeService);
-			button.label = this.commentThread.reply.title;
-			button.onDidClick(async () => {
-				let newComment = await this.commandService.executeCommand(this._replyCommand.id, this.editor.getModel().uri, {
-					start: { line: lineNumber, column: 1 },
-					end: { line: lineNumber, column: 1 }
-				}, this._commentThread, this._commentEditor.getValue());
-				if (newComment) {
-					this._commentEditor.setValue('');
-					this._commentThread.comments.push(newComment);
-					let newCommentNode = new CommentNode(newComment);
-					this._commentElements.push(newCommentNode);
-					this._commentsElement.appendChild(newCommentNode.domNode);
-					let secondaryHeading = this._commentThread.comments.filter(arrays.uniqueFilter(comment => comment.userName)).map(comment => `@${comment.userName}`).join(', ');
-					$(this._secondaryHeading).safeInnerHtml(secondaryHeading);
+			this._commentEditor.onDidBlurEditor(() => {
+				if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(commentForm, 'expand')) {
+					dom.removeClass(commentForm, 'expand');
 				}
 			});
+		} else {
+			dom.addClass(commentForm, 'expand');
 		}
+
+		this._localToDispose.push(this._commentEditor.onKeyDown((ev: IKeyboardEvent) => {
+			const hasExistingComments = this._commentThread.comments.length > 0;
+			if (this._commentEditor.getModel().getValueLength() === 0 && ev.keyCode === KeyCode.Escape && hasExistingComments) {
+				if (dom.hasClass(commentForm, 'expand')) {
+					dom.removeClass(commentForm, 'expand');
+				}
+			}
+		}));
+
+		const formActions = $('.form-actions').appendTo(commentForm).getHTMLElement();
+
+		const button = new Button(formActions);
+		attachButtonStyler(button, this.themeService);
+		button.label = 'Add comment';
+		button.onDidClick(async () => {
+			let newCommentThread;
+			if (this._commentThread.threadId) {
+				// reply
+				newCommentThread = await this.commentService.replyToCommentThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentThread,
+					this._commentEditor.getValue()
+				);
+			} else {
+				newCommentThread = await this.commentService.createNewCommenThread(
+					this._owner,
+					this.editor.getModel().uri,
+					new Range(lineNumber, 1, lineNumber, 1),
+					this._commentEditor.getValue()
+				);
+			}
+
+			this._commentEditor.setValue('');
+			if (newCommentThread) {
+				this.update(newCommentThread);
+			}
+		});
+
 
 		this._resizeObserver = new ResizeObserver(entries => {
 			if (entries[0].target === this._bodyElement && !this._isCollapsed) {

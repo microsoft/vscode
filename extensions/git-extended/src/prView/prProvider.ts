@@ -126,46 +126,54 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				return changedItem;
 			});
 
-			vscode.commands.registerCommand('diff-' + element.prItem.number + '-post', async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
-				if (thread && thread.threadId) {
-					try {
-						let ret = await element.createCommentReply(text, thread.threadId);
-						return {
-							body: new vscode.MarkdownString(ret.data.body),
-							userName: ret.data.user.login,
-							gravatar: ret.data.user.avatar_url
-						};
-					} catch (e) {
-						return null;
-					}
-				} else {
-					let params = JSON.parse(uri.query);
+			let createNewCommentThread = async (document: vscode.TextDocument, range: vscode.Range, text: string) => {
+				let uri = document.uri;
+				let params = JSON.parse(uri.query);
 
-					let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
+				let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
 
-					if (!fileChange) {
-						return null;
-					}
+				if (!fileChange) {
+					return null;
+				}
 
-					let position = mapHeadLineToDiffHunkPosition(fileChange.patch, '', range.start.line);
+				let position = mapHeadLineToDiffHunkPosition(fileChange.patch, '', range.start.line);
 
-					if (position < 0) {
-						return;
-					}
+				if (position < 0) {
+					return;
+				}
 
-					// there is no thread Id, which means it's a new thread
-					let ret = await element.createComment(text, params.fileName, position);
-					return {
+				// there is no thread Id, which means it's a new thread
+				let ret = await element.createComment(text, params.fileName, position);
+				let comment: vscode.Comment = {
+					commentId: ret.data.id,
+					body: new vscode.MarkdownString(ret.data.body),
+					userName: ret.data.user.login,
+					gravatar: ret.data.user.avatar_url
+				};
+
+				let commentThread: vscode.CommentThread = {
+					threadId: comment.commentId,
+					resource: uri,
+					range: range,
+					comments: [comment]
+				};
+
+				return commentThread;
+			};
+
+			let replyToCommentThread = async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
+				try {
+					let ret = await element.createCommentReply(text, thread.threadId);
+					thread.comments.push({
 						commentId: ret.data.id,
 						body: new vscode.MarkdownString(ret.data.body),
 						userName: ret.data.user.login,
 						gravatar: ret.data.user.avatar_url
-					};
+					});
+					return thread;
+				} catch (e) {
+					return null;
 				}
-			});
-			let reply = {
-				command: 'diff-' + element.prItem.number + '-post',
-				title: 'Add comment'
 			};
 
 			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
@@ -196,7 +204,6 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							return {
 								threads: [],
 								commentingRanges,
-								postReviewComment: reply
 							};
 						}
 
@@ -229,20 +236,20 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 									};
 								}),
 								collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
-								postReviewComment: reply
 							});
 						}
 
 						return {
 							threads,
 							commentingRanges,
-							postReviewComment: reply
 						};
 
 					}
 
 					return null;
-				}
+				},
+				createNewCommentThread: createNewCommentThread.bind(this),
+				replyToCommentThread: replyToCommentThread.bind(this)
 			});
 			return fileChanges;
 		}
