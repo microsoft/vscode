@@ -1132,7 +1132,7 @@ export class TestCodeEditorService implements ICodeEditorService {
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void { }
 	getTransientModelProperty(model: ITextModel, key: string) { }
 	getActiveCodeEditor(): ICodeEditor { return null; }
-	openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> { return TPromise.as(null); }
+	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> { return TPromise.as(null); }
 }
 
 export class TestWindowService implements IWindowService {

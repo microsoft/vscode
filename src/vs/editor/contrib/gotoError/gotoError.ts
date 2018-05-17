@@ -242,7 +242,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
-			}).then(undefined, onUnexpectedError);
+			}, this._editor).then(undefined, onUnexpectedError);
 			this.closeMarkersNavigation(false);
 		}));
 		this._disposeOnClose.push(this._editor.onDidChangeModel(() => this._cleanUp()));
@@ -350,7 +350,7 @@ class MarkerNavigationAction extends EditorAction {
 		return editorService.openCodeEditor({
 			resource: newMarker.resource,
 			options: { pinned: false, revealIfOpened: true, revealInCenterIfOutsideViewport: true, selection: newMarker }
-		}).then(editor => {
+		}, editor).then(editor => {
 			if (!editor) {
 				return undefined;
 			}

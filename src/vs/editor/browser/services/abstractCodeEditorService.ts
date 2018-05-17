@@ -134,7 +134,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 	}
 
 	abstract getActiveCodeEditor(): ICodeEditor;
-	abstract openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor>;
+	abstract openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
 }
 
 export class ModelTransientSettingWatcher {

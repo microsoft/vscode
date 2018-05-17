@@ -212,7 +212,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		return this._editorService.openCodeEditor({
 			resource: ref.uri,
 			options: { selection: range }
-		}).then(openedEditor => {
+		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
 			if (!openedEditor || openedEditor !== this._editor) {
@@ -241,7 +241,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
-		}, sideBySide);
+		}, this._editor, sideBySide);
 
 		// clear stage
 		if (!sideBySide) {

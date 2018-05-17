@@ -34,7 +34,7 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
 		return this.editorService.openEditor(input, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(control => {
 			if (control) {
 				const widget = control.getControl();

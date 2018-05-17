@@ -6,69 +6,51 @@
 
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICodeEditor, IDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
-import { IEditor, ScrollType } from 'vs/editor/common/editorCommon';
+import { ScrollType } from 'vs/editor/common/editorCommon';
 import { windowOpenNoOpener } from 'vs/base/browser/dom';
 import { Schemas } from 'vs/base/common/network';
 import { IRange } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
+import URI from 'vs/base/common/uri';
 
 export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
-	private editor: IEditor;
-
-	addCodeEditor(editor: ICodeEditor): void {
-		super.addCodeEditor(editor);
-
-		if (!this.editor) {
-			this.editor = editor;
-		}
-	}
-
-	addDiffEditor(editor: IDiffEditor): void {
-		super.addDiffEditor(editor);
-
-		if (!this.editor) {
-			this.editor = editor;
-		}
-	}
 
 	public getActiveCodeEditor(): ICodeEditor {
 		return null; // not supported in the standalone case
 	}
 
-	public openCodeEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
-		return TPromise.as(withTypedEditor(this.editor,
-			(editor) => this.doOpenEditor(editor, typedData),
-			(diffEditor) => (
-				this.doOpenEditor(diffEditor.getOriginalEditor(), typedData) ||
-				this.doOpenEditor(diffEditor.getModifiedEditor(), typedData)
-			)
-		));
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
+		if (!source) {
+			return TPromise.as(null);
+		}
+
+		return TPromise.as(this.doOpenEditor(source, input));
 	}
 
-	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): ICodeEditor {
-		let model = this.findModel(editor, data);
+	private doOpenEditor(editor: ICodeEditor, input: IResourceInput): ICodeEditor {
+		const model = this.findModel(editor, input.resource);
 		if (!model) {
-			if (data.resource) {
+			if (input.resource) {
 
-				let schema = data.resource.scheme;
+				const schema = input.resource.scheme;
 				if (schema === Schemas.http || schema === Schemas.https) {
 					// This is a fully qualified http or https URL
-					windowOpenNoOpener(data.resource.toString());
+					windowOpenNoOpener(input.resource.toString());
 					return editor;
 				}
 			}
 			return null;
 		}
 
-		let selection = <IRange>data.options.selection;
+		const selection = <IRange>input.options.selection;
 		if (selection) {
 			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
 				editor.setSelection(selection);
 				editor.revealRangeInCenter(selection, ScrollType.Immediate);
 			} else {
-				let pos = {
+				const pos = {
 					lineNumber: selection.startLineNumber,
 					column: selection.startColumn
 				};
@@ -80,22 +62,12 @@ export class StandaloneCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return editor;
 	}
 
-	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
-		let model = editor.getModel();
-		if (model.uri.toString() !== data.resource.toString()) {
+	private findModel(editor: ICodeEditor, resource: URI): ITextModel {
+		const model = editor.getModel();
+		if (model.uri.toString() !== resource.toString()) {
 			return null;
 		}
 
 		return model;
-	}
-}
-
-function withTypedEditor<T>(widget: IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-	if (isCodeEditor(widget)) {
-		// Single Editor
-		return codeEditorCallback(<ICodeEditor>widget);
-	} else {
-		// Diff Editor
-		return diffEditorCallback(<IDiffEditor>widget);
 	}
 }

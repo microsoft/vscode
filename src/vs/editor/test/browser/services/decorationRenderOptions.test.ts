@@ -21,7 +21,7 @@ export class TestCodeEditorServiceImpl extends CodeEditorServiceImpl {
 		return null;
 	}
 
-	openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
+	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
 		return TPromise.as(null);
 	}
 }

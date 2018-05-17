@@ -95,7 +95,7 @@ export class DefinitionAction extends EditorAction {
 			} else if (result.length === 1 && idxOfCurrent !== -1) {
 				// only the position at which we are -> adjust selection
 				let [current] = result;
-				this._openReference(editorService, current, false);
+				this._openReference(editor, editorService, current, false);
 
 			} else {
 				// handle multile results
@@ -134,7 +134,7 @@ export class DefinitionAction extends EditorAction {
 			this._openInPeek(editorService, editor, model);
 		} else {
 			let next = model.nearestReference(editor.getModel().uri, editor.getPosition());
-			this._openReference(editorService, next, this._configuration.openToSide).then(editor => {
+			this._openReference(editor, editorService, next, this._configuration.openToSide).then(editor => {
 				if (editor && model.references.length > 1) {
 					this._openInPeek(editorService, editor, model);
 				} else {
@@ -144,7 +144,7 @@ export class DefinitionAction extends EditorAction {
 		}
 	}
 
-	private _openReference(editorService: ICodeEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
+	private _openReference(editor: ICodeEditor, editorService: ICodeEditorService, reference: Location, sideBySide: boolean): TPromise<ICodeEditor> {
 		let { uri, range } = reference;
 		return editorService.openCodeEditor({
 			resource: uri,
@@ -153,7 +153,7 @@ export class DefinitionAction extends EditorAction {
 				revealIfVisible: true,
 				revealInCenterIfOutsideViewport: true
 			}
-		}, sideBySide);
+		}, editor, sideBySide);
 	}
 
 	private _openInPeek(editorService: ICodeEditorService, target: ICodeEditor, model: ReferencesModel) {
@@ -165,7 +165,7 @@ export class DefinitionAction extends EditorAction {
 				},
 				onGoto: (reference) => {
 					controller.closeWidget();
-					return this._openReference(editorService, reference, false);
+					return this._openReference(target, editorService, reference, false);
 				}
 			});
 		} else {

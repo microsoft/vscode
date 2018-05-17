@@ -17,7 +17,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 export class TestCodeEditorService extends AbstractCodeEditorService {
 	public lastInput: IResourceInput;
 	public getActiveCodeEditor(): ICodeEditor { return null; }
-	public openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
+	public openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor> {
 		this.lastInput = input;
 		return TPromise.as(null);
 	}
