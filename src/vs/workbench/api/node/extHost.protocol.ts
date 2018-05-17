@@ -405,6 +405,7 @@ export interface MainThreadSearchShape extends IDisposable {
 	$registerSearchProvider(handle: number, scheme: string): void;
 	$unregisterProvider(handle: number): void;
 	$handleFindMatch(handle: number, session: number, data: UriComponents | IRawFileMatch2[]): void;
+	$handleTelemetry(eventName: string, data: any): void;
 }
 
 export interface MainThreadTaskShape extends IDisposable {

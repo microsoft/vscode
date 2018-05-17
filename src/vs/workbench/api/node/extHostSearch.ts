@@ -36,7 +36,9 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
-		this._fileSearchManager = new FileSearchManager(this._pfs);
+		this._fileSearchManager = new FileSearchManager(
+			(eventName: string, data: any) => this._proxy.$handleTelemetry(eventName, data),
+			this._pfs);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -763,7 +765,7 @@ class FileSearchManager {
 
 	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
 
-	constructor(private _pfs: typeof pfs) { }
+	constructor(private telemetryCallback: (eventName: string, data: any) => void, private _pfs: typeof pfs) { }
 
 	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchComplete, OneOrMore<IFileMatch>> {
 		if (config.sortByScore) {
@@ -822,14 +824,7 @@ class FileSearchManager {
 			searchPromise = this.doSearch(engine, provider, -1)
 				.then(result => {
 					c([result, results]);
-					// TODO@roblou telemetry
-					// if (this.telemetryPipe) {
-					// 	// __GDPR__TODO__ classify event
-					// 	this.telemetryPipe({
-					// 		eventName: 'fileSearch',
-					// 		data: result.stats
-					// 	});
-					// }
+					this.telemetryCallback('fileSearch', null);
 				}, e, progress => {
 					if (Array.isArray(progress)) {
 						results = progress;

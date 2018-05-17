@@ -12,6 +12,7 @@ import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2 } from 'vs/platform/search/common/search';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -21,7 +22,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ISearchService private readonly _searchService: ISearchService
+		@ISearchService private readonly _searchService: ISearchService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 	}
@@ -42,6 +44,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch2[]): void {
 		this._searchProvider.get(handle).handleFindMatch(session, data);
+	}
+
+	$handleTelemetry(eventName: string, data: any): void {
+		this._telemetryService.publicLog(eventName, data);
 	}
 }
 
