@@ -24,7 +24,7 @@ import { IListService } from 'vs/platform/list/browser/listService';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
@@ -137,11 +137,11 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 					}
 				};
 
-				// TODO@isidor
-				return editorService.replaceEditors([{
-					editor: { resource },
-					replacement
-				}], undefined).then(() => true);
+				return TPromise.join(editorGroupService.groups.map(g =>
+					editorService.replaceEditors([{
+						editor: { resource },
+						replacement
+					}], g))).then(() => true);
 			});
 		}
 
@@ -163,75 +163,35 @@ function saveAll(saveAllArguments: any, editorService: INextEditorService, untit
 	textFileService: ITextFileService, editorGroupService: INextEditorGroupsService): TPromise<any> {
 
 	// Store some properties per untitled file to restore later after save is completed
-	const mapUntitledToProperties: { [resource: string]: { encoding: string; indexInGroups: number[]; activeInGroups: boolean[] } } = Object.create(null);
-	untitledEditorService.getDirty().forEach(resource => {
-		const activeInGroups: boolean[] = [];
-		const indexInGroups: number[] = [];
-		const encoding = untitledEditorService.getEncoding(resource);
+	const groupIdToUntitledResourceInput = new Map<number, IResourceInput[]>();
 
-		// For each group
-		editorGroupService.groups.forEach((group, groupIndex) => {
-
-			// Find out if editor is active in group
-			const activeEditor = group.activeEditor;
-			const activeResource = toResource(activeEditor, { supportSideBySide: true });
-			activeInGroups[groupIndex] = (activeResource && activeResource.toString() === resource.toString());
-
-			// Find index of editor in group
-			indexInGroups[groupIndex] = -1;
-			group.editors.forEach((editor, editorIndex) => {
-				const editorResource = toResource(editor, { supportSideBySide: true });
-				if (editorResource && editorResource.toString() === resource.toString()) {
-					indexInGroups[groupIndex] = editorIndex;
-					return;
+	editorGroupService.groups.forEach(g => {
+		g.editors.forEach(e => {
+			const resource = e.getResource();
+			if (untitledEditorService.isDirty(resource)) {
+				if (!groupIdToUntitledResourceInput.has(g.id)) {
+					groupIdToUntitledResourceInput.set(g.id, []);
 				}
-			});
-		});
 
-		mapUntitledToProperties[resource.toString()] = { encoding, indexInGroups, activeInGroups };
+				groupIdToUntitledResourceInput.get(g.id).push({
+					encoding: untitledEditorService.getEncoding(resource),
+					resource,
+					options: {
+						inactive: g.activeEditor ? g.activeEditor.getResource().toString() !== resource.toString() : true,
+						pinned: true,
+						preserveFocus: true,
+						index: g.getIndexOfEditor(e)
+					}
+				});
+			}
+		});
 	});
 
 	// Save all
-	return textFileService.saveAll(saveAllArguments).then(results => {
-
-		// Reopen saved untitled editors
-		const untitledToReopen: { input: IResourceInput, position: Position }[] = [];
-
-		results.results.forEach(result => {
-			if (!result.success || result.source.scheme !== Schemas.untitled) {
-				return;
-			}
-
-			const untitledProps = mapUntitledToProperties[result.source.toString()];
-			if (!untitledProps) {
-				return;
-			}
-
-			// For each position where the untitled file was opened
-			untitledProps.indexInGroups.forEach((indexInGroup, index) => {
-				if (indexInGroup >= 0) {
-					untitledToReopen.push({
-						input: {
-							resource: result.target,
-							encoding: untitledProps.encoding,
-							options: {
-								pinned: true,
-								index: indexInGroup,
-								preserveFocus: true,
-								inactive: !untitledProps.activeInGroups[index]
-							}
-						},
-						position: index
-					});
-				}
-			});
+	return textFileService.saveAll(saveAllArguments).then(() => {
+		groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
+			editorService.openEditors(inputs, groupId);
 		});
-		// TODO@Isidor
-		// if (untitledToReopen.length) {
-		// 	return editorService.openEditors(untitledToReopen).then(() => true);
-		// }
-
-		return void 0;
 	});
 }
 
