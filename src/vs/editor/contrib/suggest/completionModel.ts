@@ -106,13 +106,16 @@ export class CompletionModel {
 
 	adopt(except: Set<ISuggestSupport>): ISuggestionItem[] {
 		let res = new Array<ISuggestionItem>();
-		for (let i = 0; i < this._items.length; i++) {
+		for (let i = 0; i < this._items.length;) {
 			if (!except.has(this._items[i].support)) {
 				res.push(this._items[i]);
 
 				// unordered removed
 				this._items[i] = this._items[this._items.length - 1];
 				this._items.pop();
+			} else {
+				// continue with next item
+				i++;
 			}
 		}
 		this._refilterKind = Refilter.All;

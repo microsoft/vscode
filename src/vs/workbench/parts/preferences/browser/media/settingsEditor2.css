@@ -84,6 +84,7 @@
 	flex: 1;
 	border-spacing: 0;
 	border-collapse: separate;
+	position: relative;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row {
@@ -123,7 +124,8 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-title .setting-item-overrides {
 	opacity: 0.5;
-	margin-left: 10px;
+	margin-left: 7px;
+	font-style: italic;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-label {
@@ -148,6 +150,16 @@
 	margin-top: 5px;
 	height: 36px;
 	overflow: hidden;
+	white-space: pre-wrap;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expanded .setting-item-description,
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item-measure-helper .setting-item-description {
+	height: initial;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expandable .setting-item-description {
+	cursor: pointer;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {

@@ -284,14 +284,30 @@ export class WebviewElement {
 	private style(theme: ITheme): void {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
+		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const color = theme.getColor(entry.id);
+			if (color) {
+				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
+			}
+			return colors;
+		}, {});
+
+
 		const styles = {
-			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
-			'color': theme.getColor(colorRegistry.editorForeground).toString(),
+			// Old vars
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
+			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
+			'color': theme.getColor(colorRegistry.editorForeground).toString(),
 			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
-			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString()
+			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
+
+			// Offical API
+			'vscode-editor-font-family': fontFamily,
+			'vscode-editor-font-weight': fontWeight,
+			'vscode-editor-font-size': fontSize,
+			...exportedColors
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);

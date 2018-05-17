@@ -8,7 +8,7 @@ import * as path from 'path';
 import {
 	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace, Selection
+	WorkspaceFolder, commands, debug, window, workspace, Selection, TaskGroup
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
 import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
@@ -79,10 +79,17 @@ class NpmScript extends TreeItem {
 			command: 'npm.openScript',
 			arguments: [this]
 		};
-		this.iconPath = {
-			light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
-			dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
-		};
+		if (task.group && task.group === TaskGroup.Clean) {
+			this.iconPath = {
+				light: context.asAbsolutePath(path.join('resources', 'light', 'prepostscript.svg')),
+				dark: context.asAbsolutePath(path.join('resources', 'dark', 'prepostscript.svg'))
+			};
+		} else {
+			this.iconPath = {
+				light: context.asAbsolutePath(path.join('resources', 'light', 'script.svg')),
+				dark: context.asAbsolutePath(path.join('resources', 'dark', 'script.svg'))
+			};
+		}
 	}
 
 	getFolder(): WorkspaceFolder {
@@ -251,7 +258,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		await window.showTextDocument(document, { selection: new Selection(position, position) });
 	}
 
-	private refresh() {
+	public refresh() {
 		this.taskTree = null;
 		this._onDidChangeTreeData.fire();
 	}

@@ -90,7 +90,7 @@ export default class FileConfigurationManager {
 
 		const args: Proto.ConfigureRequestArguments = {
 			file,
-			...currentOptions
+			...currentOptions,
 		};
 		await this.client.execute('configure', args, token);
 		this.formatOptions[key] = currentOptions;
@@ -160,7 +160,8 @@ export default class FileConfigurationManager {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
 			disableSuggestions: disableSuggestionsPreference(config),
-		};
+			allowTextChangesInNewFiles: document.uri.scheme === 'file'
+		} as any; // TODO: waiting for offical TS d.ts with allowTextChangesInNewFiles
 	}
 }
 

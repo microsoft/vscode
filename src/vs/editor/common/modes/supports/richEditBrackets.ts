@@ -186,6 +186,9 @@ export class BracketsUtils {
 
 		let matchOffset = m.index;
 		let matchLength = m[0].length;
+		if (matchLength === 0) {
+			return null;
+		}
 		let absoluteMatchOffset = offset + matchOffset;
 
 		return new Range(lineNumber, absoluteMatchOffset + 1, lineNumber, absoluteMatchOffset + 1 + matchLength);

@@ -182,14 +182,20 @@ export interface LegacyCommandProperties {
 	isShellCommand?: boolean | ShellConfiguration;
 }
 
-export type CommandString = string | { value: string, quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = string | string[] | { value: string | string[], quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
 		if (Types.isString(value)) {
 			return value;
+		} else if (Types.isStringArray(value)) {
+			return value.join(' ');
 		} else {
-			return value.value;
+			if (Types.isString(value.value)) {
+				return value.value;
+			} else {
+				return value.value.join(' ');
+			}
 		}
 	}
 }
@@ -787,14 +793,20 @@ namespace CommandConfiguration {
 			}
 			if (Types.isString(value)) {
 				return value;
+			} else if (Types.isStringArray(value)) {
+				return value.join(' ');
+			} else {
+				let quoting = Tasks.ShellQuoting.from(value.quoting);
+				let result = Types.isString(value.value) ? value.value : Types.isStringArray(value.value) ? value.value.join(' ') : undefined;
+				if (result) {
+					return {
+						value: result,
+						quoting: quoting
+					};
+				} else {
+					return undefined;
+				}
 			}
-			if (Types.isString(value.value)) {
-				return {
-					value: value.value,
-					quoting: Tasks.ShellQuoting.from(value.quoting)
-				};
-			}
-			return undefined;
 		}
 	}
 

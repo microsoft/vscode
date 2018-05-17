@@ -2757,7 +2757,7 @@ class DecorationsTrees {
 }
 
 function cleanClassName(className: string): string {
-	return className.replace(/[^a-z0-9\-]/gi, ' ');
+	return className.replace(/[^a-z0-9\-_]/gi, ' ');
 }
 
 export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {

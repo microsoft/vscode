@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IPickOpenEntry, IPickOptions, IInputOptions, IQuickNavigateConfiguration } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IPickOpenEntry, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegi
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { CancellationToken } from 'vs/base/common/cancellation';
+import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -361,6 +361,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private inQuickOpenContext: IContextKey<boolean>;
 
 	private controller: InputController<any>;
+	private multiStepHandle: CancellationTokenSource;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -556,7 +557,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return <any>this.show(<any>{
+		return this._pick(undefined, picks, options, token);
+	}
+
+	private _pick<T extends IPickOpenEntry, O extends IPickOptions>(handle: CancellationTokenSource | undefined, picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return <any>this._show(handle, <any>{
 			type: options.canPickMany ? 'pickMany' : 'pickOne',
 			picks,
 			placeHolder: options.placeHolder,
@@ -567,7 +572,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	input(options: IInputOptions = {}, token?: CancellationToken): TPromise<string> {
-		return this.show({
+		return this._input(undefined, options, token);
+	}
+
+	private _input(handle: CancellationTokenSource | undefined, options: IInputOptions = {}, token?: CancellationToken): TPromise<string> {
+		return this._show(handle, {
 			type: 'textInput',
 			value: options.value,
 			valueSelection: options.valueSelection,
@@ -579,9 +588,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}, token);
 	}
 
-	show<T extends IPickOpenEntry, P extends PickOneParameters<T> | PickManyParameters<T>>(parameters: P, token?: CancellationToken): TPromise<P extends PickManyParameters<T> ? T[] : T>;
-	show(parameters: TextInputParameters, token?: CancellationToken): TPromise<string>;
-	show<R>(parameters: InputParameters, token: CancellationToken = CancellationToken.None): TPromise<R> {
+	private _show<T extends IPickOpenEntry, P extends PickOneParameters<T> | PickManyParameters<T>>(multiStepHandle: CancellationTokenSource | undefined, parameters: P, token?: CancellationToken): TPromise<P extends PickManyParameters<T> ? T[] : T>;
+	private _show(multiStepHandle: CancellationTokenSource | undefined, parameters: TextInputParameters, token?: CancellationToken): TPromise<string>;
+	private _show<R>(multiStepHandle: CancellationTokenSource | undefined, parameters: InputParameters, token: CancellationToken = CancellationToken.None): TPromise<R> {
+		if (multiStepHandle && multiStepHandle !== this.multiStepHandle) {
+			multiStepHandle.cancel();
+			return TPromise.as(undefined);
+		}
+		if (!multiStepHandle && this.multiStepHandle) {
+			this.multiStepHandle.cancel();
+		}
+
 		this.create();
 		this.quickOpenService.close();
 		if (this.controller) {
@@ -642,6 +659,17 @@ export class QuickInputService extends Component implements IQuickInputService {
 				throw new Error(`Unknown input type: ${(<any>p).type}`);
 			})(parameters);
 		}
+	}
+
+	multiStepInput<T>(handler: (input: IQuickInput, token: CancellationToken) => Thenable<T>, token = CancellationToken.None): Thenable<T> {
+		if (this.multiStepHandle) {
+			this.multiStepHandle.cancel();
+		}
+		this.multiStepHandle = new CancellationTokenSource();
+		return TPromise.wrap(handler({
+			pick: this._pick.bind(this, this.multiStepHandle),
+			input: this._input.bind(this, this.multiStepHandle)
+		}, this.multiStepHandle.token));
 	}
 
 	focus() {

@@ -153,16 +153,18 @@ export class ViewPickerHandler extends QuickOpenHandler {
 		});
 
 		// Terminals
-		const terminals = this.terminalService.terminalInstances;
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstance(terminal);
-				}, errors.onUnexpectedError);
-			});
+		const terminalsCategory = nls.localize('terminals', "Terminal");
+		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
+			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
+				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
+					this.terminalService.showPanel(true).done(() => {
+						this.terminalService.setActiveInstance(terminal);
+					}, errors.onUnexpectedError);
+				});
 
-			viewEntries.push(entry);
+				viewEntries.push(entry);
+			});
 		});
 
 		// Output Channels

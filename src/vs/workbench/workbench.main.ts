@@ -50,7 +50,6 @@ import 'vs/workbench/parts/files/electron-browser/files.contribution';
 import 'vs/workbench/parts/backup/common/backup.contribution';
 
 import 'vs/workbench/parts/stats/node/stats.contribution';
-import 'vs/workbench/parts/cache/node/cache.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately
@@ -132,6 +131,8 @@ import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
 import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
+
+import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 
 // services
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';

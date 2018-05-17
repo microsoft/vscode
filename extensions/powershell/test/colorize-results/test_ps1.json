@@ -1233,7 +1233,7 @@
 	},
 	{
 		"c": "1",
-		"t": "source.powershell interpolated.simple.source.powershell constant.numeric.scientific.powershell support.constant.powershell",
+		"t": "source.powershell interpolated.simple.source.powershell constant.numeric.decimal.powershell constant.numeric.decimal.powershell",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",
@@ -1310,7 +1310,7 @@
 	},
 	{
 		"c": "2",
-		"t": "source.powershell interpolated.simple.source.powershell constant.numeric.scientific.powershell support.constant.powershell",
+		"t": "source.powershell interpolated.simple.source.powershell constant.numeric.decimal.powershell constant.numeric.decimal.powershell",
 		"r": {
 			"dark_plus": "constant.numeric: #B5CEA8",
 			"light_plus": "constant.numeric: #09885A",

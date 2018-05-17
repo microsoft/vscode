@@ -272,6 +272,9 @@ export class DebugService implements debug.IDebugService {
 
 		this.focusStackFrame(stackFrameToFocus);
 		if (thread.stoppedDetails) {
+			if (this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug === 'openOnDebugBreak') {
+				this.viewletService.openViewlet(debug.VIEWLET_ID).done(undefined, errors.onUnexpectedError);
+			}
 			this.windowService.focusWindow();
 			aria.alert(nls.localize('debuggingPaused', "Debugging paused, reason {0}, {1} {2}", thread.stoppedDetails.reason, stackFrameToFocus.source ? stackFrameToFocus.source.name : '', stackFrameToFocus.range.startLineNumber));
 		}
@@ -690,7 +693,7 @@ export class DebugService implements debug.IDebugService {
 		this.model.removeWatchExpressions(id);
 	}
 
-	public startDebugging(launch: debug.ILaunch, configOrName?: debug.IConfig | string, noDebug = false): TPromise<void> {
+	public startDebugging(launch: debug.ILaunch, configOrName?: debug.IConfig | string, noDebug = false, unresolvedConfiguration?: debug.IConfig, ): TPromise<void> {
 		const sessionId = generateUuid();
 		this.updateStateAndEmit(sessionId, debug.State.Initializing);
 		const wrapUpState = () => {
@@ -752,7 +755,7 @@ export class DebugService implements debug.IDebugService {
 							}
 						}
 
-						return this.startDebugging(launchForName, name, noDebug);
+						return this.startDebugging(launchForName, name, noDebug, unresolvedConfiguration);
 					}));
 				}
 				if (configOrName && !config) {
@@ -770,7 +773,7 @@ export class DebugService implements debug.IDebugService {
 					// a no-folder workspace has no launch.config
 					config = <debug.IConfig>{};
 				}
-				const unresolvedConfiguration = deepClone(config);
+				unresolvedConfiguration = unresolvedConfiguration || deepClone(config);
 
 				if (noDebug) {
 					config.noDebug = true;
@@ -936,9 +939,9 @@ export class DebugService implements debug.IDebugService {
 						this.panelService.openPanel(debug.REPL_ID, false).done(undefined, errors.onUnexpectedError);
 					}
 
-					const openDebugOptions = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
+					const openDebug = this.configurationService.getValue<debug.IDebugConfiguration>('debug').openDebug;
 					// Open debug viewlet based on the visibility of the side bar and openDebug setting
-					if (openDebugOptions === 'openOnSessionStart' || (openDebugOptions === 'openOnFirstSessionStart' && this.firstSessionStart)) {
+					if (openDebug === 'openOnSessionStart' || (openDebug === 'openOnFirstSessionStart' && this.firstSessionStart)) {
 						this.viewletService.openViewlet(debug.VIEWLET_ID);
 					}
 					this.firstSessionStart = false;
@@ -1106,9 +1109,10 @@ export class DebugService implements debug.IDebugService {
 						let configToUse = session.configuration;
 
 						const launch = session.raw.root ? this.configurationManager.getLaunch(session.raw.root.uri) : undefined;
+						const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 						if (launch) {
 							const config = launch.getConfiguration(session.configuration.name);
-							if (config && !equals(config, (<Session>session).unresolvedConfiguration)) {
+							if (config && !equals(config, unresolvedConfiguration)) {
 								// Take the type from the session since the debug extension might overwrite it #21316
 								configToUse = config;
 								configToUse.type = session.configuration.type;
@@ -1117,7 +1121,7 @@ export class DebugService implements debug.IDebugService {
 						}
 						configToUse.__restart = restartData;
 						this.skipRunningTask = !!restartData;
-						this.startDebugging(launch, configToUse).then(() => c(null), err => e(err));
+						this.startDebugging(launch, configToUse, configToUse.noDebug, unresolvedConfiguration).then(() => c(null), err => e(err));
 					}, 300);
 				});
 			}).then(() => {
@@ -1169,7 +1173,6 @@ export class DebugService implements debug.IDebugService {
 
 		this.model.removeSession(raw.getId());
 		if (session) {
-			session.inactive = true;
 			this._onDidEndSession.fire(session);
 			if (session.configuration.postDebugTask) {
 				this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>

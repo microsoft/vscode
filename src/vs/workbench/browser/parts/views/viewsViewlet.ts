@@ -31,6 +31,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
+import { isUndefined, isUndefinedOrNull } from 'vs/base/common/types';
 
 export interface IViewOptions extends IPanelOptions {
 	id: string;
@@ -298,18 +299,32 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		super.shutdown();
 	}
 
-	toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
-		let viewState = this.viewsStates.get(id);
-		if (!viewState) {
+	private toggleViewVisibility(id: string, focus?: boolean): TPromise<void> {
+		const viewDescriptor = this.getViewDescriptorsFromRegistry().filter(v => v.id === id)[0];
+		const viewState = this.viewsStates.get(id);
+
+		if (!viewDescriptor || !viewState) {
 			return TPromise.as(null);
 		}
 
-		viewState.isHidden = !!this.getView(id);
+		if (!viewDescriptor.canToggleVisibility) {
+			return TPromise.wrapError(new Error(localize('cannot toggle', "Visibility cannot be toggled for this view {0}", id)));
+		}
+
+		if (viewState.isHidden && !this.contextKeyService.contextMatchesRules(viewDescriptor.when)) {
+			return TPromise.wrapError(new Error(localize('cannot show', "This view {0} cannot be shown because it is hidden by its 'when' condition", id)));
+		}
+
+		viewState.isHidden = !viewState.isHidden;
 		return this.updateViews()
 			.then(() => {
 				this._onDidChangeViewVisibilityState.fire(id);
-				if (!viewState.isHidden) {
-					this.openView(id, focus);
+				const view = this.getView(id);
+				if (view) {
+					view.setExpanded(true);
+					if (focus) {
+						view.focus();
+					}
 				} else if (focus) {
 					this.focus();
 				}
@@ -324,6 +339,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 					this.viewsContextKeys.add(key);
 				}
 			}
+
+			// Update view state
+			const viewState = this.viewsStates.get(viewDescriptor.id) || { collapsed: void 0, isHidden: void 0, order: void 0, size: void 0 };
+			viewState.collapsed = isUndefined(viewState.collapsed) ? viewDescriptor.collapsed : viewState.collapsed;
+			viewState.isHidden = isUndefined(viewState.isHidden) ? !!viewDescriptor.hideByDefault : viewState.isHidden;
+			viewState.order = isUndefined(viewState.order) ? viewDescriptor.order : viewState.order;
+			this.viewsStates.set(viewDescriptor.id, viewState);
 		}
 
 		this.updateViews();
@@ -485,11 +507,16 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	private canBeVisible(viewDescriptor: IViewDescriptor): boolean {
-		const viewstate = this.viewsStates.get(viewDescriptor.id);
-		if (viewDescriptor.canToggleVisibility && viewstate && viewstate.isHidden) {
+		if (!this.contextKeyService.contextMatchesRules(viewDescriptor.when)) {
 			return false;
 		}
-		return this.contextKeyService.contextMatchesRules(viewDescriptor.when);
+
+		const viewstate = this.viewsStates.get(viewDescriptor.id);
+		if (viewstate && viewDescriptor.canToggleVisibility) {
+			return !viewstate.isHidden;
+		}
+
+		return true;
 	}
 
 	private onViewsUpdated(): TPromise<void> {
@@ -575,10 +602,10 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 				const orderA = viewStateA ? viewStateA.order : a.order;
 				const orderB = viewStateB ? viewStateB.order : b.order;
 
-				if (orderB === void 0 || orderB === null) {
+				if (isUndefinedOrNull(orderB)) {
 					return -1;
 				}
-				if (orderA === void 0 || orderA === null) {
+				if (isUndefinedOrNull(orderA)) {
 					return 1;
 				}
 
@@ -645,7 +672,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 	) {
 		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
 		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
-		this._register(this.onDidChangeViewVisibilityState(id => this.onViewVisibilityChanged(id)));
+		this._register(this.onDidChangeViewVisibilityState(id => this.saveViewsStates()));
 	}
 
 	create(parent: HTMLElement): TPromise<void> {
@@ -658,53 +685,52 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		super.shutdown();
 	}
 
-	protected saveViewsStates(): void {
-		const viewsStates = {};
-		const registeredViewDescriptors = this.getViewDescriptorsFromRegistry();
-		this.viewsStates.forEach((viewState, id) => {
-			const view = this.getView(id);
-
-			if (view) {
-				viewsStates[id] = {
-					collapsed: !view.isExpanded(),
-					size: this.getPanelSize(view),
-					isHidden: false,
-					order: viewState.order
-				};
-			} else {
-				const viewDescriptor = registeredViewDescriptors.filter(v => v.id === id)[0];
-				if (viewDescriptor) {
-					viewsStates[id] = viewState;
+	private saveViewsStates(): void {
+		const storedViewsStates: { [id: string]: { collapsed: boolean, size: number, order: number } } = {};
+		const storedViewsVisibilityStates: { id: string, isHidden: boolean }[] = [];
+		for (const viewDescriptor of this.getViewDescriptorsFromRegistry()) {
+			const viewState = this.viewsStates.get(viewDescriptor.id);
+			if (viewState) {
+				const view = this.getView(viewDescriptor.id);
+				storedViewsVisibilityStates.push({ id: viewDescriptor.id, isHidden: viewState ? viewState.isHidden : void 0 });
+				if (view) {
+					storedViewsStates[viewDescriptor.id] = {
+						collapsed: !view.isExpanded(),
+						size: this.getPanelSize(view),
+						order: viewState.order
+					};
+				} else {
+					storedViewsStates[viewDescriptor.id] = { collapsed: viewState.collapsed, size: viewState.size, order: viewState.order };
 				}
 			}
-		});
-
-		this.storageService.store(this.viewletStateStorageId, JSON.stringify(viewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		}
+		this.storageService.store(this.viewletStateStorageId, JSON.stringify(storedViewsStates), this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
+		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(storedViewsVisibilityStates), StorageScope.GLOBAL);
 	}
 
 	protected loadViewsStates(): void {
 		const viewsStates = JSON.parse(this.storageService.get(this.viewletStateStorageId, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL, '{}'));
-		const hiddenViews = this.loadHiddenViews();
-		Object.keys(viewsStates).forEach(id => this.viewsStates.set(id, <IViewState>{ ...viewsStates[id], ...{ isHidden: hiddenViews.indexOf(id) !== -1 } }));
-	}
-
-	private onViewVisibilityChanged(id: string) {
-		const hiddenViews = this.loadHiddenViews();
-		const index = hiddenViews.indexOf(id);
-		if (this.getView(id) && index !== -1) {
-			hiddenViews.splice(index, 1);
-		} else if (index === -1) {
-			hiddenViews.push(id);
+		const viewsVisibilityStates = this.loadViewsVisibilityStates();
+		for (const { id, isHidden } of viewsVisibilityStates) {
+			const viewState = viewsStates[id];
+			// View state should exist always. Add a check if in case does not exist.
+			if (viewState) {
+				this.viewsStates.set(id, <IViewState>{ ...viewState, ...{ isHidden } });
+			}
 		}
-		this.storeHiddenViews(hiddenViews);
+
+		// Migration: Update those not existing in visibility states
+		for (const id of Object.keys(viewsStates)) {
+			if (!this.viewsStates.has(id)) {
+				this.viewsStates.set(id, <IViewState>{ ...viewsStates[id], ...{ isHidden: false } });
+			}
+		}
 	}
 
-	private storeHiddenViews(hiddenViews: string[]): void {
-		this.storageService.store(this.hiddenViewsStorageId, JSON.stringify(hiddenViews), StorageScope.GLOBAL);
-	}
-
-	private loadHiddenViews(): string[] {
-		return JSON.parse(this.storageService.get(this.hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+	private loadViewsVisibilityStates(): { id: string, isHidden: boolean }[] {
+		const storedStates = <Array<string | { id: string, isHidden: boolean }>>JSON.parse(this.storageService.get(this.hiddenViewsStorageId, StorageScope.GLOBAL, '[]'));
+		return <{ id: string, isHidden: boolean }[]>storedStates.map(c =>
+			typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 	}
 }
 

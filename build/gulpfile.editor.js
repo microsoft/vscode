@@ -114,6 +114,41 @@ gulp.task('compile-editor-esm', ['extract-editor-esm', 'clean-editor-distro'], f
 	console.log(result.stdout.toString());
 });
 
+function toExternalDTS(contents) {
+	let lines = contents.split('\n');
+	let killNextCloseCurlyBrace = false;
+	for (let i = 0; i < lines.length; i++) {
+		let line = lines[i];
+
+		if (killNextCloseCurlyBrace) {
+			if ('}' === line) {
+				lines[i] = '';
+				killNextCloseCurlyBrace = false;
+				continue;
+			}
+
+			if (line.indexOf('    ') === 0) {
+				lines[i] = line.substr(4);
+			} else if (line.charAt(0) === '\t') {
+				lines[i] = line.substr(1);
+			}
+
+			continue;
+		}
+
+		if ('declare namespace monaco {' === line) {
+			lines[i] = '';
+			killNextCloseCurlyBrace = true;
+			continue;
+		}
+
+		if (line.indexOf('declare namespace monaco.') === 0) {
+			lines[i] = line.replace('declare namespace monaco.', 'export namespace ');
+		}
+	}
+	return lines.join('\n');
+}
+
 gulp.task('clean-editor-distro', util.rimraf('out-monaco-editor-core'));
 gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify-editor', 'optimize-editor'], function () {
 	return es.merge(
@@ -130,7 +165,7 @@ gulp.task('editor-distro', ['clean-editor-distro', 'compile-editor-esm', 'minify
 				this.emit('data', new File({
 					path: data.path.replace(/monaco\.d\.ts/, 'editor.api.d.ts'),
 					base: data.base,
-					contents: data.contents
+					contents: new Buffer(toExternalDTS(data.contents.toString()))
 				}));
 			}))
 			.pipe(gulp.dest('out-monaco-editor-core/esm/vs/editor')),

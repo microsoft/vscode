@@ -676,6 +676,9 @@ export interface SymbolInformation {
  * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
+
+	extensionId?: string;
+
 	/**
 	 * Provide symbol information for the given document.
 	 */

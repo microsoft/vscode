@@ -28,11 +28,18 @@ export class RipgrepTextSearchEngine {
 
 	private ripgrepParser: RipgrepParser;
 
-	constructor() {
+	constructor(private outputChannel: vscode.OutputChannel) {
 		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
 	}
 
 	provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+		this.outputChannel.appendLine(`provideTextSearchResults ${query.pattern}, ${JSON.stringify({
+			...options,
+			...{
+				folder: options.folder.toString()
+			}
+		})}`);
+
 		return new Promise((resolve, reject) => {
 			const cancel = () => {
 				this.isDone = true;
@@ -45,11 +52,10 @@ export class RipgrepTextSearchEngine {
 
 			const cwd = options.folder.fsPath;
 
-			// TODO logging
-			// const escapedArgs = rgArgs
-			// 	.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
-			// 	.join(' ');
-			// let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
+			const escapedArgs = rgArgs
+				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
+				.join(' ');
+			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			process.once('exit', this.killRgProcFn);
