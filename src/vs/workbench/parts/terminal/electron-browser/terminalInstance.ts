@@ -14,7 +14,7 @@ import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -27,12 +27,17 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
+// How long in milliseconds should an average frame take to render for a notification to appear
+// which suggests the fallback DOM-based renderer
+const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 
 let Terminal: typeof XTermTerminal;
 
@@ -107,7 +112,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private _logService: ILogService
+		@ILogService private _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
@@ -421,7 +427,50 @@ export class TerminalInstance implements ITerminalInstance {
 			if (this._xterm.getOption('disableStdin')) {
 				this._attachPressAnyKeyToCloseListener();
 			}
+
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+				this._measureRenderTime();
+			}
 		});
+	}
+
+	private _measureRenderTime(): void {
+		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
+		const originalOnGridChanged = textRenderLayer.onGridChanged;
+		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
+			const startTime = performance.now();
+			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
+			const renderTimeMilliseconds = performance.now() - startTime;
+			if (renderTimeMilliseconds > SLOW_CANVAS_RENDER_THRESHOLD) {
+				const promptChoices: IPromptChoice[] = [
+					{
+						label: nls.localize('yes', "Yes"),
+						run: () => {
+							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
+							});
+						}
+					} as IPromptChoice,
+					{
+						label: nls.localize('no', "No")
+					} as IPromptChoice,
+					{
+						label: nls.localize('dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+					} as IPromptChoice
+				];
+				this._notificationService.prompt(
+					Severity.Warning,
+					nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+					promptChoices
+				);
+			}
+
+			// Restore original function
+			textRenderLayer.onGridChanged = originalOnGridChanged;
+		};
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
