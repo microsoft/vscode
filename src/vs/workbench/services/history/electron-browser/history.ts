@@ -10,8 +10,8 @@ import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
 import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
@@ -124,8 +124,8 @@ export class HistoryService implements IHistoryService {
 	private fileInputFactory: IFileInputFactory;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -160,39 +160,39 @@ export class HistoryService implements IHistoryService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
-		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
-		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.toUnbind.push(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
+		this.toUnbind.push(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
+		this.toUnbind.push(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
 
-	private onEditorsChanged(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditor)) {
+	private onActiveEditorChanged(): void {
+		const activeControl = this.editorService.activeControl;
+		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeControl)) {
 			return; // return if the active editor is still the same
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, groupId: activeEditor.group } : void 0;
+		this.lastActiveEditor = activeControl ? { editor: activeControl.input, groupId: activeControl.group } : void 0;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
 		this.activeEditorListeners = [];
 
 		// Propagate to history
-		this.handleActiveEditorChange(activeEditor);
+		this.handleActiveEditorChange(activeControl);
 
 		// Apply listener for selection changes if this is a text editor
-		const control = getCodeEditor(activeEditor);
+		const control = getCodeEditor(activeControl);
 		if (control) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
 			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeEditor, event);
+				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 		}
 	}
@@ -238,10 +238,8 @@ export class HistoryService implements IHistoryService {
 	public reopenLastClosedEditor(): void {
 		this.ensureHistoryLoaded();
 
-		const stacks = this.editorGroupService.getStacksModel();
-
 		let lastClosedFile = this.recentlyClosedFiles.pop();
-		while (lastClosedFile && this.isFileOpened(lastClosedFile.resource, stacks.activeGroup)) {
+		while (lastClosedFile && this.isFileOpened(lastClosedFile.resource, this.editorGroupService.activeGroup)) {
 			lastClosedFile = this.recentlyClosedFiles.pop(); // pop until we find a file that is not opened
 		}
 
@@ -611,16 +609,16 @@ export class HistoryService implements IHistoryService {
 		this.windowService.removeFromRecentlyOpened([input.resource.fsPath]);
 	}
 
-	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
+	private isFileOpened(resource: URI, group: INextEditorGroup): boolean {
 		if (!group) {
 			return false;
 		}
 
-		if (!group.contains(resource)) {
+		if (!this.editorService.isOpen({ resource }, group)) {
 			return false; // fast check
 		}
 
-		return group.getEditors().some(e => this.matchesFile(resource, e));
+		return group.editors.some(e => this.matchesFile(resource, e));
 	}
 
 	private matches(arg1: IEditorInput | IResourceInput | FileChangesEvent, inputB: IEditorInput | IResourceInput): boolean {

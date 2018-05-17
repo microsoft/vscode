@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -48,11 +48,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
 
-	private _onWillCloseEditor: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
-	get onWillCloseEditor(): Event<IEditorIdentifier> { return this._onWillCloseEditor.event; }
+	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
 
-	private _onDidCloseEditor: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
-	get onDidCloseEditor(): Event<IEditorIdentifier> { return this._onDidCloseEditor.event; }
+	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
@@ -110,12 +110,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			this._onDidVisibleEditorsChange.fire();
 		}));
 
-		groupDisposeables.push(group.onWillCloseEditor(editor => {
-			this._onWillCloseEditor.fire({ editor, groupId: group.id });
+		groupDisposeables.push(group.onWillCloseEditor(event => {
+			this._onWillCloseEditor.fire(event);
 		}));
 
-		groupDisposeables.push(group.onDidCloseEditor(editor => {
-			this._onDidCloseEditor.fire({ editor, groupId: group.id });
+		groupDisposeables.push(group.onDidCloseEditor(event => {
+			this._onDidCloseEditor.fire(event);
 		}));
 
 		groupDisposeables.push(group.onWillOpenEditor(editor => {
@@ -368,8 +368,17 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region isOpen()
 
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean {
-		return this.nextEditorGroupsService.groups.some(group => {
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: INextEditorGroup | GroupIdentifier): boolean {
+		let groups: INextEditorGroup[] = [];
+		if (typeof group === 'number') {
+			groups.push(this.nextEditorGroupsService.getGroup(group));
+		} else if (group) {
+			groups.push(group);
+		} else {
+			groups = [...this.nextEditorGroupsService.groups];
+		}
+
+		return groups.some(group => {
 			if (editor instanceof EditorInput) {
 				return group.isOpened(editor);
 			}

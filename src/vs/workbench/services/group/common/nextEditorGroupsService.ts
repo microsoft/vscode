@@ -7,7 +7,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -293,12 +293,12 @@ export interface INextEditorGroup {
 	 * Listeners can for example save view state now before the
 	 * underlying widget gets disposed.
 	 */
-	readonly onWillCloseEditor: Event<IEditorInput>;
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor of this group is closed.
 	 */
-	readonly onDidCloseEditor: Event<IEditorInput>;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor is about to open. This can be prevented from

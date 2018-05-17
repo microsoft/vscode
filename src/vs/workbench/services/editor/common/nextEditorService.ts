@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
@@ -46,12 +46,12 @@ export interface INextEditorService {
 	 * for example save view state now before the underlying widget
 	 * gets disposed.
 	 */
-	readonly onWillCloseEditor: Event<IEditorIdentifier>;
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor is closed.
 	 */
-	readonly onDidCloseEditor: Event<IEditorIdentifier>;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Emitted when an editor is about to open. This can be prevented from
@@ -141,11 +141,14 @@ export interface INextEditorService {
 	replaceEditors(editors: IEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
 
 	/**
-	 * Find out if the provided editor (or resource of an editor) is opened in any group.
+	 * Find out if the provided editor (or resource of an editor) is opened in any or
+	 * a specific editor group.
 	 *
 	 * Note: An editor can be opened but not actively visible.
+	 *
+	 * @param group optional to specify a group to check for the editor being opened
 	 */
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput): boolean;
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: INextEditorGroup | GroupIdentifier): boolean;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.

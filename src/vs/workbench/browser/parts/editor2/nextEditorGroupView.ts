@@ -8,7 +8,7 @@
 import 'vs/css!./media/nextEditorGroupView';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -78,11 +78,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
 
-	private _onWillCloseEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onWillCloseEditor(): Event<EditorInput> { return this._onWillCloseEditor.event; }
+	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
 
-	private _onDidCloseEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidCloseEditor(): Event<EditorInput> { return this._onDidCloseEditor.event; }
+	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
+	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
 	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
 	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
@@ -370,7 +370,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private onDidEditorClose(event: EditorCloseEvent): void {
 
 		// Before close
-		this._onWillCloseEditor.fire(event.editor);
+		this._onWillCloseEditor.fire(event);
 
 		// Handle event
 		const editor = event.editor;
@@ -390,7 +390,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		});
 
 		// After close
-		this._onDidCloseEditor.fire(event.editor);
+		this._onDidCloseEditor.fire(event);
 
 		/* __GDPR__
 			"editorClosed" : {
