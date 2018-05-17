@@ -170,6 +170,7 @@
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:hover,
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value > .edit-in-settings-button:active {
 	margin: auto;
+	text-align: left;
 	text-decoration: underline;
 }
 
