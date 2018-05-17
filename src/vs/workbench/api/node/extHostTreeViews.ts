@@ -49,6 +49,9 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		}
 		const treeView = this.createExtHostTreeViewer(viewId, options.treeDataProvider);
 		return {
+			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
+			get onDidExpandElement() { return treeView.onDidExpandElement; },
+			get selection() { return treeView.selectedElements; },
 			reveal: (element: T, options?: { select?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
