@@ -18,7 +18,6 @@ import { ICodeEditor, IEditorMouseEvent, MouseTargetType } from 'vs/editor/brows
 import * as modes from 'vs/editor/common/modes';
 import { peekViewBorder } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import { IOptions, ZoneWidget } from 'vs/editor/contrib/zoneWidget/zoneWidget';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ITheme, IThemeService } from 'vs/platform/theme/common/themeService';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
@@ -107,7 +106,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 	private _toggleAction: Action;
 	private _commentThread: modes.CommentThread;
 	private _commentGlyph: CommentGlyphWidget;
-	private _replyCommand: modes.Command;
 	private _owner: number;
 	private _decorationIDs: string[];
 	private _localToDispose: IDisposable[];
@@ -120,23 +118,20 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IModeService private modeService: IModeService,
-		@IModelService private modelService: IModelService,
+		private instantiationService: IInstantiationService,
+		private modeService: IModeService,
+		private modelService: IModelService,
+		private themeService: IThemeService,
+		private commentService: ICommentService,
 		editor: ICodeEditor,
 		owner: number,
 		commentThread: modes.CommentThread,
-		replyCommand: modes.Command,
-		options: IOptions = {},
-		private readonly themeService: IThemeService,
-		private readonly commandService: ICommandService,
-		private readonly commentService: ICommentService
+		options: IOptions = {}
 	) {
 		super(editor, options);
 		this._resizeObserver = null;
 		this._owner = owner;
 		this._commentThread = commentThread;
-		this._replyCommand = replyCommand;
 		this._isCollapsed = commentThread.collapsibleState !== modes.CommentThreadCollapsibleState.Expanded;
 		this._decorationIDs = [];
 		this._localToDispose = [];

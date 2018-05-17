@@ -18,7 +18,6 @@ import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 import * as nls from 'vs/nls';
-import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -79,7 +78,6 @@ export class ReviewController implements IEditorContribution {
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService private themeService: IThemeService,
-		@ICommandService private commandService: ICommandService,
 		@ICommentService private commentService: ICommentService,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -119,7 +117,7 @@ export class ReviewController implements IEditorContribution {
 
 			this._commentInfos.forEach(info => {
 				info.threads.forEach(thread => {
-					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService, this.commentService);
+					let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, info.owner, thread, {});
 					zoneWidget.display(thread.range.startLineNumber);
 					this._commentWidgets.push(zoneWidget);
 				});
@@ -214,7 +212,7 @@ export class ReviewController implements IEditorContribution {
 				}
 			});
 			added.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, e.owner, thread, thread.reply, {}, this.themeService, this.commandService, this.commentService);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, e.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 				this._commentInfos.filter(info => info.owner === e.owner)[0].threads.push(thread);
@@ -231,7 +229,7 @@ export class ReviewController implements IEditorContribution {
 		// add new comment
 		this._reviewPanelVisible.set(true);
 		const { replyCommand, ownerId } = newCommentInfo;
-		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, ownerId, {
+		this._newCommentWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, ownerId, {
 			threadId: null,
 			resource: null,
 			comments: [],
@@ -243,7 +241,7 @@ export class ReviewController implements IEditorContribution {
 			},
 			reply: replyCommand,
 			collapsibleState: CommentThreadCollapsibleState.Expanded,
-		}, replyCommand, {}, this.themeService, this.commandService, this.commentService);
+		}, {});
 
 		this._newCommentWidget.onDidClose(e => {
 			this._newCommentWidget = null;
@@ -356,7 +354,7 @@ export class ReviewController implements IEditorContribution {
 
 		this._commentInfos.forEach(info => {
 			info.threads.forEach(thread => {
-				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.editor, info.owner, thread, info.reply, {}, this.themeService, this.commandService, this.commentService);
+				let zoneWidget = new ReviewZoneWidget(this.instantiationService, this.modeService, this.modelService, this.themeService, this.commentService, this.editor, info.owner, thread, {});
 				zoneWidget.display(thread.range.startLineNumber);
 				this._commentWidgets.push(zoneWidget);
 			});
