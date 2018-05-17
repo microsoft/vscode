@@ -5,6 +5,8 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
@@ -599,6 +601,8 @@ declare module 'vscode' {
 
 	//#region Multi-step input
 
+	//#region Take 1
+
 	export namespace window {
 
 		/**
@@ -618,6 +622,226 @@ declare module 'vscode' {
 		showQuickPick: typeof window.showQuickPick;
 		showInputBox: typeof window.showInputBox;
 	}
+
+	//#endregion
+
+	//#region Take 2
+
+	export namespace window {
+
+		/**
+		 * Start collecting multiple inputs from the user. The returned
+		 * [`QuickInput2`](#QuickInput2) should be used to control the UI.
+		 *
+		 * Note that this API is only needed when collecting multiple inputs.
+		 * For single inputs, the input functions on [`window`](#window) can be used.
+		 *
+		 * @return A [`QuickInput2`](#QuickInput2) to control the UI.
+		 */
+		export function createQuickInput2(): QuickInput2;
+	}
+
+	/**
+	 * Controls the UI within a multi-step input session.
+	 */
+	export interface QuickInput2 {
+
+		/**
+		 * A cancellation token indicating when this multi-step input session was
+		 * canceled by the user (either directly or by triggering another input session).
+		 */
+		token: CancellationToken;
+
+		showQuickPick: typeof window.showQuickPick;
+
+		showInputBox: typeof window.showInputBox;
+
+		/**
+		 * Dispose the input object and associated resources.
+		 */
+		dispose(): void;
+	}
+
+	//#endregion
+
+	//#region Take 3
+
+	export namespace window {
+
+		export function createQuickInput3(): QuickInput3;
+	}
+
+	/**
+	 * Controls the UI within a input session.
+	 */
+	export interface QuickInput3 {
+
+		text: string | undefined;
+
+		placeholder: string | undefined;
+
+		onDidTextChange: Event<string>;
+
+		toolbarItems: QuickInputToolbarItem3[] | undefined;
+
+		onDidTriggerToolbarItem: Event<QuickInputToolbarItem3>;
+
+		onDidAccept: Event<string>;
+
+		items: QuickPickItem[] | undefined;
+
+		pickMany: boolean;
+
+		onDidPickItem: Event<QuickPickItem>;
+
+		message: { text: string; severity: number; } | undefined;
+
+		enabled: boolean;
+		busy: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickInputToolbarItem3 {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
+	}
+
+	//#endregion
+
+	//#region Take 4
+
+	type MultiStepInput = { [id: string]: InputStep<any> };
+
+	type InputStep<T> = SinglePickStep<T extends QuickPickItem ? T : never> | TextInputStep<T extends string ? T : never>;
+	interface SinglePickStep<T extends QuickPickItem> {
+		kind: 'singlePick';
+		items: T[];
+		placeHolder: string;
+		nextStep?: string;
+	}
+	interface TextInputStep<T extends string> {
+		kind: 'textInput';
+		prompt: string;
+		validateInput: (value: string) => Thenable<string>;
+		nextStep?: string;
+	}
+
+	type Inputs<T extends MultiStepInput> = { [P in keyof T]: SingleInput<T[P]> };
+	type SingleInput<T> =
+		T extends SinglePickStep<infer R> ? R :
+		T extends TextInputStep<infer R> ? R :
+		never;
+
+	export namespace window {
+		export function multiStepInput4<T extends MultiStepInput>(firstStep: keyof T, steps: T): Thenable<Inputs<T>>;
+	}
+
+	//#endregion
+
+	//#region Take 5
+
+	type MultiStepInput5 = { [id: string]: InputStep5<any> };
+
+	interface InputStep5<T> {
+		(input: QuickInput5, values: any): Thenable<{ value: T, next?: string; }>;
+	}
+
+	type Inputs5<T extends MultiStepInput5> = { [P in keyof T]: SingleInput5<T[P]> };
+	type SingleInput5<T> = T extends InputStep5<infer R> ? R : never;
+
+	export namespace window {
+		export function multiStepInput5<T extends MultiStepInput5>(firstStep: keyof T, steps: T): Thenable<Inputs5<T>>;
+	}
+
+	export interface QuickInput5 {
+		token: CancellationToken;
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
+	}
+
+	//#endregion
+
+	//#region Take 6
+
+	export interface QuickPickOptions {
+		next?: (input: QuickInput6, result: QuickPickItem) => Promise<void> | undefined;
+	}
+
+	export interface InputBoxOptions {
+		next?: (input: QuickInput6, result: string) => Promise<void> | undefined;
+	}
+
+	export interface QuickInput6 {
+		token: CancellationToken;
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
+	}
+
+	//#endregion
+
+	//#region Take 7
+
+	export namespace window {
+		export function multiStepInput7<T>(nav: InputNavigation): Thenable<T>;
+	}
+
+	export interface InputNavigation {
+		next(input: QuickInput7): Thenable<void>;
+		previous(input: QuickInput7): Thenable<void>;
+		cancel(input: QuickInput7): Thenable<void>;
+	}
+
+	export interface QuickInput7 {
+		token: CancellationToken;
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
+		close: () => void;
+	}
+
+	//#endregion
+
+	//#region Take 8
+
+	export namespace window {
+		export function createQuickInputSession(): QuickInputSession8;
+	}
+
+	export interface QuickInputSession8 {
+		token: CancellationToken;
+		dispose(): void;
+	}
+
+	export interface QuickPickOptions {
+		session?: QuickInputSession8;
+	}
+
+	export interface InputBoxOptions {
+		session?: QuickInputSession8;
+	}
+
+	//#endregion
+
+	//#region Take 9
+
+	type InputStep9 = (session: QuickInputSession9) => Thenable<InputStep9 | void>;
+
+	export namespace window {
+		export function multiStepInput9(step: InputStep9): Thenable<void>;
+	}
+
+	export interface QuickInputSession9 {
+		token: CancellationToken;
+		dispose(): void;
+	}
+
+	//#endregion
 
 	//#endregion
 }
