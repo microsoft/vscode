@@ -31,7 +31,8 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from '../../../../base/common/keyCodes';
 import { ICommentService } from '../../../services/comments/electron-browser/commentService';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
+import { IPosition } from 'vs/editor/common/core/position';
 
 export const COMMENTEDITOR_DECORATION_KEY = 'commenteditordecoration';
 const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
@@ -151,8 +152,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 	public reveal(commentId?: string) {
 		if (this._isCollapsed) {
-			this._isCollapsed = false;
-
 			if (this._decorationIDs && this._decorationIDs.length) {
 				let range = this.editor.getModel().getDecorationRange(this._decorationIDs[0]);
 				this.show(range, 2);
@@ -212,7 +211,6 @@ export class ReviewZoneWidget extends ZoneWidget {
 
 		this._toggleAction = new Action('review.expand', nls.localize('label.expand', "Expand"), this._isCollapsed ? EXPAND_ACTION_CLASS : COLLAPSE_ACTION_CLASS, true, () => {
 			if (this._isCollapsed) {
-				this._isCollapsed = false;
 				this.show({ lineNumber: this._commentThread.range.startLineNumber, column: 1 }, 2);
 			}
 			else {
@@ -519,10 +517,8 @@ export class ReviewZoneWidget extends ZoneWidget {
 		}
 
 		if (this._isCollapsed) {
-			this._isCollapsed = !this._isCollapsed;
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
 		} else {
-			this._isCollapsed = !this._isCollapsed;
 			this.hide();
 		}
 	}
@@ -533,6 +529,16 @@ export class ReviewZoneWidget extends ZoneWidget {
 			arrowColor: borderColor,
 			frameColor: borderColor
 		});
+	}
+
+	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
+		this._isCollapsed = false;
+		super.show(rangeOrPos, heightInLines);
+	}
+
+	hide() {
+		this._isCollapsed = true;
+		super.hide();
 	}
 
 	dispose() {

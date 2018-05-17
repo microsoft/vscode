@@ -371,10 +371,11 @@ export class ReviewController implements IEditorContribution {
 		}
 
 		if (this._commentWidgets) {
-			this._commentWidgets.forEach(widget => widget.dispose());
+			this._commentWidgets.forEach(widget => widget.hide());
 		}
 
 		this.editor.focus();
+		this.editor.revealRangeInCenter(this.editor.getSelection());
 	}
 }
 
