@@ -330,12 +330,15 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 
 export function mapCommentsToHead(prPatch: string, localDiff: string, comments: Comment[]) {
 	for (let i = 0; i < comments.length; i++) {
-		let comment = comments[i];
+		const comment = comments[i];
 
-		let diffLine = getDiffLineByPosition(prPatch, comment.position | comment.original_position);
-		let positionInPr = diffLine.newLineNumber;
-		let newPosition = mapOldPositionToNew(localDiff, positionInPr);
-		comment.absolutePosition = newPosition;
+		// Diff line is null when the original line the comment was on has been removed
+		const diffLine = getDiffLineByPosition(prPatch, comment.position | comment.original_position);
+		if (diffLine) {
+			const positionInPr = diffLine.newLineNumber;
+			const newPosition = mapOldPositionToNew(localDiff, positionInPr);
+			comment.absolutePosition = newPosition;
+		}
 	}
 
 	return comments;
