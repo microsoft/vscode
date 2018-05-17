@@ -21,7 +21,7 @@ import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebug
 import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 
 const $ = dom.$;
@@ -93,7 +93,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private linkDetector: LinkDetector;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@INextEditorService private editorService: INextEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);

@@ -17,13 +17,14 @@ import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/work
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 export function registerCommands(): void {
 
@@ -52,8 +53,8 @@ export function registerCommands(): void {
 		when: EditorContextKeys.editorTextFocus,
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
-			const editorService = accessor.get(IWorkbenchEditorService);
-			const editor = editorService.getActiveEditor();
+			const editorService = accessor.get(INextEditorService);
+			const editor = editorService.activeControl;
 			const control = <ICodeEditor>editor.getControl();
 
 			if (control) {
@@ -199,10 +200,10 @@ export function registerCommands(): void {
 	});
 
 	const INLINE_BREAKPOINT_COMMAND_ID = 'editor.debug.action.toggleInlineBreakpoint';
-	const inlineBreakpointHandler = (accessor) => {
+	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const editor = editorService.getActiveEditor();
+		const editorService = accessor.get(INextEditorService);
+		const editor = editorService.activeControl;
 		const control = editor && <ICodeEditor>editor.getControl();
 		if (control) {
 			const position = control.getPosition();
@@ -261,7 +262,7 @@ export function registerCommands(): void {
 			if (list instanceof List) {
 				const focus = list.getFocusedElements();
 				if (focus.length && focus[0] instanceof Breakpoint) {
-					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(IWorkbenchEditorService));
+					return openBreakpointSource(focus[0], true, false, accessor.get(IDebugService), accessor.get(INextEditorService));
 				}
 			}
 
