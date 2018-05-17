@@ -30,6 +30,10 @@
 	opacity: 0.5;
 }
 
+.comments-panel .comments-panel-container .tree-container .comment-container .text * {
+	margin: 0;
+}
+
 .comments-panel .comments-panel-container .message-box-container {
 	line-height: 22px;
 	padding-left: 20px;

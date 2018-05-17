@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as dom from 'vs/base/browser/dom';
+import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
@@ -11,8 +12,8 @@ import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { FileLabel, ResourceLabel } from 'vs/workbench/browser/labels';
-import { CommentsModel, ResourceWithCommentThreads, CommentNode } from 'vs/workbench/parts/comments/common/commentModel';
+import { FileLabel } from 'vs/workbench/browser/labels';
+import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 
 export class CommentsDataSource implements IDataSource {
 	public getId(tree: ITree, element: any): string {
@@ -62,8 +63,8 @@ interface IResourceTemplateData {
 
 interface ICommentThreadTemplateData {
 	icon: HTMLImageElement;
-	resourceLabel: ResourceLabel;
 	userName: HTMLSpanElement;
+	commentText: HTMLElement;
 }
 
 export class CommentsModelRenderer implements ITreeRenderer {
@@ -106,8 +107,6 @@ export class CommentsModelRenderer implements ITreeRenderer {
 			case CommentsModelRenderer.RESOURCE_ID:
 				(<IResourceTemplateData>templateData).resourceLabel.dispose();
 				(<IResourceTemplateData>templateData).styler.dispose();
-			case CommentsModelRenderer.COMMENT_ID:
-				(<ICommentThreadTemplateData>templateData).resourceLabel.dispose();
 		}
 	}
 
@@ -136,7 +135,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		const data = <ICommentThreadTemplateData>Object.create(null);
 		const labelContainer = dom.append(container, dom.$('.comment-container'));
 		data.userName = dom.append(labelContainer, dom.$('.user'));
-		data.resourceLabel = this.instantiationService.createInstance(ResourceLabel, labelContainer, {});
+		data.commentText = dom.append(labelContainer, dom.$('.text'));
 
 		return data;
 	}
@@ -149,8 +148,8 @@ export class CommentsModelRenderer implements ITreeRenderer {
 	}
 
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {
-		templateData.resourceLabel.setLabel({ name: element.comment.body.value });
 		templateData.userName.textContent = element.comment.userName;
+		templateData.commentText.innerHTML = renderMarkdown(element.comment.body, { inline: true }).innerHTML;
 	}
 }
 
