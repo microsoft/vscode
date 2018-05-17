@@ -241,9 +241,6 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	onDidChange: Event<ITreeItem[] | undefined | null>;
-
-	onDispose: Event<void>;
-
 	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
+
 }

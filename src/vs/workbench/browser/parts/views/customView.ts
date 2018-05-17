@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -111,7 +111,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private elementsToRefresh: ITreeItem[] = [];
 
 	private _dataProvider: ITreeViewDataProvider;
-	private dataProviderDisposables: IDisposable[] = [];
 
 	private _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -141,11 +140,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider) {
-		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				onDidChange = dataProvider.onDidChange;
-				onDispose = dataProvider.onDispose;
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
 					if (node && node.children) {
 						return TPromise.as(node.children);
@@ -157,8 +153,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			this._register(dataProvider.onDidChange(elements => this.refresh(elements), this, this.dataProviderDisposables));
-			this._register(dataProvider.onDispose(() => this.dataProvider = null, this, this.dataProviderDisposables));
 		} else {
 			this._dataProvider = null;
 		}

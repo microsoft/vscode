@@ -119,11 +119,25 @@ class ExtHostTreeView<T> extends Disposable {
 	private _onDidCollapseElement: Emitter<T> = this._register(new Emitter<T>());
 	readonly onDidCollapseElement: Event<T> = this._onDidCollapseElement.event;
 
+	private refreshPromise: TPromise<void> = TPromise.as(null);
+
 	constructor(private viewId: string, private dataProvider: vscode.TreeDataProvider<T>, private proxy: MainThreadTreeViewsShape, private commands: CommandsConverter) {
 		super();
 		this.proxy.$registerTreeViewDataProvider(viewId);
 		if (this.dataProvider.onDidChangeTreeData) {
-			this._register(debounceEvent<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => last ? [...last, current] : [current], 200)(elements => this.refresh(elements)));
+			let refreshingPromise, promiseCallback;
+			this._register(debounceEvent<T, T[]>(this.dataProvider.onDidChangeTreeData, (last, current) => {
+				if (!refreshingPromise) {
+					// New refresh has started
+					refreshingPromise = new TPromise((c, e) => promiseCallback = c);
+					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise);
+				}
+				return last ? [...last, current] : [current];
+			}, 200, true)(elements => {
+				const _promiseCallback = promiseCallback;
+				refreshingPromise = null;
+				this.refresh(elements).then(() => _promiseCallback());
+			}));
 		}
 	}
 
@@ -145,9 +159,10 @@ class ExtHostTreeView<T> extends Disposable {
 
 	reveal(element: T, options?: { select?: boolean }): TPromise<void> {
 		if (typeof this.dataProvider.getParent !== 'function') {
-			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' mehtod`));
+			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
-		return this.resolveUnknownParentChain(element)
+		return this.refreshPromise
+			.then(() => this.resolveUnknownParentChain(element))
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
 				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), options)));
 	}
@@ -234,17 +249,18 @@ class ExtHostTreeView<T> extends Disposable {
 			.then(nodes => nodes.filter(n => !!n));
 	}
 
-	private refresh(elements: T[]): void {
+	private refresh(elements: T[]): TPromise<void> {
 		const hasRoot = elements.some(element => !element);
 		if (hasRoot) {
 			this.clearAll(); // clear cache
-			this.proxy.$refresh(this.viewId);
+			return this.proxy.$refresh(this.viewId);
 		} else {
 			const handlesToRefresh = this.getHandlesToRefresh(elements);
 			if (handlesToRefresh.length) {
-				this.refreshHandles(handlesToRefresh);
+				return this.refreshHandles(handlesToRefresh);
 			}
 		}
+		return TPromise.as(null);
 	}
 
 	private getHandlesToRefresh(elements: T[]): TreeItemHandle[] {
