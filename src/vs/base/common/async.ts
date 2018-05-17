@@ -73,6 +73,24 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 	return always(promise, () => subscription.dispose());
 }
 
+export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
+	let dispose: () => void;
+	let promise = new TPromise((resolve, reject) => {
+		dispose = function () {
+			resolve(cancelValue);
+		};
+		input.then(resolve, reject);
+	});
+	let res = {
+		promise,
+		dispose
+	};
+	if (Array.isArray(bucket)) {
+		bucket.push(res);
+	}
+	return res;
+}
+
 export interface ITask<T> {
 	(): T;
 }
