@@ -1058,11 +1058,23 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 	return candidate;
 }
 
-function incrementFileName(name: string, isFolder: boolean): string {
+export function incrementFileName(name: string, isFolder: boolean): string {
+	const separators = '[\\.\\-_]';
 
 	// file.1.txt=>file.2.txt
-	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			return g1 + strings.pad(parseInt(g2) + 1, g2.length) + g3;
+		});
+	}
+
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			return strings.pad(parseInt(g1) + 1, g1.length) + g2 + g3;
+		});
 	}
 
 	// file.txt=>file.1.txt
@@ -1073,7 +1085,12 @@ function incrementFileName(name: string, isFolder: boolean): string {
 
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
 	}
 
 	// file/folder=>file.1/folder.1
