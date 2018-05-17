@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import URI from 'vs/base/common/uri';
-import { TestEditorService, workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestNextEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
@@ -23,6 +23,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 suite('Editor - Range decorations', () => {
 
@@ -35,7 +36,7 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, new TestEditorService());
+		instantiationService.stub(INextEditorService, new TestNextEditorService());
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
@@ -43,7 +44,8 @@ suite('Editor - Range decorations', () => {
 		codeEditor = createTestCodeEditor({ model: model });
 		mockEditorService(codeEditor.getModel().uri);
 
-		instantiationService.stub(WorkbenchEditorService.IWorkbenchEditorService, 'getActiveEditor', { getControl: () => { return codeEditor; } });
+		instantiationService.stub(INextEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
+		instantiationService.stub(INextEditorService, 'activeTextEditorControl', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);
 	});
