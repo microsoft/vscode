@@ -75,7 +75,7 @@ class StartupTimings implements IWorkbenchContribution {
 			return;
 		}
 		const visibleEditors = this._editorService.getVisibleEditors();
-		if (visibleEditors.length !== 1 && !isCodeEditor(visibleEditors[0].getControl())) {
+		if (visibleEditors.length !== 1 || !isCodeEditor(visibleEditors[0].getControl())) {
 			this._logService.info('no standard startup: not just one text editor');
 			return;
 		}
