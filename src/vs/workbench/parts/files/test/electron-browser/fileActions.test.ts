@@ -28,10 +28,64 @@ suite('Files - Increment file name', () => {
 		assert.strictEqual(result, 'test.2.js');
 	});
 
+	test('Increment file name with suffix version with trailing zeros', function () {
+		const name = 'test.001.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test.002.js');
+	});
+
+	test('Increment file name with suffix version with trailing zeros, changing length', function () {
+		const name = 'test.009.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test.010.js');
+	});
+
+	test('Increment file name with suffix version with `-` as separator', function () {
+		const name = 'test-1.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test-2.js');
+	});
+
+	test('Increment file name with suffix version with `-` as separator, trailing zeros', function () {
+		const name = 'test-001.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test-002.js');
+	});
+
+	test('Increment file name with suffix version with `-` as separator, trailing zeros, changnig length', function () {
+		const name = 'test-099.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test-100.js');
+	});
+
+	test('Increment file name with suffix version with `_` as separator', function () {
+		const name = 'test_1.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, 'test_2.js');
+	});
+
 	test('Increment folder name with suffix version', function () {
 		const name = 'test.1';
 		const result = incrementFileName(name, true);
 		assert.strictEqual(result, 'test.2');
+	});
+
+	test('Increment folder name with suffix version, trailing zeros', function () {
+		const name = 'test.001';
+		const result = incrementFileName(name, true);
+		assert.strictEqual(result, 'test.002');
+	});
+
+	test('Increment folder name with suffix version with `-` as separator', function () {
+		const name = 'test-1';
+		const result = incrementFileName(name, true);
+		assert.strictEqual(result, 'test-2');
+	});
+
+	test('Increment folder name with suffix version with `_` as separator', function () {
+		const name = 'test_1';
+		const result = incrementFileName(name, true);
+		assert.strictEqual(result, 'test_2');
 	});
 
 	test('Increment file name with prefix version', function () {
@@ -40,10 +94,40 @@ suite('Files - Increment file name', () => {
 		assert.strictEqual(result, '2.test.js');
 	});
 
+	test('Increment file name with prefix version, trailing zeros', function () {
+		const name = '001.test.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, '002.test.js');
+	});
+
+	test('Increment file name with prefix version with `-` as separator', function () {
+		const name = '1-test.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, '2-test.js');
+	});
+
+	test('Increment file name with prefix version with `-` as separator', function () {
+		const name = '1_test.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, '2_test.js');
+	});
+
 	test('Increment folder name with suffix version', function () {
 		const name = '1.test';
 		const result = incrementFileName(name, true);
 		assert.strictEqual(result, '2.test');
+	});
+
+	test('Increment folder name with suffix version, trailing zeros', function () {
+		const name = '001.test';
+		const result = incrementFileName(name, true);
+		assert.strictEqual(result, '002.test');
+	});
+
+	test('Increment folder name with suffix version  with `-` as separator', function () {
+		const name = '1-test';
+		const result = incrementFileName(name, true);
+		assert.strictEqual(result, '2-test');
 	});
 
 });
