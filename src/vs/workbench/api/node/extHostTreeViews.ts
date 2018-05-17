@@ -133,7 +133,7 @@ class ExtHostTreeView<T> extends Disposable {
 					this.refreshPromise = this.refreshPromise.then(() => refreshingPromise);
 				}
 				return last ? [...last, current] : [current];
-			}, 200, true)(elements => {
+			}, 200)(elements => {
 				const _promiseCallback = promiseCallback;
 				refreshingPromise = null;
 				this.refresh(elements).then(() => _promiseCallback());

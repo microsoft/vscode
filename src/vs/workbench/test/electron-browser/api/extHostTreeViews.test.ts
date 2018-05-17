@@ -252,13 +252,9 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('refresh calls are throttled on roots', function (done) {
-		let counter = 0;
 		target.onRefresh.event(actuals => {
-			counter++;
 			assert.equal(undefined, actuals);
-			if (counter > 1) {
-				done();
-			}
+			done();
 		});
 		onDidChangeTreeNode.fire();
 		onDidChangeTreeNode.fire();
@@ -267,18 +263,9 @@ suite('ExtHostTreeView', function () {
 	});
 
 	test('refresh calls are throttled on elements', function (done) {
-		let counter = 0;
 		target.onRefresh.event(actuals => {
-			counter++;
-			if (counter === 1) {
-				assert.deepEqual(['0/0:a'], Object.keys(actuals));
-			}
-			if (counter === 2) {
-				assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
-			}
-			if (counter > 1) {
-				done();
-			}
+			assert.deepEqual(['0/0:a', '0/0:b'], Object.keys(actuals));
+			done();
 		});
 
 		onDidChangeTreeNode.fire(getNode('a'));
