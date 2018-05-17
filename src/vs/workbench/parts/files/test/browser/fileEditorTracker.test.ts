@@ -10,7 +10,7 @@ import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/file
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 // import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -32,7 +32,7 @@ function toResource(self: any, path: string) {
 
 class ServiceAccessor {
 	constructor(
-		@IWorkbenchEditorService public editorService: IWorkbenchEditorService,
+		@INextEditorService public editorService: INextEditorService,
 		@INextEditorGroupsService public editorGroupService: INextEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFileService public fileService: TestFileService
