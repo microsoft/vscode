@@ -467,8 +467,8 @@ export class TerminalInstance implements ITerminalInstance {
 				this._notificationService.prompt(
 					Severity.Warning,
 					// TODO: Fill in link
-					nls.localize('terminal.slowRenderingNoLink', 'The terminal GPU-based rendering appears to be slow on your computer, do you want to use the fallback non-GPU renderer?'),
-					// nls.localize('terminal.slowRendering', 'The terminal GPU-based rendering appears to be slow on your computer, do you want to use the fallback non-GPU renderer? [Read more about terminal settings](https://code.visualstudio.com).'),
+					nls.localize('terminal.slowRenderingNoLink', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer?'),
+					// nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com).'),
 					promptChoices
 				);
 			}
