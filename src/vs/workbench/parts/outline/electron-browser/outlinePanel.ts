@@ -118,7 +118,7 @@ class RequestOracle {
 
 		let handle: number;
 		let listener = codeEditor.onDidChangeModelContent(_ => {
-			handle = setTimeout(() => this._callback(codeEditor), 50);
+			handle = setTimeout(() => this._callback(codeEditor), 150);
 		});
 		this._sessionDisposable = {
 			dispose() {
