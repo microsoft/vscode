@@ -35,9 +35,9 @@ import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/termina
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
-// How long in milliseconds should a frame take to render for a notification to appear which
-// suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 100;
+// How long in milliseconds should an average frame take to render for a notification to appear
+// which suggests the fallback DOM-based renderer
+const SLOW_CANVAS_RENDER_THRESHOLD = 50;
 
 let Terminal: typeof XTermTerminal;
 
@@ -46,7 +46,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private static _lastKnownDimensions: dom.Dimension = null;
 	private static _idCounter = 1;
-	// private static _wasRenderTimeMeasured = false;
 
 	private _processManager: ITerminalProcessManager | undefined;
 
@@ -437,9 +436,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _measureRenderTime(): void {
-		// TODO: Only measure a few frames and then stop measuring. Do this once per session?
-		const renderer = (<any>this._xterm).renderer;
-		const textRenderLayer = renderer._renderLayers[0];
+		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
 			const startTime = performance.now();
@@ -451,7 +448,7 @@ export class TerminalInstance implements ITerminalInstance {
 						label: nls.localize('yes', "Yes"),
 						run: () => {
 							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
-								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All new terminals launched will use the non-GPU renderer."));
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
 							});
 						}
 					} as IPromptChoice,
@@ -466,12 +463,13 @@ export class TerminalInstance implements ITerminalInstance {
 				];
 				this._notificationService.prompt(
 					Severity.Warning,
-					// TODO: Fill in link
-					nls.localize('terminal.slowRenderingNoLink', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer?'),
-					// nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com).'),
+					nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
 			}
+
+			// Restore original function
+			textRenderLayer.onGridChanged = originalOnGridChanged;
 		};
 	}
 
