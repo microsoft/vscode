@@ -13,7 +13,13 @@ export const IMenubarService = createDecorator<IMenubarService>('menubarService'
 export interface IMenubarService {
 	_serviceBrand: any;
 
-	updateMenubar(windowId: number, menus: IMenubarMenu[]): TPromise<void>;
+	updateMenubar(windowId: number, menus: IMenubarData): TPromise<void>;
+}
+
+export interface IMenubarData {
+	'Files'?: IMenubarMenu;
+	'Edit'?: IMenubarMenu;
+	[id: string]: IMenubarMenu;
 }
 
 export interface IMenubarMenu {

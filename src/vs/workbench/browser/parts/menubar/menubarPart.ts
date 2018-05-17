@@ -8,7 +8,7 @@
 import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import 'vs/css!./media/menubarpart';
 import { Part } from 'vs/workbench/browser/part';
-import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction } from 'vs/platform/menubar/common/menubar';
+import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -78,8 +78,8 @@ export class MenubarPart extends Part {
 		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 	}
 
-	private getMenubarMenus(): IMenubarMenu[] {
-		let ret: IMenubarMenu[] = [];
+	private getMenubarMenus(): IMenubarData {
+		let ret: IMenubarData = {};
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			const menu = this.topLevelMenus[topLevelMenuName];
@@ -105,10 +105,9 @@ export class MenubarPart extends Part {
 				menubarMenu.items.pop();
 			}
 
-			ret.push(menubarMenu);
+			ret[topLevelMenuName] = menubarMenu;
 		}
 
-		console.log(ret);
 		return ret;
 	}
 

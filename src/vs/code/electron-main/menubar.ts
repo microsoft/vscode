@@ -23,7 +23,7 @@ import { KeybindingsResolver } from 'vs/code/electron-main/keyboard';
 import { IWindowsMainService, IWindowsCountChangedEvent } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IMenubarMenu, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
+import { IMenubarData, IMenubarMenuItemAction, IMenubarMenuItemSeparator } from 'vs/platform/menubar/common/menubar';
 
 // interface IExtensionViewlet {
 // 	id: string;
@@ -65,7 +65,7 @@ export class Menubar {
 
 	private nativeTabMenuItems: Electron.MenuItem[];
 
-	private menubarMenus: IMenubarMenu[];
+	private menubarMenus: IMenubarData = {};
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -177,7 +177,7 @@ export class Menubar {
 		return enableNativeTabs;
 	}
 
-	updateMenu(menus: IMenubarMenu[]) {
+	updateMenu(menus: IMenubarData) {
 		this.menubarMenus = menus;
 		this.scheduleUpdateMenu();
 	}
@@ -238,25 +238,16 @@ export class Menubar {
 		// Menus
 		const menubar = new Menu();
 
-		// File
-		const fileMenu = new Menu();
-		const fileMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
-		this.setFileMenu(fileMenu);
-
-		// Edit
-		const editMenu = new Menu();
-		const editMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
-		this.setEditMenu(editMenu);
-		// }
-
 		// Mac: Application
 		let macApplicationMenuItem: Electron.MenuItem;
 		if (isMacintosh) {
 			const applicationMenu = new Menu();
 			macApplicationMenuItem = new MenuItem({ label: product.nameShort, submenu: applicationMenu });
 			this.setMacApplicationMenu(applicationMenu);
+			menubar.append(macApplicationMenuItem);
 		}
 
+		// Mac: Dock
 		if (isMacintosh && !this.appMenuInstalled) {
 			this.appMenuInstalled = true;
 
@@ -266,30 +257,74 @@ export class Menubar {
 			app.dock.setMenu(dockMenu);
 		}
 
-		// Menu.setApplicationMenu(menubar);
+		// File
+		const fileMenu = new Menu();
+		const fileMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File")), submenu: fileMenu });
+
+		if (this.shouldDrawMenu('File')) {
+			if (this.shouldFallback('File')) {
+				this.setFallbackMenuById(fileMenu, 'File');
+			} else {
+				this.setMenuById(fileMenu, 'File');
+			}
+
+			menubar.append(fileMenuItem);
+		}
 
 
-		//////////////////////////////// LINE ///////////////////////////////////////
+		// Edit
+		const editMenu = new Menu();
+		const editMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit")), submenu: editMenu });
+
+		if (this.shouldDrawMenu('Edit')) {
+			this.setMenuById(editMenu, 'Edit');
+			menubar.append(editMenuItem);
+		}
 
 		// Selection
 		const selectionMenu = new Menu();
 		const selectionMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection")), submenu: selectionMenu });
-		this.setSelectionMenu(selectionMenu);
+
+		if (this.shouldDrawMenu('Selection')) {
+			this.setMenuById(selectionMenu, 'Selection');
+			menubar.append(selectionMenuItem);
+		}
 
 		// View
-		// const viewMenu = new Menu();
-		// const viewMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
-		// this.setViewMenu(viewMenu);
+		const viewMenu = new Menu();
+		const viewMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View")), submenu: viewMenu });
+
+		if (this.shouldDrawMenu('View')) {
+			this.setMenuById(viewMenu, 'View');
+			menubar.append(viewMenuItem);
+		}
 
 		// Goto
 		const gotoMenu = new Menu();
 		const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
-		this.setGotoMenu(gotoMenu);
+
+		if (this.shouldDrawMenu('View')) {
+			this.setMenuById(viewMenu, 'View');
+			menubar.append(viewMenuItem);
+		}
 
 		// Debug
 		const debugMenu = new Menu();
 		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
-		this.setDebugMenu(debugMenu);
+
+		if (this.shouldDrawMenu('Debug')) {
+			this.setMenuById(debugMenu, 'Debug');
+			menubar.append(debugMenuItem);
+		}
+
+		// Tasks
+		const taskMenu = new Menu();
+		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
+
+		if (this.shouldDrawMenu('Task')) {
+			this.setMenuById(taskMenu, 'Task');
+			menubar.append(taskMenuItem);
+		}
 
 		// Mac: Window
 		let macWindowMenuItem: Electron.MenuItem;
@@ -299,34 +334,22 @@ export class Menubar {
 			this.setMacWindowMenu(windowMenu);
 		}
 
-		// Help
-		const helpMenu = new Menu();
-		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
-		this.setHelpMenu(helpMenu);
-
-		// Tasks
-		const taskMenu = new Menu();
-		const taskMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTask', comment: ['&& denotes a mnemonic'] }, "&&Tasks")), submenu: taskMenu });
-		this.setTaskMenu(taskMenu);
-
-		// Menu Structure
-		if (macApplicationMenuItem) {
-			menubar.append(macApplicationMenuItem);
-		}
-
-		menubar.append(fileMenuItem);
-		menubar.append(editMenuItem);
-		menubar.append(selectionMenuItem);
-		// menubar.append(viewMenuItem);
-		menubar.append(gotoMenuItem);
-		menubar.append(debugMenuItem);
-		menubar.append(taskMenuItem);
-
 		if (macWindowMenuItem) {
 			menubar.append(macWindowMenuItem);
 		}
 
-		menubar.append(helpMenuItem);
+		// Help
+		const helpMenu = new Menu();
+		const helpMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")), submenu: helpMenu, role: 'help' });
+
+		if (this.shouldDrawMenu('Help')) {
+			if (this.shouldFallback('Help')) {
+				this.setFallbackMenuById(helpMenu, 'Help');
+			} else {
+				this.setMenuById(helpMenu, 'Help');
+			}
+			menubar.append(helpMenuItem);
+		}
 
 		Menu.setApplicationMenu(menubar);
 	}
@@ -366,118 +389,125 @@ export class Menubar {
 		actions.forEach(i => macApplicationMenu.append(i));
 	}
 
-	private setFileMenu(fileMenu: Electron.Menu): void {
-		//const hasNoWindows = (this.windowsMainService.getWindowCount() === 0);
-
-		if (!this.menubarMenus || !this.menubarMenus[0] || !this.menubarMenus[0].items || this.menubarMenus[0].items.length === 0) {
-			return;
+	private shouldDrawMenu(menuId: string): boolean {
+		switch (menuId) {
+			case 'File':
+			case 'Help':
+				return true;
+			default:
+				return this.windowsMainService.getWindowCount() > 0 && !!this.menubarMenus[menuId];
 		}
+	}
 
-		this.menubarMenus[0].items.forEach((item: IMenubarMenuItemAction | IMenubarMenuItemSeparator) => {
+	private shouldFallback(menuId: string): boolean {
+		return this.shouldDrawMenu(menuId) && (this.windowsMainService.getWindowCount() === 0 || !this.menubarMenus[menuId]);
+	}
+
+	private setFallbackMenuById(menu: Electron.Menu, menuId: string): void {
+		switch (menuId) {
+			case 'File':
+				let newFile: Electron.MenuItem;
+				newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: this.mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) }));
+
+				const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) }));
+
+				let open: Electron.MenuItem;
+				open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
+
+				let openWorkspace: Electron.MenuItem;
+				openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")), click: (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
+
+				const openRecentMenu = new Menu();
+				this.setOpenRecentMenu(openRecentMenu);
+				const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
+
+				menu.append(newFile);
+				menu.append(newWindow);
+				menu.append(__separator__());
+				menu.append(open);
+				menu.append(openWorkspace);
+				menu.append(openRecent);
+
+				break;
+
+			case 'Edit':
+				break;
+
+			case 'Help':
+				let twitterItem: MenuItem;
+				if (product.twitterUrl) {
+					twitterItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")), click: () => this.openUrl(product.twitterUrl, 'openTwitterUrl') });
+				}
+
+				let featureRequestsItem: MenuItem;
+				if (product.requestFeatureUrl) {
+					featureRequestsItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")), click: () => this.openUrl(product.requestFeatureUrl, 'openUserVoiceUrl') });
+				}
+
+				let reportIssuesItem: MenuItem;
+				if (product.reportIssueUrl) {
+					const label = nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue");
+
+					reportIssuesItem = new MenuItem({ label: this.mnemonicLabel(label), click: () => this.openUrl(product.reportIssueUrl, 'openReportIssues') });
+				}
+
+				let licenseItem: MenuItem;
+				if (product.privacyStatementUrl) {
+					let licenseItem = new MenuItem({
+						label: this.mnemonicLabel(nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")), click: () => {
+							if (language) {
+								const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+								this.openUrl(`${product.licenseUrl}${queryArgChar}lang=${language}`, 'openLicenseUrl');
+							} else {
+								this.openUrl(product.licenseUrl, 'openLicenseUrl');
+							}
+						}
+					});
+				}
+
+				let privacyStatementItem: MenuItem;
+				if (product.privacyStatementUrl) {
+					let privacyStatementItem = new MenuItem({
+						label: this.mnemonicLabel(nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")), click: () => {
+							if (language) {
+								const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+								this.openUrl(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`, 'openPrivacyStatement');
+							} else {
+								this.openUrl(product.privacyStatementUrl, 'openPrivacyStatement');
+							}
+						}
+					});
+				}
+
+				const openProcessExplorer = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")), click: () => this.runActionInRenderer('workbench.action.openProcessExplorer') });
+
+				if (twitterItem) { menu.append(twitterItem); }
+				if (featureRequestsItem) { menu.append(featureRequestsItem); }
+				if (reportIssuesItem) { menu.append(reportIssuesItem); }
+				if (twitterItem || featureRequestsItem || reportIssuesItem) { menu.append(__separator__()); }
+				if (licenseItem) { menu.append(licenseItem); }
+				if (privacyStatementItem) { menu.append(privacyStatementItem); }
+				if (licenseItem || privacyStatementItem) { menu.append(__separator__()); }
+				menu.append(openProcessExplorer);
+
+				break;
+		}
+	}
+
+	private setMenuById(menu: Electron.Menu, menuId: string): void {
+		console.log(`Attempting to set menu for ${menuId}`);
+
+		// Build dynamic menu
+		this.menubarMenus[menuId].items.forEach((item: IMenubarMenuItemAction | IMenubarMenuItemSeparator) => {
 			if (item.id === 'vscode.menubar.separator') {
-				fileMenu.append(__separator__());
+				menu.append(__separator__());
 			} else {
 				let menuItem: Electron.MenuItem;
 				let action: IMenubarMenuItemAction = <IMenubarMenuItemAction>item;
 				menuItem = this.createMenuItem(action.label, action.id, action.enabled, action.checked);
-				fileMenu.append(menuItem);
+				menu.append(menuItem);
 			}
 		});
-
-
-		// let newFile: Electron.MenuItem;
-		// if (hasNoWindows) {
-		// 	newFile = new MenuItem(this.likeAction('workbench.action.files.newUntitledFile', { label: this.mnemonicLabel(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File")), click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) }));
-		// } else {
-		// 	newFile = this.createMenuItem(nls.localize({ key: 'miNewFile', comment: ['&& denotes a mnemonic'] }, "&&New File"), 'workbench.action.files.newUntitledFile');
-		// }
-
-		// let open: Electron.MenuItem;
-		// if (hasNoWindows) {
-		// 	open = new MenuItem(this.likeAction('workbench.action.files.openFileFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open...")), click: (menuItem, win, event) => this.windowsMainService.pickFileFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
-		// } else {
-		// 	open = this.createMenuItem(nls.localize({ key: 'miOpen', comment: ['&& denotes a mnemonic'] }, "&&Open..."), ['workbench.action.files.openFileFolder', 'workbench.action.files.openFileFolderInNewWindow']);
-		// }
-
-		// let openWorkspace: Electron.MenuItem;
-		// if (hasNoWindows) {
-		// 	openWorkspace = new MenuItem(this.likeAction('workbench.action.openWorkspace', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace...")), click: (menuItem, win, event) => this.windowsMainService.pickWorkspaceAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
-		// } else {
-		// 	openWorkspace = this.createMenuItem(nls.localize({ key: 'miOpenWorkspace', comment: ['&& denotes a mnemonic'] }, "Open Wor&&kspace..."), ['workbench.action.openWorkspace', 'workbench.action.openWorkspaceInNewWindow']);
-		// }
-
-		// let openFolder: Electron.MenuItem;
-		// if (hasNoWindows) {
-		// 	openFolder = new MenuItem(this.likeAction('workbench.action.files.openFolder', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder...")), click: (menuItem, win, event) => this.windowsMainService.pickFolderAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
-		// } else {
-		// 	openFolder = this.createMenuItem(nls.localize({ key: 'miOpenFolder', comment: ['&& denotes a mnemonic'] }, "Open &&Folder..."), ['workbench.action.files.openFolder', 'workbench.action.files.openFolderInNewWindow']);
-		// }
-
-		// let openFile: Electron.MenuItem;
-		// if (hasNoWindows) {
-		// 	openFile = new MenuItem(this.likeAction('workbench.action.files.openFile', { label: this.mnemonicLabel(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File...")), click: (menuItem, win, event) => this.windowsMainService.pickFileAndOpen({ forceNewWindow: this.isOptionClick(event), telemetryExtraData: { from: telemetryFrom } }) }));
-		// } else {
-		// 	openFile = this.createMenuItem(nls.localize({ key: 'miOpenFile', comment: ['&& denotes a mnemonic'] }, "&&Open File..."), ['workbench.action.files.openFile', 'workbench.action.files.openFileInNewWindow']);
-		// }
-
-		// const openRecentMenu = new Menu();
-		// this.setOpenRecentMenu(openRecentMenu);
-		// const openRecent = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miOpenRecent', comment: ['&& denotes a mnemonic'] }, "Open &&Recent")), submenu: openRecentMenu, enabled: openRecentMenu.items.length > 0 });
-
-		// const saveWorkspaceAs = this.createMenuItem(nls.localize('miSaveWorkspaceAs', "Save Workspace As..."), 'workbench.action.saveWorkspaceAs');
-		// const addFolder = this.createMenuItem(nls.localize({ key: 'miAddFolderToWorkspace', comment: ['&& denotes a mnemonic'] }, "A&&dd Folder to Workspace..."), 'workbench.action.addRootFolder');
-
-		// const saveFile = this.createMenuItem(nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"), 'workbench.action.files.save');
-		// const saveFileAs = this.createMenuItem(nls.localize({ key: 'miSaveAs', comment: ['&& denotes a mnemonic'] }, "Save &&As..."), 'workbench.action.files.saveAs');
-		// const saveAllFiles = this.createMenuItem(nls.localize({ key: 'miSaveAll', comment: ['&& denotes a mnemonic'] }, "Save A&&ll"), 'workbench.action.files.saveAll');
-
-		// const autoSaveEnabled = [AutoSaveConfiguration.AFTER_DELAY, AutoSaveConfiguration.ON_FOCUS_CHANGE, AutoSaveConfiguration.ON_WINDOW_CHANGE].some(s => this.currentAutoSaveSetting === s);
-		// const autoSave = new MenuItem(this.likeAction('vscode.toggleAutoSave', { label: this.mnemonicLabel(nls.localize('miAutoSave', "Auto Save")), type: 'checkbox', checked: autoSaveEnabled, enabled: this.windowsMainService.getWindowCount() > 0, click: () => this.windowsMainService.sendToFocused('vscode.toggleAutoSave') }, false));
-
-		// const preferences = this.getPreferencesMenu();
-
-		// const newWindow = new MenuItem(this.likeAction('workbench.action.newWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miNewWindow', comment: ['&& denotes a mnemonic'] }, "New &&Window")), click: () => this.windowsMainService.openNewWindow(OpenContext.MENU) }));
-		// const revertFile = this.createMenuItem(nls.localize({ key: 'miRevert', comment: ['&& denotes a mnemonic'] }, "Re&&vert File"), 'workbench.action.files.revert');
-		// const closeWindow = new MenuItem(this.likeAction('workbench.action.closeWindow', { label: this.mnemonicLabel(nls.localize({ key: 'miCloseWindow', comment: ['&& denotes a mnemonic'] }, "Clos&&e Window")), click: () => this.windowsMainService.getLastActiveWindow().win.close(), enabled: this.windowsMainService.getWindowCount() > 0 }));
-
-		// this.closeWorkspace = this.createMenuItem(nls.localize({ key: 'miCloseWorkspace', comment: ['&& denotes a mnemonic'] }, "Close &&Workspace"), 'workbench.action.closeFolder');
-		// this.closeFolder = this.createMenuItem(nls.localize({ key: 'miCloseFolder', comment: ['&& denotes a mnemonic'] }, "Close &&Folder"), 'workbench.action.closeFolder');
-
-		// const closeEditor = this.createMenuItem(nls.localize({ key: 'miCloseEditor', comment: ['&& denotes a mnemonic'] }, "&&Close Editor"), 'workbench.action.closeActiveEditor');
-
-		// const exit = new MenuItem(this.likeAction('workbench.action.quit', { label: this.mnemonicLabel(nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")), click: () => this.windowsMainService.quit() }));
-
-		// this.updateWorkspaceMenuItems();
-
-		// arrays.coalesce([
-		// 	newFile,
-		// 	newWindow,
-		// 	__separator__(),
-		// 	isMacintosh ? open : null,
-		// 	!isMacintosh ? openFile : null,
-		// 	!isMacintosh ? openFolder : null,
-		// 	openWorkspace,
-		// 	openRecent,
-		// 	__separator__(),
-		// 	addFolder,
-		// 	saveWorkspaceAs,
-		// 	__separator__(),
-		// 	saveFile,
-		// 	saveFileAs,
-		// 	saveAllFiles,
-		// 	__separator__(),
-		// 	autoSave,
-		// 	__separator__(),
-		// 	!isMacintosh ? preferences : null,
-		// 	!isMacintosh ? __separator__() : null,
-		// 	revertFile,
-		// 	closeEditor,
-		// 	this.closeWorkspace,
-		// 	this.closeFolder,
-		// 	closeWindow,
-		// 	!isMacintosh ? __separator__() : null,
-		// 	!isMacintosh ? exit : null
-		// ]).forEach(item => fileMenu.append(item));
 	}
 
 	private getPreferencesMenu(): Electron.MenuItem {
