@@ -38,6 +38,11 @@ export class PRGroupActionTreeItem implements vscode.TreeItem {
 	}
 }
 
+export class PRDescriptionTreeItem implements vscode.TreeItem {
+
+	constructor(public label: string, public iconPath: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri }) { }
+}
+
 export class PRGroupTreeItem implements vscode.TreeItem {
 	public readonly label: string;
 	public collapsibleState: vscode.TreeItemCollapsibleState;

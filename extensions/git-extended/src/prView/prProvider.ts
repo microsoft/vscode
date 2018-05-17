@@ -11,7 +11,7 @@ import { Comment } from '../common/models/comment';
 import * as _ from 'lodash';
 import { Configuration } from '../configuration';
 import { parseComments } from '../common/comment';
-import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType } from '../common/treeItems';
+import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType, PRDescriptionTreeItem } from '../common/treeItems';
 import { Resource } from '../common/resources';
 import { toPRUri } from '../common/uri';
 import * as fs from 'fs';
@@ -19,9 +19,9 @@ import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { ReviewManager } from '../review/reviewManager';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
+export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private static _instance: PRProvider;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | undefined>();
+	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem | undefined>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
@@ -36,7 +36,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		context.subscriptions.push(vscode.commands.registerCommand('pr.refreshList', _ => {
 			this._onDidChangeTreeData.fire();
 		}));
-		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem>('pr', this));
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem>('pr', this));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
@@ -53,8 +53,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		return PRProvider._instance;
 	}
 
-	getTreeItem(element: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem): vscode.TreeItem {
-		if (element instanceof PRGroupTreeItem || element instanceof PRGroupActionTreeItem) {
+	getTreeItem(element: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem): vscode.TreeItem {
+		if (element instanceof PRGroupTreeItem || element instanceof PRGroupActionTreeItem || element instanceof PRDescriptionTreeItem) {
 			return element;
 		}
 
@@ -78,7 +78,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		}
 	}
 
-	async getChildren(element?: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem)[]> {
+	async getChildren(element?: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem)[]> {
 		if (!element) {
 			return Promise.resolve([
 				new PRGroupTreeItem(PRType.LocalPullRequest),
@@ -251,7 +251,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 				createNewCommentThread: createNewCommentThread.bind(this),
 				replyToCommentThread: replyToCommentThread.bind(this)
 			});
-			return fileChanges;
+
+			return [new PRDescriptionTreeItem('Description', {
+				light: Resource.icons.light.Description,
+				dark: Resource.icons.dark.Description
+			}), ...fileChanges];
 		}
 	}
 
