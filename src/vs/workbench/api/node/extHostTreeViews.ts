@@ -51,7 +51,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
-			get selectedElements() { return treeView.selectedElements; },
+			get selection() { return treeView.selectedElements; },
 			reveal: (element: T, options?: { select?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
