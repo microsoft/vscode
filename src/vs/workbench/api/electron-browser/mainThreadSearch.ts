@@ -9,7 +9,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -117,9 +117,9 @@ class RemoteSearchProvider implements ISearchResultProvider {
 				? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
 				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
 
-			outer.then(() => {
+			outer.then((result: ISearchCompleteStats) => {
 				this._searches.delete(search.id);
-				resolve(({ results: values(search.matches), stats: undefined }));
+				resolve(({ results: values(search.matches), stats: result.stats, limitHit: result.limitHit }));
 			}, err => {
 				this._searches.delete(search.id);
 				reject(err);

@@ -14,7 +14,7 @@ import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -59,7 +59,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		};
 	}
 
-	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery): TPromise<void> {
+	$provideFileSearchResults(handle: number, session: number, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
 		const provider = this._searchProvider.get(handle);
 		if (!provider.provideFileSearchResults) {
 			return TPromise.as(undefined);
@@ -67,7 +67,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 		const query = reviveQuery(rawQuery);
 		return this._fileSearchManager.fileSearch(query, provider).then(
-			() => { }, // still need to return limitHit
+			null,
 			null,
 			progress => {
 				if (Array.isArray(progress)) {
@@ -80,7 +80,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 			});
 	}
 
-	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<void> {
+	$provideTextSearchResults(handle: number, session: number, pattern: IPatternInfo, rawQuery: IRawSearchQuery): TPromise<ISearchCompleteStats> {
 		const provider = this._searchProvider.get(handle);
 		if (!provider.provideTextSearchResults) {
 			return TPromise.as(undefined);
@@ -89,9 +89,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 		const query = reviveQuery(rawQuery);
 		const engine = new TextSearchEngine(pattern, query, provider, this._extfs);
 		return engine.search().then(
-			() => {
-				// done
-			},
+			null,
 			null,
 			progress => {
 				this._proxy.$handleFindMatch(handle, session, progress);
@@ -382,10 +380,10 @@ class TextSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(): PPromise<{ isLimitHit: boolean }, IFileMatch[]> {
+	public search(): PPromise<{ limitHit: boolean }, IFileMatch[]> {
 		const folderQueries = this.config.folderQueries;
 
-		return new PPromise<{ isLimitHit: boolean }, IFileMatch[]>((resolve, reject, _onResult) => {
+		return new PPromise<{ limitHit: boolean }, IFileMatch[]>((resolve, reject, _onResult) => {
 			this.collector = new TextSearchResultsCollector(_onResult);
 
 			const onResult = (match: vscode.TextSearchResult) => {
@@ -407,7 +405,7 @@ class TextSearchEngine {
 				return this.searchInFolder(fq).then(null, null, onResult);
 			})).then(() => {
 				this.collector.flush();
-				resolve({ isLimitHit: this.isLimitHit });
+				resolve({ limitHit: this.isLimitHit });
 			}, (errs: Error[]) => {
 				const errMsg = errs
 					.map(err => toErrorMessage(err))
@@ -831,11 +829,6 @@ class FileSearchEngine {
 	}
 }
 
-interface ISearchComplete {
-	limitHit: boolean;
-	stats?: any;
-}
-
 class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
@@ -844,7 +837,7 @@ class FileSearchManager {
 
 	constructor(private telemetryCallback: (eventName: string, data: any) => void, private _pfs: typeof pfs) { }
 
-	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchComplete, OneOrMore<IFileMatch>> {
+	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>> {
 		if (config.sortByScore) {
 			let sortedSearch = this.trySortedSearchFromCache(config);
 			if (!sortedSearch) {
@@ -859,7 +852,7 @@ class FileSearchManager {
 				sortedSearch = this.doSortedSearch(engine, provider, config);
 			}
 
-			return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
+			return new PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>>((c, e, p) => {
 				process.nextTick(() => { // allow caller to register progress callback first
 					sortedSearch.then(([result, rawMatches]) => {
 						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
@@ -873,7 +866,7 @@ class FileSearchManager {
 		}
 
 		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
-		return new PPromise<ISearchComplete, OneOrMore<IFileMatch>>((c, e, p) => {
+		return new PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>>((c, e, p) => {
 			const engine = new FileSearchEngine(config, provider, this._pfs);
 			searchPromise = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE)
 				.then(c, e, progress => {
@@ -894,9 +887,9 @@ class FileSearchManager {
 		};
 	}
 
-	private doSortedSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchComplete, IInternalFileMatch[]]> {
+	private doSortedSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchCompleteStats, IInternalFileMatch[]]> {
 		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
-		let allResultsPromise = new PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>((c, e, p) => {
+		let allResultsPromise = new PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>((c, e, p) => {
 			let results: IInternalFileMatch[] = [];
 			searchPromise = this.doSearch(engine, provider, -1)
 				.then(result => {
@@ -924,7 +917,7 @@ class FileSearchManager {
 		}
 
 		let chained: TPromise<void>;
-		return new PPromise<[ISearchComplete, IInternalFileMatch[]]>((c, e, p) => {
+		return new PPromise<[ISearchCompleteStats, IInternalFileMatch[]]>((c, e, p) => {
 			chained = allResultsPromise.then(([result, results]) => {
 				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
 				const unsortedResultTime = Date.now();
@@ -954,7 +947,7 @@ class FileSearchManager {
 		return this.caches[cacheKey] = new Cache();
 	}
 
-	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<[ISearchComplete, IInternalFileMatch[]]> {
+	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<[ISearchCompleteStats, IInternalFileMatch[]]> {
 		const cache = config.cacheKey && this.caches[config.cacheKey];
 		if (!cache) {
 			return undefined;
@@ -964,7 +957,7 @@ class FileSearchManager {
 		const cached = this.getResultsFromCache(cache, config.filePattern);
 		if (cached) {
 			let chained: TPromise<void>;
-			return new TPromise<[ISearchComplete, IInternalFileMatch[]]>((c, e) => {
+			return new TPromise<[ISearchCompleteStats, IInternalFileMatch[]]>((c, e) => {
 				chained = cached.then(([result, results, cacheStats]) => {
 					const cacheLookupResultTime = Date.now();
 					return this.sortResults(config, results, cache.scorerCache)
@@ -1023,14 +1016,14 @@ class FileSearchManager {
 		}
 	}
 
-	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISearchComplete, IInternalFileMatch[], CacheStats]> {
+	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISearchCompleteStats, IInternalFileMatch[], CacheStats]> {
 		if (path.isAbsolute(searchValue)) {
 			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
 		}
 
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
-		let cached: PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>;
+		let cached: PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>;
 		let wasResolved: boolean;
 		for (let previousSearch in cache.resultsToSearchCache) {
 
@@ -1052,7 +1045,7 @@ class FileSearchManager {
 			return null;
 		}
 
-		return new PPromise<[ISearchComplete, IInternalFileMatch[], CacheStats]>((c, e, p) => {
+		return new PPromise<[ISearchCompleteStats, IInternalFileMatch[], CacheStats]>((c, e, p) => {
 			cached.then(([complete, cachedEntries]) => {
 				const cacheFilterStartTime = Date.now();
 
@@ -1081,8 +1074,8 @@ class FileSearchManager {
 		});
 	}
 
-	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>> {
-		return new PPromise<ISearchComplete, OneOrMore<IInternalFileMatch>>((c, e, p) => {
+	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchCompleteStats, OneOrMore<IInternalFileMatch>> {
+		return new PPromise<ISearchCompleteStats, OneOrMore<IInternalFileMatch>>((c, e, p) => {
 			let batch: IInternalFileMatch[] = [];
 			engine.search().then(result => {
 				if (batch.length) {
@@ -1136,7 +1129,7 @@ class FileSearchManager {
 
 class Cache {
 
-	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISearchComplete, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>; } = Object.create(null);
+	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>; } = Object.create(null);
 
 	public scorerCache: ScorerCache = Object.create(null);
 }
