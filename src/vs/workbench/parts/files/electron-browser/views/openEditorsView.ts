@@ -89,19 +89,41 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			this.needsRefresh = false;
 		}, this.structuralRefreshDelay);
 
-		// update on model changes
-		// TODO@Isidor handle model change events
-		// this.disposables.push(this.model.onModelChanged(e => this.onEditorStacksModelChanged(e)));
+		this.registerUpdateEvents();
 
 		// Also handle configuration updates
 		this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChange(e)));
 
 		// Handle dirty counter
-		this.disposables.push(this.untitledEditorService.onDidChangeDirty(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsDirty(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsSaved(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsSaveError(e => this.updateDirtyIndicator()));
-		this.disposables.push(this.textFileService.models.onModelsReverted(e => this.updateDirtyIndicator()));
+		this.disposables.push(this.untitledEditorService.onDidChangeDirty(() => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsDirty(() => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaved(() => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsSaveError(() => this.updateDirtyIndicator()));
+		this.disposables.push(this.textFileService.models.onModelsReverted(() => this.updateDirtyIndicator()));
+	}
+
+	private registerUpdateEvents(): void {
+		const updateWholeList = () => {
+			if (!this.isVisible() || !this.list || !this.isExpanded()) {
+				this.needsRefresh = true;
+				return;
+			}
+
+			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
+		};
+
+		this.disposables.push(this.editorGroupService.onDidAddGroup(() => updateWholeList()));
+		this.disposables.push(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
+		this.disposables.push(this.editorGroupService.onDidRemoveGroup(() => updateWholeList()));
+
+		// TODO@isidor react on editor events
+		// this.disposables.push(this.editorService.onWillCloseEditor(e => {
+		// 	const group = this.editorGroupService.getGroup(e.groupId);
+		// 	const index = this.getIndex(group, e.editor);
+		// 	this.list.splice(index, 1);
+		// }));
+		// this.editorService.onWillOpenEditor(
+		// this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.focusActiveEditor()));
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -311,31 +333,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			getActionsContext: () => element instanceof OpenEditor ? { groupId: element.groupId, editorIndex: element.editorIndex } : { groupId: element.id }
 		});
 	}
-
-	// private onEditorStacksModelChanged(e: IStacksModelChangeEvent): void {
-	// 	if (!this.isVisible() || !this.list || !this.isExpanded()) {
-	// 		this.needsRefresh = true;
-	// 		return;
-	// 	}
-
-	// 	// Do a minimal list update based on if the change is structural or not #6670
-	// 	if (e.structural) {
-	// 		this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
-	// 	} else if (!this.listRefreshScheduler.isScheduled()) {
-
-	// 		const newElement = e.editor ? new OpenEditor(e.editor, e.group) : this.showGroups ? e.group : undefined;
-	// 		if (newElement) {
-	// 			const index = this.getIndex(e.group, e.editor);
-	// 			const previousLength = this.list.length;
-	// 			this.list.splice(index, 1, [newElement]);
-
-	// 			if (previousLength !== this.list.length) {
-	// 				this.updateSize();
-	// 			}
-	// 			this.focusActiveEditor();
-	// 		}
-	// 	}
-	// }
 
 	private focusActiveEditor(): void {
 		if (this.editorGroupService.activeGroup && this.editorGroupService.activeGroup.activeEditor /* could be empty */) {
