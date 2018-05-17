@@ -43,6 +43,14 @@ export abstract class TreeElement {
 		}
 		return undefined;
 	}
+
+	static size(element: TreeElement): number {
+		let res = 1;
+		for (const key in element.children) {
+			res += TreeElement.size(element.children[key]);
+		}
+		return res;
+	}
 }
 
 export class OutlineElement extends TreeElement {

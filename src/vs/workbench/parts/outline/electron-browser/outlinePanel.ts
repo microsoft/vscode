@@ -37,11 +37,13 @@ import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/view
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { OutlineElement, OutlineModel } from './outlineModel';
+import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { asDisposablePromise } from 'vs/base/common/async';
 
 class RequestState {
 
@@ -70,7 +72,7 @@ class RequestOracle {
 	private _lastState: RequestState;
 
 	constructor(
-		private readonly _callback: (editor: ICodeEditor) => any,
+		private readonly _callback: (editor: ICodeEditor, change: IModelContentChangedEvent) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
 		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@INextEditorService private readonly _editorService: INextEditorService,
@@ -96,7 +98,7 @@ class RequestOracle {
 		}
 
 		if (!codeEditor || !codeEditor.getModel()) {
-			this._callback(undefined);
+			this._callback(undefined, undefined);
 			return;
 		}
 
@@ -113,11 +115,11 @@ class RequestOracle {
 		}
 		dispose(this._sessionDisposable);
 		this._lastState = thisState;
-		this._callback(codeEditor);
+		this._callback(codeEditor, undefined);
 
 		let handle: number;
-		let listener = codeEditor.onDidChangeModelContent(_ => {
-			handle = setTimeout(() => this._callback(codeEditor), 50);
+		let listener = codeEditor.onDidChangeModelContent(event => {
+			handle = setTimeout(() => this._callback(codeEditor, event), 150);
 		});
 		this._sessionDisposable = {
 			dispose() {
@@ -311,11 +313,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
-			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor), DocumentSymbolProviderRegistry);
+			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
 		} else {
 			dispose(this._requestOracle);
 			this._requestOracle = undefined;
-			this._onEditor(undefined);
+			this._doUpdate(undefined, undefined);
 		}
 		return super.setVisible(visible);
 	}
@@ -361,7 +363,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private async _onEditor(editor: ICodeEditor): TPromise<void> {
+	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): TPromise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
@@ -375,20 +377,32 @@ export class OutlinePanel extends ViewsViewletPanel {
 		dom.removeClass(this._domNode, 'message');
 
 		let textModel = editor.getModel();
-		let modelPromise = OutlineModel.create(textModel);
-		this._editorDisposables.push({ dispose() { modelPromise.cancel(); } });
-
-		let model: OutlineModel;
-		try {
-			model = await modelPromise;
-		} catch (e) {
-			if (!isPromiseCanceledError(e)) {
-				onUnexpectedError(e);
-			}
+		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
+		if (!model) {
 			return;
 		}
 
 		let oldModel = <OutlineModel>this._tree.getInput();
+
+		if (event && oldModel) {
+			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
+			// wait a little (and hope that the next change isn't as drastic).
+			let newSize = TreeElement.size(model);
+			let newLength = textModel.getValueLength();
+			let newRatio = newSize / newLength;
+			let oldSize = TreeElement.size(oldModel);
+			let oldLength = newLength - event.changes.reduce((prev, value) => prev + value.rangeLength, 0);
+			let oldRatio = oldSize / oldLength;
+			if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
+				if (!await asDisposablePromise(
+					TPromise.timeout(2000).then(_ => true),
+					false,
+					this._editorDisposables).promise
+				) {
+					return;
+				}
+			}
+		}
 
 		if (oldModel && oldModel.adopt(model)) {
 			this._tree.refresh(undefined, true);

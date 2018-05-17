@@ -197,10 +197,13 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	private readonly _onDidChangeViewVisibilityState: Emitter<string> = new Emitter<string>();
 	readonly onDidChangeViewVisibilityState: Event<string> = this._onDidChangeViewVisibilityState.event;
 
+	private readonly visibleViewsCountFromCache: number;
+	private readonly visibleViewsStorageId: string;
+
 	constructor(
 		id: string,
 		private location: ViewLocation,
-		private showHeaderInTitleWhenSingleView: boolean,
+		showHeaderInTitleWhenSingleView: boolean,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IStorageService protected storageService: IStorageService,
@@ -208,10 +211,12 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
-		@IExtensionService protected extensionService: IExtensionService
+		@IExtensionService protected extensionService: IExtensionService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
-
+		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;
+		this.visibleViewsCountFromCache = this.storageService.getInteger(this.visibleViewsStorageId, this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ? StorageScope.GLOBAL : StorageScope.WORKSPACE, 0);
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 	}
 
@@ -296,6 +301,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 
 	shutdown(): void {
 		this.viewsViewletPanels.forEach((view) => view.shutdown());
+		this.storageService.store(this.visibleViewsStorageId, this.length, this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? StorageScope.WORKSPACE : StorageScope.GLOBAL);
 		super.shutdown();
 	}
 
@@ -568,30 +574,14 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 	}
 
 	protected isSingleView(): boolean {
-		if (!this.showHeaderInTitleWhenSingleView) {
+		if (!super.isSingleView()) {
 			return false;
 		}
-		if (this.getViewDescriptorsFromRegistry().length === 0) {
-			return false;
+		if (!this.areExtensionsReady) {
+			// Check in cache so that view do not jump. See #29609
+			return this.visibleViewsCountFromCache === 1;
 		}
-		if (this.length > 1) {
-			return false;
-		}
-
-		if (ViewLocation.get(this.location.id)) {
-			if (!this.areExtensionsReady) {
-				let visibleViewsCount = 0;
-				// Check in cache so that view do not jump. See #29609
-				this.viewsStates.forEach((viewState, id) => {
-					if (!viewState.isHidden) {
-						visibleViewsCount++;
-					}
-				});
-				return visibleViewsCount === 1;
-			}
-		}
-
-		return super.isSingleView();
+		return true;
 	}
 
 	protected getViewDescriptorsFromRegistry(): IViewDescriptor[] {
@@ -670,7 +660,7 @@ export class PersistentViewsViewlet extends ViewsViewlet {
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService);
+		super(id, location, showHeaderInTitleWhenSingleView, partService, telemetryService, storageService, instantiationService, themeService, contextKeyService, contextMenuService, extensionService, contextService);
 		this.hiddenViewsStorageId = `${this.viewletStateStorageId}.hidden`;
 		this._register(this.onDidChangeViewVisibilityState(id => this.saveViewsStates()));
 	}
