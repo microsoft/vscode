@@ -700,10 +700,16 @@ export function createApiFactory(
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
-			HierarchicalSymbolInformation: class extends extHostTypes.HierarchicalSymbolInformation {
-				constructor(name, detail, kind, keyof, range) {
+			SymbolInformation2: class extends extHostTypes.SymbolInformation2 {
+				constructor(name, detail, kind, range, location) {
 					checkProposedApiEnabled(extension);
-					super(name, detail, kind, keyof, range);
+					super(name, detail, kind, range, location);
+				}
+			},
+			Hierarchy: class <T> extends extHostTypes.Hierarchy<T> {
+				constructor(parent: T) {
+					checkProposedApiEnabled(extension);
+					super(parent);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,

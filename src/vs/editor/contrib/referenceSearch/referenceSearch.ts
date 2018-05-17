@@ -6,14 +6,10 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
@@ -29,7 +25,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
-const defaultReferenceSearchOptions: RequestOptions = {
+export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
 		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
 	}
@@ -93,77 +89,6 @@ export class ReferenceAction extends EditorAction {
 registerEditorContribution(ReferenceController);
 
 registerEditorAction(ReferenceAction);
-
-let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
-
-	if (!(resource instanceof URI)) {
-		throw new Error('illegal argument, uri');
-	}
-	if (!position) {
-		throw new Error('illegal argument, position');
-	}
-
-	return accessor.get(ICodeEditorService).openCodeEditor({ resource }).then(control => {
-
-		if (!control) {
-			return undefined;
-		}
-
-		let controller = ReferencesController.get(control);
-		if (!controller) {
-			return undefined;
-		}
-
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
-		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
-	});
-};
-
-let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
-	if (!(resource instanceof URI)) {
-		throw new Error('illegal argument, uri expected');
-	}
-
-	return accessor.get(ICodeEditorService).openCodeEditor({ resource }).then(control => {
-
-		if (!control) {
-			return undefined;
-		}
-
-		let controller = ReferencesController.get(control);
-		if (!controller) {
-			return undefined;
-		}
-
-		return TPromise.as(controller.toggleWidget(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			TPromise.as(new ReferencesModel(references)),
-			defaultReferenceSearchOptions)).then(() => true);
-	});
-};
-
-
-
-// register commands
-
-CommandsRegistry.registerCommand({
-	id: 'editor.action.findReferences',
-	handler: findReferencesCommand
-});
-
-CommandsRegistry.registerCommand({
-	id: 'editor.action.showReferences',
-	handler: showReferencesCommand,
-	description: {
-		description: 'Show references at a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
-			{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-		]
-	}
-});
 
 function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
 	withController(accessor, controller => controller.closeWidget());

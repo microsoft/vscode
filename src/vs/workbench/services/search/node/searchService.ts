@@ -24,6 +24,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { Schemas } from 'vs/base/common/network';
 import * as pfs from 'vs/base/node/pfs';
 import { ILogService } from 'vs/platform/log/common/log';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 
 export class SearchService implements ISearchService {
 	public _serviceBrand: any;
@@ -38,7 +39,8 @@ export class SearchService implements ISearchService {
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IExtensionService private extensionService: IExtensionService
 	) {
 		this.diskSearch = new DiskSearch(!environmentService.isBuilt || environmentService.verbose, /*timeout=*/undefined, environmentService.debugSearch);
 	}
@@ -115,11 +117,20 @@ export class SearchService implements ISearchService {
 				});
 
 			const enableSearchProviders = this.configurationService.getValue<ISearchConfiguration>().search.enableSearchProviders;
-			const providerPromises = enableSearchProviders ?
-				this.searchProvider.map(searchWithProvider) :
-				[searchWithProvider(this.diskSearch)];
+			const providerPromise = enableSearchProviders ?
+				this.extensionService.whenInstalledExtensionsRegistered().then(() => {
+					// If no search providers are registered, fall back on DiskSearch
+					// TODO@roblou this is not properly waiting for search-rg to finish registering itself
+					if (this.searchProvider.length) {
+						return searchWithProvider(this.searchProvider[0]);
+					} else {
+						return searchWithProvider(this.diskSearch);
+					}
+				}) :
+				searchWithProvider(this.diskSearch);
 
-			combinedPromise = TPromise.join(providerPromises).then(values => {
+			combinedPromise = providerPromise.then(value => {
+				const values = [value];
 
 				const result: ISearchComplete = {
 					limitHit: false,
