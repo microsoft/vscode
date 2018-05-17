@@ -73,7 +73,6 @@ import { INextEditorService } from 'vs/workbench/services/editor/common/nextEdit
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -281,7 +280,6 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(INextEditorGroupsService, new TestNextEditorGroupsService([new TestNextEditorGroup(0)]));
 	const editorService = new TestNextEditorService();
 	instantiationService.stub(INextEditorService, editorService);
-	instantiationService.stub(ITextEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
 	return instantiationService;
@@ -1133,6 +1131,8 @@ export class TestCodeEditorService implements ICodeEditorService {
 	resolveDecorationOptions(typeKey: string, writable: boolean): IModelDecorationOptions { return Object.create(null); }
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void { }
 	getTransientModelProperty(model: ITextModel, key: string) { }
+	getActiveCodeEditor(): ICodeEditor { return null; }
+	openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> { return TPromise.as(null); }
 }
 
 export class TestWindowService implements IWindowService {

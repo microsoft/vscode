@@ -16,14 +16,14 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ReferencesController } from 'vs/editor/contrib/referenceSearch/referencesController';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 export class WorkbenchReferencesController extends ReferencesController {
 
 	public constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITextEditorService textEditorService: ITextEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@INotificationService notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -37,7 +37,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			false,
 			editor,
 			contextKeyService,
-			textEditorService,
+			codeEditorService,
 			textModelResolverService,
 			notificationService,
 			instantiationService,

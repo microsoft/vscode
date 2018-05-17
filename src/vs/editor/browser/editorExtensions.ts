@@ -16,10 +16,9 @@ import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MenuId, MenuRegistry, IMenuItem } from 'vs/platform/actions/common/actions';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 
 export type ServicesAccessor = ServicesAccessor;
@@ -85,21 +84,6 @@ export abstract class Command {
 
 //#region EditorCommand
 
-function getActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(ITextEditorService);
-
-	let activeEditor = editorService.activeTextEditorControl;
-	if (isCodeEditor(activeEditor)) {
-		return activeEditor;
-	}
-
-	if (isDiffEditor(activeEditor)) {
-		return activeEditor.getModifiedEditor();
-	}
-
-	return null;
-}
-
 export interface IContributionCommandOptions<T> extends ICommandOptions {
 	handler: (controller: T) => void;
 }
@@ -133,14 +117,8 @@ export abstract class EditorCommand extends Command {
 	public runCommand(accessor: ServicesAccessor, args: any): void | TPromise<void> {
 		const codeEditorService = accessor.get(ICodeEditorService);
 
-		// Find the editor with text focus
-		let editor = codeEditorService.getFocusedCodeEditor();
-
-		if (!editor) {
-			// Fallback to use the active editor
-			editor = getActiveEditor(accessor);
-		}
-
+		// Find the editor with text focus or active
+		let editor = codeEditorService.getFocusedCodeEditor() || codeEditorService.getActiveCodeEditor();
 		if (!editor) {
 			// well, at least we tried...
 			return;

@@ -113,9 +113,6 @@ import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPar
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
-import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { OpenerService } from 'vs/editor/browser/services/openerService';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -389,10 +386,6 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(NextEditorService);
 		serviceCollection.set(INextEditorService, this.editorService);
-		serviceCollection.set(ITextEditorService, this.editorService);
-
-		// Opener service
-		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
 
 		// TODO@grid Remove Legacy Editor Services
 		const noOpEditorPart = new NoOpEditorPart(this.instantiationService);

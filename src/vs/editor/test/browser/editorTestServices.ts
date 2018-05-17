@@ -11,8 +11,16 @@ import { ICommandService, ICommandEvent, CommandsRegistry } from 'vs/platform/co
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Emitter, Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 
 export class TestCodeEditorService extends AbstractCodeEditorService {
+	public lastInput: IResourceInput;
+	public getActiveCodeEditor(): ICodeEditor { return null; }
+	public openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
+		this.lastInput = input;
+		return TPromise.as(null);
+	}
 	public registerDecorationType(key: string, options: IDecorationRenderOptions, parentTypeKey?: string): void { }
 	public removeDecorationType(key: string): void { }
 	public resolveDecorationOptions(decorationTypeKey: string, writable: boolean): IModelDecorationOptions { return null; }

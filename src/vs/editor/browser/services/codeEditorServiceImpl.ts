@@ -12,8 +12,11 @@ import { IModelDecorationOptions, IModelDecorationOverviewRulerOptions, Overview
 import { AbstractCodeEditorService } from 'vs/editor/browser/services/abstractCodeEditorService';
 import { IDisposable, dispose as disposeAll } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme, ThemeColor } from 'vs/platform/theme/common/themeService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
-export class CodeEditorServiceImpl extends AbstractCodeEditorService {
+export abstract class CodeEditorServiceImpl extends AbstractCodeEditorService {
 
 	private _styleSheet: HTMLStyleElement;
 	private _decorationOptionProviders: { [key: string]: IModelDecorationOptionsProvider };
@@ -65,6 +68,8 @@ export class CodeEditorServiceImpl extends AbstractCodeEditorService {
 		return provider.getOptions(this, writable);
 	}
 
+	abstract getActiveCodeEditor(): ICodeEditor;
+	abstract openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor>;
 }
 
 interface IModelDecorationOptionsProvider extends IDisposable {

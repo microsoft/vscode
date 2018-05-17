@@ -9,6 +9,8 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
 import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const ICodeEditorService = createDecorator<ICodeEditorService>('codeEditorService');
 
@@ -40,6 +42,9 @@ export interface ICodeEditorService {
 
 	setTransientModelProperty(model: ITextModel, key: string, value: any): void;
 	getTransientModelProperty(model: ITextModel, key: string): any;
+
+	getActiveCodeEditor(): ICodeEditor;
+	openCodeEditor(input: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor>;
 }
 
 /**

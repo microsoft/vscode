@@ -31,11 +31,10 @@ import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
-export class NextEditorService extends Disposable implements INextEditorService, ITextEditorService {
+export class NextEditorService extends Disposable implements INextEditorService {
 
 	_serviceBrand: any;
 

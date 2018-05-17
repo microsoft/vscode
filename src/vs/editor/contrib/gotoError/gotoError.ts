@@ -23,7 +23,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { MarkerNavigationWidget } from './gotoErrorWidget';
 import { compare } from 'vs/base/common/strings';
 import { binarySearch } from 'vs/base/common/arrays';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
 
@@ -202,7 +202,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		@IMarkerService private readonly _markerService: IMarkerService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IThemeService private readonly _themeService: IThemeService,
-		@ITextEditorService private readonly _editorService: ITextEditorService
+		@ICodeEditorService private readonly _editorService: ICodeEditorService
 	) {
 		this._editor = editor;
 		this._widgetVisible = CONTEXT_MARKERS_NAVIGATION_VISIBLE.bindTo(this._contextKeyService);
@@ -239,7 +239,7 @@ class MarkerController implements editorCommon.IEditorContribution {
 		this._disposeOnClose.push(this._model);
 		this._disposeOnClose.push(this._widget);
 		this._disposeOnClose.push(this._widget.onDidSelectRelatedInformation(related => {
-			this._editorService.openTextEditor({
+			this._editorService.openCodeEditor({
 				resource: related.resource,
 				options: { pinned: true, revealIfOpened: true, selection: Range.lift(related).collapseToStart() }
 			}).then(undefined, onUnexpectedError);
@@ -305,7 +305,7 @@ class MarkerNavigationAction extends EditorAction {
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 
 		const markerService = accessor.get(IMarkerService);
-		const editorService = accessor.get(ITextEditorService);
+		const editorService = accessor.get(ICodeEditorService);
 		const controller = MarkerController.get(editor);
 		if (!controller) {
 			return undefined;
@@ -347,7 +347,7 @@ class MarkerNavigationAction extends EditorAction {
 		// for the next marker and re-start marker navigation in there
 		controller.closeMarkersNavigation();
 
-		return editorService.openTextEditor({
+		return editorService.openCodeEditor({
 			resource: newMarker.resource,
 			options: { pinned: false, revealIfOpened: true, revealInCenterIfOutsideViewport: true, selection: newMarker }
 		}).then(editor => {

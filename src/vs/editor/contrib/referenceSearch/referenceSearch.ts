@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -103,7 +103,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, position');
 	}
 
-	return accessor.get(ITextEditorService).openTextEditor({ resource }).then(control => {
+	return accessor.get(ICodeEditorService).openCodeEditor({ resource }).then(control => {
 
 		if (!control) {
 			return undefined;
@@ -125,7 +125,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, uri expected');
 	}
 
-	return accessor.get(ITextEditorService).openTextEditor({ resource }).then(control => {
+	return accessor.get(ICodeEditorService).openCodeEditor({ resource }).then(control => {
 
 		if (!control) {
 			return undefined;

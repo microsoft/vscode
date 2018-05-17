@@ -22,11 +22,10 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 const CORE_WEIGHT = KeybindingsRegistry.WEIGHT.editorCore();
 
@@ -1620,21 +1619,6 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
-function getActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(ITextEditorService);
-
-	let activeEditor = editorService.activeTextEditorControl;
-	if (isCodeEditor(activeEditor)) {
-		return activeEditor;
-	}
-
-	if (isDiffEditor(activeEditor)) {
-		return activeEditor.getModifiedEditor();
-	}
-
-	return null;
-}
-
 function registerCommand(command: Command) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 }
@@ -1671,8 +1655,8 @@ class EditorOrNativeTextInputCommand extends Command {
 			return;
 		}
 
-		// Redirecting to last active editor
-		let activeEditor = getActiveEditor(accessor);
+		// Redirecting to active editor
+		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
 			return this._runEditorHandler(activeEditor, args);

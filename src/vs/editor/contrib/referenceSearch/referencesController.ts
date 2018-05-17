@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,7 +54,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@ITextEditorService private readonly _editorService: ITextEditorService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -209,7 +209,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
-		return this._editorService.openTextEditor({
+		return this._editorService.openCodeEditor({
 			resource: ref.uri,
 			options: { selection: range }
 		}).then(openedEditor => {
@@ -238,7 +238,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
-		this._editorService.openTextEditor({
+		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
 		}, sideBySide);

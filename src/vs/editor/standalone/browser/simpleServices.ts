@@ -4,14 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { ITextEditorService } from 'vs/editor/browser/services/textEditorService';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -37,7 +34,7 @@ import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -87,85 +84,6 @@ function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (e
 	} else {
 		// Diff Editor
 		return diffEditorCallback(<IDiffEditor>widget);
-	}
-}
-
-export class SimpleEditorService implements ITextEditorService {
-	public _serviceBrand: any;
-
-	private editor: editorCommon.IEditor;
-	private openEditorDelegate: IOpenEditorDelegate;
-
-	constructor() {
-		this.openEditorDelegate = null;
-	}
-
-	get activeTextEditorControl(): editorCommon.IEditor {
-		return null;
-	}
-
-	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = editor;
-	}
-
-	public setOpenEditorDelegate(openEditorDelegate: IOpenEditorDelegate): void {
-		this.openEditorDelegate = openEditorDelegate;
-	}
-
-	public openTextEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
-		return TPromise.as(withTypedEditor(this.editor,
-			(editor) => this.doOpenEditor(editor, typedData),
-			(diffEditor) => (
-				this.doOpenEditor(diffEditor.getOriginalEditor(), typedData) ||
-				this.doOpenEditor(diffEditor.getModifiedEditor(), typedData)
-			)
-		));
-	}
-
-	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): ICodeEditor {
-		let model = this.findModel(editor, data);
-		if (!model) {
-			if (data.resource) {
-				if (this.openEditorDelegate) {
-					this.openEditorDelegate(data.resource.toString());
-					return null;
-				} else {
-					let schema = data.resource.scheme;
-					if (schema === Schemas.http || schema === Schemas.https) {
-						// This is a fully qualified http or https URL
-						dom.windowOpenNoOpener(data.resource.toString());
-						return editor;
-					}
-				}
-			}
-			return null;
-		}
-
-		let selection = <IRange>data.options.selection;
-		if (selection) {
-			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
-				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection, editorCommon.ScrollType.Immediate);
-			} else {
-				let pos = {
-					lineNumber: selection.startLineNumber,
-					column: selection.startColumn
-				};
-				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos, editorCommon.ScrollType.Immediate);
-			}
-		}
-
-		return editor;
-	}
-
-	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
-		let model = editor.getModel();
-		if (model.uri.toString() !== data.resource.toString()) {
-			return null;
-		}
-
-		return model;
 	}
 }
 
