@@ -656,7 +656,7 @@ export class EditorModel extends Disposable implements IEditorModel {
 
 export interface IEditorInputWithOptions {
 	editor: IEditorInput;
-	options?: IEditorOptions;
+	options?: IEditorOptions | ITextEditorOptions;
 }
 
 export function isEditorInputWithOptions(obj: any): obj is IEditorInputWithOptions {

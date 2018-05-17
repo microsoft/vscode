@@ -871,8 +871,6 @@ export class TestNextEditorService implements INextEditorService {
 	visibleControls: ReadonlyArray<IEditor> = [];
 	visibleTextEditorControls = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
-	public mockLineNumber = 15;
-	public mockSelectedText = 'selected text';
 
 	openEditor(editor: any, options?: any, group?: any) {
 		return TPromise.as(null);

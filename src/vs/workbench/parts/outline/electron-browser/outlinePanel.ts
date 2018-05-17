@@ -35,8 +35,8 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { OutlineElement, OutlineModel } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -72,10 +72,10 @@ class RequestOracle {
 	constructor(
 		private readonly _callback: (editor: ICodeEditor) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@INextEditorService private readonly _editorService: INextEditorService,
 	) {
-		editorGroupService.onEditorsChanged(this._update, this, this._disposables);
+		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		_featureRegistry.onDidChange(this._update, this, this._disposables);
 		this._update();
 	}
@@ -87,8 +87,7 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let editor = this._workbenchEditorService.getActiveEditor();
-		let control = editor && editor.getControl();
+		let control = this._editorService.activeTextEditorControl;
 		let codeEditor: ICodeEditor = undefined;
 		if (isCodeEditor(control)) {
 			codeEditor = control;
@@ -212,7 +211,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@INextEditorService private readonly _editorService: INextEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -466,7 +465,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
 		let { range, uri } = element.symbol.location;
 		let input = this._editorService.createInput({ resource: uri });
-		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside);
+		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {

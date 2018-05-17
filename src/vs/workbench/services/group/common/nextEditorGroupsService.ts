@@ -8,7 +8,7 @@
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
-import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
@@ -69,7 +69,7 @@ export type ICloseEditorsFilter = {
 export interface IEditorReplacement {
 	editor: IEditorInput;
 	replacement: IEditorInput;
-	options?: IEditorOptions;
+	options?: IEditorOptions | ITextEditorOptions;
 }
 
 export enum GroupsOrder {
@@ -332,7 +332,7 @@ export interface INextEditorGroup {
 	 * @returns a promise that is resolved when the active editor (if any)
 	 * has finished loading
 	 */
-	openEditor(editor: IEditorInput, options?: IEditorOptions): TPromise<void>;
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<void>;
 
 	/**
 	 * Opens editors in this group.
