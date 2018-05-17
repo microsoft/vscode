@@ -188,8 +188,15 @@ function saveAll(saveAllArguments: any, editorService: INextEditorService, untit
 	});
 
 	// Save all
-	return textFileService.saveAll(saveAllArguments).then(() => {
+	return textFileService.saveAll(saveAllArguments).then((result) => {
 		groupIdToUntitledResourceInput.forEach((inputs, groupId) => {
+			// Update untitled resources to the saved ones, so we open the proper files
+			inputs.forEach(i => {
+				const targetResult = result.results.filter(r => r.success && r.source.toString() === i.resource.toString()).pop();
+				if (targetResult) {
+					i.resource = targetResult.target;
+				}
+			});
 			editorService.openEditors(inputs, groupId);
 		});
 	});

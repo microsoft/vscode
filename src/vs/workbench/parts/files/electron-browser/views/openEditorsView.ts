@@ -111,18 +111,20 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
 		};
+		const groupDisposables = new Map<number, IDisposable[]>();
 
-		this.disposables.push(this.editorGroupService.onDidAddGroup(() => updateWholeList()));
+		this.disposables.push(this.editorGroupService.onDidAddGroup(group => {
+			const toDispose = [];
+			groupDisposables.set(group.id, toDispose);
+			updateWholeList();
+		}));
 		this.disposables.push(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
-		this.disposables.push(this.editorGroupService.onDidRemoveGroup(() => updateWholeList()));
+		this.disposables.push(this.editorGroupService.onDidRemoveGroup(group => {
+			dispose(groupDisposables.get(group.id));
+			updateWholeList();
+		}));
 
 		// TODO@isidor react on editor events
-		// this.disposables.push(this.editorService.onWillCloseEditor(e => {
-		// 	const group = this.editorGroupService.getGroup(e.groupId);
-		// 	const index = this.getIndex(group, e.editor);
-		// 	this.list.splice(index, 1);
-		// }));
-		// this.editorService.onWillOpenEditor(
 		// this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.focusActiveEditor()));
 	}
 
