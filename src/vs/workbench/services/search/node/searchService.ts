@@ -94,6 +94,7 @@ export class SearchService implements ISearchService {
 
 			this.logService.trace('SearchService#search', JSON.stringify(query));
 
+			const startTime = Date.now();
 			const searchWithProvider = (provider: ISearchResultProvider) => TPromise.wrap(provider.search(query)).then(e => e,
 				err => {
 					// TODO@joh
@@ -130,6 +131,7 @@ export class SearchService implements ISearchService {
 				searchWithProvider(this.diskSearch);
 
 			combinedPromise = providerPromise.then(value => {
+				this.logService.debug(`SearchService#search took ${Date.now() - startTime}ms ${enableSearchProviders ? 'with' : 'without'} search-rg`);
 				const values = [value];
 
 				const result: ISearchComplete = {
