@@ -7,7 +7,7 @@
 
 import { Disposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { Dimension, show, hide } from 'vs/base/browser/dom';
+import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -95,6 +95,7 @@ export class NextEditorControl extends Disposable {
 		// Create editor container as needed
 		if (!control.getContainer()) {
 			const controlInstanceContainer = document.createElement('div');
+			addClass(controlInstanceContainer, 'editor-instance');
 			controlInstanceContainer.id = descriptor.getId();
 
 			control.create(controlInstanceContainer);

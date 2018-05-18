@@ -38,12 +38,7 @@
 	overflow: hidden;
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
-	height: calc(100% - 35px); /* below title control */
-}
-
-.monaco-workbench > .part.editor > .content .editor-group-container.empty > .title,
-.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .title {
 	display: none;
 }
 
@@ -79,4 +74,18 @@
 .vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
 	background-image: url('close-inverse.svg');
+}
+
+/* Editor */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container {
+	height: calc(100% - 35px); /* below title control */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-container  {
+	display: none;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-container > .editor-instance {
+	height: 100%;
 }
