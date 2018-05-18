@@ -463,7 +463,7 @@ export class TerminalInstance implements ITerminalInstance {
 				];
 				this._notificationService.prompt(
 					Severity.Warning,
-					nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
 			}
