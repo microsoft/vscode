@@ -18,7 +18,7 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+// import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 
@@ -33,6 +33,7 @@ export class MenubarPart extends Part {
 	private topLevelMenus: {
 		'File': IMenu;
 		'Edit': IMenu;
+		'Selection': IMenu;
 		[index: string]: IMenu;
 	};
 
@@ -53,13 +54,14 @@ export class MenubarPart extends Part {
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		// @IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this.topLevelMenus = {
 			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
-			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService)
+			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
+			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)
 		};
 
 		this.actionRunner = new ActionRunner();
