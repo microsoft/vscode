@@ -57,7 +57,7 @@ export class ViewletService implements IViewletService {
 		const id = viewlet.getId();
 
 		if (this.activeViewletContextKey.get() === id) {
-			this.activeViewletContextKey.set('');
+			this.activeViewletContextKey.reset();
 		}
 	}
 

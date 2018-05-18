@@ -137,7 +137,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		const id = viewlet.getId();
 
 		if (this.activePanelContextKey.get() === id) {
-			this.activePanelContextKey.set('');
+			this.activePanelContextKey.reset();
 		}
 	}
 
@@ -301,6 +301,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	dispose(): void {
+		super.dispose();
 		this.disposables = dispose(this.disposables);
 	}
 }
