@@ -197,7 +197,7 @@ configurationRegistry.registerConfiguration({
 			default: 'floating'
 		},
 		'debug.showInStatusBar': {
-			enum: ['never', 'always', 'onFirstSessionStart'],
+			enum: ['never', 'always', 'onFirstSessionStart', 'whenViewHidden'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'showInStatusBar' }, "Controls when the debug status bar should be visible."),
 			default: 'onFirstSessionStart'

@@ -361,7 +361,7 @@ export interface IDebugConfiguration {
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	toolBarLocation: 'floating' | 'docked' | 'hidden';
-	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
+	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart' | 'whenViewHidden';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
 	enableAllHovers: boolean;

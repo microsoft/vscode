@@ -10,10 +10,11 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, State, IDebugConfiguration, VIEWLET_ID } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 const $ = dom.$;
 
@@ -23,12 +24,14 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	private label: HTMLElement;
 	private icon: HTMLElement;
 	private showInStatusBar: string;
+	private viewletId: string;
 
 	constructor(
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IDebugService private debugService: IDebugService,
 		@IThemeService themeService: IThemeService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IViewletService viewletService: IViewletService
 	) {
 		super(themeService);
 		this._register(this.debugService.getConfigurationManager().onDidSelectConfiguration(e => {
@@ -43,12 +46,45 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showInStatusBar')) {
 				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-				if (this.showInStatusBar === 'always') {
-					this.doRender();
+				if (this.showInStatusBar === 'never' && this.statusBarItem) {
+					this.statusBarItem.hidden = true;
 				}
-				if (this.statusBarItem) {
-					dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never');
+				else if (this.showInStatusBar === 'whenViewHidden' && this.viewletId !== VIEWLET_ID) {
+					if (!this.statusBarItem) {
+						this.doRender();
+					}
 				}
+				else {
+					if (this.statusBarItem) {
+						this.statusBarItem.hidden = false;
+					}
+					if (this.showInStatusBar === 'always') {
+						this.doRender();
+					}
+				}
+			}
+		}));
+
+		this.toDispose.push(viewletService.onDidViewletOpen(e => {
+			this.viewletId = e.getId();
+			if (this.showInStatusBar === 'whenViewHidden') {
+				//Show status bar item if new view is not debug
+				if (this.viewletId !== VIEWLET_ID) {
+					if (!this.statusBarItem) {
+						this.doRender();
+					}
+				}
+				//Remove item if the new view is debug
+				else if (this.statusBarItem) {
+					this.statusBarItem.remove();
+					this.statusBarItem = null;
+				}
+			}
+		}));
+
+		this.toDispose.push(viewletService.onDidViewletClose(e => {
+			if (e.getId() === VIEWLET_ID && this.showInStatusBar === 'whenViewHidden') {
+				this.doRender();
 			}
 		}));
 	}
