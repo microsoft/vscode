@@ -1012,23 +1012,25 @@ export class EditorViewStateMemento<T> {
 	public saveState(group: INextEditorGroup, editor: EditorInput, state: T): void;
 	public saveState(group: INextEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
+		if (!resource || !group) {
+			return; // we are not in a good state to save any viewstate for a resource
+		}
 
-			let viewStates = cache.get(resource.toString());
-			if (!viewStates) {
-				viewStates = Object.create(null) as MapGroupToViewStates<T>;
-				cache.set(resource.toString(), viewStates);
-			}
+		const cache = this.doLoad();
 
-			viewStates[group.id] = state;
+		let viewStates = cache.get(resource.toString());
+		if (!viewStates) {
+			viewStates = Object.create(null) as MapGroupToViewStates<T>;
+			cache.set(resource.toString(), viewStates);
+		}
 
-			// Automatically clear when editor input gets disposed if any
-			if (resourceOrEditor instanceof EditorInput) {
-				once(resourceOrEditor.onDispose)(() => {
-					this.clearState(resource);
-				});
-			}
+		viewStates[group.id] = state;
+
+		// Automatically clear when editor input gets disposed if any
+		if (resourceOrEditor instanceof EditorInput) {
+			once(resourceOrEditor.onDispose)(() => {
+				this.clearState(resource);
+			});
 		}
 	}
 
