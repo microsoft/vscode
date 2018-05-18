@@ -37,7 +37,8 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 100;
+const SLOW_CANVAS_RENDER_THRESHOLD = 50;
+const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 let Terminal: typeof XTermTerminal;
 
@@ -436,13 +437,16 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _measureRenderTime(): void {
+		let frameTimes: number[] = [];
 		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
-		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
-			const startTime = performance.now();
-			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
-			const renderTimeMilliseconds = performance.now() - startTime;
-			if (renderTimeMilliseconds > SLOW_CANVAS_RENDER_THRESHOLD) {
+
+		const evaluateCanvasRenderer = () => {
+			// Discard first frame time as it's normal to take longer
+			frameTimes.shift();
+
+			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
+			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
@@ -468,9 +472,17 @@ export class TerminalInstance implements ITerminalInstance {
 					promptChoices
 				);
 			}
+		};
 
-			// Restore original function
-			textRenderLayer.onGridChanged = originalOnGridChanged;
+		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
+			const startTime = performance.now();
+			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
+			frameTimes.push(performance.now() - startTime);
+			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
+				evaluateCanvasRenderer();
+				// Restore original function
+				textRenderLayer.onGridChanged = originalOnGridChanged;
+			}
 		};
 	}
 
