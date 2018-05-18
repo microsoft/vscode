@@ -161,9 +161,9 @@ export class HistoryService implements IHistoryService {
 
 	private registerListeners(): void {
 		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
-		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
 		this.toUnbind.push(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
 		this.toUnbind.push(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
+		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
 		this.toUnbind.push(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}

@@ -82,18 +82,18 @@ export interface INextEditorService {
 	readonly activeEditor: IEditorInput;
 
 	/**
-	 * All controls that are currently visible across all editor groups.
+	 * All controls that are currently visible.
 	 */
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
 	 * All text editor controls (either normal or diff editor) that are currently
-	 * visible across all editor groups.
+	 * visible.
 	 */
 	readonly visibleTextEditorControls: ReadonlyArray<ITextEditor>;
 
 	/**
-	 * All editors that are currently visible across all editor groups.
+	 * All editors that are currently visible.
 	 */
 	readonly visibleEditors: ReadonlyArray<IEditorInput>;
 
