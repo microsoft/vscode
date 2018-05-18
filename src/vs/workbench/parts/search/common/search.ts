@@ -10,10 +10,10 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ISearchConfiguration, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { SymbolInformation } from 'vs/editor/common/modes';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
 import { toResource } from 'vs/workbench/common/editor';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
 export interface IWorkspaceSymbolProvider {
 	provideWorkspaceSymbols(search: string): TPromise<SymbolInformation[]>;
@@ -76,17 +76,14 @@ export interface IWorkbenchSearchConfiguration extends ISearchConfiguration {
 /**
  * Helper to return all opened editors with resources not belonging to the currently opened workspace.
  */
-export function getOutOfWorkspaceEditorResources(editorGroupService: INextEditorGroupsService, contextService: IWorkspaceContextService): URI[] {
+export function getOutOfWorkspaceEditorResources(editorService: INextEditorService, contextService: IWorkspaceContextService): URI[] {
 	const resources: URI[] = [];
 
-	editorGroupService.groups.forEach(group => {
-		const editors = group.editors;
-		editors.forEach(editor => {
-			const resource = toResource(editor, { supportSideBySide: true });
-			if (resource && !contextService.isInsideWorkspace(resource)) {
-				resources.push(resource);
-			}
-		});
+	editorService.editors.forEach(editor => {
+		const resource = toResource(editor, { supportSideBySide: true });
+		if (resource && !contextService.isInsideWorkspace(resource)) {
+			resources.push(resource);
+		}
 	});
 
 	return resources;

@@ -11,7 +11,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
@@ -29,7 +28,6 @@ export class BackupRestorer implements IWorkbenchContribution {
 		@INextEditorService private editorService: INextEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService
 	) {
@@ -82,7 +80,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private doOpenEditors(resources: URI[]): TPromise<void> {
-		const hasOpenedEditors = this.editorGroupService.count > 0;
+		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups

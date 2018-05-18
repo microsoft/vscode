@@ -290,6 +290,10 @@ suite('Editor service (editor2)', () => {
 		// Open input
 		return service.openEditor(input, { pinned: true }).then(editor => {
 			return service.openEditor(input, { pinned: true }, rightGroup).then(editor => {
+				const editors = service.editors;
+				assert.equal(editors.length, 2);
+				assert.equal(editors[0], input);
+				assert.equal(editors[1], input);
 
 				// Close input
 				return rootGroup.closeEditor(input).then(() => {

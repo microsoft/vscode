@@ -78,6 +78,11 @@ export interface INextEditorService {
 	readonly activeTextEditorControl: ITextEditor;
 
 	/**
+	 * All editors that are opened. 
+	 */
+	readonly editors: ReadonlyArray<IEditorInput>;
+
+	/**
 	 * The currently active editor if any.
 	 */
 	readonly activeEditor: IEditorInput;

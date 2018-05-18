@@ -152,6 +152,15 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return void 0;
 	}
 
+	get editors(): IEditorInput[] {
+		const editors: IEditorInput[] = [];
+		this.nextEditorGroupsService.groups.forEach(group => {
+			editors.push(...group.editors);
+		});
+
+		return editors;
+	}
+
 	get activeEditor(): IEditorInput {
 		const activeGroup = this.nextEditorGroupsService.activeGroup;
 

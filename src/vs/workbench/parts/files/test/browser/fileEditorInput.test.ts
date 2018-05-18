@@ -16,7 +16,6 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { FileOperationResult, FileOperationError } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 function toResource(self, path) {
 	return URI.file(join('C:\\', Buffer.from(self.test.fullTitle()).toString('base64'), path));
@@ -26,8 +25,7 @@ class ServiceAccessor {
 	constructor(
 		@INextEditorService public editorService: INextEditorService,
 		@ITextFileService public textFileService: TestTextFileService,
-		@IModelService public modelService: IModelService,
-		@INextEditorGroupsService public editorGroupService: INextEditorGroupsService
+		@IModelService public modelService: IModelService
 	) {
 	}
 }

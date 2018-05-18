@@ -189,29 +189,27 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private getOpenedFileEditors(dirtyState: boolean): FileEditorInput[] {
 		const editors: FileEditorInput[] = [];
 
-		this.editorGroupService.groups.forEach(group => {
-			group.editors.forEach(editor => {
-				if (editor instanceof FileEditorInput) {
-					if (!!editor.isDirty() === dirtyState) {
-						editors.push(editor);
-					}
-				} else if (editor instanceof SideBySideEditorInput) {
-					const master = editor.master;
-					const details = editor.details;
+		this.editorService.editors.forEach(editor => {
+			if (editor instanceof FileEditorInput) {
+				if (!!editor.isDirty() === dirtyState) {
+					editors.push(editor);
+				}
+			} else if (editor instanceof SideBySideEditorInput) {
+				const master = editor.master;
+				const details = editor.details;
 
-					if (master instanceof FileEditorInput) {
-						if (!!master.isDirty() === dirtyState) {
-							editors.push(master);
-						}
-					}
-
-					if (details instanceof FileEditorInput) {
-						if (!!details.isDirty() === dirtyState) {
-							editors.push(details);
-						}
+				if (master instanceof FileEditorInput) {
+					if (!!master.isDirty() === dirtyState) {
+						editors.push(master);
 					}
 				}
-			});
+
+				if (details instanceof FileEditorInput) {
+					if (!!details.isDirty() === dirtyState) {
+						editors.push(details);
+					}
+				}
+			}
 		});
 
 		return editors;

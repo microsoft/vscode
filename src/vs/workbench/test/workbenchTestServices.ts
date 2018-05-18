@@ -865,6 +865,7 @@ export class TestNextEditorService implements INextEditorService {
 	activeControl: IEditor;
 	activeTextEditorControl: any;
 	activeEditor: IEditorInput;
+	editors: ReadonlyArray<IEditorInput> = [];
 	visibleControls: ReadonlyArray<IEditor> = [];
 	visibleTextEditorControls = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];

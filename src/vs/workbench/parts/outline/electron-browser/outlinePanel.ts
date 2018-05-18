@@ -36,7 +36,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -74,7 +73,6 @@ class RequestOracle {
 	constructor(
 		private readonly _callback: (editor: ICodeEditor, change: IModelContentChangedEvent) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@INextEditorService private readonly _editorService: INextEditorService,
 	) {
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);

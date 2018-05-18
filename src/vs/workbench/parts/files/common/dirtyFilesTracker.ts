@@ -90,7 +90,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	private doOpenDirtyResources(resources: URI[]): void {
 		const activeEditor = this.editorService.activeControl;
-		const activeGroup = activeEditor ? activeEditor.group : this.editorGroupService.activeGroup.id;
+		const activeGroup = activeEditor ? activeEditor.group : this.editorGroupService.activeGroup;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
