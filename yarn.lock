@@ -5997,9 +5997,9 @@ vscode-textmate@^3.3.3:
     fast-plist "^0.1.2"
     oniguruma "^6.0.1"
 
-vscode-xterm@3.5.0-beta5:
-  version "3.5.0-beta5"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta5.tgz#f44c0e327d292a90110ef086d9d98954f479b74b"
+vscode-xterm@3.5.0-beta6:
+  version "3.5.0-beta6"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta6.tgz#215df0c812536830ce65c3266ad5fc9ffe7b4a4f"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"
