@@ -25,7 +25,7 @@ interface IDropOperation {
 class DropOverlay extends Themable {
 
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
-	private static EDGE_DISTANCE_THRESHOLD = 0.2;
+	private static EDGE_DISTANCE_THRESHOLD = 0.3;
 
 	private container: HTMLElement;
 	private overlay: HTMLElement;
