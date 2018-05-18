@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/e667795f83c83e36dc6f90bde14632a963c52e34",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/ab08007feb924996eff9399c169f171fa17899ca",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -161,6 +161,9 @@
 				},
 				{
 					"include": "#fenced_code_block_fsharp"
+				},
+				{
+					"include": "#fenced_code_block_dart"
 				},
 				{
 					"include": "#fenced_code_block_unknown"
@@ -1644,6 +1647,39 @@
 							"patterns": [
 								{
 									"include": "source.fsharp"
+								}
+							]
+						}
+					]
+				},
+				"fenced_code_block_dart": {
+					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(dart)(\\s+[^`~]*)?$)",
+					"name": "markup.fenced_code.block.markdown",
+					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
+					"beginCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						},
+						"5": {
+							"name": "fenced_code.block.language"
+						},
+						"6": {
+							"name": "fenced_code.block.language.attributes"
+						}
+					},
+					"endCaptures": {
+						"3": {
+							"name": "punctuation.definition.markdown"
+						}
+					},
+					"patterns": [
+						{
+							"begin": "(^|\\G)(\\s*)(.*)",
+							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
+							"contentName": "meta.embedded.block.dart",
+							"patterns": [
+								{
+									"include": "source.dart"
 								}
 							]
 						}
