@@ -340,6 +340,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private registerListeners(): void {
 
 		// Model Events
+		this._register(this._group.onDidEditorPin(editor => this.onDidEditorPin(editor)));
 		this._register(this._group.onDidEditorOpen(editor => this.onDidEditorOpen(editor)));
 		this._register(this._group.onDidEditorClose(editor => this.onDidEditorClose(editor)));
 		this._register(this._group.onDidEditorDispose(editor => this.onDidEditorDispose(editor)));
@@ -348,6 +349,12 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Option Changes
 		this._register(this.accessor.onDidEditorPartOptionsChange(e => this.onDidEditorPartOptionsChange(e)));
+	}
+
+	private onDidEditorPin(editor: EditorInput): void {
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 	}
 
 	private onDidEditorOpen(editor: EditorInput): void {
@@ -599,9 +606,6 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 			// Forward to title control
 			this.titleAreaControl.pinEditor(editor);
-
-			// Event
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 		}
 	}
 
