@@ -132,16 +132,16 @@ export class BaseSplitEditorGroupAction extends Action {
 			group = this.nextEditorGroupsService.activeGroup;
 		}
 
-		const activeEditor = group.activeEditor;
-		if (activeEditor instanceof EditorInput && !activeEditor.supportsSplitEditor()) {
-			return TPromise.as(false);
-		}
-
 		// Add group
 		const newGroup = this.nextEditorGroupsService.addGroup(group, this.direction, { activate: true });
 
-		// Open editor
+		// Open editor (unless it cannot split)
+		const activeEditor = group.activeEditor;
 		if (activeEditor) {
+			if (activeEditor instanceof EditorInput && !activeEditor.supportsSplitEditor()) {
+				return TPromise.as(false);
+			}
+
 			let options: EditorOptions;
 			const codeEditor = getCodeEditor(group.activeControl.getControl());
 			if (codeEditor) {
