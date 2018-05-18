@@ -30,7 +30,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 	public getEditOperations(model: ITextModel, builder: editorCommon.IEditOperationBuilder): void {
 		if (this._ranges.length > 0) {
 			// Collect all edit operations
-			var ops: IEditOperation[] = [];
+			let ops: IEditOperation[] = [];
 			for (let i = 0; i < this._ranges.length; i++) {
 				ops.push({
 					range: this._ranges[i],
@@ -44,8 +44,8 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			});
 
 			// Merge operations that touch each other
-			var resultOps: IEditOperation[] = [];
-			var previousOp = ops[0];
+			let resultOps: IEditOperation[] = [];
+			let previousOp = ops[0];
 			for (let i = 1; i < ops.length; i++) {
 				if (previousOp.range.endLineNumber === ops[i].range.startLineNumber && previousOp.range.endColumn === ops[i].range.startColumn) {
 					// These operations are one after another and can be merged
@@ -58,7 +58,7 @@ export class ReplaceAllCommand implements editorCommon.ICommand {
 			}
 			resultOps.push(previousOp);
 
-			for (var i = 0; i < resultOps.length; i++) {
+			for (let i = 0; i < resultOps.length; i++) {
 				builder.addEditOperation(resultOps[i].range, resultOps[i].text);
 			}
 		}

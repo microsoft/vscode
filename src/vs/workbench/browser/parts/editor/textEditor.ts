@@ -12,7 +12,7 @@ import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { EditorInput, EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
@@ -140,10 +140,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Application & Editor focus change to respect auto save settings
 		if (isCodeEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		} else if (isDiffEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
-			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		}
 
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));
@@ -182,7 +182,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	protected createEditorControl(parent: HTMLElement, configuration: IEditorOptions): IEditor {
 
 		// Use a getter for the instantiation service since some subclasses might use scoped instantiation services
-		return this.instantiationService.createInstance(CodeEditor, parent, configuration);
+		return this.instantiationService.createInstance(CodeEditorWidget, parent, configuration, {});
 	}
 
 	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {

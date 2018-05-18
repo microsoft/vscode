@@ -5415,9 +5415,9 @@ vm-browserify@0.0.4:
   dependencies:
     indexof "0.0.1"
 
-vscode-extension-telemetry@0.0.16:
-  version "0.0.16"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.16.tgz#506cb49d7a8c90982019434651e5e3871b81c178"
+vscode-extension-telemetry@0.0.17:
+  version "0.0.17"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.17.tgz#15123e7edb34e7b9724b6056f54a869bbb922cb7"
   dependencies:
     applicationinsights "1.0.1"
 

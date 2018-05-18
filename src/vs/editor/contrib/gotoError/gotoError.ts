@@ -294,9 +294,12 @@ class MarkerNavigationAction extends EditorAction {
 
 	private _isNext: boolean;
 
-	constructor(next: boolean, opts: IActionOptions) {
+	private _multiFile: boolean;
+
+	constructor(next: boolean, multiFile: boolean, opts: IActionOptions) {
 		super(opts);
 		this._isNext = next;
+		this._multiFile = multiFile;
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
@@ -309,8 +312,8 @@ class MarkerNavigationAction extends EditorAction {
 		}
 
 		const model = controller.getOrCreateModel();
-		const atEdge = model.move(this._isNext, false);
-		if (!atEdge) {
+		const atEdge = model.move(this._isNext, !this._multiFile);
+		if (!atEdge || !this._multiFile) {
 			return undefined;
 		}
 
@@ -369,10 +372,32 @@ class MarkerNavigationAction extends EditorAction {
 
 class NextMarkerAction extends MarkerNavigationAction {
 	constructor() {
-		super(true, {
+		super(true, false, {
 			id: 'editor.action.marker.next',
 			label: nls.localize('markerAction.next.label', "Go to Next Problem (Error, Warning, Info)"),
 			alias: 'Go to Next Error or Warning',
+			precondition: EditorContextKeys.writable
+		});
+	}
+}
+
+class PrevMarkerAction extends MarkerNavigationAction {
+	constructor() {
+		super(false, false, {
+			id: 'editor.action.marker.prev',
+			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
+			alias: 'Go to Previous Error or Warning',
+			precondition: EditorContextKeys.writable
+		});
+	}
+}
+
+class NextMarkerInFilesAction extends MarkerNavigationAction {
+	constructor() {
+		super(true, true, {
+			id: 'editor.action.marker.nextInFiles',
+			label: nls.localize('markerAction.nextInFiles.label', "Go to Next Problem in Files (Error, Warning, Info)"),
+			alias: 'Go to Next Error or Warning in Files',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -382,12 +407,12 @@ class NextMarkerAction extends MarkerNavigationAction {
 	}
 }
 
-class PrevMarkerAction extends MarkerNavigationAction {
+class PrevMarkerInFilesAction extends MarkerNavigationAction {
 	constructor() {
-		super(false, {
-			id: 'editor.action.marker.prev',
-			label: nls.localize('markerAction.previous.label', "Go to Previous Problem (Error, Warning, Info)"),
-			alias: 'Go to Previous Error or Warning',
+		super(false, true, {
+			id: 'editor.action.marker.prevInFiles',
+			label: nls.localize('markerAction.previousInFiles.label', "Go to Previous Problem in Files (Error, Warning, Info)"),
+			alias: 'Go to Previous Error or Warning in Files',
 			precondition: EditorContextKeys.writable,
 			kbOpts: {
 				kbExpr: EditorContextKeys.focus,
@@ -400,6 +425,8 @@ class PrevMarkerAction extends MarkerNavigationAction {
 registerEditorContribution(MarkerController);
 registerEditorAction(NextMarkerAction);
 registerEditorAction(PrevMarkerAction);
+registerEditorAction(NextMarkerInFilesAction);
+registerEditorAction(PrevMarkerInFilesAction);
 
 const CONTEXT_MARKERS_NAVIGATION_VISIBLE = new RawContextKey<boolean>('markersNavigationVisible', false);
 

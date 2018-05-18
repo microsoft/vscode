@@ -25,6 +25,7 @@
 	"vscode.extension.activationEvents.onDebugResolve": "在将要启动具有特定类型的调试会话 (且需要调用相应的 resolveDebugConfiguration 方法) 时发出的激活事件。",
 	"vscode.extension.activationEvents.workspaceContains": "在打开至少包含一个匹配指定 glob 模式的文件的文件夹时发出的激活事件。",
 	"vscode.extension.activationEvents.onView": "在指定视图被展开时发出的激活事件。",
+	"vscode.extension.activationEvents.onUri": "在打开系统范围内并指向此扩展的 URI 时发出的激活事件。",
 	"vscode.extension.activationEvents.star": "在 VS Code 启动时发出的激活事件。为确保良好的最终用户体验，请仅在其他激活事件组合不适用于你的情况时，才在扩展中使用此事件。",
 	"vscode.extension.badges": "显示在商店扩展页面侧边栏的徽章的数组",
 	"vscode.extension.badges.url": "徽章图像 URL。",

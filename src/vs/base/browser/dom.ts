@@ -978,7 +978,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 
 	Object.keys(attrs || {}).forEach(name => {
 		if (/^on\w+$/.test(name)) {
-			result[name] = attrs[name];
+			(<any>result)[name] = attrs[name];
 		} else if (name === 'selected') {
 			const value = attrs[name];
 			if (value) {
@@ -1110,8 +1110,9 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative) {
+	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
+		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();

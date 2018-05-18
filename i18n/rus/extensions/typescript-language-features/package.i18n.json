@@ -15,6 +15,8 @@
 	"typescript.tsdk.desc": "Указывает путь к папке, содержащей файлы tsserver и lib*.d.ts, которые необходимо использовать.",
 	"typescript.disableAutomaticTypeAcquisition": "Отключает автоматическое получение типов. Требуется TypeScript 2.0.6 и более поздней версии.",
 	"typescript.tsserver.log": "Включает ведение журнала для сервера TS. Этот журнал можно использовать для диагностики проблем сервера TS. В журнале могут содержаться пути к файлам, исходный код и другие сведения из вашего проекта, в том числе носящие конфиденциальный характер.",
+	"typescript.tsserver.pluginPaths": "Дополнительные пути для обнаружения подключаемых модулей языковой службы TypeScript. Требуется TypeScript версии 2.3.0 или более поздней версии.",
+	"typescript.tsserver.pluginPaths.item": "Абсолютный или относительный путь. Относительный путь должен быть указан относительно папок рабочей области.",
 	"typescript.tsserver.trace": "Включает трассировку сообщений, отправляемых на сервер TS. Эту трассировку можно использовать для диагностики проблем сервера TS. Трассировка может содержать пути к файлам, исходный код и другие сведения из вашего проекта, в том числе конфиденциальные данные.",
 	"typescript.validate.enable": "Включение или отключение проверки TypeScript.",
 	"typescript.format.enable": "Включение или отключение модуля форматирования TypeScript по умолчанию.",
@@ -26,6 +28,9 @@
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Определяет метод обработки пробелов после ключевых слов в операторе управления потоком выполнения.",
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Определяет метод обработки пробелов после ключевого слова function у анонимных функций.",
 	"format.insertSpaceBeforeFunctionParenthesis": "Определяет метод обработки пробелов перед скобками аргумента функции. Требует TypeScript >= 2.1.5.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Определяет метод обработки пробелов после открытия и до закрытия непустых круглых скобок.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Определяет метод обработки пробелов после открытия и до закрытия непустых квадратных скобок.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Определяет метод обработки пробелов после открытия и до закрытия непустых квадратных скобок. Требуется TypeScript 2.3.0 или более поздней версии.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Определяет метод обработки пробелов после открытия и до закрытия скобок в строке шаблона. Требуется TypeScript 2.0.6 или более поздней версии.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "Определяет метод обработки пробелов после открытия и до закрытия скобок выражения JSX. Требуется TypeScript 2.0.6 или более поздней версии.",
 	"format.insertSpaceAfterTypeAssertion": "Определяет метод обработки пробелов после утверждений типа в TypeScript. Требуется TypeScript 2.4 или более поздней версии.",
@@ -54,5 +59,7 @@
 	"javascript.implicitProjectConfig.experimentalDecorators": "Включает/отключает параметр 'experimentalDecorators' для файлов JavaScript, которые не являются частью проекта. Этот параметр может переопределяться в файле jsconfig.json или tsconfig.json. Требуется TypeScript 2.3.1 или более поздней версии.",
 	"typescript.autoImportSuggestions.enabled": "Включить/отключить предложения автоматического импорта. Требуется TypeScript 2.6.1 или более поздней версии",
 	"typescript.experimental.syntaxFolding": "Включает/отключает маркеры свертывания с учетом синтаксиса.",
-	"taskDefinition.tsconfig.description": "Файл tsconfig, который определяет сборку TS."
+	"taskDefinition.tsconfig.description": "Файл tsconfig, который определяет сборку TS.",
+	"javascript.suggestionActions.enabled": "Включить/отключить предложения диагностики для файлов JavaScript в редакторе. Требуется TypeScript версии 2.8 или более поздней версии.",
+	"typescript.suggestionActions.enabled": "Включить/отключить предложения диагностики для файлов TypeScript в редакторе. Требуется TypeScript версии 2.8 или более поздней версии."
 }

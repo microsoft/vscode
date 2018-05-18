@@ -99,21 +99,17 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 	for (let lineNumber = 1; lineNumber <= linesCount; lineNumber++) {
 		let currentLineLength = source.getLineLength(lineNumber);
 		let currentLineText = source.getLineContent(lineNumber);
-		let charCodeAt: (offset: number) => number;
-		if (currentLineLength > 65536) {
-			// if the text buffer is chunk based, so long lines are cons-string, v8 will flattern the string when we check charCode.
-			// checking charCode on chunks directly is cheaper.
-			charCodeAt = (offset: number) => source.getLineCharCode(lineNumber, offset);
-		} else {
-			charCodeAt = (offset: number) => currentLineText.charCodeAt(offset);
-		}
+
+		// if the text buffer is chunk based, so long lines are cons-string, v8 will flattern the string when we check charCode.
+		// checking charCode on chunks directly is cheaper.
+		const useCurrentLineText = (currentLineLength <= 65536);
 
 		let currentLineHasContent = false;			// does `currentLineText` contain non-whitespace chars
 		let currentLineIndentation = 0;				// index at which `currentLineText` contains the first non-whitespace char
 		let currentLineSpacesCount = 0;				// count of spaces found in `currentLineText` indentation
 		let currentLineTabsCount = 0;				// count of tabs found in `currentLineText` indentation
 		for (let j = 0, lenJ = currentLineLength; j < lenJ; j++) {
-			let charCode = charCodeAt(j);
+			let charCode = (useCurrentLineText ? currentLineText.charCodeAt(j) : source.getLineCharCode(lineNumber, j));
 
 			if (charCode === CharCode.Tab) {
 				currentLineTabsCount++;
@@ -145,12 +141,6 @@ export function guessIndentation(source: ITextBuffer, defaultTabSize: number, de
 
 		previousLineText = currentLineText;
 		previousLineIndentation = currentLineIndentation;
-	}
-
-	// Take into account the last line as well
-	let deltaSpacesCount = spacesDiff(previousLineText, previousLineIndentation, '', 0);
-	if (deltaSpacesCount <= MAX_ALLOWED_TAB_SIZE_GUESS) {
-		spacesDiffCount[deltaSpacesCount]++;
 	}
 
 	let insertSpaces = defaultInsertSpaces;

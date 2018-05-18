@@ -5,22 +5,25 @@
 import * as languageModeIds from './languageModeIds';
 
 export interface LanguageDescription {
-	id: string;
-	diagnosticSource: string;
-	modeIds: string[];
-	configFile?: string;
-	isExternal?: boolean;
+	readonly id: string;
+	readonly diagnosticSource: string;
+	readonly modeIds: string[];
+	readonly configFile?: string;
+	readonly isExternal?: boolean;
+	readonly diagnosticOwner: string;
 }
 
 export const standardLanguageDescriptions: LanguageDescription[] = [
 	{
 		id: 'typescript',
 		diagnosticSource: 'ts',
+		diagnosticOwner: 'typescript',
 		modeIds: [languageModeIds.typescript, languageModeIds.typescriptreact],
 		configFile: 'tsconfig.json'
 	}, {
 		id: 'javascript',
-		diagnosticSource: 'js',
+		diagnosticSource: 'ts',
+		diagnosticOwner: 'typescript',
 		modeIds: [languageModeIds.javascript, languageModeIds.javascriptreact],
 		configFile: 'jsconfig.json'
 	}

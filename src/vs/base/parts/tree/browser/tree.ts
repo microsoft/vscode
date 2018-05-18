@@ -687,6 +687,7 @@ export interface ITreeOptions extends ITreeStyles {
 	ariaLabel?: string;
 	keyboardSupport?: boolean;
 	preventRootFocus?: boolean;
+	showLoading?: boolean;
 }
 
 export interface ITreeStyler {

@@ -49,6 +49,9 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 			let m: RegExpMatchArray;
 			while (m = this._regex.exec(textLine.text)) {
 				const target = URI.parse(m[0]);
+				if (target.path[0] !== '/') {
+					continue;
+				}
 				const range = new Range(line, this._regex.lastIndex - m[0].length, line, this._regex.lastIndex);
 				result.push({ target, range });
 			}
@@ -78,34 +81,32 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 	stat(resource: vscode.Uri): Thenable<vscode.FileStat> {
 		return this._delegate.stat(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
 	}
-	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<vscode.FileStat> {
-		return this._delegate.move(oldUri, newUri).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	rename(oldUri: vscode.Uri, newUri: vscode.Uri): Thenable<void> {
+		return this._delegate.move(oldUri, newUri).then(stat => void 0);
 	}
-	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileStat][]> {
+	readDirectory(resource: vscode.Uri): Thenable<[string, vscode.FileType][]> {
 		return this._delegate.readdir(resource).then(tuples => {
-			return tuples.map(tuple => <[string, vscode.FileStat]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1])]);
+			return tuples.map(tuple => <[string, vscode.FileType]>[path.posix.basename(tuple[0].path), FileSystemProviderShim._modernizeFileStat(tuple[1]).type]);
 		});
 	}
 
 	private static _modernizeFileStat(stat: vscode.DeprecatedFileStat): vscode.FileStat {
 		let { mtime, size, type } = stat;
-		let isFile = false;
-		let isDirectory = false;
-		let isSymbolicLink = false;
+		let newType: files.FileType;
 
 		// no support for bitmask, effectively no support for symlinks
 		switch (type) {
 			case DeprecatedFileType.Dir:
-				isDirectory = true;
+				newType = files.FileType.Directory;
 				break;
 			case DeprecatedFileType.File:
-				isFile = true;
+				newType = files.FileType.File;
 				break;
 			case DeprecatedFileType.Symlink:
-				isSymbolicLink = true;
+				newType = files.FileType.File & files.FileType.SymbolicLink;
 				break;
 		}
-		return { mtime, size, isFile, isDirectory, isSymbolicLink };
+		return { type: newType, ctime: 0, mtime, size };
 	}
 
 	private static _modernizeFileChange(e: vscode.DeprecatedFileChange): vscode.FileChangeEvent {
@@ -137,8 +138,8 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 			}
 		});
 	}
-	createDirectory(resource: vscode.Uri): Thenable<vscode.FileStat> {
-		return this._delegate.mkdir(resource).then(stat => FileSystemProviderShim._modernizeFileStat(stat));
+	createDirectory(resource: vscode.Uri): Thenable<void> {
+		return this._delegate.mkdir(resource).then(stat => void 0);
 	}
 
 	// --- read/write
@@ -154,7 +155,7 @@ class FileSystemProviderShim implements vscode.FileSystemProvider {
 		});
 	}
 
-	writeFile(resource: vscode.Uri, content: Uint8Array, options: files.FileOptions): Thenable<void> {
+	writeFile(resource: vscode.Uri, content: Uint8Array, options: files.FileWriteOptions): Thenable<void> {
 		return this._delegate.write(resource, content);
 	}
 }
@@ -245,40 +246,45 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		};
 	}
 
+	private static _asIStat(stat: vscode.FileStat): files.IStat {
+		const { type, ctime, mtime, size } = stat;
+		return { type, ctime, mtime, size };
+	}
+
 	$stat(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource), {}, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).stat(URI.revive(resource))).then(ExtHostFileSystem._asIStat);
 	}
 
-	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.IStat][], any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource), {}, token));
+	$readdir(handle: number, resource: UriComponents): TPromise<[string, files.FileType][], any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).readDirectory(URI.revive(resource)));
 	}
 
-	$readFile(handle: number, resource: UriComponents, opts: files.FileOptions): TPromise<string> {
+	$readFile(handle: number, resource: UriComponents): TPromise<string> {
 		return asWinJsPromise(token => {
-			return this._fsProvider.get(handle).readFile(URI.revive(resource), opts, token);
+			return this._fsProvider.get(handle).readFile(URI.revive(resource));
 		}).then(data => {
 			return Buffer.isBuffer(data) ? data.toString('base64') : Buffer.from(data.buffer, data.byteOffset, data.byteLength).toString('base64');
 		});
 	}
 
-	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileOptions): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts, token));
+	$writeFile(handle: number, resource: UriComponents, base64Content: string, opts: files.FileWriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).writeFile(URI.revive(resource), Buffer.from(base64Content, 'base64'), opts));
 	}
 
 	$delete(handle: number, resource: UriComponents): TPromise<void, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), {}, token));
+		return asWinJsPromise(token => this._fsProvider.get(handle).delete(URI.revive(resource), { recursive: true }));
 	}
 
-	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts, token));
+	$rename(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).rename(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOptions): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts, token));
+	$copy(handle: number, oldUri: UriComponents, newUri: UriComponents, opts: files.FileOverwriteOptions): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).copy(URI.revive(oldUri), URI.revive(newUri), opts));
 	}
 
-	$mkdir(handle: number, resource: UriComponents): TPromise<files.IStat, any> {
-		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource), {}, token));
+	$mkdir(handle: number, resource: UriComponents): TPromise<void, any> {
+		return asWinJsPromise(token => this._fsProvider.get(handle).createDirectory(URI.revive(resource)));
 	}
 
 	$watch(handle: number, session: number, resource: UriComponents, opts: files.IWatchOptions): void {

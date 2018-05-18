@@ -42,21 +42,22 @@ const viewsContainerSchema: IJSONSchema = {
 	properties: {
 		id: {
 			description: localize({ key: 'vscode.extension.contributes.views.containers.id', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "Unique id used to identify the container in which views can be contributed using 'views' contribution point"),
-			type: 'string'
+			type: 'string',
+			pattern: '^[a-zA-Z0-9_-]+$'
 		},
-		label: {
+		title: {
 			description: localize('vscode.extension.contributes.views.containers.title', 'Human readable string used to render the container'),
 			type: 'string'
 		},
 		icon: {
-			description: localize('vscode.extension.contributes.views.containers.icon', 'Path to the container icon'),
+			description: localize('vscode.extension.contributes.views.containers.icon', "Path to the container icon. Icons are 24x24 centered on a 50x40 block and have a fill color of 'rgb(215, 218, 224)' or '#d7dae0'. It is recommended that icons be in SVG, though any image file type is accepted."),
 			type: 'string'
 		}
 	}
 };
 
-export const viewsContainerContribution: IJSONSchema = {
-	description: localize('vscode.extension.contributes.viewsContainer', 'Contributes views containers to the editor'),
+export const viewsContainersContribution: IJSONSchema = {
+	description: localize('vscode.extension.contributes.viewsContainers', 'Contributes views containers to the editor'),
 	type: 'object',
 	properties: {
 		'activitybar': {
@@ -67,28 +68,37 @@ export const viewsContainerContribution: IJSONSchema = {
 	}
 };
 
-export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainerContribution);
+export const viewsContainersExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewsContainerDescriptor[] }>('viewsContainers', [], viewsContainersContribution);
+
+const TEST_VIEW_CONTAINER_ORDER = 6;
+
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 	constructor() {
-		this.handleViewsContainersExtensionPoint();
+		this.registerTestViewContainer();
+		this.handleAndRegisterCustomViewContainers();
 	}
 
-	private handleViewsContainersExtensionPoint() {
+	private registerTestViewContainer(): void {
+		const id = 'test';
+		const title = localize('test', "Test");
+		const cssClass = `extensionViewlet-${id}`;
+		const icon = require.toUrl('./media/test.svg');
+
+		this.registerCustomViewlet({ id, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
+	}
+
+	private handleAndRegisterCustomViewContainers() {
 		viewsContainersExtensionPoint.setHandler((extensions) => {
 			for (let extension of extensions) {
 				const { value, collector } = extension;
-				if (!extension.description.enableProposedApi) {
-					collector.error(localize({ key: 'proposed', comment: ['Contribution refers to those that an extension contributes to VS Code through an extension/contribution point. '] }, "'viewsContainer' contribution is only available when running out of dev or with the following command line switch: --enable-proposed-api {0}", extension.description.id));
-					continue;
-				}
 				forEach(value, entry => {
 					if (!this.isValidViewsContainer(entry.value, collector)) {
 						return;
 					}
 					switch (entry.key) {
 						case 'activitybar':
-							this.contributeToActivitybar(entry.value, extension.description);
+							this.registerCustomViewContainers(entry.value, extension.description);
 							break;
 					}
 				});
@@ -104,7 +114,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 
 		for (let descriptor of viewsContainersDescriptors) {
 			if (typeof descriptor.id !== 'string') {
-				collector.error(localize('requirestring', "property `{0}` is mandatory and must be of type `string`", 'id'));
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
+				return false;
+			}
+			if (!(/^[a-z0-9_-]+$/i.test(descriptor.id))) {
+				collector.error(localize('requireidstring', "property `{0}` is mandatory and must be of type `string`. Only alphanumeric characters, '_', and '-' are allowed.", 'id'));
 				return false;
 			}
 			if (typeof descriptor.title !== 'string') {
@@ -120,17 +134,22 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		return true;
 	}
 
-	private contributeToActivitybar(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
+	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
 		containers.forEach((descriptor, index) => {
-			const id = `workbench.view.extension.${descriptor.id}`;
-			const title = descriptor.title;
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			const location: ViewLocation = ViewLocation.register(id);
+			// TODO@extensionLocation
+			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
+			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+		});
+	}
 
-			// Generate CSS to show the icon in the activity bar
-			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
-			const iconPath = join(extension.extensionFolderPath, descriptor.icon);
-			createCSSRule(iconClass, `-webkit-mask: url('${iconPath}') no-repeat 50% 50%`);
+	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
+		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
+		const id = `workbench.view.extension.${descriptor.id}`;
+
+		if (!viewletRegistry.getViewlet(id)) {
+
+			const location: ViewLocation = ViewLocation.register(id);
 
 			// Register as viewlet
 			class CustomViewlet extends PersistentViewsViewlet {
@@ -152,12 +171,13 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			const viewletDescriptor = new ViewletDescriptor(
 				CustomViewlet,
 				id,
-				title,
+				descriptor.title,
 				cssClass,
-				6 + index
+				order,
+				descriptor.icon
 			);
 
-			Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(viewletDescriptor);
+			viewletRegistry.registerViewlet(viewletDescriptor);
 
 			// Register Action to Open Viewlet
 			class OpenCustomViewletAction extends ToggleViewletAction {
@@ -171,11 +191,16 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 			registry.registerWorkbenchAction(
-				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", title)),
+				new SyncActionDescriptor(OpenCustomViewletAction, id, localize('showViewlet', "Show {0}", descriptor.title)),
 				'View: Show {0}',
 				localize('view', "View")
 			);
-		});
+
+			// Generate CSS to show the icon in the activity bar
+			const iconClass = `.monaco-workbench > .activitybar .monaco-action-bar .action-label.${cssClass}`;
+			createCSSRule(iconClass, `-webkit-mask: url('${descriptor.icon}') no-repeat 50% 50%`);
+		}
+
 	}
 }
 

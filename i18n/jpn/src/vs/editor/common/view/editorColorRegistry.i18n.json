@@ -14,6 +14,7 @@
 	"editorCursorBackground": "選択された文字列の背景色です。選択された文字列の背景色をカスタマイズ出来ます。",
 	"editorWhitespaces": "エディターのスペース文字の色。",
 	"editorIndentGuides": "エディター インデント ガイドの色。",
+	"editorActiveIndentGuide": "アクティブなエディターのインデント ガイドの色。",
 	"editorLineNumbers": "エディターの行番号の色。",
 	"editorActiveLineNumber": "エディターのアクティブ行番号の色",
 	"deprecatedEditorActiveLineNumber": "id は使用しないでください。代わりに 'EditorLineNumber.activeForeground' を使用してください。",

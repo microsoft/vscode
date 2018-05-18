@@ -115,6 +115,13 @@
 					"group": "navigation"
 				}
 			],
+			"editor/title/context": [
+				{
+					"command": "markdown.showPreview",
+					"when": "resourceLangId == markdown",
+					"group": "navigation"
+				}
+			],
 			"commandPalette": [
 				{
 					"command": "markdown.showPreview",
@@ -288,7 +295,7 @@
 		"highlight.js": "9.5.0",
 		"markdown-it": "^8.4.0",
 		"markdown-it-named-headers": "0.0.4",
-		"vscode-extension-telemetry": "0.0.16",
+		"vscode-extension-telemetry": "0.0.17",
 		"vscode-nls": "^3.2.1"
 	},
 	"devDependencies": {

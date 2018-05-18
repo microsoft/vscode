@@ -41,7 +41,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchAccessibilityProvider, SearchFilter, SearchTreeController, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -226,13 +226,13 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
-					this.toggleQueryDetails(true);
+					this.toggleQueryDetails();
 				}).on(dom.EventType.KEY_UP, (e: KeyboardEvent) => {
 					let event = new StandardKeyboardEvent(e);
 
 					if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 						dom.EventHelper.stop(e);
-						this.toggleQueryDetails();
+						this.toggleQueryDetails(false);
 					}
 				});
 
@@ -331,13 +331,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
+		let replaceHistory = this.viewletSettings['query.replaceHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
-			history: searchHistory,
+			searchHistory: searchHistory,
+			replaceHistory: replaceHistory,
 			historyLimit: SearchView.MAX_HISTORY_ITEMS
 		});
 
@@ -552,7 +554,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
+					showLoading: false
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);
@@ -891,7 +894,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 
 		let editorControl = this.editorService.getActiveEditor().getControl();
 		if (isDiffEditor(editorControl)) {
-			if (editorControl.getOriginalEditor().isFocused()) {
+			if (editorControl.getOriginalEditor().hasTextFocus()) {
 				editorControl = editorControl.getOriginalEditor();
 			} else {
 				editorControl = editorControl.getModifiedEditor();
@@ -943,7 +946,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.onQueryChanged(true, true);
 	}
 
-	public toggleQueryDetails(moveFocus?: boolean, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
+	public toggleQueryDetails(moveFocus = true, show?: boolean, skipLayout?: boolean, reverse?: boolean): void {
 		let cls = 'more';
 		show = typeof show === 'undefined' ? !dom.hasClass(this.queryDetails, cls) : Boolean(show);
 		this.viewletSettings['query.queryDetailsExpanded'] = show;
@@ -1519,13 +1522,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const searchHistory = this.searchWidget.getHistory();
+		const searchHistory = this.searchWidget.getSearchHistory();
+		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
 		this.viewletSettings['query.searchHistory'] = searchHistory;
+		this.viewletSettings['query.replaceHistory'] = replaceHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;

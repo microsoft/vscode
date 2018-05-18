@@ -8,5 +8,12 @@
 	],
 	"quickFixWithKb": "Показать исправления ({0})",
 	"quickFix": "Показать исправления",
-	"organizeImports.label": "Организация импортов"
+	"quickfix.trigger.label": "Быстрое исправление...",
+	"editor.action.quickFix.noneMessage": "Доступные действия кода отсутствуют",
+	"refactor.label": "Рефакторинг...",
+	"editor.action.refactor.noneMessage": "Доступные операции рефакторинга отсутствуют",
+	"source.label": "Исходное действие...",
+	"editor.action.source.noneMessage": "Доступные исходные действия отсутствуют",
+	"organizeImports.label": "Организация импортов",
+	"editor.action.organize.noneMessage": "Действие для упорядочения импортов отсутствует"
 }

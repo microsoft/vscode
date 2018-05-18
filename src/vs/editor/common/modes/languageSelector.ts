@@ -16,6 +16,7 @@ export interface LanguageFilter {
 	 * This provider is implemented in the UI thread.
 	 */
 	hasAccessToAllModels?: boolean;
+	exclusive?: boolean;
 }
 
 export type LanguageSelector = string | LanguageFilter | (string | LanguageFilter)[];
@@ -43,8 +44,8 @@ export function score(selector: LanguageSelector, candidateUri: URI, candidateLa
 		}
 
 		// short-hand notion, desugars to
-		// 'fooLang' -> [{ language: 'fooLang', scheme: 'file' }, { language: 'fooLang', scheme: 'untitled' }]
-		// '*' -> { language: '*', scheme: '*' }
+		// 'fooLang' -> { language: 'fooLang'}
+		// '*' -> { language: '*' }
 		if (selector === '*') {
 			return 5;
 		} else if (selector === candidateLanguage) {

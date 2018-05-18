@@ -21,7 +21,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
-	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO
+	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO
 } from '../shared/tasks';
 
 export { TaskExecutionDTO };
@@ -610,7 +610,7 @@ namespace TaskDTO {
 				scope = value.scope.uri.toJSON();
 			}
 		}
-		if (!execution || !definition || !scope) {
+		if (!definition || !scope) {
 			return undefined;
 		}
 		let group = (value.group as types.TaskGroup) ? (value.group as types.TaskGroup).id : undefined;
@@ -655,7 +655,7 @@ namespace TaskDTO {
 				scope = types.TaskScope.Workspace;
 			}
 		}
-		if (!execution || !definition || !scope) {
+		if (!definition || !scope) {
 			return undefined;
 		}
 		let result = new types.Task(definition, scope, value.name, value.source.label, execution, value.problemMatchers);
@@ -689,21 +689,28 @@ namespace TaskFilterDTO {
 }
 
 class TaskExecutionImpl implements vscode.TaskExecution {
-	constructor(readonly _id: string, private readonly _task: vscode.Task, private readonly _tasks: ExtHostTask) {
+
+	constructor(private readonly _tasks: ExtHostTask, readonly _id: string, private readonly _task: vscode.Task) {
 	}
 
-	get task(): vscode.Task {
+	public get task(): vscode.Task {
 		return this._task;
 	}
 
 	public terminate(): void {
 		this._tasks.terminateTask(this);
 	}
+
+	public fireDidStartProcess(value: TaskProcessStartedDTO): void {
+	}
+
+	public fireDidEndProcess(value: TaskProcessEndedDTO): void {
+	}
 }
 
 namespace TaskExecutionDTO {
 	export function to(value: TaskExecutionDTO, tasks: ExtHostTask): vscode.TaskExecution {
-		return new TaskExecutionImpl(value.id, TaskDTO.to(value.task, tasks.extHostWorkspace), tasks);
+		return new TaskExecutionImpl(tasks, value.id, TaskDTO.to(value.task, tasks.extHostWorkspace));
 	}
 	export function from(value: vscode.TaskExecution): TaskExecutionDTO {
 		return {
@@ -728,6 +735,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private readonly _onDidExecuteTask: Emitter<vscode.TaskStartEvent> = new Emitter<vscode.TaskStartEvent>();
 	private readonly _onDidTerminateTask: Emitter<vscode.TaskEndEvent> = new Emitter<vscode.TaskEndEvent>();
+
+	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
+	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
 	constructor(mainContext: IMainContext, extHostWorkspace: ExtHostWorkspace) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
@@ -781,20 +791,10 @@ export class ExtHostTask implements ExtHostTaskShape {
 		}
 	}
 
-	public $taskStarted(execution: TaskExecutionDTO): void {
-		this._onDidExecuteTask.fire({
-			execution: this.getTaskExecution(execution)
-		});
-	}
-
-	get taskExecutions(): vscode.TaskExecution[] {
+	public get taskExecutions(): vscode.TaskExecution[] {
 		let result: vscode.TaskExecution[] = [];
 		this._taskExecutions.forEach(value => result.push(value));
 		return result;
-	}
-
-	get onDidStartTask(): Event<vscode.TaskStartEvent> {
-		return this._onDidExecuteTask.event;
 	}
 
 	public terminateTask(execution: vscode.TaskExecution): TPromise<void> {
@@ -804,7 +804,21 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._proxy.$terminateTask((execution as TaskExecutionImpl)._id);
 	}
 
-	public $taskEnded(execution: TaskExecutionDTO): void {
+	public get onDidStartTask(): Event<vscode.TaskStartEvent> {
+		return this._onDidExecuteTask.event;
+	}
+
+	public $onDidStartTask(execution: TaskExecutionDTO): void {
+		this._onDidExecuteTask.fire({
+			execution: this.getTaskExecution(execution)
+		});
+	}
+
+	public get onDidEndTask(): Event<vscode.TaskEndEvent> {
+		return this._onDidTerminateTask.event;
+	}
+
+	public $OnDidEndTask(execution: TaskExecutionDTO): void {
 		const _execution = this.getTaskExecution(execution);
 		this._taskExecutions.delete(execution.id);
 		this._onDidTerminateTask.fire({
@@ -812,8 +826,32 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	get onDidEndTask(): Event<vscode.TaskEndEvent> {
-		return this._onDidTerminateTask.event;
+	public get onDidStartTaskProcess(): Event<vscode.TaskProcessStartEvent> {
+		return this._onDidTaskProcessStarted.event;
+	}
+
+	public $onDidStartTaskProcess(value: TaskProcessStartedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			this._onDidTaskProcessStarted.fire({
+				execution: execution,
+				processId: value.processId
+			});
+		}
+	}
+
+	public get onDidEndTaskProcess(): Event<vscode.TaskProcessEndEvent> {
+		return this._onDidTaskProcessEnded.event;
+	}
+
+	public $onDidEndTaskProcess(value: TaskProcessEndedDTO): void {
+		const execution = this.getTaskExecution(value.id);
+		if (execution) {
+			this._onDidTaskProcessEnded.fire({
+				execution: execution,
+				exitCode: value.exitCode
+			});
+		}
 	}
 
 	public $provideTasks(handle: number): TPromise<TaskSystem.TaskSet> {
@@ -834,12 +872,16 @@ export class ExtHostTask implements ExtHostTaskShape {
 		return this._handleCounter++;
 	}
 
-	private getTaskExecution(execution: TaskExecutionDTO, task?: vscode.Task): TaskExecutionImpl {
+	private getTaskExecution(execution: TaskExecutionDTO | string, task?: vscode.Task): TaskExecutionImpl {
+		if (typeof execution === 'string') {
+			return this._taskExecutions.get(execution);
+		}
+
 		let result: TaskExecutionImpl = this._taskExecutions.get(execution.id);
 		if (result) {
 			return result;
 		}
-		result = new TaskExecutionImpl(execution.id, task ? task : TaskDTO.to(execution.task, this._extHostWorkspace), this);
+		result = new TaskExecutionImpl(this, execution.id, task ? task : TaskDTO.to(execution.task, this._extHostWorkspace));
 		this._taskExecutions.set(execution.id, result);
 		return result;
 	}

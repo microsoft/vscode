@@ -89,7 +89,7 @@ class ConfigAwareContextValuesContainer extends Context {
 				const contextKey = `config.${configKey}`;
 				if (contextKey in this._value) {
 					this._value[contextKey] = this._configurationService.getValue(configKey);
-					this._emitter.fire(configKey);
+					this._emitter.fire(contextKey);
 				}
 			}
 		}

@@ -6,14 +6,10 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Position } from 'vs/editor/common/core/position';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
@@ -24,12 +20,12 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
-import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
 
-const defaultReferenceSearchOptions: RequestOptions = {
+export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
 		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
 	}
@@ -94,79 +90,6 @@ registerEditorContribution(ReferenceController);
 
 registerEditorAction(ReferenceAction);
 
-let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
-
-	if (!(resource instanceof URI)) {
-		throw new Error('illegal argument, uri');
-	}
-	if (!position) {
-		throw new Error('illegal argument, position');
-	}
-
-	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
-
-		let control = editor.getControl();
-		if (!isCodeEditor(control)) {
-			return undefined;
-		}
-
-		let controller = ReferencesController.get(control);
-		if (!controller) {
-			return undefined;
-		}
-
-		let references = provideReferences(control.getModel(), Position.lift(position)).then(references => new ReferencesModel(references));
-		let range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		return TPromise.as(controller.toggleWidget(range, references, defaultReferenceSearchOptions));
-	});
-};
-
-let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition, references: Location[]) => {
-	if (!(resource instanceof URI)) {
-		throw new Error('illegal argument, uri expected');
-	}
-
-	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
-
-		let control = editor.getControl();
-		if (!isCodeEditor(control)) {
-			return undefined;
-		}
-
-		let controller = ReferencesController.get(control);
-		if (!controller) {
-			return undefined;
-		}
-
-		return TPromise.as(controller.toggleWidget(
-			new Range(position.lineNumber, position.column, position.lineNumber, position.column),
-			TPromise.as(new ReferencesModel(references)),
-			defaultReferenceSearchOptions)).then(() => true);
-	});
-};
-
-
-
-// register commands
-
-CommandsRegistry.registerCommand({
-	id: 'editor.action.findReferences',
-	handler: findReferencesCommand
-});
-
-CommandsRegistry.registerCommand({
-	id: 'editor.action.showReferences',
-	handler: showReferencesCommand,
-	description: {
-		description: 'Show references at a position in a file',
-		args: [
-			{ name: 'uri', description: 'The text document in which to show references', constraint: URI },
-			{ name: 'position', description: 'The position at which to show', constraint: Position.isIPosition },
-			{ name: 'locations', description: 'An array of locations.', constraint: Array },
-		]
-	}
-});
-
 function closeActiveReferenceSearch(accessor: ServicesAccessor, args: any) {
 	withController(accessor, controller => controller.closeWidget());
 }
@@ -181,7 +104,7 @@ function openReferenceToSide(accessor: ServicesAccessor, args: any) {
 }
 
 function withController(accessor: ServicesAccessor, fn: (controller: ReferencesController) => void): void {
-	var outerEditor = getOuterEditor(accessor);
+	const outerEditor = getOuterEditor(accessor);
 	if (!outerEditor) {
 		return;
 	}

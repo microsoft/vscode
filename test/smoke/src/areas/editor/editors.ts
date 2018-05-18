@@ -3,15 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 export class Editors {
 
-	constructor(private code: Code, private commands: Commands) { }
+	constructor(private code: Code) { }
 
 	async saveOpenedFile(): Promise<any> {
-		await this.commands.runCommand('workbench.action.files.save');
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+s');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+s');
+		}
 	}
 
 	async selectTab(tabName: string, untitled: boolean = false): Promise<void> {
@@ -38,7 +41,12 @@ export class Editors {
 	}
 
 	async newUntitledFile(): Promise<void> {
-		await this.commands.runCommand('workbench.action.files.newUntitledFile');
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+n');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+n');
+		}
+
 		await this.waitForEditorFocus('Untitled-1', true);
 	}
 }

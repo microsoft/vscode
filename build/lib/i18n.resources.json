@@ -151,7 +151,15 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/outline",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/services/actions",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/services/bulkEdit",
 			"project": "vscode-workbench"
 		},
 		{

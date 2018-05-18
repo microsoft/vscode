@@ -82,7 +82,7 @@ export interface IViewModelLinesCollection {
 
 	getViewLineCount(): number;
 	warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void;
-	getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo;
+	getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo;
 	getViewLinesIndentGuides(viewStartLineNumber: number, viewEndLineNumber: number): number[];
 	getViewLineContent(viewLineNumber: number): string;
 	getViewLineLength(viewLineNumber: number): number;
@@ -141,6 +141,12 @@ export class CoordinatesConverter implements ICoordinatesConverter {
 		return this._lines.modelPositionIsVisible(modelPosition.lineNumber, modelPosition.column);
 	}
 
+}
+
+const enum IndentGuideRepeatOption {
+	BlockNone = 0,
+	BlockSubsequent = 1,
+	BlockAll = 2
 }
 
 export class SplitLinesCollection implements IViewModelLinesCollection {
@@ -505,12 +511,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		this.prefixSumComputer.warmUpCache(viewStartLineNumber - 1, viewEndLineNumber - 1);
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
 		this._ensureValidState();
 		viewLineNumber = this._toValidViewLineNumber(viewLineNumber);
+		minLineNumber = this._toValidViewLineNumber(minLineNumber);
+		maxLineNumber = this._toValidViewLineNumber(maxLineNumber);
 
 		const modelPosition = this.convertViewPositionToModelPosition(viewLineNumber, this.getViewLineMinColumn(viewLineNumber));
-		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber);
+		const modelMinPosition = this.convertViewPositionToModelPosition(minLineNumber, this.getViewLineMinColumn(minLineNumber));
+		const modelMaxPosition = this.convertViewPositionToModelPosition(maxLineNumber, this.getViewLineMinColumn(maxLineNumber));
+		const result = this.model.getActiveIndentGuide(modelPosition.lineNumber, modelMinPosition.lineNumber, modelMaxPosition.lineNumber);
 
 		const viewStartPosition = this.convertModelPositionToViewPosition(result.startLineNumber, 1);
 		const viewEndPosition = this.convertModelPositionToViewPosition(result.endLineNumber, 1);
@@ -531,6 +541,7 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 
 		let result: number[] = [];
 		let resultRepeatCount: number[] = [];
+		let resultRepeatOption: IndentGuideRepeatOption[] = [];
 		const modelStartLineIndex = modelStart.lineNumber - 1;
 		const modelEndLineIndex = modelEnd.lineNumber - 1;
 
@@ -538,17 +549,16 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let modelLineIndex = modelStartLineIndex; modelLineIndex <= modelEndLineIndex; modelLineIndex++) {
 			const line = this.lines[modelLineIndex];
 			if (line.isVisible()) {
-				let count = 0;
-				if (modelLineIndex === modelStartLineIndex) {
-					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelStart.column);
-					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
-					count = viewLineEndIndex - viewLineStartIndex + 1;
-				} else {
-					let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, 1);
-					let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
-					count = viewLineEndIndex - viewLineStartIndex + 1;
+				let viewLineStartIndex = line.getViewLineNumberOfModelPosition(0, modelLineIndex === modelStartLineIndex ? modelStart.column : 1);
+				let viewLineEndIndex = line.getViewLineNumberOfModelPosition(0, this.model.getLineMaxColumn(modelLineIndex + 1));
+				let count = viewLineEndIndex - viewLineStartIndex + 1;
+				let option = IndentGuideRepeatOption.BlockNone;
+				if (count > 1 && line.getViewLineMinColumn(this.model, modelLineIndex + 1, viewLineEndIndex) === 1) {
+					// wrapped lines should block indent guides
+					option = (viewLineStartIndex === 0 ? IndentGuideRepeatOption.BlockSubsequent : IndentGuideRepeatOption.BlockAll);
 				}
 				resultRepeatCount.push(count);
+				resultRepeatOption.push(option);
 				// merge into previous request
 				if (reqStart === null) {
 					reqStart = new Position(modelLineIndex + 1, 0);
@@ -573,7 +583,19 @@ export class SplitLinesCollection implements IViewModelLinesCollection {
 		for (let i = 0, len = result.length; i < len; i++) {
 			let value = result[i];
 			let count = Math.min(viewLineCount - currIndex, resultRepeatCount[i]);
+			let option = resultRepeatOption[i];
+			let blockAtIndex: number;
+			if (option === IndentGuideRepeatOption.BlockAll) {
+				blockAtIndex = 0;
+			} else if (option === IndentGuideRepeatOption.BlockSubsequent) {
+				blockAtIndex = 1;
+			} else {
+				blockAtIndex = count;
+			}
 			for (let j = 0; j < count; j++) {
+				if (j === blockAtIndex) {
+					value = 0;
+				}
 				viewIndents[currIndex++] = value;
 			}
 		}
@@ -862,6 +884,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()
@@ -1065,6 +1088,8 @@ export class SplitLine implements ISplitLine {
 		let minColumn = (outputLineIndex > 0 ? this.wrappedIndentLength + 1 : 1);
 		let maxColumn = lineContent.length + 1;
 
+		let continuesWithWrappedLine = (outputLineIndex + 1 < this.getViewLineCount());
+
 		let deltaStartIndex = 0;
 		if (outputLineIndex > 0) {
 			deltaStartIndex = this.wrappedIndentLength;
@@ -1073,6 +1098,7 @@ export class SplitLine implements ISplitLine {
 
 		return new ViewLineData(
 			lineContent,
+			continuesWithWrappedLine,
 			minColumn,
 			maxColumn,
 			lineTokens.sliceAndInflate(startOffset, endOffset, deltaStartIndex)
@@ -1258,7 +1284,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 	public warmUpLookupCache(viewStartLineNumber: number, viewEndLineNumber: number): void {
 	}
 
-	public getActiveIndentGuide(viewLineNumber: number): IActiveIndentGuideInfo {
+	public getActiveIndentGuide(viewLineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
 		return {
 			startLineNumber: viewLineNumber,
 			endLineNumber: viewLineNumber,
@@ -1296,6 +1322,7 @@ export class IdentityLinesCollection implements IViewModelLinesCollection {
 		let lineContent = lineTokens.getLineContent();
 		return new ViewLineData(
 			lineContent,
+			false,
 			1,
 			lineContent.length + 1,
 			lineTokens.inflate()

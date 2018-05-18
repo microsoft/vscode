@@ -14,6 +14,7 @@
 	"editorCursorBackground": "编辑器光标的背景色。可以自定义块型光标覆盖字符的颜色。",
 	"editorWhitespaces": "编辑器中空白字符的颜色。",
 	"editorIndentGuides": "编辑器缩进参考线的颜色。",
+	"editorActiveIndentGuide": "活动编辑器缩进参考线的颜色。",
 	"editorLineNumbers": "编辑器行号的颜色。",
 	"editorActiveLineNumber": "编辑器活动行号的颜色",
 	"deprecatedEditorActiveLineNumber": "\"Id\" 已被弃用，请改用 \"editorLineNumber.activeForeground\"。",

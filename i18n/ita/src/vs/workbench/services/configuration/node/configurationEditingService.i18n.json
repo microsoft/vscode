@@ -11,6 +11,7 @@
 	"open": "Apri impostazioni",
 	"saveAndRetry": "Salva e riprova",
 	"errorUnknownKey": "Impossibile scrivere {0} perché {1} non è una configurazione registrata.",
+	"errorInvalidWorkspaceConfigurationApplication": "Non è possibile scrivere {0} in Impostazioni area di lavoro. Questa impostazione può essere scritta solo in Impostazioni utente.",
 	"errorInvalidFolderConfiguration": "Impossibile scrivere nella cartella impostazioni perché {0} non supporta l'ambito di risorsa della cartella.",
 	"errorInvalidUserTarget": "Impossibile scrivere le impostazioni utente perché {0} non supporta l'ambito globale.",
 	"errorInvalidWorkspaceTarget": "Impossibile scrivere nell'area di lavoro perché {0} non supporta l'ambito globale in un'area di lavoro a cartelle multiple.",

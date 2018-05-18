@@ -300,6 +300,7 @@ export class FileRenderer implements IRenderer {
 
 		const done = once((commit: boolean, blur: boolean) => {
 			tree.clearHighlight();
+			label.element.style.display = 'none';
 
 			if (commit && inputBox.value) {
 				editableData.action.run({ value: inputBox.value });
@@ -511,7 +512,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		tree.setFocus(stat);
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasFiles());
+		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
 
 		if (!this.contributedContextMenu) {
 			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);

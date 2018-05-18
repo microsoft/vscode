@@ -3,17 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 const SEARCH_INPUT = '.settings-search-input input';
 
 export class KeybindingsEditor {
 
-	constructor(private code: Code, private commands: Commands) { }
+	constructor(private code: Code) { }
 
 	async updateKeybinding(command: string, keybinding: string, ariaLabel: string): Promise<any> {
-		await this.commands.runCommand('workbench.action.openGlobalKeybindings');
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+k cmd+s');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+k ctrl+s');
+		}
+
 		await this.code.waitForActiveElement(SEARCH_INPUT);
 		await this.code.waitForSetValue(SEARCH_INPUT, command);
 

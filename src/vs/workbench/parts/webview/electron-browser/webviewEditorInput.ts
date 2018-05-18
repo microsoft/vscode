@@ -30,10 +30,11 @@ export class WebviewEditorInput extends EditorInput {
 	private _position?: Position;
 	private _scrollYPercentage: number = 0;
 	private _state: any;
+	private _webviewState: string | undefined;
 
 	private _revived: boolean = false;
 
-	public readonly extensionFolderPath: URI | undefined;
+	public readonly extensionLocation: URI | undefined;
 
 	constructor(
 		public readonly viewType: string,
@@ -41,7 +42,7 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionFolderPath: string | undefined,
+		extensionLocation: URI | undefined,
 		public readonly reviver: WebviewReviver | undefined,
 		@IPartService private readonly _partService: IPartService,
 	) {
@@ -50,10 +51,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-
-		if (extensionFolderPath) {
-			this.extensionFolderPath = URI.file(extensionFolderPath);
-		}
+		this.extensionLocation = extensionLocation;
 	}
 
 	public getTypeId(): string {
@@ -68,10 +66,10 @@ export class WebviewEditorInput extends EditorInput {
 			this._container = undefined;
 		}
 
-		if (this._events) {
+		if (this._events && this._events.onDispose) {
 			this._events.onDispose();
-			this._events = undefined;
 		}
+		this._events = undefined;
 
 		super.dispose();
 	}
@@ -130,6 +128,10 @@ export class WebviewEditorInput extends EditorInput {
 		this._state = value;
 	}
 
+	public get webviewState() {
+		return this._webviewState;
+	}
+
 	public get options(): WebviewInputOptions {
 		return this._options;
 	}
@@ -184,6 +186,10 @@ export class WebviewEditorInput extends EditorInput {
 
 		this._webview.onDidScroll(message => {
 			this._scrollYPercentage = message.scrollYPercentage;
+		}, null, this._webviewDisposables);
+
+		this._webview.onDidUpdateState(newState => {
+			this._webviewState = newState;
 		}, null, this._webviewDisposables);
 	}
 

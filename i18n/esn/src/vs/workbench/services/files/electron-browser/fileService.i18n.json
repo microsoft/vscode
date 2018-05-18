@@ -14,6 +14,7 @@
 	"fileInvalidPath": "Recurso de archivo no válido ({0})",
 	"fileIsDirectoryError": "El archivo es un directorio",
 	"fileNotModifiedError": "Archivo no modificado desde",
+	"fileTooLargeForHeapError": "Para abrir un archivo de este tamaño, es necesario reiniciar VS Code y permitirle utilizar más memoria",
 	"fileTooLargeError": "Archivo demasiado grande para abrirlo",
 	"fileNotFoundError": "Archivo no encontrado ({0})",
 	"fileBinaryError": "El archivo parece ser binario y no se puede abrir como texto",

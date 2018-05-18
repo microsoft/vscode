@@ -46,6 +46,9 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private _onDidChangeTitleArea = new Emitter<void>();
+	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
@@ -62,10 +65,10 @@ export abstract class ViewletPanel extends Panel {
 		this.actionRunner = options.actionRunner;
 	}
 
-	render(container: HTMLElement): void {
-		super.render(container);
+	render(): void {
+		super.render();
 
-		const focusTracker = trackFocus(container);
+		const focusTracker = trackFocus(this.element);
 		this.disposables.push(focusTracker);
 		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
 	}
@@ -85,7 +88,7 @@ export abstract class ViewletPanel extends Panel {
 		});
 
 		this.disposables.push(this.toolbar);
-		this.updateActions();
+		this.setActions();
 
 		const onDidRelevantConfigurationChange = filterEvent(this.configurationService.onDidChangeConfiguration, e => e.affectsConfiguration(ViewletPanel.AlwaysShowActionsConfig));
 		onDidRelevantConfigurationChange(this.updateActionsVisibility, this, this.disposables);
@@ -97,17 +100,25 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		if (this.element) {
+			this.element.focus();
+			this._onDidFocus.fire();
+		}
 	}
 
-	protected updateActions(): void {
+	private setActions(): void {
 		this.toolbar.setActions(prepareActions(this.getActions()), prepareActions(this.getSecondaryActions()))();
 		this.toolbar.context = this.getActionsContext();
 	}
 
-	protected updateActionsVisibility(): void {
+	private updateActionsVisibility(): void {
 		const shouldAlwaysShowActions = this.configurationService.getValue<boolean>('workbench.view.alwaysShowHeaderActions');
 		toggleClass(this.headerContainer, 'actions-always-visible', shouldAlwaysShowActions);
+	}
+
+	protected updateActions(): void {
+		this.setActions();
+		this._onDidChangeTitleArea.fire();
 	}
 
 	getActions(): IAction[] {
@@ -221,6 +232,14 @@ export class PanelViewlet extends Viewlet {
 		return [];
 	}
 
+	getActionItem(action: IAction): IActionItem {
+		if (this.isSingleView()) {
+			return this.panelItems[0].panel.getActionItem(action);
+		}
+
+		return super.getActionItem(action);
+	}
+
 	focus(): void {
 		super.focus();
 
@@ -263,6 +282,11 @@ export class PanelViewlet extends Viewlet {
 	private addPanel(panel: ViewletPanel, size: number, index = this.panelItems.length - 1): void {
 		const disposables: IDisposable[] = [];
 		const onDidFocus = panel.onDidFocus(() => this.lastFocusedPanel = panel, null, disposables);
+		const onDidChangeTitleArea = panel.onDidChangeTitleArea(() => {
+			if (this.isSingleView()) {
+				this.updateTitleArea();
+			}
+		}, null, disposables);
 		const onDidChange = panel.onDidChange(() => {
 			if (panel === this.lastFocusedPanel && !panel.isExpanded()) {
 				this.lastFocusedPanel = undefined;
@@ -275,7 +299,7 @@ export class PanelViewlet extends Viewlet {
 			headerHighContrastBorder: index === 0 ? null : contrastBorder,
 			dropBackground: SIDE_BAR_DRAG_AND_DROP_BACKGROUND
 		}, panel);
-		const disposable = combinedDisposable([onDidFocus, panelStyler, onDidChange]);
+		const disposable = combinedDisposable([onDidFocus, onDidChangeTitleArea, panelStyler, onDidChange]);
 		const panelItem: IViewletPanelItem = { panel, disposable };
 
 		this.panelItems.splice(index, 0, panelItem);

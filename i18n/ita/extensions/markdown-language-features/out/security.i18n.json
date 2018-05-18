@@ -8,6 +8,8 @@
 	],
 	"strict.title": "Strict",
 	"strict.description": "Carica solo contenuto protetto",
+	"insecureLocalContent.title": "Consenti contenuto locale non protetto",
+	"insecureLocalContent.description": "Consente il caricamento di contenuti tramite HTTP servito da localhost",
 	"insecureContent.title": "Consenti contenuto non protetto",
 	"insecureContent.description": "Consente il caricamento di contenuti tramite HTTP",
 	"disable.title": "Disabilita",

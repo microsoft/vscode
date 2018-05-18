@@ -14,6 +14,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	private static HandlePool = 0;
 	private readonly _proxy: MainThreadUrlsShape;
 
+	private handles = new Set<string>();
 	private handlers = new Map<number, vscode.ProtocolHandler>();
 
 	constructor(
@@ -23,11 +24,17 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	}
 
 	registerProtocolHandler(extensionId: string, handler: vscode.ProtocolHandler): vscode.Disposable {
+		if (this.handles.has(extensionId)) {
+			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
+		}
+
 		const handle = ExtHostUrls.HandlePool++;
+		this.handles.add(extensionId);
 		this.handlers.set(handle, handler);
 		this._proxy.$registerProtocolHandler(handle, extensionId);
 
 		return toDisposable(() => {
+			this.handles.delete(extensionId);
 			this.handlers.delete(handle);
 			this._proxy.$unregisterProtocolHandler(handle);
 		});

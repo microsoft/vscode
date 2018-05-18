@@ -347,7 +347,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public getGlobalBufferTerm(): string {
 		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
 			&& this._clipboardService
-			&& !this._editor.getModel().isTooLargeForHavingARichMode()
+			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
 			return this._clipboardService.readFindText();
 		}
@@ -357,7 +357,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	public setGlobalBufferTerm(text: string) {
 		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
 			&& this._clipboardService
-			&& !this._editor.getModel().isTooLargeForHavingARichMode()
+			&& !this._editor.getModel().isTooLargeForSyncing()
 		) {
 			this._clipboardService.writeFindText(text);
 		}

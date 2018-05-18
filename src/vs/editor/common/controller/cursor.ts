@@ -476,6 +476,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
 
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			// TODO@Alex: if the undo/redo stack contains non-null selections
+			// it would also be OK to stop tracking selections here
+			this._cursors.stopTrackingSelections();
+		}
+
 		// ensure valid state on all cursors
 		this._cursors.ensureValidState();
 
@@ -523,6 +529,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		this._isHandling = false;
+
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			this._cursors.startTrackingSelections();
+		}
 
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);

@@ -867,7 +867,7 @@ export class TreeView extends HeightMap {
 		var item = <Model.Item>e.item;
 		var viewItem = this.items[item.id];
 
-		if (viewItem) {
+		if (viewItem && this.context.options.showLoading) {
 			viewItem.loadingTimer = setTimeout(() => {
 				viewItem.loadingTimer = 0;
 				viewItem.loading = true;
@@ -915,13 +915,16 @@ export class TreeView extends HeightMap {
 			let doToInsertItemsAlreadyExist: boolean;
 
 			if (!skipDiff) {
-				const lcs = new Diff.LcsDiff({
-					getLength: () => previousChildrenIds.length,
-					getElementHash: (i: number) => previousChildrenIds[i]
-				}, {
+				const lcs = new Diff.LcsDiff(
+					{
+						getLength: () => previousChildrenIds.length,
+						getElementAtIndex: (i: number) => previousChildrenIds[i]
+					}, {
 						getLength: () => afterModelItems.length,
-						getElementHash: (i: number) => afterModelItems[i].id
-					}, null);
+						getElementAtIndex: (i: number) => afterModelItems[i].id
+					},
+					null
+				);
 
 				diff = lcs.ComputeDiff(false);
 

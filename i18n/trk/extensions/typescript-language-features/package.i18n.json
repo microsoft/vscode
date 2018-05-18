@@ -15,6 +15,8 @@
 	"typescript.tsdk.desc": "Kullanılacak tsserver ve lib*.d.ts dosyalarını içeren klasör yolunu belirtir.",
 	"typescript.disableAutomaticTypeAcquisition": "Otomatik tür kazanımını devre dışı bırakır. TypeScript >= 2.0.6 gerektirir.",
 	"typescript.tsserver.log": "TS sunucusunun bir dosyaya günlük yazmasını etkinleştirir. Bu günlük, TS Sunucu sorunlarını teşhis etmek için kullanılabilir. Günlük dosya yollarını, kaynak kodunu ve projenizdeki diğer muhtemel hassas bilgileri içerebilir.",
+	"typescript.tsserver.pluginPaths": "Typescript Dil Hizmeti eklentilerinin aranacağı ek yollar. TypeScript >= 2.3.0 gerektirir.",
+	"typescript.tsserver.pluginPaths.item": "Mutlak veya göreli bir yol. Göreli yol, çalışma alanı klasörü veya klasörlerine göre çözümlenecektir.",
 	"typescript.tsserver.trace": "TS sunucusuna gönderilen mesajları izlemeyi etkinleştirir. Bu izleme, TS Sunucu sorunlarını teşhis etmek için kullanılabilir. İzleme; dosya yollarını, kaynak kodunu ve projenizdeki diğer muhtemel hassas bilgileri içerebilir.",
 	"typescript.validate.enable": "TypeScript doğrulamasını etkinleştir veya devre dışı bırak.",
 	"typescript.format.enable": "Varsayılan TypeScript biçimlendiricisini etkinleştirin/devre dışı bırakın.",
@@ -26,6 +28,9 @@
 	"format.insertSpaceAfterKeywordsInControlFlowStatements": "Bir kontrol akışı ifadesi için anahtar kelimelerden sonra boşluk eklenmesini tanımlar.",
 	"format.insertSpaceAfterFunctionKeywordForAnonymousFunctions": "Anonim fonksiyonlar için \"function\" anahtar kelimesinden sonra boşluk eklenmesini tanımlar.",
 	"format.insertSpaceBeforeFunctionParenthesis": "Fonksiyon argüman parantezlerinden önce boşluk eklenmesini tanımlar. TypeScript >= 2.1.5 gerektirir.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyParenthesis": "Boş olmayan parantezler açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBrackets": "Boş olmayan köşeli parantezler açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar.",
+	"format.insertSpaceAfterOpeningAndBeforeClosingNonemptyBraces": "Boş olmayan küme parantezleri açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.3.0 gerektirir.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingTemplateStringBraces": "Şablon dizesi ayraçları açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.0.6 gerektirir.",
 	"format.insertSpaceAfterOpeningAndBeforeClosingJsxExpressionBraces": "JSX ifadesi ayraçları açıldıktan sonra ve kapatılmadan önce boşluk eklenmesini tanımlar. TypeScript >= 2.0.6 gerektirir.",
 	"format.insertSpaceAfterTypeAssertion": "TypeScript'te tür iddialarından sonra boşluk eklenip eklenmeyeceğini tanımlar. TypeScript >= 2.4 gerektirir.",
@@ -54,5 +59,7 @@
 	"javascript.implicitProjectConfig.experimentalDecorators": "Bir projenin parçası olmayan JavaScript dosyaları için deneysel dekoratörler ('experimentalDecorators') özelliğini etkinleştir veya devre dışı bırak. Mevcut jsconfig.json veya tsconfig.json dosyaları bu ayarı geçersiz kılar. TypeScript >= 2.3.1 gerektirir.",
 	"typescript.autoImportSuggestions.enabled": "Otomatik içe aktarım önerilerini etkinleştir/devre dışı bırak. TypeScript >= 2.6.1 gerektirir.",
 	"typescript.experimental.syntaxFolding": "Sözdimine duyarlı katlama işaretleyicilerini etkinleştirin/devre dışı bırakın.",
-	"taskDefinition.tsconfig.description": "TS derlemesini tanımlayan tsconfig dosyası."
+	"taskDefinition.tsconfig.description": "TS derlemesini tanımlayan tsconfig dosyası.",
+	"javascript.suggestionActions.enabled": "Düzenleyicideki JavaScript dosyalarında öneri tanılamayı etkinleştir veya devre dışı bırak. TypeScript >= 2.8 gerektirir.",
+	"typescript.suggestionActions.enabled": "Düzenleyicideki TypeScript dosyalarında öneri tanılamayı etkinleştir veya devre dışı bırak. TypeScript >= 2.8 gerektirir."
 }

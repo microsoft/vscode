@@ -314,20 +314,25 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			if (nameSet.has('package.json')) {
 				await TPromise.join(folders.map(async workspaceUri => {
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
-					const packageJsonContents = JSON.parse(content.value);
-					if (packageJsonContents['dependencies']) {
-						for (let module of ModulesToLookFor) {
-							if ('react-native' === module) {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.reactNative'] = true;
-								}
-							} else {
-								if (packageJsonContents['dependencies'][module]) {
-									tags['workspace.npm.' + module] = true;
+					try {
+						const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
+						const packageJsonContents = JSON.parse(content.value);
+						if (packageJsonContents['dependencies']) {
+							for (let module of ModulesToLookFor) {
+								if ('react-native' === module) {
+									if (packageJsonContents['dependencies'][module]) {
+										tags['workspace.reactNative'] = true;
+									}
+								} else {
+									if (packageJsonContents['dependencies'][module]) {
+										tags['workspace.npm.' + module] = true;
+									}
 								}
 							}
 						}
+					}
+					catch (e) {
+						// Ignore errors when resolving file or parsing file contents
 					}
 				}));
 			}

@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Viewlet } from '../workbench/viewlet';
-import { Commands } from '../workbench/workbench';
 import { IElement } from '../../vscode/driver';
 import { findElement, findElements, Code } from '../../vscode/code';
 
@@ -41,12 +40,12 @@ function toChange(element: IElement): Change {
 
 export class SCM extends Viewlet {
 
-	constructor(code: Code, private commands: Commands) {
+	constructor(code: Code) {
 		super(code);
 	}
 
 	async openSCMViewlet(): Promise<any> {
-		await this.commands.runCommand('workbench.view.scm');
+		await this.code.dispatchKeybinding('ctrl+shift+g');
 		await this.code.waitForElement(SCM_INPUT);
 	}
 

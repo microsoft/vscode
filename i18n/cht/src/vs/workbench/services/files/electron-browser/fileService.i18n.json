@@ -14,6 +14,7 @@
 	"fileInvalidPath": "檔案資源 ({0}) 無效",
 	"fileIsDirectoryError": "檔案是目錄",
 	"fileNotModifiedError": "未修改檔案的時間",
+	"fileTooLargeForHeapError": " 欲開啟此大小的檔案，需要重啟 VS Code，並且允許可使用更多記憶體",
 	"fileTooLargeError": "檔案太大無法開啟",
 	"fileNotFoundError": "找不到檔案 ({0})",
 	"fileBinaryError": "檔案似乎是二進位檔，因此無法當做文字開啟",

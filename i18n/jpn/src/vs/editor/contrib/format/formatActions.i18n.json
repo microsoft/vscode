@@ -13,5 +13,6 @@
 	"no.provider": "インストールされた '{0}'ファイル用のフォーマッターが存在しません。",
 	"formatDocument.label": "ドキュメントのフォーマット",
 	"no.documentprovider": "インストールされた '{0}'ファイル用のドキュメント フォーマッターが存在しません。",
-	"formatSelection.label": "選択範囲のフォーマット"
+	"formatSelection.label": "選択範囲のフォーマット",
+	"no.selectionprovider": "インストールされた '{0}' ファイル用の選択範囲フォーマッターが存在しません。"
 }

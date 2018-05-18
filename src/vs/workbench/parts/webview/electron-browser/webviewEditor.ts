@@ -9,15 +9,14 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 
@@ -25,9 +24,9 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	public static readonly ID = 'WebviewEditor';
 
-	private editorFrame: HTMLElement;
-	private content: HTMLElement;
-	private webviewContent: HTMLElement | undefined;
+	private _editorFrame: HTMLElement;
+	private _content: HTMLElement;
+	private _webviewContent: HTMLElement | undefined;
 
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
@@ -39,23 +38,22 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IThemeService themeService: IThemeService,
 		@IContextKeyService private _contextKeyService: IContextKeyService,
 		@IPartService private readonly _partService: IPartService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
-		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
 
 	protected createEditor(parent: HTMLElement): void {
-		this.editorFrame = parent;
-		this.content = document.createElement('div');
-		parent.appendChild(this.content);
+		this._editorFrame = parent;
+		this._content = document.createElement('div');
+		parent.appendChild(this._content);
 	}
 
 	private doUpdateContainer() {
 		const webviewContainer = this.input && (this.input as WebviewEditorInput).container;
 		if (webviewContainer && webviewContainer.parentElement) {
-			const frameRect = this.editorFrame.getBoundingClientRect();
+			const frameRect = this._editorFrame.getBoundingClientRect();
 			const containerRect = webviewContainer.parentElement.getBoundingClientRect();
 
 			webviewContainer.style.position = 'absolute';
@@ -76,7 +74,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 	public dispose(): void {
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
-		this.webviewContent = undefined;
+		this._webviewContent = undefined;
 
 		this._onDidFocusWebview.dispose();
 
@@ -112,12 +110,12 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this.updateWebview(this.input as WebviewEditorInput);
 		}
 
-		if (this.webviewContent) {
+		if (this._webviewContent) {
 			if (visible) {
-				this.webviewContent.style.visibility = 'visible';
+				this._webviewContent.style.visibility = 'visible';
 				this.doUpdateContainer();
 			} else {
-				this.webviewContent.style.visibility = 'hidden';
+				this._webviewContent.style.visibility = 'hidden';
 			}
 		}
 
@@ -130,7 +128,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		this._webview = undefined;
-		this.webviewContent = undefined;
+		this._webviewContent = undefined;
 
 		super.clearInput();
 	}
@@ -143,7 +141,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
-			this.webviewContent = undefined;
+			this._webviewContent = undefined;
 		}
 		await super.setInput(input, options);
 
@@ -164,8 +162,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 		};
 		input.html = input.html;
 
-		if (this.webviewContent) {
-			this.webviewContent.style.visibility = 'visible';
+		if (this._webviewContent) {
+			this._webviewContent.style.visibility = 'visible';
 		}
 
 		this.doUpdateContainer();
@@ -173,8 +171,8 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private getDefaultLocalResourceRoots(): URI[] {
 		const rootPaths = this._contextService.getWorkspace().folders.map(x => x.uri);
-		if ((this.input as WebviewEditorInput).extensionFolderPath) {
-			rootPaths.push((this.input as WebviewEditorInput).extensionFolderPath);
+		if ((this.input as WebviewEditorInput).extensionLocation) {
+			rootPaths.push((this.input as WebviewEditorInput).extensionLocation);
 		}
 		return rootPaths;
 	}
@@ -184,7 +182,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			return this._webview;
 		}
 
-		this.webviewContent = input.container;
+		this._webviewContent = input.container;
 
 		this.trackFocus();
 
@@ -195,31 +193,30 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		if (input.options.enableFindWidget) {
-			this._contextKeyService = this._contextKeyService.createScoped(this.webviewContent);
+			this._contextKeyService = this._contextKeyService.createScoped(this._webviewContent);
 			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
 			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);
 		}
 
-		this._webview = new WebviewElement(
+		this._webview = this._instantiationService.createInstance(WebviewElement,
 			this._partService.getContainer(Parts.EDITOR_PART),
-			this.themeService,
-			this._environmentService,
-			this._contextViewService,
 			this.contextKey,
 			this.findInputFocusContextKey,
 			{
 				enableWrappedPostMessage: true,
 				useSameOriginForRoot: false
 			});
-		this._webview.mountTo(this.webviewContent);
+		this._webview.mountTo(this._webviewContent);
 		input.webview = this._webview;
 
 		if (input.options.tryRestoreScrollPosition) {
 			this._webview.initialScrollProgress = input.scrollYPercentage;
 		}
 
-		this.content.setAttribute('aria-flowto', this.webviewContent.id);
+		this._webview.state = input.webviewState;
+
+		this._content.setAttribute('aria-flowto', this._webviewContent.id);
 
 		this.doUpdateContainer();
 		return this._webview;
@@ -233,7 +230,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webviewFocusListenerDisposable.dispose();
 		}
 
-		this._webviewFocusTracker = DOM.trackFocus(this.webviewContent);
+		this._webviewFocusTracker = DOM.trackFocus(this._webviewContent);
 		this._webviewFocusListenerDisposable = this._webviewFocusTracker.onDidFocus(() => {
 			this._onDidFocusWebview.fire();
 		});

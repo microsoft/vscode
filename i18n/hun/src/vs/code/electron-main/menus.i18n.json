@@ -146,6 +146,7 @@
 	"miConditionalBreakpoint": "Feltételes törés&&pont",
 	"miColumnBreakpoint": "Töréspont &&oszlopnál",
 	"miFunctionBreakpoint": "Töréspont&&funkció...",
+	"miLogPoint": "Nap&&lózási pont...",
 	"miNewBreakpoint": "Ú&&j töréspont",
 	"miEnableAllBreakpoints": "Összes töréspont engedélyezése",
 	"miDisableAllBreakpoints": "Összes töréspont leti&&ltása",

@@ -28,7 +28,7 @@ class ValueUUID implements UUID {
 
 class V4UUID extends ValueUUID {
 
-	private static readonly _chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
+	private static readonly _chars = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
 
 	private static readonly _timeHighBits = ['8', '9', 'a', 'b'];
 

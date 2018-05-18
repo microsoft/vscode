@@ -6,16 +6,16 @@
 'use strict';
 
 import * as assert from 'assert';
-import * as os from 'os';
-
-import * as path from 'path';
 import * as fs from 'fs';
-
-import * as uuid from 'vs/base/common/uuid';
-import * as strings from 'vs/base/common/strings';
-import * as extfs from 'vs/base/node/extfs';
+import * as os from 'os';
+import * as path from 'path';
 import { Readable } from 'stream';
+import { canNormalize } from 'vs/base/common/normalization';
 import { isLinux, isWindows } from 'vs/base/common/platform';
+import * as uuid from 'vs/base/common/uuid';
+import * as extfs from 'vs/base/node/extfs';
+
+
 
 const ignore = () => { };
 
@@ -224,7 +224,7 @@ suite('Extfs', () => {
 	});
 
 	test('readdir', function (done) {
-		if (strings.canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
+		if (canNormalize && typeof process.versions['electron'] !== 'undefined' /* needs electron */) {
 			const id = uuid.generateUuid();
 			const parentDir = path.join(os.tmpdir(), 'vsctests', id);
 			const newDir = path.join(parentDir, 'extfs', id, 'öäü');

@@ -234,6 +234,8 @@ class SuggestionDetails {
 		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
 			.on(this.configureFont, this, this.disposables);
+
+		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
 	}
 
 	get element() {
@@ -463,20 +465,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
-
-		// TODO@Alex: this is useful, but spammy
-		// var isVisible = false;
-		// this.onDidVisibilityChange((newIsVisible) => {
-		// 	if (isVisible === newIsVisible) {
-		// 		return;
-		// 	}
-		// 	isVisible = newIsVisible;
-		// 	if (isVisible) {
-		// 		alert(nls.localize('suggestWidgetAriaVisible', "Suggestions opened"));
-		// 	} else {
-		// 		alert(nls.localize('suggestWidgetAriaInvisible', "Suggestions closed"));
-		// 	}
-		// });
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -493,7 +481,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
-			if (!this.editor.isFocused()) {
+			if (!this.editor.hasTextFocus()) {
 				this.setState(State.Hidden);
 			}
 		});

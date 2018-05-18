@@ -88,9 +88,13 @@ declare module 'vscode' {
 	export interface TextDocument {
 
 		/**
-		 * The associated URI for this document. Most documents have the __file__-scheme, indicating that they
-		 * represent files on disk. However, some documents may have other schemes indicating that they are not
-		 * available on disk.
+		 * The associated uri for this document.
+		 *
+		 * *Note* that most documents use the `file`-scheme, which means they are files on disk. However, **not** all documents are
+		 * saved on disk and therefore the `scheme` must be checked before trying to access the underlying file or siblings on disk.
+		 *
+		 * @see [FileSystemProvider](#FileSystemProvider)
+		 * @see [TextDocumentContentProvider](#TextDocumentContentProvider)
 		 */
 		readonly uri: Uri;
 
@@ -101,7 +105,9 @@ declare module 'vscode' {
 		readonly fileName: string;
 
 		/**
-		 * Is this document representing an untitled file.
+		 * Is this document representing an untitled file which has never been saved yet. *Note* that
+		 * this does not mean the document will be saved to disk, use [`uri.scheme`](#Uri.scheme)
+		 * to figure out where a document will be [saved](#FileSystemProvider), e.g. `file`, `ftp` etc.
 		 */
 		readonly isUntitled: boolean;
 
@@ -2027,8 +2033,8 @@ declare module 'vscode' {
 		/**
 		 * Creates a new code action.
 		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edit)
-		 * or a [command](#CodeAction.command).
+		 * A code action must have at least a [title](#CodeAction.title) and [edits](#CodeAction.edit)
+		 * and/or a [command](#CodeAction.command).
 		 *
 		 * @param title The title of the code action.
 		 * @param kind The kind of the code action.
@@ -2047,13 +2053,14 @@ declare module 'vscode' {
 		 * Provide commands for the given document and range.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
+		 * @param range The selector or range for which the command was invoked. This will always be a selection if
+		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
 		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -2762,7 +2769,7 @@ declare module 'vscode' {
 		 * @param token A cancellation token.
 		 * @return The range or range and placeholder text of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
 		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
+		prepareRename?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range | { range: Range, placeholder: string }>;
 	}
 
 	/**
@@ -3389,15 +3396,21 @@ declare module 'vscode' {
 		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
+	/**
+	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * Invalid ranges will be ignored.
+	 */
 	export class FoldingRange {
 
 		/**
 		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		start: number;
 
 		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		end: number;
 
@@ -3405,7 +3418,7 @@ declare module 'vscode' {
 		 * Describes the [Kind](#FoldingRangeKind) of the folding range such as [Comment](#FoldingRangeKind.Comment) or
 		 * [Region](#FoldingRangeKind.Region). The kind is used to categorize folding ranges and used by commands
 		 * like 'Fold all comments'. See
-		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of standardized kinds.
+		 * [FoldingRangeKind](#FoldingRangeKind) for an enumeration of all kinds.
 		 */
 		kind?: FoldingRangeKind;
 
@@ -3419,41 +3432,22 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
-	export class FoldingRangeKind {
+	/**
+	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 */
+	export enum FoldingRangeKind {
 		/**
-		 * Kind for folding range representing a comment. The value of the kind is 'comment'.
+		 * Kind for folding range representing a comment.
 		 */
-		static readonly Comment: FoldingRangeKind;
+		Comment = 1,
 		/**
-		 * Kind for folding range representing a import. The value of the kind is 'imports'.
+		 * Kind for folding range representing a import.
 		 */
-		static readonly Imports: FoldingRangeKind;
+		Imports = 2,
 		/**
 		 * Kind for folding range representing regions (for example a folding range marked by `#region` and `#endregion`).
-		 * The value of the kind is 'region'.
 		 */
-		static readonly Region: FoldingRangeKind;
-		/**
-		 * String value of the kind, e.g. `comment`.
-		 */
-		readonly value: string;
-		/**
-		 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-		 *
-		 * @param value of the kind.
-		 */
-		public constructor(value: string);
-	}
-
-
-	/**
-	 * Metadata about the kind of folding ranges that a [FoldingRangeProvider](#FoldingRangeProvider) providers uses.
-	 */
-	export interface FoldingRangeProviderMetadata {
-		/**
-		 * [FoldingRangeKind](#FoldingRangeKind) that this provider may return.
-		 */
-		readonly providedFoldingRangeKinds?: ReadonlyArray<FoldingRangeKind>;
+		Region = 3
 	}
 
 	/**
@@ -3462,6 +3456,10 @@ declare module 'vscode' {
 	export interface FoldingContext {
 	}
 
+	/**
+	 * The folding range provider interface defines the contract between extensions and
+	 * [Folding](https://code.visualstudio.com/docs/editor/codebasics#_folding) in the editor.
+	 */
 	export interface FoldingRangeProvider {
 		/**
 		 * Returns a list of folding ranges or null and undefined if the provider
@@ -4471,6 +4469,9 @@ declare module 'vscode' {
 		 *     script: string;
 		 * }
 		 * ```
+		 *
+		 * Note that type identifier starting with a '$' are reserved for internal
+		 * usages and shouldn't be used by extensions.
 		 */
 		readonly type: string;
 
@@ -4821,29 +4822,46 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The `FileStat`-type represents metadata about a file.
+	 * Enumeration of file types. The types `File` and `Directory` can also be
+	 * a symbolic links, in that use `FileType.File | FileType.SymbolicLink` and
+	 * `FileType.Directory | FileType.SymbolicLink`.
+	 */
+	export enum FileType {
+		/**
+		 * The file type is unknown.
+		 */
+		Unknown = 0,
+		/**
+		 * A regular file.
+		 */
+		File = 1,
+		/**
+		 * A directory.
+		 */
+		Directory = 2,
+		/**
+		 * A symbolic link to a file.
+		 */
+		SymbolicLink = 64
+	}
+
+	/**
+	 * The `FileStat`-type represents metadata about a file
 	 */
 	export interface FileStat {
 		/**
-		 * The file is a regular file.
+		 * The type of the file, e.g. is a regular file, a directory, or symbolic link
+		 * to a file.
 		 */
-		isFile?: boolean;
-
+		type: FileType;
 		/**
-		 * The file is a directory.
+		 * The creation timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
-		isDirectory?: boolean;
-
+		ctime: number;
 		/**
-		 * The file is symbolic link to another file.
-		 */
-		isSymbolicLink?: boolean;
-
-		/**
-		 * The modification timestamp in milliseconds.
+		 * The modification timestamp in milliseconds elapsed since January 1, 1970 00:00:00 UTC.
 		 */
 		mtime: number;
-
 		/**
 		 * The size in bytes.
 		 */
@@ -4882,6 +4900,19 @@ declare module 'vscode' {
 		 * @param messageOrUri Message or uri.
 		 */
 		static FileIsADirectory(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that an operation lacks required permissions.
+		 * @param messageOrUri Message or uri.
+		 */
+		static NoPermissions(messageOrUri?: string | Uri): FileSystemError;
+
+		/**
+		 * Create an error to signal that the file system is unavailable or too busy to
+		 * complete a request.
+		 * @param messageOrUri Message or uri.
+		 */
+		static Unavailable(messageOrUri?: string | Uri): FileSystemError;
 
 		/**
 		 * Creates a new filesystem error.
@@ -4927,32 +4958,6 @@ declare module 'vscode' {
 		 */
 		uri: Uri;
 	}
-	/**
-	 * Commonly used options when reading, writing, or stat'ing files or folders.
-	 */
-	export interface FileOptions {
-
-		/**
-		 * Create a file when it doesn't exists
-		 */
-		create?: boolean;
-
-		/**
-		 * In combination with [`create`](FileOptions.create) but
-		 * the operation should fail when a file already exists.
-		 */
-		exclusive?: boolean;
-
-		/**
-		 * Open a file for reading.
-		 */
-		read?: boolean;
-
-		/**
-		 * Open a file for writing.
-		 */
-		write?: boolean;
-	}
 
 	/**
 	 * The filesystem provider defines what the editor needs to read, write, discover,
@@ -4963,7 +4968,8 @@ declare module 'vscode' {
 	 * paths, e.g. `foo:/my/path` is a child of `foo:/my/` and a parent of `foo:/my/path/deeper`.
 	 * * *Note 2:* There is an activation event `onFileSystem:<-scheme>` that fires when a file
 	 * or folder is being accessed.
-	 *
+	 * * *Note 3:* The word 'file' is often used to denote all [kinds](#FileType) of files, e.g.
+	 * folders, symbolic links, and regular files.
 	 */
 	export interface FileSystemProvider {
 
@@ -4976,83 +4982,107 @@ declare module 'vscode' {
 
 		/**
 		 * Subscribe to events in the file or folder denoted by `uri`.
-		 * @param uri
-		 * @param options
-		 */
-		watch(uri: Uri, options: { recursive?: boolean; excludes?: string[] }): Disposable;
-
-		/**
-		 * Retrieve metadata about a file. Throw an [`FileNotFound`](#FileSystemError.FileNotFound)-error
-		 * in case the file does not exist.
 		 *
-		 * @param uri The uri of the file to retrieve meta data about.
-		 * @param token A cancellation token.
-		 * @return The file metadata about the file.
+		 * The editor will call this function for files and folders. In the latter case, the
+		 * options differ from defaults, e.g. what files/folders to exclude from watching
+		 * and if subfolders, sub-subfolder, etc. should be watched (`recursive`).
+		 *
+		 * @param uri The uri of the file to be watched.
+		 * @param options Configures the watch.
+		 * @returns A disposable that tells the provider to stop watching the `uri`.
 		 */
-		stat(uri: Uri, options: { /*future: followSymlinks*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		watch(uri: Uri, options: { recursive: boolean; excludes: string[] }): Disposable;
 
 		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileStat.isDirectory)
+		 * Retrieve metadata about a file.
+		 *
+		 * Note that the metadata for symbolic links should be the metadata of the file they refer to.
+		 * Still, the [SymbolicLink](#FileType.SymbolicLink)-type must be used in addition to the actual type, e.g.
+		 * `FileType.SymbolicLink | FileType.Directory`.
+		 *
+		 * @param uri The uri of the file to retrieve metadata about.
+		 * @return The file metadata about the file.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
+		 */
+		stat(uri: Uri): FileStat | Thenable<FileStat>;
+
+		/**
+		 * Retrieve all entries of a [directory](#FileType.Directory).
 		 *
 		 * @param uri The uri of the folder.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of tuples of file names and files stats.
+		 * @return An array of name/type-tuples or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readDirectory(uri: Uri, options: { /*future: onlyType?*/ }, token: CancellationToken): [string, FileStat][] | Thenable<[string, FileStat][]>;
+		readDirectory(uri: Uri): [string, FileType][] | Thenable<[string, FileType][]>;
 
 		/**
-		 * Create a new directory. *Note* that new files are created via `write`-calls.
+		 * Create a new directory (Note, that new files are created via `write`-calls).
 		 *
-		 * @param uri The uri of the *new* folder.
-		 * @param token A cancellation token.
+		 * @param uri The uri of the new folder.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		createDirectory(uri: Uri, options: { /*future: permissions?*/ }, token: CancellationToken): FileStat | Thenable<FileStat>;
+		createDirectory(uri: Uri): void | Thenable<void>;
 
 		/**
 		 * Read the entire contents of a file.
 		 *
 		 * @param uri The uri of the file.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of bytes.
+		 * @return An array of bytes or a thenable that resolves to such.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
 		 */
-		readFile(uri: Uri, options: FileOptions, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
+		readFile(uri: Uri): Uint8Array | Thenable<Uint8Array>;
 
 		/**
 		 * Write data to a file, replacing its entire contents.
 		 *
 		 * @param uri The uri of the file.
 		 * @param content The new content of the file.
-		 * @param token A cancellation token.
+		 * @param options Defines if missing files should or must be created.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist and `create` is not set.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when the parent of `uri` doesn't exist and `create` is set, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `uri` already exists, `create` is set but `overwrite` is not set.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		writeFile(uri: Uri, content: Uint8Array, options: FileOptions, token: CancellationToken): void | Thenable<void>;
+		writeFile(uri: Uri, content: Uint8Array, options: { create: boolean, overwrite: boolean }): void | Thenable<void>;
 
 		/**
-		 * Delete a file or folder from the underlying storage.
+		 * Delete a file.
 		 *
-		 * @param uri The resource that is to be deleted
-		 * @param options Options bag for future use
-		 * @param token A cancellation token.
+		 * @param uri The resource that is to be deleted.
+		 * @param options Defines if deletion of folders is recursive.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `uri` doesn't exist.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		delete(uri: Uri, options: { /*future: useTrash?, followSymlinks?*/ }, token: CancellationToken): void | Thenable<void>;
+		delete(uri: Uri, options: { recursive: boolean }): void | Thenable<void>;
 
 		/**
 		 * Rename a file or folder.
 		 *
-		 * @param oldUri The existing file or folder.
-		 * @param newUri The target location.
-		 * @param token A cancellation token.
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwriten.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		rename(oldUri: Uri, newUri: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		rename(oldUri: Uri, newUri: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 
 		/**
 		 * Copy files or folders. Implementing this function is optional but it will speedup
 		 * the copy operation.
 		 *
-		 * @param uri The existing file or folder.
-		 * @param target The target location.
-		 * @param token A cancellation token.
+		 * @param source The existing file.
+		 * @param destination The destination location.
+		 * @param options Defines if existing files should be overwriten.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `source` doesn't exist.
+		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `destination` doesn't exist, e.g. no mkdirp-logic required.
+		 * @throws [`FileExists`](#FileSystemError.FileExists) when `destination` exists and when the `overwrite` option is not `true`.
+		 * @throws [`NoPermissions`](#FileSystemError.NoPermissions) when permissions aren't sufficient.
 		 */
-		copy?(uri: Uri, target: Uri, options: FileOptions, token: CancellationToken): FileStat | Thenable<FileStat>;
+		copy?(source: Uri, destination: Uri, options: { overwrite: boolean }): void | Thenable<void>;
 	}
 
 	/**
@@ -5060,14 +5090,14 @@ declare module 'vscode' {
 	 */
 	export interface WebviewOptions {
 		/**
-		 * Should scripts be enabled in the webview content?
+		 * Controls whether scripts are enabled in the webview content or not.
 		 *
 		 * Defaults to false (scripts-disabled).
 		 */
 		readonly enableScripts?: boolean;
 
 		/**
-		 * Should command uris be enabled in webview content?
+		 * Controls whether command uris are enabled in webview content or not.
 		 *
 		 * Defaults to false.
 		 */
@@ -5119,22 +5149,24 @@ declare module 'vscode' {
 	 */
 	export interface WebviewPanelOptions {
 		/**
-		 * Should the find widget be enabled in the panel?
+		 * Controls if the find widget is enabled in the panel.
 		 *
 		 * Defaults to false.
 		 */
 		readonly enableFindWidget?: boolean;
 
 		/**
-		 * Should the webview panel's content (iframe) be kept around even when the panel
-		 * is no longer visible?
+		 * Controls if the webview panel's content (iframe) is kept around even when the panel
+		 * is no longer visible.
 		 *
 		 * Normally the webview panel's html context is created when the panel becomes visible
 		 * and destroyed when it is is hidden. Extensions that have complex state
 		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the panel becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
+		 * context around, even when the webview moves to a background tab. When a webview using
+		 * `retainContextWhenHidden` becomes hidden, its scripts and other dynamic content are suspended.
+		 * When the panel becomes visible again, the context is automatically restored
+		 * in the exact same state it was in originally. You cannot send messages to a
+		 * hidden webview, even with `retainContextWhenHidden` enabled.
 		 *
 		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
 		 * your panel's context cannot be quickly saved and restored.
@@ -5147,7 +5179,7 @@ declare module 'vscode' {
 	 */
 	interface WebviewPanel {
 		/**
-		 * Type of the webview panel, such as `'markdown.preview'`.
+		 * Identifies the type of the webview panel, such as `'markdown.preview'`.
 		 */
 		readonly viewType: string;
 
@@ -5201,8 +5233,9 @@ declare module 'vscode' {
 		 * method moves it to a new column.
 		 *
 		 * @param viewColumn View column to show the panel in. Shows in the current `viewColumn` if undefined.
+		 * @param preserveFocus When `true`, the webview will not take focus.
 		 */
-		reveal(viewColumn?: ViewColumn): void;
+		reveal(viewColumn?: ViewColumn, preserveFocus?: boolean): void;
 
 		/**
 		 * Dispose of the webview panel.
@@ -5711,12 +5744,12 @@ declare module 'vscode' {
 		 *
 		 * @param viewType Identifies the type of the webview panel.
 		 * @param title Title of the panel.
-		 * @param position Editor column to show the new panel in.
+		 * @param showOptions Where to show the webview in the editor. If preserveFocus is set, the new webview will not take focus.
 		 * @param options Settings for the new panel.
 		 *
 		 * @return New webview panel.
 		 */
-		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
+		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
@@ -5836,6 +5869,21 @@ declare module 'vscode' {
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
+
+		/**
+		 * Event that is fired when an element is expanded
+		 */
+		readonly onDidExpandElement: Event<T>;
+
+		/**
+		 * Event that is fired when an element is collapsed
+		 */
+		readonly onDidCollapseElement: Event<T>;
+
+		/**
+		 * Currently selected elements.
+		 */
+		readonly selection: ReadonlyArray<T>;
 
 		/**
 		 * Reveal an element. By default revealed element is selected.
@@ -6891,16 +6939,19 @@ declare module 'vscode' {
 		/**
 		 * Register a folding range provider.
 		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
+		 * Multiple providers can be registered for a language. In that case providers are asked in
+		 * parallel and the results are merged.
+		 * If multiple folding ranges start at the same position, only the range of the first registered provider is used.
+		 * If a folding range overlaps with an other range that has a smaller position, it is also ignored.
+		 *
+		 * A failing provider (rejected promise or exception) will
+		 * not cause a failure of the whole operation.
 		 *
 		 * @param selector A selector that defines the documents this provider is applicable to.
 		 * @param provider A folding range provider.
-		 * @param metadata Metadata about the kind of code actions the provider providers.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider, metadata?: FoldingRangeProviderMetadata): Disposable;
+		export function registerFoldingRangeProvider(selector: DocumentSelector, provider: FoldingRangeProvider): Disposable;
 
 		/**
 		 * Set a [language configuration](#LanguageConfiguration) for a language.

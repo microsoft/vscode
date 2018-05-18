@@ -2,11 +2,11 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-import { localize } from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as map from 'vs/base/common/map';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/platform/editor/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -22,8 +22,6 @@ import { extHostNamedCustomer } from './extHostCustomers';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
-
-	private static readonly serializeTimeout = 500; // ms
 
 	private static readonly viewType = 'mainThreadWebview';
 
@@ -69,11 +67,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		column: Position,
+		showOptions: { viewColumn: Position, preserveFocus: boolean },
 		options: WebviewInputOptions,
-		extensionFolderPath: string
+		extensionLocation: UriComponents
 	): void {
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, column, options, extensionFolderPath, this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, showOptions, options, URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -97,9 +95,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, column: Position | undefined): void {
+	$reveal(handle: WebviewPanelHandle, viewColumn: Position | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
-		this._webviewService.revealWebview(webview, column);
+		if (webview.isDisposed()) {
+			return;
+		}
+
+		this._webviewService.revealWebview(webview, viewColumn, preserveFocus);
 	}
 
 	async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
@@ -131,7 +133,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), webview.state.state, webview.position, webview.options)
+			let state;
+			try {
+				state = JSON.parse(webview.state.state);
+			} catch {
+				state = {};
+			}
+
+			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, webview.position, webview.options)
 				.then(undefined, () => {
 					webview.html = MainThreadWebviews.getDeserializationFailedContents(viewType);
 				});
@@ -139,38 +148,22 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
-		return this._revivers.has(webview.viewType) || webview.reviver !== null;
+		if (webview.isDisposed()) {
+			return false;
+		}
+
+		return (this._revivers.has(webview.viewType) || webview.reviver !== null);
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {
-		const toRevive: WebviewPanelHandle[] = [];
-		this._webviews.forEach((view, key) => {
+		this._webviews.forEach((view) => {
 			if (this.canRevive(view)) {
-				toRevive.push(key);
+				view.state.state = view.webviewState;
 			}
 		});
 
-		const reviveResponses = toRevive.map(handle =>
-			TPromise.any([
-				this._proxy.$serializeWebviewPanel(handle).then(
-					state => ({ handle, state }),
-					() => ({ handle, state: null })),
-				TPromise.timeout(MainThreadWebviews.serializeTimeout).then(() => ({ handle, state: null }))
-			]).then(x => x.value));
+		return TPromise.as(false); // Don't veto shutdown
 
-		return TPromise.join(reviveResponses).then(results => {
-			for (const result of results) {
-				const view = this._webviews.get(result.handle);
-				if (view) {
-					if (result.state) {
-						view.state.state = result.state;
-					} else {
-						view.state = null;
-					}
-				}
-			}
-			return false; // Don't veto shutdown
-		});
 	}
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {
@@ -178,9 +171,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			onDidClickLink: uri => this.onDidClickLink(handle, uri),
 			onMessage: message => this._proxy.$onMessage(handle, message),
 			onDispose: () => {
-				this._proxy.$onDidDisposeWebviewPanel(handle).then(() => {
-					this._webviews.delete(handle);
-				});
+				this._proxy.$onDidDisposeWebviewPanel(handle).then(
+					() => this._webviews.delete(handle),
+					() => this._webviews.delete(handle));
 			}
 		};
 	}

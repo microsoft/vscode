@@ -156,7 +156,7 @@ export class MultiCursorSession {
 		//  - focus is not in the editor (i.e. it is in the find widget)
 		//  - and the search widget is visible
 		//  - and the search string is non-empty
-		if (!editor.isFocused() && findState.isRevealed && findState.searchString.length > 0) {
+		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
 			// Find widget owns what is searched for
 			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
@@ -830,7 +830,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				const cmp = Range.compareRangesUsingStarts(match, selections[j]);
 				if (cmp < 0) {
 					// match is before sel
-					matches.push(match);
+					if (!Range.areIntersecting(match, selections[j])) {
+						matches.push(match);
+					}
 					i++;
 				} else if (cmp > 0) {
 					// sel is before match

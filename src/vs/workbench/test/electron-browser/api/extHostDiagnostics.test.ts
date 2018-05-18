@@ -299,6 +299,29 @@ suite('ExtHostDiagnostics', () => {
 		await p;
 	});
 
+	test('vscode.languages.onDidChangeDiagnostics Does Not Provide Document URI #49582', async function () {
+		let emitter = new Emitter<(string | URI)[]>();
+		let collection = new DiagnosticCollection('ddd', new DiagnosticsShape(), emitter);
+
+		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
+
+		// delete
+		collection.set(URI.parse('aa:bb'), [diag1]);
+		let p = toPromise(emitter.event).then(e => {
+			assert.equal(e[0].toString(), 'aa:bb');
+		});
+		collection.delete(URI.parse('aa:bb'));
+		await p;
+
+		// set->undefined (as delete)
+		collection.set(URI.parse('aa:bb'), [diag1]);
+		p = toPromise(emitter.event).then(e => {
+			assert.equal(e[0].toString(), 'aa:bb');
+		});
+		collection.set(URI.parse('aa:bb'), undefined);
+		await p;
+	});
+
 	test('diagnostics with related information', function (done) {
 
 		let collection = new DiagnosticCollection('ddd', new class extends DiagnosticsShape {

@@ -36,6 +36,8 @@
 	"view location": "Yeri",
 	"localizations": "Çeviriler ({0})",
 	"localizations language id": "Dil Id'si",
+	"localizations language name": "Dil Adı",
+	"localizations localized language name": "Dil Adı (Yerelleştirilmiş)",
 	"colorThemes": "Renk Temaları ({0})",
 	"iconThemes": "Simge Temaları ({0})",
 	"colors": "Renkler ({0})",

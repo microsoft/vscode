@@ -9,5 +9,7 @@
 	"fileNotFoundError": "Fájl nem található ({0})",
 	"fileIsDirectoryError": "A fájl egy könyvtár",
 	"fileNotModifiedError": "A fájl azóta nem módosult",
-	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként"
+	"fileBinaryError": "A fájl binárisnak tűnik és nem nyitható meg szövegként",
+	"err.create": "Nem sikerült létrehozni a(z) {0} nevű fájlt",
+	"fileMoveConflict": "Nem lehet áthelyezni vagy másolni. A fájl már létezik a célhelyen."
 }

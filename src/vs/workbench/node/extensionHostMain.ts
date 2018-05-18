@@ -86,13 +86,14 @@ export class ExtensionHostMain {
 
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._environment = initData.environment;
-		this._workspace = initData.workspace;
 
 		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
 		// services
 		const rpcProtocol = new RPCProtocol(protocol);
+		this._workspace = rpcProtocol.transformIncomingURIs(initData.workspace);
+
 		this._extHostLogService = new ExtHostLogService(initData.windowId, initData.logLevel, initData.logsPath);
 		this.disposables.push(this._extHostLogService);
 		const extHostWorkspace = new ExtHostWorkspace(rpcProtocol, initData.workspace, this._extHostLogService);

@@ -7,10 +7,10 @@
 import { Readable, Writable } from 'stream';
 import { UTF8 } from 'vs/base/node/encoding';
 import URI from 'vs/base/common/uri';
-import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileOptions } from 'vs/platform/files/common/files';
+import { IFileSystemProvider, ITextSnapshot, FileSystemProviderCapabilities, FileWriteOptions } from 'vs/platform/files/common/files';
 import { illegalArgument } from 'vs/base/common/errors';
 
-export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI, opts: FileOptions): Writable {
+export function createWritableOfProvider(provider: IFileSystemProvider, resource: URI, opts: FileWriteOptions): Writable {
 	if (provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose) {
 		return createWritable(provider, resource, opts);
 	} else if (provider.capabilities & FileSystemProviderCapabilities.FileReadWrite) {
@@ -20,7 +20,7 @@ export function createWritableOfProvider(provider: IFileSystemProvider, resource
 	}
 }
 
-function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts: FileOptions): Writable {
+function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts: FileWriteOptions): Writable {
 	return new class extends Writable {
 		_chunks: Buffer[] = [];
 		constructor(opts?) {
@@ -41,7 +41,7 @@ function createSimpleWritable(provider: IFileSystemProvider, resource: URI, opts
 	};
 }
 
-function createWritable(provider: IFileSystemProvider, resource: URI, opts: FileOptions): Writable {
+function createWritable(provider: IFileSystemProvider, resource: URI, opts: FileWriteOptions): Writable {
 	return new class extends Writable {
 		_fd: number;
 		_pos: number;
@@ -51,7 +51,7 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 		async _write(chunk: Buffer, encoding, callback: Function) {
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, opts);
+					this._fd = await provider.open(resource);
 				}
 				let bytesWritten = await provider.write(this._fd, this._pos, chunk, 0, chunk.length);
 				this._pos += bytesWritten;
@@ -70,17 +70,17 @@ function createWritable(provider: IFileSystemProvider, resource: URI, opts: File
 	};
 }
 
-export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number, opts: FileOptions): Readable {
+export function createReadableOfProvider(provider: IFileSystemProvider, resource: URI, position: number): Readable {
 	if (provider.capabilities & FileSystemProviderCapabilities.FileOpenReadWriteClose) {
-		return createReadable(provider, resource, position, opts);
+		return createReadable(provider, resource, position);
 	} else if (provider.capabilities & FileSystemProviderCapabilities.FileReadWrite) {
-		return createSimpleReadable(provider, resource, position, opts);
+		return createSimpleReadable(provider, resource, position);
 	} else {
 		throw illegalArgument();
 	}
 }
 
-function createReadable(provider: IFileSystemProvider, resource: URI, position: number, opts: FileOptions): Readable {
+function createReadable(provider: IFileSystemProvider, resource: URI, position: number): Readable {
 	return new class extends Readable {
 		_fd: number;
 		_pos: number = position;
@@ -96,7 +96,7 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 			this._reading = true;
 			try {
 				if (typeof this._fd !== 'number') {
-					this._fd = await provider.open(resource, opts);
+					this._fd = await provider.open(resource);
 				}
 				let buffer = Buffer.allocUnsafe(64 * 1024);
 				while (this._reading) {
@@ -124,14 +124,14 @@ function createReadable(provider: IFileSystemProvider, resource: URI, position: 
 	};
 }
 
-function createSimpleReadable(provider: IFileSystemProvider, resource: URI, position: number, opts: FileOptions): Readable {
+function createSimpleReadable(provider: IFileSystemProvider, resource: URI, position: number): Readable {
 	return new class extends Readable {
 		_readOperation: Thenable<any>;
 		_read(size?: number): void {
 			if (this._readOperation) {
 				return;
 			}
-			this._readOperation = provider.readFile(resource, opts).then(data => {
+			this._readOperation = provider.readFile(resource).then(data => {
 				this.push(data.slice(position));
 				this.push(null);
 			}, err => {

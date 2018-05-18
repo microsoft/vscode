@@ -75,7 +75,7 @@
 	"window.menuBarVisibility.toggle": "菜单隐藏，但可以通过 Alt 键显示。",
 	"window.menuBarVisibility.hidden": "菜单始终隐藏。",
 	"menuBarVisibility": "控制菜单栏的可见性。“切换”设置表示隐藏菜单栏，按一次 Alt 键则将显示此菜单栏。默认情况下，除非窗口为全屏，否则菜单栏可见。",
-	"enableMenuBarMnemonics": "如果启用，则可使用 Alt 快捷键打开主菜单。禁用助记键允许将这些 Alt 快捷键绑定到编辑器命令。",
+	"enableMenuBarMnemonics": "启用后，即可使用 Alt 快捷键打开主菜单。若禁用助记键，这些 Alt 快捷键将能绑定到编辑器命令。",
 	"autoDetectHighContrast": "如果已启用，将自动更改为高对比度主题；如果 Windows 正在使用高对比度主题，则当离开 Windows 高对比度主题时会更改为深色主题。",
 	"titleBarStyle": "调整窗口标题栏的外观。更改需要在完全重启后才能应用。",
 	"window.nativeTabs": "\n启用macOS Sierra窗口选项卡。请注意，更改需要完全重新启动程序才能生效。如果配置此选项，本机选项卡将禁用自定义标题栏样式。",

@@ -21,6 +21,7 @@
 	"disconnectDebug": "연결 끊기",
 	"continueDebug": "계속",
 	"pauseDebug": "일시 중지",
+	"terminateThread": "스레드 종료",
 	"restartFrame": "프레임 다시 시작",
 	"removeBreakpoint": "중단점 제거",
 	"removeAllBreakpoints": "모든 중단점 제거",
