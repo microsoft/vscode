@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -111,11 +111,49 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 			this.listRefreshScheduler.schedule(this.structuralRefreshDelay);
 		};
-		const groupDisposables = new Map<number, IDisposable[]>();
 
+		const groupDisposables = new Map<number, IDisposable>();
+		const addGroupListener = (group: INextEditorGroup) => {
+			groupDisposables.set(group.id, group.onDidGroupChange(e => {
+				if (this.listRefreshScheduler.isScheduled()) {
+					return;
+				}
+				if (!this.isVisible() || !this.list || !this.isExpanded()) {
+					this.needsRefresh = true;
+					return;
+				}
+
+				const index = this.getIndex(group, e.editor);
+				switch (e.kind) {
+					case GroupChangeKind.GROUP_LABEL: {
+						if (this.showGroups) {
+							this.list.splice(index, 1, [group]);
+						}
+						break;
+					}
+					case GroupChangeKind.EDITOR_ACTIVE: {
+						this.focusActiveEditor();
+						break;
+					}
+					case GroupChangeKind.EDITOR_DIRTY:
+					case GroupChangeKind.EDITOR_LABEL:
+					case GroupChangeKind.EDITOR_PIN: {
+						this.list.splice(index, 1, [new OpenEditor(e.editor, group)]);
+						break;
+					}
+					case GroupChangeKind.EDITOR_MOVE:
+					case GroupChangeKind.EDITOR_CLOSE:
+					case GroupChangeKind.EDITOR_OPEN: {
+						this.listRefreshScheduler.schedule();
+						break;
+					}
+				}
+			}));
+		};
+
+		this.editorGroupService.groups.forEach(g => addGroupListener(g));
 		this.disposables.push(this.editorGroupService.onDidAddGroup(group => {
-			const toDispose = [];
-			groupDisposables.set(group.id, toDispose);
+			addGroupListener(group);
 			updateWholeList();
 		}));
 		this.disposables.push(this.editorGroupService.onDidMoveGroup(() => updateWholeList()));
@@ -123,9 +161,6 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			dispose(groupDisposables.get(group.id));
 			updateWholeList();
 		}));
-
-		// TODO@isidor react on editor events
-		// this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.focusActiveEditor()));
 	}
 
 	protected renderHeaderTitle(container: HTMLElement): void {
@@ -469,10 +504,10 @@ class EditorGroupRenderer implements IRenderer<INextEditorGroup, IEditorGroupTem
 		editorGroupTemplate.actionBar.push(saveAllInGroupAction, { icon: true, label: false, keybinding: key ? key.getLabel() : void 0 });
 
 		editorGroupTemplate.toDispose = [];
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
 			dom.addClass(container, 'focused');
 		}));
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, (e: DragEvent) => {
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
 			dom.removeClass(container, 'focused');
 		}));
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DROP, e => {
