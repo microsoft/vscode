@@ -3,13 +3,13 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Event as _Event, Emitter, mapEvent } from 'vs/base/common/event';
+import { Event, Emitter, mapEvent } from 'vs/base/common/event';
 
 export type EventHandler = HTMLElement | HTMLDocument | Window;
 
 export interface IDomEvent {
-	<K extends keyof HTMLElementEventMap>(element: EventHandler, type: K, useCapture?: boolean): _Event<HTMLElementEventMap[K]>;
-	(element: EventHandler, type: string, useCapture?: boolean): _Event<any>;
+	<K extends keyof HTMLElementEventMap>(element: EventHandler, type: K, useCapture?: boolean): Event<HTMLElementEventMap[K]>;
+	(element: EventHandler, type: string, useCapture?: boolean): Event<any>;
 }
 
 export const domEvent: IDomEvent = (element: EventHandler, type: string, useCapture?: boolean) => {
@@ -31,7 +31,7 @@ export interface CancellableEvent {
 	stopPropagation();
 }
 
-export function stop<T extends CancellableEvent>(event: _Event<T>): _Event<T> {
+export function stop<T extends CancellableEvent>(event: Event<T>): Event<T> {
 	return mapEvent(event, e => {
 		e.preventDefault();
 		e.stopPropagation();
