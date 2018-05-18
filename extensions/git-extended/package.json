@@ -122,12 +122,17 @@
   },
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
-    "compile": "tsc -watch -p ./"
+    "compile": "tsc -watch -p ./",
+    "watch": "npm run build-preview && npm run compile",
+    "build-preview": "webpack --mode development"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.106",
     "@types/node": "*",
-    "typescript": "^2.1.4"
+	"typescript": "^2.1.4",
+	"webpack": "^4.1.0",
+	"webpack-cli": "^2.0.10",
+	"ts-loader": "^4.0.1"
   },
   "dependencies": {
     "@octokit/rest": "^15.2.6",

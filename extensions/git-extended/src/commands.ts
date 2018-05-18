@@ -53,11 +53,31 @@ export function registerCommands(context: vscode.ExtensionContext) {
 			);
 		}
 
-		panel.webview.html = await getWebviewContent(pr);
+		panel.webview.html = getHtmlForWebview(); //await getWebviewContent(pr);
 	}));
 
 	let md = new MarkdownIt();
 
+	function getHtmlForWebview() {
+		const scriptPathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'index.js'));
+		const scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
+
+		const nonce = new Date().getTime() + '' + new Date().getMilliseconds();
+
+		return `<!DOCTYPE html>
+			<html lang="en">
+			<head>
+				<meta charset="UTF-8">
+				<meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src vscode-resource: https:; script-src 'nonce-${nonce}';">
+
+				<meta name="viewport" content="width=device-width, initial-scale=1.0">
+				<title>Cat Coding</title>
+			</head>
+			<body>
+				<script nonce="${nonce}" src="${scriptUri}"></script>
+			</body>
+			</html>`;
+	}
 
 	async function getWebviewContent(pr: PullRequestModel) {
 		const timelineEvents = await pr.getTimelineEvents();
