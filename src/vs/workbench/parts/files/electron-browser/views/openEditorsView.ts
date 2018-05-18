@@ -141,9 +141,18 @@ export class OpenEditorsView extends ViewsViewletPanel {
 						this.list.splice(index, 1, [new OpenEditor(e.editor, group)]);
 						break;
 					}
-					case GroupChangeKind.EDITOR_MOVE:
-					case GroupChangeKind.EDITOR_CLOSE:
 					case GroupChangeKind.EDITOR_OPEN: {
+						this.list.splice(index, 0, [new OpenEditor(e.editor, group)]);
+						setTimeout(() => this.updateSize(), this.structuralRefreshDelay);
+						break;
+					}
+					case GroupChangeKind.EDITOR_CLOSE: {
+						const previousIndex = this.getIndex(group, undefined) + e.editorIndex;
+						this.list.splice(previousIndex, 1);
+						this.updateSize();
+						break;
+					}
+					case GroupChangeKind.EDITOR_MOVE: {
 						this.listRefreshScheduler.schedule();
 						break;
 					}
