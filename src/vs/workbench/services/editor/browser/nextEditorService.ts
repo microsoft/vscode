@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder, IEditorReplacement, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -105,9 +105,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private registerGroupListeners(group: INextEditorGroup): void {
 		const groupDisposeables: IDisposable[] = [];
 
-		groupDisposeables.push(group.onDidActiveEditorChange(() => {
-			this.handleActiveEditorChange(group);
-			this._onDidVisibleEditorsChange.fire();
+		groupDisposeables.push(group.onDidGroupChange(e => {
+			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
+				this.handleActiveEditorChange(group);
+				this._onDidVisibleEditorsChange.fire();
+			}
 		}));
 
 		groupDisposeables.push(group.onWillCloseEditor(event => {

@@ -235,6 +235,28 @@ export interface INextEditorGroupsService {
 	copyGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
 }
 
+export enum GroupChangeKind {
+
+	/* Group Changes */
+	GROUP_ACTIVE,
+	GROUP_LABEL,
+
+	/* Editor Changes */
+	EDITOR_OPEN,
+	EDITOR_CLOSE,
+	EDITOR_MOVE,
+	EDITOR_ACTIVE,
+	EDITOR_LABEL,
+	EDITOR_PIN,
+	EDITOR_DIRTY
+}
+
+export interface IGroupChangeEvent {
+	kind: GroupChangeKind;
+	structural?: boolean;
+	editor?: IEditorInput;
+}
+
 export interface INextEditorGroup {
 
 	/**
@@ -246,7 +268,7 @@ export interface INextEditorGroup {
 	/**
 	 * A human readable label for the group. This label can change depending
 	 * on the layout of all editor groups. Clients should listen on the
-	 * `onDidLabelChange` event to react to that.
+	 * `onDidGroupChange` event to react to that.
 	 */
 	readonly label: string;
 
@@ -278,25 +300,20 @@ export interface INextEditorGroup {
 	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
+	 * An aggregated event for when the group changes in any way.
+	 */
+	readonly onDidGroupChange: Event<IGroupChangeEvent>;
+
+	/**
 	 * Emitted when this group is being disposed.
 	 */
 	readonly onWillDispose: Event<void>;
-
-	/**
-	 * Emitted when the active editor of this group changed.
-	 */
-	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when an editor is about to open. This can be prevented from
 	 * the provided event.
 	 */
 	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
-
-	/**
-	 * Emitted when an editor has opened successfully.
-	 */
-	readonly onDidOpenEditor: Event<IEditorInput>;
 
 	/**
 	 * Emitted when an editor failed to open.
@@ -315,11 +332,6 @@ export interface INextEditorGroup {
 	 * Emitted when an editor of this group is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
-	 * An event for when the label of the group changes.
-	 */
-	readonly onDidLabelChange: Event<void>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

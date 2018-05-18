@@ -68,7 +68,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -790,9 +790,7 @@ export class TestNextEditorGroup implements INextEditorGroup {
 	label: string;
 
 	onWillDispose: Event<void> = Event.None;
-	onDidLabelChange: Event<void> = Event.None;
-	onDidActiveEditorChange: Event<void> = Event.None;
-	onDidOpenEditor: Event<IEditorInput> = Event.None;
+	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
 	onWillCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;

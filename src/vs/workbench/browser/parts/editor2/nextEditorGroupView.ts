@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor2/nextTabsTitleControl';
 import { NextEditorControl } from 'vs/workbench/browser/parts/editor2/nextEditorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -69,17 +69,11 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private _onWillDispose: Emitter<void> = this._register(new Emitter<void>());
 	get onWillDispose(): Event<void> { return this._onWillDispose.event; }
 
-	private _onDidLabelChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidLabelChange(): Event<void> { return this._onDidLabelChange.event; }
-
-	private _onDidActiveEditorChange: Emitter<void> = this._register(new Emitter<void>());
-	get onDidActiveEditorChange(): Event<void> { return this._onDidActiveEditorChange.event; }
+	private _onDidGroupChange: Emitter<IGroupChangeEvent> = this._register(new Emitter<IGroupChangeEvent>());
+	get onDidGroupChange(): Event<IGroupChangeEvent> { return this._onDidGroupChange.event; }
 
 	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
 	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
-
-	private _onDidOpenEditor: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
-	get onDidOpenEditor(): Event<EditorInput> { return this._onDidOpenEditor.event; }
 
 	private _onDidOpenEditorFail: Emitter<EditorInput> = this._register(new Emitter<EditorInput>());
 	get onDidOpenEditorFail(): Event<EditorInput> { return this._onDidOpenEditorFail.event; }
@@ -370,7 +364,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.updateContainer();
 
 		// Event
-		this._onDidOpenEditor.fire(editor);
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, structural: true });
 	}
 
 	private onDidEditorClose(event: EditorCloseEvent): void {
@@ -409,6 +403,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Event
 		this._onDidCloseEditor.fire(event);
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, structural: true });
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {
@@ -476,12 +471,18 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Forward to title control
 		this.titleAreaControl.updateEditorDirty(editor);
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_DIRTY, editor });
 	}
 
 	private onDidEditorLabelChange(editor: EditorInput): void {
 
 		// Forward to title control
 		this.titleAreaControl.updateEditorLabel(editor);
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_LABEL, editor });
 	}
 
 	//#endregion
@@ -507,7 +508,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	setLabel(label: string): void {
 		if (this._label !== label) {
 			this._label = label;
-			this._onDidLabelChange.fire();
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_LABEL });
 		}
 	}
 
@@ -523,6 +524,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Update styles
 		this.updateStyles();
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.GROUP_ACTIVE });
 	}
 
 	isEmpty(): boolean {
@@ -595,6 +599,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 			// Forward to title control
 			this.titleAreaControl.pinEditor(editor);
+
+			// Event
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_PIN, editor });
 		}
 	}
 
@@ -652,7 +659,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 				// Editor change event
 				if (result.editorChanged) {
-					this._onDidActiveEditorChange.fire();
+					this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE, editor });
 				}
 			}, error => {
 
@@ -759,6 +766,9 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		// Forward to title area
 		this.titleAreaControl.moveEditor(editor, currentIndex, moveToIndex);
 		this.titleAreaControl.pinEditor(editor);
+
+		// Event
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, structural: true });
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
@@ -869,7 +879,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 			}
 
 			// Editor Change Event
-			this._onDidActiveEditorChange.fire();
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
 
 			// Check if group gets closed now
 			const closeGroup = this.isEmpty() && this.accessor.partOptions.closeEmptyGroups;
