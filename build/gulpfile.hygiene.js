@@ -82,7 +82,8 @@ const indentationFilter = [
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
 	'!**/Dockerfile',
-	'!extensions/markdown-language-features/media/*.js'
+	'!extensions/markdown-language-features/media/*.js',
+	'!extensions/git-extended/media/*.js'
 ];
 
 const copyrightFilter = [
