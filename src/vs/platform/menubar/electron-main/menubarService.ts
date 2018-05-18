@@ -28,7 +28,7 @@ export class MenubarService implements IMenubarService {
 		this.logService.trace('menubarService#updateMenubar', windowId);
 
 		if (this._menubar) {
-			this._menubar.updateMenu(menus);
+			this._menubar.updateMenu(menus, windowId);
 		}
 
 		return TPromise.as(null);

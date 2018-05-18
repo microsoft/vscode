@@ -15,7 +15,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
