@@ -259,40 +259,17 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.searchWidget.clear();
 	}
 
-	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry | [ResolvedKeybinding, ResolvedKeybinding]): TPromise<any> {
-		let value = '';
-		if ('keybindingItem' in keybindingEntry) {
-			value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
-		}
-		else {
-			const [firstPart, chordPart] = keybindingEntry;
-			value = `"${firstPart.getAriaLabel()}`;
-			if (chordPart) {
-				value += ` ${chordPart.getAriaLabel()}`;
-			}
-			value += '"';
-		}
+	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
+		let value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel().replace(' ', '+')}+"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
 		}
 		return TPromise.as(null);
 	}
 
-	showOverlayConflicts(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
-		const [firstPart, chordPart] = keybinding;
-		let searchLabel = firstPart.getAriaLabel();
-		if (chordPart !== null) {
-			searchLabel += ' ' + chordPart.getAriaLabel();
-		}
-		const keybindingsEntries: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(searchLabel, this.sortByPrecedence.checked);
-		let conflictsList: IKeybindingItemEntry[] = [];
-		for (let keybindingEntry of keybindingsEntries) {
-			let binding = keybindingEntry.keybindingItem.keybinding;
-			if (binding !== null && binding.getAriaLabel() === searchLabel) {
-				conflictsList.push(keybindingEntry);
-			}
-		}
-		this.defineKeybindingWidget.printConflicts(conflictsList.length, keybinding);
+	private showOverlayConflicts(keybindingStr: String): void {
+		const conflictsList: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(`${keybindingStr}`, this.sortByPrecedence.checked);
+		this.defineKeybindingWidget.printConflicts(conflictsList.length);
 	}
 
 	private createOverlayContainer(parent: HTMLElement): void {
@@ -300,8 +277,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.position = 'absolute';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
-		this._register(this.defineKeybindingWidget.onDidChange(keybinding => this.showOverlayConflicts(keybinding)));
-		this._register(this.defineKeybindingWidget.onLinkClick(keybinding => this.showSimilarKeybindings(keybinding)));
+		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.showOverlayConflicts(keybindingStr)));
+		this._register(this.defineKeybindingWidget.onLinkClick(keybindingStr => { this.showSimilarKeybindings(this.keybindingsEditorModel.fetch(`${keybindingStr}`, this.sortByPrecedence.checked)[0]); }));
 		this.hideOverlayContainer();
 	}
 

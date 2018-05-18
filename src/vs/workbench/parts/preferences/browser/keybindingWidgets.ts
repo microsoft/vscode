@@ -145,11 +145,11 @@ export class DefineKeybindingWidget extends Widget {
 
 	private _onHide = this._register(new Emitter<void>());
 
-	private _onDidChange = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
-	public onDidChange: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onDidChange.event;
+	private _onDidChange = this._register(new Emitter<String>());
+	public onDidChange: Event<String> = this._onDidChange.event;
 
-	private _onLinkClick = this._register(new Emitter<[ResolvedKeybinding, ResolvedKeybinding]>());
-	public readonly onLinkClick: Event<[ResolvedKeybinding, ResolvedKeybinding]> = this._onLinkClick.event;
+	private _onLinkClick = this._register(new Emitter<String>());
+	public readonly onLinkClick: Event<String> = this._onLinkClick.event;
 
 	constructor(
 		parent: HTMLElement,
@@ -227,13 +227,23 @@ export class DefineKeybindingWidget extends Widget {
 		}));
 
 		this._keybindingInputWidget = this._register(this.instantiationService.createInstance(KeybindingInputWidget, this._domNode.domNode, {}));
-		this._register(this._keybindingInputWidget.onKeybinding(keybinding => { this.printKeybinding(keybinding); this._onDidChange.fire(keybinding); }));
+		this._register(this._keybindingInputWidget.onKeybinding(keybinding => { this.printKeybinding(keybinding); this.processChange(keybinding); }));
 		this._register(this._keybindingInputWidget.onEnter(() => this.hide()));
 		this._register(this._keybindingInputWidget.onEscape(() => this.onCancel()));
 		this._register(this._keybindingInputWidget.onBlur(() => this.onCancel()));
 
 		this._outputNode = dom.append(this._domNode.domNode, dom.$('.output'));
 		this._conflictNode = dom.append(this._domNode.domNode, dom.$('.conflicts'));
+	}
+
+	private processChange(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
+		const [firstPart, chordPart] = keybinding;
+		let keybindingStr = '"' + firstPart.getAriaLabel() + '+';
+		if (chordPart) {
+			keybindingStr = keybindingStr + chordPart.getAriaLabel() + '+';
+		}
+		keybindingStr = keybindingStr + '"';
+		this._onDidChange.fire(keybindingStr);
 	}
 
 	private printKeybinding(keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
@@ -249,22 +259,24 @@ export class DefineKeybindingWidget extends Widget {
 		}
 	}
 
-	public printConflicts(numConflicts: number, keybinding: [ResolvedKeybinding, ResolvedKeybinding]): void {
-		let outputString: string = nls.localize('defineKeybinding.existing', "Existing");
+	public printConflicts(numConflicts: Number): void {
 		if (numConflicts > 0) {
+			let outputString: string = nls.localize('defineKeybinding.existing', "Existing");
 			outputString = numConflicts + ' ' + outputString;
+			let textNode = document.createTextNode(outputString);
+			let textSpan = document.createElement('span');
+			dom.addClass(textSpan, 'conflictText');
+			textSpan.appendChild(textNode);
+			let linkBinding = this._firstPart.getAriaLabel();
+			if (this._chordPart) {
+				linkBinding += '+' + this._chordPart.getAriaLabel();
+			}
+			linkBinding += '+';
+			this._conflictNode.appendChild(textSpan);
+			textSpan.onmousedown = (e) => { e.preventDefault(); };
+			textSpan.onmouseup = (e) => { e.preventDefault(); };
+			textSpan.onclick = () => { this._onLinkClick.fire(linkBinding); };
 		}
-		else {
-			outputString = '';
-		}
-		let textNode = document.createTextNode(outputString);
-		let textSpan = document.createElement('span');
-		dom.addClass(textSpan, 'conflictText');
-		textSpan.appendChild(textNode);
-		this._conflictNode.appendChild(textSpan);
-		textSpan.onmousedown = (e) => { e.preventDefault(); };
-		textSpan.onmouseup = (e) => { e.preventDefault(); };
-		textSpan.onclick = () => { this._onLinkClick.fire(keybinding); };
 	}
 
 	private onCancel(): void {
