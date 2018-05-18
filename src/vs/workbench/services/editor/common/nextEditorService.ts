@@ -7,11 +7,12 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
 import { INextEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
 
@@ -27,6 +28,19 @@ export type ACTIVE_GROUP_TYPE = typeof ACTIVE_GROUP;
 
 export const SIDE_GROUP = -2;
 export type SIDE_GROUP_TYPE = typeof SIDE_GROUP;
+
+export interface IOpenEditorOverrideHandler {
+	(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: INextEditorGroup): IOpenEditorOverride;
+}
+
+export interface IOpenEditorOverride {
+
+	/**
+	 * If defined, will prevent the opening of an editor and replace the resulting
+	 * promise with the provided promise for the openEditor() call.
+	 */
+	override?: TPromise<any>;
+}
 
 export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
@@ -45,12 +59,6 @@ export interface INextEditorService {
 	 * Emitted when an editor is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
-	 * Emitted when an editor is about to open. This can be prevented from
-	 * the provided event.
-	 */
-	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
 
 	/**
 	 * Emitted when an editor failed to open.
@@ -142,6 +150,13 @@ export interface INextEditorService {
 	 * @param group optional to specify a group to check for the editor being opened
 	 */
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: INextEditorGroup | GroupIdentifier): boolean;
+
+	/**
+	 * Allows to override the opening of editors by installing a handler that will
+	 * be called each time an editor is about to open allowing to override the
+	 * operation to open a different editor.
+	 */
+	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable;
 
 	/**
 	 * Invoke a function in the context of the services of the active editor.

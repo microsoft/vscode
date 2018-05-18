@@ -15,11 +15,12 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/nextEditorService';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -35,7 +36,6 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService,
 		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -57,31 +57,30 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
-			this.editorOpeningListener = this.editorService.onWillOpenEditor(e => this.onEditorOpening(e));
+			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 		}
 	}
 
-	private onEditorOpening(event: IEditorOpeningEvent): void {
-		const resource = event.editor.getResource();
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: INextEditorGroup): IOpenEditorOverride {
+		const resource = editor.getResource();
 		if (
 			!resource || resource.scheme !== 'file' ||									// require a file path opening
 			!endsWith(resource.fsPath, 'settings.json') ||								// file must end in settings.json
 			!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)	// user has not disabled default settings editor
 		) {
-			return;
+			return void 0;
 		}
 
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		const group = this.editorGroupService.getGroup(event.groupId);
-		if (group.isOpened(event.editor)) {
-			return;
+		if (group.isOpened(editor)) {
+			return void 0;
 		}
 
 		// Global User Settings File
 		if (resource.fsPath === this.environmentService.appSettingsPath) {
-			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, group));
+			return { override: this.preferencesService.openGlobalSettings(options, group) };
 		}
 
 		// Single Folder Workspace Settings File
@@ -89,7 +88,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, group));
+				return { override: this.preferencesService.openWorkspaceSettings(options, group) };
 			}
 		}
 
@@ -98,10 +97,12 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, group));
+					return { override: this.preferencesService.openFolderSettings(folders[i].uri, options, group) };
 				}
 			}
 		}
+
+		return void 0;
 	}
 
 	private start(): void {

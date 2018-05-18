@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorOpeningEvent, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -25,9 +25,9 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder, IEditorReplacement, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
@@ -51,16 +51,13 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
-	private _onWillOpenEditor: Emitter<IEditorOpeningEvent> = this._register(new Emitter<IEditorOpeningEvent>());
-	get onWillOpenEditor(): Event<IEditorOpeningEvent> { return this._onWillOpenEditor.event; }
-
 	private _onDidOpenEditorFail: Emitter<IEditorIdentifier> = this._register(new Emitter<IEditorIdentifier>());
 	get onDidOpenEditorFail(): Event<IEditorIdentifier> { return this._onDidOpenEditorFail.event; }
 
 	//#endregion
 
 	private fileInputFactory: IFileInputFactory;
-
+	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
 	private lastActiveEditor: IEditorInput;
 
 	constructor(
@@ -113,8 +110,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			this._onDidCloseEditor.fire(event);
 		}));
 
-		groupDisposeables.push(group.onWillOpenEditor(editor => {
-			this._onWillOpenEditor.fire(editor);
+		groupDisposeables.push(group.onWillOpenEditor(event => {
+			this.onGroupWillOpenEditor(group, event);
 		}));
 
 		groupDisposeables.push(group.onDidOpenEditorFail(editor => {
@@ -124,6 +121,17 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		once(group.onWillDispose)(() => {
 			dispose(groupDisposeables);
 		});
+	}
+
+	private onGroupWillOpenEditor(group: INextEditorGroup, event: IEditorOpeningEvent): void {
+		for (let i = 0; i < this.openEditorHandlers.length; i++) {
+			const handler = this.openEditorHandlers[i];
+			const result = handler(event.editor, event.options, group);
+			if (result && result.override) {
+				event.prevent((() => result.override));
+				break;
+			}
+		}
 	}
 
 	get activeControl(): IEditor {
@@ -161,6 +169,21 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	get visibleEditors(): IEditorInput[] {
 		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
 	}
+
+	//#region preventOpenEditor()
+
+	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
+		this.openEditorHandlers.push(handler);
+
+		return toDisposable(() => {
+			const index = this.openEditorHandlers.indexOf(handler);
+			if (index >= 0) {
+				this.openEditorHandlers.splice(index, 1);
+			}
+		});
+	}
+
+	//#endregion
 
 	//#region openTextEditor()
 

@@ -69,7 +69,7 @@ import { IKeybindingService } from '../../platform/keybinding/common/keybinding'
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -860,7 +860,6 @@ export class TestNextEditorService implements INextEditorService {
 	onDidActiveEditorChange: Event<void> = Event.None;
 	onDidVisibleEditorsChange: Event<void> = Event.None;
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
-	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
 	activeControl: IEditor;
@@ -869,6 +868,10 @@ export class TestNextEditorService implements INextEditorService {
 	visibleControls: ReadonlyArray<IEditor> = [];
 	visibleTextEditorControls = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
+
+	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {
+		return toDisposable(() => void 0);
+	}
 
 	openEditor(editor: any, options?: any, group?: any) {
 		return TPromise.as(null);

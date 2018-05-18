@@ -79,11 +79,6 @@ suite('Editor service (editor2)', () => {
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
 
-		let willOpenEditorEventCounter = 0;
-		const willOpenEditorListener = service.onWillOpenEditor(() => {
-			willOpenEditorEventCounter++;
-		});
-
 		let activeEditorChangeEventCounter = 0;
 		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
 			activeEditorChangeEventCounter++;
@@ -112,7 +107,6 @@ suite('Editor service (editor2)', () => {
 			assert.equal(service.isOpen(input, part.activeGroup), true);
 			assert.equal(activeEditorChangeEventCounter, 1);
 			assert.equal(visibleEditorChangeEventCounter, 1);
-			assert.equal(willOpenEditorEventCounter, 1);
 
 			// Close input
 			editor.group.closeEditor(input);
@@ -134,7 +128,6 @@ suite('Editor service (editor2)', () => {
 					activeEditorChangeListener.dispose();
 					visibleEditorChangeListener.dispose();
 					didCloseEditorListener.dispose();
-					willOpenEditorListener.dispose();
 				});
 			});
 		});

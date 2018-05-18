@@ -40,7 +40,6 @@ import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -1117,21 +1116,28 @@ export class GlobalCompareResourcesAction extends Action {
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const unbind = once(this.editorService.onWillOpenEditor)(e => {
-				const resource = e.editor.getResource();
+			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+
+				// Only once!
+				toDispose.dispose();
+
+				// Open editor as diff
+				const resource = editor.getResource();
 				if (resource) {
-					e.prevent(() => {
-						return this.editorService.openEditor({
+					return {
+						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						}).then(() => void 0);
-					});
+						}).then(() => void 0)
+					};
 				}
+
+				return void 0;
 			});
 
 			// Bring up quick open
 			this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
-				unbind.dispose(); // make sure to unbind if quick open is closing
+				toDispose.dispose(); // make sure to unbind if quick open is closing
 			});
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
