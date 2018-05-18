@@ -13,6 +13,7 @@ import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { keys } from 'vs/base/common/map';
 
 export const ICommentService = createDecorator<ICommentService>('commentService');
 
@@ -26,6 +27,7 @@ export interface ICommentService {
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
+	readonly onDidSetDataProvider: Event<void>;
 	setComments(resource: URI, commentInfos: CommentInfo[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
@@ -33,11 +35,14 @@ export interface ICommentService {
 	updateComments(event: CommentThreadChangedEvent): void;
 	createNewCommenThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
 	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread>;
+	getComments(resource: URI): TPromise<CommentInfo[]>;
 }
 
 export class CommentService extends Disposable implements ICommentService {
 	_serviceBrand: any;
 
+	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
+	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
 
@@ -66,6 +71,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider | WorkspaceCommentProvider) {
 		this._commentProviders.set(owner, commentProvider);
+		this._onDidSetDataProvider.fire();
 	}
 
 	updateComments(event: CommentThreadChangedEvent): void {
@@ -88,5 +94,17 @@ export class CommentService extends Disposable implements ICommentService {
 			return asWinJsPromise(token => commentProvider.replyToCommentThread(resource, range, thread, text, token));
 		}
 		return null;
+	}
+
+	async getComments(resource: URI): TPromise<CommentInfo[]> {
+		const result = [];
+		for (const handle of keys(this._commentProviders)) {
+			let provider = this._commentProviders.get(handle);
+			if ((<DocumentCommentProvider>provider).provideDocumentComments) {
+				result.push(asWinJsPromise(token => (<DocumentCommentProvider>provider).provideDocumentComments(resource, token)));
+			}
+		}
+
+		return TPromise.join(result);
 	}
 }

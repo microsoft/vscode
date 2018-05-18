@@ -131,6 +131,16 @@ export class ReviewController implements IEditorContribution {
 			}
 		}));
 
+		this.globalToDispose.push(this.commentService.onDidSetDataProvider(async () => {
+			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+
+
+			if (editorURI) {
+				let commentInfos = await this.commentService.getComments(editorURI);
+				this.setComments(commentInfos);
+			}
+		}));
+
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
 	}
