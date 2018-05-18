@@ -20,13 +20,11 @@ import { EventType } from 'vs/base/browser/dom';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows } from 'vs/base/common/platform';
-import { Menu } from 'vs/base/browser/ui/menu/menu';
+import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 
 interface CustomMenu {
 	title: string;
 	titleElement: Builder;
-	menuItemsElement?: Builder;
-	menuWidget?: Menu;
 	actions?: IAction[];
 }
 
@@ -43,8 +41,10 @@ export class MenubarPart extends Part {
 	} = {};
 
 	private actionRunner: IActionRunner;
-	private focusedMenu: Builder;
 	private container: Builder;
+	private displayedMenu: Builder;
+	private displayedMenuWidget: Menu;
+	private isFocused: boolean;
 
 	constructor(
 		id: string,
@@ -64,7 +64,9 @@ export class MenubarPart extends Part {
 
 		this.actionRunner = new ActionRunner();
 		this.actionRunner.onDidBeforeRun(() => {
-			this.focusedMenu.hide();
+			if (this.displayedMenu) {
+				this.displayedMenu.hide();
+			}
 		});
 
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
@@ -72,10 +74,73 @@ export class MenubarPart extends Part {
 		}
 
 		this.setupNativeMenubar();
+
+		this.isFocused = false;
 	}
 
 	private setupNativeMenubar(): void {
 		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+	}
+
+	private setupCustomMenubar(): void {
+		for (let menuTitle of Object.keys(this.topLevelMenus)) {
+			const menu: IMenu = this.topLevelMenus[menuTitle];
+
+			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
+			$(titleElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
+
+			this.customMenus[menuTitle] = {
+				title: menuTitle,
+				titleElement: titleElement
+			};
+
+			// Update cached actions array for CustomMenus
+			const updateActions = () => {
+				this.customMenus[menuTitle].actions = [];
+				let groups = menu.getActions();
+				for (let group of groups) {
+					const [, actions] = group;
+
+					actions.map((action: MenuItemAction) => {
+						action.label = action.label.replace(/\(&&\w\)|&&/g, '');
+					});
+
+					this.customMenus[menuTitle].actions.push(...actions);
+					this.customMenus[menuTitle].actions.push(new Separator());
+				}
+
+				this.customMenus[menuTitle].actions.pop();
+			};
+
+			menu.onDidChange(updateActions);
+			updateActions();
+
+			// this.menus[menuTitle].element.on(EventType.CLICK, () => {
+			// 	this.showMenu(menuTitle);
+			// });
+
+
+			this.customMenus[menuTitle].titleElement.on(EventType.CLICK, () => {
+				this.toggleCustomMenu(menuTitle);
+				this.isFocused = !this.isFocused;
+			});
+
+			this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseenter = () => {
+				if (this.isFocused && !this.isCurrentMenu(menuTitle)) {
+					this.toggleCustomMenu(menuTitle);
+				}
+			};
+
+			this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseleave = () => {
+				if (!this.isFocused) {
+					this.cleanupCustomMenu();
+				}
+			};
+
+			this.customMenus[menuTitle].titleElement.getHTMLElement().onblur = () => {
+				this.cleanupCustomMenu();
+			};
+		}
 	}
 
 	private getMenubarMenus(): IMenubarData {
@@ -111,113 +176,70 @@ export class MenubarPart extends Part {
 		return ret;
 	}
 
-	private addCustomMenu(menuTitle: string): void {
-		const menu: IMenu = this.topLevelMenus[menuTitle];
-
-		let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
-		$(titleElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
-
-		this.customMenus[menuTitle] = {
-			title: menuTitle,
-			titleElement: titleElement
-		};
-
-		// Update cached actions array for CustomMenus
-		const updateActions = () => {
-			this.customMenus[menuTitle].actions = [];
-			let groups = menu.getActions();
-			for (let group of groups) {
-				const [, actions] = group;
-
-				actions.map((action: MenuItemAction) => {
-					action.label = action.label.replace(/\(&&\w\)|&&/g, '');
-				});
-
-				this.customMenus[menuTitle].actions.push(...actions);
-				this.customMenus[menuTitle].actions.push(new Separator());
-			}
-
-			this.customMenus[menuTitle].actions.pop();
-		};
-
-		menu.onDidChange(updateActions);
-		updateActions();
-
-		// this.menus[menuTitle].element.on(EventType.CLICK, () => {
-		// 	this.showMenu(menuTitle);
-		// });
-
-		this.customMenus[menuTitle].titleElement.on(EventType.CLICK, () => {
-			this.showCustomMenu(menuTitle);
-		});
-
-		this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseenter = () => { this.showCustomMenu(menuTitle); };
-		this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseleave = () => { this.hideMenu(menuTitle); };
-
-		this.customMenus[menuTitle].titleElement.getHTMLElement().onblur = () => { console.log('blurred'); this.hideMenu(menuTitle); };
-	}
-
-	public getActionItem(action: IAction) {
-		const keybinding = this.keybindingService.lookupKeybinding(action.id);
-		if (keybinding) {
-			return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
+	private isCurrentMenu(menuTitle: string): boolean {
+		if (!this.displayedMenu) {
+			return false;
 		}
 
-		const customActionItem = <any>action;
-		if (typeof customActionItem.getActionItem === 'function') {
-			return customActionItem.getActionItem();
+		return this.displayedMenu.getHTMLElement().parentNode === this.customMenus[menuTitle].titleElement.getHTMLElement();
+	}
+
+	private cleanupCustomMenu(): void {
+		if (this.displayedMenu) {
+			$(this.displayedMenu.getHTMLElement().parentElement).removeClass('open');
+			this.displayedMenu.dispose();
 		}
 
-		return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
+		if (this.displayedMenuWidget) {
+			this.displayedMenuWidget.dispose();
+		}
+
+		this.displayedMenu = null;
+		this.displayedMenuWidget = null;
 	}
 
-	private hideMenu(title: string): void {
-		this.customMenus[title].menuItemsElement.dispose();
-	}
-
-	private showCustomMenu(title: string): void {
+	private toggleCustomMenu(title: string): void {
 		const customMenu = this.customMenus[title];
 
+		if (this.displayedMenu) {
+			let hiding: boolean = this.isCurrentMenu(title);
 
-		customMenu.menuItemsElement = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
+			// Need to cleanup currently displayed menu
+			this.cleanupCustomMenu();
 
-		customMenu.menuItemsElement.addClass('menubar-menu-items-holder-open');
-		customMenu.menuItemsElement.style({
+			// Hiding this menu
+			if (hiding) {
+				return;
+			}
+		}
+
+		this.displayedMenu = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
+
+		$(this.displayedMenu.getHTMLElement().parentElement).addClass('open');
+
+		this.displayedMenu.addClass('menubar-menu-items-holder-open');
+		this.displayedMenu.style({
 			'background-color': this.getColor(ACTIVITY_BAR_BACKGROUND),
 			'color': this.getColor(ACTIVITY_BAR_FOREGROUND)
 		});
 
-		let getActionItem = (action: IAction) => {
-			const keybinding = this.keybindingService.lookupKeybinding(action.id);
-			if (keybinding) {
-				return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
-			}
+		let menuOptions: IMenuOptions = {};
 
-			const customActionItem = <any>action;
-			if (typeof customActionItem.getActionItem === 'function') {
-				return customActionItem.getActionItem();
-			}
+		this.displayedMenuWidget = new Menu(this.displayedMenu.getHTMLElement(), customMenu.actions, menuOptions);
 
-			return new ActionItem(action, action, { icon: true, label: true, isMenu: true });
-		};
-
-		customMenu.menuWidget = new Menu(customMenu.menuItemsElement.getHTMLElement(), customMenu.actions, {
-			actionItemProvider: getActionItem,
-			context: null,
-			actionRunner: this.actionRunner
+		this.displayedMenuWidget.onDidCancel(() => {
+			this.cleanupCustomMenu();
+			this.isFocused = false;
 		});
 
-		customMenu.menuWidget.onDidCancel(() => {
-			customMenu.menuItemsElement.dispose();
-			customMenu.menuWidget.dispose();
+		this.displayedMenuWidget.onDidBlur(() => {
+			setTimeout(() => {
+				this.cleanupCustomMenu();
+				this.isFocused = false;
+			}, 100);
 		});
 
-		customMenu.menuWidget.onDidBlur(() => {
-			customMenu.menuItemsElement.dispose();
-			customMenu.menuWidget.dispose();
-		});
-
-		this.focusedMenu = customMenu.menuItemsElement;
+		this.displayedMenuWidget.focus();
 
 		// let boundingRect = this.menus[title].element.getHTMLElement().getBoundingClientRect();
 		// console.log(this.menus[title].actions);
@@ -239,9 +261,7 @@ export class MenubarPart extends Part {
 
 		// Build the menubar
 		if (this.container) {
-			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
-				this.addCustomMenu(topLevelMenuName);
-			}
+			this.setupCustomMenubar();
 		}
 
 		return this.container.getHTMLElement();
