@@ -115,6 +115,7 @@ export interface IWindowsService {
 
 	reloadWindow(windowId: number, args?: ParsedArgs): TPromise<void>;
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void>;
+	captureScreenshot(windowId: number): TPromise<string>;
 	toggleDevTools(windowId: number): TPromise<void>;
 	closeWorkspace(windowId: number): TPromise<void>;
 	createAndEnterWorkspace(windowId: number, folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
@@ -201,6 +202,7 @@ export interface IWindowService {
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
 	isFocused(): TPromise<boolean>;
+	captureScreenshot(): TPromise<string>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;

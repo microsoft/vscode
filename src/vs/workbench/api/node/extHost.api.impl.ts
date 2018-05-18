@@ -385,6 +385,9 @@ export function createApiFactory(
 			showErrorMessage(message, first, ...rest) {
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
+			captureScreenshot() {
+				return extHostWindow.captureScreenshot();
+			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
 				return extHostQuickOpen.showQuickPick(undefined, items, options, token);
 			},

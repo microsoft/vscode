@@ -902,6 +902,10 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
+	captureScreenshot(): TPromise<string> {
+		return TPromise.as(void 0);
+	}
+
 	openDevTools(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1033,6 +1037,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	captureScreenshot(): TPromise<string> {
 		return TPromise.as(void 0);
 	}
 

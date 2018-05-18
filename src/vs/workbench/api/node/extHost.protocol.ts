@@ -496,6 +496,7 @@ export interface MainThreadDebugServiceShape extends IDisposable {
 
 export interface MainThreadWindowShape extends IDisposable {
 	$getWindowVisibility(): TPromise<boolean>;
+	$captureScreenshot(): TPromise<string | null>;
 }
 
 // -- extension host

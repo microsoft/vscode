@@ -69,6 +69,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.openDevTools(this.windowId, options);
 	}
 
+	captureScreenshot(): TPromise<string> {
+		return this.windowsService.captureScreenshot(this.windowId);
+	}
+
 	toggleDevTools(): TPromise<void> {
 		return this.windowsService.toggleDevTools(this.windowId);
 	}

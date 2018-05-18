@@ -112,6 +112,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
+	captureScreenshot(windowId: number): TPromise<string | null> {
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+		if (codeWindow) {
+			codeWindow.win.webContents.capturePage(image => {
+				return TPromise.as(image.toDataURL());
+			});
+		}
+
+		return TPromise.as(null);
+	}
+
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
 		this.logService.trace('windowsService#openDevTools', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
