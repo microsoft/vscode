@@ -839,3 +839,18 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 		return false;
 	}
 }
+
+/**
+ *@internal
+ */
+export function getCodeEditor(thing: any): ICodeEditor {
+	if (isCodeEditor(thing)) {
+		return thing;
+	}
+
+	if (isDiffEditor(thing)) {
+		return thing.getModifiedEditor();
+	}
+
+	return null;
+}

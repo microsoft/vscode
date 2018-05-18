@@ -24,7 +24,6 @@ import { SettingsEditorModel, DefaultSettingsEditorModel, DefaultKeybindingsEdit
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position, IPosition } from 'vs/editor/common/core/position';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -33,7 +32,7 @@ import { IJSONEditingService } from 'vs/workbench/services/configuration/common/
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { parse } from 'vs/base/common/json';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -237,12 +236,14 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	configureSettingsForLanguage(language: string): void {
 		this.openGlobalSettings()
 			.then(editor => {
-				const codeEditor = getCodeEditor(editor);
-				this.getPosition(language, codeEditor)
-					.then(position => {
-						codeEditor.setPosition(position);
-						codeEditor.focus();
-					});
+				const codeEditor = getCodeEditor(editor.getControl());
+				if (codeEditor) {
+					this.getPosition(language, codeEditor)
+						.then(position => {
+							codeEditor.setPosition(position);
+							codeEditor.focus();
+						});
+				}
 			});
 	}
 

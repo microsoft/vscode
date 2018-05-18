@@ -30,7 +30,7 @@ import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/a
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Themable } from 'vs/workbench/common/theme';
-import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -169,8 +169,7 @@ export abstract class NextTitleControl extends Themable {
 
 			// Contributed Actions
 			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
-			const widget = activeControl.getControl();
-			const codeEditor = isCodeEditor(widget) && widget || isDiffEditor(widget) && widget.getModifiedEditor();
+			const codeEditor = getCodeEditor(activeControl.getControl());
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(() => this.updateEditorActionsToolbar()));

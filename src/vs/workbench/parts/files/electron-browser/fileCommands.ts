@@ -28,7 +28,7 @@ import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -97,12 +97,11 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 			}
 
 			let viewStateOfSource: IEditorViewState;
-			const activeEditor = editorService.activeControl;
-			const editor = getCodeEditor(activeEditor);
-			if (editor) {
-				const activeResource = toResource(activeEditor.input, { supportSideBySide: true });
+			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
+			if (activeCodeEditor) {
+				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
-					viewStateOfSource = editor.saveViewState();
+					viewStateOfSource = activeCodeEditor.saveViewState();
 				}
 			}
 

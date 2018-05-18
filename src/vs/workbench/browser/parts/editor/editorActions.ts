@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Action } from 'vs/base/common/actions';
 import { mixin } from 'vs/base/common/objects';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditor, IEditorInput, EditorInput, TextEditorOptions, EditorOptions, IEditorIdentifier, ConfirmResult, IEditorCommandsContext, GroupIdentifier, groupFromContext, CloseDirection } from 'vs/workbench/common/editor';
 import { QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { EditorQuickOpenEntry, EditorQuickOpenEntryGroup, IEditorQuickOpenEntry, QuickOpenAction } from 'vs/workbench/browser/quickopen';
@@ -62,7 +62,7 @@ export class SplitEditorAction extends Action {
 
 		// Options
 		let options: EditorOptions;
-		const codeEditor = getCodeEditor(editorToSplit);
+		const codeEditor = getCodeEditor(editorToSplit.getControl());
 		if (codeEditor) {
 			options = TextEditorOptions.fromEditor(codeEditor);
 		} else {
@@ -143,7 +143,7 @@ export class BaseSplitEditorGroupAction extends Action {
 		// Open editor
 		if (activeEditor) {
 			let options: EditorOptions;
-			const codeEditor = getCodeEditor(group.activeControl);
+			const codeEditor = getCodeEditor(group.activeControl.getControl());
 			if (codeEditor) {
 				options = TextEditorOptions.fromEditor(codeEditor);
 			} else {
@@ -411,7 +411,7 @@ export abstract class BaseFocusSideGroupAction extends Action {
 
 			// Options
 			let options: EditorOptions;
-			const codeEditor = getCodeEditor(referenceEditor);
+			const codeEditor = getCodeEditor(referenceEditor.getControl());
 			if (codeEditor) {
 				options = TextEditorOptions.fromEditor(codeEditor, { pinned: true });
 			} else {

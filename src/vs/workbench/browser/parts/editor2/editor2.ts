@@ -15,7 +15,7 @@ import { Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -101,10 +101,10 @@ export interface INextEditorGroupView extends IDisposable, ISerializableView, IN
 }
 
 export function getActiveTextEditorOptions(group: INextEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
-	const activeGroupControl = getCodeEditor(group.activeControl);
-	if (activeGroupControl) {
+	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : void 0;
+	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
-			return TextEditorOptions.fromEditor(activeGroupControl, presetOptions);
+			return TextEditorOptions.fromEditor(activeGroupCodeEditor, presetOptions);
 		}
 	}
 

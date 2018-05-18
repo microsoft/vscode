@@ -20,11 +20,10 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -135,7 +134,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		this.editorControl = this.createEditorControl(parent, this.computeConfiguration(this.configurationService.getValue<IEditorConfiguration>(this.getResource())));
 
 		// Model & Language changes
-		const codeEditor = getCodeEditor(this);
+		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			this.toUnbind.push(codeEditor.onDidChangeModelLanguage(e => this.updateEditorConfiguration()));
 			this.toUnbind.push(codeEditor.onDidChangeModel(e => this.updateEditorConfiguration()));
@@ -294,7 +293,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	protected getResource(): URI {
-		const codeEditor = getCodeEditor(this);
+		const codeEditor = getCodeEditor(this.editorControl);
 		if (codeEditor) {
 			const model = codeEditor.getModel();
 			if (model) {

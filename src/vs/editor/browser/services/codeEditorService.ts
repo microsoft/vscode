@@ -8,7 +8,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { IModelDecorationOptions, ITextModel } from 'vs/editor/common/model';
-import { ICodeEditor, IDiffEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 
@@ -45,37 +45,4 @@ export interface ICodeEditorService {
 
 	getActiveCodeEditor(): ICodeEditor;
 	openCodeEditor(input: IResourceInput, source: ICodeEditor, sideBySide?: boolean): TPromise<ICodeEditor>;
-}
-
-/**
- * Uses `editor.getControl()` and returns either the code editor, or the modified editor of a diff editor or nothing.
- */
-export function getCodeEditor(editor: { getControl: () => any }): ICodeEditor {
-	let r = getCodeOrDiffEditor(editor);
-	return r.codeEditor || (r.diffEditor && <ICodeEditor>r.diffEditor.getModifiedEditor()) || null;
-}
-
-function getCodeOrDiffEditor(editor: { getControl: () => any }): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
-	if (editor) {
-		let control = editor.getControl();
-		if (control) {
-			if (isCodeEditor(control)) {
-				return {
-					codeEditor: control,
-					diffEditor: null
-				};
-			}
-			if (isDiffEditor(control)) {
-				return {
-					codeEditor: null,
-					diffEditor: control
-				};
-			}
-		}
-	}
-
-	return {
-		codeEditor: null,
-		diffEditor: null
-	};
 }

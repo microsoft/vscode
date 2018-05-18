@@ -24,7 +24,7 @@ import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
@@ -185,7 +185,7 @@ export class HistoryService implements IHistoryService {
 		this.handleActiveEditorChange(activeControl);
 
 		// Apply listener for selection changes if this is a text editor
-		const control = getCodeEditor(activeControl);
+		const control = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (control) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
@@ -441,16 +441,16 @@ export class HistoryService implements IHistoryService {
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor, event?: ICursorPositionChangedEvent): void {
-		const control = getCodeEditor(editor);
+	private handleEditorEventInStack(control: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+		const codeEditor = control ? getCodeEditor(control.getControl()) : void 0;
 
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (control && editor.input) {
-				this.currentTextEditorState = new TextEditorState(editor.input, control.getSelection());
+			if (codeEditor && control.input) {
+				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text editor
 			}
@@ -460,16 +460,16 @@ export class HistoryService implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (control && editor.input) {
-				this.handleTextEditorEvent(editor, control, event);
+			if (codeEditor && control.input) {
+				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
 			// navigation to non-text editor
 			else {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-				if (editor && editor.input) {
-					this.handleNonTextEditorEvent(editor);
+				if (control && control.input) {
+					this.handleNonTextEditorEvent(control);
 				}
 			}
 		}

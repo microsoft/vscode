@@ -15,7 +15,6 @@ import * as arrays from 'vs/base/common/arrays';
 import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as objects from 'vs/base/common/objects';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { Scope as MementoScope } from 'vs/workbench/common/memento';
 import { Part } from 'vs/workbench/browser/part';
@@ -43,7 +42,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { join } from 'vs/base/common/paths';
 import { IEditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { ThrottledEmitter } from 'vs/base/common/async';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService, Severity, INotificationActions } from 'vs/platform/notification/common/notification';
 import { dispose } from 'vs/base/common/lifecycle';
 
@@ -758,7 +757,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 		// for the editor to be a text editor and creating the options accordingly if so
 		let options = EditorOptions.create({ pinned: true, index, inactive, preserveFocus });
 		const activeEditor = this.getActiveEditor();
-		const codeEditor = getCodeEditor(activeEditor);
+		const codeEditor = getCodeEditor(activeEditor.getControl());
 		if (codeEditor && activeEditor.group === this.stacks.positionOfGroup(fromGroup) && input.matches(activeEditor.input)) {
 			options = TextEditorOptions.fromEditor(codeEditor, { pinned: true, index, inactive, preserveFocus });
 		}

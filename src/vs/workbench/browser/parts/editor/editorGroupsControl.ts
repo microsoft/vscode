@@ -27,7 +27,7 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IEditorStacksModel, IStacksModelChangeEvent, IEditorGroup, EditorOptions, TextEditorOptions, IEditorIdentifier, EditorInput } from 'vs/workbench/common/editor';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
@@ -1134,7 +1134,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			// for th editor to be a text editor and creating the options accordingly if so
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
-			const editor = getCodeEditor(activeEditor);
+			const editor = getCodeEditor(activeEditor.getControl());
 			if (editor && activeEditor.group.id === stacks.positionOfGroup(stacks.getGroup(identifier.groupId)) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}

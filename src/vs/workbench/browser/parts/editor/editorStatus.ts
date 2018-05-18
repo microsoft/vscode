@@ -42,7 +42,6 @@ import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IExtensionGalleryService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { getCodeEditor as getEditorWidget } from 'vs/editor/browser/services/codeEditorService';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IConfigurationChangedEvent, IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -52,7 +51,7 @@ import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { widgetShadow, editorWidgetBackground, foreground, darken, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { deepClone } from 'vs/base/common/objects';
-import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
@@ -545,7 +544,7 @@ export class EditorStatus implements IStatusbarItem {
 
 	private updateStatusBar(): void {
 		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = getEditorWidget(activeControl);
+		const activeCodeEditor = activeControl ? getCodeEditor(activeControl.getControl()) : void 0;
 
 		// Update all states
 		this.onScreenReaderModeChange(activeCodeEditor);
@@ -748,7 +747,7 @@ export class EditorStatus implements IStatusbarItem {
 		const info: StateDelta = { encoding: null };
 
 		// We only support text based editors
-		if (getEditorWidget(e)) {
+		if (isCodeEditor(e.getControl()) || isDiffEditor(e.getControl())) {
 			const encodingSupport: IEncodingSupport = toEditorWithEncodingSupport(e.input);
 			if (encodingSupport) {
 				const rawEncoding = encodingSupport.getEncoding();
@@ -796,7 +795,7 @@ function isWritableCodeEditor(codeEditor: ICodeEditor): boolean {
 }
 
 function isWritableBaseEditor(e: IBaseEditor): boolean {
-	return isWritableCodeEditor(getEditorWidget(e));
+	return e && isWritableCodeEditor(getCodeEditor(e.getControl()));
 }
 
 export class ShowLanguageExtensionsAction extends Action {
@@ -839,14 +838,13 @@ export class ChangeModeAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let activeControl = this.editorService.activeControl;
-		const activeCodeEditor = getEditorWidget(activeControl);
+		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeCodeEditor) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
 		const textModel = activeCodeEditor.getModel();
-		const resource = toResource(activeControl.input, { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 
 		let hasLanguageSupport = !!resource;
 		if (resource.scheme === Schemas.untitled && !this.untitledEditorService.hasAssociatedFilePath(resource)) {
@@ -944,7 +942,7 @@ export class ChangeModeAction extends Action {
 			}
 
 			// Change mode for active editor
-			activeControl = this.editorService.activeControl;
+			const activeEditor = this.editorService.activeEditor;
 			const codeOrDiffEditor = this.editorService.activeTextEditorControl;
 			const models: ITextModel[] = [];
 			if (isCodeEditor(codeOrDiffEditor)) {
@@ -967,7 +965,7 @@ export class ChangeModeAction extends Action {
 			// Find mode
 			let mode: TPromise<IMode>;
 			if (pick === autoDetectMode) {
-				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeControl.input, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
+				mode = this.modeService.getOrCreateModeByFilenameOrFirstLine(toResource(activeEditor, { supportSideBySide: true }).fsPath, textModel.getLineContent(1));
 			} else {
 				mode = this.modeService.getOrCreateModeByLanguageName(pick.label);
 			}
@@ -1047,11 +1045,11 @@ class ChangeIndentationAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeControl = this.editorService.activeControl;
-		const activeCodeEditor = getEditorWidget(activeControl);
+		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeCodeEditor) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
+
 		if (!isWritableCodeEditor(activeCodeEditor)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
@@ -1097,8 +1095,7 @@ export class ChangeEOLAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let activeControl = this.editorService.activeControl;
-		const activeCodeEditor = getEditorWidget(activeControl);
+		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 		if (!activeCodeEditor) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
@@ -1118,8 +1115,7 @@ export class ChangeEOLAction extends Action {
 
 		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
 			if (eol) {
-				activeControl = this.editorService.activeControl;
-				const activeCodeEditor = getEditorWidget(activeControl);
+				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
 				if (activeCodeEditor && isWritableCodeEditor(activeCodeEditor)) {
 					const textModel = activeCodeEditor.getModel();
 					textModel.pushEOL(eol.eol);
@@ -1146,11 +1142,11 @@ export class ChangeEncodingAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let activeControl = this.editorService.activeControl;
-		if (!getEditorWidget(activeControl) || !activeControl.input) {
+		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
+		let activeControl = this.editorService.activeControl;
 		let encodingSupport: IEncodingSupport = toEditorWithEncodingSupport(activeControl.input);
 		if (!encodingSupport) {
 			return this.quickOpenService.pick([{ label: nls.localize('noFileEditor', "No file active at this time") }]);
