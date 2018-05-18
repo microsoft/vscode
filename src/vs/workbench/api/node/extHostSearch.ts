@@ -611,15 +611,12 @@ class FileSearchEngine {
 			const queryTester = new QueryGlobTester(this.config, fq);
 			const noSiblingsClauses = !queryTester.hasSiblingExcludeClauses();
 
-			const onProviderResult = (result: URI) => {
+			const onProviderResult = (relativePath: string) => {
 				if (this.isCanceled) {
 					return;
 				}
 
-				// TODO@roblou - What if it is not relative to the folder query.
 				// This is slow...
-				const relativePath = path.relative(folderStr, result.fsPath);
-
 				if (noSiblingsClauses) {
 					if (relativePath === this.filePattern) {
 						filePatternSeen = true;

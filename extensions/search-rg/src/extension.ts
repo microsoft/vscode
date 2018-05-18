@@ -22,7 +22,7 @@ class RipgrepSearchProvider implements vscode.SearchProvider {
 		return engine.provideTextSearchResults(query, options, progress, token);
 	}
 
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		const engine = new RipgrepFileSearchEngine(this.outputChannel);
 		return engine.provideFileSearchResults(options, progress, token);
 	}
