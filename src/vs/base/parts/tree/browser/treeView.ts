@@ -867,7 +867,7 @@ export class TreeView extends HeightMap {
 		var item = <Model.Item>e.item;
 		var viewItem = this.items[item.id];
 
-		if (viewItem) {
+		if (viewItem && this.context.options.showLoading) {
 			viewItem.loadingTimer = setTimeout(() => {
 				viewItem.loadingTimer = 0;
 				viewItem.loading = true;
