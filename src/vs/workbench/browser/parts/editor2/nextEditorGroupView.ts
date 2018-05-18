@@ -364,7 +364,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.updateContainer();
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor, structural: true });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_OPEN, editor });
 	}
 
 	private onDidEditorClose(event: EditorCloseEvent): void {
@@ -403,7 +403,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Event
 		this._onDidCloseEditor.fire(event);
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, structural: true });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor });
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {
@@ -768,7 +768,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.titleAreaControl.pinEditor(editor);
 
 		// Event
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor, structural: true });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
 	}
 
 	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {

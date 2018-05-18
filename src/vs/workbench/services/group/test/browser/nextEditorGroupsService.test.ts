@@ -151,7 +151,6 @@ suite('Editor groups service (editor2)', () => {
 		let rootGroupActiveChangeCounter = 0;
 		const rootGroupChangeListener = rootGroup.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_ACTIVE) {
-				assert.notEqual(e.structural, true);
 				rootGroupActiveChangeCounter++;
 			}
 		});
@@ -159,7 +158,6 @@ suite('Editor groups service (editor2)', () => {
 		let rightGroupActiveChangeCounter = 0;
 		const rightGroupChangeListener = rightGroup.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_ACTIVE) {
-				assert.notEqual(e.structural, true);
 				rightGroupActiveChangeCounter++;
 			}
 		});
@@ -273,7 +271,6 @@ suite('Editor groups service (editor2)', () => {
 		let labelChangeCounter = 0;
 		const labelChangeListener = downGroup.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.GROUP_LABEL) {
-				assert.notEqual(e.structural, true);
 				labelChangeCounter++;
 			}
 		});
@@ -386,19 +383,15 @@ suite('Editor groups service (editor2)', () => {
 		let editorPinCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_OPEN) {
-				assert.equal(e.structural, true);
 				assert.ok(e.editor);
 				editorDidOpenCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
-				assert.notEqual(e.structural, true);
 				assert.ok(e.editor);
 				activeEditorChangeCounter++;
 			} else if (e.kind === GroupChangeKind.EDITOR_CLOSE) {
-				assert.equal(e.structural, true);
 				assert.ok(e.editor);
 				editorCloseCounter1++;
 			} else if (e.kind === GroupChangeKind.EDITOR_PIN) {
-				assert.notEqual(e.structural, true);
 				assert.ok(e.editor);
 				editorPinCounter++;
 			}
@@ -605,7 +598,6 @@ suite('Editor groups service (editor2)', () => {
 		let editorMoveCounter = 0;
 		const editorGroupChangeListener = group.onDidGroupChange(e => {
 			if (e.kind === GroupChangeKind.EDITOR_MOVE) {
-				assert.equal(e.structural, true);
 				assert.ok(e.editor);
 				editorMoveCounter++;
 			}

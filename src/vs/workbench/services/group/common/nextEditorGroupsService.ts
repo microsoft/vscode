@@ -253,7 +253,6 @@ export enum GroupChangeKind {
 
 export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
-	structural?: boolean;
 	editor?: IEditorInput;
 }
 
