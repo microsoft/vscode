@@ -4,13 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
 import BufferSyncSupport from './bufferSyncSupport';
 import FileConfigurationManager from './fileConfigurationManager';
 
-export class UpdatePathsOnFileRenameHandler {
+const localize = nls.loadMessageBundle();
+
+const updateImportsOnFileMoveName = 'updateImportsOnFileMove.enabled';
+
+enum UpdateImportsOnFileMoveSetting {
+	Prompt = 'prompt',
+	Always = 'always',
+	Never = 'never',
+}
+
+export class UpdateImportsOnFileRenameHandler {
 	private readonly _onDidRenameSub: vscode.Disposable;
 
 	public constructor(
@@ -49,14 +61,119 @@ export class UpdatePathsOnFileRenameHandler {
 			return;
 		}
 
+
 		// Make sure TS knows about file
 		const document = await vscode.workspace.openTextDocument(newResource);
 		this.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
-		if (edits) {
-			await vscode.workspace.applyEdit(edits);
+		if (!edits || !edits.size) {
+			return;
 		}
+
+		if (!await this.confirmActionWithUser(document)) {
+			return;
+		}
+
+		await vscode.workspace.applyEdit(edits);
+	}
+
+	private async confirmActionWithUser(
+		newDocument: vscode.TextDocument
+	): Promise<boolean> {
+		const config = this.getConfiguration(newDocument);
+		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
+		switch (setting) {
+			case UpdateImportsOnFileMoveSetting.Always:
+				return true;
+			case UpdateImportsOnFileMoveSetting.Never:
+				return false;
+			case UpdateImportsOnFileMoveSetting.Prompt:
+			default:
+				return this.promptUser(newDocument);
+		}
+	}
+
+	private getConfiguration(newDocument: vscode.TextDocument) {
+		return vscode.workspace.getConfiguration(isTypeScriptDocument(newDocument) ? 'typescript' : 'javascript', newDocument.uri);
+	}
+
+	private async promptUser(
+		newDocument: vscode.TextDocument
+	): Promise<boolean> {
+		enum Choice {
+			None = 0,
+			Accept = 1,
+			Reject = 2,
+			Always = 3,
+			Never = 4,
+		}
+
+		interface Item extends vscode.QuickPickItem {
+			choice: Choice;
+		}
+
+		const response = await vscode.window.showQuickPick<Item>([
+			{
+				label: localize('accept.label', "Yes"),
+				description: localize('accept.description', "Update imports."),
+				choice: Choice.Accept,
+			},
+			{
+				label: localize('reject.label', "No"),
+				description: localize('reject.description', "Do not update imports."),
+				choice: Choice.Reject,
+			},
+			{
+				label: localize('always.label', "Always"),
+				description: localize('always.description', "Yes, and always automatically update imports."),
+				choice: Choice.Always,
+			},
+			{
+				label: localize('never.label', "Never"),
+				description: localize('never.description', "No, and do not prompt me again."),
+				choice: Choice.Never,
+			},
+		], {
+				placeHolder: localize('prompt', "Update import paths?"),
+				ignoreFocusOut: true,
+			});
+
+		if (!response) {
+			return false;
+		}
+
+		switch (response.choice) {
+			case Choice.Accept:
+				{
+					return true;
+				}
+			case Choice.Reject:
+				{
+					return false;
+				}
+			case Choice.Always:
+				{
+					const config = this.getConfiguration(newDocument);
+					config.update(
+						updateImportsOnFileMoveName,
+						UpdateImportsOnFileMoveSetting.Always,
+						vscode.ConfigurationTarget.Global);
+					return true;
+				}
+			case Choice.Never:
+				{
+					const config = this.getConfiguration(newDocument);
+					config.update(
+						updateImportsOnFileMoveName,
+						UpdateImportsOnFileMoveSetting.Never,
+						vscode.ConfigurationTarget.Global);
+					return false;
+				}
+
+		}
+
+		return false;
 	}
 
 	private async getEditsForFileRename(
@@ -78,4 +195,8 @@ export class UpdatePathsOnFileRenameHandler {
 
 		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
 	}
+}
+
+function isTypeScriptDocument(document: vscode.TextDocument) {
+	return document.languageId === languageIds.typescript || document.languageId === languageIds.typescriptreact;
 }

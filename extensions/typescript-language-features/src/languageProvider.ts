@@ -21,7 +21,7 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
-import { UpdatePathsOnFileRenameHandler } from './features/updatePathsOnRename';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -41,7 +41,7 @@ export default class LanguageProvider {
 	private readonly versionDependentDisposables: Disposable[] = [];
 
 	private foldingProviderRegistration: Disposable | undefined = void 0;
-	private readonly renameHandler: UpdatePathsOnFileRenameHandler;
+	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -67,7 +67,7 @@ export default class LanguageProvider {
 			this.bufferSyncSupport.listen();
 		});
 
-		this.renameHandler = new UpdatePathsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
+		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
 			try {
 				const doc = await workspace.openTextDocument(uri);
 				return this.handles(uri, doc);
