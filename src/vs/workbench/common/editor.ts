@@ -53,7 +53,7 @@ export interface IEditor {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: GroupIdentifier;
+	group: INextEditorGroup;
 
 	/**
 	 * Returns the unique identifier of this editor.
@@ -1007,9 +1007,9 @@ export class EditorViewStateMemento<T> {
 		private limit: number = 10
 	) { }
 
-	public saveState(group: GroupIdentifier, resource: URI, state: T): void;
-	public saveState(group: GroupIdentifier, editor: EditorInput, state: T): void;
-	public saveState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput, state: T): void {
+	public saveState(group: INextEditorGroup, resource: URI, state: T): void;
+	public saveState(group: INextEditorGroup, editor: EditorInput, state: T): void;
+	public saveState(group: INextEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
@@ -1020,7 +1020,7 @@ export class EditorViewStateMemento<T> {
 				cache.set(resource.toString(), viewStates);
 			}
 
-			viewStates[group] = state;
+			viewStates[group.id] = state;
 
 			// Automatically clear when editor input gets disposed if any
 			if (resourceOrEditor instanceof EditorInput) {
@@ -1031,16 +1031,16 @@ export class EditorViewStateMemento<T> {
 		}
 	}
 
-	public loadState(group: GroupIdentifier, resource: URI): T;
-	public loadState(group: GroupIdentifier, editor: EditorInput): T;
-	public loadState(group: GroupIdentifier, resourceOrEditor: URI | EditorInput): T {
+	public loadState(group: INextEditorGroup, resource: URI): T;
+	public loadState(group: INextEditorGroup, editor: EditorInput): T;
+	public loadState(group: INextEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
 
 			const viewStates = cache.get(resource.toString());
 			if (viewStates) {
-				return viewStates[group];
+				return viewStates[group.id];
 			}
 		}
 

@@ -272,7 +272,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
-			if (editor && editor.input && editor.group === group.id) {
+			if (editor && editor.input && editor.group === group) {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();

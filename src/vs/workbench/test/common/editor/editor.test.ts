@@ -88,9 +88,13 @@ suite('Workbench editor', () => {
 	});
 
 	test('EditorViewStateMemento - basics', function () {
+		const testGroup0 = new TestNextEditorGroup(0);
+		const testGroup1 = new TestNextEditorGroup(1);
+		const testGroup4 = new TestNextEditorGroup(4);
+
 		const groupService = new TestNextEditorGroupsService([
-			new TestNextEditorGroup(0),
-			new TestNextEditorGroup(1),
+			testGroup0,
+			testGroup1,
 			new TestNextEditorGroup(2)
 		]);
 
@@ -101,57 +105,59 @@ suite('Workbench editor', () => {
 		const rawMemento = Object.create(null);
 		let memento = new EditorViewStateMemento<TestViewState>(groupService, rawMemento, 'key', 3);
 
-		let res = memento.loadState(0, URI.file('/A'));
+		let res = memento.loadState(testGroup0, URI.file('/A'));
 		assert.ok(!res);
 
-		memento.saveState(0, URI.file('/A'), { line: 3 });
-		res = memento.loadState(0, URI.file('/A'));
+		memento.saveState(testGroup0, URI.file('/A'), { line: 3 });
+		res = memento.loadState(testGroup0, URI.file('/A'));
 		assert.ok(res);
 		assert.equal(res.line, 3);
 
-		memento.saveState(1, URI.file('/A'), { line: 5 });
-		res = memento.loadState(1, URI.file('/A'));
+		memento.saveState(testGroup1, URI.file('/A'), { line: 5 });
+		res = memento.loadState(testGroup1, URI.file('/A'));
 		assert.ok(res);
 		assert.equal(res.line, 5);
 
 		// Ensure capped at 3 elements
-		memento.saveState(0, URI.file('/B'), { line: 1 });
-		memento.saveState(0, URI.file('/C'), { line: 1 });
-		memento.saveState(0, URI.file('/D'), { line: 1 });
-		memento.saveState(0, URI.file('/E'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/B'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/C'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/D'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/E'), { line: 1 });
 
-		assert.ok(!memento.loadState(0, URI.file('/A')));
-		assert.ok(!memento.loadState(0, URI.file('/B')));
-		assert.ok(memento.loadState(0, URI.file('/C')));
-		assert.ok(memento.loadState(0, URI.file('/D')));
-		assert.ok(memento.loadState(0, URI.file('/E')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/A')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/B')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/E')));
 
 		// Save at an unknown group
-		memento.saveState(4, URI.file('/E'), { line: 1 });
-		assert.ok(memento.loadState(4, URI.file('/E'))); // only gets removed when memento is saved
-		memento.saveState(4, URI.file('/C'), { line: 1 });
-		assert.ok(memento.loadState(4, URI.file('/C'))); // only gets removed when memento is saved
+		memento.saveState(testGroup4, URI.file('/E'), { line: 1 });
+		assert.ok(memento.loadState(testGroup4, URI.file('/E'))); // only gets removed when memento is saved
+		memento.saveState(testGroup4, URI.file('/C'), { line: 1 });
+		assert.ok(memento.loadState(testGroup4, URI.file('/C'))); // only gets removed when memento is saved
 
 		memento.save();
 
 		memento = new EditorViewStateMemento(groupService, rawMemento, 'key', 3);
-		assert.ok(memento.loadState(0, URI.file('/C')));
-		assert.ok(memento.loadState(0, URI.file('/D')));
-		assert.ok(memento.loadState(0, URI.file('/E')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/E')));
 
 		// Check on entries no longer there from invalid groups
-		assert.ok(!memento.loadState(4, URI.file('/E')));
-		assert.ok(!memento.loadState(4, URI.file('/C')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/E')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 
 		memento.clearState(URI.file('/C'));
 		memento.clearState(URI.file('/E'));
 
-		assert.ok(!memento.loadState(0, URI.file('/C')));
-		assert.ok(memento.loadState(0, URI.file('/D')));
-		assert.ok(!memento.loadState(0, URI.file('/E')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/E')));
 	});
 
 	test('EditorViewStateMemento - use with editor input', function () {
+		const testGroup0 = new TestNextEditorGroup(0);
+
 		interface TestViewState {
 			line: number;
 		}
@@ -177,17 +183,17 @@ suite('Workbench editor', () => {
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 
-		let res = memento.loadState(0, testInputA);
+		let res = memento.loadState(testGroup0, testInputA);
 		assert.ok(!res);
 
-		memento.saveState(0, testInputA, { line: 3 });
-		res = memento.loadState(0, testInputA);
+		memento.saveState(testGroup0, testInputA, { line: 3 });
+		res = memento.loadState(testGroup0, testInputA);
 		assert.ok(res);
 		assert.equal(res.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();
-		res = memento.loadState(0, testInputA);
+		res = memento.loadState(testGroup0, testInputA);
 		assert.ok(!res);
 	});
 });

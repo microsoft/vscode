@@ -26,7 +26,6 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -55,7 +54,6 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -488,7 +486,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	private pin(): void {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl) {
-			this.editorGroupService.getGroup(activeControl.group).pinEditor(activeControl.input);
+			activeControl.group.pinEditor(activeControl.input);
 			activeControl.focus();
 		}
 	}

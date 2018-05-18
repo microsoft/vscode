@@ -120,7 +120,7 @@ suite('Editor service (editor2)', () => {
 			assert.equal(willOpenEditorEventCounter, 1);
 
 			// Close input
-			part.getGroup(editor.group).closeEditor(input);
+			editor.group.closeEditor(input);
 			assert.equal(willCloseEditorListenerCounter, 1);
 			assert.equal(didCloseEditorListenerCounter, 1);
 			assert.equal(activeEditorChangeEventCounter, 2);
@@ -374,7 +374,7 @@ suite('Editor service (editor2)', () => {
 		return service.openEditor(diffInput, { pinned: true }).then(editor => {
 
 			// Close input
-			return part.getGroup(editor.group).closeEditor(diffInput).then(() => {
+			return editor.group.closeEditor(diffInput).then(() => {
 				assert.equal(diffInput.isDisposed(), true);
 				assert.equal(otherInput.isDisposed(), true);
 				assert.equal(input.isDisposed(), true);
@@ -402,7 +402,7 @@ suite('Editor service (editor2)', () => {
 			return service.openEditor(input, { pinned: true }).then(editor => {
 
 				// Close input
-				return part.getGroup(editor.group).closeEditor(diffInput).then(() => {
+				return editor.group.closeEditor(diffInput).then(() => {
 					assert.equal(diffInput.isDisposed(), true);
 					assert.equal(otherInput.isDisposed(), true);
 					assert.equal(input.isDisposed(), false);
@@ -431,13 +431,13 @@ suite('Editor service (editor2)', () => {
 			return service.openEditor(input1, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
 				assert.equal(part.activeGroup, rootGroup);
 				assert.equal(part.count, 2);
-				assert.equal(editor.group, part.groups[1].id);
+				assert.equal(editor.group, part.groups[1]);
 
 				// Open to the side uses existing neighbour group if any
 				return service.openEditor(input2, { pinned: true, preserveFocus: true }, SIDE_GROUP).then(editor => {
 					assert.equal(part.activeGroup, rootGroup);
 					assert.equal(part.count, 2);
-					assert.equal(editor.group, part.groups[1].id);
+					assert.equal(editor.group, part.groups[1]);
 				});
 			});
 		});

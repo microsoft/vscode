@@ -21,6 +21,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const GOTO_LINE_PREFIX = ':';
 
@@ -200,7 +201,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 }
 
 interface IEditorLineDecoration {
-	group: GroupIdentifier;
+	groupId: GroupIdentifier;
 	rangeHighlightId: string;
 	lineDecorationId: string;
 }
@@ -238,7 +239,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
 	}
 
-	public decorateOutline(range: IRange, editor: IEditor, group: GroupIdentifier): void {
+	public decorateOutline(range: IRange, editor: IEditor, group: INextEditorGroup): void {
 		editor.changeDecorations(changeAccessor => {
 			const deleteDecorations: string[] = [];
 
@@ -276,7 +277,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 			const lineDecorationId = decorations[1];
 
 			this.rangeHighlightDecorationId = {
-				group,
+				groupId: group.id,
 				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 			};
@@ -286,7 +287,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
-				if (editor.group === this.rangeHighlightDecorationId.group) {
+				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations(changeAccessor => {
 						changeAccessor.deltaDecorations([

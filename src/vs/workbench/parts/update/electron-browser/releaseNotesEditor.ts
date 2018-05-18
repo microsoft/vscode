@@ -76,12 +76,12 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : undefined, false); // TODO@grid [EXTENSIONS] adopt group identifier
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group.id : undefined, false); // TODO@grid [EXTENSIONS] adopt group identifier
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
 				title,
-				{ viewColumn: activeControl ? activeControl.group : Position.ONE, preserveFocus: false }, // TODO@grid [EXTENSIONS] adopt group identifier
+				{ viewColumn: activeControl ? activeControl.group.id : Position.ONE, preserveFocus: false }, // TODO@grid [EXTENSIONS] adopt group identifier
 				{ tryRestoreScrollPosition: true, enableFindWidget: true },
 				undefined, {
 					onDidClickLink: uri => this.onDidClickLink(uri),

@@ -6,10 +6,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Panel } from 'vs/workbench/browser/panel';
-import { EditorInput, EditorOptions, GroupIdentifier, IEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -29,7 +30,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	protected _input: EditorInput;
 
 	private _options: EditorOptions;
-	private _group: GroupIdentifier;
+	private _group: INextEditorGroup;
 
 	constructor(
 		id: string,
@@ -47,7 +48,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		return this._options;
 	}
 
-	get group(): GroupIdentifier {
+	get group(): INextEditorGroup {
 		return this._group;
 	}
 
@@ -105,9 +106,9 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 */
 	protected abstract createEditor(parent: HTMLElement): void;
 
-	setVisible(visible: boolean, group?: GroupIdentifier): void; // setVisible is sync for editors
-	setVisible(visible: boolean, group?: GroupIdentifier): TPromise<void>;
-	setVisible(visible: boolean, group?: GroupIdentifier): TPromise<void> {
+	setVisible(visible: boolean, group?: INextEditorGroup): void; // setVisible is sync for editors
+	setVisible(visible: boolean, group?: INextEditorGroup): TPromise<void>;
+	setVisible(visible: boolean, group?: INextEditorGroup): TPromise<void> {
 		const promise = super.setVisible(visible);
 
 		// Propagate to Editor
@@ -121,10 +122,9 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	 * editor instance will only ever be visible in one editor group.
 	 *
 	 * @param visible the state of visibility of this editor
-	 * @param group the identifier of the editor group this editor is currently
-	 * positioned.
+	 * @param group the editor group this editor is in.
 	 */
-	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
 		this._group = group;
 	}
 

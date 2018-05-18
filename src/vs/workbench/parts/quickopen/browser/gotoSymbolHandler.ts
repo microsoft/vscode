@@ -25,6 +25,7 @@ import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const GOTO_SYMBOL_PREFIX = '@';
 export const SCOPE_PREFIX = ':';
@@ -361,7 +362,7 @@ interface Outline {
 }
 
 interface IEditorLineDecoration {
-	group: GroupIdentifier;
+	groupId: GroupIdentifier;
 	rangeHighlightId: string;
 	lineDecorationId: string;
 }
@@ -506,7 +507,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		return TPromise.wrap<OutlineModel>(null);
 	}
 
-	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: GroupIdentifier): void {
+	public decorateOutline(fullRange: IRange, startRange: IRange, editor: IEditor, group: INextEditorGroup): void {
 		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			const deleteDecorations: string[] = [];
 
@@ -546,7 +547,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			const lineDecorationId = decorations[1];
 
 			this.rangeHighlightDecorationId = {
-				group,
+				groupId: group.id,
 				rangeHighlightId: rangeHighlightId,
 				lineDecorationId: lineDecorationId,
 			};
@@ -556,7 +557,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	public clearDecorations(): void {
 		if (this.rangeHighlightDecorationId) {
 			this.editorService.visibleControls.forEach(editor => {
-				if (editor.group === this.rangeHighlightDecorationId.group) {
+				if (editor.group.id === this.rangeHighlightDecorationId.groupId) {
 					const editorControl = <IEditor>editor.getControl();
 					editorControl.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 						changeAccessor.deltaDecorations([

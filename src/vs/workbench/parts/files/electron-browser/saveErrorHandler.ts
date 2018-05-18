@@ -34,7 +34,6 @@ import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -313,7 +312,6 @@ class OverwriteReadonlyAction extends Action {
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(INextEditorService);
-	const editorGroupService = accessor.get(INextEditorGroupsService);
 	const resolverService = accessor.get(ITextModelService);
 	const modelService = accessor.get(IModelService);
 
@@ -340,7 +338,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 				return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 					// Clean up
-					editorGroupService.getGroup(group).closeEditor(editor);
+					group.closeEditor(editor);
 					editor.dispose();
 					reference.dispose();
 				});
@@ -351,7 +349,6 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
 	const editorService = accessor.get(INextEditorService);
-	const editorGroupService = accessor.get(INextEditorGroupsService);
 	const resolverService = accessor.get(ITextModelService);
 
 	const control = editorService.activeControl;
@@ -370,7 +367,7 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 			return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 				// Clean up
-				editorGroupService.getGroup(group).closeEditor(editor);
+				group.closeEditor(editor);
 				editor.dispose();
 				reference.dispose();
 			});

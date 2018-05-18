@@ -129,15 +129,14 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: Servic
 }
 
 function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	const editorGroupsService: INextEditorGroupsService = accessor.get(INextEditorGroupsService);
-	const editorGroup = editorGroupsService.getGroup(activeEditor.group);
-	let index = editorGroup.getIndexOfEditor(activeEditor.input);
+	const group = activeEditor.group;
+	let index = group.getIndexOfEditor(activeEditor.input);
 	switch (args.to) {
 		case ActiveEditorMovePositioning.FIRST:
 			index = 0;
 			break;
 		case ActiveEditorMovePositioning.LAST:
-			index = editorGroup.count - 1;
+			index = group.count - 1;
 			break;
 		case ActiveEditorMovePositioning.LEFT:
 			index = index - args.value;
@@ -146,19 +145,19 @@ function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, a
 			index = index + args.value;
 			break;
 		case ActiveEditorMovePositioning.CENTER:
-			index = Math.round(editorGroup.count / 2) - 1;
+			index = Math.round(group.count / 2) - 1;
 			break;
 		case ActiveEditorMovePositioning.POSITION:
 			index = args.value - 1;
 			break;
 	}
 
-	index = index < 0 ? 0 : index >= editorGroup.count ? editorGroup.count - 1 : index;
-	editorGroup.moveEditor(activeEditor.input, editorGroup, { index });
+	index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
+	group.moveEditor(activeEditor.input, group, { index });
 }
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	let newPosition = activeEditor.group;
+	let newPosition = activeEditor.group.id;
 	switch (args.to) {
 		case ActiveEditorMovePositioning.LEFT:
 			newPosition = newPosition - 1;
@@ -183,7 +182,7 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: 
 	// TODO@grid this position non-sense does not make any sense
 	const editorGroupService = accessor.get(INextEditorGroupsService);
 	const destinationGroup = editorGroupService.getGroup(newPosition) || editorGroupService.activeGroup;
-	const sourceGroup = editorGroupService.getGroup(activeEditor.group);
+	const sourceGroup = activeEditor.group;
 	sourceGroup.moveEditor(activeEditor.input, destinationGroup);
 }
 
@@ -248,13 +247,10 @@ function registerOpenEditorAtIndexCommands(): void {
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
 			handler: accessor => {
 				const editorService = accessor.get(INextEditorService);
-				const editorGroupService = accessor.get(INextEditorGroupsService);
 
 				const activeControl = editorService.activeControl;
 				if (activeControl) {
-					const group = editorGroupService.getGroup(activeControl.group);
-					const editor = group.getEditor(editorIndex);
-
+					const editor = activeControl.group.getEditor(editorIndex);
 					if (editor) {
 						return editorService.openEditor(editor).then(() => void 0);
 					}

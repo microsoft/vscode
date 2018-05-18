@@ -146,10 +146,10 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 		}
 
 		// Pin the active editor if we are saving it
-		const editor = editorService.activeControl;
-		const activeEditorResource = editor && editor.input && editor.input.getResource();
+		const activeControl = editorService.activeControl;
+		const activeEditorResource = activeControl && activeControl.input && activeControl.input.getResource();
 		if (activeEditorResource && activeEditorResource.toString() === resource.toString()) {
-			editorGroupService.getGroup(editor.group).pinEditor(editor.input);
+			activeControl.group.pinEditor(activeControl.input);
 		}
 
 		// Just save

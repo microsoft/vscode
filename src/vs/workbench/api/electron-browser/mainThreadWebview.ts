@@ -216,7 +216,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		// Then for newly active
 		if (newActiveWebview) {
-			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, activeEditor.group); // TODO@grid [EXTENSIONS] adopt in extension host
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, activeEditor.group.id); // TODO@grid [EXTENSIONS] adopt in extension host
 			this._activeWebview = newActiveWebview.handle;
 		} else {
 			this._activeWebview = undefined;
@@ -230,9 +230,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			}
 
 			this._webviews.forEach((input, handle) => {
-				if (workbenchEditor.input.matches(input) && input.group !== workbenchEditor.group) { // TODO@grid [EXTENSIONS] adopt group identifier
-					input.updateGroup(workbenchEditor.group);
-					this._proxy.$onDidChangeWebviewPanelViewState(handle, handle === this._activeWebview, workbenchEditor.group);
+				if (workbenchEditor.input.matches(input) && input.group !== workbenchEditor.group.id) { // TODO@grid [EXTENSIONS] adopt group identifier
+					input.updateGroup(workbenchEditor.group.id);
+					this._proxy.$onDidChangeWebviewPanelViewState(handle, handle === this._activeWebview, workbenchEditor.group.id);
 				}
 			});
 		}

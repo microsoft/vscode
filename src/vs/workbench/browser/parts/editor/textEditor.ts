@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, EditorViewStateMemento, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -25,7 +25,7 @@ import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/service
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
@@ -109,9 +109,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Apply group information to help identify in which group we are
 		if (ariaLabel) {
-			const group = this.editorGroupService.getGroup(this.group);
-			if (group) {
-				ariaLabel = nls.localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, group.label);
+			if (this.group) {
+				ariaLabel = nls.localize('editorLabelWithGroup', "{0}, {1}.", ariaLabel, this.group.label);
 			}
 		}
 
@@ -199,7 +198,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		});
 	}
 
-	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
 
 		// Pass on to Editor
 		if (visible) {

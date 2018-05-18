@@ -639,7 +639,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 				return activeEditorControl.invokeWithinContext(fn);
 			}
 
-			return this.editorGroupsControl.getInstantiationService(activeEditor.group).invokeFunction(fn);
+			return this.editorGroupsControl.getInstantiationService(activeEditor.group.id).invokeFunction(fn);
 		}
 
 		return this.instantiationService.invokeFunction(fn);
@@ -1612,7 +1612,7 @@ export class EditorPart extends Part implements IEditorPart, IEditorGroupService
 
 		// Position is sideBySide: Find position relative to active editor
 		if (arg1 === true) {
-			switch (activeEditor.group) {
+			switch (activeEditor.group.id) {
 				case Position.ONE:
 					return Position.TWO;
 				case Position.TWO:

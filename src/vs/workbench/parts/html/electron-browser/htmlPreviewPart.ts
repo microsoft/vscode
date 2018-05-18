@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { empty as EmptyDisposable, IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
-import { EditorOptions, EditorInput, EditorViewStateMemento, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorOptions, EditorInput, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { BaseTextEditorModel } from 'vs/workbench/common/editor/textEditorModel';
 import { HtmlInput, HtmlInputOptions, areHtmlInputOptionsEqual } from 'vs/workbench/parts/html/common/htmlInput';
@@ -24,7 +24,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
@@ -123,7 +123,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		return this._webview;
 	}
 
-	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
 		this._doSetVisible(visible);
 		super.setEditorVisible(visible, group);
 	}

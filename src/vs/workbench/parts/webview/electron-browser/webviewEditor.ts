@@ -12,7 +12,8 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorOptions } from 'vs/workbench/common/editor';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -99,7 +100,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		return this._onDidFocusWebview.event;
 	}
 
-	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			if (visible) {
 				this.input.claimWebview(this);
@@ -147,7 +148,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			return;
 		}
 
-		input.updateGroup(this.group);
+		input.updateGroup(this.group.id);
 		this.updateWebview(input);
 	}
 

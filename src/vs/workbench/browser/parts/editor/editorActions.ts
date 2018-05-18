@@ -86,12 +86,12 @@ export class SplitEditorAction extends Action {
 			case 2:
 
 				// Continue splitting to the right/bottom
-				if (editorToSplit.group === Position.TWO) {
+				if (editorToSplit.group.id === Position.TWO) {
 					targetPosition = Position.THREE;
 				}
 
 				// Push the second group to the right/bottom to make room for the splitted input
-				else if (editorToSplit.group === Position.ONE) {
+				else if (editorToSplit.group.id === Position.ONE) {
 					options.preserveFocus = true;
 
 					return this.editorService.openEditor(editorToSplit.input, options, Position.THREE).then(() => {
@@ -299,7 +299,7 @@ export class NavigateBetweenGroupsAction extends Action {
 		// Cycle to the left/top and use module to start at 0 again
 		const visibleEditors = this.editorService.getVisibleEditors();
 		const editorCount = visibleEditors.length;
-		const newIndex = (activeEditor.group + 1) % editorCount;
+		const newIndex = (activeEditor.group.id + 1) % editorCount;
 
 		this.editorGroupService.focusGroup(<Position>newIndex);
 
@@ -347,7 +347,7 @@ export class FocusFirstGroupAction extends Action {
 		// Find left/top editor and focus it
 		const editors = this.editorService.getVisibleEditors();
 		for (let editor of editors) {
-			if (editor.group === Position.ONE) {
+			if (editor.group.id === Position.ONE) {
 				this.editorGroupService.focusGroup(Position.ONE);
 
 				return TPromise.as(true);
@@ -394,14 +394,14 @@ export abstract class BaseFocusSideGroupAction extends Action {
 			const editor = editors[i];
 
 			// Target editor exists so focus it
-			if (editor.group === this.getTargetEditorSide()) {
-				this.editorGroupService.focusGroup(editor.group);
+			if (editor.group.id === this.getTargetEditorSide()) {
+				this.editorGroupService.focusGroup(editor.group.id);
 
 				return TPromise.as(true);
 			}
 
 			// Remember reference editor
-			if (editor.group === this.getReferenceEditorSide()) {
+			if (editor.group.id === this.getReferenceEditorSide()) {
 				referenceEditor = editor;
 			}
 		}
@@ -518,7 +518,7 @@ export class FocusPreviousGroup extends Action {
 		}
 
 		// Nevigate to the previous group or to the last group if the first group is active
-		const newPositionIndex = (activeEditor.group + groupCount - 1) % groupCount;
+		const newPositionIndex = (activeEditor.group.id + groupCount - 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
@@ -556,7 +556,7 @@ export class FocusNextGroup extends Action {
 		}
 
 		// Nevigate to the next group or to the first group if the last group is active
-		const newPositionIndex = (activeEditor.group + 1) % groupCount;
+		const newPositionIndex = (activeEditor.group.id + 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
 		return TPromise.as(true);
@@ -586,7 +586,7 @@ export class OpenToSideAction extends Action {
 
 	private updateEnablement(): void {
 		const activeEditor = this.editorService.getActiveEditor();
-		this.enabled = (!activeEditor || activeEditor.group !== Position.THREE);
+		this.enabled = (!activeEditor || activeEditor.group.id !== Position.THREE);
 	}
 
 	public run(context: any): TPromise<any> {
@@ -696,8 +696,7 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@INextEditorService private editorService: INextEditorService
 	) {
 		super(id, label);
 	}
@@ -706,7 +705,7 @@ export class RevertAndCloseEditorAction extends Action {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl && activeControl.input) {
 			const editor = activeControl.input;
-			const group = this.editorGroupService.getGroup(activeControl.group);
+			const group = activeControl.group;
 
 			// first try a normal revert where the contents of the editor are restored
 			return editor.revert().then(() => group.closeEditor(editor), error => {
@@ -843,8 +842,8 @@ export class MoveGroupLeftAction extends Action {
 		let position = context ? this.editorGroupService.getStacksModel().positionOfGroup(this.editorGroupService.getStacksModel().getGroup(context.groupId)) : null;
 		if (typeof position !== 'number') {
 			const activeEditor = this.editorService.getActiveEditor();
-			if (activeEditor && (activeEditor.group === Position.TWO || activeEditor.group === Position.THREE)) {
-				position = activeEditor.group;
+			if (activeEditor && (activeEditor.group.id === Position.TWO || activeEditor.group.id === Position.THREE)) {
+				position = activeEditor.group.id;
 			}
 		}
 
@@ -879,8 +878,8 @@ export class MoveGroupRightAction extends Action {
 			const activeEditor = this.editorService.getActiveEditor();
 			const editors = this.editorService.getVisibleEditors();
 
-			if ((editors.length === 2 && activeEditor.group === Position.ONE) || (editors.length === 3 && activeEditor.group !== Position.THREE)) {
-				position = activeEditor.group;
+			if ((editors.length === 2 && activeEditor.group.id === Position.ONE) || (editors.length === 3 && activeEditor.group.id !== Position.THREE)) {
+				position = activeEditor.group.id;
 			}
 		}
 
@@ -1449,8 +1448,8 @@ export class MoveEditorToPreviousGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.group !== Position.ONE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, activeEditor.group - 1);
+		if (activeEditor && activeEditor.group.id !== Position.ONE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group.id, activeEditor.group.id - 1);
 		}
 
 		return TPromise.as(true);
@@ -1473,8 +1472,8 @@ export class MoveEditorToNextGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.group !== Position.THREE) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, activeEditor.group + 1);
+		if (activeEditor && activeEditor.group.id !== Position.THREE) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group.id, activeEditor.group.id + 1);
 		}
 
 		return TPromise.as(true);
@@ -1495,8 +1494,8 @@ export abstract class MoveEditorToSpecificGroup extends Action {
 
 	public run(): TPromise<any> {
 		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.group !== this.position) {
-			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group, this.position);
+		if (activeEditor && activeEditor.group.id !== this.position) {
+			this.editorGroupService.moveEditor(activeEditor.input, activeEditor.group.id, this.position);
 		}
 
 		return TPromise.as(true);

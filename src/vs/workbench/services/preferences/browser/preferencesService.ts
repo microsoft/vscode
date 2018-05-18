@@ -206,7 +206,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void> {
 		const activeControl = this.editorService.activeControl;
 		if (activeControl && activeControl.input instanceof PreferencesEditorInput) {
-			return this.doSwitchSettings(target, resource, activeControl.input, this.editorGroupService.getGroup(activeControl.group)).then(() => null);
+			return this.doSwitchSettings(target, resource, activeControl.input, activeControl.group).then(() => null);
 		} else {
 			return this.doOpenSettings(target, resource).then(() => null);
 		}

@@ -6,7 +6,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditor, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -15,6 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -55,7 +56,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: GroupIdentifier): void {
+	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, group);
 		}

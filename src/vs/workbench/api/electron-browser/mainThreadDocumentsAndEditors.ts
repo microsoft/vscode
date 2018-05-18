@@ -430,7 +430,7 @@ export class MainThreadDocumentsAndEditors {
 	private _findEditorPosition(editor: MainThreadTextEditor): EditorPosition {
 		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
 			if (editor.matches(workbenchEditor)) {
-				return workbenchEditor.group;
+				return workbenchEditor.group.id;
 			}
 		}
 		return undefined;

@@ -6,7 +6,7 @@
 'use strict';
 
 import { Disposable } from 'vs/base/common/lifecycle';
-import { EditorInput, EditorOptions, GroupIdentifier } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IEditorRegistry, Extensions as EditorExtensions, IEditorDescriptor } from 'vs/workbench/browser/editor';
@@ -16,6 +16,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
+import { INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -31,7 +32,7 @@ export class NextEditorControl extends Disposable {
 
 	constructor(
 		private parent: HTMLElement,
-		private groupId: GroupIdentifier,
+		private groupView: INextEditorGroupView,
 		@IPartService private partService: IPartService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService
@@ -76,7 +77,7 @@ export class NextEditorControl extends Disposable {
 		show(control.getContainer());
 
 		// Indicate to editor that it is now visible
-		control.setVisible(true, this.groupId);
+		control.setVisible(true, this.groupView);
 
 		// Layout
 		if (this.dimension) {
@@ -181,7 +182,7 @@ export class NextEditorControl extends Disposable {
 
 		// Indicate to editor control
 		this._activeControl.clearInput();
-		this._activeControl.setVisible(false, this.groupId);
+		this._activeControl.setVisible(false, this.groupView);
 
 		// Clear active control
 		this._activeControl = null;

@@ -1135,7 +1135,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 			let options = EditorOptions.create({ pinned: true });
 			const activeEditor = $this.editorService.getActiveEditor();
 			const editor = getCodeEditor(activeEditor);
-			if (editor && activeEditor.group === stacks.positionOfGroup(stacks.getGroup(identifier.groupId)) && identifier.editor.matches(activeEditor.input)) {
+			if (editor && activeEditor.group.id === stacks.positionOfGroup(stacks.getGroup(identifier.groupId)) && identifier.editor.matches(activeEditor.input)) {
 				options = TextEditorOptions.fromEditor(editor, { pinned: true });
 			}
 

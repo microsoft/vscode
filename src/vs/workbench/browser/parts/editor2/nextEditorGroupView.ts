@@ -176,7 +176,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.element.appendChild(this.editorContainer);
 
 		// Editor control
-		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this._group.id));
+		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this));
 
 		// Track Focus
 		this.doTrackFocus();

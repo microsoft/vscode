@@ -97,7 +97,7 @@ export class TextDiffEditor extends BaseTextEditor {
 		delegatingEditorService.setEditorOpenHandler((group: INextEditorGroup, input: EditorInput, options?: EditorOptions) => {
 
 			// Check if target group is same as this editor ones
-			if (group.id === this.group) {
+			if (group === this.group) {
 				const activeDiffInput = <DiffEditorInput>this.input;
 				if (input && options && activeDiffInput) {
 
