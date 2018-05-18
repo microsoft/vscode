@@ -62,6 +62,31 @@ body {
 	margin-top: 18px;
 }
 
+.overview-title {
+	display: flex;
+}
+
+#checkout {
+	align-self: center;
+	margin-left: auto;
+	padding: 4px 8px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 0px;
+	border: 1px solid transparent;
+	outline: none;
+	display: flex;
+}
+
+#checkout .octicon {
+	margin-right: 8px;
+}
+
+#checkout:hover:enabled, #checkout:focus:enabled {
+	background-color: var(--vscode-button-hoverBackground);
+	cursor: pointer;
+}
+
 .status {
 	display: inline-block;
 	height: 28px;
@@ -76,4 +101,5 @@ body {
 .details {
 	display: flex;
 	flex-direction: column;
+	width: 100%;
 }

@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { PullRequestModel } from './models/pullRequestModel';
+import { ReviewManager } from '../review/reviewManager';
 
 const MarkdownIt = require('markdown-it');
 
@@ -69,6 +70,7 @@ export class PullRequestOverviewPanel {
 	public async update(pullRequestModel: PullRequestModel) {
 		this._pullRequest = pullRequestModel;
 		this._panel.webview.html = this.getHtmlForWebview();
+		const isCurrentlyCheckedOut = pullRequestModel.equals(ReviewManager.instance.currentPullRequest);
 		const timelineEvents = await pullRequestModel.getTimelineEvents();
 		this._panel.webview.postMessage({
 			command: 'initialize',
@@ -78,7 +80,8 @@ export class PullRequestOverviewPanel {
 				body: pullRequestModel.prItem.body,
 				author: pullRequestModel.author,
 				state: pullRequestModel.state,
-				events: timelineEvents
+				events: timelineEvents,
+				isCurrentlyCheckedOut: isCurrentlyCheckedOut
 			}
 		});
 	}
@@ -87,6 +90,17 @@ export class PullRequestOverviewPanel {
 		switch (message.command) {
 			case 'alert':
 				vscode.window.showErrorMessage(message.text);
+				return;
+			case 'pr.checkout':
+				vscode.commands.executeCommand('pr.pick', this._pullRequest).then(() => {
+					this._panel.webview.postMessage({
+						command: 'checked-out'
+					});
+				}, () => {
+					this._panel.webview.postMessage({
+						command: 'checked-out'
+					});
+				});
 				return;
 		}
 	}
