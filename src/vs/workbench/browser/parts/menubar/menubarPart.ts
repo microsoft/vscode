@@ -18,8 +18,8 @@ import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
-// import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { isWindows } from 'vs/base/common/platform';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
 
 interface CustomMenu {
@@ -33,7 +33,15 @@ export class MenubarPart extends Part {
 	private topLevelMenus: {
 		'File': IMenu;
 		'Edit': IMenu;
+		'Recent': IMenu;
 		'Selection': IMenu;
+		'View': IMenu;
+		'Go': IMenu;
+		'Debug': IMenu;
+		'Tasks': IMenu;
+		'Window'?: IMenu;
+		'Preferences': IMenu;
+		'Help': IMenu;
 		[index: string]: IMenu;
 	};
 
@@ -54,15 +62,26 @@ export class MenubarPart extends Part {
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		// @IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this.topLevelMenus = {
 			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
 			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
-			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService)
+			'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
+			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
+			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
+			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
+			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
+			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
+			'Preferences': this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService),
+			'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
 		};
+
+		if (isMacintosh) {
+			this.topLevelMenus['Window'] = this.menuService.createMenu(MenuId.MenubarWindowMenu, this.contextKeyService);
+		}
 
 		this.actionRunner = new ActionRunner();
 		this.actionRunner.onDidBeforeRun(() => {
@@ -225,7 +244,9 @@ export class MenubarPart extends Part {
 			'color': this.getColor(ACTIVITY_BAR_FOREGROUND)
 		});
 
-		let menuOptions: IMenuOptions = {};
+		let menuOptions: IMenuOptions = {
+			getKeyBinding: (action) => { return this.keybindingService.lookupKeybinding(action.id); }
+		};
 
 		this.displayedMenuWidget = new Menu(this.displayedMenu.getHTMLElement(), customMenu.actions, menuOptions);
 

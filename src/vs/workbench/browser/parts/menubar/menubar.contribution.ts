@@ -6,11 +6,24 @@
 import * as nls from 'vs/nls';
 import * as menubarCommands from 'vs/workbench/browser/parts/menubar/menubarCommands';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
+import { isMacintosh } from 'vs/base/common/platform';
 
 menubarCommands.setup();
 fileMenuRegistration();
 editMenuRegistration();
+recentMenuRegistration();
 selectionMenuRegistration();
+viewMenuRegistration();
+goMenuRegistration();
+debugMenuRegistration();
+tasksMenuRegistration();
+
+if (isMacintosh) {
+	windowMenuRegistration();
+}
+
+preferencesMenuRegistration();
+helpMenuRegistration();
 
 // Menu registration - File Menu
 function fileMenuRegistration() {
@@ -149,14 +162,16 @@ function fileMenuRegistration() {
 		order: 4
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
-		group: 'z_Exit',
-		command: {
-			id: 'workbench.action.quit',
-			title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
-		},
-		order: 1
-	});
+	if (!isMacintosh) {
+		MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+			group: 'z_Exit',
+			command: {
+				id: 'workbench.action.quit',
+				title: nls.localize({ key: 'miExit', comment: ['&& denotes a mnemonic'] }, "E&&xit")
+			},
+			order: 1
+		});
+	}
 }
 
 function editMenuRegistration() {
@@ -409,6 +424,38 @@ function selectionMenuRegistration() {
 		},
 		order: 7
 	});
+}
+
+function recentMenuRegistration() {
+
+}
+
+function viewMenuRegistration() {
+
+}
+
+function goMenuRegistration() {
+
+}
+
+function debugMenuRegistration() {
+
+}
+
+function tasksMenuRegistration() {
+
+}
+
+function windowMenuRegistration() {
+
+}
+
+function preferencesMenuRegistration() {
+
+}
+
+function helpMenuRegistration() {
+
 }
 
 // MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {

@@ -62,11 +62,14 @@ export class MenuId {
 	static readonly SearchContext = new MenuId();
 	static readonly MenubarFileMenu = new MenuId();
 	static readonly MenubarEditMenu = new MenuId();
+	static readonly MenubarRecentMenu = new MenuId();
 	static readonly MenubarSelectionMenu = new MenuId();
 	static readonly MenubarViewMenu = new MenuId();
 	static readonly MenubarGoMenu = new MenuId();
 	static readonly MenubarDebugMenu = new MenuId();
+	static readonly MenubarTasksMenu = new MenuId();
 	static readonly MenubarWindowMenu = new MenuId();
+	static readonly MenubarPreferencesMenu = new MenuId();
 	static readonly MenubarHelpMenu = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
