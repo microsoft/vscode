@@ -453,7 +453,8 @@ export class TerminalInstance implements ITerminalInstance {
 						}
 					} as IPromptChoice,
 					{
-						label: nls.localize('no', "No")
+						label: nls.localize('no', "No"),
+						run: () => { }
 					} as IPromptChoice,
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
