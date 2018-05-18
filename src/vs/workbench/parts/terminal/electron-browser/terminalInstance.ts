@@ -37,7 +37,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
-const SLOW_CANVAS_RENDER_THRESHOLD = 50;
+const SLOW_CANVAS_RENDER_THRESHOLD = 100;
 
 let Terminal: typeof XTermTerminal;
 
