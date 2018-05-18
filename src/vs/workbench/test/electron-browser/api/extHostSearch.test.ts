@@ -8,7 +8,6 @@ import * as assert from 'assert';
 import * as path from 'path';
 import * as extfs from 'vs/base/node/extfs';
 import URI, { UriComponents } from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
@@ -137,15 +136,6 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function compareURIsToStrings(actual: URI[], expected: string[]) {
-			actual = actual.sort();
-			expected = expected.sort();
-
-			actual.forEach((a, i) => {
-				assert(strings.endsWith(a.toString(), expected[i]));
-			});
-		}
-
 		function compareURIs(actual: URI[], expected: URI[]) {
 			const sortAndStringify = (arr: URI[]) => arr.sort().map(u => u.toString());
 
@@ -167,21 +157,21 @@ suite('ExtHostSearch', () => {
 
 		test('simple results', async () => {
 			const reportedResults = [
-				'file1.ts',
-				'file2.ts',
-				'file3.ts',
+				makeAbsoluteURI(rootFolderA, 'file1.ts'),
+				makeAbsoluteURI(rootFolderA, 'file2.ts'),
+				makeAbsoluteURI(rootFolderA, 'file3.ts')
 			];
 
 			await registerTestSearchProvider({
 				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-					reportedResults.forEach(r => progress.report(r));
+					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
 					return TPromise.wrap(null);
 				}
 			});
 
 			const results = await runFileSearch(getSimpleQuery());
 			assert.equal(results.length, 3);
-			compareURIsToStrings(results, reportedResults);
+			compareURIs(results, reportedResults);
 		});
 
 		// Sibling clauses
