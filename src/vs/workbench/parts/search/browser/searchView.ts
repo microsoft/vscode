@@ -554,7 +554,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
+					showLoading: false
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);

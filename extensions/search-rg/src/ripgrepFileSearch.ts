@@ -26,7 +26,7 @@ export class RipgrepFileSearchEngine {
 		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
 	}
 
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<vscode.Uri>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
 			...options,
 			...{
@@ -85,7 +85,7 @@ export class RipgrepFileSearchEngine {
 				}
 
 				relativeFiles.forEach(relativeFile => {
-					progress.report(vscode.Uri.file(path.join(cwd, relativeFile)));
+					progress.report(relativeFile);
 				});
 
 				if (last) {

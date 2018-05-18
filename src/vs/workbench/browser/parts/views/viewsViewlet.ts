@@ -314,7 +314,7 @@ export class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
 		}
 
 		if (!viewDescriptor.canToggleVisibility) {
-			return TPromise.wrapError(new Error(localize('cannot toggle', "Visibility cannot be toggled for this view {0}", id)));
+			return TPromise.wrapError(new Error(localize({ key: 'cannot toggle', comment: ['Parameter that will be replaced here is the id of the view'] }, "Visibility cannot be toggled for this view {0}", id)));
 		}
 
 		if (viewState.isHidden && !this.contextKeyService.contextMatchesRules(viewDescriptor.when)) {

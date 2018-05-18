@@ -104,12 +104,17 @@ export interface IPatternInfo {
 	isSmartCase?: boolean;
 }
 
-export interface IFileMatch<U extends UriComponents = uri> {
+export interface IFileMatch<U = uri> {
 	resource?: U;
 	lineMatches?: ILineMatch[];
 }
 
-export type IRawFileMatch2 = IFileMatch<UriComponents>;
+export interface IPathInFolder {
+	folderIdx: number;
+	relativePath: string;
+}
+
+export type IRawFileMatch2 = IFileMatch<IPathInFolder>;
 
 export interface ILineMatch {
 	preview: string;
@@ -127,10 +132,13 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
-export interface ISearchComplete {
+export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	stats?: ISearchStats;
+}
+
+export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
-	stats: ISearchStats;
 }
 
 export interface ISearchStats {

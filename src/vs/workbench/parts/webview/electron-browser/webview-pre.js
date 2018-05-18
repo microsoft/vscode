@@ -116,11 +116,11 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('baseUrl', (event, value) => {
+		ipcRenderer.on('baseUrl', (_event, value) => {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', (event, variables, activeTheme) => {
+		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -372,6 +372,8 @@
 					}
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
+					newFrame.contentWindow.focus();
+
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach((data) => {
@@ -407,7 +409,7 @@
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', (event, data) => {
+		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (pending) {
 				pendingMessages.push(data);
@@ -419,7 +421,7 @@
 			}
 		});
 
-		ipcRenderer.on('initial-scroll-position', (event, progress) => {
+		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 
