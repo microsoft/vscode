@@ -99,11 +99,6 @@ suite('Editor service (editor2)', () => {
 			didCloseEditorListenerCounter++;
 		});
 
-		let willCloseEditorListenerCounter = 0;
-		const willCloseEditorListener = service.onWillCloseEditor(editor => {
-			willCloseEditorListenerCounter++;
-		});
-
 		// Open input
 		return service.openEditor(input, { pinned: true }).then(editor => {
 			assert.ok(editor instanceof TestEditorControl);
@@ -121,7 +116,6 @@ suite('Editor service (editor2)', () => {
 
 			// Close input
 			editor.group.closeEditor(input);
-			assert.equal(willCloseEditorListenerCounter, 1);
 			assert.equal(didCloseEditorListenerCounter, 1);
 			assert.equal(activeEditorChangeEventCounter, 2);
 			assert.equal(visibleEditorChangeEventCounter, 2);
@@ -139,7 +133,6 @@ suite('Editor service (editor2)', () => {
 
 					activeEditorChangeListener.dispose();
 					visibleEditorChangeListener.dispose();
-					willCloseEditorListener.dispose();
 					didCloseEditorListener.dispose();
 					willOpenEditorListener.dispose();
 				});

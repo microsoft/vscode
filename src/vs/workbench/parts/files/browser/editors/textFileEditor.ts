@@ -14,7 +14,7 @@ import { Action } from 'vs/base/common/actions';
 import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -30,7 +30,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
@@ -59,9 +59,6 @@ export class TextFileEditor extends BaseTextEditor {
 
 		// Clear view state for deleted files
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
-
-		// React to editors closing to preserve view state
-		this.toUnbind.push(editorService.onWillCloseEditor(e => this.onWillCloseEditor(e)));
 	}
 
 	private onFilesChanged(e: FileChangesEvent): void {
@@ -71,18 +68,25 @@ export class TextFileEditor extends BaseTextEditor {
 		}
 	}
 
-	private onWillCloseEditor(e: IEditorCloseEvent): void {
-		if (e.editor === this.input && this.group.id === e.groupId) {
-			this.doSaveTextEditorViewState(this.input);
-		}
-	}
-
 	public getTitle(): string {
 		return this.input ? this.input.getName() : nls.localize('textFileEditor', "Text File Editor");
 	}
 
 	public get input(): FileEditorInput {
 		return this._input as FileEditorInput;
+	}
+
+	setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+		super.setEditorVisible(visible, group);
+
+		// React to editors closing to preserve view state. This needs to happen
+		// in the onWillCloseEditor because at that time the editor has not yet
+		// been disposed and we can safely persist the view state still.
+		this.toUnbind.push(group.onWillCloseEditor(e => {
+			if (e.editor === this.input) {
+				this.doSaveTextEditorViewState(this.input);
+			}
+		}));
 	}
 
 	public setOptions(options: EditorOptions): void {

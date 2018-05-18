@@ -42,13 +42,6 @@ export interface INextEditorService {
 	readonly onDidVisibleEditorsChange: Event<void>;
 
 	/**
-	 * Emitted when an editor is about to get closed. Listeners can
-	 * for example save view state now before the underlying widget
-	 * gets disposed.
-	 */
-	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
 	 * Emitted when an editor is closed.
 	 */
 	readonly onDidCloseEditor: Event<IEditorCloseEvent>;

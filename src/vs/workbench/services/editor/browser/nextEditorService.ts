@@ -48,9 +48,6 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private _onDidVisibleEditorsChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidVisibleEditorsChange(): Event<void> { return this._onDidVisibleEditorsChange.event; }
 
-	private _onWillCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
-	get onWillCloseEditor(): Event<IEditorCloseEvent> { return this._onWillCloseEditor.event; }
-
 	private _onDidCloseEditor: Emitter<IEditorCloseEvent> = this._register(new Emitter<IEditorCloseEvent>());
 	get onDidCloseEditor(): Event<IEditorCloseEvent> { return this._onDidCloseEditor.event; }
 
@@ -110,10 +107,6 @@ export class NextEditorService extends Disposable implements INextEditorService 
 				this.handleActiveEditorChange(group);
 				this._onDidVisibleEditorsChange.fire();
 			}
-		}));
-
-		groupDisposeables.push(group.onWillCloseEditor(event => {
-			this._onWillCloseEditor.fire(event);
 		}));
 
 		groupDisposeables.push(group.onDidCloseEditor(event => {
