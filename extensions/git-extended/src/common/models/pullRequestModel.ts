@@ -8,6 +8,7 @@ import { parseComments } from '../comment';
 import { Comment } from './comment';
 import { IAccount } from './account';
 import { GitHubRef } from './githubRef';
+import { TimelineEvent, parseTimelineEvents } from './timelineEvent';
 
 export enum PRType {
 	RequestReview = 0,
@@ -118,6 +119,29 @@ export class PullRequestModel {
 		});
 		const rawComments = reviewData.data;
 		return parseComments(rawComments);
+	}
+
+	async getTimelineEvents(): Promise<TimelineEvent[]> {
+		let ret = await this.otcokit.issues.getEventsTimeline({
+			owner: this.remote.owner,
+			repo: this.remote.repositoryName,
+			issue_number: this.prItem.number,
+			number: this.prItem.number,
+			per_page: 100
+		});
+
+		return parseTimelineEvents(ret.data);
+	}
+
+	async getDiscussionComments(): Promise<Comment[]> {
+		const promise = await this.otcokit.issues.getComments({
+			owner: this.remote.owner,
+			repo: this.remote.repositoryName,
+			number: this.prItem.number,
+			per_page: 100
+		});
+
+		return promise.data;
 	}
 
 	async createCommentReply(body: string, reply_to: string) {

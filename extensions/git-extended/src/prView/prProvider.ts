@@ -255,7 +255,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			return [new PRDescriptionTreeItem('Description', {
 				light: Resource.icons.light.Description,
 				dark: Resource.icons.dark.Description
-			}), ...fileChanges];
+			}, element), ...fileChanges];
 		}
 	}
 

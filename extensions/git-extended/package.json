@@ -59,7 +59,8 @@
         }
       ]
     },
-    "commands": [{
+    "commands": [
+      {
         "command": "pr.refreshList",
         "title": "Refresh",
         "icon": {
@@ -76,6 +77,10 @@
         "title": "Open in GitHub"
       },
       {
+        "command": "pr.openDescription",
+        "title": "View Pull Request Description"
+      },
+      {
         "command": "review.openFile",
         "title": "Open File",
         "icon": {
@@ -85,28 +90,34 @@
       }
     ],
     "menus": {
-      "view/title": [{
-        "command": "pr.refreshList",
-        "when": "view == pr",
-        "group": "navigation"
-      }],
+      "view/title": [
+        {
+          "command": "pr.refreshList",
+          "when": "view == pr",
+          "group": "navigation"
+        }
+      ],
       "view/item/context": [
         {
           "command": "pr.pick",
           "when": "view == pr && viewItem =~ /pullrequest:nonactive/"
-        },{
+        },
+        {
           "command": "pr.openInGitHub",
           "when": "view == pr && viewItem =~ /pullrequest/"
-        },{
+        },
+        {
           "command": "pr.openInGitHub",
           "when": "view =~ /(pr|prStatus)/ && viewItem == filechange"
         }
       ],
-      "editor/title": [{
-        "command": "review.openFile",
-        "group": "navigation",
-        "when": "resourceScheme =~ /^review$/"
-      }]
+      "editor/title": [
+        {
+          "command": "review.openFile",
+          "group": "navigation",
+          "when": "resourceScheme =~ /^review$/"
+        }
+      ]
     }
   },
   "scripts": {
@@ -121,6 +132,7 @@
   "dependencies": {
     "@octokit/rest": "^15.2.6",
     "dugite": "^1.63.0",
+    "markdown-it": "^8.4.0",
     "git-credential-node": "^1.1.0",
     "lodash": "4.17.5",
     "tmp": "^0.0.31"

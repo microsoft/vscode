@@ -39,8 +39,17 @@ export class PRGroupActionTreeItem implements vscode.TreeItem {
 }
 
 export class PRDescriptionTreeItem implements vscode.TreeItem {
+	public command?: vscode.Command;
 
-	constructor(public label: string, public iconPath: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri }) { }
+	constructor(public label: string, public iconPath: string | vscode.Uri | { light: string | vscode.Uri; dark: string | vscode.Uri }, public prModel: PullRequestModel) {
+		this.command = {
+			title: 'View Pull Request Description',
+			command: 'pr.openDescription',
+			arguments: [
+				this.prModel
+			]
+		};
+	}
 }
 
 export class PRGroupTreeItem implements vscode.TreeItem {
