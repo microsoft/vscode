@@ -410,7 +410,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Event
 		this._onDidCloseEditor.fire(event);
-		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor });
+		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_CLOSE, editor, editorIndex: event.index });
 	}
 
 	private onDidEditorDispose(editor: EditorInput): void {

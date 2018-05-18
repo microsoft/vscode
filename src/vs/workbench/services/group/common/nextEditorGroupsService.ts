@@ -254,6 +254,7 @@ export enum GroupChangeKind {
 export interface IGroupChangeEvent {
 	kind: GroupChangeKind;
 	editor?: IEditorInput;
+	editorIndex?: number;
 }
 
 export interface INextEditorGroup {
