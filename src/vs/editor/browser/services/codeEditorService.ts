@@ -48,9 +48,14 @@ export interface ICodeEditorService {
 }
 
 /**
- * Uses `editor.getControl()` and returns either a `codeEditor` or a `diffEditor` or nothing.
+ * Uses `editor.getControl()` and returns either the code editor, or the modified editor of a diff editor or nothing.
  */
-export function getCodeOrDiffEditor(editor: { getControl: () => any }): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
+export function getCodeEditor(editor: { getControl: () => any }): ICodeEditor {
+	let r = getCodeOrDiffEditor(editor);
+	return r.codeEditor || (r.diffEditor && <ICodeEditor>r.diffEditor.getModifiedEditor()) || null;
+}
+
+function getCodeOrDiffEditor(editor: { getControl: () => any }): { codeEditor: ICodeEditor; diffEditor: IDiffEditor } {
 	if (editor) {
 		let control = editor.getControl();
 		if (control) {
@@ -73,12 +78,4 @@ export function getCodeOrDiffEditor(editor: { getControl: () => any }): { codeEd
 		codeEditor: null,
 		diffEditor: null
 	};
-}
-
-/**
- * Uses `editor.getControl()` and returns either the code editor, or the modified editor of a diff editor or nothing.
- */
-export function getCodeEditor(editor: { getControl: () => any }): ICodeEditor {
-	let r = getCodeOrDiffEditor(editor);
-	return r.codeEditor || (r.diffEditor && <ICodeEditor>r.diffEditor.getModifiedEditor()) || null;
 }

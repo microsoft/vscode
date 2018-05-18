@@ -20,11 +20,11 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Scope } from 'vs/workbench/common/memento';
-import { getCodeEditor, getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { isDiffEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -238,12 +238,8 @@ export abstract class BaseTextEditor extends BaseEditor {
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
-		const editor = getCodeOrDiffEditor(this).codeEditor;
-		if (!editor) {
-			return null; // not supported for diff editors
-		}
-
-		const model = editor.getModel();
+		const control = this.getControl() as ICodeEditor;
+		const model = control.getModel();
 		if (!model) {
 			return null; // view state always needs a model
 		}
@@ -257,7 +253,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 			return null; // prevent saving view state for a model that is not the expected one
 		}
 
-		return editor.saveViewState();
+		return control.saveViewState();
 	}
 
 	/**

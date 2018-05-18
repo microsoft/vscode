@@ -35,7 +35,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
-import { getCodeOrDiffEditor } from 'vs/editor/browser/services/codeEditorService';
 import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
@@ -150,7 +149,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				}
 
 				// Set Editor Model
-				const diffEditor = <IDiffEditor>this.getControl();
+				const diffEditor = this.getControl();
 				diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
 
 				// Apply Options from TextOptions
@@ -192,7 +191,7 @@ export class TextDiffEditor extends BaseTextEditor {
 	public setOptions(options: EditorOptions): void {
 		const textOptions = <TextEditorOptions>options;
 		if (textOptions && types.isFunction(textOptions.apply)) {
-			textOptions.apply(<IDiffEditor>this.getControl(), ScrollType.Smooth);
+			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
 	}
 
@@ -367,12 +366,8 @@ export class TextDiffEditor extends BaseTextEditor {
 	}
 
 	private retrieveTextDiffEditorViewState(resource: URI): IDiffEditorViewState {
-		const editor = getCodeOrDiffEditor(this).diffEditor;
-		if (!editor) {
-			return null; // not supported for non-diff editors
-		}
-
-		const model = editor.getModel();
+		const control = this.getControl();
+		const model = control.getModel();
 		if (!model || !model.modified || !model.original) {
 			return null; // view state always needs a model
 		}
@@ -386,7 +381,7 @@ export class TextDiffEditor extends BaseTextEditor {
 			return null; // prevent saving view state for a model that is not the expected one
 		}
 
-		return editor.saveViewState();
+		return control.saveViewState();
 	}
 
 	private toDiffEditorViewStateResource(modelOrInput: IDiffEditorModel | DiffEditorInput): URI {

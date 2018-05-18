@@ -19,6 +19,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
 import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { ICompositeControl } from 'vs/workbench/common/composite';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
@@ -79,7 +80,7 @@ export interface IEditor {
 /**
  * Marker interface for the editor control
  */
-export interface IEditorControl { }
+export interface IEditorControl extends ICompositeControl { }
 
 export interface IFileInputFactory {
 

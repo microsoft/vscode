@@ -15,7 +15,7 @@ import { IDebugService, IEnablement, CONTEXT_BREAKPOINTS_FOCUSED, CONTEXT_WATCH_
 import { Expression, Variable, Breakpoint, FunctionBreakpoint } from 'vs/workbench/parts/debug/common/debugModel';
 import { IExtensionsViewlet, VIEWLET_ID as EXTENSIONS_VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -54,10 +54,8 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
 			const editorService = accessor.get(INextEditorService);
-			const editor = editorService.activeControl;
-			const control = <ICodeEditor>editor.getControl();
-
-			if (control) {
+			const control = editorService.activeTextEditorControl;
+			if (isCodeEditor(control)) {
 				const model = control.getModel();
 				if (model) {
 					const position = control.getPosition();
@@ -203,9 +201,8 @@ export function registerCommands(): void {
 	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(INextEditorService);
-		const editor = editorService.activeControl;
-		const control = editor && <ICodeEditor>editor.getControl();
-		if (control) {
+		const control = editorService.activeTextEditorControl;
+		if (isCodeEditor(control)) {
 			const position = control.getPosition();
 			const modelUri = control.getModel().uri;
 			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
