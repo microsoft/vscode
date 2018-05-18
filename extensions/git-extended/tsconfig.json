@@ -11,6 +11,9 @@
 		"rootDir": "./src",
 		"jsx": "react"
 	},
+	"include": [
+		"src/**/*"
+	],
 	"exclude": [
 		"node_modules",
 		".vscode-test"

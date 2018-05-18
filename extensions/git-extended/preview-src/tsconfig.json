@@ -8,5 +8,8 @@
 		"strict": true,
 		"noImplicitAny": true,
 		"noUnusedLocals": true
-	}
+	},
+	"include": [
+		"./**/*"
+	]
 }

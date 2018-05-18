@@ -1,0 +1,79 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.title {
+	display: flex;
+	align-items: flex-start;
+	margin-top: 10px;
+}
+
+h3 {
+	margin: 0;
+}
+
+body hr {
+	display: block;
+	height: 1px;
+	border: 0;
+	border-top: 1px solid #555;
+	margin: 0 !important;
+	padding: 0;
+
+}
+body .review-comment {
+	padding: 20px;
+	display: flex;
+}
+
+body .review-comment .avatar-container {
+	margin-top: 4px !important;
+}
+
+body img.avatar {
+	height: 28px;
+	width: 28px;
+	max-width: 28px;
+	max-height: 28px;
+	display: inline-block;
+	overflow: hidden;
+	line-height: 1;
+	vertical-align: middle;
+	border-radius: 3px;
+	border-style: none;
+	margin-right: 5px;
+}
+
+body .review-comment .review-comment-contents {
+	margin-left: 20px;
+}
+
+body {
+	margin: auto;
+	width: 100%;
+	max-width: 1200px;
+}
+
+.prIcon {
+	display: flex;
+	border-radius: 10px;
+	margin-right: 5px;
+	margin-top: 18px;
+}
+
+.status {
+	display: inline-block;
+	height: 28px;
+	box-sizing: border-box;
+	line-height: 20px;
+	border-radius: 3px;
+	color: white;
+	padding: 4px 8px;
+	margin-right: 5px;
+}
+
+.details {
+	display: flex;
+	flex-direction: column;
+}
