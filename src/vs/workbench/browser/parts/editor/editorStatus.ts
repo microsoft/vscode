@@ -739,7 +739,7 @@ export class EditorStatus implements IStatusbarItem {
 		this.updateState(info);
 	}
 
-	private onEncodingChange(e: IBaseEditor): void {
+	private onEncodingChange(e?: IBaseEditor): void {
 		if (e && !this.isActiveEditor(e)) {
 			return;
 		}
@@ -747,7 +747,7 @@ export class EditorStatus implements IStatusbarItem {
 		const info: StateDelta = { encoding: null };
 
 		// We only support text based editors
-		if (isCodeEditor(e.getControl()) || isDiffEditor(e.getControl())) {
+		if (e && (isCodeEditor(e.getControl()) || isDiffEditor(e.getControl()))) {
 			const encodingSupport: IEncodingSupport = toEditorWithEncodingSupport(e.input);
 			if (encodingSupport) {
 				const rawEncoding = encodingSupport.getEncoding();
