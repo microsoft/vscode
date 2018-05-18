@@ -47,6 +47,7 @@ export class UpdateImportsOnFileRenameHandler {
 		if (!this.client.apiVersion.has290Features) {
 			return;
 		}
+
 		if (!await this.handles(newResource)) {
 			return;
 		}
@@ -61,9 +62,15 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
+		const document = await vscode.workspace.openTextDocument(newResource);
+
+		const config = this.getConfiguration(document);
+		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
+		if (setting === UpdateImportsOnFileMoveSetting.Never) {
+			return;
+		}
 
 		// Make sure TS knows about file
-		const document = await vscode.workspace.openTextDocument(newResource);
 		this.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
@@ -71,11 +78,9 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		if (!await this.confirmActionWithUser(document)) {
-			return;
+		if (await this.confirmActionWithUser(document)) {
+			await vscode.workspace.applyEdit(edits);
 		}
-
-		await vscode.workspace.applyEdit(edits);
 	}
 
 	private async confirmActionWithUser(
@@ -170,7 +175,6 @@ export class UpdateImportsOnFileRenameHandler {
 						vscode.ConfigurationTarget.Global);
 					return false;
 				}
-
 		}
 
 		return false;
