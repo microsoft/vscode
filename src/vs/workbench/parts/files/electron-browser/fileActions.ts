@@ -642,7 +642,9 @@ class BaseDeleteFileAction extends BaseFileAction {
 			if (this.skipConfirm || (this.useTrash && this.configurationService.getValue<boolean>(BaseDeleteFileAction.CONFIRM_DELETE_SETTING_KEY) === false)) {
 				confirmDeletePromise = TPromise.as({ confirmed: true } as IConfirmationResult);
 			}
-
+			if (distinctElements[0].resource.scheme !== 'file') {
+				this.useTrash = false;
+			}
 			// Confirm for moving to trash
 			else if (this.useTrash) {
 				const message = this.getMoveToTrashMessage(distinctElements);
