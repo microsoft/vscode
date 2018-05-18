@@ -3,44 +3,53 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as fs from 'fs';
-import * as path from 'path';
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { Command } from '../utils/commandManager';
 import * as typeConverters from '../utils/typeConverters';
 
-export class RenameFileAndUpdatePathsCommand implements Command {
-
-	id = 'typescript.renameFileAndUpdatePaths';
+export class UpdatePathsOnFileRenameHandler {
+	private readonly _onDidRenameSub: vscode.Disposable;
 
 	public constructor(
-		private readonly client: ITypeScriptServiceClient
-	) { }
+		private readonly client: ITypeScriptServiceClient,
+		private readonly handles: (uri: vscode.Uri) => boolean,
+	) {
+		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
+			this.doRename(e.oldResource, e.newResource);
+		});
+	}
 
-	async execute(resource: vscode.Uri): Promise<void> {
-		if (!resource) {
+	public dispose() {
+		this._onDidRenameSub.dispose();
+	}
+
+	private async doRename(
+		oldResource: vscode.Uri,
+		newResource: vscode.Uri,
+	): Promise<void> {
+		if (!this.handles(newResource)) {
 			return;
 		}
 
-		const newFileName = await vscode.window.showInputBox({ prompt: 'Enter new file name...', value: path.basename(resource.fsPath) });
-		if (!newFileName) {
+		if (!this.client.apiVersion.has290Features) {
 			return;
 		}
 
-		const newFilePath = path.join(path.dirname(resource.fsPath), newFileName);
-		if (fs.existsSync(newFilePath)) {
+		const newFile = this.client.normalizePath(newResource);
+		if (!newFile) {
 			return;
 		}
 
-		// Do rename
-		fs.renameSync(resource.fsPath, newFilePath);
-		vscode.window.showTextDocument(vscode.Uri.file(newFilePath));
+		const oldFile = this.client.normalizePath(oldResource);
+		if (!oldFile) {
+			return;
+		}
+
 		const args: Proto.GetEditsForFileRenameRequestArgs = {
-			file: newFilePath,
-			oldFilePath: resource.fsPath,
-			newFilePath: newFilePath
+			file: newFile,
+			oldFilePath: oldFile,
+			newFilePath: newFile,
 		};
 
 		await new Promise(resolve => setTimeout(resolve, 1000));

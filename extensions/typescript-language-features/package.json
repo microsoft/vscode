@@ -520,11 +520,6 @@
         "command": "typescript.restartTsServer",
         "title": "%typescript.restartTsServer%",
         "category": "TypeScript"
-      },
-      {
-        "command": "typescript.renameFileAndUpdatePaths",
-        "title": "Rename file and update paths",
-        "category": "TypeScript"
       }
     ],
     "menus": {
@@ -572,16 +567,6 @@
         {
           "command": "typescript.restartTsServer",
           "when": "typescript.isManagedFile"
-        },
-        {
-          "command": "typescript.renameFileAndUpdatePaths",
-          "when": ""
-        }
-      ],
-      "explorer/context": [
-        {
-          "command": "typescript.renameFileAndUpdatePaths",
-          "when": "resourceLangId == typescript"
         }
       ]
     },
