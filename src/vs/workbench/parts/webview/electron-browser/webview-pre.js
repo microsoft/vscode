@@ -372,6 +372,8 @@
 					}
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
+					newFrame.contentWindow.focus();
+
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach((data) => {
