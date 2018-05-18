@@ -14,7 +14,7 @@ import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -27,12 +27,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ansiColorIdentifiers, TERMINAL_BACKGROUND_COLOR, TERMINAL_FOREGROUND_COLOR, TERMINAL_CURSOR_FOREGROUND_COLOR, TERMINAL_CURSOR_BACKGROUND_COLOR, TERMINAL_SELECTION_BACKGROUND_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { PANEL_BACKGROUND } from 'vs/workbench/common/theme';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+
+// How long in milliseconds should an average frame take to render for a notification to appear
+// which suggests the fallback DOM-based renderer
+const SLOW_CANVAS_RENDER_THRESHOLD = 50;
+const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 let Terminal: typeof XTermTerminal;
 
@@ -107,7 +113,8 @@ export class TerminalInstance implements ITerminalInstance {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private _logService: ILogService
+		@ILogService private _logService: ILogService,
+		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
@@ -185,7 +192,7 @@ export class TerminalInstance implements ITerminalInstance {
 		// order to be precise. font.charWidth/charHeight alone as insufficient
 		// when window.devicePixelRatio changes.
 		const scaledWidthAvailable = dimension.width * window.devicePixelRatio;
-		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio);
+		const scaledCharWidth = Math.floor(font.charWidth * window.devicePixelRatio) + font.letterSpacing;
 		this._cols = Math.max(Math.floor(scaledWidthAvailable / scaledCharWidth), 1);
 
 		const scaledHeightAvailable = dimension.height * window.devicePixelRatio;
@@ -249,18 +256,22 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 		const accessibilitySupport = this._configurationService.getValue<IEditorOptions>('editor').accessibilitySupport;
 		const font = this._configHelper.getFont(undefined, true);
+		const config = this._configHelper.config;
 		this._xterm = new Terminal({
-			scrollback: this._configHelper.config.scrollback,
+			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
 			fontFamily: font.fontFamily,
-			fontWeight: this._configHelper.config.fontWeight,
-			fontWeightBold: this._configHelper.config.fontWeightBold,
+			fontWeight: config.fontWeight,
+			fontWeightBold: config.fontWeightBold,
 			fontSize: font.fontSize,
+			letterSpacing: font.letterSpacing,
 			lineHeight: font.lineHeight,
-			bellStyle: this._configHelper.config.enableBell ? 'sound' : 'none',
+			bellStyle: config.enableBell ? 'sound' : 'none',
 			screenReaderMode: accessibilitySupport === 'on',
-			macOptionIsMeta: this._configHelper.config.macOptionIsMeta,
-			rightClickSelectsWord: this._configHelper.config.rightClickBehavior === 'selectWord'
+			macOptionIsMeta: config.macOptionIsMeta,
+			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
+			// TODO: Guess whether to use canvas or dom better
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -417,7 +428,62 @@ export class TerminalInstance implements ITerminalInstance {
 			if (this._xterm.getOption('disableStdin')) {
 				this._attachPressAnyKeyToCloseListener();
 			}
+
+			const neverMeasureRenderTime = this._storageService.getBoolean(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, StorageScope.GLOBAL, false);
+			if (!neverMeasureRenderTime && this._configHelper.config.rendererType === 'auto') {
+				this._measureRenderTime();
+			}
 		});
+	}
+
+	private _measureRenderTime(): void {
+		let frameTimes: number[] = [];
+		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
+		const originalOnGridChanged = textRenderLayer.onGridChanged;
+
+		const evaluateCanvasRenderer = () => {
+			// Discard first frame time as it's normal to take longer
+			frameTimes.shift();
+
+			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
+			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
+				const promptChoices: IPromptChoice[] = [
+					{
+						label: nls.localize('yes', "Yes"),
+						run: () => {
+							this._configurationService.updateValue('terminal.integrated.rendererType', 'dom', ConfigurationTarget.USER).then(() => {
+								this._notificationService.info(nls.localize('terminal.rendererInAllNewTerminals', "All newly created terminals will use the non-GPU renderer."));
+							});
+						}
+					} as IPromptChoice,
+					{
+						label: nls.localize('no', "No"),
+						run: () => { }
+					} as IPromptChoice,
+					{
+						label: nls.localize('dontShowAgain', "Don't Show Again"),
+						isSecondary: true,
+						run: () => this._storageService.store(NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, true)
+					} as IPromptChoice
+				];
+				this._notificationService.prompt(
+					Severity.Warning,
+					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+					promptChoices
+				);
+			}
+		};
+
+		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
+			const startTime = performance.now();
+			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
+			frameTimes.push(performance.now() - startTime);
+			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
+				evaluateCanvasRenderer();
+				// Restore original function
+				textRenderLayer.onGridChanged = originalOnGridChanged;
+			}
+		};
 	}
 
 	public registerLinkMatcher(regex: RegExp, handler: (url: string) => void, matchIndex?: number, validationCallback?: (uri: string, callback: (isValid: boolean) => void) => void): number {
@@ -486,7 +552,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			const buffer = (<any>this._xterm.buffer);
 			this._sendLineData(buffer, buffer.ybase + buffer.y);
-			this._xterm.destroy();
+			this._xterm.dispose();
 			this._xterm = null;
 		}
 		if (this._processManager) {
@@ -536,7 +602,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
 			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
-			if (this._container) {
+			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
 				// correctly get correct character measurements in order to render to the screen (see
@@ -574,13 +640,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public clear(): void {
-		if (this._shellLaunchConfig.executable && paths.basename(this._shellLaunchConfig.executable).match(/^(zsh|bash|bash\.exe)$/)) {
-			// If a supported shell is being used, clear xterm scrollback then clear shell (^L)
-			this._xterm.write('\x1b[3J');
-			this._processManager.write('\x0c');
-		} else {
-			this._xterm.clear();
-		}
+		this._xterm.clear();
 	}
 
 	private _refreshSelectionContextKey() {
@@ -854,6 +914,9 @@ export class TerminalInstance implements ITerminalInstance {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
+				if (this._xterm.getOption('letterSpacing') !== font.letterSpacing) {
+					this._xterm.setOption('letterSpacing', font.letterSpacing);
+				}
 				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
 					this._xterm.setOption('lineHeight', font.lineHeight);
 				}
@@ -878,7 +941,9 @@ export class TerminalInstance implements ITerminalInstance {
 				// is to fix an issue where dragging the window to the top of the screen to maximize
 				// on Winodws/Linux would fire an event saying that the terminal was not visible.
 				// This should only force a refresh if one is needed.
-				(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				if (this._xterm.getOption('rendererType') === 'canvas') {
+					(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+				}
 			}
 		}
 

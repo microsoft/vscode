@@ -308,7 +308,7 @@ export class ElectronWindow extends Themable {
 
 		// Send over all extension viewlets when extensions are ready
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
+			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().map(v => { return { id: v.id, label: v.name }; })));
 		});
 
 		// Emit event when vscode has loaded

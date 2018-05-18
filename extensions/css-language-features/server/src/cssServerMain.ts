@@ -89,7 +89,7 @@ connection.onInitialize((params: InitializeParams): InitializeResult => {
 		documentHighlightProvider: true,
 		codeActionProvider: true,
 		renameProvider: true,
-		colorProvider: true,
+		colorProvider: {},
 		foldingRangeProvider: true
 	};
 	return { capabilities };

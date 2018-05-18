@@ -139,14 +139,19 @@ export class AbstractTextResourceEditor extends BaseTextEditor {
 
 	/**
 	 * Reveals the last line of this editor if it has a model set.
+	 * When smart is true only scroll if the cursor is currently on the last line of the output panel.
+	 * This allows users to click on the output panel to stop scrolling when they see something of interest.
+	 * To resume, they should scroll to the end of the output panel again.
 	 */
-	public revealLastLine(): void {
+	public revealLastLine(smart: boolean): void {
 		const codeEditor = <ICodeEditor>this.getControl();
 		const model = codeEditor.getModel();
 
 		if (model) {
 			const lastLine = model.getLineCount();
-			codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+			if (!smart || codeEditor.getPosition().lineNumber === lastLine) {
+				codeEditor.revealPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) }, ScrollType.Smooth);
+			}
 		}
 	}
 

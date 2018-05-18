@@ -8,8 +8,8 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
-import * as TypeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, HierarchicalSymbolInformation } from 'vs/workbench/api/node/extHostTypes';
+import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, Hierarchy, SymbolInformation2 } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -23,6 +23,7 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
+import { ISelection, Selection } from 'vs/editor/common/core/selection';
 
 // --- adapter
 
@@ -39,14 +40,47 @@ class OutlineAdapter {
 	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
-			if (value instanceof HierarchicalSymbolInformation) {
-				value = HierarchicalSymbolInformation.toFlatSymbolInformation(value);
+			if (isFalsyOrEmpty(value)) {
+				return undefined;
 			}
-			if (Array.isArray(value)) {
-				return value.map(symbol => IdObject.mixin(TypeConverters.fromSymbolInformation(symbol)));
+			let [probe] = value;
+			if (!(probe instanceof Hierarchy)) {
+				value = OutlineAdapter._asSymbolHierarchy(<SymbolInformation[]>value);
 			}
-			return undefined;
+			return (<Hierarchy<SymbolInformation2>[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
 		});
+	}
+
+	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.Hierarchy<SymbolInformation2>[] {
+		// first sort by start (and end) and then loop over all elements
+		// and build a tree based on containment.
+		info = info.slice(0).sort((a, b) => {
+			let res = a.location.range.start.compareTo(b.location.range.start);
+			if (res === 0) {
+				res = b.location.range.end.compareTo(a.location.range.end);
+			}
+			return res;
+		});
+		let res: Hierarchy<SymbolInformation2>[] = [];
+		let parentStack: Hierarchy<SymbolInformation2>[] = [];
+		for (let i = 0; i < info.length; i++) {
+			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
+			while (true) {
+				if (parentStack.length === 0) {
+					parentStack.push(element);
+					res.push(element);
+					break;
+				}
+				let parent = parentStack[parentStack.length - 1];
+				if (parent.parent.range.contains(element.parent.range)) {
+					parent.children.push(element);
+					parentStack.push(element);
+					break;
+				}
+				parentStack.pop();
+			}
+		}
+		return res;
 	}
 }
 
@@ -74,7 +108,7 @@ class CodeLensAdapter {
 				return lenses.map(lens => {
 					const id = this._heapService.keep(lens);
 					return ObjectIdentifier.mixin({
-						range: TypeConverters.fromRange(lens.range),
+						range: typeConvert.Range.from(lens.range),
 						command: this._commands.toInternal(lens.command)
 					}, id);
 				});
@@ -116,12 +150,12 @@ class DefinitionAdapter {
 
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.location.from);
+				return value.map(typeConvert.location.from);
 			} else if (value) {
-				return TypeConverters.location.from(value);
+				return typeConvert.location.from(value);
 			}
 			return undefined;
 		});
@@ -139,12 +173,12 @@ class ImplementationAdapter {
 
 	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideImplementation(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.location.from);
+				return value.map(typeConvert.location.from);
 			} else if (value) {
-				return TypeConverters.location.from(value);
+				return typeConvert.location.from(value);
 			}
 			return undefined;
 		});
@@ -162,12 +196,12 @@ class TypeDefinitionAdapter {
 
 	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = TypeConverters.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 		return asWinJsPromise(token => this._provider.provideTypeDefinition(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.location.from);
+				return value.map(typeConvert.location.from);
 			} else if (value) {
-				return TypeConverters.location.from(value);
+				return typeConvert.location.from(value);
 			}
 			return undefined;
 		});
@@ -187,7 +221,7 @@ class HoverAdapter {
 	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideHover(doc, pos, token)).then(value => {
 			if (!value || isFalsyOrEmpty(value.contents)) {
@@ -200,7 +234,7 @@ class HoverAdapter {
 				value.range = new Range(pos, pos);
 			}
 
-			return TypeConverters.fromHover(value);
+			return typeConvert.Hover.from(value);
 		});
 	}
 }
@@ -218,21 +252,14 @@ class DocumentHighlightAdapter {
 	provideDocumentHighlights(resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideDocumentHighlights(doc, pos, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(DocumentHighlightAdapter._convertDocumentHighlight);
+				return value.map(typeConvert.DocumentHighlight.from);
 			}
 			return undefined;
 		});
-	}
-
-	private static _convertDocumentHighlight(documentHighlight: vscode.DocumentHighlight): modes.DocumentHighlight {
-		return {
-			range: TypeConverters.fromRange(documentHighlight.range),
-			kind: documentHighlight.kind
-		};
 	}
 }
 
@@ -248,11 +275,11 @@ class ReferenceAdapter {
 
 	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideReferences(doc, pos, context, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.location.from);
+				return value.map(typeConvert.location.from);
 			}
 			return undefined;
 		});
@@ -272,14 +299,16 @@ class CodeActionAdapter {
 		private readonly _provider: vscode.CodeActionProvider
 	) { }
 
-	provideCodeActions(resource: URI, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
+	provideCodeActions(resource: URI, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const ran = <vscode.Range>TypeConverters.toRange(range);
+		const ran = Selection.isISelection(rangeOrSelection)
+			? <vscode.Selection>typeConvert.Selection.to(rangeOrSelection)
+			: <vscode.Range>typeConvert.Range.to(rangeOrSelection);
 		const allDiagnostics: vscode.Diagnostic[] = [];
 
 		for (const diagnostic of this._diagnostics.getDiagnostics(resource)) {
-			if (ran.contains(diagnostic.range)) {
+			if (ran.intersection(diagnostic.range)) {
 				allDiagnostics.push(diagnostic);
 			}
 		}
@@ -288,6 +317,7 @@ class CodeActionAdapter {
 			diagnostics: allDiagnostics,
 			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
+
 		return asWinJsPromise(token =>
 			this._provider.provideCodeActions(doc, ran, codeActionContext, token)
 		).then(commandsOrActions => {
@@ -311,8 +341,8 @@ class CodeActionAdapter {
 					result.push({
 						title: candidate.title,
 						command: candidate.command && this._commands.toInternal(candidate.command),
-						diagnostics: candidate.diagnostics && candidate.diagnostics.map(TypeConverters.fromDiagnostic),
-						edit: candidate.edit && TypeConverters.WorkspaceEdit.from(candidate.edit),
+						diagnostics: candidate.diagnostics && candidate.diagnostics.map(typeConvert.Diagnostic.from),
+						edit: candidate.edit && typeConvert.WorkspaceEdit.from(candidate.edit),
 						kind: candidate.kind && candidate.kind.value
 					});
 				}
@@ -343,7 +373,7 @@ class DocumentFormattingAdapter {
 
 		return asWinJsPromise(token => this._provider.provideDocumentFormattingEdits(document, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
 		});
@@ -363,11 +393,11 @@ class RangeFormattingAdapter {
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
-		const ran = TypeConverters.toRange(range);
+		const ran = typeConvert.Range.to(range);
 
 		return asWinJsPromise(token => this._provider.provideDocumentRangeFormattingEdits(document, ran, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
 		});
@@ -389,11 +419,11 @@ class OnTypeFormattingAdapter {
 	provideOnTypeFormattingEdits(resource: URI, position: IPosition, ch: string, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
 		const { document } = this._documents.getDocumentData(resource);
-		const pos = TypeConverters.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideOnTypeFormattingEdits(document, pos, ch, <any>options, token)).then(value => {
 			if (Array.isArray(value)) {
-				return value.map(TypeConverters.TextEdit.from);
+				return value.map(typeConvert.TextEdit.from);
 			}
 			return undefined;
 		});
@@ -423,7 +453,7 @@ class NavigateTypeAdapter {
 						console.warn('INVALID SymbolInformation, lacks name', item);
 						continue;
 					}
-					const symbol = IdObject.mixin(TypeConverters.fromSymbolInformation(item));
+					const symbol = IdObject.mixin(typeConvert.SymbolInformation.from(item));
 					this._symbolCache[symbol._id] = item;
 					result.symbols.push(symbol);
 				}
@@ -445,7 +475,7 @@ class NavigateTypeAdapter {
 		const item = this._symbolCache[symbol._id];
 		if (item) {
 			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
-				return value && mixin(symbol, TypeConverters.fromSymbolInformation(value), true);
+				return value && mixin(symbol, typeConvert.SymbolInformation.from(value), true);
 			});
 		}
 		return undefined;
@@ -479,13 +509,13 @@ class RenameAdapter {
 	provideRenameEdits(resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideRenameEdits(doc, pos, newName, token)).then(value => {
 			if (!value) {
 				return undefined;
 			}
-			return TypeConverters.WorkspaceEdit.from(value);
+			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
 			if (typeof err === 'string') {
 				return <modes.WorkspaceEdit>{
@@ -510,7 +540,7 @@ class RenameAdapter {
 		}
 
 		let doc = this._documents.getDocumentData(resource).document;
-		let pos = TypeConverters.toPosition(position);
+		let pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.prepareRename(doc, pos, token)).then(rangeOrLocation => {
 
@@ -533,7 +563,7 @@ class RenameAdapter {
 				console.warn('INVALID rename location: range must contain position');
 				return undefined;
 			}
-			return { range: TypeConverters.fromRange(range), text };
+			return { range: typeConvert.Range.from(range), text };
 		});
 	}
 }
@@ -560,10 +590,10 @@ class SuggestAdapter {
 	provideCompletionItems(resource: URI, position: IPosition, context: modes.SuggestContext): TPromise<SuggestResultDto> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = TypeConverters.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise<vscode.CompletionItem[] | vscode.CompletionList>(token => {
-			return this._provider.provideCompletionItems(doc, pos, token, TypeConverters.CompletionContext.from(context));
+			return this._provider.provideCompletionItems(doc, pos, token, typeConvert.CompletionContext.from(context));
 		}).then(value => {
 
 			const _id = this._idPool++;
@@ -623,7 +653,7 @@ class SuggestAdapter {
 			}
 
 			const doc = this._documents.getDocumentData(resource).document;
-			const pos = TypeConverters.toPosition(position);
+			const pos = typeConvert.Position.to(position);
 			const wordRangeBeforePos = (doc.getWordRangeAtPosition(pos) as Range || new Range(pos, pos)).with({ end: pos });
 			const newSuggestion = this._convertCompletionItem(resolvedItem, pos, wordRangeBeforePos, _id, _parentId);
 			if (newSuggestion) {
@@ -650,14 +680,14 @@ class SuggestAdapter {
 			_parentId,
 			//
 			label: item.label,
-			type: TypeConverters.CompletionItemKind.from(item.kind),
+			type: typeConvert.CompletionItemKind.from(item.kind),
 			detail: item.detail,
 			documentation: item.documentation,
 			filterText: item.filterText,
 			sortText: item.sortText,
 			//
 			insertText: undefined,
-			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(TypeConverters.TextEdit.from),
+			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
 			command: this._commands.toInternal(item.command),
 			commitCharacters: item.commitCharacters
 		};
@@ -714,11 +744,11 @@ class SignatureHelpAdapter {
 	provideSignatureHelp(resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 
 		const doc = this._documents.getDocumentData(resource).document;
-		const pos = TypeConverters.toPosition(position);
+		const pos = typeConvert.Position.to(position);
 
 		return asWinJsPromise(token => this._provider.provideSignatureHelp(doc, pos, token)).then(value => {
 			if (value) {
-				return TypeConverters.SignatureHelp.from(value);
+				return typeConvert.SignatureHelp.from(value);
 			}
 			return undefined;
 		});
@@ -746,7 +776,7 @@ class LinkProviderAdapter {
 			}
 			const result: modes.ILink[] = [];
 			for (const link of links) {
-				let data = TypeConverters.DocumentLink.from(link);
+				let data = typeConvert.DocumentLink.from(link);
 				let id = this._heapService.keep(link);
 				ObjectIdentifier.mixin(data, id);
 				result.push(data);
@@ -768,7 +798,7 @@ class LinkProviderAdapter {
 
 		return asWinJsPromise(token => this._provider.resolveDocumentLink(item, token)).then(value => {
 			if (value) {
-				return TypeConverters.DocumentLink.from(value);
+				return typeConvert.DocumentLink.from(value);
 			}
 			return undefined;
 		});
@@ -791,8 +821,8 @@ class ColorProviderAdapter {
 
 			const colorInfos: IRawColorInfo[] = colors.map(ci => {
 				return {
-					color: TypeConverters.Color.from(ci.color),
-					range: TypeConverters.fromRange(ci.range)
+					color: typeConvert.Color.from(ci.color),
+					range: typeConvert.Range.from(ci.range)
 				};
 			});
 
@@ -802,10 +832,10 @@ class ColorProviderAdapter {
 
 	provideColorPresentations(resource: URI, raw: IRawColorInfo): TPromise<modes.IColorPresentation[]> {
 		const document = this._documents.getDocumentData(resource).document;
-		const range = TypeConverters.toRange(raw.range);
-		const color = TypeConverters.Color.to(raw.color);
+		const range = typeConvert.Range.to(raw.range);
+		const color = typeConvert.Color.to(raw.color);
 		return asWinJsPromise(token => this._provider.provideColorPresentations(color, { document, range }, token)).then(value => {
-			return value.map(TypeConverters.ColorPresentation.from);
+			return value.map(typeConvert.ColorPresentation.from);
 		});
 	}
 }
@@ -823,7 +853,7 @@ class FoldingProviderAdapter {
 			if (!Array.isArray(ranges)) {
 				return void 0;
 			}
-			return ranges.map(TypeConverters.FoldingRange.from);
+			return ranges.map(typeConvert.FoldingRange.from);
 		});
 	}
 }
@@ -887,7 +917,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 				$serialized: true,
 				language: selector.language,
 				scheme: this._transformScheme(selector.scheme),
-				pattern: selector.pattern
+				pattern: selector.pattern,
+				exclusive: selector.exclusive
 			};
 		}
 
@@ -928,9 +959,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- outline
 
-	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
+	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, extensionId?: string): vscode.Disposable {
 		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider));
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector));
+		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extensionId);
 		return this._createDisposable(handle);
 	}
 
@@ -1041,8 +1072,8 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 	}
 
 
-	$provideCodeActions(handle: number, resource: UriComponents, range: IRange, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
-		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), range, context));
+	$provideCodeActions(handle: number, resource: UriComponents, rangeOrSelection: IRange | ISelection, context: modes.CodeActionContext): TPromise<CodeActionDto[]> {
+		return this._withAdapter(handle, CodeActionAdapter, adapter => adapter.provideCodeActions(URI.revive(resource), rangeOrSelection, context));
 	}
 
 	// --- formatting

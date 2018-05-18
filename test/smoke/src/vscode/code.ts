@@ -224,7 +224,12 @@ export class Code {
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);
-		return await poll(() => this.driver.getElements(windowId, selector).then(els => els[0].textContent), s => accept!(typeof s === 'string' ? s : ''), `get text content '${selector}'`);
+
+		return await poll(
+			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
+			s => accept!(typeof s === 'string' ? s : ''),
+			`get text content '${selector}'`
+		);
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {

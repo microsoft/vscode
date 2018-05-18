@@ -41,6 +41,7 @@ import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { Button } from 'vs/base/browser/ui/button/button';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -72,6 +73,8 @@ export class IssueReporter extends Disposable {
 	private receivedPerformanceInfo = false;
 	private shouldQueueSearch = false;
 
+	private previewButton: Button;
+
 	constructor(configuration: IssueReporterConfiguration) {
 		super();
 
@@ -85,6 +88,8 @@ export class IssueReporter extends Disposable {
 			},
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
+
+		this.previewButton = new Button(document.getElementById('issue-reporter'));
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -171,20 +176,12 @@ export class IssueReporter extends Disposable {
 			content.push(`a, .workbenchCommand { color: ${styles.textLinkColor}; }`);
 		}
 
-		if (styles.buttonBackground) {
-			content.push(`button { background-color: ${styles.buttonBackground}; }`);
-		}
-
-		if (styles.buttonForeground) {
-			content.push(`button { color: ${styles.buttonForeground}; }`);
-		}
-
-		if (styles.buttonHoverBackground) {
-			content.push(`#github-submit-btn:hover:enabled, #github-submit-btn:focus:enabled { background-color: ${styles.buttonHoverBackground}; }`);
-		}
-
 		if (styles.textLinkColor) {
 			content.push(`a { color: ${styles.textLinkColor}; }`);
+		}
+
+		if (styles.textLinkActiveForeground) {
+			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
 		}
 
 		if (styles.sliderBackgroundColor) {
@@ -197,6 +194,18 @@ export class IssueReporter extends Disposable {
 
 		if (styles.sliderHoverColor) {
 			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+		}
+
+		if (styles.buttonBackground) {
+			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
+		}
+
+		if (styles.buttonForeground) {
+			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
+		}
+
+		if (styles.buttonHoverBackground) {
+			content.push(`.monaco-text-button:hover, monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -318,14 +327,27 @@ export class IssueReporter extends Disposable {
 			label.addEventListener('click', (e) => {
 				e.stopPropagation();
 
-				// Stop propgagation not working as expected in this case https://bugs.chromium.org/p/chromium/issues/detail?id=809801
-				// preventDefault does prevent outer details tag from toggling, so use that and manually toggle the checkbox
-				e.preventDefault();
 				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
 				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
 				if (checkbox) {
-					checkbox.checked = !checkbox.checked;
 					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
+				}
+			});
+		}
+
+		const showInfoElements = document.getElementsByClassName('showInfo');
+		for (let i = 0; i < showInfoElements.length; i++) {
+			const showInfo = showInfoElements.item(i);
+			showInfo.addEventListener('click', (e) => {
+				const label = (<HTMLDivElement>e.target);
+				const containingElement = label.parentElement.parentElement;
+				const info = containingElement.lastElementChild;
+				if (info.classList.contains('hidden')) {
+					show(info);
+					label.textContent = localize('hide', "hide");
+				} else {
+					hide(info);
+					label.textContent = localize('show', "show");
 				}
 			});
 		}
@@ -372,7 +394,7 @@ export class IssueReporter extends Disposable {
 			}
 		});
 
-		this.addEventListener('github-submit-btn', 'click', () => this.createIssue());
+		this.previewButton.onDidClick(() => this.createIssue());
 
 		this.addEventListener('disableExtensions', 'click', () => {
 			ipcRenderer.send('workbenchCommand', 'workbench.action.reloadWindowWithExtensionsDisabled');
@@ -408,13 +430,12 @@ export class IssueReporter extends Disposable {
 	}
 
 	private updatePreviewButtonState() {
-		const submitButton = <HTMLButtonElement>document.getElementById('github-submit-btn');
 		if (this.isPreviewEnabled()) {
-			submitButton.disabled = false;
-			submitButton.textContent = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.label = localize('previewOnGitHub', "Preview on GitHub");
+			this.previewButton.enabled = true;
 		} else {
-			submitButton.disabled = true;
-			submitButton.textContent = localize('loadingData', "Loading data...");
+			this.previewButton.enabled = false;
+			this.previewButton.label = localize('loadingData', "Loading data...");
 		}
 	}
 

@@ -191,6 +191,7 @@ export class ViewLine implements IVisibleLine {
 		let renderLineInput = new RenderLineInput(
 			options.useMonospaceOptimizations,
 			lineData.content,
+			lineData.continuesWithWrappedLine,
 			lineData.isBasicASCII,
 			lineData.containsRTL,
 			lineData.minColumn - 1,
@@ -230,7 +231,7 @@ export class ViewLine implements IVisibleLine {
 				// Another rounding error has been observed on Linux in VSCode, where <span> width
 				// rounding errors add up to an observable large number...
 				// ---
-				// Also see another example of rounding errors on Windows in 
+				// Also see another example of rounding errors on Windows in
 				// https://github.com/Microsoft/vscode/issues/33178
 				renderedViewLine = new FastRenderedViewLine(
 					this._renderedViewLine ? this._renderedViewLine.domNode : null,

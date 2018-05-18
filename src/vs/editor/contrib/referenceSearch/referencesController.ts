@@ -179,7 +179,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		if (this._model) { // can be called while still resolving...
 			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
 			let target = this._model.nextOrPreviousReference(source, fwd);
-			let editorFocus = this._editor.isFocused();
+			let editorFocus = this._editor.hasTextFocus();
 			await this._widget.setSelection(target);
 			await this._gotoReference(target);
 			if (editorFocus) {

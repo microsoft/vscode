@@ -23,7 +23,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManifest, IKeyBinding, IView, IExtensionTipsService, LocalExtensionType, IViewContainer } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ResolvedKeybinding, KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, IExtension, IExtensionDependencies } from 'vs/workbench/parts/extensions/common/extensions';
@@ -42,14 +42,12 @@ import { Position } from 'vs/platform/editor/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -101,9 +99,11 @@ class NavBar {
 		this.actionbar = new ActionBar(element, { animated: false });
 	}
 
-	push(id: string, label: string): void {
+	push(id: string, label: string, tooltip: string): void {
 		const run = () => this._update(id);
 		const action = new Action(id, label, null, true, run);
+
+		action.tooltip = tooltip;
 
 		this.actions.push(action);
 		this.actionbar.push(action);
@@ -190,11 +190,8 @@ export class ExtensionEditor extends BaseEditor {
 		@INotificationService private readonly notificationService: INotificationService,
 		@IOpenerService private readonly openerService: IOpenerService,
 		@IPartService private readonly partService: IPartService,
-		@IContextViewService private readonly contextViewService: IContextViewService,
 		@IContextKeyService private readonly contextKeyService: IContextKeyService,
 		@IExtensionTipsService private readonly extensionTipsService: IExtensionTipsService,
-		@IEnvironmentService private readonly environmentService: IEnvironmentService
-
 	) {
 		super(ExtensionEditor.ID, telemetryService, themeService);
 		this.disposables = [];
@@ -376,10 +373,10 @@ export class ExtensionEditor extends BaseEditor {
 
 		this.navbar.clear();
 		this.navbar.onChange(this.onNavbarChange.bind(this, extension), this, this.transientDisposables);
-		this.navbar.push(NavbarSection.Readme, localize('details', "Details"));
-		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"));
-		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"));
-		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"));
+		this.navbar.push(NavbarSection.Readme, localize('details', "Details"), localize('detailstooltip', "Extension details, rendered from the extension's 'README.md' file"));
+		this.navbar.push(NavbarSection.Contributions, localize('contributions', "Contributions"), localize('contributionstooltip', "Extension contributions to the VS Code editor"));
+		this.navbar.push(NavbarSection.Changelog, localize('changelog', "Changelog"), localize('changelogtooltip', "Extension update history, rendered from the extension's 'CHANGELOG.md' file"));
+		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Extension dependencies, lists other extensions this extension depends on"));
 
 		this.editorLoadComplete = true;
 		return super.setInput(input, options);
@@ -440,7 +437,7 @@ export class ExtensionEditor extends BaseEditor {
 			.then<void>(body => {
 				const allowedBadgeProviders = this.extensionsWorkbenchService.allowedBadgeProviders;
 				const webViewOptions = allowedBadgeProviders.length > 0 ? { allowScripts: false, allowSvgs: false, svgWhiteList: allowedBadgeProviders } : {};
-				this.activeWebview = new WebviewElement(this.partService.getContainer(Parts.EDITOR_PART), this.themeService, this.environmentService, this.contextViewService, this.contextKey, this.findInputFocusContextKey, webViewOptions);
+				this.activeWebview = this.instantiationService.createInstance(WebviewElement, this.partService.getContainer(Parts.EDITOR_PART), this.contextKey, this.findInputFocusContextKey, webViewOptions);
 				this.activeWebview.mountTo(this.content);
 				const removeLayoutParticipant = arrays.insert(this.layoutParticipants, this.activeWebview);
 				this.contentDisposables.push(toDisposable(removeLayoutParticipant));
@@ -487,6 +484,7 @@ export class ExtensionEditor extends BaseEditor {
 					this.renderColors(content, manifest, layout),
 					this.renderJSONValidation(content, manifest, layout),
 					this.renderDebuggers(content, manifest, layout),
+					this.renderViewContainers(content, manifest, layout),
 					this.renderViews(content, manifest, layout),
 					this.renderLocalizations(content, manifest, layout)
 				];
@@ -610,6 +608,32 @@ export class ExtensionEditor extends BaseEditor {
 				...contrib.map(d => $('tr', null,
 					$('td', null, d.label),
 					$('td', null, d.type)))
+			)
+		);
+
+		append(container, details);
+		return true;
+	}
+
+	private renderViewContainers(container: HTMLElement, manifest: IExtensionManifest, onDetailsToggle: Function): boolean {
+		const contributes = manifest.contributes;
+		const contrib = contributes && contributes.viewsContainers || {};
+
+		let viewContainers = <{ id: string, title: string, location: string }[]>Object.keys(contrib).reduce((result, location) => {
+			let viewContainersForLocation: IViewContainer[] = contrib[location];
+			result.push(...viewContainersForLocation.map(viewContainer => ({ ...viewContainer, location })));
+			return result;
+		}, []);
+
+		if (!viewContainers.length) {
+			return false;
+		}
+
+		const details = $('details', { open: true, ontoggle: onDetailsToggle },
+			$('summary', null, localize('viewContainers', "View Containers ({0})", viewContainers.length)),
+			$('table', null,
+				$('tr', null, $('th', null, localize('view container id', "ID")), $('th', null, localize('view container title', "Title")), $('th', null, localize('view container location', "Where"))),
+				...viewContainers.map(viewContainer => $('tr', null, $('td', null, viewContainer.id), $('td', null, viewContainer.title), $('td', null, viewContainer.location)))
 			)
 		);
 

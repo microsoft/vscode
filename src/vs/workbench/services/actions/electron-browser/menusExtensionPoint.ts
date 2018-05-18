@@ -288,12 +288,13 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 
 		let absoluteIcon: { dark: string; light?: string; };
 		if (icon) {
+			//TODO@extensionLocation
 			if (typeof icon === 'string') {
-				absoluteIcon = { dark: join(extension.description.extensionFolderPath, icon) };
+				absoluteIcon = { dark: join(extension.description.extensionLocation.fsPath, icon) };
 			} else {
 				absoluteIcon = {
-					dark: join(extension.description.extensionFolderPath, icon.dark),
-					light: join(extension.description.extensionFolderPath, icon.light)
+					dark: join(extension.description.extensionLocation.fsPath, icon.dark),
+					light: join(extension.description.extensionLocation.fsPath, icon.light)
 				};
 			}
 		}

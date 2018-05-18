@@ -193,6 +193,11 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
 			default: false
 		},
+		'debug.toolbar': {
+			enum: ['float', 'dock', 'hide'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolbar' }, "Controls the debug toolbar. Should it be floating, docked in the debug view or hidden."),
+			default: 'float'
+		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
 			enumDescriptions: [nls.localize('never', "Never show debug in status bar"), nls.localize('always', "Always show debug in status bar"), nls.localize('onFirstSessionStart', "Show debug in status bar only after debug was started for the first time")],
@@ -201,7 +206,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
-			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},
@@ -210,11 +215,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'enableAllHovers' }, "Controls if the non debug hovers should be enabled while debugging. If true the hover providers will be called to provide a hover. Regular hovers will not be shown even if this setting is true."),
 			default: false
 		},
-		'debug.trace': {
-			enum: ['off', 'info', 'verbose', 'error'],
-			enumDescriptions: [nls.localize('off', "Do not produce diagnostic output"), nls.localize('info', "Show default diagnostic output"), nls.localize('verbose', "Produce detailed diagnostic output"), nls.localize('error', "Only produce error diagnostic output")],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'trace' }, "Controls if the debug session should produce diagnostic output."),
-			default: 'off'
+		'debug.logLevel': {
+			enum: ['off', 'trace', 'debug', 'info', 'warning', 'error', 'critical'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'logLevel' }, "Controls what diagnostic output should the debug session produce."),
+			default: 'info'
 		},
 		'launch': {
 			type: 'object',

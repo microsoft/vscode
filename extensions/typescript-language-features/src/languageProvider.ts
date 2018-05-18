@@ -19,7 +19,8 @@ import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
+import TelemetryReporter from './utils/telemetry';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -44,7 +45,8 @@ export default class LanguageProvider {
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription,
 		private readonly commandManager: CommandManager,
-		typingsStatus: TypingsStatus
+		private readonly telemetryReporter: TelemetryReporter,
+		typingsStatus: TypingsStatus,
 	) {
 		this.fileConfigurationManager = new FileConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
@@ -53,7 +55,7 @@ export default class LanguageProvider {
 			}
 		}, this._validate);
 
-		this.diagnosticsManager = new DiagnosticsManager(description.id);
+		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -119,7 +121,7 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
 		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
 
 		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
@@ -168,7 +170,7 @@ export default class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
@@ -247,7 +249,7 @@ export default class LanguageProvider {
 		}
 
 		if (this.client.apiVersion.has280Features()) {
-			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
 			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
@@ -256,8 +258,10 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
+		const config = workspace.getConfiguration(this.id, file);
+		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

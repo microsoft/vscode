@@ -109,7 +109,7 @@ class EditTask implements IDisposable {
 		}
 		if (this._newEol !== undefined) {
 			this._model.pushStackElement();
-			this._model.setEOL(this._newEol);
+			this._model.pushEOL(this._newEol);
 			this._model.pushStackElement();
 		}
 	}

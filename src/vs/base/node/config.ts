@@ -171,7 +171,7 @@ export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {
 			// Windows: in some cases the filename contains artifacts from the absolute path
 			// see https://github.com/nodejs/node/issues/19170
 			// As such, we have to ensure that the filename basename is used for comparison.
-			if (isWindows && filename !== this.configName) {
+			if (isWindows && filename && filename !== this.configName) {
 				filename = basename(filename);
 			}
 

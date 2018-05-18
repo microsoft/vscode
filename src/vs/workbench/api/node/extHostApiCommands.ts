@@ -278,7 +278,7 @@ export class ExtHostApiCommands {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.toSymbolInformation));
+					result.push(...tuple[1].map(typeConverters.SymbolInformation.to));
 				}
 			}
 			return result;
@@ -288,7 +288,7 @@ export class ExtHostApiCommands {
 	private _executeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeDefinitionProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -297,7 +297,7 @@ export class ExtHostApiCommands {
 	private _executeTypeDefinitionProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeTypeDefinitionProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -306,7 +306,7 @@ export class ExtHostApiCommands {
 	private _executeImplementationProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeImplementationProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -315,25 +315,25 @@ export class ExtHostApiCommands {
 	private _executeHoverProvider(resource: URI, position: types.Position): Thenable<types.Hover[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Hover[]>('_executeHoverProvider', args)
-			.then(tryMapWith(typeConverters.toHover));
+			.then(tryMapWith(typeConverters.Hover.to));
 	}
 
 	private _executeDocumentHighlights(resource: URI, position: types.Position): Thenable<types.DocumentHighlight[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.DocumentHighlight[]>('_executeDocumentHighlights', args)
-			.then(tryMapWith(typeConverters.toDocumentHighlight));
+			.then(tryMapWith(typeConverters.DocumentHighlight.to));
 	}
 
 	private _executeReferenceProvider(resource: URI, position: types.Position): Thenable<types.Location[]> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position)
+			position: position && typeConverters.Position.from(position)
 		};
 		return this._commands.executeCommand<modes.Location[]>('_executeReferenceProvider', args)
 			.then(tryMapWith(typeConverters.location.to));
@@ -342,7 +342,7 @@ export class ExtHostApiCommands {
 	private _executeDocumentRenameProvider(resource: URI, position: types.Position, newName: string): Thenable<types.WorkspaceEdit> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			newName
 		};
 		return this._commands.executeCommand<modes.WorkspaceEdit>('_executeDocumentRenameProvider', args).then(value => {
@@ -359,7 +359,7 @@ export class ExtHostApiCommands {
 	private _executeSignatureHelpProvider(resource: URI, position: types.Position, triggerCharacter: string): Thenable<types.SignatureHelp> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			triggerCharacter
 		};
 		return this._commands.executeCommand<modes.SignatureHelp>('_executeSignatureHelpProvider', args).then(value => {
@@ -373,7 +373,7 @@ export class ExtHostApiCommands {
 	private _executeCompletionItemProvider(resource: URI, position: types.Position, triggerCharacter: string, maxItemsToResolve: number): Thenable<types.CompletionList> {
 		const args = {
 			resource,
-			position: position && typeConverters.fromPosition(position),
+			position: position && typeConverters.Position.from(position),
 			triggerCharacter,
 			maxItemsToResolve
 		};
@@ -392,7 +392,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<IRawColorInfo[]>('_executeDocumentColorProvider', args).then(result => {
 			if (result) {
-				return result.map(ci => ({ range: typeConverters.toRange(ci.range), color: typeConverters.Color.to(ci.color) }));
+				return result.map(ci => ({ range: typeConverters.Range.to(ci.range), color: typeConverters.Color.to(ci.color) }));
 			}
 			return [];
 		});
@@ -402,7 +402,7 @@ export class ExtHostApiCommands {
 		const args = {
 			resource: context.uri,
 			color: typeConverters.Color.from(color),
-			range: typeConverters.fromRange(context.range),
+			range: typeConverters.Range.from(context.range),
 		};
 		return this._commands.executeCommand<modes.IColorPresentation[]>('_executeColorPresentationProvider', args).then(result => {
 			if (result) {
@@ -418,7 +418,7 @@ export class ExtHostApiCommands {
 		};
 		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
 			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.toSymbolInformation);
+				return value.entries.map(typeConverters.SymbolInformation.to);
 			}
 			return undefined;
 		});
@@ -427,7 +427,7 @@ export class ExtHostApiCommands {
 	private _executeCodeActionProvider(resource: URI, range: types.Range): Thenable<(vscode.CodeAction | vscode.Command)[]> {
 		const args = {
 			resource,
-			range: typeConverters.fromRange(range)
+			range: typeConverters.Range.from(range)
 		};
 		return this._commands.executeCommand<CustomCodeAction[]>('_executeCodeActionProvider', args)
 			.then(tryMapWith(codeAction => {
@@ -454,7 +454,7 @@ export class ExtHostApiCommands {
 		return this._commands.executeCommand<modes.ICodeLensSymbol[]>('_executeCodeLensProvider', args)
 			.then(tryMapWith(item => {
 				return new types.CodeLens(
-					typeConverters.toRange(item.range),
+					typeConverters.Range.to(item.range),
 					this._commands.converter.fromInternal(item.command));
 			}));
 
@@ -466,28 +466,28 @@ export class ExtHostApiCommands {
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatDocumentProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeFormatRangeProvider(resource: URI, range: types.Range, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
-			range: typeConverters.fromRange(range),
+			range: typeConverters.Range.from(range),
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatRangeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeFormatOnTypeProvider(resource: URI, position: types.Position, ch: string, options: vscode.FormattingOptions): Thenable<vscode.TextEdit[]> {
 		const args = {
 			resource,
-			position: typeConverters.fromPosition(position),
+			position: typeConverters.Position.from(position),
 			ch,
 			options
 		};
 		return this._commands.executeCommand<ISingleEditOperation[]>('_executeFormatOnTypeProvider', args)
-			.then(tryMapWith(edit => new types.TextEdit(typeConverters.toRange(edit.range), edit.text)));
+			.then(tryMapWith(edit => new types.TextEdit(typeConverters.Range.to(edit.range), edit.text)));
 	}
 
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {

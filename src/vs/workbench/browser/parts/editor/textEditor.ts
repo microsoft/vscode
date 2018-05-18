@@ -140,10 +140,10 @@ export abstract class BaseTextEditor extends BaseEditor {
 
 		// Application & Editor focus change to respect auto save settings
 		if (isCodeEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		} else if (isDiffEditor(this.editorControl)) {
-			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
-			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditor(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getOriginalEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
+			this.toUnbind.push(this.editorControl.getModifiedEditor().onDidBlurEditorWidget(() => this.onEditorFocusLost()));
 		}
 
 		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorFocusLost()));

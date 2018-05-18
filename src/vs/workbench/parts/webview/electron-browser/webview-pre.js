@@ -116,11 +116,11 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('baseUrl', (event, value) => {
+		ipcRenderer.on('baseUrl', (_event, value) => {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', (event, variables, activeTheme) => {
+		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -216,17 +216,17 @@
 			defaultStyles.id = '_defaultStyles';
 
 			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable]};`;
+				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
 			});
 			defaultStyles.innerHTML = `
-			:root { ${vars.join(' ')} }
+			:root { ${vars.join('\n')} }
 
 			body {
-				background-color: var(--background-color);
-				color: var(--color);
-				font-family: var(--font-family);
-				font-weight: var(--font-weight);
-				font-size: var(--font-size);
+				background-color: var(--vscode-editor-background);
+				color: var(--vscode-editor-foreground);
+				font-family: var(--vscode-editor-font-family);
+				font-weight: var(--vscode-editor-font-weight);
+				font-size: var(--vscode-editor-font-size);
 				margin: 0;
 				padding: 0 20px;
 			}
@@ -236,8 +236,12 @@
 				max-height: 100%;
 			}
 
-			body a {
-				color: var(--link-color);
+			a {
+				color: var(--vscode-textLink-foreground);
+			}
+
+			a:hover {
+				color: var(--vscode-textLink-activeForeground);
 			}
 
 			a:focus,
@@ -247,6 +251,16 @@
 				outline: 1px solid -webkit-focus-ring-color;
 				outline-offset: -1px;
 			}
+
+			code {
+				color: var(--vscode-textPreformat-foreground);
+			}
+
+			blockquote {
+				background: var(--vscode-textBlockQuote-background);
+				border-color: var(--vscode-textBlockQuote-border);
+			}
+
 			::-webkit-scrollbar {
 				width: 10px;
 				height: 10px;
@@ -358,6 +372,8 @@
 					}
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
+					newFrame.contentWindow.focus();
+
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach((data) => {
@@ -393,7 +409,7 @@
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', (event, data) => {
+		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (pending) {
 				pendingMessages.push(data);
@@ -405,7 +421,7 @@
 			}
 		});
 
-		ipcRenderer.on('initial-scroll-position', (event, progress) => {
+		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 

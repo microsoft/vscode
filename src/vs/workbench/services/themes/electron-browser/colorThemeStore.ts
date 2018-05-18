@@ -14,6 +14,7 @@ import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/co
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
 
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
@@ -67,13 +68,13 @@ export class ColorThemeStore {
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
+				this.onThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
 			this.onDidChangeEmitter.fire(this.extensionsColorThemes);
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onThemes(extensionLocation: URI, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -92,10 +93,11 @@ export class ColorThemeStore {
 				));
 				return;
 			}
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, theme.path));
+			// TODO@extensionLocation
+			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionLocation.fsPath, theme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionLocation.fsPath)) !== 0) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
 			}
 			let themeData = ColorThemeData.fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
 			if (themeData.id === this.extensionsColorThemes[0].id) {

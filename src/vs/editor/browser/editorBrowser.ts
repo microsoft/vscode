@@ -365,12 +365,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
 	onDidFocusEditorText(listener: () => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor lost focus.
+	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
 	onDidBlurEditorText(listener: () => void): IDisposable;
@@ -378,12 +378,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditor(listener: () => void): IDisposable;
+	onDidFocusEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
-	onDidBlurEditor(listener: () => void): IDisposable;
+	onDidBlurEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
@@ -477,7 +477,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	restoreViewState(state: editorCommon.ICodeEditorViewState): void;
 
 	/**
-	 * Returns true if this editor or one of its widgets has keyboard focus.
+	 * Returns true if the text inside this editor or an editor widget has focus.
 	 */
 	hasWidgetFocus(): boolean;
 

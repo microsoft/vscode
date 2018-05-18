@@ -6,13 +6,15 @@
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { nativeSep } from 'vs/base/common/paths';
+import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
+import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IFileService } from 'vs/platform/files/common/files';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 
@@ -37,12 +39,13 @@ export class WebviewElement {
 
 	constructor(
 		private readonly _styleElement: Element,
-		private readonly _themeService: IThemeService,
-		private readonly _environmentService: IEnvironmentService,
-		private readonly _contextViewService: IContextViewService,
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
-		private _options: WebviewOptions
+		private _options: WebviewOptions,
+		@IThemeService private readonly _themeService: IThemeService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
@@ -281,13 +284,30 @@ export class WebviewElement {
 	private style(theme: ITheme): void {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
+		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const color = theme.getColor(entry.id);
+			if (color) {
+				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
+			}
+			return colors;
+		}, {});
+
+
 		const styles = {
-			'background-color': theme.getColor(editorBackground).toString(),
-			'color': theme.getColor(editorForeground).toString(),
+			// Old vars
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
-			'link-color': theme.getColor(textLinkForeground).toString()
+			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
+			'color': theme.getColor(colorRegistry.editorForeground).toString(),
+			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
+			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
+
+			// Offical API
+			'vscode-editor-font-family': fontFamily,
+			'vscode-editor-font-weight': fontWeight,
+			'vscode-editor-font-size': fontSize,
+			...exportedColors
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
@@ -343,11 +363,11 @@ export class WebviewElement {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, 'vscode-core-resource', () => [
+		registerFileProtocol(contents, 'vscode-core-resource', this._fileService, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, 'vscode-resource', () =>
+		registerFileProtocol(contents, 'vscode-resource', this._fileService, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}
@@ -442,14 +462,23 @@ namespace ApiThemeClassName {
 function registerFileProtocol(
 	contents: Electron.WebContents,
 	protocol: string,
+	fileService: IFileService,
 	getRoots: () => ReadonlyArray<URI>
 ) {
-	contents.session.protocol.registerFileProtocol(protocol, (request, callback: any) => {
+	contents.session.protocol.registerBufferProtocol(protocol, (request, callback: any) => {
 		const requestPath = URI.parse(request.url).path;
-		const normalizedPath = URI.file(requestPath).fsPath;
+		const normalizedPath = URI.file(requestPath);
 		for (const root of getRoots()) {
-			if (startsWith(normalizedPath, root.fsPath + nativeSep)) {
-				callback({ path: normalizedPath });
+			if (startsWith(normalizedPath.fsPath, root.fsPath + nativeSep)) {
+				fileService.resolveContent(normalizedPath, { encoding: 'binary' }).then(contents => {
+					const mime = getMimeType(normalizedPath);
+					callback({
+						data: Buffer.from(contents.value, contents.encoding),
+						mimeType: mime
+					});
+				}, () => {
+					callback({ error: -1 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+				});
 				return;
 			}
 		}
@@ -460,4 +489,13 @@ function registerFileProtocol(
 			console.error('Failed to register protocol ' + protocol);
 		}
 	});
+}
+
+const webviewMimeTypes = {
+	'.svg': 'image/svg+xml'
+};
+
+function getMimeType(normalizedPath: URI) {
+	const ext = extname(normalizedPath.fsPath).toLowerCase();
+	return webviewMimeTypes[ext] || getMediaMime(normalizedPath.fsPath) || guessMimeTypes(normalizedPath.fsPath)[0];
 }

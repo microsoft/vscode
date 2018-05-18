@@ -3,7 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Commands } from '../workbench/workbench';
 import { Code } from '../../vscode/code';
 
 export enum ProblemSeverity {
@@ -15,16 +14,24 @@ export class Problems {
 
 	static PROBLEMS_VIEW_SELECTOR = '.panel.markers-panel';
 
-	constructor(private code: Code, private commands: Commands) { }
+	constructor(private code: Code) { }
 
 	public async showProblemsView(): Promise<any> {
-		await this.commands.runCommand('workbench.actions.view.problems');
+		await this.toggleProblemsView();
 		await this.waitForProblemsView();
 	}
 
 	public async hideProblemsView(): Promise<any> {
-		await this.commands.runCommand('workbench.actions.view.problems');
+		await this.toggleProblemsView();
 		await this.code.waitForElement(Problems.PROBLEMS_VIEW_SELECTOR, el => !el);
+	}
+
+	private async toggleProblemsView(): Promise<void> {
+		if (process.platform === 'darwin') {
+			await this.code.dispatchKeybinding('cmd+shift+m');
+		} else {
+			await this.code.dispatchKeybinding('ctrl+shift+m');
+		}
 	}
 
 	public async waitForProblemsView(): Promise<void> {

@@ -2053,13 +2053,14 @@ declare module 'vscode' {
 		 * Provide commands for the given document and range.
 		 *
 		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
+		 * @param range The selector or range for which the command was invoked. This will always be a selection if
+		 * there is a currently active editor.
 		 * @param context Context carrying additional information.
 		 * @param token A cancellation token.
 		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideCodeActions(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		provideCodeActions(document: TextDocument, range: Range | Selection, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
 	}
 
 	/**
@@ -3395,15 +3396,21 @@ declare module 'vscode' {
 		provideColorPresentations(color: Color, context: { document: TextDocument, range: Range }, token: CancellationToken): ProviderResult<ColorPresentation[]>;
 	}
 
+	/**
+	 * A line based folding range. To be valid, start and end line must a zero or larger and smaller than the number of lines in the document.
+	 * Invalid ranges will be ignored.
+	 */
 	export class FoldingRange {
 
 		/**
 		 * The zero-based start line of the range to fold. The folded area starts after the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		start: number;
 
 		/**
 		 * The zero-based end line of the range to fold. The folded area ends with the line's last character.
+		 * To be valid, the end must be zero or larger and smaller than the number of lines in the document.
 		 */
 		end: number;
 
@@ -3425,6 +3432,9 @@ declare module 'vscode' {
 		constructor(start: number, end: number, kind?: FoldingRangeKind);
 	}
 
+	/**
+	 * An enumeration of all folding range kinds. The kind is used to categorize folding ranges.
+	 */
 	export enum FoldingRangeKind {
 		/**
 		 * Kind for folding range representing a comment.
@@ -5859,6 +5869,21 @@ declare module 'vscode' {
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
+
+		/**
+		 * Event that is fired when an element is expanded
+		 */
+		readonly onDidExpandElement: Event<T>;
+
+		/**
+		 * Event that is fired when an element is collapsed
+		 */
+		readonly onDidCollapseElement: Event<T>;
+
+		/**
+		 * Currently selected elements.
+		 */
+		readonly selection: ReadonlyArray<T>;
 
 		/**
 		 * Reveal an element. By default revealed element is selected.

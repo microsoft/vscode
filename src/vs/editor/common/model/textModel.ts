@@ -1143,6 +1143,21 @@ export class TextModel extends Disposable implements model.ITextModel {
 		this._commandManager.pushStackElement();
 	}
 
+	public pushEOL(eol: model.EndOfLineSequence): void {
+		const currentEOL = (this.getEOL() === '\n' ? model.EndOfLineSequence.LF : model.EndOfLineSequence.CRLF);
+		if (currentEOL === eol) {
+			return;
+		}
+		try {
+			this._onDidChangeDecorations.beginDeferredEmit();
+			this._eventEmitter.beginDeferredEmit();
+			this._commandManager.pushEOL(eol);
+		} finally {
+			this._eventEmitter.endDeferredEmit();
+			this._onDidChangeDecorations.endDeferredEmit();
+		}
+	}
+
 	public pushEditOperations(beforeCursorState: Selection[], editOperations: model.IIdentifiedSingleEditOperation[], cursorStateComputer: model.ICursorStateComputer): Selection[] {
 		try {
 			this._onDidChangeDecorations.beginDeferredEmit();
@@ -2742,7 +2757,7 @@ class DecorationsTrees {
 }
 
 function cleanClassName(className: string): string {
-	return className.replace(/[^a-z0-9\-]/gi, ' ');
+	return className.replace(/[^a-z0-9\-_]/gi, ' ');
 }
 
 export class ModelDecorationOverviewRulerOptions implements model.IModelDecorationOverviewRulerOptions {

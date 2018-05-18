@@ -93,11 +93,9 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private handlerOnOpenCalled: { [prefix: string]: boolean; };
 	private currentResultToken: string;
 	private currentPickerToken: string;
-	private inQuickOpenMode: IContextKey<boolean>;
 	private promisesToCompleteOnHide: ValueCallback[];
 	private previousActiveHandlerDescriptor: QuickOpenHandlerDescriptor;
 	private actionProvider = new ContributableActionProvider();
-	private visibilityChangeTimeoutHandle: number;
 	private closeOnFocusLost: boolean;
 	private editorHistoryHandler: EditorHistoryHandler;
 
@@ -120,8 +118,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		this.promisesToCompleteOnHide = [];
 
 		this.editorHistoryHandler = this.instantiationService.createInstance(EditorHistoryHandler);
-
-		this.inQuickOpenMode = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
 
 		this._onShow = new Emitter<void>();
 		this._onHide = new Emitter<void>();
@@ -442,19 +438,11 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	}
 
 	private emitQuickOpenVisibilityChange(isVisible: boolean): void {
-		if (this.visibilityChangeTimeoutHandle) {
-			window.clearTimeout(this.visibilityChangeTimeoutHandle);
+		if (isVisible) {
+			this._onShow.fire();
+		} else {
+			this._onHide.fire();
 		}
-
-		this.visibilityChangeTimeoutHandle = setTimeout(() => {
-			if (isVisible) {
-				this._onShow.fire();
-			} else {
-				this._onHide.fire();
-			}
-
-			this.visibilityChangeTimeoutHandle = void 0;
-		}, 100 /* to prevent flashing, we accumulate visibility changes over a timeout of 100ms */);
 	}
 
 	public show(prefix?: string, options?: IShowOptions): TPromise<void> {
@@ -557,7 +545,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 			this.pickOpenWidget.hide(HideReason.FOCUS_LOST);
 		}
 
-		this.inQuickOpenMode.set(true);
 		this.emitQuickOpenVisibilityChange(true);
 	}
 
@@ -590,7 +577,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 		}
 
 		// Reset context keys
-		this.inQuickOpenMode.reset();
 		this.resetQuickOpenContextKeys();
 
 		// Events

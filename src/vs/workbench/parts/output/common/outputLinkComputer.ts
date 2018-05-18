@@ -23,11 +23,11 @@ export interface IResourceCreator {
 
 export class OutputLinkComputer {
 	private ctx: IWorkerContext;
-	private patterns: Map<string /* folder fsPath */, RegExp[]>;
+	private patterns: Map<URI /* folder uri */, RegExp[]>;
 
 	constructor(ctx: IWorkerContext, createData: ICreateData) {
 		this.ctx = ctx;
-		this.patterns = new Map<string, RegExp[]>();
+		this.patterns = new Map<URI, RegExp[]>();
 
 		this.computePatterns(createData);
 	}
@@ -40,7 +40,7 @@ export class OutputLinkComputer {
 		const workspaceFolders = createData.workspaceFolders.map(r => URI.parse(r));
 		workspaceFolders.forEach(workspaceFolder => {
 			const patterns = OutputLinkComputer.createPatterns(workspaceFolder);
-			this.patterns.set(workspaceFolder.fsPath, patterns);
+			this.patterns.set(workspaceFolder, patterns);
 		});
 	}
 
@@ -66,11 +66,11 @@ export class OutputLinkComputer {
 		const lines = model.getValue().split(/\r\n|\r|\n/);
 
 		// For each workspace root patterns
-		this.patterns.forEach((folderPatterns, folderPath) => {
+		this.patterns.forEach((folderPatterns, folderUri) => {
 			const resourceCreator: IResourceCreator = {
 				toResource: (folderRelativePath: string): URI => {
 					if (typeof folderRelativePath === 'string') {
-						return URI.file(paths.join(folderPath, folderRelativePath));
+						return folderUri.with({ path: paths.join(folderUri.path, folderRelativePath) });
 					}
 
 					return null;
@@ -88,9 +88,10 @@ export class OutputLinkComputer {
 	public static createPatterns(workspaceFolder: URI): RegExp[] {
 		const patterns: RegExp[] = [];
 
+		const workspaceFolderPath = workspaceFolder.scheme === 'file' ? workspaceFolder.fsPath : workspaceFolder.path;
 		const workspaceFolderVariants = arrays.distinct([
-			paths.normalize(workspaceFolder.fsPath, true),
-			paths.normalize(workspaceFolder.fsPath, false)
+			paths.normalize(workspaceFolderPath, true),
+			paths.normalize(workspaceFolderPath, false)
 		]);
 
 		workspaceFolderVariants.forEach(workspaceFolderVariant => {

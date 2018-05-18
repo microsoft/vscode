@@ -152,14 +152,36 @@ const taskType: IJSONSchema = {
 const command: IJSONSchema = {
 	oneOf: [
 		{
-			type: 'string',
+			oneOf: [
+				{
+					type: 'string'
+				},
+				{
+					type: 'array',
+					items: {
+						type: 'string'
+					},
+					description: nls.localize('JsonSchema.commandArray', 'The shell command to be executed. Array items will be joined using a space character')
+				}
+			]
 		},
 		{
 			type: 'object',
 			required: ['value', 'quoting'],
 			properties: {
 				value: {
-					type: 'string',
+					oneOf: [
+						{
+							type: 'string'
+						},
+						{
+							type: 'array',
+							items: {
+								type: 'string'
+							},
+							description: nls.localize('JsonSchema.commandArray', 'The shell command to be executed. Array items will be joined using a space character')
+						}
+					],
 					description: nls.localize('JsonSchema.command.quotedString.value', 'The actual command value')
 				},
 				quoting: {

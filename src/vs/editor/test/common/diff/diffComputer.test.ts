@@ -679,7 +679,7 @@ suite('Editor Diff - DiffComputer', () => {
 			' * `yarn [install]` -- Install project NPM dependencies. This is automatically done when you first create the project. You should only need to run this if you add dependencies in `package.json`.',
 		];
 		let modified = [
-			'  * `yarn` -- Install project NPM dependencies. You should only need to run this if you add dependencies in `package.json`.',
+			' * `yarn` -- Install project NPM dependencies. You should only need to run this if you add dependencies in `package.json`.',
 		];
 		let expected = [
 			createLineChange(
@@ -687,6 +687,26 @@ suite('Editor Diff - DiffComputer', () => {
 				[
 					createCharChange(1, 9, 1, 19, 0, 0, 0, 0),
 					createCharChange(1, 58, 1, 120, 0, 0, 0, 0),
+				]
+			)
+		];
+		assertDiff(original, modified, expected, true, false);
+	});
+
+	test('issue #42751', () => {
+		let original = [
+			'    1',
+			'  2',
+		];
+		let modified = [
+			'    1',
+			'   3',
+		];
+		let expected = [
+			createLineChange(
+				2, 2, 2, 2,
+				[
+					createCharChange(2, 3, 2, 4, 2, 3, 2, 5)
 				]
 			)
 		];

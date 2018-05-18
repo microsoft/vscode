@@ -32,6 +32,10 @@ declare namespace monaco {
 		Error = 3,
 	}
 
+	export enum MarkerTag {
+		Unnecessary = 1,
+	}
+
 	export enum MarkerSeverity {
 		Hint = 1,
 		Info = 2,
@@ -628,6 +632,10 @@ declare namespace monaco {
 		 */
 		static areIntersectingOrTouching(a: IRange, b: IRange): boolean;
 		/**
+		 * Test if the two ranges are intersecting. If the ranges are touching it returns true.
+		 */
+		static areIntersecting(a: IRange, b: IRange): boolean;
+		/**
 		 * A function that compares ranges, useful for sorting ranges
 		 * It will first compare ranges on the startPosition and then on the endPosition
 		 */
@@ -1085,6 +1093,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
+		customTags?: MarkerTag[];
 	}
 
 	/**
@@ -1100,6 +1109,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
+		customTags?: MarkerTag[];
 	}
 
 	/**
@@ -1506,10 +1516,6 @@ declare namespace monaco.editor {
 		 */
 		getEOL(): string;
 		/**
-		 * Change the end of line sequence used in the text buffer.
-		 */
-		setEOL(eol: EndOfLineSequence): void;
-		/**
 		 * Get the minimum legal column for line at `lineNumber`
 		 */
 		getLineMinColumn(lineNumber: number): number;
@@ -1745,12 +1751,22 @@ declare namespace monaco.editor {
 		 */
 		pushEditOperations(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[];
 		/**
+		 * Change the end of line sequence. This is the preferred way of
+		 * changing the eol sequence. This will land on the undo stack.
+		 */
+		pushEOL(eol: EndOfLineSequence): void;
+		/**
 		 * Edit the model without adding the edits to the undo stack.
 		 * This can have dire consequences on the undo stack! See @pushEditOperations for the preferred way.
 		 * @param operations The edit operations.
 		 * @return The inverse edit operations, that, when applied, will bring the model back to the previous state.
 		 */
 		applyEdits(operations: IIdentifiedSingleEditOperation[]): IIdentifiedSingleEditOperation[];
+		/**
+		 * Change the end of line sequence without recording in the undo stack.
+		 * This can have dire consequences on the undo stack! See @pushEOL for the preferred way.
+		 */
+		setEOL(eol: EndOfLineSequence): void;
 		/**
 		 * An event emitted when the contents of the model have changed.
 		 * @event
@@ -2014,9 +2030,9 @@ declare namespace monaco.editor {
 		 */
 		focus(): void;
 		/**
-		 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
+		 * Returns true if the text inside this editor is focused (i.e. cursor is blinking).
 		 */
-		isFocused(): boolean;
+		hasTextFocus(): boolean;
 		/**
 		 * Returns all actions associated with this editor.
 		 */
@@ -3639,12 +3655,12 @@ declare namespace monaco.editor {
 		 */
 		onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 		/**
-		 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+		 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 		 * @event
 		 */
 		onDidFocusEditorText(listener: () => void): IDisposable;
 		/**
-		 * An event emitted when the text inside this editor lost focus.
+		 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 		 * @event
 		 */
 		onDidBlurEditorText(listener: () => void): IDisposable;
@@ -3652,12 +3668,12 @@ declare namespace monaco.editor {
 		 * An event emitted when the text inside this editor or an editor widget gained focus.
 		 * @event
 		 */
-		onDidFocusEditor(listener: () => void): IDisposable;
+		onDidFocusEditorWidget(listener: () => void): IDisposable;
 		/**
 		 * An event emitted when the text inside this editor or an editor widget lost focus.
 		 * @event
 		 */
-		onDidBlurEditor(listener: () => void): IDisposable;
+		onDidBlurEditorWidget(listener: () => void): IDisposable;
 		/**
 		 * An event emitted on a "mouseup".
 		 * @event
@@ -3712,7 +3728,7 @@ declare namespace monaco.editor {
 		 */
 		restoreViewState(state: ICodeEditorViewState): void;
 		/**
-		 * Returns true if this editor or one of its widgets has keyboard focus.
+		 * Returns true if the text inside this editor or an editor widget has focus.
 		 */
 		hasWidgetFocus(): boolean;
 		/**
@@ -4856,6 +4872,10 @@ declare namespace monaco.languages {
 		 */
 		name: string;
 		/**
+		 * The detail of this symbol.
+		 */
+		detail?: string;
+		/**
 		 * The name of the symbol containing this symbol.
 		 */
 		containerName?: string;
@@ -4867,6 +4887,11 @@ declare namespace monaco.languages {
 		 * The location of this symbol.
 		 */
 		location: Location;
+		/**
+		 * The defining range of this symbol.
+		 */
+		definingRange: IRange;
+		children?: SymbolInformation[];
 	}
 
 	/**
@@ -4874,6 +4899,7 @@ declare namespace monaco.languages {
 	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
+		extensionId?: string;
 		/**
 		 * Provide symbol information for the given document.
 		 */

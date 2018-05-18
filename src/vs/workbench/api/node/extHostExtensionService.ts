@@ -243,8 +243,7 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				if (!ext.main) {
 					return undefined;
 				}
-				return realpath(ext.extensionFolderPath).then(value => tree.set(value, ext));
-
+				return realpath(ext.extensionLocation.fsPath).then(value => tree.set(value, ext));
 			});
 			this._extensionPathIndex = TPromise.join(extensions).then(() => tree);
 		}
@@ -359,9 +358,9 @@ export class ExtHostExtensionService implements ExtHostExtensionServiceShape {
 				globalState,
 				workspaceState,
 				subscriptions: [],
-				get extensionPath() { return extensionDescription.extensionFolderPath; },
+				get extensionPath() { return extensionDescription.extensionLocation.fsPath; },
 				storagePath: this._storagePath.value(extensionDescription),
-				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionFolderPath, relativePath); },
+				asAbsolutePath: (relativePath: string) => { return join(extensionDescription.extensionLocation.fsPath, relativePath); },
 				get logger() {
 					checkProposedApiEnabled(extensionDescription);
 					return that._extHostLogService.getExtLogger(extensionDescription.id);

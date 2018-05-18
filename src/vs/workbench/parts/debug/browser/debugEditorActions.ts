@@ -34,8 +34,7 @@ class ToggleBreakpointAction extends EditorAction {
 
 		const position = editor.getPosition();
 		const modelUri = editor.getModel().uri;
-		const bps = debugService.getModel().getBreakpoints()
-			.filter(bp => bp.lineNumber === position.lineNumber && bp.uri.toString() === modelUri.toString());
+		const bps = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri });
 
 		if (bps.length) {
 			return TPromise.join(bps.map(bp => debugService.removeBreakpoints(bp.getId())));
@@ -112,7 +111,7 @@ class RunToCursorAction extends EditorAction {
 		}
 
 		let breakpointToRemove: IBreakpoint;
-		const oneTimeListener = debugService.getViewModel().focusedProcess.session.onDidEvent(event => {
+		const oneTimeListener = debugService.getViewModel().focusedSession.raw.onDidEvent(event => {
 			if (event.event === 'stopped' || event.event === 'exit') {
 				if (breakpointToRemove) {
 					debugService.removeBreakpoints(breakpointToRemove.getId());
@@ -123,7 +122,7 @@ class RunToCursorAction extends EditorAction {
 
 		const position = editor.getPosition();
 		const uri = editor.getModel().uri;
-		const bpExists = !!(debugService.getModel().getBreakpoints().filter(bp => bp.column === position.column && bp.lineNumber === position.lineNumber && bp.uri.toString() === uri.toString()).pop());
+		const bpExists = !!(debugService.getModel().getBreakpoints({ column: position.column, lineNumber: position.lineNumber, uri }).length);
 		return (bpExists ? TPromise.as(null) : debugService.addBreakpoints(uri, [{ lineNumber: position.lineNumber, column: position.column }])).then((breakpoints) => {
 			if (breakpoints && breakpoints.length) {
 				breakpointToRemove = breakpoints[0];

@@ -173,6 +173,10 @@ export class ViewLineData {
 	 */
 	public readonly content: string;
 	/**
+	 * Does this line continue with a wrapped line?
+	 */
+	public readonly continuesWithWrappedLine: boolean;
+	/**
 	 * The minimum allowed column at this view line.
 	 */
 	public readonly minColumn: number;
@@ -187,11 +191,13 @@ export class ViewLineData {
 
 	constructor(
 		content: string,
+		continuesWithWrappedLine: boolean,
 		minColumn: number,
 		maxColumn: number,
 		tokens: IViewLineTokens
 	) {
 		this.content = content;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.tokens = tokens;
@@ -211,6 +217,10 @@ export class ViewLineRenderingData {
 	 * The content at this view line.
 	 */
 	public readonly content: string;
+	/**
+	 * Does this line continue with a wrapped line?
+	 */
+	public readonly continuesWithWrappedLine: boolean;
 	/**
 	 * Describes if `content` contains RTL characters.
 	 */
@@ -236,6 +246,7 @@ export class ViewLineRenderingData {
 		minColumn: number,
 		maxColumn: number,
 		content: string,
+		continuesWithWrappedLine: boolean,
 		mightContainRTL: boolean,
 		mightContainNonBasicASCII: boolean,
 		tokens: IViewLineTokens,
@@ -245,6 +256,7 @@ export class ViewLineRenderingData {
 		this.minColumn = minColumn;
 		this.maxColumn = maxColumn;
 		this.content = content;
+		this.continuesWithWrappedLine = continuesWithWrappedLine;
 
 		this.isBasicASCII = ViewLineRenderingData.isBasicASCII(content, mightContainNonBasicASCII);
 		this.containsRTL = ViewLineRenderingData.containsRTL(content, this.isBasicASCII, mightContainRTL);

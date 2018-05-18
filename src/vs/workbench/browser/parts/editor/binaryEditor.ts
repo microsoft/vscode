@@ -19,6 +19,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import URI from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => void;
@@ -42,7 +43,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		id: string,
 		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(id, telemetryService, themeService);
 
@@ -99,6 +101,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 				// Render Input
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
+					this._fileService,
 					this.binaryContainer.getHTMLElement(),
 					this.scrollbar,
 					resource => this.callbacks.openInternal(input, options),
