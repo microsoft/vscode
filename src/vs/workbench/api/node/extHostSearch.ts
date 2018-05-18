@@ -14,7 +14,7 @@ import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IRawFileMatch2, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats, IFileMatch } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -131,26 +131,29 @@ function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolder
 }
 
 class TextSearchResultsCollector {
-	private _batchedCollector: BatchedCollector<IFileMatch>;
+	private _batchedCollector: BatchedCollector<IRawFileMatch2>;
 
-	private _currentFileMatch: IFileMatch;
+	private _currentFileMatch: IRawFileMatch2;
 
-	constructor(private _onResult: (result: IFileMatch[]) => void) {
-		this._batchedCollector = new BatchedCollector<IFileMatch>(512, items => this.sendItems(items));
+	constructor(private _onResult: (result: IRawFileMatch2[]) => void) {
+		this._batchedCollector = new BatchedCollector<IRawFileMatch2>(512, items => this.sendItems(items));
 	}
 
-	add(data: vscode.TextSearchResult): void {
+	add(data: vscode.TextSearchResult, folderIdx: number): void {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && this._currentFileMatch.resource.toString() !== data.uri.toString()) {
+		if (this._currentFileMatch && (this._currentFileMatch.resource.folderIdx !== folderIdx || this._currentFileMatch.resource.relativePath !== data.path)) {
 			this.pushToCollector();
 			this._currentFileMatch = null;
 		}
 
 		if (!this._currentFileMatch) {
 			this._currentFileMatch = {
-				resource: data.uri,
+				resource: {
+					folderIdx,
+					relativePath: data.path
+				},
 				lineMatches: []
 			};
 		}
@@ -176,7 +179,7 @@ class TextSearchResultsCollector {
 		this._batchedCollector.flush();
 	}
 
-	private sendItems(items: IFileMatch | IFileMatch[]): void {
+	private sendItems(items: IRawFileMatch2 | IRawFileMatch2[]): void {
 		this._onResult(Array.isArray(items) ? items : [items]);
 	}
 }
@@ -386,19 +389,19 @@ class TextSearchEngine {
 		this.activeCancellationTokens = new Set();
 	}
 
-	public search(): PPromise<{ limitHit: boolean }, IFileMatch[]> {
+	public search(): PPromise<{ limitHit: boolean }, IRawFileMatch2[]> {
 		const folderQueries = this.config.folderQueries;
 
-		return new PPromise<{ limitHit: boolean }, IFileMatch[]>((resolve, reject, _onResult) => {
+		return new PPromise<{ limitHit: boolean }, IRawFileMatch2[]>((resolve, reject, _onResult) => {
 			this.collector = new TextSearchResultsCollector(_onResult);
 
-			const onResult = (match: vscode.TextSearchResult) => {
+			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
 				if (this.isCanceled) {
 					return;
 				}
 
 				this.resultCount++;
-				this.collector.add(match);
+				this.collector.add(match, folderIdx);
 
 				if (this.resultCount >= this.config.maxResults) {
 					this.isLimitHit = true;
@@ -407,8 +410,8 @@ class TextSearchEngine {
 			};
 
 			// For each root folder
-			PPromise.join(folderQueries.map(fq => {
-				return this.searchInFolder(fq).then(null, null, onResult);
+			PPromise.join(folderQueries.map((fq, i) => {
+				return this.searchInFolder(fq).then(null, null, r => onResult(r, i));
 			})).then(() => {
 				this.collector.flush();
 				resolve({ limitHit: this.isLimitHit });
@@ -427,15 +430,20 @@ class TextSearchEngine {
 		return new PPromise((resolve, reject, onResult) => {
 
 			const queryTester = new QueryGlobTester(this.config, folderQuery);
-			const folderStr = folderQuery.folder.fsPath;
 			const testingPs = [];
 			const progress = {
 				report: (result: vscode.TextSearchResult) => {
-					const relativePath = path.relative(folderStr, result.uri.fsPath);
+					const siblingFn = () => {
+						return this.readdir(path.dirname(path.join(folderQuery.folder.fsPath, result.path)));
+					};
 
 					testingPs.push(
-						queryTester.includedInQuery(relativePath, path.basename(relativePath), () => this.readdir(path.dirname(result.uri.fsPath)))
-							.then(included => included && onResult(result)));
+						queryTester.includedInQuery(result.path, path.basename(result.path), siblingFn)
+							.then(included => {
+								if (included) {
+									onResult(result);
+								}
+							}));
 				}
 			};
 

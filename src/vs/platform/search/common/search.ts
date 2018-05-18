@@ -104,12 +104,17 @@ export interface IPatternInfo {
 	isSmartCase?: boolean;
 }
 
-export interface IFileMatch<U extends UriComponents = uri> {
+export interface IFileMatch<U = uri> {
 	resource?: U;
 	lineMatches?: ILineMatch[];
 }
 
-export type IRawFileMatch2 = IFileMatch<UriComponents>;
+export interface IPathInFolder {
+	folderIdx: number;
+	relativePath: string;
+}
+
+export type IRawFileMatch2 = IFileMatch<IPathInFolder>;
 
 export interface ILineMatch {
 	preview: string;

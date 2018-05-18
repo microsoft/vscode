@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as extfs from 'vs/base/node/extfs';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
+import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
@@ -78,7 +78,7 @@ suite('ExtHostSearch', () => {
 		return (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r));
 	}
 
-	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IFileMatch[]> {
+	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IRawFileMatch2[]> {
 		try {
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
 			if (cancel) {
@@ -95,12 +95,7 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		return (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
-			...r,
-			...{
-				resource: URI.revive(r.resource)
-			}
-		}));
+		return <IRawFileMatch2[]>mockMainThreadSearch.results;
 	}
 
 	setup(() => {
@@ -628,11 +623,11 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function makeTextResult(uri: URI): vscode.TextSearchResult {
+		function makeTextResult(relativePath: string): vscode.TextSearchResult {
 			return {
 				preview: makePreview('foo'),
 				range: new Range(0, 0, 0, 3),
-				uri
+				path: relativePath
 			};
 		}
 
@@ -652,7 +647,7 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
+		function assertResults(actual: IRawFileMatch2[], expected: vscode.TextSearchResult[]) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
 			for (let fileMatch of actual) {
 				for (let lineMatch of fileMatch.lineMatches) {
@@ -660,7 +655,7 @@ suite('ExtHostSearch', () => {
 						actualTextSearchResults.push({
 							preview: { text: lineMatch.preview, match: null },
 							range: new Range(lineMatch.lineNumber, offset, lineMatch.lineNumber, length + offset),
-							uri: fileMatch.resource
+							path: fileMatch.resource.relativePath
 						});
 					}
 				}
@@ -673,7 +668,7 @@ suite('ExtHostSearch', () => {
 				.map(r => ({
 					...r,
 					...{
-						uri: r.uri.toString(),
+						uri: r.path.toString(),
 						range: rangeToString(r.range),
 						preview: {
 							text: r.preview.text,
@@ -700,8 +695,8 @@ suite('ExtHostSearch', () => {
 
 		test('basic results', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts'))
+				makeTextResult('file1.ts'),
+				makeTextResult('file2.ts')
 			];
 
 			await registerTestSearchProvider({
@@ -850,8 +845,8 @@ suite('ExtHostSearch', () => {
 			};
 
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.js')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts'))
+				makeTextResult('file1.js'),
+				makeTextResult('file1.ts')
 			];
 
 			await registerTestSearchProvider({
@@ -903,15 +898,15 @@ suite('ExtHostSearch', () => {
 					let reportedResults;
 					if (options.folder.fsPath === rootFolderA.fsPath) {
 						reportedResults = [
-							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.scss')),
-							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.css')),
-							makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/file2.css'))
+							makeTextResult('folder/fileA.scss'),
+							makeTextResult('folder/fileA.css'),
+							makeTextResult('folder/file2.css')
 						];
 					} else {
 						reportedResults = [
-							makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.ts')),
-							makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.js')),
-							makeTextResult(makeAbsoluteURI(rootFolderB, 'file3.js'))
+							makeTextResult('fileB.ts'),
+							makeTextResult('fileB.js'),
+							makeTextResult('file3.js')
 						];
 					}
 
@@ -949,17 +944,17 @@ suite('ExtHostSearch', () => {
 
 			const results = await runTextSearch(getPattern('foo'), query);
 			assertResults(results, [
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/fileA.scss')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'folder/file2.css')),
-				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.ts')),
-				makeTextResult(makeAbsoluteURI(rootFolderB, 'fileB.js')),
-				makeTextResult(makeAbsoluteURI(rootFolderB, 'file3.js'))]);
+				makeTextResult('folder/fileA.scss'),
+				makeTextResult('folder/file2.css'),
+				makeTextResult('fileB.ts'),
+				makeTextResult('fileB.js'),
+				makeTextResult('file3.js')]);
 		});
 
 		test('max results = 1', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts'))
+				makeTextResult('file1.ts'),
+				makeTextResult('file2.ts')
 			];
 
 			let wasCanceled = false;
@@ -988,9 +983,9 @@ suite('ExtHostSearch', () => {
 
 		test('max results = 2', async () => {
 			const providedResults: vscode.TextSearchResult[] = [
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file1.ts')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file2.ts')),
-				makeTextResult(makeAbsoluteURI(rootFolderA, 'file3.ts'))
+				makeTextResult('file1.ts'),
+				makeTextResult('file2.ts'),
+				makeTextResult('file3.ts')
 			];
 
 			let wasCanceled = false;
@@ -1028,7 +1023,7 @@ suite('ExtHostSearch', () => {
 								'file1.ts',
 								'file2.ts',
 								'file3.ts',
-							].forEach(f => progress.report(makeTextResult(makeAbsoluteURI(options.folder, f))));
+							].forEach(f => progress.report(makeTextResult(f)));
 						});
 				}
 			});

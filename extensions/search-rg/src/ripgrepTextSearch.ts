@@ -83,7 +83,7 @@ export class RipgrepTextSearchEngine {
 			let stderr = '';
 			this.rgProc.stderr.on('data', data => {
 				const message = data.toString();
-				// onMessage({ message });
+				this.outputChannel.appendLine(message);
 				stderr += message;
 			});
 
@@ -142,7 +142,7 @@ export class RipgrepParser extends EventEmitter {
 	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
 	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
-	private currentFile: vscode.Uri;
+	private currentFile: string;
 	private remainder: string;
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
@@ -196,19 +196,11 @@ export class RipgrepParser extends EventEmitter {
 				// Line is a result - add to collected results for the current file path
 				this.handleMatchLine(outputLine, lineNum, matchText);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
-				this.currentFile = this.getFileUri(r[1]);
+				this.currentFile = r[1];
 			} else {
 				// Line is empty (or malformed)
 			}
 		}
-	}
-
-	private getFileUri(relativeOrAbsolutePath: string): vscode.Uri {
-		const absPath = path.isAbsolute(relativeOrAbsolutePath) ?
-			relativeOrAbsolutePath :
-			path.join(this.rootFolder, relativeOrAbsolutePath);
-
-		return vscode.Uri.file(absPath);
 	}
 
 	private handleMatchLine(outputLine: string, lineNum: number, lineText: string): void {
@@ -291,7 +283,7 @@ export class RipgrepParser extends EventEmitter {
 		lineMatches
 			.map(range => {
 				return <vscode.TextSearchResult>{
-					uri: this.currentFile,
+					path: this.currentFile,
 					range,
 					preview: {
 						text: preview,

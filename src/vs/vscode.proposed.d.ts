@@ -77,7 +77,7 @@ declare module 'vscode' {
 	export interface FileSearchOptions extends SearchOptions { }
 
 	export interface TextSearchResult {
-		uri: Uri;
+		path: string;
 		range: Range;
 
 		// For now, preview must be a single line of text
