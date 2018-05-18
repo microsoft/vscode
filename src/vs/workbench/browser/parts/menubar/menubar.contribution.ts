@@ -451,7 +451,59 @@ function windowMenuRegistration() {
 }
 
 function preferencesMenuRegistration() {
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '1_settings',
+		command: {
+			id: 'workbench.action.openSettings',
+			title: nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings")
+		},
+		order: 1
+	});
 
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '2_keybindings',
+		command: {
+			id: 'workbench.action.openGlobalKeybindings',
+			title: nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '2_keybindings',
+		command: {
+			id: 'workbench.extensions.action.showRecommendedKeymapExtensions',
+			title: nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '3_snippets',
+		command: {
+			id: 'workbench.action.openSnippets',
+			title: nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '4_themes',
+		command: {
+			id: 'workbench.action.selectTheme',
+			title: nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarPreferencesMenu, {
+		group: '4_themes',
+		command: {
+			id: 'workbench.action.selectIconTheme',
+			title: nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme")
+		},
+		order: 2
+	});
 }
 
 function helpMenuRegistration() {

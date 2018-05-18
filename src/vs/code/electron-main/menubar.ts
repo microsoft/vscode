@@ -364,7 +364,6 @@ export class Menubar {
 	private shouldDrawMenu(menuId: string): boolean {
 		switch (menuId) {
 			case 'File':
-			case 'Preferences':
 			case 'Recent':
 			case 'Help':
 				return true;
@@ -393,26 +392,6 @@ export class Menubar {
 				menu.append(__separator__());
 				menu.append(open);
 				menu.append(openWorkspace);
-
-				break;
-
-			case 'Preferences':
-				const settings = this.createMenuItem(nls.localize({ key: 'miOpenSettings', comment: ['&& denotes a mnemonic'] }, "&&Settings"), 'workbench.action.openSettings');
-				const kebindingSettings = this.createMenuItem(nls.localize({ key: 'miOpenKeymap', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts"), 'workbench.action.openGlobalKeybindings');
-				const keymapExtensions = this.createMenuItem(nls.localize({ key: 'miOpenKeymapExtensions', comment: ['&& denotes a mnemonic'] }, "&&Keymap Extensions"), 'workbench.extensions.action.showRecommendedKeymapExtensions');
-				const snippetsSettings = this.createMenuItem(nls.localize({ key: 'miOpenSnippets', comment: ['&& denotes a mnemonic'] }, "User &&Snippets"), 'workbench.action.openSnippets');
-				const colorThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectColorTheme', comment: ['&& denotes a mnemonic'] }, "&&Color Theme"), 'workbench.action.selectTheme');
-				const iconThemeSelection = this.createMenuItem(nls.localize({ key: 'miSelectIconTheme', comment: ['&& denotes a mnemonic'] }, "File &&Icon Theme"), 'workbench.action.selectIconTheme');
-
-				menu.append(settings);
-				menu.append(__separator__());
-				menu.append(kebindingSettings);
-				menu.append(keymapExtensions);
-				menu.append(__separator__());
-				menu.append(snippetsSettings);
-				menu.append(__separator__());
-				menu.append(colorThemeSelection);
-				menu.append(iconThemeSelection);
 
 				break;
 
