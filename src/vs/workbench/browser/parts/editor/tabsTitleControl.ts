@@ -952,7 +952,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active::after {
 				content: "";
 				position: absolute;
-				bottom: -1px;
+				bottom: 0;
 				left: -1px;
 				z-index: 2;
 				width: 100%;
@@ -968,7 +968,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.active::after {
 				content: "";
 				position: absolute;
-				bottom: -1px;
+				bottom: 0;
 				left: -1px;
 				z-index: 2;
 				width: 100%;
