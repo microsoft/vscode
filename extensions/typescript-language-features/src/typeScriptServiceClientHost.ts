@@ -45,7 +45,6 @@ export default class TypeScriptServiceClientHost {
 	private readonly languagePerId = new Map<string, LanguageProvider>();
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
-	private readonly renameHandler: UpdatePathsOnFileRenameHandler;
 	private reportStyleCheckAsWarnings: boolean = true;
 
 	constructor(
@@ -126,15 +125,12 @@ export default class TypeScriptServiceClientHost {
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
-
-		this.renameHandler = new UpdatePathsOnFileRenameHandler(this.client, uri => this.handles(uri));
 	}
 
 	public dispose(): void {
 		disposeAll(this.disposables);
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
-		this.renameHandler.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {

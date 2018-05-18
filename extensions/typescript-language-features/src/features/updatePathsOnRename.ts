@@ -7,13 +7,17 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+import BufferSyncSupport from './bufferSyncSupport';
+import FileConfigurationManager from './fileConfigurationManager';
 
 export class UpdatePathsOnFileRenameHandler {
 	private readonly _onDidRenameSub: vscode.Disposable;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly handles: (uri: vscode.Uri) => boolean,
+		private readonly bufferSyncSupport: BufferSyncSupport,
+		private readonly fileConfigurationManager: FileConfigurationManager,
+		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
 		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
 			this.doRename(e.oldResource, e.newResource);
@@ -28,11 +32,10 @@ export class UpdatePathsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.handles(newResource)) {
+		if (!this.client.apiVersion.has290Features) {
 			return;
 		}
-
-		if (!this.client.apiVersion.has290Features) {
+		if (!await this.handles(newResource)) {
 			return;
 		}
 
@@ -46,20 +49,33 @@ export class UpdatePathsOnFileRenameHandler {
 			return;
 		}
 
+		// Make sure TS knows about file
+		const document = await vscode.workspace.openTextDocument(newResource);
+		this.bufferSyncSupport.openTextDocument(document);
+
+		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
+		if (edits) {
+			await vscode.workspace.applyEdit(edits);
+		}
+	}
+
+	private async getEditsForFileRename(
+		document: vscode.TextDocument,
+		oldFile: string,
+		newFile: string,
+	) {
+		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
+
 		const args: Proto.GetEditsForFileRenameRequestArgs = {
 			file: newFile,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
 		};
-
-		await new Promise(resolve => setTimeout(resolve, 1000));
-
 		const response = await this.client.execute('getEditsForFileRename', args);
 		if (!response || !response.body) {
 			return;
 		}
 
-		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
-		await vscode.workspace.applyEdit(edit);
+		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
 	}
 }

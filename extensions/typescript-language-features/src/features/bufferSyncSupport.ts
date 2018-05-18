@@ -172,10 +172,10 @@ export default class BufferSyncSupport {
 	}
 
 	public listen(): void {
-		workspace.onDidOpenTextDocument(this.onDidOpenTextDocument, this, this.disposables);
+		workspace.onDidOpenTextDocument(this.openTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
-		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
+		workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
 	public set validate(value: boolean) {
@@ -196,7 +196,7 @@ export default class BufferSyncSupport {
 		disposeAll(this.disposables);
 	}
 
-	private onDidOpenTextDocument(document: TextDocument): void {
+	public openTextDocument(document: TextDocument): void {
 		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
