@@ -10,7 +10,6 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command } from '../utils/commandManager';
 import * as typeConverters from '../utils/typeConverters';
-import { isPrimitive } from 'util';
 
 export class RenameFileAndUpdatePathsCommand implements Command {
 
@@ -51,7 +50,7 @@ export class RenameFileAndUpdatePathsCommand implements Command {
 			return;
 		}
 
-		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.edits);
+		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
 		await vscode.workspace.applyEdit(edit);
 	}
 }
