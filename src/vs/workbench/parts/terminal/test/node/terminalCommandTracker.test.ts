@@ -109,7 +109,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 			commandTracker.selectToNextCommand();
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToNextCommand();
-			assert.equal(xterm.getSelection(), '\n');
+			assert.equal(xterm.getSelection(), isWindows ? '\r\n' : '\n');
 		});
 		test('should select to the next and previous lines & commands', () => {
 			(<any>window).matchMedia = () => {
