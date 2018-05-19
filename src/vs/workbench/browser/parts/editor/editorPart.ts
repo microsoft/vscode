@@ -49,7 +49,7 @@ export class EditorPart extends Part implements INextEditorGroupsService, IEdito
 
 	_serviceBrand: any;
 
-	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
+	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
 
 	//#region Events
 
