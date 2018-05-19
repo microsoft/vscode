@@ -20,7 +20,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupLocation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
@@ -38,7 +38,7 @@ export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
 
 export interface ActiveEditorMoveArguments {
-	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position';
+	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position' | 'previous' | 'next';
 	by?: 'tab' | 'group';
 	value?: number;
 }
@@ -136,22 +136,40 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 
 	switch (args.to) {
 		case 'left':
-			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.LEFT);
+			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT);
+			}
 			break;
 		case 'right':
-			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.RIGHT);
+			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT);
+			}
 			break;
 		case 'up':
-			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.UP);
+			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP);
+			}
 			break;
 		case 'down':
-			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.DOWN);
+			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN);
+			}
 			break;
 		case 'first':
-			targetGroup = groups[0];
+			targetGroup = editorGroupService.findGroup({ location: GroupLocation.FIRST }, sourceGroup);
 			break;
 		case 'last':
-			targetGroup = groups[groups.length - 1];
+			targetGroup = editorGroupService.findGroup({ location: GroupLocation.LAST }, sourceGroup);
+			break;
+		case 'previous':
+			targetGroup = editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, sourceGroup);
+			break;
+		case 'next':
+			targetGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
 			break;
 		case 'center':
 			targetGroup = groups[(groups.length / 2) - 1];

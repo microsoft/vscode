@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -218,17 +218,45 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.groupViews.get(identifier);
 	}
 
-	findNeighbourGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView { // TODO@grid finding neighbour needs gridwidget support
-		const locationGroupView = this.assertGroupView(location);
+	findGroup(scope: IFindGroupScope, source: INextEditorGroupView | GroupIdentifier = this.activeGroup): INextEditorGroupView {
+
+		// by direction
+		if (typeof scope.direction === 'number') {
+			return this.doFindGroupByDirection(scope.direction, source);
+		}
+
+		// by location
+		return this.doFindGroupByLocation(scope.location, source);
+	}
+
+	private doFindGroupByDirection(direction: GroupDirection, source: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+		const sourceGroupView = this.assertGroupView(source);
 		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
-		const index = groups.indexOf(locationGroupView);
+		const index = groups.indexOf(sourceGroupView);
 
 		const neighbourGroupView = groups[direction === GroupDirection.RIGHT || direction === GroupDirection.DOWN ? index + 1 : index - 1];
-		if (neighbourGroupView && this.gridWidget.getOrientation(neighbourGroupView) === this.gridWidget.getOrientation(locationGroupView)) {
-			return neighbourGroupView;
+		if (neighbourGroupView && this.gridWidget.getOrientation(neighbourGroupView) === this.gridWidget.getOrientation(sourceGroupView)) {
+			return neighbourGroupView; // TODO@grid finding neighbour needs gridwidget support
 		}
 
 		return void 0;
+	}
+
+	private doFindGroupByLocation(location: GroupLocation, source: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+		const sourceGroupView = this.assertGroupView(source);
+		const groups = this.getGroups(GroupsOrder.CREATION_TIME);
+		const index = groups.indexOf(sourceGroupView);
+
+		switch (location) {
+			case GroupLocation.FIRST:
+				return groups[0];
+			case GroupLocation.LAST:
+				return groups[groups.length - 1];
+			case GroupLocation.NEXT:
+				return groups[index + 1];
+			case GroupLocation.PREVIOUS:
+				return groups[index - 1];
+		}
 	}
 
 	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {

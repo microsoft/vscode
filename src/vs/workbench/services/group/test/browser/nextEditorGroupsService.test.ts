@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
@@ -479,6 +479,8 @@ suite('Editor groups service (editor2)', () => {
 
 			return group.closeEditors([input, inputInactive]).then(() => {
 				assert.equal(group.isEmpty(), true);
+
+				part.dispose();
 			});
 		});
 	});
@@ -501,6 +503,8 @@ suite('Editor groups service (editor2)', () => {
 			return group.closeEditors({ except: input2 }).then(() => {
 				assert.equal(group.count, 1);
 				assert.equal(group.getEditor(0), input2);
+
+				part.dispose();
 			});
 		});
 	});
@@ -522,6 +526,8 @@ suite('Editor groups service (editor2)', () => {
 
 			return group.closeEditors({ savedOnly: true }).then(() => {
 				assert.equal(group.count, 0);
+
+				part.dispose();
 			});
 		});
 	});
@@ -545,6 +551,8 @@ suite('Editor groups service (editor2)', () => {
 				assert.equal(group.count, 2);
 				assert.equal(group.getEditor(0), input1);
 				assert.equal(group.getEditor(1), input2);
+
+				part.dispose();
 			});
 		});
 	});
@@ -568,6 +576,8 @@ suite('Editor groups service (editor2)', () => {
 				assert.equal(group.count, 2);
 				assert.equal(group.getEditor(0), input2);
 				assert.equal(group.getEditor(1), input3);
+
+				part.dispose();
 			});
 		});
 	});
@@ -587,6 +597,8 @@ suite('Editor groups service (editor2)', () => {
 
 			return group.closeAllEditors().then(() => {
 				assert.equal(group.isEmpty(), true);
+
+				part.dispose();
 			});
 		});
 	});
@@ -618,6 +630,7 @@ suite('Editor groups service (editor2)', () => {
 			assert.equal(group.getEditor(1), input);
 
 			editorGroupChangeListener.dispose();
+			part.dispose();
 		});
 	});
 
@@ -642,6 +655,8 @@ suite('Editor groups service (editor2)', () => {
 
 			assert.equal(rightGroup.count, 1);
 			assert.equal(rightGroup.getEditor(0), inputInactive);
+
+			part.dispose();
 		});
 	});
 
@@ -667,6 +682,8 @@ suite('Editor groups service (editor2)', () => {
 
 			assert.equal(rightGroup.count, 1);
 			assert.equal(rightGroup.getEditor(0), inputInactive);
+
+			part.dispose();
 		});
 	});
 
@@ -685,25 +702,49 @@ suite('Editor groups service (editor2)', () => {
 			return group.replaceEditors([{ editor: input, replacement: inputInactive }]).then(() => {
 				assert.equal(group.count, 1);
 				assert.equal(group.getEditor(0), inputInactive);
+
+				part.dispose();
 			});
 		});
 	});
 
-	test('findNeighbour (left/right)', function () {
+	test('find neighbour group (left/right)', function () {
 		const part = createPart();
 		const rootGroup = part.activeGroup;
 		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
 
-		assert.equal(rightGroup, part.findNeighbourGroup(rootGroup, GroupDirection.RIGHT));
-		assert.equal(rootGroup, part.findNeighbourGroup(rightGroup, GroupDirection.LEFT));
+		assert.equal(rightGroup, part.findGroup({ direction: GroupDirection.RIGHT }, rootGroup));
+		assert.equal(rootGroup, part.findGroup({ direction: GroupDirection.LEFT }, rightGroup));
+
+		part.dispose();
 	});
 
-	test('findNeighbour (up/down)', function () {
+	test('find neighbour group (up/down)', function () {
 		const part = createPart();
 		const rootGroup = part.activeGroup;
 		const downGroup = part.addGroup(rootGroup, GroupDirection.DOWN);
 
-		assert.equal(downGroup, part.findNeighbourGroup(rootGroup, GroupDirection.DOWN));
-		assert.equal(rootGroup, part.findNeighbourGroup(downGroup, GroupDirection.UP));
+		assert.equal(downGroup, part.findGroup({ direction: GroupDirection.DOWN }, rootGroup));
+		assert.equal(rootGroup, part.findGroup({ direction: GroupDirection.UP }, downGroup));
+
+		part.dispose();
+	});
+
+	test('find group by location (left/right)', function () {
+		const part = createPart();
+		const rootGroup = part.activeGroup;
+		const rightGroup = part.addGroup(rootGroup, GroupDirection.RIGHT);
+		const downGroup = part.addGroup(rightGroup, GroupDirection.DOWN);
+
+		assert.equal(rootGroup, part.findGroup({ location: GroupLocation.FIRST }));
+		assert.equal(downGroup, part.findGroup({ location: GroupLocation.LAST }));
+
+		assert.equal(rightGroup, part.findGroup({ location: GroupLocation.NEXT }, rootGroup));
+		assert.equal(rootGroup, part.findGroup({ location: GroupLocation.PREVIOUS }, rightGroup));
+
+		assert.equal(downGroup, part.findGroup({ location: GroupLocation.NEXT }, rightGroup));
+		assert.equal(rightGroup, part.findGroup({ location: GroupLocation.PREVIOUS }, downGroup));
+
+		part.dispose();
 	});
 });

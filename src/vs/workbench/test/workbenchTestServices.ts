@@ -68,7 +68,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -743,7 +743,7 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 		return null;
 	}
 
-	findNeighbourGroup(location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+	findGroup(scope: IFindGroupScope, source?: number | INextEditorGroup): INextEditorGroup {
 		return null;
 	}
 

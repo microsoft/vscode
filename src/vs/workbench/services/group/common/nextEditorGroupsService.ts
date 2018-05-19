@@ -25,6 +25,18 @@ export enum GroupOrientation {
 	VERTICAL
 }
 
+export enum GroupLocation {
+	FIRST,
+	LAST,
+	NEXT,
+	PREVIOUS
+}
+
+export interface IFindGroupScope {
+	direction?: GroupDirection;
+	location?: GroupLocation;
+}
+
 export enum GroupsArrangement {
 
 	/**
@@ -98,9 +110,9 @@ export enum EditorsOrder {
 	MOST_RECENTLY_ACTIVE,
 
 	/**
-	 * Editors sorted by tabs order
+	 * Editors sorted by sequential order
 	 */
-	TAB_APPEARANCE
+	SEQUENTIAL
 }
 
 export interface INextEditorGroupsService {
@@ -192,13 +204,20 @@ export interface INextEditorGroupsService {
 	setGroupOrientation(orientation: GroupOrientation): void;
 
 	/**
-	 * Find the closest neighbour from the provided location in the provided direction if any.
+	 * Find a groupd in a specific scope:
+	 * * `GroupLocation.FIRST`: the first group
+	 * * `GroupLocation.LAST`: the last group
+	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`
+	 * * `GroupLocation.PREVIOUS`: the previous group from either the active one or `source`
+	 * * `GroupDirection.UP`: the next group upwards the active one or `source`
+	 * * `GroupDirection.DOWN`: the next group downwards the active one or `source`
+	 * * `GroupDirection.LEFT`: the next group to the left of the active one or `source`
+	 * * `GroupDirection.RIGHT`: the next group to the right of the active one or `source`
 	 *
-	 * @param location the group to start from
-	 * @param direction the direction to look up
-	 * @returns the neighbour group or `undefined` if none.
+	 * @param scope the scope of the group to search in
+	 * @param source optional source to search from
 	 */
-	findNeighbourGroup(location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
+	findGroup(scope: IFindGroupScope, source?: INextEditorGroup | GroupIdentifier): INextEditorGroup;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in

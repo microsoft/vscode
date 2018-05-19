@@ -61,7 +61,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private lastActiveEditor: IEditorInput;
 
 	constructor(
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -77,13 +77,13 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private registerListeners(): void {
-		this.nextEditorGroupsService.whenRestored.then(() => this.nextEditorGroupsService.groups.forEach(group => this.registerGroupListeners(group)));
-		this.nextEditorGroupsService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
-		this.nextEditorGroupsService.onDidAddGroup(group => this.registerGroupListeners(group));
+		this.editorGroupService.whenRestored.then(() => this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group)));
+		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
+		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group));
 	}
 
 	private handleActiveEditorChange(group: INextEditorGroup): void {
-		if (group !== this.nextEditorGroupsService.activeGroup) {
+		if (group !== this.editorGroupService.activeGroup) {
 			return; // ignore if not the active group
 		}
 
@@ -135,7 +135,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	get activeControl(): IEditor {
-		const activeGroup = this.nextEditorGroupsService.activeGroup;
+		const activeGroup = this.editorGroupService.activeGroup;
 
 		return activeGroup ? activeGroup.activeControl : void 0;
 	}
@@ -154,7 +154,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	get editors(): IEditorInput[] {
 		const editors: IEditorInput[] = [];
-		this.nextEditorGroupsService.groups.forEach(group => {
+		this.editorGroupService.groups.forEach(group => {
 			editors.push(...group.editors);
 		});
 
@@ -162,13 +162,13 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	get activeEditor(): IEditorInput {
-		const activeGroup = this.nextEditorGroupsService.activeGroup;
+		const activeGroup = this.editorGroupService.activeGroup;
 
 		return activeGroup ? activeGroup.activeEditor : void 0;
 	}
 
 	get visibleControls(): IEditor[] {
-		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeControl));
+		return coalesce(this.editorGroupService.groups.map(group => group.activeControl));
 	}
 
 	get visibleTextEditorControls(): ITextEditor[] {
@@ -176,7 +176,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	get visibleEditors(): IEditorInput[] {
-		return coalesce(this.nextEditorGroupsService.groups.map(group => group.activeEditor));
+		return coalesce(this.editorGroupService.groups.map(group => group.activeEditor));
 	}
 
 	//#region preventOpenEditor()
@@ -265,7 +265,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Active Group
 		if (group === ACTIVE_GROUP) {
-			targetGroup = this.nextEditorGroupsService.activeGroup;
+			targetGroup = this.editorGroupService.activeGroup;
 		}
 
 		// Group: Side by Side
@@ -275,12 +275,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Group: Specific Group
 		else if (typeof group === 'number') {
-			targetGroup = this.nextEditorGroupsService.getGroup(group);
+			targetGroup = this.editorGroupService.getGroup(group);
 		}
 
 		// Group: Unspecified without a specific index to open
 		else if (!options || typeof options.index !== 'number') {
-			const groupsByLastActive = this.nextEditorGroupsService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+			const groupsByLastActive = this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
 			// Respect option to reveal an editor if it is already visible in any group
 			if (options && options.revealIfVisible) {
@@ -307,27 +307,27 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 		// Fallback to active group if target not valid
 		if (!targetGroup) {
-			targetGroup = this.nextEditorGroupsService.activeGroup;
+			targetGroup = this.editorGroupService.activeGroup;
 		}
 
 		return targetGroup;
 	}
 
 	private findSideBySideGroup(): INextEditorGroup {
-		const direction = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
+		const preferredDirection = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
 
-		let groupDirection: GroupDirection;
-		switch (direction) {
-			case 'left': groupDirection = GroupDirection.LEFT; break;
-			case 'right': groupDirection = GroupDirection.RIGHT; break;
-			case 'up': groupDirection = GroupDirection.UP; break;
-			case 'down': groupDirection = GroupDirection.DOWN; break;
-			default: groupDirection = GroupDirection.RIGHT;
+		let direction: GroupDirection;
+		switch (preferredDirection) {
+			case 'left': direction = GroupDirection.LEFT; break;
+			case 'right': direction = GroupDirection.RIGHT; break;
+			case 'up': direction = GroupDirection.UP; break;
+			case 'down': direction = GroupDirection.DOWN; break;
+			default: direction = GroupDirection.RIGHT;
 		}
 
-		let neighbourGroup = this.nextEditorGroupsService.findNeighbourGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
+		let neighbourGroup = this.editorGroupService.findGroup({ direction });
 		if (!neighbourGroup) {
-			neighbourGroup = this.nextEditorGroupsService.addGroup(this.nextEditorGroupsService.activeGroup, groupDirection);
+			neighbourGroup = this.editorGroupService.addGroup(this.editorGroupService.activeGroup, direction);
 		}
 
 		return neighbourGroup;
@@ -398,11 +398,11 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: INextEditorGroup | GroupIdentifier): boolean {
 		let groups: INextEditorGroup[] = [];
 		if (typeof group === 'number') {
-			groups.push(this.nextEditorGroupsService.getGroup(group));
+			groups.push(this.editorGroupService.getGroup(group));
 		} else if (group) {
 			groups.push(group);
 		} else {
-			groups = [...this.nextEditorGroupsService.groups];
+			groups = [...this.editorGroupService.groups];
 		}
 
 		return groups.some(group => {
@@ -448,7 +448,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			}
 		});
 
-		const targetGroup = typeof group === 'number' ? this.nextEditorGroupsService.getGroup(group) : group;
+		const targetGroup = typeof group === 'number' ? this.editorGroupService.getGroup(group) : group;
 		return targetGroup.replaceEditors(typedEditors);
 	}
 
@@ -462,7 +462,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			return activeTextEditorControl.invokeWithinContext(fn);
 		}
 
-		const activeGroup = this.nextEditorGroupsService.activeGroup;
+		const activeGroup = this.editorGroupService.activeGroup;
 		if (activeGroup) {
 			return activeGroup.invokeWithinContext(fn);
 		}
@@ -601,7 +601,7 @@ export class DelegatingWorkbenchEditorService extends NextEditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(
-		@INextEditorGroupsService nextEditorGroupsService: INextEditorGroupsService,
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -610,7 +610,7 @@ export class DelegatingWorkbenchEditorService extends NextEditorService {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super(
-			nextEditorGroupsService,
+			editorGroupService,
 			untitledEditorService,
 			workspaceContextService,
 			instantiationService,

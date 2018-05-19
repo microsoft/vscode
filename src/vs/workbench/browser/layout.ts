@@ -90,7 +90,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		@IPartService private partService: IPartService,
 		@IViewletService private viewletService: IViewletService,
 		@IThemeService private themeService: IThemeService,
-		@INextEditorGroupsService private nextEditorGroupsService: INextEditorGroupsService
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
 	) {
 		super();
 
@@ -124,7 +124,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	private onDidPreferredSizeChange(): void {
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
-			if (this.nextEditorGroupsService.count > 1) {
+			if (this.editorGroupService.count > 1) {
 				const preferredEditorPartSize = this.parts.editor.preferredSize;
 
 				const sidebarOverflow = this.workbenchSize.width - this.sidebarWidth < preferredEditorPartSize.width;
@@ -713,7 +713,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			case Parts.EDITOR_PART:
 				// If we have one editor we can cheat and resize sidebar with the negative delta
 				// If the sidebar is not visible and panel is, resize panel main axis with negative Delta
-				if (this.nextEditorGroupsService.count === 1) {
+				if (this.editorGroupService.count === 1) {
 					if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
 						this.sidebarWidth = this.sidebarWidth - sizeChangePxWidth;
 						doLayout = true;
@@ -726,9 +726,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 						doLayout = true;
 					}
 				} else {
-					const activeGroup = this.nextEditorGroupsService.activeGroup;
+					const activeGroup = this.editorGroupService.activeGroup;
 
-					this.nextEditorGroupsService.resizeGroup(activeGroup, sizeChangePxWidth);
+					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
 					doLayout = false;
 				}
 		}
