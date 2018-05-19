@@ -514,14 +514,8 @@ actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextComm
 	primary: null,
 	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.DownArrow }
 }, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Next Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL, {
-	primary: null,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Previous Command', category);
-actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL, {
-	primary: null,
-	mac: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.UpArrow }
-}, KEYBINDING_CONTEXT_TERMINAL_FOCUS), 'Terminal: Select To Next Line', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToPreviousLineAction, SelectToPreviousLineAction.ID, SelectToPreviousLineAction.LABEL), 'Terminal: Select To Previous Line', category);
+actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(SelectToNextLineAction, SelectToNextLineAction.ID, SelectToNextLineAction.LABEL), 'Terminal: Select To Next Line', category);
 
 terminalCommands.setup();
 
