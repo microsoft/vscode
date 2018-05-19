@@ -85,9 +85,22 @@ export enum GroupsOrder {
 	MOST_RECENTLY_ACTIVE,
 
 	/**
-	 * Groups sorted by strict grid order
+	 * Groups sorted by grid widget order
 	 */
 	GRID_APPEARANCE
+}
+
+export enum EditorsOrder {
+
+	/**
+	 * Editors sorted by most recent activity (most recent active first)
+	 */
+	MOST_RECENTLY_ACTIVE,
+
+	/**
+	 * Editors sorted by tabs order
+	 */
+	TAB_APPEARANCE
 }
 
 export interface INextEditorGroupsService {
@@ -337,6 +350,13 @@ export interface INextEditorGroup {
 	 * Returns the editor at a specific index of the group.
 	 */
 	getEditor(index: number): IEditorInput;
+
+	/**
+	 * Get all editors that are currently opened in the group optionally
+	 * sorted by being most recent active. Will sort by sequential appearance
+	 * by default (from left to right).
+	 */
+	getEditors(order?: EditorsOrder): ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Returns the index of the editor in the group or -1 if not opened.

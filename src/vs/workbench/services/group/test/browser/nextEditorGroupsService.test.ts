@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
-import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
@@ -436,6 +436,10 @@ suite('Editor groups service (editor2)', () => {
 				assert.equal(group.activeEditor, input);
 				assert.ok(group.activeControl instanceof TestEditorControl);
 				assert.equal(group.editors.length, 2);
+
+				const mru = group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE);
+				assert.equal(mru[0], input);
+				assert.equal(mru[1], inputInactive);
 
 				return group.openEditor(inputInactive).then(() => {
 					assert.equal(activeEditorChangeCounter, 2);

@@ -58,10 +58,8 @@ export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
 
-export const NAVIGATE_IN_GROUP_ONE_PREFIX = 'edt one ';
-export const NAVIGATE_IN_GROUP_TWO_PREFIX = 'edt two ';
-export const NAVIGATE_IN_GROUP_THREE_PREFIX = 'edt three ';
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
+export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
 
 export function setup(): void {
 	registerActiveEditorMoveCommand();
@@ -427,35 +425,18 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(INextEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
-			const editorService = accessor.get(INextEditorService);
 
-			const groupCount = editorGroupService.groups.length;
-			if (groupCount <= 1) {
+			if (editorGroupService.count <= 1) {
 				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
 			}
 
-			const { group } = groupAndInput(editorGroupService, editorService, context);
-			console.log(group);
+			if (context && typeof context.groupId === 'number') {
+				editorGroupService.activateGroup(editorGroupService.getGroup(context.groupId)); // we need the group to be active
+			}
 
-			// TODO@grid should not be constrained to three positions
-			// switch (group) {
-			// 	case Position.TWO:
-			// 		return quickOpenService.show(NAVIGATE_IN_GROUP_TWO_PREFIX);
-			// 	case Position.THREE:
-			// 		return quickOpenService.show(NAVIGATE_IN_GROUP_THREE_PREFIX);
-			// }
-
-			return quickOpenService.show(NAVIGATE_IN_GROUP_ONE_PREFIX);
+			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
 		}
 	});
-}
-
-function groupAndInput(editorGroupService: INextEditorGroupsService, editorService: INextEditorService, context?: IEditorCommandsContext): { group: INextEditorGroup, input: IEditorInput } {
-	// Resolve from context
-	const group = context ? editorGroupService.getGroup(context.groupId) : editorGroupService.activeGroup;
-	const input = group && types.isNumber(context.editorIndex) ? group.getEditor(context.editorIndex) : editorService.activeEditor;
-
-	return { group, input };
 }
 
 function resolveCommandsContext(editorGroupService: INextEditorGroupsService, context?: IEditorCommandsContext): { group: INextEditorGroup, editor: IEditorInput, control: IEditor } {

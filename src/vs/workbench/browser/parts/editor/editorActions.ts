@@ -22,7 +22,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_IN_GROUP_ONE_PREFIX, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, NAVIGATE_IN_GROUP_THREE_PREFIX, NAVIGATE_IN_GROUP_TWO_PREFIX, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, NAVIGATE_IN_ACTIVE_GROUP_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
@@ -1159,51 +1159,17 @@ export class ClearRecentFilesAction extends Action {
 	}
 }
 
-export class ShowEditorsInGroupOneAction extends QuickOpenAction {
+export class ShowEditorsInActiveGroupAction extends QuickOpenAction {
 
-	public static readonly ID = 'workbench.action.showEditorsInFirstGroup';
-	public static readonly LABEL = nls.localize('showEditorsInFirstGroup', "Show Editors in First Group");
-
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
-	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_ONE_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
-	}
-}
-
-export class ShowEditorsInGroupTwoAction extends QuickOpenAction {
-
-	public static readonly ID = 'workbench.action.showEditorsInSecondGroup';
-	public static readonly LABEL = nls.localize('showEditorsInSecondGroup', "Show Editors in Second Group");
+	public static readonly ID = 'workbench.action.showEditorsInActiveGroup';
+	public static readonly LABEL = nls.localize('showEditorsInActiveGroup', "Show Editors in Active Group");
 
 	constructor(
 		actionId: string,
 		actionLabel: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService
 	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_TWO_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
-	}
-}
-
-export class ShowEditorsInGroupThreeAction extends QuickOpenAction {
-
-	public static readonly ID = 'workbench.action.showEditorsInThirdGroup';
-	public static readonly LABEL = nls.localize('showEditorsInThirdGroup', "Show Editors in Third Group");
-
-	constructor(
-		actionId: string,
-		actionLabel: string,
-		@IQuickOpenService quickOpenService: IQuickOpenService
-	) {
-		super(actionId, actionLabel, NAVIGATE_IN_GROUP_THREE_PREFIX, quickOpenService);
-
-		this.class = 'show-group-editors-action';
+		super(actionId, actionLabel, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, quickOpenService);
 	}
 }
 
@@ -1223,8 +1189,7 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IKeybindingService private keybindingService: IKeybindingService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(id, label);
 	}
@@ -1232,19 +1197,9 @@ export class BaseQuickOpenEditorInGroupAction extends Action {
 	public run(): TPromise<any> {
 		const keys = this.keybindingService.lookupKeybindings(this.id);
 
-		const stacks = this.editorGroupService.getStacksModel();
-		if (stacks.activeGroup) {
-			const activePosition = stacks.positionOfGroup(stacks.activeGroup);
-			let prefix = NAVIGATE_IN_GROUP_ONE_PREFIX;
 
-			if (activePosition === Position.TWO) {
-				prefix = NAVIGATE_IN_GROUP_TWO_PREFIX;
-			} else if (activePosition === Position.THREE) {
-				prefix = NAVIGATE_IN_GROUP_THREE_PREFIX;
-			}
 
-			this.quickOpenService.show(prefix, { quickNavigateConfiguration: { keybindings: keys } });
-		}
+		this.quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX, { quickNavigateConfiguration: { keybindings: keys } });
 
 		return TPromise.as(true);
 	}
@@ -1259,10 +1214,9 @@ export class OpenPreviousRecentlyUsedEditorInGroupAction extends BaseQuickOpenEd
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService);
+		super(id, label, quickOpenService, keybindingService);
 	}
 }
 
@@ -1275,10 +1229,9 @@ export class OpenNextRecentlyUsedEditorInGroupAction extends BaseQuickOpenEditor
 		id: string,
 		label: string,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IKeybindingService keybindingService: IKeybindingService
 	) {
-		super(id, label, quickOpenService, keybindingService, editorGroupService);
+		super(id, label, quickOpenService, keybindingService);
 	}
 }
 
