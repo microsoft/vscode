@@ -17,7 +17,7 @@ import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorIn
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NextEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { INextEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
+import { NextEditorPart } from 'vs/workbench/browser/parts/editor/nextEditorPart';
 import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -57,7 +57,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	}
 }
 
-suite('Editor service (editor2)', () => {
+suite('Editor service', () => {
 
 	function registerTestEditorInput(): void {
 		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForNextEditorService', 'My Test Editor For Next Editor Service'), new SyncDescriptor(TestEditorInput));

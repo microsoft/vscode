@@ -169,7 +169,7 @@ class TestEditorInputFactory implements IEditorInputFactory {
 	}
 }
 
-suite('Workbench editor groups (editor2)', () => {
+suite('Workbench editor groups', () => {
 
 	function registerEditorInputFactory() {
 		Registry.as<IEditorInputFactoryRegistry>(EditorExtensions.EditorInputFactories).registerEditorInputFactory('testEditorInputForGroups', TestEditorInputFactory);

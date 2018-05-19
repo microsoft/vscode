@@ -7,12 +7,12 @@
 
 import 'vs/css!./media/nextNoTabsTitleControl';
 import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
-import { NextTitleControl } from 'vs/workbench/browser/parts/editor2/nextTitleControl';
+import { NextTitleControl } from 'vs/workbench/browser/parts/editor/nextTitleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
-import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 export class NextNoTabsTitleControl extends NextTitleControl {
 	private titleContainer: HTMLElement;

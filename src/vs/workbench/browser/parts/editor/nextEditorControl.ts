@@ -16,7 +16,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
-import { INextEditorGroupView } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;

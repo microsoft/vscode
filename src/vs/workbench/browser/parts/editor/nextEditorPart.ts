@@ -18,8 +18,8 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/com
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor2/editor2';
-import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor2/nextEditorGroupView';
+import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor/nextEditorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
@@ -32,7 +32,7 @@ import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/service
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor2/nextEditorDropTarget';
+import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor/nextEditorDropTarget';
 import { localize } from 'vs/nls';
 
 // TODO@grid enable minimized/maximized groups in one dimension

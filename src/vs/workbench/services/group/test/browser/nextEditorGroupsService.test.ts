@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { NextEditorPart } from 'vs/workbench/browser/parts/editor2/nextEditorPart';
+import { NextEditorPart } from 'vs/workbench/browser/parts/editor/nextEditorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor2/editor2';
+import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -47,7 +47,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	setForceOpenAsBinary(): void { }
 }
 
-suite('Editor groups service (editor2)', () => {
+suite('Editor groups service', () => {
 
 	function registerTestEditorInput(): void {
 
