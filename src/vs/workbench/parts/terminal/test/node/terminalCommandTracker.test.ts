@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { Terminal } from 'vscode-xterm';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
+import { isWindows } from 'vs/base/common/platform';
 
 interface TestTerminal extends Terminal {
 	writeBuffer: string[];
@@ -104,7 +105,7 @@ suite('Workbench - TerminalCommandTracker', () => {
 			commandTracker.selectToPreviousCommand();
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToPreviousCommand();
-			assert.equal(xterm.getSelection(), '1\n2');
+			assert.equal(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
 			commandTracker.selectToNextCommand();
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToNextCommand();
@@ -141,8 +142,9 @@ suite('Workbench - TerminalCommandTracker', () => {
 			commandTracker.selectToNextLine();
 			assert.equal(xterm.getSelection(), '2');
 			commandTracker.selectToPreviousCommand();
+			assert.equal(xterm.getSelection(), isWindows ? '1\r\n2' : '1\n2');
 			commandTracker.selectToPreviousLine();
-			assert.equal(xterm.getSelection(), '0\r\n1\r\n2');
+			assert.equal(xterm.getSelection(), isWindows ? '0\r\n1\r\n2' : '0\n1\n2');
 		});
 	});
 });
