@@ -66,3 +66,7 @@
 .vs-dark .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage {
 	background: url('manage-inverse.svg') center center no-repeat;
 }
+
+.extensions-viewlet.dragged-over {
+	background-color: rgba(255, 255, 255, 0.5);
+}

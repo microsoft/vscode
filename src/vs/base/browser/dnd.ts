@@ -8,16 +8,43 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { addDisposableListener } from 'vs/base/browser/dom';
 
+export class DragHandler {
+	protected container: HTMLElement;
+	protected toDispose: IDisposable[] = [];
+
+	public constructor(container: HTMLElement) {
+		this.container = container;
+	}
+
+	public addListener(events: Array<string> | string, callback: () => void) {
+		if (typeof events === 'string') {
+			events = [events];
+		}
+
+		events.forEach(type => {
+			this.toDispose.push(
+				addDisposableListener(this.container, type, () => {
+					callback();
+				})
+			);
+		});
+	}
+
+	public dispose(): void {
+		this.toDispose = dispose(this.toDispose);
+	}
+}
+
 /**
  * A helper that will execute a provided function when the provided HTMLElement receives
  *  dragover event for 800ms. If the drag is aborted before, the callback will not be triggered.
  */
-export class DelayedDragHandler {
-	private toDispose: IDisposable[] = [];
+export class DelayedDragHandler extends DragHandler {
 	private timeout: number;
 
 	constructor(container: HTMLElement, callback: () => void) {
-		this.toDispose.push(addDisposableListener(container, 'dragover', () => {
+		super(container);
+		this.addListener('dragover', () => {
 			if (!this.timeout) {
 				this.timeout = setTimeout(() => {
 					callback();
@@ -25,12 +52,10 @@ export class DelayedDragHandler {
 					this.timeout = null;
 				}, 800);
 			}
-		}));
+		});
 
-		['dragleave', 'drop', 'dragend'].forEach(type => {
-			this.toDispose.push(addDisposableListener(container, type, () => {
-				this.clearDragTimeout();
-			}));
+		this.addListener(['dragleave', 'drop', 'dragend'], () => {
+			this.clearDragTimeout();
 		});
 	}
 
@@ -42,7 +67,7 @@ export class DelayedDragHandler {
 	}
 
 	public dispose(): void {
-		this.toDispose = dispose(this.toDispose);
+		super.dispose();
 		this.clearDragTimeout();
 	}
 }

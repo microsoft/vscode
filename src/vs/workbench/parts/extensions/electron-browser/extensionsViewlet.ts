@@ -30,7 +30,7 @@ import {
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
 	EnableAutoUpdateAction, DisableAutoUpdateAction, ShowBuiltInExtensionsAction, InstallVSIXAction
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
-import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionManagementService, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -53,6 +53,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { DragHandler } from '../../../../base/browser/dnd';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -230,7 +231,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IExtensionService extensionService: IExtensionService,
+		@IWindowService private windowService: IWindowService
 	) {
 		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
 
@@ -258,6 +260,8 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	async create(parent: HTMLElement): TPromise<void> {
 		addClass(parent, 'extensions-viewlet');
 		this.root = parent;
+
+		this.hookDragAndDropHandler(parent);
 
 		const header = append(this.root, $('.header'));
 
@@ -292,6 +296,54 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 			this.searchBox.value = '@sort:installs';
 			this.searchExtensionsContextKey.set(true);
 		}
+	}
+
+	private hookDragAndDropHandler(target: HTMLElement): void {
+		const dragAndDrop = new DragHandler(target);
+		this.disposables.push(dragAndDrop);
+
+		dragAndDrop.addListener(['dragenter'], () => {
+			toggleClass(target, 'dragged-over', true);
+		});
+
+		dragAndDrop.addListener(['dragleave', 'drop', 'dragend'], () => {
+			toggleClass(target, 'dragged-over', false);
+		});
+
+		dragAndDrop.addListener(['drop'], () => {
+			const dragEvent: DragEvent = <DragEvent>event;
+			const files = dragEvent.dataTransfer.files;
+			if (files.length === 0) {
+				return;
+			}
+
+			const promises: TPromise<ILocalExtension>[] = [];
+			for (let i = 0; i < files.length; ++i) {
+				const file = files.item(i);
+				if (! /\.vsix$/i.test(file.name)) {
+					continue;
+				}
+
+				promises.push(this.extensionManagementService.install(file.path));
+			}
+
+			if (promises.length === 0) {
+				return;
+			}
+
+			TPromise.join(promises).then(() => {
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('InstallVSIXAction.success', "Successfully installed the extension. Reload to enable it."),
+					[{
+						label: localize('InstallVSIXAction.reloadNow', "Reload Now"),
+						run: () => this.windowService.reloadWindow()
+					}]
+				);
+			}, (error) => {
+				this.notificationService.error(error);
+			});
+		});
 	}
 
 	public updateStyles(): void {
