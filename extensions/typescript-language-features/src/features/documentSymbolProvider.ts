@@ -73,7 +73,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 		const realIndent = indent + item.indent;
 		const key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
+		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item)) {
 			const result = new SymbolInformation(item.text,
 				getSymbolKind(item.kind),
 				containerLabel ? containerLabel : '',
@@ -88,11 +88,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 	}
 
-	private static convertNavTree(resource: Uri, bucket: Hierarchy<SymbolInformation>[], item: Proto.NavigationTree): void {
-		if (!TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
-			return;
-		}
-
+	private static convertNavTree(resource: Uri, bucket: Hierarchy<SymbolInformation>[], item: Proto.NavigationTree): boolean {
 		const symbolInfo = new SymbolInformation2(
 			item.text,
 			'', // todo@joh detail
@@ -100,17 +96,23 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			typeConverters.Range.fromTextSpan(item.spans[0]),
 			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
 		);
+
 		const hierarchy = new Hierarchy(symbolInfo);
+		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
+
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {
-				TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
+				shouldInclude = shouldInclude || TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
 			}
 		}
-		bucket.push(hierarchy);
 
+		if (shouldInclude) {
+			bucket.push(hierarchy);
+		}
+		return shouldInclude;
 	}
 
-	private static shouldInclueEntry(name: string): boolean {
-		return !!(name && name !== '<function>' && name !== '<class>');
+	private static shouldInclueEntry(item: Proto.NavigationTree | Proto.NavigationBarItem): boolean {
+		return !!(item.text && item.text !== '<function>' && item.text !== '<class>');
 	}
 }
