@@ -24,7 +24,7 @@ import { INextEditorGroupsService, INextEditorGroup, GroupsArrangement, EditorsO
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-class BaseSplitEditorGroupAction extends Action {
+export class BaseSplitEditorGroupAction extends Action {
 
 	constructor(
 		id: string,
@@ -580,7 +580,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	}
 }
 
-class BaseMoveGroupAction extends Action {
+export class BaseMoveGroupAction extends Action {
 
 	constructor(
 		id: string,

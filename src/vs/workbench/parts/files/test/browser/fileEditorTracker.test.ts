@@ -50,7 +50,7 @@ suite('Files - FileEditorTracker', () => {
 		accessor = instantiationService.createInstance(ServiceAccessor);
 	});
 
-	// TODO@grid revisit these tests once the file tracker adopted grid servies
+	// TODO@ben adopt tests for new grid feature or remove
 
 	// test('disposes input when resource gets deleted - local file changes', function () {
 	// 	const stacks = accessor.editorGroupService.getStacksModel() as NoOpEditorStacksModel;
