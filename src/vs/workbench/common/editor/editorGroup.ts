@@ -6,7 +6,7 @@
 'use strict';
 
 import { Event, Emitter, once } from 'vs/base/common/event';
-import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, IEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
+import { Extensions, IEditorInputFactoryRegistry, EditorInput, toResource, ILegacyEditorGroup, IEditorIdentifier, IEditorCloseEvent, GroupIdentifier, SideBySideEditorInput, CloseDirection } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -54,7 +54,7 @@ export function isSerializedEditorGroup(obj?: any): obj is ISerializedEditorGrou
 	return obj && typeof obj === 'object' && Array.isArray(group.editors) && Array.isArray(group.mru);
 }
 
-export class EditorGroup extends Disposable implements IEditorGroup {
+export class EditorGroup extends Disposable implements ILegacyEditorGroup {
 
 	private static IDS = 0;
 

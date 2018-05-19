@@ -6,12 +6,12 @@
 'use strict';
 
 import * as assert from 'assert';
-import { NextEditorPart } from 'vs/workbench/browser/parts/editor/nextEditorPart';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { GroupDirection, GroupsOrder, MergeGroupMode, GroupOrientation, GroupChangeKind, EditorsOrder, GroupLocation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorInput, IFileEditorInput, IEditorInputFactory, IEditorInputFactoryRegistry, Extensions as EditorExtensions, EditorOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
@@ -26,9 +26,9 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForNextEditorGroupService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestEditorForNextEditorGroupService'; }
+	getId(): string { return 'myTestEditorForEditorGroupService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -37,7 +37,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testEditorInputForNextEditorGroupService'; }
+	getTypeId() { return 'testEditorInputForEditorGroupService'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 	matches(other: TestEditorInput): boolean { return other && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -81,10 +81,10 @@ suite('Editor groups service', () => {
 
 	registerTestEditorInput();
 
-	function createPart(): NextEditorPart {
+	function createPart(): EditorPart {
 		const instantiationService = workbenchInstantiationService();
 
-		const part = instantiationService.createInstance(NextEditorPart, 'id', false);
+		const part = instantiationService.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -349,8 +349,8 @@ suite('Editor groups service', () => {
 	test('options', function () {
 		const part = createPart();
 
-		let oldOptions: INextEditorPartOptions;
-		let newOptions: INextEditorPartOptions;
+		let oldOptions: IEditorPartOptions;
+		let newOptions: IEditorPartOptions;
 		part.onDidEditorPartOptionsChange(event => {
 			oldOptions = event.oldPartOptions;
 			newOptions = event.newPartOptions;

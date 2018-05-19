@@ -16,7 +16,7 @@ import { getIconClasses } from 'vs/workbench/browser/labels';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService, INextEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EditorInput, toResource } from 'vs/workbench/common/editor';
 import { compareItemsByScore, scoreItem, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
@@ -25,7 +25,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 
 	constructor(
 		private editor: EditorInput,
-		private _group: INextEditorGroup,
+		private _group: IEditorGroup,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService
 	) {
@@ -47,7 +47,7 @@ export class EditorPickerEntry extends QuickOpenEntryGroup {
 		return this.editor.isDirty() ? 'dirty' : '';
 	}
 
-	public get group(): INextEditorGroup {
+	public get group(): IEditorGroup {
 		return this._group;
 	}
 
@@ -129,7 +129,7 @@ export abstract class BaseEditorPicker extends QuickOpenHandler {
 
 		// Grouping (for more than one group)
 		if (this.editorGroupService.count > 1) {
-			let lastGroup: INextEditorGroup;
+			let lastGroup: IEditorGroup;
 			entries.forEach(e => {
 				if (!lastGroup || lastGroup !== e.group) {
 					e.setGroupLabel(e.group.label);
@@ -157,7 +157,7 @@ export class ActiveEditorGroupPicker extends BaseEditorPicker {
 		return this.group.getEditors(EditorsOrder.MOST_RECENTLY_ACTIVE).map((editor, index) => this.instantiationService.createInstance(EditorPickerEntry, editor, this.group));
 	}
 
-	private get group(): INextEditorGroup {
+	private get group(): IEditorGroup {
 		return this.editorGroupService.activeGroup;
 	}
 

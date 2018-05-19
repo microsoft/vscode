@@ -5,10 +5,10 @@
 
 'use strict';
 
-import 'vs/css!./media/nextEditorDropTarget';
+import 'vs/css!./media/editordroptarget';
 import { LocalSelectionTransfer, DraggedEditorIdentifier, ResourcesDropHandler, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { addDisposableListener, EventType, EventHelper, isAncestor, toggleClass, addClass, removeClass } from 'vs/base/browser/dom';
-import { INextEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, INextEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, EDITOR_TITLE_HEIGHT, IEditorGroupView, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { EDITOR_DRAG_AND_DROP_BACKGROUND, Themable } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
@@ -37,8 +37,8 @@ class DropOverlay extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	constructor(
-		private accessor: INextEditorGroupsAccessor,
-		private groupView: INextEditorGroupView,
+		private accessor: IEditorGroupsAccessor,
+		private groupView: IEditorGroupView,
 		themeService: IThemeService,
 		private instantiationService: IInstantiationService
 	) {
@@ -145,7 +145,7 @@ class DropOverlay extends Themable {
 		}));
 	}
 
-	private findSourceGroupView(): INextEditorGroupView {
+	private findSourceGroupView(): IEditorGroupView {
 
 		// Check for group transfer
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
@@ -164,7 +164,7 @@ class DropOverlay extends Themable {
 
 		// Determine target group
 		const ensureTargetGroup = () => {
-			let targetGroup: INextEditorGroupView;
+			let targetGroup: IEditorGroupView;
 			if (typeof splitDirection === 'number') {
 				targetGroup = this.accessor.addGroup(this.groupView, splitDirection, { activate: true });
 			} else {
@@ -185,7 +185,7 @@ class DropOverlay extends Themable {
 			}
 
 			// Split to new group
-			let targetGroup: INextEditorGroupView;
+			let targetGroup: IEditorGroupView;
 			if (typeof splitDirection === 'number') {
 				if (this.isCopyOperation(event)) {
 					targetGroup = this.accessor.copyGroup(sourceGroup, this.groupView, splitDirection);
@@ -342,7 +342,7 @@ class DropOverlay extends Themable {
 	}
 }
 
-export class NextEditorDropTarget extends Themable {
+export class EditorDropTarget extends Themable {
 
 	private _overlay: DropOverlay;
 
@@ -352,7 +352,7 @@ export class NextEditorDropTarget extends Themable {
 	private readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 
 	constructor(
-		private accessor: INextEditorGroupsAccessor,
+		private accessor: IEditorGroupsAccessor,
 		private container: HTMLElement,
 		@IThemeService themeService: IThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService
@@ -425,7 +425,7 @@ export class NextEditorDropTarget extends Themable {
 		this.disposeOverlay();
 	}
 
-	private findTargetGroupView(child: HTMLElement): INextEditorGroupView {
+	private findTargetGroupView(child: HTMLElement): IEditorGroupView {
 		const groups = this.accessor.groups;
 		for (let i = 0; i < groups.length; i++) {
 			const groupView = groups[i];

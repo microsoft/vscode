@@ -59,7 +59,7 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
 import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
@@ -192,7 +192,7 @@ export class PreferencesEditor extends BaseEditor {
 		return false;
 	}
 
-	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		this.sideBySidePreferencesWidget.setEditorVisible(visible, group);
 		super.setEditorVisible(visible, group);
 	}
@@ -861,7 +861,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	public setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		if (this.defaultPreferencesEditor) {
 			this.defaultPreferencesEditor.setVisible(visible, group);
 		}

@@ -5,16 +5,16 @@
 
 'use strict';
 
-import 'vs/css!./media/nextNoTabsTitleControl';
+import 'vs/css!./media/notabstitlecontrol';
 import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
-import { NextTitleControl } from 'vs/workbench/browser/parts/editor/nextTitleControl';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
-import { INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 
-export class NextNoTabsTitleControl extends NextTitleControl {
+export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
 	private lastRenderedEditor: IEditorInput;
@@ -124,7 +124,7 @@ export class NextNoTabsTitleControl extends NextTitleControl {
 		});
 	}
 
-	updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void {
+	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {
 			this.redraw();
 		}

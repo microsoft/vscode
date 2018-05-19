@@ -24,7 +24,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
@@ -123,7 +123,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		return this._webview;
 	}
 
-	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		this._doSetVisible(visible);
 		super.setEditorVisible(visible, group);
 	}

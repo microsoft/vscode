@@ -24,7 +24,7 @@ import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/service
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
@@ -197,7 +197,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		});
 	}
 
-	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 
 		// Pass on to Editor
 		if (visible) {

@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -82,7 +82,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group));
 	}
 
-	private handleActiveEditorChange(group: INextEditorGroup): void {
+	private handleActiveEditorChange(group: IEditorGroup): void {
 		if (group !== this.editorGroupService.activeGroup) {
 			return; // ignore if not the active group
 		}
@@ -96,7 +96,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		this._onDidActiveEditorChange.fire();
 	}
 
-	private registerGroupListeners(group: INextEditorGroup): void {
+	private registerGroupListeners(group: IEditorGroup): void {
 		const groupDisposeables: IDisposable[] = [];
 
 		groupDisposeables.push(group.onDidGroupChange(e => {
@@ -123,7 +123,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		});
 	}
 
-	private onGroupWillOpenEditor(group: INextEditorGroup, event: IEditorOpeningEvent): void {
+	private onGroupWillOpenEditor(group: IEditorGroup, event: IEditorOpeningEvent): void {
 		for (let i = 0; i < this.openEditorHandlers.length; i++) {
 			const handler = this.openEditorHandlers[i];
 			const result = handler(event.editor, event.options, group);
@@ -217,9 +217,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region openEditor()
 
-	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
-	openEditor(editor: IResourceEditor, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
-	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): TPromise<IEditor> {
+	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
+	openEditor(editor: IResourceEditor, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
+	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): TPromise<IEditor> {
 
 		// Typed Editor Support
 		if (editor instanceof EditorInput) {
@@ -243,7 +243,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		const typedInput = this.createInput(textInput);
 		if (typedInput) {
 			const editorOptions = TextEditorOptions.from(textInput);
-			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as INextEditorGroup | GroupIdentifier);
+			const targetGroup = this.findTargetGroup(typedInput, editorOptions, optionsOrGroup as IEditorGroup | GroupIdentifier);
 
 			return this.doOpenEditor(targetGroup, typedInput, editorOptions);
 		}
@@ -251,12 +251,12 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return TPromise.wrap<IEditor>(null);
 	}
 
-	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
+	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
 		return group.openEditor(editor, options).then(() => group.activeControl);
 	}
 
-	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): INextEditorGroup {
-		let targetGroup: INextEditorGroup;
+	private findTargetGroup(input: IEditorInput, options?: IEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): IEditorGroup {
+		let targetGroup: IEditorGroup;
 
 		// Group: Instance of Group
 		if (group && typeof group !== 'number') {
@@ -313,7 +313,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return targetGroup;
 	}
 
-	private findSideBySideGroup(): INextEditorGroup {
+	private findSideBySideGroup(): IEditorGroup {
 		const direction = preferredGroupDirection(this.configurationService);
 
 		let neighbourGroup = this.editorGroupService.findGroup({ direction });
@@ -341,9 +341,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region openEditors()
 
-	openEditors(editors: IEditorInputWithOptions[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]>;
-	openEditors(editors: IResourceEditor[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]>;
-	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: INextEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]> {
+	openEditors(editors: IEditorInputWithOptions[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]>;
+	openEditors(editors: IResourceEditor[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]>;
+	openEditors(editors: (IEditorInputWithOptions | IResourceEditor)[], group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor[]> {
 
 		// Convert to typed editors and options
 		const typedEditors: IEditorInputWithOptions[] = [];
@@ -356,7 +356,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		});
 
 		// Find target groups to open
-		const mapGroupToEditors = new Map<INextEditorGroup, IEditorInputWithOptions[]>();
+		const mapGroupToEditors = new Map<IEditorGroup, IEditorInputWithOptions[]>();
 		if (group === SIDE_GROUP) {
 			mapGroupToEditors.set(this.findSideBySideGroup(), typedEditors);
 		} else {
@@ -386,8 +386,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region isOpen()
 
-	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: INextEditorGroup | GroupIdentifier): boolean {
-		let groups: INextEditorGroup[] = [];
+	isOpen(editor: IEditorInput | IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier): boolean {
+		let groups: IEditorGroup[] = [];
 		if (typeof group === 'number') {
 			groups.push(this.editorGroupService.getGroup(group));
 		} else if (group) {
@@ -418,9 +418,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 
 	//#region replaceEditors()
 
-	replaceEditors(editors: IResourceEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
-	replaceEditors(editors: IEditorReplacement[], group: INextEditorGroup | GroupIdentifier): TPromise<void>;
-	replaceEditors(editors: (IEditorReplacement | IResourceEditorReplacement)[], group: INextEditorGroup | GroupIdentifier): TPromise<void> {
+	replaceEditors(editors: IResourceEditorReplacement[], group: IEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: IEditorReplacement[], group: IEditorGroup | GroupIdentifier): TPromise<void>;
+	replaceEditors(editors: (IEditorReplacement | IResourceEditorReplacement)[], group: IEditorGroup | GroupIdentifier): TPromise<void> {
 		const typedEditors: IEditorReplacement[] = [];
 
 		editors.forEach(replaceEditorArg => {
@@ -581,7 +581,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 }
 
 export interface IEditorOpenHandler {
-	(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<IEditor>;
+	(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions): TPromise<IEditor>;
 }
 
 /**
@@ -615,7 +615,7 @@ export class DelegatingWorkbenchEditorService extends NextEditorService {
 		this.editorOpenHandler = handler;
 	}
 
-	protected doOpenEditor(group: INextEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
+	protected doOpenEditor(group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions): TPromise<IEditor> {
 		const handleOpen = this.editorOpenHandler ? this.editorOpenHandler(group, editor, options) : TPromise.as(void 0);
 
 		return handleOpen.then(control => {

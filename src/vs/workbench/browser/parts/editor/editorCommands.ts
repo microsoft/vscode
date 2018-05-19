@@ -20,7 +20,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -133,7 +133,7 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 
 	const groups = editorGroupService.groups;
 	const sourceGroup = control.group;
-	let targetGroup: INextEditorGroup;
+	let targetGroup: IEditorGroup;
 
 	switch (args.to) {
 		case 'left':
@@ -425,7 +425,7 @@ function registerEditorCommands() {
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(INextEditorGroupsService);
 
-			let group: INextEditorGroup;
+			let group: IEditorGroup;
 			if (context && typeof context.groupId === 'number') {
 				group = editorGroupService.getGroup(context.groupId);
 			} else {
@@ -522,7 +522,7 @@ function registerEditorCommands() {
 	});
 }
 
-function resolveCommandsContext(editorGroupService: INextEditorGroupsService, context?: IEditorCommandsContext): { group: INextEditorGroup, editor: IEditorInput, control: IEditor } {
+function resolveCommandsContext(editorGroupService: INextEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;

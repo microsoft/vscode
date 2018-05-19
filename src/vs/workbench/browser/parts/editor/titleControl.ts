@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/nextTitleControl';
+import 'vs/css!./media/titlecontrol';
 import { localize } from 'vs/nls';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
@@ -34,8 +34,8 @@ import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
@@ -45,7 +45,7 @@ export interface IToolbarActions {
 	secondary: IAction[];
 }
 
-export abstract class NextTitleControl extends Themable {
+export abstract class TitleControl extends Themable {
 
 	protected closeOneEditorAction: CloseOneEditorAction;
 
@@ -68,8 +68,8 @@ export abstract class NextTitleControl extends Themable {
 
 	constructor(
 		parent: HTMLElement,
-		protected accessor: INextEditorGroupsAccessor,
-		protected group: INextEditorGroup,
+		protected accessor: IEditorGroupsAccessor,
+		protected group: IEditorGroup,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -310,7 +310,7 @@ export abstract class NextTitleControl extends Themable {
 		return keybinding ? keybinding.getLabel() : void 0;
 	}
 
-	//#region INextTitleAreaControl
+	//#region ITitleAreaControl
 
 	abstract openEditor(editor: IEditorInput): void;
 
@@ -330,7 +330,7 @@ export abstract class NextTitleControl extends Themable {
 
 	abstract updateEditorDirty(editor: IEditorInput): void;
 
-	abstract updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void;
+	abstract updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void;
 
 	abstract updateStyles(): void;
 

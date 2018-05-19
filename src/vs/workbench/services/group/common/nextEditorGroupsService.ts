@@ -136,33 +136,33 @@ export interface INextEditorGroupsService {
 	 * An event for when the active editor group changes. The active editor
 	 * group is the default location for new editors to open.
 	 */
-	readonly onDidActiveGroupChange: Event<INextEditorGroup>;
+	readonly onDidActiveGroupChange: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a new group was added.
 	 */
-	readonly onDidAddGroup: Event<INextEditorGroup>;
+	readonly onDidAddGroup: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a group was removed.
 	 */
-	readonly onDidRemoveGroup: Event<INextEditorGroup>;
+	readonly onDidRemoveGroup: Event<IEditorGroup>;
 
 	/**
 	 * An event for when a group was moved.
 	 */
-	readonly onDidMoveGroup: Event<INextEditorGroup>;
+	readonly onDidMoveGroup: Event<IEditorGroup>;
 
 	/**
 	 * An active group is the default location for new editors to open.
 	 */
-	readonly activeGroup: INextEditorGroup;
+	readonly activeGroup: IEditorGroup;
 
 	/**
 	 * All groups that are currently visible in the editor area in the
 	 * order of their creation (oldest first).
 	 */
-	readonly groups: ReadonlyArray<INextEditorGroup>;
+	readonly groups: ReadonlyArray<IEditorGroup>;
 
 	/**
 	 * The number of editor groups that are currently opened.
@@ -184,27 +184,27 @@ export interface INextEditorGroupsService {
 	 * sorted by being most recent active or grid order. Will sort by creation
 	 * time by default (oldest group first).
 	 */
-	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup>;
+	getGroups(order?: GroupsOrder): ReadonlyArray<IEditorGroup>;
 
 	/**
 	 * Allows to convert a group identifier to a group.
 	 */
-	getGroup(identifier: GroupIdentifier): INextEditorGroup;
+	getGroup(identifier: GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Move keyboard focus into the provided group.
 	 */
-	focusGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	focusGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Set a group as active. An active group is the default location for new editors to open.
 	 */
-	activateGroup(group: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	activateGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Resize the group given the provided size delta.
 	 */
-	resizeGroup(group: INextEditorGroup | GroupIdentifier, sizeDelta: number): INextEditorGroup;
+	resizeGroup(group: IEditorGroup | GroupIdentifier, sizeDelta: number): IEditorGroup;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.
@@ -230,7 +230,7 @@ export interface INextEditorGroupsService {
 	 * @param scope the scope of the group to search in
 	 * @param source optional source to search from
 	 */
-	findGroup(scope: IFindGroupScope, source?: INextEditorGroup | GroupIdentifier): INextEditorGroup;
+	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in
@@ -240,12 +240,12 @@ export interface INextEditorGroupsService {
 	 * @param direction the direction of where to split to
 	 * @param options configure the newly group with options
 	 */
-	addGroup(location: INextEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroup;
+	addGroup(location: IEditorGroup | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup;
 
 	/**
 	 * Remove a group from the editor area.
 	 */
-	removeGroup(group: INextEditorGroup | GroupIdentifier): void;
+	removeGroup(group: IEditorGroup | GroupIdentifier): void;
 
 	/**
 	 * Move a group to a new group in the editor area.
@@ -254,7 +254,7 @@ export interface INextEditorGroupsService {
 	 * @param location the group from which to split to add the moved group
 	 * @param direction the direction of where to split to
 	 */
-	moveGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
+	moveGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 
 	/**
 	 * Merge the editors of a group into a target group. By default, all editors will
@@ -268,7 +268,7 @@ export interface INextEditorGroupsService {
 	 * `MOVE_EDITORS_KEEP_GROUP` to prevent the source group from closing. Set to
 	 * `COPY_EDITORS` to copy the editors into the target instead of moding them.
 	 */
-	mergeGroup(group: INextEditorGroup | GroupIdentifier, target: INextEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroup;
+	mergeGroup(group: IEditorGroup | GroupIdentifier, target: IEditorGroup | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroup;
 
 	/**
 	 * Copy a group to a new group in the editor area.
@@ -277,7 +277,7 @@ export interface INextEditorGroupsService {
 	 * @param location the group from which to split to add the copied group
 	 * @param direction the direction of where to split to
 	 */
-	copyGroup(group: INextEditorGroup | GroupIdentifier, location: INextEditorGroup | GroupIdentifier, direction: GroupDirection): INextEditorGroup;
+	copyGroup(group: IEditorGroup | GroupIdentifier, location: IEditorGroup | GroupIdentifier, direction: GroupDirection): IEditorGroup;
 }
 
 export enum GroupChangeKind {
@@ -302,7 +302,7 @@ export interface IGroupChangeEvent {
 	editorIndex?: number;
 }
 
-export interface INextEditorGroup {
+export interface IEditorGroup {
 
 	/**
 	 * A unique identifier of this group that remains identical even if the
@@ -431,14 +431,14 @@ export interface INextEditorGroup {
 	/**
 	 * Move an editor from this group either within this group or to another group.
 	 */
-	moveEditor(editor: IEditorInput, target: INextEditorGroup, options?: IMoveEditorOptions): void;
+	moveEditor(editor: IEditorInput, target: IEditorGroup, options?: IMoveEditorOptions): void;
 
 	/**
 	 * Copy an editor from this group to another group.
 	 *
 	 * Note: It is currently not supported to show the same editor more than once in the same group.
 	 */
-	copyEditor(editor: IEditorInput, target: INextEditorGroup, options?: ICopyEditorOptions): void;
+	copyEditor(editor: IEditorInput, target: IEditorGroup, options?: ICopyEditorOptions): void;
 
 	/**
 	 * Close an editor from the group. This may trigger a confirmation dialog if

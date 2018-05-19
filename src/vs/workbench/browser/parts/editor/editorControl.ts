@@ -16,14 +16,14 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
-import { INextEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
 	readonly editorChanged: boolean;
 }
 
-export class NextEditorControl extends Disposable {
+export class EditorControl extends Disposable {
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -32,7 +32,7 @@ export class NextEditorControl extends Disposable {
 
 	constructor(
 		private parent: HTMLElement,
-		private groupView: INextEditorGroupView,
+		private groupView: IEditorGroupView,
 		@IPartService private partService: IPartService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IProgressService progressService: IProgressService

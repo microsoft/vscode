@@ -37,7 +37,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
-import { INextEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
@@ -93,7 +93,7 @@ export class TextDiffEditor extends BaseTextEditor {
 
 		// Support navigation within the diff editor by overriding the editor service within
 		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegatingEditorService.setEditorOpenHandler((group: INextEditorGroup, input: EditorInput, options?: EditorOptions) => {
+		delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, input: EditorInput, options?: EditorOptions) => {
 
 			// Check if target group is same as this editor ones
 			if (group === this.group) {

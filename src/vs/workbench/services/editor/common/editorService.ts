@@ -11,7 +11,7 @@ import { IEditorOptions, ITextEditorOptions, Position, IResourceInput } from 'vs
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { basename } from 'vs/base/common/paths';
-import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, IEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, ILegacyEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -236,22 +236,22 @@ export class NoOpEditorStacksModel implements IEditorStacksModel {
 	onWillCloseEditor: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
 	onEditorClosed: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
 
-	groups: IEditorGroup[] = [];
-	activeGroup: IEditorGroup;
+	groups: ILegacyEditorGroup[] = [];
+	activeGroup: ILegacyEditorGroup;
 
-	isActive(group: IEditorGroup): boolean {
+	isActive(group: ILegacyEditorGroup): boolean {
 		return false;
 	}
 
-	getGroup(id: number): IEditorGroup {
+	getGroup(id: number): ILegacyEditorGroup {
 		return null;
 	}
 
-	positionOfGroup(group: IEditorGroup): Position {
+	positionOfGroup(group: ILegacyEditorGroup): Position {
 		return Position.ONE;
 	}
 
-	groupAt(position: Position): IEditorGroup {
+	groupAt(position: Position): ILegacyEditorGroup {
 		return null;
 	}
 

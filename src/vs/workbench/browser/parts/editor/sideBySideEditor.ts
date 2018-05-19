@@ -15,7 +15,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -56,7 +56,7 @@ export class SideBySideEditor extends BaseEditor {
 		}
 	}
 
-	protected setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		if (this.masterEditor) {
 			this.masterEditor.setVisible(visible, group);
 		}

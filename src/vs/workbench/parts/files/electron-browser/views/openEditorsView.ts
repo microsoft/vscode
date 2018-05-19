@@ -10,7 +10,7 @@ import { IAction } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, INextEditorGroup, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -51,7 +51,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 	private dirtyCountElement: HTMLElement;
 	private listRefreshScheduler: RunOnceScheduler;
 	private structuralRefreshDelay: number;
-	private list: WorkbenchList<OpenEditor | INextEditorGroup>;
+	private list: WorkbenchList<OpenEditor | IEditorGroup>;
 	private contributedContextMenu: IMenu;
 	private needsRefresh: boolean;
 	private resourceContext: ResourceContextKey;
@@ -113,7 +113,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		};
 
 		const groupDisposables = new Map<number, IDisposable>();
-		const addGroupListener = (group: INextEditorGroup) => {
+		const addGroupListener = (group: IEditorGroup) => {
 			groupDisposables.set(group.id, group.onDidGroupChange(e => {
 				if (this.listRefreshScheduler.isScheduled()) {
 					return;
@@ -214,9 +214,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
 		], {
-				identityProvider: (element: OpenEditor | INextEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString(),
+				identityProvider: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString(),
 				selectOnMouseDown: false /* disabled to better support DND */
-			}) as WorkbenchList<OpenEditor | INextEditorGroup>;
+			}) as WorkbenchList<OpenEditor | IEditorGroup>;
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);
@@ -302,7 +302,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		this.list.domFocus();
 	}
 
-	public getList(): WorkbenchList<OpenEditor | INextEditorGroup> {
+	public getList(): WorkbenchList<OpenEditor | IEditorGroup> {
 		return this.list;
 	}
 
@@ -316,8 +316,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		return this.editorGroupService.groups.length > 1;
 	}
 
-	private get elements(): (INextEditorGroup | OpenEditor)[] {
-		const result: (INextEditorGroup | OpenEditor)[] = [];
+	private get elements(): (IEditorGroup | OpenEditor)[] {
+		const result: (IEditorGroup | OpenEditor)[] = [];
 		this.editorGroupService.groups.forEach(g => {
 			if (this.showGroups) {
 				result.push(g);
@@ -328,7 +328,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		return result;
 	}
 
-	private getIndex(group: INextEditorGroup, editor: IEditorInput): number {
+	private getIndex(group: IEditorGroup, editor: IEditorInput): number {
 		let index = editor ? group.getIndexOfEditor(editor) : 0;
 		if (!this.showGroups) {
 			return index;
@@ -367,7 +367,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		}
 	}
 
-	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | INextEditorGroup>): void {
+	private onListContextMenu(e: IListContextMenuEvent<OpenEditor | IEditorGroup>): void {
 		const element = e.element;
 		this.contextMenuService.showContextMenu({
 			getAnchor: () => e.anchor,
@@ -464,19 +464,19 @@ interface IEditorGroupTemplateData {
 	root: HTMLElement;
 	name: HTMLSpanElement;
 	actionBar: ActionBar;
-	editorGroup: INextEditorGroup;
+	editorGroup: IEditorGroup;
 	toDispose: IDisposable[];
 }
 
-class OpenEditorsDelegate implements IDelegate<OpenEditor | INextEditorGroup> {
+class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
 
 	public static readonly ITEM_HEIGHT = 22;
 
-	getHeight(element: OpenEditor | INextEditorGroup): number {
+	getHeight(element: OpenEditor | IEditorGroup): number {
 		return OpenEditorsDelegate.ITEM_HEIGHT;
 	}
 
-	getTemplateId(element: OpenEditor | INextEditorGroup): string {
+	getTemplateId(element: OpenEditor | IEditorGroup): string {
 		if (element instanceof OpenEditor) {
 			return OpenEditorRenderer.ID;
 		}
@@ -485,7 +485,7 @@ class OpenEditorsDelegate implements IDelegate<OpenEditor | INextEditorGroup> {
 	}
 }
 
-class EditorGroupRenderer implements IRenderer<INextEditorGroup, IEditorGroupTemplateData> {
+class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
 
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
@@ -536,7 +536,7 @@ class EditorGroupRenderer implements IRenderer<INextEditorGroup, IEditorGroupTem
 		return editorGroupTemplate;
 	}
 
-	renderElement(editorGroup: INextEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
+	renderElement(editorGroup: IEditorGroup, index: number, templateData: IEditorGroupTemplateData): void {
 		templateData.editorGroup = editorGroup;
 		templateData.name.textContent = editorGroup.label;
 		templateData.actionBar.context = { groupId: editorGroup.id };
@@ -554,7 +554,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 	private transfer = LocalSelectionTransfer.getInstance<OpenEditor>();
 
 	constructor(
-		private getSelectedElements: () => (OpenEditor | INextEditorGroup)[],
+		private getSelectedElements: () => (OpenEditor | IEditorGroup)[],
 		private instantiationService: IInstantiationService,
 		private keybindingService: IKeybindingService,
 		private configurationService: IConfigurationService,

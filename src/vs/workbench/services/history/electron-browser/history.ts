@@ -22,7 +22,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
@@ -609,7 +609,7 @@ export class HistoryService implements IHistoryService {
 		this.windowService.removeFromRecentlyOpened([input.resource.fsPath]);
 	}
 
-	private isFileOpened(resource: URI, group: INextEditorGroup): boolean {
+	private isFileOpened(resource: URI, group: IEditorGroup): boolean {
 		if (!group) {
 			return false;
 		}

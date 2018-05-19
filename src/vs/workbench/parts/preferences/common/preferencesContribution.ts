@@ -17,7 +17,7 @@ import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETT
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { INextEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IEditorInput } from 'vs/workbench/common/editor';
@@ -61,7 +61,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 	}
 
-	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: INextEditorGroup): IOpenEditorOverride {
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
 		const resource = editor.getResource();
 		if (
 			!resource || resource.scheme !== 'file' ||									// require a file path opening

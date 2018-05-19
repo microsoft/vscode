@@ -20,7 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, INextEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -37,7 +37,7 @@ export class BaseSplitEditorGroupAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let sourceGroup: INextEditorGroup;
+		let sourceGroup: IEditorGroup;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
@@ -173,7 +173,7 @@ export class JoinTwoGroupsAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let sourceGroup: INextEditorGroup;
+		let sourceGroup: IEditorGroup;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {
@@ -413,7 +413,7 @@ export class CloseOneEditorAction extends Action {
 	}
 
 	public run(context?: IEditorCommandsContext): TPromise<any> {
-		let group: INextEditorGroup;
+		let group: IEditorGroup;
 		let editorIndex: number;
 		if (context) {
 			group = this.editorGroupService.getGroup(context.groupId);
@@ -501,7 +501,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: INextEditorService, editorGroupService: INextEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: INextEditorGroup } {
+function getTarget(editorService: INextEditorService, editorGroupService: INextEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: IEditorGroup } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}
@@ -592,7 +592,7 @@ export class BaseMoveGroupAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		let sourceGroup: INextEditorGroup;
+		let sourceGroup: IEditorGroup;
 		if (context && typeof context.groupId === 'number') {
 			sourceGroup = this.editorGroupService.getGroup(context.groupId);
 		} else {

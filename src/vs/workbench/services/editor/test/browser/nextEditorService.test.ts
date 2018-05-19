@@ -16,8 +16,8 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import { NextEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
-import { INextEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { NextEditorPart } from 'vs/workbench/browser/parts/editor/nextEditorPart';
+import { IEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -68,7 +68,7 @@ suite('Editor service', () => {
 	test('basics', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -136,7 +136,7 @@ suite('Editor service', () => {
 	test('openEditors() / replaceEditors()', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -260,7 +260,7 @@ suite('Editor service', () => {
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
 		const delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegate.setEditorOpenHandler((group: INextEditorGroup, input: IEditorInput, options?: EditorOptions) => {
+		delegate.setEditorOpenHandler((group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 
 			done();
@@ -274,7 +274,7 @@ suite('Editor service', () => {
 	test('close editor does not dispose when editor opened in other group', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -310,7 +310,7 @@ suite('Editor service', () => {
 	test('close editor does not dispose when editor opened in other group (diff input)', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -348,7 +348,7 @@ suite('Editor service', () => {
 	test('close editor disposes properly (diff input)', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -375,7 +375,7 @@ suite('Editor service', () => {
 	test('close editor disposes properly (diff input, left side still opened)', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
@@ -404,7 +404,7 @@ suite('Editor service', () => {
 	test('open to the side', function () {
 		const partInstantiator = workbenchInstantiationService();
 
-		const part = partInstantiator.createInstance(NextEditorPart, 'id', false);
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 

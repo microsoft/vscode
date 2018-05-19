@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -54,7 +54,7 @@ export interface IEditor {
 	/**
 	 * The assigned group this editor is showing in.
 	 */
-	group: INextEditorGroup;
+	group: IEditorGroup;
 
 	/**
 	 * Returns the unique identifier of this editor.
@@ -999,9 +999,9 @@ export class EditorViewStateMemento<T> {
 		private limit: number = 10
 	) { }
 
-	public saveState(group: INextEditorGroup, resource: URI, state: T): void;
-	public saveState(group: INextEditorGroup, editor: EditorInput, state: T): void;
-	public saveState(group: INextEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
+	public saveState(group: IEditorGroup, resource: URI, state: T): void;
+	public saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
+	public saveState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (!resource || !group) {
 			return; // we are not in a good state to save any viewstate for a resource
@@ -1025,9 +1025,9 @@ export class EditorViewStateMemento<T> {
 		}
 	}
 
-	public loadState(group: INextEditorGroup, resource: URI): T;
-	public loadState(group: INextEditorGroup, editor: EditorInput): T;
-	public loadState(group: INextEditorGroup, resourceOrEditor: URI | EditorInput): T {
+	public loadState(group: IEditorGroup, resource: URI): T;
+	public loadState(group: IEditorGroup, editor: EditorInput): T;
+	public loadState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
 		if (resource) {
 			const cache = this.doLoad();
@@ -1146,10 +1146,10 @@ export const Extensions = {
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
 
-//#region obsolete
+//#region TODO@grid obsolete
 
 export interface IStacksModelChangeEvent {
-	group: IEditorGroup;
+	group: ILegacyEditorGroup;
 	editor?: IEditorInput;
 	structural?: boolean;
 }
@@ -1161,14 +1161,14 @@ export interface IEditorStacksModel {
 	onWillCloseEditor: Event<IEditorCloseEvent>;
 	onEditorClosed: Event<IEditorCloseEvent>;
 
-	groups: IEditorGroup[];
-	activeGroup: IEditorGroup;
-	isActive(group: IEditorGroup): boolean;
+	groups: ILegacyEditorGroup[];
+	activeGroup: ILegacyEditorGroup;
+	isActive(group: ILegacyEditorGroup): boolean;
 
-	getGroup(id: GroupIdentifier): IEditorGroup;
+	getGroup(id: GroupIdentifier): ILegacyEditorGroup;
 
-	positionOfGroup(group: IEditorGroup): Position;
-	groupAt(position: Position): IEditorGroup;
+	positionOfGroup(group: ILegacyEditorGroup): Position;
+	groupAt(position: Position): ILegacyEditorGroup;
 
 	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
 	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
@@ -1179,7 +1179,7 @@ export interface IEditorStacksModel {
 	toString(): string;
 }
 
-export interface IEditorGroup {
+export interface ILegacyEditorGroup {
 	id: GroupIdentifier;
 	count: number;
 	activeEditor: IEditorInput;

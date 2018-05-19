@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/nextTabsTitleControl';
+import 'vs/css!./media/tabstitlecontrol';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
@@ -22,7 +22,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService } from 'vs/platform/actions/common/actions';
-import { NextTitleControl } from 'vs/workbench/browser/parts/editor/nextTitleControl';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IDisposable, dispose, combinedDisposable } from 'vs/base/common/lifecycle';
 import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
@@ -35,11 +35,11 @@ import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifie
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { INextEditorGroupsAccessor, INextEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 interface IEditorInputLabel {
 	name: string;
@@ -49,7 +49,7 @@ interface IEditorInputLabel {
 
 type AugmentedLabel = IEditorInputLabel & { editor: IEditorInput };
 
-export class NextTabsTitleControl extends NextTitleControl {
+export class TabsTitleControl extends TitleControl {
 
 	private titleContainer: HTMLElement;
 	private tabsContainer: HTMLElement;
@@ -66,8 +66,8 @@ export class NextTabsTitleControl extends NextTitleControl {
 
 	constructor(
 		parent: HTMLElement,
-		accessor: INextEditorGroupsAccessor,
-		group: INextEditorGroup,
+		accessor: IEditorGroupsAccessor,
+		group: IEditorGroup,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -335,7 +335,7 @@ export class NextTabsTitleControl extends NextTitleControl {
 		this.withTab(editor, tabContainer => this.redrawEditorDirty(editor, tabContainer));
 	}
 
-	updateOptions(oldOptions: INextEditorPartOptions, newOptions: INextEditorPartOptions): void {
+	updateOptions(oldOptions: IEditorPartOptions, newOptions: IEditorPartOptions): void {
 
 		// A change to a label format options requires to recompute all labels
 		if (oldOptions.labelFormat !== newOptions.labelFormat) {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import 'vs/css!./media/nextEditorGroupView';
+import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
@@ -20,8 +20,8 @@ import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/com
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { NextTabsTitleControl } from 'vs/workbench/browser/parts/editor/nextTabsTitleControl';
-import { NextEditorControl } from 'vs/workbench/browser/parts/editor/nextEditorControl';
+import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
+import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ProgressService } from 'vs/workbench/services/progress/browser/progressService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -33,30 +33,30 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
-import { NextTitleControl } from 'vs/workbench/browser/parts/editor/nextTitleControl';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
-import { NextNoTabsTitleControl } from './nextNoTabsTitleControl';
+import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
 
-export class NextEditorGroupView extends Themable implements INextEditorGroupView {
+export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	//#region factory
 
-	static createNew(accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, null, label);
+	static createNew(accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, null, label);
 	}
 
-	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, serialized, label);
+	static createFromSerialized(serialized: ISerializedEditorGroup, accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, serialized, label);
 	}
 
-	static createCopy(copyFrom: INextEditorGroupView, accessor: INextEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): INextEditorGroupView {
-		return instantiationService.createInstance(NextEditorGroupView, accessor, copyFrom, label);
+	static createCopy(copyFrom: IEditorGroupView, accessor: IEditorGroupsAccessor, label: string, instantiationService: IInstantiationService): IEditorGroupView {
+		return instantiationService.createInstance(EditorGroupView, accessor, copyFrom, label);
 	}
 
 	//#endregion
@@ -98,19 +98,19 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	private scopedInstantiationService: IInstantiationService;
 
 	private titleContainer: HTMLElement;
-	private titleAreaControl: NextTitleControl;
+	private titleAreaControl: TitleControl;
 
 	private progressBar: ProgressBar;
 
 	private editorContainer: HTMLElement;
-	private editorControl: NextEditorControl;
+	private editorControl: EditorControl;
 
 	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
 	constructor(
-		private accessor: INextEditorGroupsAccessor,
-		from: INextEditorGroupView | ISerializedEditorGroup,
+		private accessor: IEditorGroupsAccessor,
+		from: IEditorGroupView | ISerializedEditorGroup,
 		private _label: string,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -122,7 +122,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 	) {
 		super(themeService);
 
-		if (from instanceof NextEditorGroupView) {
+		if (from instanceof EditorGroupView) {
 			this._group = this._register(from.group.clone());
 		} else if (isSerializedEditorGroup(from)) {
 			this._group = this._register(instantiationService.createInstance(EditorGroup, from));
@@ -176,7 +176,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this.element.appendChild(this.editorContainer);
 
 		// Editor control
-		this.editorControl = this._register(this.scopedInstantiationService.createInstance(NextEditorControl, this.editorContainer, this));
+		this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
 
 		// Track Focus
 		this.doTrackFocus();
@@ -302,20 +302,20 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 		// Create new based on options
 		if (this.accessor.partOptions.showTabs) {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextTabsTitleControl, this.titleContainer, this.accessor, this);
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(TabsTitleControl, this.titleContainer, this.accessor, this);
 		} else {
-			this.titleAreaControl = this.scopedInstantiationService.createInstance(NextNoTabsTitleControl, this.titleContainer, this.accessor, this);
+			this.titleAreaControl = this.scopedInstantiationService.createInstance(NoTabsTitleControl, this.titleContainer, this.accessor, this);
 		}
 	}
 
-	private restoreEditors(from: INextEditorGroupView | ISerializedEditorGroup): TPromise<void> {
+	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): TPromise<void> {
 		if (this._group.count === 0) {
 			return TPromise.as(void 0); // nothing to show
 		}
 
 		// Determine editor options
 		let options: EditorOptions;
-		if (from instanceof NextEditorGroupView) {
+		if (from instanceof EditorGroupView) {
 			options = getActiveTextEditorOptions(from); // if we copy from another group, ensure to copy its active editor viewstate
 		} else {
 			options = new EditorOptions();
@@ -443,7 +443,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		}
 	}
 
-	private onDidEditorPartOptionsChange(event: INextEditorPartOptionsChangeEvent): void {
+	private onDidEditorPartOptionsChange(event: IEditorPartOptionsChangeEvent): void {
 
 		// Title container
 		this.updateTitleContainer();
@@ -494,7 +494,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
-	//region INextEditorGroupView
+	//region IEditorGroupView
 
 	get group(): EditorGroup {
 		return this._group;
@@ -542,7 +542,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#endregion
 
-	//#region INextEditorGroup
+	//#region IEditorGroup
 
 	//#region basics()
 
@@ -747,7 +747,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#region moveEditor()
 
-	moveEditor(editor: EditorInput, target: INextEditorGroupView, options?: IMoveEditorOptions): void {
+	moveEditor(editor: EditorInput, target: IEditorGroupView, options?: IMoveEditorOptions): void {
 
 		// Move within same group
 		if (this === target) {
@@ -783,7 +783,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_MOVE, editor });
 	}
 
-	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: INextEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
+	private doMoveOrCopyEditorAcrossGroups(editor: EditorInput, target: IEditorGroupView, moveOptions: IMoveEditorOptions = Object.create(null), keepCopy?: boolean): void {
 
 		// When moving an editor, try to preserve as much view state as possible by checking
 		// for the editor to be a text editor and creating the options accordingly if so
@@ -803,7 +803,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 
 	//#region copyEditor()
 
-	copyEditor(editor: EditorInput, target: INextEditorGroupView, options?: ICopyEditorOptions): void {
+	copyEditor(editor: EditorInput, target: IEditorGroupView, options?: ICopyEditorOptions): void {
 
 		// Move within same group because we do not support to show the same editor
 		// multiple times in the same group

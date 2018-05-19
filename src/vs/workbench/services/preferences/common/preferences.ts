@@ -17,7 +17,7 @@ import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
-import { INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export interface ISettingsGroup {
 	id: string;
@@ -146,9 +146,9 @@ export interface IPreferencesService {
 	openRawUserSettings(): TPromise<IEditor>;
 	openSettings(): TPromise<IEditor>;
 	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, group?: INextEditorGroup): TPromise<IEditor>;
+	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 

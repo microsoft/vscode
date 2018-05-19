@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { IEditorGroup, ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { ILegacyEditorGroup, ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -68,7 +68,7 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
@@ -557,19 +557,19 @@ export class TestEditorGroupService implements IEditorGroupService {
 		return this._onTabOptionsChanged.event;
 	}
 
-	public focusGroup(group: IEditorGroup): void;
+	public focusGroup(group: ILegacyEditorGroup): void;
 	public focusGroup(position: Position): void;
 	public focusGroup(arg1: any): void {
 
 	}
 
-	public activateGroup(group: IEditorGroup): void;
+	public activateGroup(group: ILegacyEditorGroup): void;
 	public activateGroup(position: Position): void;
 	public activateGroup(arg1: any): void {
 
 	}
 
-	public moveGroup(from: IEditorGroup, to: IEditorGroup): void;
+	public moveGroup(from: ILegacyEditorGroup, to: ILegacyEditorGroup): void;
 	public moveGroup(from: Position, to: Position): void;
 	public moveGroup(arg1: any, arg2: any): void {
 
@@ -591,12 +591,12 @@ export class TestEditorGroupService implements IEditorGroupService {
 
 	}
 
-	public pinEditor(group: IEditorGroup, input: IEditorInput): void;
+	public pinEditor(group: ILegacyEditorGroup, input: IEditorInput): void;
 	public pinEditor(position: Position, input: IEditorInput): void;
 	public pinEditor(arg1: any, input: IEditorInput): void {
 	}
 
-	public moveEditor(input: IEditorInput, from: IEditorGroup, to: IEditorGroup, moveOptions?: IMoveOptions): void;
+	public moveEditor(input: IEditorInput, from: ILegacyEditorGroup, to: ILegacyEditorGroup, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
 	}
@@ -705,15 +705,15 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 
 	constructor(public groups: TestNextEditorGroup[] = []) { }
 
-	onDidActiveGroupChange: Event<INextEditorGroup> = Event.None;
-	onDidAddGroup: Event<INextEditorGroup> = Event.None;
-	onDidRemoveGroup: Event<INextEditorGroup> = Event.None;
-	onDidMoveGroup: Event<INextEditorGroup> = Event.None;
+	onDidActiveGroupChange: Event<IEditorGroup> = Event.None;
+	onDidAddGroup: Event<IEditorGroup> = Event.None;
+	onDidRemoveGroup: Event<IEditorGroup> = Event.None;
+	onDidMoveGroup: Event<IEditorGroup> = Event.None;
 
 	orientation: any;
 	whenRestored: TPromise<void> = TPromise.as(void 0);
 
-	get activeGroup(): INextEditorGroup {
+	get activeGroup(): IEditorGroup {
 		return this.groups[0];
 	}
 
@@ -721,11 +721,11 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 		return this.groups.length;
 	}
 
-	getGroups(order?: GroupsOrder): ReadonlyArray<INextEditorGroup> {
+	getGroups(order?: GroupsOrder): ReadonlyArray<IEditorGroup> {
 		return this.groups;
 	}
 
-	getGroup(identifier: number): INextEditorGroup {
+	getGroup(identifier: number): IEditorGroup {
 		for (let i = 0; i < this.groups.length; i++) {
 			if (this.groups[i].id === identifier) {
 				return this.groups[i];
@@ -739,19 +739,19 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 		return 'Group 1';
 	}
 
-	focusGroup(group: number | INextEditorGroup): INextEditorGroup {
+	focusGroup(group: number | IEditorGroup): IEditorGroup {
 		return null;
 	}
 
-	findGroup(scope: IFindGroupScope, source?: number | INextEditorGroup): INextEditorGroup {
+	findGroup(scope: IFindGroupScope, source?: number | IEditorGroup): IEditorGroup {
 		return null;
 	}
 
-	activateGroup(group: number | INextEditorGroup): INextEditorGroup {
+	activateGroup(group: number | IEditorGroup): IEditorGroup {
 		return null;
 	}
 
-	resizeGroup(group: number | INextEditorGroup, sizeDelta: number): INextEditorGroup {
+	resizeGroup(group: number | IEditorGroup, sizeDelta: number): IEditorGroup {
 		return null;
 	}
 
@@ -759,26 +759,26 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 
 	setGroupOrientation(orientation: any): void { }
 
-	addGroup(location: number | INextEditorGroup, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroup {
+	addGroup(location: number | IEditorGroup, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroup {
 		return null;
 	}
 
-	removeGroup(group: number | INextEditorGroup): void { }
+	removeGroup(group: number | IEditorGroup): void { }
 
-	moveGroup(group: number | INextEditorGroup, location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+	moveGroup(group: number | IEditorGroup, location: number | IEditorGroup, direction: GroupDirection): IEditorGroup {
 		return null;
 	}
 
-	mergeGroup(group: number | INextEditorGroup, target: number | INextEditorGroup, options?: IMergeGroupOptions): INextEditorGroup {
+	mergeGroup(group: number | IEditorGroup, target: number | IEditorGroup, options?: IMergeGroupOptions): IEditorGroup {
 		return null;
 	}
 
-	copyGroup(group: number | INextEditorGroup, location: number | INextEditorGroup, direction: GroupDirection): INextEditorGroup {
+	copyGroup(group: number | IEditorGroup, location: number | IEditorGroup, direction: GroupDirection): IEditorGroup {
 		return null;
 	}
 }
 
-export class TestNextEditorGroup implements INextEditorGroup {
+export class TestNextEditorGroup implements IEditorGroup {
 
 	constructor(public id: number) { }
 
@@ -828,9 +828,9 @@ export class TestNextEditorGroup implements INextEditorGroup {
 		return false;
 	}
 
-	moveEditor(editor: IEditorInput, target: INextEditorGroup, options?: IMoveEditorOptions): void { }
+	moveEditor(editor: IEditorInput, target: IEditorGroup, options?: IMoveEditorOptions): void { }
 
-	copyEditor(editor: IEditorInput, target: INextEditorGroup, options?: ICopyEditorOptions): void { }
+	copyEditor(editor: IEditorInput, target: IEditorGroup, options?: ICopyEditorOptions): void { }
 
 	closeEditor(editor?: IEditorInput): TPromise<void> {
 		return TPromise.as(void 0);

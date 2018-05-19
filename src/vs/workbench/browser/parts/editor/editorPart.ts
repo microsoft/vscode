@@ -18,8 +18,8 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/com
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsAccessor, INextEditorGroupView, INextEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, INextEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
-import { NextEditorGroupView } from 'vs/workbench/browser/parts/editor/nextEditorGroupView';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { assign } from 'vs/base/common/objects';
@@ -32,41 +32,41 @@ import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/service
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { NextEditorDropTarget } from 'vs/workbench/browser/parts/editor/nextEditorDropTarget';
+import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 
 // TODO@grid enable minimized/maximized groups in one dimension
 // - doCreateGroupView(): needs listener if the view gets minimized, the previous active group should become active
 // - doSetGroupActive():  needs a listener if the group is minimized, it should now restore to be maximized
 
-interface INextEditorPartUIState {
+interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
 	activeGroup: GroupIdentifier;
 	mostRecentActiveGroups: GroupIdentifier[];
 }
 
-export class NextEditorPart extends Part implements INextEditorGroupsService, INextEditorGroupsAccessor {
+export class EditorPart extends Part implements INextEditorGroupsService, IEditorGroupsAccessor {
 
 	_serviceBrand: any;
 
-	private static readonly NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY = 'nexteditorpart.uiState';
+	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 
 	//#region Events
 
 	private _onDidLayout: Emitter<Dimension> = this._register(new Emitter<Dimension>());
 	get onDidLayout(): Event<Dimension> { return this._onDidLayout.event; }
 
-	private _onDidActiveGroupChange: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
-	get onDidActiveGroupChange(): Event<INextEditorGroupView> { return this._onDidActiveGroupChange.event; }
+	private _onDidActiveGroupChange: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidActiveGroupChange(): Event<IEditorGroupView> { return this._onDidActiveGroupChange.event; }
 
-	private _onDidAddGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
-	get onDidAddGroup(): Event<INextEditorGroupView> { return this._onDidAddGroup.event; }
+	private _onDidAddGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidAddGroup(): Event<IEditorGroupView> { return this._onDidAddGroup.event; }
 
-	private _onDidRemoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
-	get onDidRemoveGroup(): Event<INextEditorGroupView> { return this._onDidRemoveGroup.event; }
+	private _onDidRemoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidRemoveGroup(): Event<IEditorGroupView> { return this._onDidRemoveGroup.event; }
 
-	private _onDidMoveGroup: Emitter<INextEditorGroupView> = this._register(new Emitter<INextEditorGroupView>());
-	get onDidMoveGroup(): Event<INextEditorGroupView> { return this._onDidMoveGroup.event; }
+	private _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
+	get onDidMoveGroup(): Event<IEditorGroupView> { return this._onDidMoveGroup.event; }
 
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
@@ -77,14 +77,14 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 	private _preferredSize: Dimension;
 
 	private memento: object;
-	private _partOptions: INextEditorPartOptions;
+	private _partOptions: IEditorPartOptions;
 
-	private _activeGroup: INextEditorGroupView;
-	private groupViews: Map<GroupIdentifier, INextEditorGroupView> = new Map<GroupIdentifier, INextEditorGroupView>();
+	private _activeGroup: IEditorGroupView;
+	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private container: HTMLElement;
-	private gridWidget: SerializableGrid<INextEditorGroupView>;
+	private gridWidget: SerializableGrid<IEditorGroupView>;
 
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
@@ -114,10 +114,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#region IEditorPartOptions
 
-	private enforcedPartOptions: INextEditorPartOptions[] = [];
+	private enforcedPartOptions: IEditorPartOptions[] = [];
 
-	private _onDidEditorPartOptionsChange: Emitter<INextEditorPartOptionsChangeEvent> = this._register(new Emitter<INextEditorPartOptionsChangeEvent>());
-	get onDidEditorPartOptionsChange(): Event<INextEditorPartOptionsChangeEvent> { return this._onDidEditorPartOptionsChange.event; }
+	private _onDidEditorPartOptionsChange: Emitter<IEditorPartOptionsChangeEvent> = this._register(new Emitter<IEditorPartOptionsChangeEvent>());
+	get onDidEditorPartOptionsChange(): Event<IEditorPartOptionsChangeEvent> { return this._onDidEditorPartOptionsChange.event; }
 
 	private registerListeners(): void {
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
@@ -142,11 +142,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this._onDidEditorPartOptionsChange.fire({ oldPartOptions, newPartOptions });
 	}
 
-	get partOptions(): INextEditorPartOptions {
+	get partOptions(): IEditorPartOptions {
 		return this._partOptions;
 	}
 
-	enforcePartOptions(options: INextEditorPartOptions): IDisposable {
+	enforcePartOptions(options: IEditorPartOptions): IDisposable {
 		this.enforcedPartOptions.push(options);
 		this.handleChangedPartOptions();
 
@@ -158,13 +158,13 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 	//#endregion
 
-	//#region INextEditorGroupsService
+	//#region IEditorGroupsService
 
-	get activeGroup(): INextEditorGroupView {
+	get activeGroup(): IEditorGroupView {
 		return this._activeGroup;
 	}
 
-	get groups(): INextEditorGroupView[] {
+	get groups(): IEditorGroupView[] {
 		return values(this.groupViews);
 	}
 
@@ -184,7 +184,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this._whenRestored;
 	}
 
-	getGroups(order = GroupsOrder.CREATION_TIME): INextEditorGroupView[] {
+	getGroups(order = GroupsOrder.CREATION_TIME): IEditorGroupView[] {
 		switch (order) {
 			case GroupsOrder.CREATION_TIME:
 				return this.groups;
@@ -197,7 +197,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 				return distinct([...mostRecentActive, ...this.groups]);
 
 			case GroupsOrder.GRID_APPEARANCE:
-				const views: INextEditorGroupView[] = [];
+				const views: IEditorGroupView[] = [];
 				if (this.gridWidget) {
 					this.fillGridNodes(views, this.gridWidget.getViews());
 				}
@@ -206,7 +206,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	private fillGridNodes(target: INextEditorGroupView[], node: GridBranchNode<INextEditorGroupView> | GridNode<INextEditorGroupView>): void {
+	private fillGridNodes(target: IEditorGroupView[], node: GridBranchNode<IEditorGroupView> | GridNode<IEditorGroupView>): void {
 		if (isGridBranchNode(node)) {
 			node.children.forEach(child => this.fillGridNodes(target, child));
 		} else {
@@ -214,11 +214,11 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	getGroup(identifier: GroupIdentifier): INextEditorGroupView {
+	getGroup(identifier: GroupIdentifier): IEditorGroupView {
 		return this.groupViews.get(identifier);
 	}
 
-	findGroup(scope: IFindGroupScope, source: INextEditorGroupView | GroupIdentifier = this.activeGroup): INextEditorGroupView {
+	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup): IEditorGroupView {
 
 		// by direction
 		if (typeof scope.direction === 'number') {
@@ -229,7 +229,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return this.doFindGroupByLocation(scope.location, source);
 	}
 
-	private doFindGroupByDirection(direction: GroupDirection, source: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		const sourceGroupView = this.assertGroupView(source);
 		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		const index = groups.indexOf(sourceGroupView);
@@ -242,7 +242,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return void 0;
 	}
 
-	private doFindGroupByLocation(location: GroupLocation, source: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		const sourceGroupView = this.assertGroupView(source);
 		const groups = this.getGroups(GroupsOrder.CREATION_TIME);
 		const index = groups.indexOf(sourceGroupView);
@@ -259,14 +259,14 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	activateGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	activateGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		this.doSetGroupActive(groupView);
 
 		return groupView;
 	}
 
-	focusGroup(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	focusGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 
 		// Activate and focus group
@@ -276,7 +276,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	resizeGroup(group: INextEditorGroupView | GroupIdentifier, sizeDelta: number): INextEditorGroupView {
+	resizeGroup(group: IEditorGroupView | GroupIdentifier, sizeDelta: number): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		const currentSize = this.gridWidget.getViewSize(groupView);
 
@@ -332,7 +332,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView {
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView {
 		const locationView = this.assertGroupView(location);
 
 		const group = this.doAddGroup(locationView, direction);
@@ -344,7 +344,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return group;
 	}
 
-	private doAddGroup(locationView: INextEditorGroupView, direction: GroupDirection, groupToCopy?: INextEditorGroupView): INextEditorGroupView {
+	private doAddGroup(locationView: IEditorGroupView, direction: GroupDirection, groupToCopy?: IEditorGroupView): IEditorGroupView {
 		const newGroupView = this.doCreateGroupView(groupToCopy);
 
 		// Add to grid widget
@@ -367,19 +367,19 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return newGroupView;
 	}
 
-	private doCreateGroupView(from?: INextEditorGroupView | ISerializedEditorGroup): INextEditorGroupView {
+	private doCreateGroupView(from?: IEditorGroupView | ISerializedEditorGroup): IEditorGroupView {
 
 		// Label: just use the number of existing groups as label
 		const label = this.getGroupLabel(this.count + 1);
 
 		// Create group view
-		let groupView: INextEditorGroupView;
-		if (from instanceof NextEditorGroupView) {
-			groupView = NextEditorGroupView.createCopy(from, this, label, this.instantiationService);
+		let groupView: IEditorGroupView;
+		if (from instanceof EditorGroupView) {
+			groupView = EditorGroupView.createCopy(from, this, label, this.instantiationService);
 		} else if (isSerializedEditorGroup(from)) {
-			groupView = NextEditorGroupView.createFromSerialized(from, this, label, this.instantiationService);
+			groupView = EditorGroupView.createFromSerialized(from, this, label, this.instantiationService);
 		} else {
-			groupView = NextEditorGroupView.createNew(this, label, this.instantiationService);
+			groupView = EditorGroupView.createNew(this, label, this.instantiationService);
 		}
 
 		// Keep in map
@@ -408,7 +408,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return groupView;
 	}
 
-	private doSetGroupActive(group: INextEditorGroupView): void {
+	private doSetGroupActive(group: IEditorGroupView): void {
 		if (this._activeGroup === group) {
 			return; // return if this is already the active group
 		}
@@ -431,7 +431,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this._onDidActiveGroupChange.fire(group);
 	}
 
-	private doUpdateMostRecentActive(group: INextEditorGroupView, makeMostRecentlyActive?: boolean): void {
+	private doUpdateMostRecentActive(group: IEditorGroupView, makeMostRecentlyActive?: boolean): void {
 		const index = this.mostRecentActiveGroups.indexOf(group.id);
 
 		// Remove from MRU list
@@ -454,7 +454,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	removeGroup(group: INextEditorGroupView | GroupIdentifier): void {
+	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
 		const groupView = this.assertGroupView(group);
 		if (this.groupViews.size === 1) {
 			return; // Cannot remove the last root group
@@ -469,10 +469,10 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.doRemoveGroupWithEditors(groupView);
 	}
 
-	private doRemoveGroupWithEditors(groupView: INextEditorGroupView): void {
+	private doRemoveGroupWithEditors(groupView: IEditorGroupView): void {
 		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
 
-		let lastActiveGroup: INextEditorGroupView;
+		let lastActiveGroup: IEditorGroupView;
 		if (this._activeGroup === groupView) {
 			lastActiveGroup = mostRecentlyActiveGroups[1];
 		} else {
@@ -484,7 +484,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.mergeGroup(groupView, lastActiveGroup);
 	}
 
-	private doRemoveEmptyGroup(groupView: INextEditorGroupView): void {
+	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
 		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
 
 		// Activate next group if the removed one was active
@@ -525,7 +525,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return localize('groupLabel', "Group {0}", index);
 	}
 
-	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
+	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(location);
 
@@ -551,7 +551,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return sourceView;
 	}
 
-	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView {
+	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		const locationView = this.assertGroupView(location);
 
@@ -568,7 +568,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return copiedGroupView;
 	}
 
-	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView {
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView {
 		const sourceView = this.assertGroupView(group);
 		const targetView = this.assertGroupView(target);
 
@@ -595,7 +595,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		return targetView;
 	}
 
-	private assertGroupView(group: INextEditorGroupView | GroupIdentifier): INextEditorGroupView {
+	private assertGroupView(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		if (typeof group === 'number') {
 			group = this.getGroup(group);
 		}
@@ -655,7 +655,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		this.doCreateGridControl(this.container);
 
 		// Drop support
-		this._register(this.instantiationService.createInstance(NextEditorDropTarget, this, this.container));
+		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
 
 		return this.container;
 	}
@@ -722,16 +722,16 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		}
 	}
 
-	private doGetPreviousState(): INextEditorPartUIState {
+	private doGetPreviousState(): IEditorPartUIState {
 		const legacyState = this.doGetPreviousLegacyState();
 		if (legacyState) {
 			return legacyState; // TODO@ben remove after a while
 		}
 
-		return this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] as INextEditorPartUIState;
+		return this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] as IEditorPartUIState;
 	}
 
-	private doGetPreviousLegacyState(): INextEditorPartUIState {
+	private doGetPreviousLegacyState(): IEditorPartUIState {
 		const LEGACY_EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.uiState';
 		const LEGACY_STACKS_MODEL_STORAGE_KEY = 'editorStacks.model';
 
@@ -765,7 +765,7 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 		if (legacyUIState && Array.isArray(legacyUIState.groups) && legacyUIState.groups.length > 0) {
 			const splitHorizontally = legacyPartState && legacyPartState.groupOrientation === 'horizontal';
 
-			const legacyState: INextEditorPartUIState = Object.create(null);
+			const legacyState: IEditorPartUIState = Object.create(null);
 
 			const positionOneGroup = legacyUIState.groups[0];
 			const positionTwoGroup = legacyUIState.groups[1];
@@ -878,16 +878,16 @@ export class NextEditorPart extends Part implements INextEditorGroupsService, IN
 
 		// Persist grid UI state
 		if (this.gridWidget) {
-			const uiState: INextEditorPartUIState = {
+			const uiState: IEditorPartUIState = {
 				serializedGrid: this.gridWidget.serialize(),
 				activeGroup: this._activeGroup.id,
 				mostRecentActiveGroups: this.mostRecentActiveGroups
 			};
 
 			if (this.isEmpty()) {
-				delete this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY];
+				delete this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY];
 			} else {
-				this.memento[NextEditorPart.NEXT_EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
+				this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
 			}
 		}
 

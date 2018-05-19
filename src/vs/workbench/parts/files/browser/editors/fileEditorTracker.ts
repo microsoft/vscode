@@ -28,7 +28,7 @@ import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEd
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -265,7 +265,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		return path.indexOf(candidate);
 	}
 
-	private getViewStateFor(resource: URI, group: INextEditorGroup): IEditorViewState | undefined {
+	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
 		const editors = this.editorService.visibleControls;
 
 		for (let i = 0; i < editors.length; i++) {

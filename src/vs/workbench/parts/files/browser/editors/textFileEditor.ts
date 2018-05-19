@@ -30,7 +30,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
@@ -76,7 +76,7 @@ export class TextFileEditor extends BaseTextEditor {
 		return this._input as FileEditorInput;
 	}
 
-	setEditorVisible(visible: boolean, group: INextEditorGroup): void {
+	setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		super.setEditorVisible(visible, group);
 
 		// React to editors closing to preserve view state. This needs to happen

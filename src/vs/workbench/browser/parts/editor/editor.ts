@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { INextEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -22,11 +22,11 @@ export const EDITOR_TITLE_HEIGHT = 35;
 export const EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);
 
-export interface INextEditorPartOptions extends IWorkbenchEditorPartConfiguration {
+export interface IEditorPartOptions extends IWorkbenchEditorPartConfiguration {
 	iconTheme?: string;
 }
 
-export const DEFAULT_EDITOR_PART_OPTIONS: INextEditorPartOptions = {
+export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showTabs: true,
 	tabCloseButton: 'right',
 	tabSizing: 'fit',
@@ -41,8 +41,8 @@ export function impactsEditorPartOptions(event: IConfigurationChangeEvent): bool
 	return event.affectsConfiguration('workbench.editor') || event.affectsConfiguration('workbench.iconTheme');
 }
 
-export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): INextEditorPartOptions {
-	const options: INextEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
+export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): IEditorPartOptions {
+	const options: IEditorPartOptions = assign(Object.create(null), DEFAULT_EDITOR_PART_OPTIONS);
 
 	if (!config || !config.workbench) {
 		return options;
@@ -59,33 +59,33 @@ export function getEditorPartOptions(config: IWorkbenchEditorConfiguration): INe
 	return options;
 }
 
-export interface INextEditorPartOptionsChangeEvent {
-	oldPartOptions: INextEditorPartOptions;
-	newPartOptions: INextEditorPartOptions;
+export interface IEditorPartOptionsChangeEvent {
+	oldPartOptions: IEditorPartOptions;
+	newPartOptions: IEditorPartOptions;
 }
 
-export interface INextEditorGroupsAccessor {
-	readonly groups: INextEditorGroupView[];
-	readonly activeGroup: INextEditorGroupView;
+export interface IEditorGroupsAccessor {
+	readonly groups: IEditorGroupView[];
+	readonly activeGroup: IEditorGroupView;
 
-	readonly partOptions: INextEditorPartOptions;
-	readonly onDidEditorPartOptionsChange: Event<INextEditorPartOptionsChangeEvent>;
+	readonly partOptions: IEditorPartOptions;
+	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
-	getGroup(identifier: GroupIdentifier): INextEditorGroupView;
+	getGroup(identifier: GroupIdentifier): IEditorGroupView;
 
-	activateGroup(identifier: INextEditorGroupView | GroupIdentifier): INextEditorGroupView;
-	focusGroup(identifier: INextEditorGroupView | GroupIdentifier): INextEditorGroupView;
+	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	focusGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
-	addGroup(location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): INextEditorGroupView;
-	mergeGroup(group: INextEditorGroupView | GroupIdentifier, target: INextEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): INextEditorGroupView;
+	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
+	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
 
-	moveGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
-	copyGroup(group: INextEditorGroupView | GroupIdentifier, location: INextEditorGroupView | GroupIdentifier, direction: GroupDirection): INextEditorGroupView;
+	moveGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
+	copyGroup(group: IEditorGroupView | GroupIdentifier, location: IEditorGroupView | GroupIdentifier, direction: GroupDirection): IEditorGroupView;
 
-	removeGroup(group: INextEditorGroupView | GroupIdentifier): void;
+	removeGroup(group: IEditorGroupView | GroupIdentifier): void;
 }
 
-export interface INextEditorGroupView extends IDisposable, ISerializableView, INextEditorGroup {
+export interface IEditorGroupView extends IDisposable, ISerializableView, IEditorGroup {
 	readonly group: EditorGroup;
 	readonly whenRestored: TPromise<void>;
 	readonly disposed: boolean;
@@ -100,7 +100,7 @@ export interface INextEditorGroupView extends IDisposable, ISerializableView, IN
 	shutdown(): void;
 }
 
-export function getActiveTextEditorOptions(group: INextEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
+export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEditor?: IEditorInput, presetOptions?: EditorOptions): EditorOptions {
 	const activeGroupCodeEditor = group.activeControl ? getCodeEditor(group.activeControl.getControl()) : void 0;
 	if (activeGroupCodeEditor) {
 		if (!expectedActiveEditor || expectedActiveEditor.matches(group.activeEditor)) {
