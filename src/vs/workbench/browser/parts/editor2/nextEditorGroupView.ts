@@ -40,8 +40,8 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { RemoveActiveEditorGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
+import { CLOSE_EDITOR_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class NextEditorGroupView extends Themable implements INextEditorGroupView {
 
@@ -219,7 +219,7 @@ export class NextEditorGroupView extends Themable implements INextEditorGroupVie
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(this.instantiationService.createInstance(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, localize('removeGroupAction', "Remove Editor Group")));
+		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('removeGroupAction', "Remove Editor Group"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
 	}

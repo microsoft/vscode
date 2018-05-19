@@ -10,6 +10,7 @@ import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platfor
 import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
 
@@ -18,6 +19,18 @@ export enum GroupDirection {
 	DOWN,
 	LEFT,
 	RIGHT
+}
+
+export function preferredGroupDirection(configurationService: IConfigurationService): GroupDirection {
+	const openSideBySideDirection = configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
+
+	switch (openSideBySideDirection) {
+		case 'left': return GroupDirection.LEFT;
+		case 'right': return GroupDirection.RIGHT;
+		case 'up': return GroupDirection.UP;
+		case 'down': return GroupDirection.DOWN;
+		default: return GroupDirection.RIGHT;
+	}
 }
 
 export enum GroupOrientation {

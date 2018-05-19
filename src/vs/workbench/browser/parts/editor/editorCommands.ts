@@ -20,8 +20,9 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupLocation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
@@ -138,25 +139,25 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 		case 'left':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT);
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT, { activate: true });
 			}
 			break;
 		case 'right':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT);
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT, { activate: true });
 			}
 			break;
 		case 'up':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP);
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP, { activate: true });
 			}
 			break;
 		case 'down':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN);
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN, { activate: true });
 			}
 			break;
 		case 'first':
@@ -271,6 +272,81 @@ function registerOpenEditorAtIndexCommands(): void {
 			case 7: return KeyCode.KEY_7;
 			case 8: return KeyCode.KEY_8;
 			case 9: return KeyCode.KEY_9;
+		}
+
+		return void 0;
+	}
+}
+
+function registerFocusEditorGroupAtIndexCommands(): void {
+
+	// Keybindings to focus a specific group (2-8) in the editor area
+	for (let i = 1; i < 8; i++) {
+		const groupIndex = i;
+
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: toCommandId(groupIndex),
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			when: void 0,
+			primary: KeyMod.CtrlCmd | toKeyCode(groupIndex),
+			handler: accessor => {
+				const editorGroupService = accessor.get(INextEditorGroupsService);
+				const configurationService = accessor.get(IConfigurationService);
+
+				// To keep backwards compatibility (pre-grid), allow to focus a group
+				// that does not exist as long as it is the next group after the last
+				// opened group. Otherwise we return.
+				if (groupIndex > editorGroupService.count) {
+					return;
+				}
+
+				// Group exists: just focus
+				const groups = editorGroupService.getGroups(GroupsOrder.CREATION_TIME);
+				if (groups[groupIndex]) {
+					return groups[groupIndex].focus();
+				}
+
+				// Group does not exist: create new by splitting the active one of the last group
+				const direction = preferredGroupDirection(configurationService);
+				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
+				const newGroup = editorGroupService.addGroup(lastGroup, direction, { activate: true });
+
+				// To keep backwards compatibility (pre-grid) we automatically copy the active editor
+				// of the last group over to the new group as long as it supports to be split.
+				if (lastGroup.activeEditor) {
+					if (lastGroup.activeEditor instanceof EditorInput && !lastGroup.activeEditor.supportsSplitEditor()) {
+						return;
+					}
+
+					lastGroup.copyEditor(lastGroup.activeEditor, newGroup);
+				}
+			}
+		});
+	}
+
+	function toCommandId(index: number): string {
+		switch (index) {
+			case 1: return 'workbench.action.focusSecondEditorGroup';
+			case 2: return 'workbench.action.focusThirdEditorGroup';
+			case 3: return 'workbench.action.focusFourthEditorGroup';
+			case 4: return 'workbench.action.focusFifthEditorGroup';
+			case 5: return 'workbench.action.focusSixthEditorGroup';
+			case 6: return 'workbench.action.focusSeventhEditorGroup';
+			case 7: return 'workbench.action.focusEighthEditorGroup';
+		}
+
+		return void 0;
+	}
+
+	function toKeyCode(index: number): KeyCode {
+		switch (index) {
+			case 1: return KeyCode.KEY_2;
+			case 2: return KeyCode.KEY_3;
+			case 3: return KeyCode.KEY_4;
+			case 4: return KeyCode.KEY_5;
+			case 5: return KeyCode.KEY_6;
+			case 6: return KeyCode.KEY_7;
+			case 7: return KeyCode.KEY_8;
 		}
 
 		return void 0;
@@ -495,4 +571,5 @@ export function setup(): void {
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
 	registerEditorCommands();
+	registerFocusEditorGroupAtIndexCommands();
 }

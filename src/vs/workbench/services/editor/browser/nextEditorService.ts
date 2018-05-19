@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, INextEditorGroup, GroupDirection, GroupsOrder, IEditorReplacement, GroupChangeKind } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -314,16 +314,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private findSideBySideGroup(): INextEditorGroup {
-		const preferredDirection = this.configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
-
-		let direction: GroupDirection;
-		switch (preferredDirection) {
-			case 'left': direction = GroupDirection.LEFT; break;
-			case 'right': direction = GroupDirection.RIGHT; break;
-			case 'up': direction = GroupDirection.UP; break;
-			case 'down': direction = GroupDirection.DOWN; break;
-			default: direction = GroupDirection.RIGHT;
-		}
+		const direction = preferredGroupDirection(this.configurationService);
 
 		let neighbourGroup = this.editorGroupService.findGroup({ direction });
 		if (!neighbourGroup) {

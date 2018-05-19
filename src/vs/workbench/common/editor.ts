@@ -895,15 +895,6 @@ export interface IEditorIdentifier {
 	editor: IEditorInput;
 }
 
-export function groupFromContext(context: GroupIdentifier, editorGroupService: INextEditorGroupsService): INextEditorGroup {
-	let group: INextEditorGroup;
-	if (typeof context === 'number') {
-		group = editorGroupService.getGroup(context);
-	}
-
-	return group || editorGroupService.activeGroup;
-}
-
 /**
  * The editor commands context is used for editor commands (e.g. in the editor title)
  * and we must ensure that the context is serializable because it potentially travels
