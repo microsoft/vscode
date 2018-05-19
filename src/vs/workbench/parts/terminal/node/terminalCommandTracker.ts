@@ -190,7 +190,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 			this._xterm.scrollToTop();
 			return;
 		} else if (this._currentMarker === Boundary.Bottom) {
-			this._currentMarker = this._xterm.addMarker(this._getOffset()-1);
+			this._currentMarker = this._xterm.addMarker(this._getOffset() - 1);
 			this._isDisposable = true;
 			this._scrollToMarker(this._currentMarker, scrollPosition);
 			return;
@@ -212,7 +212,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		}
 
 		if (this._currentMarker === Boundary.Top) {
-			this._currentMarker = this._xterm.addMarker(this._getOffset()+1);
+			this._currentMarker = this._xterm.addMarker(this._getOffset() + 1);
 			this._isDisposable = true;
 			this._scrollToMarker(this._currentMarker, scrollPosition);
 			return;
