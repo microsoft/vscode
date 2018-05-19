@@ -4,19 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { domEvent } from 'vs/base/browser/event';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Position } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
 
@@ -30,6 +32,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
+	private _onFocusWindowHandler?: IDisposable;
 
 	private readonly _onDidFocusWebview = new Emitter<void>();
 
@@ -40,6 +43,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -71,6 +75,20 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.layout(dimension);
 	}
 
+	public focus() {
+		super.focus();
+		if (this._onFocusWindowHandler) {
+			return;
+		}
+
+		// Make sure we restore focus when switching back to a VS Code window
+		this._onFocusWindowHandler = domEvent(window, 'focus')(() => {
+			if (this._editorService.getActiveEditor() === this) {
+				this.focus();
+			}
+		});
+	}
+
 	public dispose(): void {
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
@@ -84,6 +102,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 		if (this._webviewFocusListenerDisposable) {
 			this._webviewFocusListenerDisposable.dispose();
+		}
+
+		if (this._onFocusWindowHandler) {
+			this._onFocusWindowHandler.dispose();
 		}
 
 		super.dispose();
