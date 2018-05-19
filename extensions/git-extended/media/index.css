@@ -6,7 +6,7 @@
 .title {
 	display: flex;
 	align-items: flex-start;
-	margin-top: 10px;
+	margin: 20px 0;
 }
 
 h3 {
@@ -23,12 +23,12 @@ body hr {
 
 }
 body .review-comment {
-	padding: 20px;
+	padding: 10px;
 	display: flex;
 }
 
 body .review-comment .avatar-container {
-	margin-top: 4px !important;
+	padding: 4px;
 }
 
 body img.avatar {
@@ -47,6 +47,21 @@ body img.avatar {
 
 body .review-comment .review-comment-contents {
 	margin-left: 20px;
+	width: 100%;
+	border: 2px solid var(--vscode-activityBar-background);
+}
+
+body .review-comment .review-comment-header {
+	display: flex;
+	align-items: center;
+	width: 100%;
+	padding: 4px;
+	box-sizing: border-box;
+	background-color: var(--vscode-activityBar-background);
+}
+
+body .review-comment .review-comment-contents .comment-body {
+	padding: 10px;
 }
 
 body {
@@ -96,6 +111,16 @@ body {
 	color: white;
 	padding: 4px 8px;
 	margin-right: 5px;
+}
+
+.commit, .review {
+	display: flex;
+	padding: 14px 4px 14px 10px;
+	background-color: var(--vscode-activityBar-background);
+}
+
+.timestamp {
+	margin-left: auto;
 }
 
 .details {

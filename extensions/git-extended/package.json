@@ -140,6 +140,7 @@
     "markdown-it": "^8.4.0",
     "git-credential-node": "^1.1.0",
     "lodash": "4.17.5",
-    "tmp": "^0.0.31"
+    "tmp": "^0.0.31",
+    "moment": "^2.22.1"
   }
 }

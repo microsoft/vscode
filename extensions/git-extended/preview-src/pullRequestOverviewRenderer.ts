@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as moment from 'moment';
+
 export enum EventType {
 	Committed,
 	Mentioned,
@@ -138,19 +140,20 @@ export interface CommitEvent {
 
 export type TimelineEvent = CommitEvent | ReviewEvent | SubscribeEvent | CommentEvent | MentionEvent;
 
-export function renderComment(user: any, body: string): string {
-	return `<hr><div class="comment-container">
+export function renderComment(comment: CommentEvent): string {
+	return `<div class="comment-container">
 
 	<div class="review-comment" tabindex="0" role="treeitem">
-		<div class="avatar-container">
-			<img class="avatar" src="${user.avatar_url}">
-		</div>
 		<div class="review-comment-contents">
-			<div>
-				<strong class="author"><a href="${user.html_url}">${user.login}</a></strong>
+			<div class="review-comment-header">
+				<div class="avatar-container">
+					<img class="avatar" src="${comment.user.avatar_url}">
+				</div>
+				<strong class="author"><a href="${comment.user.html_url}">${comment.user.login}</a></strong>
+				<div class="timestamp">${moment(comment.created_at).fromNow()}</div>
 			</div>
 			<div class="comment-body">
-				${body}
+				${comment.body}
 			</div>
 		</div>
 	</div>
@@ -158,11 +161,11 @@ export function renderComment(user: any, body: string): string {
 }
 
 export function renderCommit(timelineEvent: CommitEvent): string {
-	return `<hr><div class="comment-container">
+	return `<div class="comment-container">
 
 	<div class="review-comment" tabindex="0" role="treeitem">
 		<div class="review-comment-contents">
-			<div>
+			<div class="commit">
 				<strong>${timelineEvent.author.name} commit: <a href="${timelineEvent.html_url}">${timelineEvent.message} (${timelineEvent.sha})</a></strong>
 			</div>
 		</div>
@@ -171,12 +174,13 @@ export function renderCommit(timelineEvent: CommitEvent): string {
 }
 
 export function renderReview(timelineEvent: ReviewEvent): string {
-	return `<hr><div class="comment-container">
+	return `<div class="comment-container">
 
 	<div class="review-comment" tabindex="0" role="treeitem">
 		<div class="review-comment-contents">
-			<div>
-				<strong><a href="${timelineEvent.html_url}">${timelineEvent.user.login} left a review.</a></strong><span></span>
+			<div class="review">
+				<strong><a href="${timelineEvent.html_url}">${timelineEvent.user.login} left a review </a></strong><span></span>
+				<div class="timestamp">${moment(timelineEvent.submitted_at).fromNow()}</div>
 			</div>
 		</div>
 	</div>
@@ -188,7 +192,7 @@ export function renderTimelineEvent(timelineEvent: TimelineEvent): string {
 		case EventType.Committed:
 			return renderCommit((<CommitEvent>timelineEvent));
 		case EventType.Commented:
-			return renderComment((<CommentEvent>timelineEvent).user, (<CommentEvent>timelineEvent).body);
+			return renderComment((<CommentEvent>timelineEvent));
 		case EventType.Reviewed:
 			return renderReview((<ReviewEvent>timelineEvent));
 	}
