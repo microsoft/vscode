@@ -23,7 +23,7 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseOneEditorAction, SplitEditorGroupVerticalAction, SplitEditorGroupHorizontalAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { CloseOneEditorAction, SplitEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -61,8 +61,7 @@ export abstract class TitleControl extends Themable {
 	private resourceContext: ResourceContextKey;
 	private disposeOnEditorActions: IDisposable[] = [];
 
-	private splitEditorGroupVerticalAction: SplitEditorGroupVerticalAction;
-	private splitEditorGroupHorizontalAction: SplitEditorGroupHorizontalAction;
+	private splitEditorAction: SplitEditorAction;
 
 	private contextMenu: IMenu;
 
@@ -87,8 +86,7 @@ export abstract class TitleControl extends Themable {
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
 
 		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
-		this.splitEditorGroupHorizontalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL));
-		this.splitEditorGroupVerticalAction = this._register(this.instantiationService.createInstance(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL));
+		this.splitEditorAction = this._register(this.instantiationService.createInstance(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL));
 
 		this.create(parent);
 		this.registerListeners();
@@ -192,9 +190,7 @@ export abstract class TitleControl extends Themable {
 		// Primary actions only for the active group
 		if (isGroupActive) {
 			primaryEditorActions = prepareActions(editorActions.primary);
-
-			primaryEditorActions.push(this.splitEditorGroupHorizontalAction);
-			primaryEditorActions.push(this.splitEditorGroupVerticalAction);
+			primaryEditorActions.push(this.splitEditorAction);
 		}
 
 		secondaryEditorActions = prepareActions(editorActions.secondary);

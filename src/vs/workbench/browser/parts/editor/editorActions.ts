@@ -23,6 +23,7 @@ import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE
 import { INextEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 export class BaseSplitEditorGroupAction extends Action {
 
@@ -30,7 +31,7 @@ export class BaseSplitEditorGroupAction extends Action {
 		id: string,
 		label: string,
 		clazz: string,
-		private direction: GroupDirection,
+		protected direction: GroupDirection,
 		private editorGroupService: INextEditorGroupsService
 	) {
 		super(id, label, clazz);
@@ -65,13 +66,55 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 	public static readonly ID = 'workbench.action.splitEditor';
 	public static readonly LABEL = nls.localize('splitEditor', "Split Editor");
 
+	private toDispose: IDisposable[] = [];
+
 	constructor(
 		id: string,
 		label: string,
 		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label, null, preferredGroupDirection(configurationService), editorGroupService);
+
+		this.updateAction();
+
+		this.registerListeners();
+	}
+
+	private updateAction(): void {
+		switch (this.direction) {
+			case GroupDirection.LEFT:
+				this.label = SplitEditorGroupLeftAction.LABEL;
+				this.class = 'split-editor-horizontal-action';
+				break;
+			case GroupDirection.RIGHT:
+				this.label = SplitEditorGroupRightAction.LABEL;
+				this.class = 'split-editor-horizontal-action';
+				break;
+			case GroupDirection.UP:
+				this.label = SplitEditorGroupUpAction.LABEL;
+				this.class = 'split-editor-vertical-action';
+				break;
+			case GroupDirection.DOWN:
+				this.label = SplitEditorGroupDownAction.LABEL;
+				this.class = 'split-editor-vertical-action';
+				break;
+		}
+	}
+
+	private registerListeners(): void {
+		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
+				this.direction = preferredGroupDirection(this.configurationService);
+				this.updateAction();
+			}
+		}));
+	}
+
+	public dispose(): void {
+		super.dispose();
+
+		this.toDispose = dispose(this.toDispose);
 	}
 }
 
