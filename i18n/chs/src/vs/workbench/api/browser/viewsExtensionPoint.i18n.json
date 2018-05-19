@@ -13,9 +13,12 @@
 	"vscode.extension.contributes.view.name": "人类可读的视图名称。将会被显示",
 	"vscode.extension.contributes.view.when": "显示此视图必须为真的条件",
 	"vscode.extension.contributes.views": "向编辑器提供视图",
-	"views.explorer": "资源管理器视图",
-	"views.debug": "调试视图",
-	"locationId.invalid": "“{0}”为无效视图位置",
+	"views.explorer": "向活动栏中的“资源管理器”容器提供视图",
+	"views.debug": "向活动栏中的“调试”容器提供视图",
+	"views.scm": "向活动栏中的“源代码管理”容器提供视图",
+	"views.test": "向活动栏中的“测试”容器提供视图",
+	"views.contributed": "在扩展提供的视图容器中提供视图。",
+	"ViewContainerDoesnotExist": "视图容器“{0}”不存在。所有注册到其中的视图将被添加到“资源管理器”中。",
 	"duplicateView1": "无法在位置“{1}”注册多个 ID 同为“{0}”的视图。",
 	"duplicateView2": "ID 为“{0}”的视图在位置“{1}”已被注册"
 }

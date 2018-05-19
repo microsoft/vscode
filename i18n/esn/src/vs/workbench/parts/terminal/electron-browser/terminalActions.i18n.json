@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "Seleccione el directorio de trabajo actual para el nuevo terminal",
 	"workbench.action.terminal.newInActiveWorkspace": "Crear nuevo terminal integrado (en el espacio de trabajo activo)",
 	"workbench.action.terminal.split": "Dividir terminal",
+	"workbench.action.terminal.splitInActiveWorkspace": "Dividir Terminal (En el espacio de trabajo activo)",
 	"workbench.action.terminal.focusPreviousPane": "Aplicar el foco al panel anterior",
 	"workbench.action.terminal.focusNextPane": "Aplicar el foco al panel siguiente",
 	"workbench.action.terminal.resizePaneLeft": "Cambiar el tamaño del panel por la izquierda",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "Desplazar hacia arriba (página)",
 	"workbench.action.terminal.scrollToTop": "Desplazar al principio",
 	"workbench.action.terminal.clear": "Borrar",
+	"workbench.action.terminal.clearSelection": "Borrar selección",
 	"workbench.action.terminal.allowWorkspaceShell": "Permitir la configuración del área de trabajo Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell",
 	"workbench.action.terminal.rename": "Cambiar nombre",
@@ -51,5 +53,9 @@
 	"workbench.action.terminal.hideFindWidget": "Ocultar Encontrar Widget",
 	"nextTerminalFindTerm": "Mostrar siguiente término de búsqueda",
 	"previousTerminalFindTerm": "Mostrar término de búsqueda anterior",
-	"quickOpenTerm": "Cambiar terminal activo"
+	"quickOpenTerm": "Cambiar terminal activo",
+	"workbench.action.terminal.scrollToPreviousCommand": "Desplácese al comando anterior",
+	"workbench.action.terminal.scrollToNextCommand": "Desplácese al siguiente comando",
+	"workbench.action.terminal.selectToPreviousCommand": "Seleccionar hasta el comando anterior",
+	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente"
 }

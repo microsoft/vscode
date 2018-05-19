@@ -93,7 +93,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Unless the user triggerd the context menu through Shift+F10, use the mouse position as menu position
-		var forcedPosition: IPosition;
+		let forcedPosition: IPosition;
 		if (e.target.type !== MouseTargetType.TEXTAREA) {
 			forcedPosition = { x: e.event.posx, y: e.event.posy + 1 };
 		}
@@ -113,7 +113,7 @@ export class ContextMenuController implements IEditorContribution {
 		}
 
 		// Find actions available for menu
-		var menuActions = this._getMenuActions();
+		const menuActions = this._getMenuActions();
 
 		// Show menu if we have actions to show
 		if (menuActions.length > 0) {
@@ -140,23 +140,23 @@ export class ContextMenuController implements IEditorContribution {
 	private _doShowContextMenu(actions: IAction[], forcedPosition: IPosition = null): void {
 
 		// Disable hover
-		var oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
+		const oldHoverSetting = this._editor.getConfiguration().contribInfo.hover;
 		this._editor.updateOptions({
 			hover: false
 		});
 
-		var menuPosition = forcedPosition;
+		let menuPosition = forcedPosition;
 		if (!menuPosition) {
 			// Ensure selection is visible
 			this._editor.revealPosition(this._editor.getPosition(), ScrollType.Immediate);
 
 			this._editor.render();
-			var cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
+			const cursorCoords = this._editor.getScrolledVisiblePosition(this._editor.getPosition());
 
 			// Translate to absolute editor position
-			var editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
-			var posx = editorCoords.left + cursorCoords.left;
-			var posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
+			const editorCoords = dom.getDomNodePagePosition(this._editor.getDomNode());
+			const posx = editorCoords.left + cursorCoords.left;
+			const posy = editorCoords.top + cursorCoords.top + cursorCoords.height;
 
 			menuPosition = { x: posx, y: posy };
 		}
@@ -171,12 +171,12 @@ export class ContextMenuController implements IEditorContribution {
 			},
 
 			getActionItem: (action) => {
-				var keybinding = this._keybindingFor(action);
+				const keybinding = this._keybindingFor(action);
 				if (keybinding) {
 					return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 				}
 
-				var customActionItem = <any>action;
+				const customActionItem = <any>action;
 				if (typeof customActionItem.getActionItem === 'function') {
 					return customActionItem.getActionItem();
 				}

@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as paths from 'vs/base/common/paths';
+import { Schemas } from 'vs/base/common/network';
+import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
@@ -11,16 +14,21 @@ import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto
 } from 'vs/workbench/api/node/extHost.protocol';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import * as vscode from 'vscode';
-import URI, { UriComponents } from 'vs/base/common/uri';
 import { Disposable, Position, Location, SourceBreakpoint, FunctionBreakpoint } from 'vs/workbench/api/node/extHostTypes';
 import { generateUuid } from 'vs/base/common/uuid';
-import { DebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
-import * as paths from 'vs/base/common/paths';
+import { DebugAdapter, StreamDebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
-import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution } from 'vs/workbench/parts/debug/common/debug';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
 import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
+import { IStringDictionary } from 'vs/base/common/collections';
+import { ExtHostConfiguration } from './extHostConfiguration';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -54,10 +62,17 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private readonly _onDidChangeBreakpoints: Emitter<vscode.BreakpointsChangeEvent>;
 
-	private _debugAdapters: Map<number, DebugAdapter>;
+	private _debugAdapters: Map<number, IDebugAdapter>;
+
+	private _variableResolver: IConfigurationResolverService;
 
 
-	constructor(mainContext: IMainContext, private _workspace: ExtHostWorkspace, private _extensionService: ExtHostExtensionService) {
+	constructor(mainContext: IMainContext,
+		private _workspace: ExtHostWorkspace,
+		private _extensionService: ExtHostExtensionService,
+		private _editorsService: ExtHostDocumentsAndEditors,
+		private _configurationService: ExtHostConfiguration
+	) {
 
 		this._handleCounter = 0;
 		this._handlers = new Map<number, vscode.DebugConfigurationProvider>();
@@ -110,22 +125,49 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return void 0;
 	}
 
-	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null): TPromise<void> {
+	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): TPromise<IConfig> {
+		if (!this._variableResolver) {
+			this._variableResolver = new ExtHostVariableResolverService(this._workspace, this._editorsService, this._configurationService);
+		}
+		const folder = <IWorkspaceFolder>this.getFolder(folderUri);
+		return asWinJsPromise(token => DebugAdapter.substituteVariables(folder, config, this._variableResolver));
+	}
+
+	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
 		const mythis = this;
 
-		const da = new class extends DebugAdapter {
+		let da: StreamDebugAdapter = null;
 
-			// DA -> VS Code
-			public acceptMessage(message: DebugProtocol.ProtocolMessage) {
-				convertToVSCPaths(message, source => {
-					if (paths.isAbsolute(source.path)) {
-						(<any>source).path = URI.file(source.path);
-					}
-				});
-				mythis._debugServiceProxy.$acceptDAMessage(handle, message);
-			}
+		if (debugPort > 0) {
+			da = new class extends SocketDebugAdapter {
 
-		}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+				// DA -> VS Code
+				public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+					convertToVSCPaths(message, source => {
+						if (paths.isAbsolute(source.path)) {
+							(<any>source).path = URI.file(source.path);
+						}
+					});
+					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+				}
+
+			}(debugPort);
+
+		} else {
+			da = new class extends DebugAdapter {
+
+				// DA -> VS Code
+				public acceptMessage(message: DebugProtocol.ProtocolMessage) {
+					convertToVSCPaths(message, source => {
+						if (paths.isAbsolute(source.path)) {
+							(<any>source).path = URI.file(source.path);
+						}
+					});
+					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
+				}
+
+			}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+		}
 
 		this._debugAdapters.set(handle, da);
 		da.onError(err => this._debugServiceProxy.$acceptDAError(handle, err.name, err.message, err.stack));
@@ -501,5 +543,72 @@ export class ExtHostDebugConsole implements vscode.DebugConsole {
 
 	appendLine(value: string): void {
 		this.append(value + '\n');
+	}
+}
+
+export class ExtHostVariableResolverService implements IConfigurationResolverService {
+
+	_serviceBrand: any;
+	_variableResolver: VariableResolver;
+
+	constructor(workspace: ExtHostWorkspace, editors: ExtHostDocumentsAndEditors, configuration: ExtHostConfiguration) {
+		this._variableResolver = new VariableResolver({
+			getFolderUri: (folderName: string): URI => {
+				const folders = workspace.getWorkspaceFolders();
+				const found = folders.filter(f => f.name === folderName);
+				if (found && found.length > 0) {
+					return found[0].uri;
+				}
+				return undefined;
+			},
+			getWorkspaceFolderCount: (): number => {
+				return workspace.getWorkspaceFolders().length;
+			},
+			getConfigurationValue: (folderUri: URI, section: string) => {
+				return configuration.getConfiguration(undefined, folderUri).get<string>(section);
+			},
+			getExecPath: (): string | undefined => {
+				return undefined;	// does not exist in EH
+			},
+			getFilePath: (): string | undefined => {
+				const activeEditor = editors.activeEditor();
+				if (activeEditor) {
+					const resource = activeEditor.document.uri;
+					if (resource.scheme === Schemas.file) {
+						return paths.normalize(resource.fsPath, true);
+					}
+				}
+				return undefined;
+			},
+			getSelectedText: (): string | undefined => {
+				const activeEditor = editors.activeEditor();
+				if (activeEditor && !activeEditor.selection.isEmpty) {
+					return activeEditor.document.getText(activeEditor.selection);
+				}
+				return undefined;
+			},
+			getLineNumber: (): string => {
+				const activeEditor = editors.activeEditor();
+				if (activeEditor) {
+					return String(activeEditor.selection.end.line + 1);
+				}
+				return undefined;
+			}
+		}, process.env);
+	}
+
+	public resolve(root: IWorkspaceFolder, value: string): string;
+	public resolve(root: IWorkspaceFolder, value: string[]): string[];
+	public resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
+	public resolve(root: IWorkspaceFolder, value: any): any {
+		return this._variableResolver.resolveAny(root ? root.uri : undefined, value);
+	}
+
+	public resolveAny<T>(root: IWorkspaceFolder, value: T, commandMapping?: IStringDictionary<string>): T {
+		return this._variableResolver.resolveAny(root ? root.uri : undefined, value, commandMapping);
+	}
+
+	public executeCommandVariables(configuration: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
+		throw new Error('findAndExecuteCommandVariables not implemented.');
 	}
 }

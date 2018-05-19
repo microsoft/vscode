@@ -18,7 +18,6 @@ import { unmnemonicLabel } from 'vs/base/common/labels';
 import { Event, Emitter } from 'vs/base/common/event';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IContextMenuDelegate, ContextSubMenu, IEvent } from 'vs/base/browser/contextmenu';
-import { once } from 'vs/base/common/functional';
 
 export class ContextMenuService implements IContextMenuService {
 
@@ -43,15 +42,7 @@ export class ContextMenuService implements IContextMenuService {
 			}
 
 			return TPromise.timeout(0).then(() => { // https://github.com/Microsoft/vscode/issues/3638
-				const onHide = once(() => {
-					if (delegate.onHide) {
-						delegate.onHide(undefined);
-					}
-
-					this._onDidContextMenu.fire();
-				});
-
-				const menu = this.createMenu(delegate, actions, onHide);
+				const menu = this.createMenu(delegate, actions);
 				const anchor = delegate.getAnchor();
 				let x: number, y: number;
 
@@ -70,18 +61,16 @@ export class ContextMenuService implements IContextMenuService {
 				x *= zoom;
 				y *= zoom;
 
-				menu.popup({
-					window: remote.getCurrentWindow(),
-					x: Math.floor(x),
-					y: Math.floor(y),
-					positioningItem: delegate.autoSelectFirstItem ? 0 : void 0,
-					callback: () => onHide()
-				});
+				menu.popup(remote.getCurrentWindow(), { x: Math.floor(x), y: Math.floor(y), positioningItem: delegate.autoSelectFirstItem ? 0 : void 0 });
+				this._onDidContextMenu.fire();
+				if (delegate.onHide) {
+					delegate.onHide(undefined);
+				}
 			});
 		});
 	}
 
-	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[], onHide: () => void): Electron.Menu {
+	private createMenu(delegate: IContextMenuDelegate, entries: (IAction | ContextSubMenu)[]): Electron.Menu {
 		const menu = new remote.Menu();
 		const actionRunner = delegate.actionRunner || new ActionRunner();
 
@@ -90,7 +79,7 @@ export class ContextMenuService implements IContextMenuService {
 				menu.append(new remote.MenuItem({ type: 'separator' }));
 			} else if (e instanceof ContextSubMenu) {
 				const submenu = new remote.MenuItem({
-					submenu: this.createMenu(delegate, e.entries, onHide),
+					submenu: this.createMenu(delegate, e.entries),
 					label: unmnemonicLabel(e.label)
 				});
 
@@ -102,13 +91,6 @@ export class ContextMenuService implements IContextMenuService {
 					type: !!e.checked ? 'checkbox' : !!e.radio ? 'radio' : void 0,
 					enabled: !!e.enabled,
 					click: (menuItem, win, event) => {
-
-						// To preserve pre-electron-2.x behaviour, we first trigger
-						// the onHide callback and then the action.
-						// Fixes https://github.com/Microsoft/vscode/issues/45601
-						onHide();
-
-						// Run action which will close the menu
 						this.runAction(actionRunner, e, delegate, event);
 					}
 				};

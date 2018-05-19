@@ -5,6 +5,8 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
+const WIDGET_HEIGHT = 29;
+
 export class TerminalWidgetManager {
 	private _container: HTMLElement;
 	private _xtermViewport: HTMLElement;
@@ -77,7 +79,7 @@ class MessageWidget {
 		this._domNode = document.createElement('div');
 		this._domNode.style.position = 'absolute';
 		this._domNode.style.left = `${_left}px`;
-		this._domNode.style.bottom = `${_container.offsetHeight - _top}px`;
+		this._domNode.style.bottom = `${_container.offsetHeight - Math.max(_top, WIDGET_HEIGHT)}px`;
 		this._domNode.classList.add('terminal-message-widget', 'fadeIn');
 		this._domNode.textContent = _text;
 		this._container.appendChild(this._domNode);

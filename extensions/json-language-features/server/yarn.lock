@@ -72,9 +72,9 @@ request-light@^0.2.2:
     https-proxy-agent "2.1.1"
     vscode-nls "^2.0.2"
 
-vscode-json-languageservice@^3.1.2-next.1:
-  version "3.1.2-next.1"
-  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.2-next.1.tgz#8acee581c664e2af72ade2f08252aeae9b5918ca"
+vscode-json-languageservice@^3.1.2-next.2:
+  version "3.1.2-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-json-languageservice/-/vscode-json-languageservice-3.1.2-next.2.tgz#da5346e5c22edbce739f29c110eb41732d41dc2d"
   dependencies:
     jsonc-parser "^2.0.0"
     vscode-languageserver-types "^3.6.1"
@@ -85,9 +85,9 @@ vscode-jsonrpc@^3.6.0:
   version "3.6.0"
   resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0.tgz#848d56995d5168950d84feb5d9c237ae5c6a02d4"
 
-vscode-languageserver-protocol-foldingprovider@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-1.0.1.tgz#85514aaf8fe905e91bf21e4106e0847f60d40f44"
+vscode-languageserver-protocol-foldingprovider@^2.0.0-next.2:
+  version "2.0.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.0-next.2.tgz#fbb9cfdf5b8c4ac451826ba6312f1f88379f35b0"
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
     vscode-languageserver-types "^3.6.0"

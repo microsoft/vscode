@@ -8,6 +8,8 @@
 	],
 	"strict.title": "嚴謹",
 	"strict.description": "僅載入安全內容",
+	"insecureLocalContent.title": "允許不安全的本機內容",
+	"insecureLocalContent.description": "啟用從本機提供 http 載入內容",
 	"insecureContent.title": "允許不安全的內容",
 	"insecureContent.description": "啟用 http 載入內容",
 	"disable.title": "停用",

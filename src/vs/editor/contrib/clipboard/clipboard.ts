@@ -42,7 +42,7 @@ abstract class ExecCommandAction extends EditorAction {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			focusedEditor.trigger('keyboard', this.id, args);
 			return;
 		}

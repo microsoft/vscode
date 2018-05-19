@@ -12,7 +12,7 @@ import * as errors from 'vs/base/common/errors';
 import { assign } from 'vs/base/common/objects';
 import { toDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { flatten, distinct } from 'vs/base/common/arrays';
-import { extract, buffer } from 'vs/base/node/zip';
+import { extract, buffer, ExtractError } from 'vs/base/node/zip';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension,
@@ -20,7 +20,8 @@ import {
 	InstallExtensionEvent, DidInstallExtensionEvent, DidUninstallExtensionEvent, LocalExtensionType,
 	StatisticType,
 	IExtensionIdentifier,
-	IReportedExtension
+	IReportedExtension,
+	DownloadOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, adoptToGalleryExtensionId, areSameExtensions, getGalleryExtensionId, groupByExtension, getMaliciousExtensionsSet, getLocalExtensionId, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { localizeManifest } from '../common/extensionNls';
@@ -38,6 +39,7 @@ import Severity from 'vs/base/common/severity';
 import { ExtensionsLifecycle } from 'vs/platform/extensionManagement/node/extensionLifecycle';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { isEngineValid } from 'vs/platform/extensions/node/extensionValidator';
 
 const SystemExtensionsRoot = path.normalize(path.join(URI.parse(require.toUrl('')).fsPath, '..', 'extensions'));
 const ERROR_SCANNING_SYS_EXTENSIONS = 'scanningSystem';
@@ -149,6 +151,9 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return validateLocalExtension(zipPath)
 			.then(manifest => {
 				const identifier = { id: getLocalExtensionIdFromManifest(manifest) };
+				if (manifest.engines && manifest.engines.vscode && !isEngineValid(manifest.engines.vscode)) {
+					return TPromise.wrapError<ILocalExtension>(new Error(nls.localize('incompatible', "Unable to install Extension '{0}' as it is not compatible with Code '{1}'.", identifier.id, pkg.version)));
+				}
 				return this.removeIfExists(identifier.id)
 					.then(
 						() => this.checkOutdated(manifest)
@@ -207,7 +212,11 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			.then(local => {
 				if (this.galleryService.isEnabled() && local.manifest.extensionDependencies && local.manifest.extensionDependencies.length) {
 					return this.getDependenciesToInstall(local.manifest.extensionDependencies)
-						.then(dependenciesToInstall => this.downloadAndInstallExtensions(metadata ? dependenciesToInstall.filter(d => d.identifier.uuid !== metadata.id) : dependenciesToInstall))
+						.then(dependenciesToInstall => {
+							dependenciesToInstall = metadata ? dependenciesToInstall.filter(d => d.identifier.uuid !== metadata.id) : dependenciesToInstall;
+							return this.getInstalled()
+								.then(installed => this.downloadAndInstallExtensions(dependenciesToInstall, dependenciesToInstall.map(d => this.getOperation(d, installed))));
+						})
 						.then(() => local, error => {
 							this.setUninstalled(local);
 							return TPromise.wrapError(new Error(nls.localize('errorInstallingDependencies', "Error while installing dependencies. {0}", error instanceof Error ? error.message : error)));
@@ -223,19 +232,21 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	installFromGallery(extension: IGalleryExtension): TPromise<ILocalExtension> {
 		this.onInstallExtensions([extension]);
-		return this.collectExtensionsToInstall(extension)
-			.then(
-				extensionsToInstall => {
-					if (extensionsToInstall.length > 1) {
-						this.onInstallExtensions(extensionsToInstall.slice(1));
-					}
-					return this.downloadAndInstallExtensions(extensionsToInstall)
-						.then(
-							locals => this.onDidInstallExtensions(extensionsToInstall, locals, [])
-								.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
-							errors => this.onDidInstallExtensions(extensionsToInstall, [], errors));
-				},
-				error => this.onDidInstallExtensions([extension], [], [error]));
+		return this.getInstalled(LocalExtensionType.User)
+			.then(installed => this.collectExtensionsToInstall(extension)
+				.then(
+					extensionsToInstall => {
+						if (extensionsToInstall.length > 1) {
+							this.onInstallExtensions(extensionsToInstall.slice(1));
+						}
+						const operataions: DownloadOperation[] = extensionsToInstall.map(e => this.getOperation(e, installed));
+						return this.downloadAndInstallExtensions(extensionsToInstall, operataions)
+							.then(
+								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operataions, [])
+									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
+								errors => this.onDidInstallExtensions(extensionsToInstall, [], operataions, errors));
+					},
+					error => this.onDidInstallExtensions([extension], [], [this.getOperation(extension, installed)], [error])));
 	}
 
 	reinstallFromGallery(extension: ILocalExtension): TPromise<ILocalExtension> {
@@ -255,6 +266,10 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			});
 	}
 
+	private getOperation(extensionToInstall: IGalleryExtension, installed: ILocalExtension[]): DownloadOperation {
+		return installed.some(i => areSameExtensions({ id: getGalleryExtensionIdFromLocal(i), uuid: i.identifier.uuid }, extensionToInstall.identifier)) ? DownloadOperation.Update : DownloadOperation.Install;
+	}
+
 	private collectExtensionsToInstall(extension: IGalleryExtension): TPromise<IGalleryExtension[]> {
 		return this.galleryService.loadCompatibleVersion(extension)
 			.then(compatible => {
@@ -269,12 +284,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				error => TPromise.wrapError<IGalleryExtension[]>(new ExtensionManagementError(this.joinErrors(error).message, INSTALL_ERROR_GALLERY)));
 	}
 
-	private downloadAndInstallExtensions(extensions: IGalleryExtension[]): TPromise<ILocalExtension[]> {
-		return TPromise.join(extensions.map(extensionToInstall => this.downloadAndInstallExtension(extensionToInstall)))
+	private downloadAndInstallExtensions(extensions: IGalleryExtension[], operations: DownloadOperation[]): TPromise<ILocalExtension[]> {
+		return TPromise.join(extensions.map((extensionToInstall, index) => this.downloadAndInstallExtension(extensionToInstall, operations[index])))
 			.then(null, errors => this.rollback(extensions).then(() => TPromise.wrapError(errors), () => TPromise.wrapError(errors)));
 	}
 
-	private downloadAndInstallExtension(extension: IGalleryExtension): TPromise<ILocalExtension> {
+	private downloadAndInstallExtension(extension: IGalleryExtension, operation: DownloadOperation): TPromise<ILocalExtension> {
 		let installingExtension = this.installingExtensions.get(extension.identifier.id);
 		if (!installingExtension) {
 			installingExtension = this.getExtensionsReport()
@@ -285,7 +300,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						return extension;
 					}
 				})
-				.then(extension => this.downloadInstallableExtension(extension))
+				.then(extension => this.downloadInstallableExtension(extension, operation))
 				.then(installableExtension => this.installExtension(installableExtension))
 				.then(
 					local => { this.installingExtensions.delete(extension.identifier.id); return local; },
@@ -297,7 +312,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		return installingExtension;
 	}
 
-	private downloadInstallableExtension(extension: IGalleryExtension): TPromise<InstallableExtension> {
+	private downloadInstallableExtension(extension: IGalleryExtension, operation: DownloadOperation): TPromise<InstallableExtension> {
 		const metadata = <IGalleryMetadata>{
 			id: extension.identifier.uuid,
 			publisherId: extension.publisherId,
@@ -309,7 +324,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				compatible => {
 					if (compatible) {
 						this.logService.trace('Started downloading extension:', extension.name);
-						return this.galleryService.download(extension)
+						return this.galleryService.download(extension, operation)
 							.then(
 								zipPath => {
 									this.logService.info('Downloaded extension:', extension.name);
@@ -336,7 +351,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		}
 	}
 
-	private onDidInstallExtensions(extensions: IGalleryExtension[], locals: ILocalExtension[], errors: Error[]): TPromise<any> {
+	private onDidInstallExtensions(extensions: IGalleryExtension[], locals: ILocalExtension[], operations: DownloadOperation[], errors: Error[]): TPromise<any> {
 		extensions.forEach((gallery, index) => {
 			const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version), uuid: gallery.identifier.uuid };
 			const local = locals[index];
@@ -350,7 +365,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				this._onDidInstallExtension.fire({ identifier, gallery, error: errorCode });
 			}
 			const startTime = this.installationStartTime.get(gallery.identifier.id);
-			this.reportTelemetry('extensionGallery:install', getGalleryExtensionTelemetryData(gallery), startTime ? new Date().getTime() - startTime : void 0, error);
+			this.reportTelemetry(operations[index] === DownloadOperation.Update ? 'extensionGallery:update' : 'extensionGallery:install', getGalleryExtensionTelemetryData(gallery), startTime ? new Date().getTime() - startTime : void 0, error);
 			this.installationStartTime.delete(gallery.identifier.id);
 		});
 		return errors.length ? TPromise.wrapError(this.joinErrors(errors)) : TPromise.as(null);
@@ -440,21 +455,23 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		this.logService.trace(`Started extracting the extension from ${zipPath} to ${extractPath}`);
 		return pfs.rimraf(extractPath)
 			.then(
-				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true })
+				() => extract(zipPath, extractPath, { sourcePath: 'extension', overwrite: true }, this.logService)
 					.then(
 						() => this.logService.info(`Extracted extension to ${extractPath}:`, id),
 						e => always(pfs.rimraf(extractPath), () => null)
-							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, INSTALL_ERROR_EXTRACTING)))),
+							.then(() => TPromise.wrapError(new ExtensionManagementError(e.message, e instanceof ExtractError ? e.type : INSTALL_ERROR_EXTRACTING)))),
 				e => TPromise.wrapError(new ExtensionManagementError(this.joinErrors(e).message, INSTALL_ERROR_DELETING)));
 	}
 
 	private rename(id: string, extractPath: string, renamePath: string, retryUntil: number): TPromise<void> {
 		return pfs.rename(extractPath, renamePath)
-			.then(null, error =>
-				isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil
-					? this.rename(id, extractPath, renamePath, retryUntil)
-					: TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while"), error.code || INSTALL_ERROR_RENAMING))
-			);
+			.then(null, error => {
+				if (isWindows && error && error.code === 'EPERM' && Date.now() < retryUntil) {
+					this.logService.info(`Failed renaming ${extractPath} to ${renamePath} with 'EPERM' error. Trying again...`);
+					return this.rename(id, extractPath, renamePath, retryUntil);
+				}
+				return TPromise.wrapError(new ExtensionManagementError(error.message || nls.localize('renameError', "Unknown error while renaming {0} to {1}", extractPath, renamePath), error.code || INSTALL_ERROR_RENAMING));
+			});
 	}
 
 	private rollback(extensions: IGalleryExtension[]): TPromise<void> {
@@ -870,6 +887,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"recommendationReason": { "retiredFromVersion": "1.23.0", "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"${include}": [
 					"${GalleryExtensionTelemetryData}"
 				]
@@ -877,6 +895,16 @@ export class ExtensionManagementService extends Disposable implements IExtension
 		*/
 		/* __GDPR__
 			"extensionGallery:uninstall" : {
+				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
+				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },
+				"${include}": [
+					"${GalleryExtensionTelemetryData}"
+				]
+			}
+		*/
+		/* __GDPR__
+			"extensionGallery:update" : {
 				"success": { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"duration" : { "classification": "SystemMetaData", "purpose": "PerformanceAndHealth", "isMeasurement": true },
 				"errorcode": { "classification": "CallstackOrException", "purpose": "PerformanceAndHealth" },

@@ -19,6 +19,7 @@
 		"editorCursor.foreground": "#c07020",
 		"editorWhitespace.foreground": "#505037",
 		"editorIndentGuide.background": "#505037",
+		"editorIndentGuide.activeBackground": "#707057",
 		"editorGroupHeader.tabsBackground": "#282828",
 		"editorGroup.background": "#1e1e1e",
 		"tab.inactiveBackground": "#404040",

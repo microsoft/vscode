@@ -33,8 +33,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		publisher: 'vscode',
 		enableProposedApi: false,
 		engines: undefined,
-		extensionFolderPath: undefined,
+		extensionLocation: undefined,
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		version: undefined
 	};
 
@@ -87,7 +88,7 @@ suite('ExtHostDocumentSaveParticipant', () => {
 			sub.dispose();
 
 			assert.ok(event);
-			assert.throws(() => event.document = null);
+			assert.throws(() => { event.document = null; });
 		});
 	});
 

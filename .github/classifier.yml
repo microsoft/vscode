@@ -10,7 +10,7 @@
         color-picker: [],
         css-less-sass: [ aeschli ],
         debug: {
-            assignees: [ weinand ],
+            assignees: [ roblourens ],
             assignLabel: false
         },
         diff-editor: [],
@@ -86,6 +86,10 @@
         themes: [],
         typescript: [ mjbvz ],
         workbench: {
+            assignees: [],
+            assignLabel: false
+        },
+        workbench-diagnostics: {
             assignees: [],
             assignLabel: false
         },

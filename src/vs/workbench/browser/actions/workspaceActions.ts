@@ -218,10 +218,10 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 }
 
-export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
+export class DuplicateWorkspaceInNewWindowAction extends Action {
 
-	public static readonly ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
-	public static readonly LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
+	public static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+	public static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
 
 	constructor(
 		id: string,
@@ -229,7 +229,6 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IWindowsService private windowsService: IWindowsService,
-		@ICommandService private commandService: ICommandService,
 		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(id, label);
@@ -238,24 +237,9 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 	public run(): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
-		let folderPromise: TPromise<IWorkspaceFolder>;
-		if (folders.length === 0) {
-			folderPromise = TPromise.as(null);
-		} else if (folders.length === 1) {
-			folderPromise = TPromise.as(folders[0]);
-		} else {
-			folderPromise = this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		}
-
-		return folderPromise.then(folder => {
-			if (!folder) {
-				return void 0; // need at least one folder
-			}
-
-			return this.workspacesService.createWorkspace([{ uri: folder.uri }]).then(newWorkspace => {
-				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
-				});
+		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
+			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
+				return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 			});
 		});
 	}

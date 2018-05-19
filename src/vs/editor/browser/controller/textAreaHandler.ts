@@ -164,7 +164,7 @@ export class TextAreaHandler extends ViewPart {
 
 		const textAreaInputHost: ITextAreaInputHost = {
 			getPlainTextToCopy: (): string => {
-				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard);
+				const rawWhatToCopy = this._context.model.getPlainTextToCopy(this._selections, this._emptySelectionClipboard, platform.isWindows);
 				const newLineCharacter = this._context.model.getEOL();
 
 				const isFromEmptySelection = (this._emptySelectionClipboard && this._selections.length === 1 && this._selections[0].isEmpty());
@@ -542,7 +542,7 @@ export class TextAreaHandler extends ViewPart {
 		tac.setHeight(1);
 
 		if (this._context.configuration.editor.viewInfo.glyphMargin) {
-			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.CLASS_NAME);
+			tac.setClassName('monaco-editor-background textAreaCover ' + Margin.OUTER_CLASS_NAME);
 		} else {
 			if (this._context.configuration.editor.viewInfo.renderLineNumbers !== RenderLineNumbersType.Off) {
 				tac.setClassName('monaco-editor-background textAreaCover ' + LineNumbersOverlay.CLASS_NAME);

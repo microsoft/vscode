@@ -19,7 +19,7 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('www');
 
-			const references = await app.workbench.editor.findReferences('app', 7);
+			const references = await app.workbench.editor.findReferences('www', 'app', 7);
 
 			await references.waitForReferencesCountInTitle(3);
 			await references.waitForReferencesCount(3);
@@ -53,7 +53,7 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
-			await app.workbench.editor.gotoDefinition('express', 11);
+			await app.workbench.editor.gotoDefinition('app.js', 'express', 11);
 
 			await app.workbench.editors.waitForActiveTab('index.d.ts');
 		});
@@ -62,7 +62,7 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.quickopen.openFile('app.js');
 
-			const peek = await app.workbench.editor.peekDefinition('express', 11);
+			const peek = await app.workbench.editor.peekDefinition('app.js', 'express', 11);
 
 			await peek.waitForFile('index.d.ts');
 		});

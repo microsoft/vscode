@@ -87,3 +87,19 @@ export interface TaskExecutionDTO {
 	id: string;
 	task: TaskDTO;
 }
+
+export interface TaskProcessStartedDTO {
+	id: string;
+	processId: number;
+}
+
+export interface TaskProcessEndedDTO {
+	id: string;
+	exitCode: number;
+}
+
+
+export interface TaskFilterDTO {
+	version?: string;
+	type?: string;
+}

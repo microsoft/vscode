@@ -18,7 +18,8 @@
 			"stopOnEntry": false,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
-			"preLaunchTask": "npm"
+			"smartStep": true,
+			"preLaunchTask": "npm: compile"
 		},
 		{
 			"name": "Launch Tests",
@@ -29,7 +30,7 @@
 			"stopOnEntry": false,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"],
-			"preLaunchTask": "npm"
+			"preLaunchTask": "npm: compile"
 		},
 		{
 			"name": "Attach Language Server",
@@ -39,6 +40,7 @@
 			"port": 6044,
 			"sourceMaps": true,
 			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
+			"smartStep": true,
 			"restart": true
 		}
 	]

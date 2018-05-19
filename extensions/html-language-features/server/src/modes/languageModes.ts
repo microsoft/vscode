@@ -24,7 +24,6 @@ export interface Settings {
 	css?: any;
 	html?: any;
 	javascript?: any;
-	emmet?: { [key: string]: any };
 }
 
 export interface Workspace {
@@ -35,7 +34,7 @@ export interface Workspace {
 export interface LanguageMode {
 	getId(): string;
 	doValidation?: (document: TextDocument, settings?: Settings) => Diagnostic[];
-	doComplete?: (document: TextDocument, position: Position, settings?: Settings, registeredCompletionParticipants?: any[]) => CompletionList;
+	doComplete?: (document: TextDocument, position: Position, settings?: Settings) => CompletionList;
 	doResolve?: (document: TextDocument, item: CompletionItem) => CompletionItem;
 	doHover?: (document: TextDocument, position: Position) => Hover | null;
 	doSignatureHelp?: (document: TextDocument, position: Position) => SignatureHelp | null;

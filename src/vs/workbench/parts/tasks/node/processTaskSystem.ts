@@ -248,10 +248,21 @@ export class ProcessTaskSystem implements ITaskSystem {
 			let delayer: Async.Delayer<any> = null;
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
-			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
+			let processStartedSignaled: boolean = false;
+			const startPromise = this.childProcess.start();
+			this.childProcess.pid.then(pid => {
+				if (pid !== -1) {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, pid));
+				}
+			});
+			this.activeTaskPromise = startPromise.then((success): ITaskSummary => {
 				this.childProcessEnded();
 				watchingProblemMatcher.done();
 				watchingProblemMatcher.dispose();
+				if (processStartedSignaled) {
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+				}
 				toUnbind = dispose(toUnbind);
 				toUnbind = null;
 				for (let i = 0; i < eventCounter; i++) {
@@ -295,16 +306,29 @@ export class ProcessTaskSystem implements ITaskSystem {
 				: { kind: TaskExecuteKind.Started, started: {}, promise: this.activeTaskPromise };
 			return result;
 		} else {
+			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 			this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
 			let startStopProblemMatcher = new StartStopProblemCollector(this.resolveMatchers(task, task.problemMatchers), this.markerService, this.modelService);
 			this.activeTask = task;
 			const inactiveEvent = TaskEvent.create(TaskEventKind.Inactive, task);
-			this.activeTaskPromise = this.childProcess.start().then((success): ITaskSummary => {
+			let processStartedSignaled: boolean = false;
+			const startPromise = this.childProcess.start();
+			this.childProcess.pid.then(pid => {
+				if (pid !== -1) {
+					processStartedSignaled = true;
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessStarted, task, pid));
+				}
+			});
+			this.activeTaskPromise = startPromise.then((success): ITaskSummary => {
 				this.childProcessEnded();
 				startStopProblemMatcher.done();
 				startStopProblemMatcher.dispose();
 				this.checkTerminated(task, success);
+				if (processStartedSignaled) {
+					this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.ProcessEnded, task, success.cmdCode));
+				}
 				this._onDidStateChange.fire(inactiveEvent);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				if (success.cmdCode && success.cmdCode === 1 && startStopProblemMatcher.numberOfMatches === 0 && reveal !== RevealKind.Never) {
 					this.showOutput();
 				}
@@ -314,6 +338,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 				this.childProcessEnded();
 				startStopProblemMatcher.dispose();
 				this._onDidStateChange.fire(inactiveEvent);
+				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.End, task));
 				return this.handleError(task, error);
 			}, (progress) => {
 				let line = Strings.removeAnsiEscapeCodes(progress.line);

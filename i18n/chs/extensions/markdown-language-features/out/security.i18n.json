@@ -8,6 +8,8 @@
 	],
 	"strict.title": "严格",
 	"strict.description": "仅载入安全内容",
+	"insecureLocalContent.title": "允许不安全的本地内容",
+	"insecureLocalContent.description": "允许通过 http 载入来自 localhost 的内容",
 	"insecureContent.title": "允许不安全内容",
 	"insecureContent.description": "允许通过 http 载入内容",
 	"disable.title": "禁用",

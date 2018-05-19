@@ -35,7 +35,7 @@
 	"useUniqueNames": "Használjon egyedi konfigurációs neveket!",
 	"app.launch.json.compound.folder": "A mappa neve, ahol az összetett konfiguráció található.",
 	"app.launch.json.compounds.configurations": "Azon konfigurációk neve, melyek elindulnak ezen kombináció részeként.",
-	"debugNoType": "A hibakeresési illesztő 'type' tulajdonsága kötelező, és 'string' típusúnak kell lennie.",
+	"debugNoType": "A hibakereső 'type' tulajdonsága kötelező, és 'string' típusúnak kell lennie.",
 	"selectDebug": "Környezet kiválasztása",
 	"DebugConfig.failed": "Nem sikerült létrehozni a 'launch.json' fájlt a '.vscode' mappánan ({0}).",
 	"workspace": "munkaterület",

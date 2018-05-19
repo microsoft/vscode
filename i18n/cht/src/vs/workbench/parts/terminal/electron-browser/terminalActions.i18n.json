@@ -21,6 +21,7 @@
 	"workbench.action.terminal.newWorkspacePlaceholder": "為新的終端機選擇目前的工作目錄",
 	"workbench.action.terminal.newInActiveWorkspace": "建立新的整合式終端機 (於目前工作區)",
 	"workbench.action.terminal.split": "分割終端機",
+	"workbench.action.terminal.splitInActiveWorkspace": "分割終端機 (於使用中的工作區)",
 	"workbench.action.terminal.focusPreviousPane": "聚焦上一個窗格",
 	"workbench.action.terminal.focusNextPane": "聚焦下一個窗格",
 	"workbench.action.terminal.resizePaneLeft": "調整窗格左側",
@@ -43,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "向上捲動 (頁)",
 	"workbench.action.terminal.scrollToTop": "捲動至頂端",
 	"workbench.action.terminal.clear": "清除",
+	"workbench.action.terminal.clearSelection": "清除選取項目",
 	"workbench.action.terminal.allowWorkspaceShell": "允許工作區外觀配置",
 	"workbench.action.terminal.disallowWorkspaceShell": "不允許工作區外觀設置",
 	"workbench.action.terminal.rename": "重新命名",
@@ -51,5 +53,9 @@
 	"workbench.action.terminal.hideFindWidget": "隱藏尋找小工具",
 	"nextTerminalFindTerm": "顯示下一個尋找字詞",
 	"previousTerminalFindTerm": "顯示上一個尋找字詞",
-	"quickOpenTerm": "切換使用中的終端機 "
+	"quickOpenTerm": "切換使用中的終端機 ",
+	"workbench.action.terminal.scrollToPreviousCommand": "捲動至上一個命令",
+	"workbench.action.terminal.scrollToNextCommand": "捲動至下一個命令",
+	"workbench.action.terminal.selectToPreviousCommand": "選取上一個命令",
+	"workbench.action.terminal.selectToNextCommand": "選取下一個命令"
 }

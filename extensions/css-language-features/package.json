@@ -17,13 +17,13 @@
   "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
-    "compile": "gulp compile-extension:css-language-features-client & gulp compile-extension:css-language-features-server",
+    "compile": "gulp compile-extension:css-language-features-client && gulp compile-extension:css-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },
-	"categories": [
-		"Programming Languages"
-	],
+  "categories": [
+    "Programming Languages"
+  ],
   "contributes": {
     "configuration": [
       {
@@ -696,7 +696,7 @@
   },
   "dependencies": {
     "vscode-languageclient": "^4.0.0",
-    "vscode-languageserver-protocol-foldingprovider": "^1.0.1",
+    "vscode-languageserver-protocol-foldingprovider": "^2.0.0-next.2",
     "vscode-nls": "^3.2.1"
   },
   "devDependencies": {

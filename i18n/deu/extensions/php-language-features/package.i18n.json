@@ -13,5 +13,6 @@
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
 	"command.untrustValidationExecutable": "Ausführbare Datei für PHP-Überprüfung nicht zulassen (als Arbeitsbereicheinstellung definiert)",
-	"displayName": "PHP-Sprachfeatures"
+	"displayName": "PHP-Sprachfeatures",
+	"description": "Bietet umfangreiche Sprachunterstützung für PHP-Dateien."
 }

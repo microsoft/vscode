@@ -4,20 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { TimeoutTimer } from 'vs/base/common/async';
-import { Event, Emitter } from 'vs/base/common/event';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { values } from 'vs/base/common/map';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
-import { ISuggestSupport, SuggestRegistry, StandardTokenType, SuggestTriggerKind, SuggestContext } from 'vs/editor/common/modes';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
-import { provideSuggestionItems, getSuggestionComparator, ISuggestionItem } from './suggest';
+import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
+import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { CursorChangeReason, ICursorSelectionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems } from './suggest';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -170,18 +171,17 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		const supportsByTriggerCharacter: { [ch: string]: ISuggestSupport[] } = Object.create(null);
+		const supportsByTriggerCharacter: { [ch: string]: Set<ISuggestSupport> } = Object.create(null);
 		for (const support of SuggestRegistry.all(this._editor.getModel())) {
 			if (isFalsyOrEmpty(support.triggerCharacters)) {
 				continue;
 			}
 			for (const ch of support.triggerCharacters) {
-				const array = supportsByTriggerCharacter[ch];
-				if (!array) {
-					supportsByTriggerCharacter[ch] = [support];
-				} else {
-					array.push(support);
+				let set = supportsByTriggerCharacter[ch];
+				if (!set) {
+					set = supportsByTriggerCharacter[ch] = new Set();
 				}
+				set.add(support);
 			}
 		}
 
@@ -192,15 +192,8 @@ export class SuggestModel implements IDisposable {
 			if (supports) {
 				// keep existing items that where not computed by the
 				// supports/providers that want to trigger now
-				const items: ISuggestionItem[] = [];
-				if (this._completionModel) {
-					for (const item of this._completionModel.items) {
-						if (supports.indexOf(item.support) < 0) {
-							items.push(item);
-						}
-					}
-				}
-				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), supports, items);
+				const items: ISuggestionItem[] = this._completionModel ? this._completionModel.adopt(supports) : undefined;
+				this.trigger({ auto: true, triggerCharacter: lastChar }, Boolean(this._completionModel), values(supports), items);
 			}
 		});
 	}
@@ -427,10 +420,11 @@ export class SuggestModel implements IDisposable {
 			return;
 		}
 
-		if (ctx.column > this._context.column && this._completionModel.incomplete && ctx.leadingWord.word.length !== 0) {
+		if (ctx.column > this._context.column && this._completionModel.incomplete.size > 0 && ctx.leadingWord.word.length !== 0) {
 			// typed -> moved cursor RIGHT & incomple model & still on a word -> retrigger
-			const { complete, incomplete } = this._completionModel.resolveIncompleteInfo();
-			this.trigger({ auto: this._state === State.Auto }, true, incomplete, complete);
+			const { incomplete } = this._completionModel;
+			const adopted = this._completionModel.adopt(incomplete);
+			this.trigger({ auto: this._state === State.Auto }, true, values(incomplete), adopted);
 
 		} else {
 			// typed -> moved cursor RIGHT -> update UI

@@ -30,6 +30,7 @@ export class ViewLocation {
 	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
 	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
 	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
+	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm.views.contributed');
 
 	private constructor(private _id: string) { }
 	get id(): string { return this._id; }
@@ -56,6 +57,8 @@ export interface IViewDescriptor {
 	readonly collapsed?: boolean;
 
 	readonly canToggleVisibility?: boolean;
+
+	readonly hideByDefault?: boolean;
 }
 
 export interface IViewsRegistry {
@@ -160,6 +163,12 @@ export interface ITreeViewer extends IDisposable {
 
 	dataProvider: ITreeViewDataProvider;
 
+	readonly onDidExpandItem: Event<ITreeItem>;
+
+	readonly onDidCollapseItem: Event<ITreeItem>;
+
+	readonly onDidChangeSelection: Event<ITreeItem[]>;
+
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
 	setVisibility(visible: boolean): void;
@@ -181,9 +190,9 @@ export interface ICustomViewDescriptor extends IViewDescriptor {
 
 }
 
-export const ICustomViewsService = createDecorator<ICustomViewsService>('customViewsService');
+export const IViewsService = createDecorator<IViewsService>('viewsService');
 
-export interface ICustomViewsService {
+export interface IViewsService {
 	_serviceBrand: any;
 
 	getTreeViewer(id: string): ITreeViewer;
@@ -232,9 +241,6 @@ export interface ITreeItem {
 
 export interface ITreeViewDataProvider {
 
-	onDidChange: Event<ITreeItem[] | undefined | null>;
-
-	onDispose: Event<void>;
-
 	getChildren(element?: ITreeItem): TPromise<ITreeItem[]>;
+
 }

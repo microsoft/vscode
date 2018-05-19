@@ -1214,13 +1214,32 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #23539: Setting model EOL isn\'t undoable', () => {
+		usingCursor({
+			text: [
+				'Hello',
+				'world'
+			]
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+			model.setEOL(EndOfLineSequence.LF);
+			assert.equal(model.getValue(), 'Hello\nworld');
+
+			model.pushEOL(EndOfLineSequence.CRLF);
+			assert.equal(model.getValue(), 'Hello\r\nworld');
+
+			cursorCommand(cursor, H.Undo);
+			assert.equal(model.getValue(), 'Hello\nworld');
+		});
+	});
+
 	test('issue #47733: Undo mangles unicode characters', () => {
 		const languageId = new LanguageIdentifier('myMode', 3);
 		class MyMode extends MockMode {
 			constructor() {
 				super(languageId);
 				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
-					surroundingPairs: [{ open: '"', close: '"' }]
+					surroundingPairs: [{ open: '%', close: '%' }]
 				}));
 			}
 		}
@@ -1231,8 +1250,8 @@ suite('Editor Controller - Regression tests', () => {
 		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
 			editor.setSelection(new Selection(1, 1, 1, 2));
 
-			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
-			assert.equal(model.getValue(EndOfLinePreference.LF), '"\'"👁\'', 'assert1');
+			cursorCommand(cursor, H.Type, { text: '%' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), '%\'%👁\'', 'assert1');
 
 			cursorCommand(cursor, H.Undo, {});
 			assert.equal(model.getValue(EndOfLinePreference.LF), '\'👁\'', 'assert2');
@@ -1802,6 +1821,21 @@ suite('Editor Controller - Regression tests', () => {
 		model.dispose();
 	});
 
+	test('issue #12887: Double-click highlighting separating white space', () => {
+		let model = createTextModel(
+			[
+				'abc def'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			CoreNavigationCommands.WordSelect.runCoreEditorCommand(cursor, { position: new Position(1, 5) });
+			assert.deepEqual(cursor.getSelection(), new Selection(1, 5, 1, 8));
+		});
+
+		model.dispose();
+	});
+
 	test('issue #9675: Undo/Redo adds a stop in between CHN Characters', () => {
 		usingCursor({
 			text: [
@@ -2071,6 +2105,78 @@ suite('Editor Controller - Regression tests', () => {
 
 			assert.equal(model.getLineContent(1), 'const a = \'foo\';');
 			assert.equal(model.getLineContent(2), 'const b = \'\'');
+		});
+
+		model.dispose();
+	});
+
+	test('issue #15761: Cursor doesn\'t move in a redo operation', () => {
+		let model = createTextModel(
+			[
+				'hello'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 4, 1, 4)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 1),
+				text: '*',
+				forceMoveMarkers: true
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 4, 1, 4),
+			]);
+
+			cursorCommand(cursor, H.Redo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 5, 1, 5),
+			]);
+		});
+
+		model.dispose();
+	});
+
+	test('issue #42783: API Calls with Undo Leave Cursor in Wrong Position', () => {
+		let model = createTextModel(
+			[
+				'ab'
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 1, 1, 1)
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 3),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			cursorCommand(cursor, H.Undo, null, 'keyboard');
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
+
+			editor.executeEdits('test', [{
+				range: new Range(1, 1, 1, 2),
+				text: ''
+			}]);
+			assertCursor(cursor, [
+				new Selection(1, 1, 1, 1),
+			]);
 		});
 
 		model.dispose();
@@ -2393,6 +2499,45 @@ suite('Editor Controller - Cursor Configuration', () => {
 			assert.equal(model.getLineContent(3), '    ');
 			assert.equal(model.getLineContent(4), '');
 			assert.equal(model.getLineContent(5), '');
+		});
+
+		model.dispose();
+	});
+
+	test('issue #15118: remove auto whitespace when pasting entire line', () => {
+		let model = createTextModel(
+			[
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'    }',
+			].join('\n')
+		);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+
+			moveTo(cursor, 3, model.getLineMaxColumn(3));
+			cursorCommand(cursor, H.Type, { text: '\n' }, 'keyboard');
+
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        ',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(4, model.getLineMaxColumn(4)));
+
+			cursorCommand(cursor, H.Paste, { text: '        // I\'m gonna copy this line\n', pasteOnNewLine: true });
+			assert.equal(model.getValue(), [
+				'    function f() {',
+				'        // I\'m gonna copy this line',
+				'        return 3;',
+				'        // I\'m gonna copy this line',
+				'',
+				'    }',
+			].join('\n'));
+			assertCursor(cursor, new Position(5, 1));
 		});
 
 		model.dispose();
@@ -4069,6 +4214,43 @@ suite('autoClosingPairs', () => {
 
 			assert.equal(model.getValue(), 'var a = `asd`');
 		});
+		mode.dispose();
+	});
+
+	test('issue #41825: Special handling of quotes in surrounding pairs', () => {
+		const languageId = new LanguageIdentifier('myMode', 3);
+		class MyMode extends MockMode {
+			constructor() {
+				super(languageId);
+				this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {
+					surroundingPairs: [
+						{ open: '"', close: '"' },
+						{ open: '\'', close: '\'' },
+					]
+				}));
+			}
+		}
+
+		const mode = new MyMode();
+		const model = createTextModel('var x = \'hi\';', undefined, languageId);
+
+		withTestCodeEditor(null, { model: model }, (editor, cursor) => {
+			editor.setSelections([
+				new Selection(1, 9, 1, 10),
+				new Selection(1, 12, 1, 13)
+			]);
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = "hi";', 'assert1');
+
+			editor.setSelections([
+				new Selection(1, 9, 1, 10),
+				new Selection(1, 12, 1, 13)
+			]);
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			assert.equal(model.getValue(EndOfLinePreference.LF), 'var x = \'hi\';', 'assert2');
+		});
+
+		model.dispose();
 		mode.dispose();
 	});
 

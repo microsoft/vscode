@@ -11,7 +11,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, IConfigurationPropertySchema, Extensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IStoredWorkspaceFolder } from 'vs/platform/workspaces/common/workspaces';
 import { Workspace } from 'vs/platform/workspace/common/workspace';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 
 export class WorkspaceConfigurationModelParser extends ConfigurationModelParser {
@@ -125,9 +125,9 @@ export class Configuration extends BaseConfiguration {
 		defaults: ConfigurationModel,
 		user: ConfigurationModel,
 		workspaceConfiguration: ConfigurationModel,
-		folders: StrictResourceMap<ConfigurationModel>,
+		folders: ResourceMap<ConfigurationModel>,
 		memoryConfiguration: ConfigurationModel,
-		memoryConfigurationByResource: StrictResourceMap<ConfigurationModel>,
+		memoryConfigurationByResource: ResourceMap<ConfigurationModel>,
 		private readonly _workspace: Workspace) {
 		super(defaults, user, workspaceConfiguration, folders, memoryConfiguration, memoryConfigurationByResource);
 	}
@@ -235,8 +235,8 @@ export class AllKeysConfigurationChangeEvent extends AbstractConfigurationChange
 		return this._changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
-		return new StrictResourceMap();
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
+		return new ResourceMap();
 	}
 
 	get affectedKeys(): string[] {
@@ -256,7 +256,7 @@ export class WorkspaceConfigurationChangeEvent implements IConfigurationChangeEv
 		return this.configurationChangeEvent.changedConfiguration;
 	}
 
-	get changedConfigurationByResource(): StrictResourceMap<IConfigurationModel> {
+	get changedConfigurationByResource(): ResourceMap<IConfigurationModel> {
 		return this.configurationChangeEvent.changedConfigurationByResource;
 	}
 

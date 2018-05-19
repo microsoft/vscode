@@ -17,6 +17,8 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IIterator } from 'vs/base/common/iterator';
 import { isFalsyOrWhitespace } from 'vs/base/common/strings';
 import { localize } from 'vs/nls';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 class DecorationRule {
 
@@ -229,7 +231,7 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 
 class DecorationProviderWrapper {
 
-	readonly data = TernarySearchTree.forPaths<Thenable<void> | IDecorationData>();
+	readonly data = TernarySearchTree.forPaths<TPromise<void> | IDecorationData>();
 	private readonly _dispoable: IDisposable;
 
 	constructor(
@@ -285,18 +287,25 @@ class DecorationProviderWrapper {
 
 		if (includeChildren) {
 			// (resolved) children
-			const childTree = this.data.findSuperstr(key);
-			if (childTree) {
-				childTree.forEach(value => {
-					if (value && !isThenable<void>(value)) {
-						callback(value, true);
+			const iter = this.data.findSuperstr(key);
+			if (iter) {
+				for (let item = iter.next(); !item.done; item = iter.next()) {
+					if (item.value && !isThenable<void>(item.value)) {
+						callback(item.value, true);
 					}
-				});
+				}
 			}
 		}
 	}
 
 	private _fetchData(uri: URI): IDecorationData {
+
+		// check for pending request and cancel it
+		const pendingRequest = this.data.get(uri.toString());
+		if (TPromise.is(pendingRequest)) {
+			pendingRequest.cancel();
+			this.data.delete(uri.toString());
+		}
 
 		const dataOrThenable = this._provider.provideDecorations(uri);
 		if (!isThenable(dataOrThenable)) {
@@ -305,9 +314,15 @@ class DecorationProviderWrapper {
 
 		} else {
 			// async -> we have a result soon
-			const request = Promise.resolve(dataOrThenable)
-				.then(data => this._keepItem(uri, data))
-				.catch(_ => this.data.delete(uri.toString()));
+			const request = TPromise.wrap(dataOrThenable).then(data => {
+				if (this.data.get(uri.toString()) === request) {
+					this._keepItem(uri, data);
+				}
+			}, err => {
+				if (!isPromiseCanceledError(err) && this.data.get(uri.toString()) === request) {
+					this.data.delete(uri.toString());
+				}
+			});
 
 			this.data.set(uri.toString(), request);
 			return undefined;

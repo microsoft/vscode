@@ -5,8 +5,13 @@
 
 'use strict';
 
+export interface IIteratorResult<T> {
+	readonly done: boolean;
+	readonly value: T;
+}
+
 export interface IIterator<E> {
-	next(): { readonly done: boolean, readonly value: E };
+	next(): IIteratorResult<E>;
 }
 
 export interface INextIterator<T> {

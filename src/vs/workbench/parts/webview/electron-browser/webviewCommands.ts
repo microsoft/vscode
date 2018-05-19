@@ -23,7 +23,7 @@ export class ShowWebViewEditorFindWidgetCommand extends Command {
 }
 
 export class HideWebViewEditorFindCommand extends Command {
-	public static readonly Id = 'editor.action.webvieweditor.hideFind';
+	public static readonly ID = 'editor.action.webvieweditor.hideFind';
 
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		const webViewEditor = getActiveWebviewEditor(accessor);
@@ -97,8 +97,8 @@ export class ReloadWebviewAction extends Action {
 
 	private getVisibleWebviews() {
 		return this.workbenchEditorService.getVisibleEditors()
-			.filter(c => c && (c as any).isWebviewEditor)
-			.map(e => e as BaseWebviewEditor);
+			.filter(editor => editor && (editor as BaseWebviewEditor).isWebviewEditor)
+			.map(editor => editor as BaseWebviewEditor);
 	}
 }
 

@@ -10,7 +10,18 @@ import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
 
-const SHELL_EXECUTABLES = ['cmd.exe', 'powershell.exe', 'bash.exe'];
+const SHELL_EXECUTABLES = [
+	'cmd.exe',
+	'powershell.exe',
+	'bash.exe',
+	'wsl.exe',
+	'ubuntu.exe',
+	'ubuntu1804.exe',
+	'kali.exe',
+	'debian.exe',
+	'opensuse-42.exe',
+	'sles-12.exe'
+];
 
 let windowsProcessTree: typeof WindowsProcessTreeType;
 

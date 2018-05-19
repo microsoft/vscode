@@ -208,7 +208,7 @@ export class Position {
 
 export class Range {
 
-	static isRange(thing: any): thing is Range {
+	static isRange(thing: any): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
@@ -673,6 +673,10 @@ export class SnippetString {
 	}
 }
 
+export enum DiagnosticTag {
+	Unnecessary = 1,
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -747,6 +751,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
+	customTags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -876,6 +881,28 @@ export class SymbolInformation {
 	}
 }
 
+export class SymbolInformation2 extends SymbolInformation {
+
+	detail: string;
+	range: Range;
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
+		super(name, kind, undefined, location);
+		this.detail = detail;
+		this.range = range;
+	}
+}
+
+export class Hierarchy<T> {
+	parent: T;
+	children: Hierarchy<T>[];
+
+	constructor(parent: T) {
+		this.parent = parent;
+		this.children = [];
+	}
+}
+
 export class CodeAction {
 	title: string;
 
@@ -904,6 +931,7 @@ export class CodeActionKind {
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string
@@ -1813,71 +1841,85 @@ export enum LogLevel {
 
 //#region file api
 // todo@remote
-export enum FileChangeType {
+export enum DeprecatedFileChangeType {
 	Updated = 0,
 	Added = 1,
 	Deleted = 2
 }
 
-export enum FileChangeType2 {
+export enum FileChangeType {
 	Changed = 1,
 	Created = 2,
 	Deleted = 3,
 }
 
-export enum FileType {
+export enum DeprecatedFileType {
 	File = 0,
 	Dir = 1,
 	Symlink = 2
 }
 
-export enum FileType2 {
-	File = 1,
-	Directory = 2,
-	SymbolicLink = 4,
+export class FileSystemError extends Error {
+
+	static FileExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
+	}
+	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
+	}
+	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
+	}
+	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
+	}
+	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
+	}
+	static Unavailable(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+	}
+
+	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		// workaround when extending builtin objects and when compiling to ES5, see:
+		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		if (typeof (<any>Object).setPrototypeOf === 'function') {
+			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
+		}
+
+		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, terminator);
+		}
+	}
 }
 
 //#endregion
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
-	/**
-	 * Folding range for a comment
-	 */
-	Comment = 'comment',
-	/**
-	 * Folding range for a imports or includes
-	 */
-	Imports = 'imports',
-	/**
-	 * Folding range for a region (e.g. `#region`)
-	 */
-	Region = 'region'
+export enum FoldingRangeKind {
+	Comment = 1,
+	Imports = 2,
+	Region = 3
 }
 
 //#endregion

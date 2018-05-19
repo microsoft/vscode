@@ -21,6 +21,8 @@ export interface IOptions {
 	width?: number;
 	validation?: IInputValidator;
 	ariaLabel?: string;
+	history?: string[];
+	historyLimit?: number;
 }
 
 export class PatternInputWidget extends Widget {
@@ -47,7 +49,7 @@ export class PatternInputWidget extends Widget {
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, protected themeService: IThemeService, options: IOptions = Object.create(null)) {
 		super();
-		this.history = new HistoryNavigator<string>();
+		this.history = new HistoryNavigator<string>(options.history || [], options.historyLimit);
 		this.onOptionChange = null;
 		this.width = options.width || 100;
 		this.placeholder = options.placeholder || '';
@@ -123,8 +125,8 @@ export class PatternInputWidget extends Widget {
 		return this.history.getHistory();
 	}
 
-	public setHistory(history: string[]) {
-		this.history = new HistoryNavigator<string>(history);
+	public clearHistory(): void {
+		this.history.clear();
 	}
 
 	public onSearchSubmit(): void {

@@ -4,11 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { ExtHostContext, MainThreadTreeViewsShape, ExtHostTreeViewsShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
-import { ITreeViewDataProvider, ITreeItem, ICustomViewsService } from 'vs/workbench/common/views';
+import { ITreeViewDataProvider, ITreeItem, IViewsService, ITreeViewer } from 'vs/workbench/common/views';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { distinct } from 'vs/base/common/arrays';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -21,7 +20,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ICustomViewsService private viewsService: ICustomViewsService,
+		@IViewsService private viewsService: IViewsService,
 		@INotificationService private notificationService: INotificationService
 	) {
 		super();
@@ -29,11 +28,12 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 	}
 
 	$registerTreeViewDataProvider(treeViewId: string): void {
-		const dataProvider = this._register(new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService));
+		const dataProvider = new TreeViewDataProvider(treeViewId, this._proxy, this.notificationService);
 		this._dataProviders.set(treeViewId, dataProvider);
 		const treeViewer = this.viewsService.getTreeViewer(treeViewId);
 		if (treeViewer) {
 			treeViewer.dataProvider = dataProvider;
+			this.registerListeners(treeViewId, treeViewer);
 		} else {
 			this.notificationService.error('No view is registered with id: ' + treeViewId);
 		}
@@ -47,14 +47,29 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 			});
 	}
 
-	$refresh(treeViewId: string, itemsToRefresh: { [treeItemHandle: string]: ITreeItem }): void {
+	$refresh(treeViewId: string, itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): TPromise<void> {
+		const viewer = this.viewsService.getTreeViewer(treeViewId);
 		const dataProvider = this._dataProviders.get(treeViewId);
-		if (dataProvider) {
-			dataProvider.refresh(itemsToRefresh);
+		if (viewer && dataProvider) {
+			const itemsToRefresh = dataProvider.getItemsToRefresh(itemsToRefreshByHandle);
+			return viewer.refresh(itemsToRefresh.length ? itemsToRefresh : void 0);
 		}
+		return TPromise.as(null);
+	}
+
+	private registerListeners(treeViewId: string, treeViewer: ITreeViewer): void {
+		this._register(treeViewer.onDidExpandItem(item => this._proxy.$setExpanded(treeViewId, item.handle, true)));
+		this._register(treeViewer.onDidCollapseItem(item => this._proxy.$setExpanded(treeViewId, item.handle, false)));
+		this._register(treeViewer.onDidChangeSelection(items => this._proxy.$setSelection(treeViewId, items.map(({ handle }) => handle))));
 	}
 
 	dispose(): void {
+		this._dataProviders.forEach((dataProvider, treeViewId) => {
+			const treeViewer = this.viewsService.getTreeViewer(treeViewId);
+			if (treeViewer) {
+				treeViewer.dataProvider = null;
+			}
+		});
 		this._dataProviders.clear();
 		super.dispose();
 	}
@@ -63,12 +78,6 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 type TreeItemHandle = string;
 
 class TreeViewDataProvider implements ITreeViewDataProvider {
-
-	private readonly _onDidChange: Emitter<ITreeItem[] | undefined | null> = new Emitter<ITreeItem[] | undefined | null>();
-	readonly onDidChange: Event<ITreeItem[] | undefined | null> = this._onDidChange.event;
-
-	private readonly _onDispose: Emitter<void> = new Emitter<void>();
-	readonly onDispose: Event<void> = this._onDispose.event;
 
 	private itemsMap: Map<TreeItemHandle, ITreeItem> = new Map<TreeItemHandle, ITreeItem>();
 
@@ -91,7 +100,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 			});
 	}
 
-	refresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }) {
+	getItemsToRefresh(itemsToRefreshByHandle: { [treeItemHandle: string]: ITreeItem }): ITreeItem[] {
 		const itemsToRefresh: ITreeItem[] = [];
 		if (itemsToRefreshByHandle) {
 			for (const treeItemHandle of Object.keys(itemsToRefreshByHandle)) {
@@ -114,11 +123,7 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				}
 			}
 		}
-		if (itemsToRefresh.length) {
-			this._onDidChange.fire(itemsToRefresh);
-		} else {
-			this._onDidChange.fire();
-		}
+		return itemsToRefresh;
 	}
 
 	private postGetChildren(elements: ITreeItem[]): ITreeItem[] {
@@ -140,9 +145,5 @@ class TreeViewDataProvider implements ITreeViewDataProvider {
 				current[property] = treeItem[property];
 			}
 		}
-	}
-
-	dispose(): void {
-		this._onDispose.fire();
 	}
 }

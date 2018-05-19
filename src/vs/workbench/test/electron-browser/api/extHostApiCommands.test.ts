@@ -71,14 +71,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id, args): any {
+				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
 						return TPromise.wrapError(new Error(id + ' NOT known'));
 					}
@@ -129,7 +129,7 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -532,6 +532,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.command.arguments[2], complexArg);
 			});
 		});
+	});
+
+	test('CodeLens, resolve', async function () {
+
+		let resolveCount = 0;
+
+		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+			provideCodeLenses(): any {
+				return [
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Already resolved', command: 'fff' })
+				];
+			},
+			resolveCodeLens(codeLens: types.CodeLens) {
+				codeLens.command = { title: resolveCount.toString(), command: 'resolved' };
+				resolveCount += 1;
+				return codeLens;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		let value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri, 2);
+
+		assert.equal(value.length, 3); // the resolve argument defines the number of results being returned
+		assert.equal(resolveCount, 2);
+
+		resolveCount = 0;
+		value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri);
+
+		assert.equal(value.length, 4);
+		assert.equal(resolveCount, 0);
 	});
 
 	test('Links, back and forth', function () {

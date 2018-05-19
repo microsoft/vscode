@@ -166,7 +166,7 @@ export default class ErrorTelemetry {
 					"${include}": [ "${ErrorEvent}" ]
 				}
 			*/
-			this._telemetryService.publicLog('UnhandledError', error);
+			this._telemetryService.publicLog('UnhandledError', error, true);
 		}
 		this._buffer.length = 0;
 	}

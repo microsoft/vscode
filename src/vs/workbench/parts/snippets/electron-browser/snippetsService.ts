@@ -61,12 +61,13 @@ namespace schema {
 			return false;
 
 		} else {
-			const normalizedAbsolutePath = join(extension.description.extensionFolderPath, snippet.path);
-			if (normalizedAbsolutePath.indexOf(extension.description.extensionFolderPath) !== 0) {
+			// TODO@extensionLocation
+			const normalizedAbsolutePath = join(extension.description.extensionLocation.fsPath, snippet.path);
+			if (normalizedAbsolutePath.indexOf(extension.description.extensionLocation.fsPath) !== 0) {
 				extension.collector.error(localize(
 					'invalid.path.1',
 					"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
-					extension.description.name, normalizedAbsolutePath, extension.description.extensionFolderPath
+					extension.description.name, normalizedAbsolutePath, extension.description.extensionLocation.fsPath
 				));
 				return false;
 			}

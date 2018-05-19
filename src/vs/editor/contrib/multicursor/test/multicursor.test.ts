@@ -107,8 +107,6 @@ suite('Multicursor selection', () => {
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
 
-			editor._isFocused = false;
-
 			editor.setSelection(new Selection(1, 1, 1, 1));
 			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);
 

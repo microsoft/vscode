@@ -8,6 +8,7 @@
 	],
 	"toggleBreakpointAction": "偵錯: 切換中斷點",
 	"conditionalBreakpointEditorAction": "偵錯: 新增條件中斷點...",
+	"logPointEditorAction": "偵錯: 新增記錄點...",
 	"runToCursor": "執行至游標處",
 	"debugEvaluate": "偵錯: 評估",
 	"debugAddToWatch": "偵錯: 加入監看",

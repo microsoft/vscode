@@ -11,7 +11,7 @@
 	"optstring": "`{0}` özelliği atlanabilir veya `string` türünde olmalıdır",
 	"vscode.extension.contributes.menuItem.command": "Yürütülecek komutun tanımlayıcısı. Komut 'commands' bölümünde tanımlanmalıdır",
 	"vscode.extension.contributes.menuItem.alt": "Yürütülecek alternatif bir komutun tanımlayıcısı. Komut 'commands' bölümünde tanımlanmalıdır",
-	"vscode.extension.contributes.menuItem.when": "Bu ögeyi göstermek için doğru olması gereken koşul",
+	"vscode.extension.contributes.menuItem.when": "Bu ögeyi göstermek için gereken koşul",
 	"vscode.extension.contributes.menuItem.group": "Bu komutun ait olduğu gruba ekle",
 	"vscode.extension.contributes.menus": "Düzenleyiciye menü ögeleri ekler",
 	"menus.commandPalette": "Komut Paleti",

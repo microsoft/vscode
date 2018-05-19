@@ -28,9 +28,9 @@ semver@^5.3.0:
   version "5.5.0"
   resolved "https://registry.yarnpkg.com/semver/-/semver-5.5.0.tgz#dc4bbc7a6ca9d916dee5d43516f0092b58f7b8ab"
 
-vscode-extension-telemetry@0.0.15:
-  version "0.0.15"
-  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.15.tgz#685c32f3b67e8fb85ba689c1d7f88ff90ff87856"
+vscode-extension-telemetry@0.0.17:
+  version "0.0.17"
+  resolved "https://registry.yarnpkg.com/vscode-extension-telemetry/-/vscode-extension-telemetry-0.0.17.tgz#15123e7edb34e7b9724b6056f54a869bbb922cb7"
   dependencies:
     applicationinsights "1.0.1"
 
@@ -44,9 +44,9 @@ vscode-languageclient@^4.0.0:
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
 
-vscode-languageserver-protocol-foldingprovider@^1.0.1:
-  version "1.0.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-1.0.1.tgz#85514aaf8fe905e91bf21e4106e0847f60d40f44"
+vscode-languageserver-protocol-foldingprovider@^2.0.0-next.2:
+  version "2.0.0-next.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.0-next.2.tgz#fbb9cfdf5b8c4ac451826ba6312f1f88379f35b0"
   dependencies:
     vscode-languageserver-protocol "^3.6.0"
     vscode-languageserver-types "^3.6.0"

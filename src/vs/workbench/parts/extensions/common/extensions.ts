@@ -79,7 +79,7 @@ export interface IExtensionsWorkbenchService {
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
 	reinstall(extension: IExtension): TPromise<void>;
-	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void>;
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
