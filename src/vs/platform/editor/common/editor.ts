@@ -146,6 +146,4 @@ export enum Position {
 	THREE = 2
 }
 
-export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
-
 //#endregion

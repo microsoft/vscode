@@ -78,11 +78,11 @@ export class WalkThroughPart extends BaseEditor {
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@INotificationService private notificationService: INotificationService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
 	) {
 		super(WalkThroughPart.ID, telemetryService, themeService);
 		this.editorFocus = WALK_THROUGH_FOCUS.bindTo(this.contextKeyService);
-		this.editorViewStateMemento = new EditorViewStateMemento<IWalkThroughEditorViewState>(nextEditorGroupService, this.getMemento(storageService, Scope.WORKSPACE), WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
+		this.editorViewStateMemento = new EditorViewStateMemento<IWalkThroughEditorViewState>(editorGroupService, this.getMemento(storageService, Scope.WORKSPACE), WALK_THROUGH_EDITOR_VIEW_STATE_PREFERENCE_KEY);
 	}
 
 	createEditor(container: HTMLElement): void {

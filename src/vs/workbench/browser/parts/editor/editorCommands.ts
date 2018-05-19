@@ -9,7 +9,6 @@ import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
-import { Position } from 'vs/platform/editor/common/editor';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
@@ -21,38 +20,15 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService, INextEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, INextEditorGroup, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 
-export const ActiveEditorMovePositioning = {
-	FIRST: 'first',
-	LAST: 'last',
-	LEFT: 'left',
-	RIGHT: 'right',
-	CENTER: 'center',
-	POSITION: 'position',
-};
-
-export const ActiveEditorMovePositioningBy = {
-	TAB: 'tab',
-	GROUP: 'group'
-};
-
-export interface ActiveEditorMoveArguments {
-	to?: string;
-	by?: string;
-	value?: number;
-}
-
-export const EditorCommands = {
-	MoveActiveEditor: 'moveActiveEditor'
-};
-
+export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
-export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeActiveEditorGroup';
+export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeEditorGroup';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
@@ -61,11 +37,10 @@ export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
 
-export function setup(): void {
-	registerActiveEditorMoveCommand();
-	registerDiffEditorCommands();
-	registerOpenEditorAtIndexCommands();
-	registerEditorCommands();
+export interface ActiveEditorMoveArguments {
+	to?: 'first' | 'last' | 'left' | 'right' | 'up' | 'down' | 'center' | 'position';
+	by?: 'tab' | 'group';
+	value?: number;
 }
 
 const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean {
@@ -73,17 +48,15 @@ const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean
 		return false;
 	}
 
-	const activeEditorMoveArg: ActiveEditorMoveArguments = arg;
-
-	if (!types.isString(activeEditorMoveArg.to)) {
+	if (!types.isString(arg.to)) {
 		return false;
 	}
 
-	if (!types.isUndefined(activeEditorMoveArg.by) && !types.isString(activeEditorMoveArg.by)) {
+	if (!types.isUndefined(arg.by) && !types.isString(arg.by)) {
 		return false;
 	}
 
-	if (!types.isUndefined(activeEditorMoveArg.value) && !types.isNumber(activeEditorMoveArg.value)) {
+	if (!types.isUndefined(arg.value) && !types.isNumber(arg.value)) {
 		return false;
 	}
 
@@ -92,7 +65,7 @@ const isActiveEditorMoveArg = function (arg: ActiveEditorMoveArguments): boolean
 
 function registerActiveEditorMoveCommand(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
-		id: EditorCommands.MoveActiveEditor,
+		id: MOVE_ACTIVE_EDITOR_COMMAND_ID,
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: EditorContextKeys.editorTextFocus,
 		primary: null,
@@ -102,7 +75,7 @@ function registerActiveEditorMoveCommand(): void {
 			args: [
 				{
 					name: nls.localize('editorCommand.activeEditorMove.arg.name', "Active editor move argument"),
-					description: nls.localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move. By tab or by group.\n\t* 'value': Number value providing how many positions or an absolute position to move."),
+					description: nls.localize('editorCommand.activeEditorMove.arg.description', "Argument Properties:\n\t* 'to': String value providing where to move.\n\t* 'by': String value providing the unit for move (by tab or by group).\n\t* 'value': Number value providing how many positions or an absolute position to move."),
 					constraint: isActiveEditorMoveArg
 				}
 			]
@@ -110,78 +83,87 @@ function registerActiveEditorMoveCommand(): void {
 	});
 }
 
-function moveActiveEditor(args: ActiveEditorMoveArguments = {}, accessor: ServicesAccessor): void {
-	args.to = args.to || ActiveEditorMovePositioning.RIGHT;
-	args.by = args.by || ActiveEditorMovePositioningBy.TAB;
-	args.value = types.isUndefined(args.value) ? 1 : args.value;
+function moveActiveEditor(args: ActiveEditorMoveArguments = Object.create(null), accessor: ServicesAccessor): void {
+	args.to = args.to || 'right';
+	args.by = args.by || 'tab';
+	args.value = typeof args.value === 'number' ? args.value : 1;
 
-	const activeEditor = accessor.get(INextEditorService).activeControl;
-	if (activeEditor) {
+	const activeControl = accessor.get(INextEditorService).activeControl;
+	if (activeControl) {
 		switch (args.by) {
-			case ActiveEditorMovePositioningBy.TAB:
-				return moveActiveTab(args, activeEditor, accessor);
-			case ActiveEditorMovePositioningBy.GROUP:
-				return moveActiveEditorToGroup(args, activeEditor, accessor);
+			case 'tab':
+				return moveActiveTab(args, activeControl, accessor);
+			case 'group':
+				return moveActiveEditorToGroup(args, activeControl, accessor);
 		}
 	}
 }
 
-function moveActiveTab(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	const group = activeEditor.group;
-	let index = group.getIndexOfEditor(activeEditor.input);
+function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
+	const group = control.group;
+	let index = group.getIndexOfEditor(control.input);
 	switch (args.to) {
-		case ActiveEditorMovePositioning.FIRST:
+		case 'first':
 			index = 0;
 			break;
-		case ActiveEditorMovePositioning.LAST:
+		case 'last':
 			index = group.count - 1;
 			break;
-		case ActiveEditorMovePositioning.LEFT:
+		case 'left':
 			index = index - args.value;
 			break;
-		case ActiveEditorMovePositioning.RIGHT:
+		case 'right':
 			index = index + args.value;
 			break;
-		case ActiveEditorMovePositioning.CENTER:
+		case 'center':
 			index = Math.round(group.count / 2) - 1;
 			break;
-		case ActiveEditorMovePositioning.POSITION:
+		case 'position':
 			index = args.value - 1;
 			break;
 	}
 
 	index = index < 0 ? 0 : index >= group.count ? group.count - 1 : index;
-	group.moveEditor(activeEditor.input, group, { index });
+	group.moveEditor(control.input, group, { index });
 }
 
-function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, activeEditor: IEditor, accessor: ServicesAccessor): void {
-	let newPosition = activeEditor.group.id;
+function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
+	const editorGroupService = accessor.get(INextEditorGroupsService);
+
+	const groups = editorGroupService.groups;
+	const sourceGroup = control.group;
+	let targetGroup: INextEditorGroup;
+
 	switch (args.to) {
-		case ActiveEditorMovePositioning.LEFT:
-			newPosition = newPosition - 1;
+		case 'left':
+			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.LEFT);
 			break;
-		case ActiveEditorMovePositioning.RIGHT:
-			newPosition = newPosition + 1;
+		case 'right':
+			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.RIGHT);
 			break;
-		case ActiveEditorMovePositioning.FIRST:
-			newPosition = Position.ONE;
+		case 'up':
+			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.UP);
 			break;
-		case ActiveEditorMovePositioning.LAST:
-			newPosition = Position.THREE;
+		case 'down':
+			targetGroup = editorGroupService.findNeighbourGroup(sourceGroup, GroupDirection.DOWN);
 			break;
-		case ActiveEditorMovePositioning.CENTER:
-			newPosition = Position.TWO;
+		case 'first':
+			targetGroup = groups[0];
 			break;
-		case ActiveEditorMovePositioning.POSITION:
-			newPosition = args.value - 1;
+		case 'last':
+			targetGroup = groups[groups.length - 1];
+			break;
+		case 'center':
+			targetGroup = groups[(groups.length / 2) - 1];
+			break;
+		case 'position':
+			targetGroup = groups[args.value - 1];
 			break;
 	}
 
-	// TODO@grid this position non-sense does not make any sense
-	const editorGroupService = accessor.get(INextEditorGroupsService);
-	const destinationGroup = editorGroupService.getGroup(newPosition) || editorGroupService.activeGroup;
-	const sourceGroup = activeEditor.group;
-	sourceGroup.moveEditor(activeEditor.input, destinationGroup);
+	if (targetGroup) {
+		sourceGroup.moveEditor(control.input, targetGroup);
+	}
 }
 
 function registerDiffEditorCommands(): void {
@@ -288,8 +270,7 @@ function registerEditorCommands() {
 			const editorGroupService = accessor.get(INextEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
 			if (contexts.length === 0 && editorGroupService.activeGroup) {
-				// If command is triggered from the command palette use the active group
-				contexts.push({ groupId: editorGroupService.activeGroup.id });
+				contexts.push({ groupId: editorGroupService.activeGroup.id }); // If command is triggered from the command palette use the active group
 			}
 
 			return TPromise.join(distinct(contexts.map(c => c.groupId)).map(groupId =>
@@ -331,6 +312,7 @@ function registerEditorCommands() {
 			if (contexts.length === 0 && activeGroup && activeGroup.activeEditor) {
 				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });
 			}
+
 			const groupIds = distinct(contexts.map(context => context.groupId));
 			return TPromise.join(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
@@ -347,10 +329,16 @@ function registerEditorCommands() {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const nextEditorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(INextEditorGroupsService);
 
-			// TODO@grid handle more cases from the related CLOSE_EDITOR_COMMAND_ID and also revisit command ID
-			nextEditorGroupService.removeGroup(nextEditorGroupService.activeGroup);
+			let group: INextEditorGroup;
+			if (context && typeof context.groupId === 'number') {
+				group = editorGroupService.getGroup(context.groupId);
+			} else {
+				group = editorGroupService.activeGroup;
+			}
+
+			editorGroupService.removeGroup(group);
 		}
 	});
 
@@ -378,6 +366,7 @@ function registerEditorCommands() {
 				const group = editorGroupService.getGroup(groupId);
 				const editors = contexts.filter(c => c.groupId === groupId).map(c => group.getEditor(c.editorIndex));
 				const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
+
 				return group.closeEditors(editorsToClose);
 			}));
 		}
@@ -481,4 +470,11 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// Otherwise go with passed in context
 	return !!editorContext ? [editorContext] : [];
+}
+
+export function setup(): void {
+	registerActiveEditorMoveCommand();
+	registerDiffEditorCommands();
+	registerOpenEditorAtIndexCommands();
+	registerEditorCommands();
 }

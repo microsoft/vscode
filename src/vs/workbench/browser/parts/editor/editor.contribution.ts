@@ -42,7 +42,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { isMacintosh } from 'vs/base/common/platform';
 import { AllEditorsPicker, ActiveEditorGroupPicker } from 'vs/workbench/browser/parts/editor/editorPicker';
 import { Schemas } from 'vs/base/common/network';
-import { GridOpenEditorsAction, ResetGridEditorAction } from 'vs/workbench/browser/parts/editor2/nextEditorActions';
 
 // Register String Editor
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(
@@ -404,12 +403,8 @@ MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorComman
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeOtherEditors', "Close Other Editors"), category } });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID, title: nls.localize('closeRightEditors', "Close Editors to the Right"), category } });
 
-
 // TODO@grid temporary contributions for testing
 const gridCategory = nls.localize('grid', "Grid");
-registry.registerWorkbenchAction(new SyncActionDescriptor(ResetGridEditorAction, ResetGridEditorAction.ID, ResetGridEditorAction.LABEL), 'Grid: Reset Grid', gridCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(GridOpenEditorsAction, GridOpenEditorsAction.ID, GridOpenEditorsAction.LABEL), 'Grid: Open Some Editors', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(RemoveActiveEditorGroupAction, RemoveActiveEditorGroupAction.ID, RemoveActiveEditorGroupAction.LABEL), 'Grid: Remove Active Editor Group', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'Grid: Split Horizontal', gridCategory);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'Grid: Split Vertical', gridCategory);

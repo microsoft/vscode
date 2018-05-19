@@ -22,7 +22,7 @@ import { IEditorGroupService } from 'vs/workbench/services/group/common/groupSer
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, ActiveEditorMoveArguments, ActiveEditorMovePositioning, EditorCommands, NAVIGATE_IN_ACTIVE_GROUP_PREFIX } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { INextEditorGroupsService, GroupDirection as SplitDirection, INextEditorGroup, GroupsArrangement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 
@@ -1353,10 +1353,8 @@ export class MoveEditorLeftInGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.LEFT
-		};
-		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
+		const args: ActiveEditorMoveArguments = { to: 'left' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
 
 		return TPromise.as(true);
 	}
@@ -1376,10 +1374,8 @@ export class MoveEditorRightInGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = {
-			to: ActiveEditorMovePositioning.RIGHT
-		};
-		this.commandService.executeCommand(EditorCommands.MoveActiveEditor, args);
+		const args: ActiveEditorMoveArguments = { to: 'right' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
 
 		return TPromise.as(true);
 	}

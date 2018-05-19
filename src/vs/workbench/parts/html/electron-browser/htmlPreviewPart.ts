@@ -60,11 +60,11 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IStorageService readonly _storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INextEditorGroupsService nextEditorGroupService: INextEditorGroupsService
+		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(nextEditorGroupService, this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
+		this.editorViewStateMemento = new EditorViewStateMemento<HtmlPreviewEditorViewState>(editorGroupService, this.getMemento(_storageService, Scope.WORKSPACE), this.viewStateStorageKey);
 	}
 
 	dispose(): void {

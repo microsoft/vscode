@@ -19,7 +19,7 @@ import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { isMacintosh } from 'vs/base/common/platform';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, POSITIONS } from 'vs/platform/editor/common/editor';
+import { Position } from 'vs/platform/editor/common/editor';
 import { IEditorGroupService, IEditorTabOptions, GroupArrangement, GroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -106,6 +106,8 @@ interface CenteredEditorLayoutData {
 	leftMarginRatio: number;
 	size: number;
 }
+
+export const POSITIONS = [Position.ONE, Position.TWO, Position.THREE];
 
 /**
  * Helper class to manage multiple side by side editors for the editor part.

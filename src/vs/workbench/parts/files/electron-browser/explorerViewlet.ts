@@ -155,8 +155,8 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
-		@INextEditorService private nextEditorService: INextEditorService,
-		@INextEditorGroupsService private nextEditorGroupService: INextEditorGroupsService,
+		@INextEditorService private editorService: INextEditorService,
+		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -198,7 +198,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 					const config = this.configurationService.getValue<IFilesConfiguration>();
 					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview; // No need to delay if preview is disabled
 
-					const activeGroup = this.nextEditorGroupService.activeGroup;
+					const activeGroup = this.editorGroupService.activeGroup;
 					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {
 						delay = 250; // a new editor entry is likely because there is either no group or no preview in group
 					}
@@ -215,7 +215,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 					return editor;
 				};
 
-				return this.nextEditorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
+				return this.editorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
 			});
 
 			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
