@@ -66,7 +66,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 	$createNewCommentThread(handle: number, uri: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
-		const ran = <vscode.Range>extHostTypeConverter.toRange(range);
+		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
 			return TPromise.as(null);
@@ -80,7 +80,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): TPromise<modes.CommentThread> {
 		const data = this._documents.getDocumentData(URI.revive(uri));
-		const ran = <vscode.Range>extHostTypeConverter.toRange(range);
+		const ran = <vscode.Range>extHostTypeConverter.Range.to(range);
 
 		if (!data || !data.document) {
 			return TPromise.as(null);
@@ -135,7 +135,7 @@ function convertCommentInfo(owner: number, vscodeCommentInfo: vscode.CommentInfo
 	return {
 		owner: owner,
 		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(x)),
-		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.fromRange(range)) : []
+		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
 	};
 }
 
@@ -143,7 +143,7 @@ function convertToCommentThread(vscodeCommentThread: vscode.CommentThread): mode
 	return {
 		threadId: vscodeCommentThread.threadId,
 		resource: vscodeCommentThread.resource.toString(),
-		range: extHostTypeConverter.fromRange(vscodeCommentThread.range),
+		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
 		comments: vscodeCommentThread.comments.map(convertToComment),
 		collapsibleState: vscodeCommentThread.collapsibleState
 	};
@@ -153,7 +153,7 @@ function convertFromCommentThread(commentThread: modes.CommentThread): vscode.Co
 	return {
 		threadId: commentThread.threadId,
 		resource: URI.parse(commentThread.resource),
-		range: extHostTypeConverter.toRange(commentThread.range),
+		range: extHostTypeConverter.Range.to(commentThread.range),
 		comments: commentThread.comments.map(convertFromComment),
 		collapsibleState: commentThread.collapsibleState
 	};
