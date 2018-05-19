@@ -10,22 +10,25 @@ import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-const outlineTypeTable: { [kind: string]: SymbolKind } = Object.create(null);
-outlineTypeTable[PConst.Kind.module] = SymbolKind.Module;
-outlineTypeTable[PConst.Kind.class] = SymbolKind.Class;
-outlineTypeTable[PConst.Kind.enum] = SymbolKind.Enum;
-outlineTypeTable[PConst.Kind.interface] = SymbolKind.Interface;
-outlineTypeTable[PConst.Kind.memberFunction] = SymbolKind.Method;
-outlineTypeTable[PConst.Kind.memberVariable] = SymbolKind.Property;
-outlineTypeTable[PConst.Kind.memberGetAccessor] = SymbolKind.Property;
-outlineTypeTable[PConst.Kind.memberSetAccessor] = SymbolKind.Property;
-outlineTypeTable[PConst.Kind.variable] = SymbolKind.Variable;
-outlineTypeTable[PConst.Kind.const] = SymbolKind.Variable;
-outlineTypeTable[PConst.Kind.localVariable] = SymbolKind.Variable;
-outlineTypeTable[PConst.Kind.variable] = SymbolKind.Variable;
-outlineTypeTable[PConst.Kind.function] = SymbolKind.Function;
-outlineTypeTable[PConst.Kind.localFunction] = SymbolKind.Function;
-
+const getSymbolKind = (kind: string): SymbolKind => {
+	switch (kind) {
+		case PConst.Kind.module: return SymbolKind.Module;
+		case PConst.Kind.class: return SymbolKind.Class;
+		case PConst.Kind.enum: return SymbolKind.Enum;
+		case PConst.Kind.interface: return SymbolKind.Interface;
+		case PConst.Kind.memberFunction: return SymbolKind.Method;
+		case PConst.Kind.memberVariable: return SymbolKind.Property;
+		case PConst.Kind.memberGetAccessor: return SymbolKind.Property;
+		case PConst.Kind.memberSetAccessor: return SymbolKind.Property;
+		case PConst.Kind.variable: return SymbolKind.Variable;
+		case PConst.Kind.const: return SymbolKind.Variable;
+		case PConst.Kind.localVariable: return SymbolKind.Variable;
+		case PConst.Kind.variable: return SymbolKind.Variable;
+		case PConst.Kind.function: return SymbolKind.Function;
+		case PConst.Kind.localFunction: return SymbolKind.Function;
+	}
+	return SymbolKind.Variable;
+};
 
 export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
 	public constructor(
@@ -45,9 +48,9 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 				const response = await this.client.execute('navtree', args, token);
 				if (response.body) {
 					// The root represents the file. Ignore this when showing in the UI
-					let tree = response.body;
+					const tree = response.body;
 					if (tree.childItems) {
-						let result = new Array<Hierarchy<SymbolInformation2>>();
+						const result = new Array<Hierarchy<SymbolInformation2>>();
 						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 						return result;
 					}
@@ -55,8 +58,8 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			} else {
 				const response = await this.client.execute('navbar', args, token);
 				if (response.body) {
-					let result = new Array<SymbolInformation>();
-					let foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
+					const result = new Array<SymbolInformation>();
+					const foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
 					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as SymbolInformation[], item));
 					return result;
 				}
@@ -68,11 +71,11 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	}
 
 	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
-		let realIndent = indent + item.indent;
-		let key = `${realIndent}|${item.text}`;
-		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
-			let result = new SymbolInformation(item.text,
-				outlineTypeTable[item.kind as string] || SymbolKind.Variable,
+		const realIndent = indent + item.indent;
+		const key = `${realIndent}|${item.text}`;
+		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item)) {
+			const result = new SymbolInformation(item.text,
+				getSymbolKind(item.kind),
 				containerLabel ? containerLabel : '',
 				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
 			foldingMap[key] = result;
@@ -85,28 +88,31 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 	}
 
-	private static convertNavTree(resource: Uri, bucket: Hierarchy<SymbolInformation>[], item: Proto.NavigationTree): void {
-		if (!TypeScriptDocumentSymbolProvider.shouldInclueEntry(item.text)) {
-			return;
-		}
+	private static convertNavTree(resource: Uri, bucket: Hierarchy<SymbolInformation>[], item: Proto.NavigationTree): boolean {
 		const symbolInfo = new SymbolInformation2(
 			item.text,
 			'', // todo@joh detail
-			outlineTypeTable[item.kind as string] || SymbolKind.Variable,
+			getSymbolKind(item.kind),
 			typeConverters.Range.fromTextSpan(item.spans[0]),
 			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
 		);
+
 		const hierarchy = new Hierarchy(symbolInfo);
+		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
+
 		if (item.childItems && item.childItems.length > 0) {
 			for (const child of item.childItems) {
-				TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
+				shouldInclude = shouldInclude || TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
 			}
 		}
-		bucket.push(hierarchy);
 
+		if (shouldInclude) {
+			bucket.push(hierarchy);
+		}
+		return shouldInclude;
 	}
 
-	private static shouldInclueEntry(name: string): boolean {
-		return !!(name && name !== '<function>' && name !== '<class>');
+	private static shouldInclueEntry(item: Proto.NavigationTree | Proto.NavigationBarItem): boolean {
+		return !!(item.text && item.text !== '<function>' && item.text !== '<class>');
 	}
 }

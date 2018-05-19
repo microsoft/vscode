@@ -321,20 +321,6 @@ export class IssueReporter extends Disposable {
 			});
 		});
 
-		const labelElements = document.getElementsByClassName('caption');
-		for (let i = 0; i < labelElements.length; i++) {
-			const label = labelElements.item(i);
-			label.addEventListener('click', (e) => {
-				e.stopPropagation();
-
-				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
-				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
-				if (checkbox) {
-					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
-				}
-			});
-		}
-
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i);

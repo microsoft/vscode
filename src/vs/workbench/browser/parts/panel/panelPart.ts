@@ -30,7 +30,11 @@ import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+const ActivePanleContextId = 'activePanel';
+export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId, '');
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -40,10 +44,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public _serviceBrand: any;
 
+	private activePanelContextKey: IContextKey<string>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 	private dimension: Dimension;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string,
@@ -54,7 +60,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(
 			notificationService,
@@ -100,6 +107,9 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		for (const panel of this.getPanels()) {
 			this.compositeBar.addComposite(panel, false);
 		}
+		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
+		this.onDidPanelOpen(this._onDidPanelOpen, this, this.disposables);
+		this.onDidPanelClose(this._onDidPanelClose, this, this.disposables);
 
 		this.registerListeners();
 	}
@@ -117,6 +127,18 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
+	}
+
+	private _onDidPanelOpen(viewlet: IPanel): void {
+		this.activePanelContextKey.set(viewlet.getId());
+	}
+
+	private _onDidPanelClose(viewlet: IPanel): void {
+		const id = viewlet.getId();
+
+		if (this.activePanelContextKey.get() === id) {
+			this.activePanelContextKey.reset();
+		}
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -276,6 +298,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			return 0;
 		}
 		return this.toolBar.getItemsWidth();
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
 

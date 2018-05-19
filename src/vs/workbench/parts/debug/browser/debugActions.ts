@@ -340,7 +340,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
+		return super.isEnabled(state) && (state !== State.Inactive);
 	}
 }
 

@@ -634,11 +634,11 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 export interface IStandardWindow {
-	scrollX: number;
-	scrollY: number;
+	readonly scrollX: number;
+	readonly scrollY: number;
 }
 
-export const StandardWindow: IStandardWindow = new class {
+export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
 	get scrollX(): number {
 		if (typeof window.scrollX === 'number') {
 			// modern browsers
