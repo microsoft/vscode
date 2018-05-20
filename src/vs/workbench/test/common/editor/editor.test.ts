@@ -13,7 +13,7 @@ import { IEditorModel } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService, TestNextEditorGroupsService, TestNextEditorGroup } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupsService, TestEditorGroup } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
@@ -88,14 +88,14 @@ suite('Workbench editor', () => {
 	});
 
 	test('EditorViewStateMemento - basics', function () {
-		const testGroup0 = new TestNextEditorGroup(0);
-		const testGroup1 = new TestNextEditorGroup(1);
-		const testGroup4 = new TestNextEditorGroup(4);
+		const testGroup0 = new TestEditorGroup(0);
+		const testGroup1 = new TestEditorGroup(1);
+		const testGroup4 = new TestEditorGroup(4);
 
-		const groupService = new TestNextEditorGroupsService([
+		const groupService = new TestEditorGroupsService([
 			testGroup0,
 			testGroup1,
-			new TestNextEditorGroup(2)
+			new TestEditorGroup(2)
 		]);
 
 		interface TestViewState {
@@ -156,7 +156,7 @@ suite('Workbench editor', () => {
 	});
 
 	test('EditorViewStateMemento - use with editor input', function () {
-		const testGroup0 = new TestNextEditorGroup(0);
+		const testGroup0 = new TestEditorGroup(0);
 
 		interface TestViewState {
 			line: number;
@@ -179,7 +179,7 @@ suite('Workbench editor', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorViewStateMemento<TestViewState>(new TestNextEditorGroupsService(), rawMemento, 'key', 3);
+		let memento = new EditorViewStateMemento<TestViewState>(new TestEditorGroupsService(), rawMemento, 'key', 3);
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 

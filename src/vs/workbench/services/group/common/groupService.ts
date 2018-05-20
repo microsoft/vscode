@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { Position } from 'vs/platform/editor/common/editor';
-import { IEditorStacksModel, ILegacyEditorGroup, IEditorOpeningEvent, IEditorInput } from 'vs/workbench/common/editor';
+import { IEditorOpeningEvent, IEditorInput } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 
 export enum GroupArrangement {
@@ -75,19 +75,19 @@ export interface IEditorGroupService {
 	/**
 	 * Keyboard focus the editor group at the provided position.
 	 */
-	focusGroup(group: ILegacyEditorGroup): void;
+	focusGroup(group: any): void;
 	focusGroup(position: Position): void;
 
 	/**
 	 * Activate the editor group at the provided position without moving focus.
 	 */
-	activateGroup(group: ILegacyEditorGroup): void;
+	activateGroup(group: any): void;
 	activateGroup(position: Position): void;
 
 	/**
 	 * Allows to move the editor group from one position to another.
 	 */
-	moveGroup(from: ILegacyEditorGroup, to: ILegacyEditorGroup): void;
+	moveGroup(from: any, to: any): void;
 	moveGroup(from: Position, to: Position): void;
 
 	/**
@@ -114,20 +114,20 @@ export interface IEditorGroupService {
 	/**
 	 * Adds the pinned state to an editor, removing it from being a preview editor.
 	 */
-	pinEditor(group: ILegacyEditorGroup, input: IEditorInput): void;
+	pinEditor(group: any, input: IEditorInput): void;
 	pinEditor(position: Position, input: IEditorInput): void;
 
 	/**
 	 * Moves an editor from one group to another. The index in the group is optional.
 	 * The inactive option is applied when moving across groups.
 	 */
-	moveEditor(input: IEditorInput, from: ILegacyEditorGroup, to: ILegacyEditorGroup, moveOptions?: IMoveOptions): void;
+	moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void;
 	moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
 
 	/**
 	 * Provides access to the editor stacks model
 	 */
-	getStacksModel(): IEditorStacksModel;
+	getStacksModel(): any;
 
 	/**
 	 * Returns tab options.

@@ -11,7 +11,6 @@ import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEdito
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
-import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
@@ -540,21 +539,28 @@ function resolveCommandsContext(editorGroupService: INextEditorGroupsService, co
 }
 
 export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService, editorGroupService: INextEditorGroupsService): IEditorCommandsContext[] {
+
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;
 	if (list instanceof List && list.isDOMFocused()) {
-		const elementToContext = (element: IEditorIdentifier | EditorGroup) =>
-			element instanceof EditorGroup ? { groupId: element.id, editorIndex: undefined } : { groupId: element.groupId, editorIndex: editorGroupService.getGroup(element.groupId).getIndexOfEditor(element.editor) };
-		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | EditorGroup) => e instanceof EditorGroup || ('editor' in e && 'group' in e);
+		const elementToContext = (element: IEditorIdentifier | IEditorGroup) => {
+			if (isEditorGroup(element)) {
+				return { groupId: element.id, editorIndex: void 0 };
+			}
 
-		const focusedElements: (IEditorIdentifier | EditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
-		// need to take into account when editor context is { group: group }
-		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : undefined;
+			return { groupId: element.groupId, editorIndex: editorGroupService.getGroup(element.groupId).getIndexOfEditor(element.editor) };
+		};
+
+		const onlyEditorGroupAndEditor = (e: IEditorIdentifier | IEditorGroup) => isEditorGroup(e) || isEditorIdentifier(e);
+
+		const focusedElements: (IEditorIdentifier | IEditorGroup)[] = list.getFocusedElements().filter(onlyEditorGroupAndEditor);
+		const focus = editorContext ? editorContext : focusedElements.length ? focusedElements.map(elementToContext)[0] : void 0; // need to take into account when editor context is { group: group }
 
 		if (focus) {
-			const selection: (IEditorIdentifier | EditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
+			const selection: (IEditorIdentifier | IEditorGroup)[] = list.getSelectedElements().filter(onlyEditorGroupAndEditor);
+
 			// Only respect selection if it contains focused element
-			if (selection && selection.some(s => s instanceof EditorGroup ? s.id === focus.groupId : s.groupId === focus.groupId && editorGroupService.getGroup(s.groupId).getIndexOfEditor(s.editor) === focus.editorIndex)) {
+			if (selection && selection.some(s => isEditorGroup(s) ? s.id === focus.groupId : s.groupId === focus.groupId && editorGroupService.getGroup(s.groupId).getIndexOfEditor(s.editor) === focus.editorIndex)) {
 				return selection.map(elementToContext);
 			}
 
@@ -564,6 +570,18 @@ export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsCon
 
 	// Otherwise go with passed in context
 	return !!editorContext ? [editorContext] : [];
+}
+
+function isEditorGroup(thing: any): thing is IEditorGroup {
+	const group = thing as IEditorGroup;
+
+	return group && typeof group.id === 'number' && Array.isArray(group.editors);
+}
+
+function isEditorIdentifier(thing: any): thing is IEditorIdentifier {
+	const identifier = thing as IEditorIdentifier;
+
+	return identifier && typeof identifier.groupId === 'number';
 }
 
 export function setup(): void {

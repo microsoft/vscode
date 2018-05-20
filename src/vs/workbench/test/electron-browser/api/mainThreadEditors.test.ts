@@ -23,7 +23,7 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService, TestNextEditorService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
@@ -81,7 +81,7 @@ suite('MainThreadEditors', () => {
 			onEditorGroupMoved = Event.None;
 		};
 
-		const bulkEditService = new BulkEditService(modelService, new TestNextEditorService(), null, fileService);
+		const bulkEditService = new BulkEditService(modelService, new TestEditorService(), null, fileService);
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

@@ -11,7 +11,7 @@ import { IEditorOptions, ITextEditorOptions, Position, IResourceInput } from 'vs
 import URI from 'vs/base/common/uri';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { basename } from 'vs/base/common/paths';
-import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorStacksModel, IEditorOpeningEvent, ILegacyEditorGroup, IStacksModelChangeEvent, IEditorCloseEvent, IEditorIdentifier, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, TextEditorOptions, Extensions as EditorExtensions, IResourceDiffInput, IResourceSideBySideInput, IUntitledResourceInput, SideBySideEditorInput, IFileEditorInput, IFileInputFactory, IEditorInputFactoryRegistry, IEditorOpeningEvent, IEditorCloseEvent, IEditorIdentifier, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -142,7 +142,7 @@ export interface IEditorPart {
 export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
 
 	_serviceBrand: ServiceIdentifier<any>;
-	stacks: IEditorStacksModel;
+	stacks: any;
 
 	constructor(private instantiationService: IInstantiationService) {
 		this.stacks = new NoOpEditorStacksModel();
@@ -175,7 +175,7 @@ export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
 
 	moveEditor(...args: any[]) { }
 
-	getStacksModel(): IEditorStacksModel {
+	getStacksModel(): any {
 		return this.stacks;
 	}
 
@@ -230,28 +230,28 @@ export class NoOpEditorPart implements IEditorPart, IEditorGroupService {
 	}
 }
 
-export class NoOpEditorStacksModel implements IEditorStacksModel {
+export class NoOpEditorStacksModel {
 
-	onModelChanged: Event<IStacksModelChangeEvent> = new Emitter<IStacksModelChangeEvent>().event;
+	onModelChanged: Event<any> = new Emitter<any>().event;
 	onWillCloseEditor: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
 	onEditorClosed: Event<IEditorCloseEvent> = new Emitter<IEditorCloseEvent>().event;
 
-	groups: ILegacyEditorGroup[] = [];
-	activeGroup: ILegacyEditorGroup;
+	groups: any[] = [];
+	activeGroup: any;
 
-	isActive(group: ILegacyEditorGroup): boolean {
+	isActive(group: any): boolean {
 		return false;
 	}
 
-	getGroup(id: number): ILegacyEditorGroup {
+	getGroup(id: number): any {
 		return null;
 	}
 
-	positionOfGroup(group: ILegacyEditorGroup): Position {
+	positionOfGroup(group: any): Position {
 		return Position.ONE;
 	}
 
-	groupAt(position: Position): ILegacyEditorGroup {
+	groupAt(position: Position): any {
 		return null;
 	}
 

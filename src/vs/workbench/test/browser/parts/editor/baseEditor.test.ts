@@ -14,7 +14,7 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService, TestNextEditorGroup } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroup } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import URI from 'vs/base/common/uri';
@@ -99,7 +99,7 @@ suite('Workbench base editor', () => {
 			assert.strictEqual(input, e.input);
 			assert.strictEqual(options, e.options);
 
-			const group = new TestNextEditorGroup(1);
+			const group = new TestEditorGroup(1);
 			e.setVisible(true, group);
 			assert(e.isVisible());
 			assert.equal(e.group, group);

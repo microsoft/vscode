@@ -14,7 +14,7 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { ILegacyEditorGroup, ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -23,12 +23,11 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IPartService, Parts, Position as PartPosition, IDimension } from 'vs/workbench/services/part/common/partService';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IEditorOptions, Position, IResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorOptions, IResourceInput } from 'vs/platform/editor/common/editor';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IWorkspaceContextService, IWorkspace as IWorkbenchWorkspace, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { ILifecycleService, ShutdownEvent, ShutdownReason, StartupKind, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { IEditorGroupService, GroupArrangement, GroupOrientation, IEditorTabOptions, IMoveOptions } from 'vs/workbench/services/group/common/groupService';
 import { TextFileService } from 'vs/workbench/services/textfile/common/textFileService';
 import { FileOperationEvent, IFileService, IResolveContentOptions, FileOperationError, IFileStat, IResolveFileResult, FileChangesEvent, IResolveFileOptions, IContent, IUpdateContentOptions, IStreamContent, ICreateFileOptions, ITextSnapshot, IResourceEncodings } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -38,7 +37,7 @@ import { IRawTextContent, ITextFileService } from 'vs/workbench/services/textfil
 import { parseArgs } from 'vs/platform/environment/node/argv';
 import { EnvironmentService } from 'vs/platform/environment/node/environmentService';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IWorkbenchEditorService, ICloseEditorsFilter, NoOpEditorStacksModel } from 'vs/workbench/services/editor/common/editorService';
+import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService, ServicesAccessor, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
@@ -255,9 +254,7 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(ITextResourceConfigurationService, new TestTextResourceConfigurationService(configService));
 	instantiationService.stub(IUntitledEditorService, instantiationService.createInstance(UntitledEditorService));
 	instantiationService.stub(IStorageService, new TestStorageService());
-	instantiationService.stub(IWorkbenchEditorService, new TestEditorService());
 	instantiationService.stub(IPartService, new TestPartService());
-	instantiationService.stub(IEditorGroupService, new TestEditorGroupService());
 	instantiationService.stub(IModeService, ModeServiceImpl);
 	instantiationService.stub(IHistoryService, new TestHistoryService());
 	instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));
@@ -277,8 +274,8 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
-	instantiationService.stub(INextEditorGroupsService, new TestNextEditorGroupsService([new TestNextEditorGroup(0)]));
-	const editorService = new TestNextEditorService();
+	instantiationService.stub(INextEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
+	const editorService = new TestEditorService();
 	instantiationService.stub(INextEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
@@ -497,213 +494,10 @@ export class TestStorageService implements IStorageService {
 	}
 }
 
-export class TestEditorGroupService implements IEditorGroupService {
-	public _serviceBrand: any;
-
-	private stacksModel;
-
-	private readonly _onEditorsChanged: Emitter<void>;
-	private readonly _onEditorOpening: Emitter<IEditorOpeningEvent>;
-	private readonly _onEditorOpenFail: Emitter<IEditorInput>;
-	private readonly _onEditorsMoved: Emitter<void>;
-	private readonly _onGroupOrientationChanged: Emitter<void>;
-	private readonly _onTabOptionsChanged: Emitter<IEditorTabOptions>;
-
-	constructor(callback?: (method: string) => void) {
-		this._onEditorsMoved = new Emitter<void>();
-		this._onEditorsChanged = new Emitter<void>();
-		this._onEditorOpening = new Emitter<IEditorOpeningEvent>();
-		this._onGroupOrientationChanged = new Emitter<void>();
-		this._onEditorOpenFail = new Emitter<IEditorInput>();
-		this._onTabOptionsChanged = new Emitter<IEditorTabOptions>();
-
-		let services = new ServiceCollection();
-
-		services.set(IStorageService, new TestStorageService());
-		services.set(IConfigurationService, new TestConfigurationService());
-		services.set(IWorkspaceContextService, new TestContextService());
-		const lifecycle = new TestLifecycleService();
-		services.set(ILifecycleService, lifecycle);
-		services.set(ITelemetryService, NullTelemetryService);
-
-		this.stacksModel = new NoOpEditorStacksModel();
-	}
-
-	public fireChange(): void {
-		this._onEditorsChanged.fire();
-	}
-
-	public get onEditorsChanged(): Event<void> {
-		return this._onEditorsChanged.event;
-	}
-
-	public get onEditorOpening(): Event<IEditorOpeningEvent> {
-		return this._onEditorOpening.event;
-	}
-
-	public get onEditorOpenFail(): Event<IEditorInput> {
-		return this._onEditorOpenFail.event;
-	}
-
-	public get onEditorGroupMoved(): Event<void> {
-		return this._onEditorsMoved.event;
-	}
-
-	public get onGroupOrientationChanged(): Event<void> {
-		return this._onGroupOrientationChanged.event;
-	}
-
-	public get onTabOptionsChanged(): Event<IEditorTabOptions> {
-		return this._onTabOptionsChanged.event;
-	}
-
-	public focusGroup(group: ILegacyEditorGroup): void;
-	public focusGroup(position: Position): void;
-	public focusGroup(arg1: any): void {
-
-	}
-
-	public activateGroup(group: ILegacyEditorGroup): void;
-	public activateGroup(position: Position): void;
-	public activateGroup(arg1: any): void {
-
-	}
-
-	public moveGroup(from: ILegacyEditorGroup, to: ILegacyEditorGroup): void;
-	public moveGroup(from: Position, to: Position): void;
-	public moveGroup(arg1: any, arg2: any): void {
-
-	}
-
-	public arrangeGroups(arrangement: GroupArrangement): void {
-
-	}
-
-	public setGroupOrientation(orientation: GroupOrientation): void {
-
-	}
-
-	public getGroupOrientation(): GroupOrientation {
-		return 'vertical';
-	}
-
-	public resizeGroup(position: Position, groupSizeChange: number): void {
-
-	}
-
-	public pinEditor(group: ILegacyEditorGroup, input: IEditorInput): void;
-	public pinEditor(position: Position, input: IEditorInput): void;
-	public pinEditor(arg1: any, input: IEditorInput): void {
-	}
-
-	public moveEditor(input: IEditorInput, from: ILegacyEditorGroup, to: ILegacyEditorGroup, moveOptions?: IMoveOptions): void;
-	public moveEditor(input: IEditorInput, from: Position, to: Position, moveOptions?: IMoveOptions): void;
-	public moveEditor(input: IEditorInput, from: any, to: any, moveOptions?: IMoveOptions): void {
-	}
-
-	public getStacksModel() {
-		return this.stacksModel;
-	}
-
-	public getTabOptions(): IEditorTabOptions {
-		return {};
-	}
-
-	public invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		return fn(null);
-	}
-}
-
-export class TestEditorService implements IWorkbenchEditorService {
-	public _serviceBrand: any;
-
-	public activeEditorInput: IEditorInput;
-	public activeEditorOptions: IEditorOptions;
-	public activeEditorPosition: Position;
-	public mockLineNumber: number;
-	public mockSelectedText: string;
-
-	private callback: (method: string) => void;
-
-	constructor(callback?: (method: string) => void) {
-		this.callback = callback || ((s: string) => { });
-		this.mockLineNumber = 15;
-		this.mockSelectedText = 'selected text';
-	}
-
-	public openEditors(inputs: any[]): Promise {
-		return TPromise.as([]);
-	}
-
-	public replaceEditors(editors: any[]): TPromise<IEditor[]> {
-		return TPromise.as([]);
-	}
-
-	public closeEditors(positions?: Position[]): TPromise<void>;
-	public closeEditors(position: Position, filter?: ICloseEditorsFilter): TPromise<void>;
-	public closeEditors(position: Position, editors: IEditorInput[]): TPromise<void>;
-	public closeEditors(editors: { positionOne?: ICloseEditorsFilter, positionTwo?: ICloseEditorsFilter, positionThree?: ICloseEditorsFilter }): TPromise<void>;
-	public closeEditors(editors: { positionOne?: IEditorInput[], positionTwo?: IEditorInput[], positionThree?: IEditorInput[] }): TPromise<void>;
-	public closeEditors(positionOrEditors: any, filterOrEditors?: any): TPromise<void> {
-		return TPromise.as(null);
-	}
-
-	public getActiveEditor(): IEditor {
-		this.callback('getActiveEditor');
-
-		return {
-			input: null,
-			options: null,
-			group: null,
-			getId: () => { return null; },
-			getControl: () => {
-				return {
-					getSelection: () => { return { positionLineNumber: this.mockLineNumber }; },
-					getModel: () => { return { getValueInRange: () => this.mockSelectedText }; }
-				};
-			},
-			focus: () => { },
-			isVisible: () => { return true; }
-		};
-	}
-
-	public getActiveEditorInput(): IEditorInput {
-		this.callback('getActiveEditorInput');
-
-		return this.activeEditorInput;
-	}
-
-	public getVisibleEditors(): IEditor[] {
-		this.callback('getVisibleEditors');
-
-		return [];
-	}
-
-	public openEditor(input: any, options?: any, position?: any): Promise {
-		this.callback('openEditor');
-
-		this.activeEditorInput = input;
-		this.activeEditorOptions = options;
-		this.activeEditorPosition = position;
-
-		return TPromise.as(null);
-	}
-
-	public closeEditor(position: Position, input: IEditorInput): TPromise<void> {
-		this.callback('closeEditor');
-
-		return TPromise.as(null);
-	}
-
-	public createInput(input: IResourceInput): IEditorInput {
-		return null;
-	}
-}
-
-export class TestNextEditorGroupsService implements INextEditorGroupsService {
+export class TestEditorGroupsService implements INextEditorGroupsService {
 	_serviceBrand: ServiceIdentifier<any>;
 
-	constructor(public groups: TestNextEditorGroup[] = []) { }
+	constructor(public groups: TestEditorGroup[] = []) { }
 
 	onDidActiveGroupChange: Event<IEditorGroup> = Event.None;
 	onDidAddGroup: Event<IEditorGroup> = Event.None;
@@ -778,7 +572,7 @@ export class TestNextEditorGroupsService implements INextEditorGroupsService {
 	}
 }
 
-export class TestNextEditorGroup implements IEditorGroup {
+export class TestEditorGroup implements IEditorGroup {
 
 	constructor(public id: number) { }
 
@@ -857,7 +651,7 @@ export class TestNextEditorGroup implements IEditorGroup {
 	}
 }
 
-export class TestNextEditorService implements INextEditorService {
+export class TestEditorService implements INextEditorService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

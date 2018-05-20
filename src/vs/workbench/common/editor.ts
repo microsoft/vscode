@@ -11,7 +11,7 @@ import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
-import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
+import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -1176,57 +1176,3 @@ export const Extensions = {
 };
 
 Registry.add(Extensions.EditorInputFactories, new EditorInputFactoryRegistry());
-
-//#region TODO@grid obsolete
-
-export interface IStacksModelChangeEvent {
-	group: ILegacyEditorGroup;
-	editor?: IEditorInput;
-	structural?: boolean;
-}
-
-export interface IEditorStacksModel {
-
-	onModelChanged: Event<IStacksModelChangeEvent>;
-
-	onWillCloseEditor: Event<IEditorCloseEvent>;
-	onEditorClosed: Event<IEditorCloseEvent>;
-
-	groups: ILegacyEditorGroup[];
-	activeGroup: ILegacyEditorGroup;
-	isActive(group: ILegacyEditorGroup): boolean;
-
-	getGroup(id: GroupIdentifier): ILegacyEditorGroup;
-
-	positionOfGroup(group: ILegacyEditorGroup): Position;
-	groupAt(position: Position): ILegacyEditorGroup;
-
-	next(jumpGroups: boolean, cycleAtEnd?: boolean): IEditorIdentifier;
-	previous(jumpGroups: boolean, cycleAtStart?: boolean): IEditorIdentifier;
-	last(): IEditorIdentifier;
-
-	isOpen(resource: URI): boolean;
-
-	toString(): string;
-}
-
-export interface ILegacyEditorGroup {
-	id: GroupIdentifier;
-	count: number;
-	activeEditor: IEditorInput;
-	previewEditor: IEditorInput;
-
-	getEditor(index: number): IEditorInput;
-	getEditor(resource: URI): IEditorInput;
-	indexOf(editor: IEditorInput): number;
-
-	contains(editorOrResource: IEditorInput | URI): boolean;
-
-	getEditors(mru?: boolean): IEditorInput[];
-	isActive(editor: IEditorInput): boolean;
-	isPreview(editor: IEditorInput): boolean;
-	isPinned(index: number): boolean;
-	isPinned(editor: IEditorInput): boolean;
-}
-
-//#endregion
