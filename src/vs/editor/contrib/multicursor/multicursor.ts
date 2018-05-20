@@ -27,6 +27,9 @@ import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class InsertCursorAbove extends EditorAction {
+
+	private logicalLine: boolean;
+
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
@@ -42,38 +45,36 @@ export class InsertCursorAbove extends EditorAction {
 				}
 			}
 		});
+		this.logicalLine = true;
 	}
+
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
-		const model = editor.getModel();
 
 		if (context.config.readOnly) {
 			return;
 		}
 
-		let selects = editor.getSelections();
-
-		if (selects[0].startLineNumber === 1) {
+		if (editor.getSelections[0].startLineNumber === 1) {
 			return;
 		}
-
-		let additionalLine = editor.getModel().findPreviousMatch(model.getLineContent(selects[0].selectionStartLineNumber - 1), editor.getPosition(), false, true, null, false).range;
-
-		selects.unshift(new Selection(additionalLine.startLineNumber, selects[selects.length - 1].startColumn, additionalLine.endLineNumber, selects[selects.length - 1].startColumn));
 
 		context.model.pushStackElement();
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorSelect(context, selects)
+			CursorMoveCommands.addCursorUp(context, cursors.getAll(), (this.logicalLine) ? editor.getModel() : null)
 		);
 		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
 export class InsertCursorBelow extends EditorAction {
+
+	private logicalLine: boolean;
+
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
@@ -89,32 +90,26 @@ export class InsertCursorBelow extends EditorAction {
 				}
 			}
 		});
+		this.logicalLine = true;
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 		const cursors = editor._getCursors();
 		const context = cursors.context;
-		const model = editor.getModel();
 
 		if (context.config.readOnly) {
 			return;
 		}
 
-		let selects = editor.getSelections();
-
-		if (selects[selects.length - 1].startLineNumber >= model.getLineCount()) {
+		if (editor.getSelections()[editor.getSelections().length - 1].startLineNumber >= editor.getModel().getLineCount()) {
 			return;
 		}
-
-		let additionalLine = editor.getModel().findNextMatch(model.getLineContent(selects[selects.length - 1].selectionStartLineNumber + 1), editor.getPosition(), false, true, null, false).range;
-
-		selects.push(new Selection(additionalLine.startLineNumber, selects[0].startColumn, additionalLine.endLineNumber, selects[0].startColumn));
 
 		context.model.pushStackElement();
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorSelect(context, selects)
+			CursorMoveCommands.addCursorDown(context, cursors.getAll(), (this.logicalLine) ? editor.getModel() : null)
 		);
 		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}

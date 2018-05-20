@@ -12,15 +12,26 @@ import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { Selection } from 'vs/editor/common/core/selection';
+import { ITextModel } from 'vs/editor/common/model';
 
 export class CursorMoveCommands {
 
-	public static addCursorDown(context: CursorContext, cursors: CursorState[]): CursorState[] {
+	public static addCursorDown(context: CursorContext, cursors: CursorState[], model: ITextModel = null): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-			result[resultLen++] = CursorState.fromViewState(MoveOperations.translateDown(context.config, context.viewModel, cursor.viewState));
+		if (model) {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				let lineContent = model.getLineContent(cursor.modelState.selection.startLineNumber + 1);
+				let additionalLine = model.findNextMatch(lineContent, cursor.modelState.position, false, true, null, false).range;
+				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+				result[resultLen++] = CursorState.fromModelSelection(new Selection(additionalLine.startLineNumber, cursor.viewState.selection.startColumn, additionalLine.endLineNumber, cursor.viewState.selection.endColumn));
+			}
+		} else {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateDown(context.config, context.viewModel, cursor.viewState));
+			}
 		}
 		return result;
 	}
@@ -31,12 +42,22 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static addCursorUp(context: CursorContext, cursors: CursorState[]): CursorState[] {
+	public static addCursorUp(context: CursorContext, cursors: CursorState[], model: ITextModel = null): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		for (let i = 0, len = cursors.length; i < len; i++) {
-			const cursor = cursors[i];
-			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-			result[resultLen++] = CursorState.fromViewState(MoveOperations.translateUp(context.config, context.viewModel, cursor.viewState));
+		if (model) {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				let lineContent = model.getLineContent(cursor.modelState.selection.startLineNumber - 1);
+				let additionalLine = model.findPreviousMatch(lineContent, cursor.modelState.position, false, true, null, false).range;
+				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+				result[resultLen++] = CursorState.fromModelSelection(new Selection(additionalLine.startLineNumber, cursor.viewState.selection.startColumn, additionalLine.endLineNumber, cursor.viewState.selection.endColumn));
+			}
+		} else {
+			for (let i = 0, len = cursors.length; i < len; i++) {
+				const cursor = cursors[i];
+				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateUp(context.config, context.viewModel, cursor.viewState));
+			}
 		}
 		return result;
 	}
