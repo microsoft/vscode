@@ -261,8 +261,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(addDisposableListener(this.titleContainer, TouchEventType.Tap, e => handleTitleClickOrTouch(e)));
 
 		// Editor Container
-		const editorFocusTracker = this._register(trackFocus(this.editorContainer));
-		this._register(editorFocusTracker.onDidFocus(() => {
+		this._register(this.editorControl.onDidFocus(() => {
 			this._onDidFocus.fire();
 		}));
 	}
@@ -599,11 +598,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	focus(): void {
+
+		// Pass focus to widgets
 		if (this.activeControl) {
 			this.activeControl.focus();
 		} else {
 			this.element.focus();
 		}
+
+		// Event
+		this._onDidFocus.fire();
 	}
 
 	pinEditor(editor: EditorInput = this.activeEditor): void {

@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { Disposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
 import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IOpenEditorResult {
 	readonly control: BaseEditor;
@@ -24,6 +25,12 @@ export interface IOpenEditorResult {
 }
 
 export class EditorControl extends Disposable {
+
+	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
+	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
+
+	private activeControlFocusListener: IDisposable;
+
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
@@ -75,6 +82,9 @@ export class EditorControl extends Disposable {
 		// Show editor
 		this.parent.appendChild(control.getContainer());
 		show(control.getContainer());
+
+		// Track focus
+		this.activeControlFocusListener = control.onDidFocus(() => this._onDidFocus.fire());
 
 		// Indicate to editor that it is now visible
 		control.setVisible(true, this.groupView);
@@ -187,6 +197,9 @@ export class EditorControl extends Disposable {
 
 		// Clear active control
 		this._activeControl = null;
+
+		// Clear focus listener
+		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
 	}
 
 	closeEditor(editor: EditorInput): void {
@@ -207,5 +220,11 @@ export class EditorControl extends Disposable {
 
 		// Forward to all editor controls
 		this.controls.forEach(editor => editor.shutdown());
+	}
+
+	dispose(): void {
+		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+
+		super.dispose();
 	}
 }
