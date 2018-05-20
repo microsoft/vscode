@@ -154,7 +154,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 				// Apply Options from TextOptions
 				let optionsGotApplied = false;
 				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
-					optionsGotApplied = (<TextEditorOptions>options).apply(<IDiffEditor>diffEditor, ScrollType.Immediate);
+					optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
 				}
 
 				// Otherwise restore View State

@@ -15,7 +15,6 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -142,7 +141,7 @@ export class ReplaceService implements IReplaceService {
 			}
 		}).then(editor => {
 			this.updateReplacePreview(fileMatch).then(() => {
-				let editorControl = (<IDiffEditor>editor.getControl());
+				let editorControl = editor.getControl();
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 				}

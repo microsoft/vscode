@@ -46,12 +46,16 @@ export interface INextEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
-	 * Emitted when the current active editor changes.
+	 * Emitted when the currently active editor changes.
+	 *
+	 * @see `INextEditorService.activeEditor`
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when any of the current visible editors changes.
+	 *
+	 * @see `INextEditorService.visibleEditors`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
 
@@ -66,42 +70,50 @@ export interface INextEditorService {
 	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
 
 	/**
-	 * The currently active editor control if any.
-	 */
-	readonly activeControl: IEditor;
-
-	/**
-	 * The currently active text editor widget if there is a control active
-	 * and it is an instance of the code text editor (either normal or diff
-	 * editor).
-	 */
-	readonly activeTextEditorWidget: ICodeEditor;
-
-	/**
-	 * All editors that are opened.
-	 */
-	readonly editors: ReadonlyArray<IEditorInput>;
-
-	/**
-	 * The currently active editor if any.
+	 * The currently active editor or `undefined` if none. An editor is active when it is
+	 * located in the currently active editor group. It will be `undefined` if the active
+	 * editor group has no editors open.
 	 */
 	readonly activeEditor: IEditorInput;
 
 	/**
-	 * All controls that are currently visible.
+	 * The currently active editor control or `undefined` if none. The editor control is
+	 * the workbench container for editors of any kind.
+	 *
+	 * @see `INextEditorService.activeEditor`
+	 */
+	readonly activeControl: IEditor;
+
+	/**
+	 * The currently active text editor widget or `undefined` if there is currently no active
+	 * editor or the active editor widget is neither a text nor a diff editor.
+	 *
+	 * @see `INextEditorService.activeEditor`
+	 */
+	readonly activeTextEditorWidget: ICodeEditor;
+
+	/**
+	 * All editors that are currently visible. An editor is visible when it is opened in an
+	 * editor group and active in that group. Multiple editor groups can be opened at the same time.
+	 */
+	readonly visibleEditors: ReadonlyArray<IEditorInput>;
+
+	/**
+	 * All editor controls that are currently visible across all editor groups.
 	 */
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
-	 * All text editor widgets (either normal or diff editor) that are currently
-	 * visible.
+	 * All text editor widgets that are currently visible across all editor groups. A text editor
+	 * widget is either a text or a diff editor.
 	 */
 	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
 
 	/**
-	 * All editors that are currently visible.
+	 * All editors that are opened across all editor groups. This includes active as well as inactive
+	 * editors in each editor group.
 	 */
-	readonly visibleEditors: ReadonlyArray<IEditorInput>;
+	readonly editors: ReadonlyArray<IEditorInput>;
 
 	/**
 	 * Open an editor in an editor group.
