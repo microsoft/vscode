@@ -6,7 +6,8 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorPosition } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
@@ -157,13 +158,13 @@ export namespace DiagnosticSeverity {
 
 export namespace ViewColumn {
 	export function from(column?: vscode.ViewColumn): EditorPosition {
-		let editorColumn = EditorPosition.ONE;
+		let editorColumn = 0;
 		if (typeof column !== 'number') {
 			// stick with ONE
 		} else if (column === <number>types.ViewColumn.Two) {
-			editorColumn = EditorPosition.TWO;
+			editorColumn = 1;
 		} else if (column === <number>types.ViewColumn.Three) {
-			editorColumn = EditorPosition.THREE;
+			editorColumn = 2;
 		} else if (column === <number>types.ViewColumn.Active) {
 			editorColumn = undefined;
 		}
@@ -174,11 +175,11 @@ export namespace ViewColumn {
 		if (typeof position !== 'number') {
 			return undefined;
 		}
-		if (position === EditorPosition.ONE) {
+		if (position === 0) {
 			return <number>types.ViewColumn.One;
-		} else if (position === EditorPosition.TWO) {
+		} else if (position === 1) {
 			return <number>types.ViewColumn.Two;
-		} else if (position === EditorPosition.THREE) {
+		} else if (position === 2) {
 			return <number>types.ViewColumn.Three;
 		}
 		return undefined;

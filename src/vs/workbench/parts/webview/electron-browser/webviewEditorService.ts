@@ -6,7 +6,6 @@
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -69,7 +68,6 @@ export interface WebviewReviver {
 
 export interface WebviewEvents {
 	onMessage?(message: any): void;
-	onDidChangePosition?(newPosition: Position): void;
 	onDispose?(): void;
 	onDidClickLink?(link: URI, options: vscode.WebviewOptions): void;
 }

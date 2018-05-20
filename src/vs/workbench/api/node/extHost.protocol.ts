@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorPosition } from 'vs/workbench/api/shared/editor';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';

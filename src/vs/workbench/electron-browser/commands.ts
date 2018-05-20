@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
@@ -14,9 +13,6 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import URI from 'vs/base/common/uri';
-import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
@@ -533,30 +529,6 @@ export function registerCommands(): void {
 		when: void 0,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_Q,
 		win: { primary: void 0 }
-	});
-
-	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(IEditorService);
-		let [leftResource, rightResource, label, description, options, position] = args;
-
-		if (!options || typeof options !== 'object') {
-			options = {
-				preserveFocus: false
-			};
-		}
-
-		if (!label) {
-			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
-		}
-
-		return editorService.openEditor({ leftResource, rightResource, label, description, options }, position).then(() => void 0);
-	});
-
-	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(IEditorService);
-		const [resource, options, column] = args;
-
-		return editorService.openEditor({ resource, options }, column).then(() => void 0);
 	});
 
 	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string) {

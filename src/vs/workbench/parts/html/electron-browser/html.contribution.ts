@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorPosition } from 'vs/workbench/api/shared/editor';
 import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from './htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';

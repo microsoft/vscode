@@ -128,22 +128,3 @@ export interface ITextEditorOptions extends IEditorOptions {
 	 */
 	revealInCenterIfOutsideViewport?: boolean;
 }
-
-//#region TODO@grid obsolete
-
-/**
- * Possible locations for opening an editor.
- */
-export enum Position {
-
-	/** Opens the editor in the first position replacing the input currently showing */
-	ONE = 0,
-
-	/** Opens the editor in the second position replacing the input currently showing */
-	TWO = 1,
-
-	/** Opens the editor in the third most position replacing the input currently showing */
-	THREE = 2
-}
-
-//#endregion

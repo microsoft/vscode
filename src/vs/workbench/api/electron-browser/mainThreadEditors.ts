@@ -4,6 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { localize } from 'vs/nls';
 import { disposed } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { equals as objectEquals } from 'vs/base/common/objects';
@@ -15,7 +18,8 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { ITextEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -127,7 +131,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 	}
 
-	$tryShowEditor(id: string, position: EditorPosition): TPromise<void> {
+	$tryShowEditor(id: string, position?: EditorPosition): TPromise<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
@@ -240,6 +244,36 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		return TPromise.as(diffEditor.getLineChanges());
 	}
 }
+
+// --- commands
+
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
+	const editorService = accessor.get(IEditorService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+
+	const [resource, options, position] = args;
+
+	return editorService.openEditor({ resource, options }, findEditorGroup(editorGroupService, position)).then(() => void 0);
+});
+
+CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorPosition]) {
+	const editorService = accessor.get(IEditorService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
+
+	let [leftResource, rightResource, label, description, options, position] = args;
+
+	if (!options || typeof options !== 'object') {
+		options = {
+			preserveFocus: false
+		};
+	}
+
+	if (!label) {
+		label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
+	}
+
+	return editorService.openEditor({ leftResource, rightResource, label, description, options }, findEditorGroup(editorGroupService, position)).then(() => void 0);
+});
 
 export function findEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorPosition): GroupIdentifier {
 	if (typeof position !== 'number') {

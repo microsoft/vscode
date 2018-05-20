@@ -47,7 +47,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
-			// Resolve backups that are opened in stacks model
+			// Resolve backups that are opened
 			return this.doResolveOpenedBackups(backups).then(unresolved => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually

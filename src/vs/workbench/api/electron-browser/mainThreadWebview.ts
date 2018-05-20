@@ -8,7 +8,7 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Position } from 'vs/platform/editor/common/editor';
+import { EditorPosition } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle } from 'vs/workbench/api/node/extHost.protocol';
@@ -69,7 +69,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn: Position, preserveFocus: boolean },
+		showOptions: { viewColumn: EditorPosition | null, preserveFocus: boolean },
 		options: WebviewInputOptions,
 		extensionLocation: UriComponents
 	): void {
@@ -104,7 +104,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, viewColumn: Position | null, preserveFocus: boolean): void {
+	$reveal(handle: WebviewPanelHandle, viewColumn: EditorPosition | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
