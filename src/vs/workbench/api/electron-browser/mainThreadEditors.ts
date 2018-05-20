@@ -17,8 +17,9 @@ import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/ed
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ITextEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from './mainThreadEditor';
@@ -27,7 +28,6 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _proxy: ExtHostEditorsShape;
 	private _documentsAndEditors: MainThreadDocumentsAndEditors;
-	private _workbenchEditorService: IWorkbenchEditorService;
 	private _toDispose: IDisposable[];
 	private _textEditorsListenersMap: { [editorId: string]: IDisposable[]; };
 	private _editorPositionData: ITextEditorPositionData;
@@ -38,12 +38,11 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		extHostContext: IExtHostContext,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@IWorkbenchEditorService workbenchEditorService: IWorkbenchEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@INextEditorService private readonly _editorService: INextEditorService,
+		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
-		this._workbenchEditorService = workbenchEditorService;
 		this._toDispose = [];
 		this._textEditorsListenersMap = Object.create(null);
 		this._editorPositionData = null;
@@ -51,8 +50,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		this._toDispose.push(documentsAndEditors.onTextEditorAdd(editors => editors.forEach(this._onTextEditorAdd, this)));
 		this._toDispose.push(documentsAndEditors.onTextEditorRemove(editors => editors.forEach(this._onTextEditorRemove, this)));
 
-		this._toDispose.push(editorGroupService.onEditorsChanged(() => this._updateActiveAndVisibleTextEditors()));
-		this._toDispose.push(editorGroupService.onEditorGroupMoved(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
 
 		this._registeredDecorationTypes = Object.create(null);
 	}
@@ -96,10 +94,10 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 	private _getTextEditorPositionData(): ITextEditorPositionData {
 		let result: ITextEditorPositionData = Object.create(null);
-		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
+		for (let workbenchEditor of this._editorService.visibleControls) {
 			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
 			if (id) {
-				result[id] = workbenchEditor.group.id; // TODO@grid [EXTENSIONS] adopt in extension host
+				result[id] = this._documentsAndEditors.findEditorPosition(workbenchEditor);
 			}
 		}
 		return result;
@@ -121,7 +119,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		return this._workbenchEditorService.openEditor(input, options.position).then(editor => {
+		return this._editorService.openEditor(input, this._findEditorGroup(options.position)).then(editor => {
 			if (!editor) {
 				return undefined;
 			}
@@ -133,18 +131,38 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
-			return this._workbenchEditorService.openEditor({
+			return this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, position).then(() => { return; });
+			}, this._findEditorGroup(position)).then(() => { return; });
 		}
 		return undefined;
+	}
+
+	private _findEditorGroup(position?: EditorPosition): GroupIdentifier {
+		if (typeof position !== 'number') {
+			return ACTIVE_GROUP; // prefer active group when position is undefined
+		}
+
+		const groups = this._editorGroupService.groups;
+
+		let candidate = groups[position];
+		if (candidate) {
+			return candidate.id; // found direct match
+		}
+
+		let firstGroup = groups[0];
+		if (groups.length === 1 && firstGroup.count === 0) {
+			return firstGroup.id; // first editor should always open in first group
+		}
+
+		return SIDE_GROUP; // open to the side if group not found
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
-			let editors = this._workbenchEditorService.getVisibleEditors();
+			let editors = this._editorService.visibleControls;
 			for (let editor of editors) {
 				if (mainThreadEditor.matches(editor)) {
 					return editor.group.closeEditor(editor.input).then(() => { return; });

@@ -1100,7 +1100,7 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the three main editors, e.g an embedded editor.
+		 * isn't one of the main editors, e.g an embedded editor.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -4019,15 +4019,15 @@ declare module 'vscode' {
 		 */
 		Active = -1,
 		/**
-		 * The left most editor column.
+		 * The first editor column.
 		 */
 		One = 1,
 		/**
-		 * The center editor column.
+		 * The second editor column.
 		 */
 		Two = 2,
 		/**
-		 * The right most editor column.
+		 * The third editor column.
 		 */
 		Three = 3
 	}
@@ -5200,7 +5200,7 @@ declare module 'vscode' {
 
 		/**
 		 * Editor position of the panel. This property is only set if the webview is in
-		 * one of the three editor view columns.
+		 * one of the editor view columns.
 		 *
 		 * @deprecated
 		 */
