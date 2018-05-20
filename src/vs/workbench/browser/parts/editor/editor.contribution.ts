@@ -35,7 +35,7 @@ import {
 	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction,
 	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup, SplitEditorGroupHorizontalAction, SplitEditorGroupVerticalAction,
 	ShowEditorsInActiveGroupAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorGroupLeftAction, SplitEditorGroupRightAction,
-	SplitEditorGroupUpAction, SplitEditorGroupDownAction
+	SplitEditorGroupUpAction, SplitEditorGroupDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToUpwardsGroupAction, MoveEditorToDownwardsGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
@@ -315,12 +315,12 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorsAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseLeftEditorsInGroupAction, CloseLeftEditorsInGroupAction.ID, CloseLeftEditorsInGroupAction.LABEL), 'View: Close Editors to the Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'View: Split Editor Group Horizontally', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'View: Split Editor Group Vertically', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupLeftAction, SplitEditorGroupLeftAction.ID, SplitEditorGroupLeftAction.LABEL), 'View: Split Editor Group Left', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupRightAction, SplitEditorGroupRightAction.ID, SplitEditorGroupRightAction.LABEL), 'View: Split Editor Group Right', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupUpAction, SplitEditorGroupUpAction.ID, SplitEditorGroupUpAction.LABEL), 'Split Editor Group Up', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupDownAction, SplitEditorGroupDownAction.ID, SplitEditorGroupDownAction.LABEL), 'View: Split Editor Group Down', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupHorizontalAction, SplitEditorGroupHorizontalAction.ID, SplitEditorGroupHorizontalAction.LABEL), 'View: Split Editor Horizontally', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupVerticalAction, SplitEditorGroupVerticalAction.ID, SplitEditorGroupVerticalAction.LABEL), 'View: Split Editor Vertically', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupLeftAction, SplitEditorGroupLeftAction.ID, SplitEditorGroupLeftAction.LABEL), 'View: Split Editor Left', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupRightAction, SplitEditorGroupRightAction.ID, SplitEditorGroupRightAction.LABEL), 'View: Split Editor Right', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupUpAction, SplitEditorGroupUpAction.ID, SplitEditorGroupUpAction.LABEL), 'Split Editor Up', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorGroupDownAction, SplitEditorGroupDownAction.ID, SplitEditorGroupDownAction.LABEL), 'View: Split Editor Down', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(JoinTwoGroupsAction, JoinTwoGroupsAction.ID, JoinTwoGroupsAction.LABEL), 'View: Join Editors of Two Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsAction, NavigateBetweenGroupsAction.ID, NavigateBetweenGroupsAction.LABEL), 'View: Navigate Between Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusActiveGroupAction, FocusActiveGroupAction.ID, FocusActiveGroupAction.LABEL), 'View: Focus Active Editor Group', category);
@@ -339,6 +339,10 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToPreviousGr
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToNextGroupAction, MoveEditorToNextGroupAction.ID, MoveEditorToNextGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.RightArrow, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.RightArrow } }), 'View: Move Editor into Next Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToFirstGroupAction, MoveEditorToFirstGroupAction.ID, MoveEditorToFirstGroupAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_1, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_1 } }), 'View: Move Editor into First Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToLastGroupAction, MoveEditorToLastGroupAction.ID, MoveEditorToLastGroupAction.LABEL, { primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_2, mac: { primary: KeyMod.CtrlCmd | KeyMod.WinCtrl | KeyCode.KEY_2 } }), 'View: Move Editor into Last Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToLeftGroupAction, MoveEditorToLeftGroupAction.ID, MoveEditorToLeftGroupAction.LABEL), 'View: Move Editor into Left Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToRightGroupAction, MoveEditorToRightGroupAction.ID, MoveEditorToRightGroupAction.LABEL), 'View: Move Editor into Right Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToUpwardsGroupAction, MoveEditorToUpwardsGroupAction.ID, MoveEditorToUpwardsGroupAction.LABEL), 'View: Move Editor into Upwards Group', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorToDownwardsGroupAction, MoveEditorToDownwardsGroupAction.ID, MoveEditorToDownwardsGroupAction.LABEL), 'View: Move Editor into Downwards Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusPreviousGroup, FocusPreviousGroup.ID, FocusPreviousGroup.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.LeftArrow) }), 'View: Focus Previous Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(FocusNextGroup, FocusNextGroup.ID, FocusNextGroup.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.RightArrow) }), 'View: Focus Next Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateForwardAction, NavigateForwardAction.ID, NavigateForwardAction.LABEL, { primary: null, win: { primary: KeyMod.Alt | KeyCode.RightArrow }, mac: { primary: KeyMod.WinCtrl | KeyMod.Shift | KeyCode.US_MINUS }, linux: { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.US_MINUS } }), 'Go Forward');

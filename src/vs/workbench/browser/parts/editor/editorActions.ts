@@ -37,27 +37,31 @@ export class BaseSplitEditorGroupAction extends Action {
 		super(id, label, clazz);
 	}
 
-	public run(context?: IEditorIdentifier): TPromise<any> {
+	public run(context?: IEditorIdentifier & { event?: Event }): TPromise<any> {
+		this.splitEditor(context ? context.groupId : void 0);
+
+		return TPromise.as(true);
+	}
+
+	protected splitEditor(groupId?: number, direction = this.direction): void {
 		let sourceGroup: IEditorGroup;
-		if (context && typeof context.groupId === 'number') {
-			sourceGroup = this.editorGroupService.getGroup(context.groupId);
+		if (typeof groupId === 'number') {
+			sourceGroup = this.editorGroupService.getGroup(groupId);
 		} else {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
 		// Add group
-		const newGroup = this.editorGroupService.addGroup(sourceGroup, this.direction, { activate: true });
+		const newGroup = this.editorGroupService.addGroup(sourceGroup, direction, { activate: true });
 
 		// Split editor (if it can be split)
 		if (sourceGroup.activeEditor) {
 			if (sourceGroup.activeEditor instanceof EditorInput && !sourceGroup.activeEditor.supportsSplitEditor()) {
-				return TPromise.as(true);
+				return;
 			}
 
 			sourceGroup.copyEditor(sourceGroup.activeEditor, newGroup);
 		}
-
-		return TPromise.as(true);
 	}
 }
 
@@ -111,6 +115,26 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 		}));
 	}
 
+	public run(context?: IEditorIdentifier & { event?: Event }): TPromise<any> {
+		let direction = this.direction;
+		if (context && context.event instanceof MouseEvent && (context.event.altKey)) {
+			direction = this.alternateGroupDirection;
+		}
+
+		this.splitEditor(context ? context.groupId : void 0, direction);
+
+		return TPromise.as(true);
+	}
+
+	private get alternateGroupDirection(): GroupDirection {
+		switch (this.direction) {
+			case GroupDirection.LEFT: return GroupDirection.UP;
+			case GroupDirection.RIGHT: return GroupDirection.DOWN;
+			case GroupDirection.UP: return GroupDirection.LEFT;
+			case GroupDirection.DOWN: return GroupDirection.RIGHT;
+		}
+	}
+
 	public dispose(): void {
 		super.dispose();
 
@@ -121,7 +145,7 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupVertical';
-	public static readonly LABEL = nls.localize('splitEditorGroupVertical', "Split Editor Group Vertically");
+	public static readonly LABEL = nls.localize('splitEditorGroupVertical', "Split Editor Vertically");
 
 	constructor(
 		id: string,
@@ -135,7 +159,7 @@ export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
 export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupHorizontal';
-	public static readonly LABEL = nls.localize('splitEditorGroupHorizontal', "Split Editor Group Horizontally");
+	public static readonly LABEL = nls.localize('splitEditorGroupHorizontal', "Split Editor Horizontally");
 
 	constructor(
 		id: string,
@@ -149,7 +173,7 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 export class SplitEditorGroupLeftAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupLeft';
-	public static readonly LABEL = nls.localize('splitEditorGroupLeft', "Split Editor Group Left");
+	public static readonly LABEL = nls.localize('splitEditorGroupLeft', "Split Editor Left");
 
 	constructor(
 		id: string,
@@ -163,7 +187,7 @@ export class SplitEditorGroupLeftAction extends BaseSplitEditorGroupAction {
 export class SplitEditorGroupRightAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupRight';
-	public static readonly LABEL = nls.localize('splitEditorGroupRight', "Split Editor Group Right");
+	public static readonly LABEL = nls.localize('splitEditorGroupRight', "Split Editor Right");
 
 	constructor(
 		id: string,
@@ -177,7 +201,7 @@ export class SplitEditorGroupRightAction extends BaseSplitEditorGroupAction {
 export class SplitEditorGroupUpAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupUp';
-	public static readonly LABEL = nls.localize('splitEditorGroupUp', "Split Editor Group Up");
+	public static readonly LABEL = nls.localize('splitEditorGroupUp', "Split Editor Up");
 
 	constructor(
 		id: string,
@@ -191,7 +215,7 @@ export class SplitEditorGroupUpAction extends BaseSplitEditorGroupAction {
 export class SplitEditorGroupDownAction extends BaseSplitEditorGroupAction {
 
 	public static readonly ID = 'workbench.action.splitEditorGroupDown';
-	public static readonly LABEL = nls.localize('splitEditorGroupDown', "Split Editor Group Down");
+	public static readonly LABEL = nls.localize('splitEditorGroupDown', "Split Editor Down");
 
 	constructor(
 		id: string,
@@ -1252,6 +1276,90 @@ export class MoveEditorToPreviousGroupAction extends Action {
 
 	public run(): TPromise<any> {
 		const args: ActiveEditorMoveArguments = { to: 'previous', by: 'group' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToUpwardsGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToUpwardsGroup';
+	public static readonly LABEL = nls.localize('moveEditorToUpwardsGroup', "Move Editor into Upwards Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = { to: 'up', by: 'group' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToDownwardsGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToDownwardsGroup';
+	public static readonly LABEL = nls.localize('moveEditorToDownwardsGroup', "Move Editor into Downwards Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = { to: 'down', by: 'group' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToLeftGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToLeftGroup';
+	public static readonly LABEL = nls.localize('moveEditorToLeftGroup', "Move Editor into Left Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = { to: 'left', by: 'group' };
+		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
+
+		return TPromise.as(true);
+	}
+}
+
+export class MoveEditorToRightGroupAction extends Action {
+
+	public static readonly ID = 'workbench.action.moveEditorToRightGroup';
+	public static readonly LABEL = nls.localize('moveEditorToRightGroup', "Move Editor into Right Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService private commandService: ICommandService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const args: ActiveEditorMoveArguments = { to: 'right', by: 'group' };
 		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
 
 		return TPromise.as(true);
