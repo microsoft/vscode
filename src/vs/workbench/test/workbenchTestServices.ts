@@ -867,11 +867,11 @@ export class TestNextEditorService implements INextEditorService {
 	onDidOpenEditorFail: Event<IEditorIdentifier> = Event.None;
 
 	activeControl: IEditor;
-	activeTextEditorControl: any;
+	activeTextEditorWidget: any;
 	activeEditor: IEditorInput;
 	editors: ReadonlyArray<IEditorInput> = [];
 	visibleControls: ReadonlyArray<IEditor> = [];
-	visibleTextEditorControls = [];
+	visibleTextEditorWidgets = [];
 	visibleEditors: ReadonlyArray<IEditorInput> = [];
 
 	overrideOpenEditor(handler: IOpenEditorOverrideHandler): IDisposable {

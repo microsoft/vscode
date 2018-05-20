@@ -300,9 +300,9 @@ class StatusBarEntryItem implements IStatusbarItem {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
-		const activeTextEditorControl = this.editorService.activeTextEditorControl;
-		if (activeTextEditorControl) {
-			activeTextEditorControl.focus();
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.focus();
 		}
 
 		/* __GDPR__

@@ -1182,7 +1182,7 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 	// or not. Needs context from the editor, to know whether it is a diff editor, in place editor
 	// etc.
 	private onEditorsChanged(): void {
-		const models = this.editorService.visibleTextEditorControls
+		const models = this.editorService.visibleTextEditorWidgets
 
 			// only interested in code editor widgets
 			.filter(c => c instanceof CodeEditorWidget)

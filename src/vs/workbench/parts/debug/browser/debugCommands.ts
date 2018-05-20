@@ -54,11 +54,11 @@ export function registerCommands(): void {
 		handler: (accessor) => {
 			const debugService = accessor.get(IDebugService);
 			const editorService = accessor.get(INextEditorService);
-			const control = editorService.activeTextEditorControl;
-			if (isCodeEditor(control)) {
-				const model = control.getModel();
+			const widget = editorService.activeTextEditorWidget;
+			if (isCodeEditor(widget)) {
+				const model = widget.getModel();
 				if (model) {
-					const position = control.getPosition();
+					const position = widget.getPosition();
 					const bps = debugService.getModel().getBreakpoints({ uri: model.uri, lineNumber: position.lineNumber });
 					if (bps.length) {
 						debugService.enableOrDisableBreakpoints(!bps[0].enabled, bps[0]).done(null, errors.onUnexpectedError);
@@ -201,17 +201,17 @@ export function registerCommands(): void {
 	const inlineBreakpointHandler = (accessor: ServicesAccessor) => {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(INextEditorService);
-		const control = editorService.activeTextEditorControl;
-		if (isCodeEditor(control)) {
-			const position = control.getPosition();
-			const modelUri = control.getModel().uri;
+		const widget = editorService.activeTextEditorWidget;
+		if (isCodeEditor(widget)) {
+			const position = widget.getPosition();
+			const modelUri = widget.getModel().uri;
 			const bp = debugService.getModel().getBreakpoints({ lineNumber: position.lineNumber, uri: modelUri })
 				.filter(bp => (bp.column === position.column || !bp.column && position.column <= 1)).pop();
 
 			if (bp) {
 				return TPromise.as(null);
 			}
-			if (debugService.getConfigurationManager().canSetBreakpointsIn(control.getModel())) {
+			if (debugService.getConfigurationManager().canSetBreakpointsIn(widget.getModel())) {
 				return debugService.addBreakpoints(modelUri, [{ lineNumber: position.lineNumber, column: position.column > 1 ? position.column : undefined }]);
 			}
 		}

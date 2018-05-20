@@ -101,8 +101,8 @@ suite('Editor service', () => {
 			assert.equal(input, service.activeEditor);
 			assert.equal(service.visibleControls.length, 1);
 			assert.equal(service.visibleControls[0], editor);
-			assert.ok(!service.activeTextEditorControl);
-			assert.equal(service.visibleTextEditorControls.length, 0);
+			assert.ok(!service.activeTextEditorWidget);
+			assert.equal(service.visibleTextEditorWidgets.length, 0);
 			assert.equal(service.isOpen(input), true);
 			assert.equal(service.isOpen(input, part.activeGroup), true);
 			assert.equal(activeEditorChangeEventCounter, 1);

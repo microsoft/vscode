@@ -838,12 +838,12 @@ export class ChangeModeAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeCodeEditor) {
+		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		const textModel = activeCodeEditor.getModel();
+		const textModel = activeTextEditorWidget.getModel();
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 
 		let hasLanguageSupport = !!resource;
@@ -943,15 +943,15 @@ export class ChangeModeAction extends Action {
 
 			// Change mode for active editor
 			const activeEditor = this.editorService.activeEditor;
-			const codeOrDiffEditor = this.editorService.activeTextEditorControl;
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 			const models: ITextModel[] = [];
-			if (isCodeEditor(codeOrDiffEditor)) {
-				const codeEditorModel = codeOrDiffEditor.getModel();
+			if (isCodeEditor(activeTextEditorWidget)) {
+				const codeEditorModel = activeTextEditorWidget.getModel();
 				if (codeEditorModel) {
 					models.push(codeEditorModel);
 				}
-			} else if (isDiffEditor(codeOrDiffEditor)) {
-				const diffEditorModel = codeOrDiffEditor.getModel();
+			} else if (isDiffEditor(activeTextEditorWidget)) {
+				const diffEditorModel = activeTextEditorWidget.getModel();
 				if (diffEditorModel) {
 					if (diffEditorModel.original) {
 						models.push(diffEditorModel.original);
@@ -1045,29 +1045,29 @@ class ChangeIndentationAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeCodeEditor) {
+		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeCodeEditor)) {
+		if (!isWritableCodeEditor(activeTextEditorWidget)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
 		const picks = [
-			activeCodeEditor.getAction(IndentUsingSpaces.ID),
-			activeCodeEditor.getAction(IndentUsingTabs.ID),
-			activeCodeEditor.getAction(DetectIndentation.ID),
-			activeCodeEditor.getAction(IndentationToSpacesAction.ID),
-			activeCodeEditor.getAction(IndentationToTabsAction.ID),
-			activeCodeEditor.getAction(TrimTrailingWhitespaceAction.ID)
+			activeTextEditorWidget.getAction(IndentUsingSpaces.ID),
+			activeTextEditorWidget.getAction(IndentUsingTabs.ID),
+			activeTextEditorWidget.getAction(DetectIndentation.ID),
+			activeTextEditorWidget.getAction(IndentationToSpacesAction.ID),
+			activeTextEditorWidget.getAction(IndentationToTabsAction.ID),
+			activeTextEditorWidget.getAction(TrimTrailingWhitespaceAction.ID)
 		].map((a: IEditorAction) => {
 			return {
 				id: a.id,
 				label: a.label,
 				detail: (language === LANGUAGE_DEFAULT) ? null : a.alias,
 				run: () => {
-					activeCodeEditor.focus();
+					activeTextEditorWidget.focus();
 					a.run();
 				}
 			};
@@ -1095,16 +1095,16 @@ export class ChangeEOLAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (!activeCodeEditor) {
+		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		if (!activeTextEditorWidget) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 
-		if (!isWritableCodeEditor(activeCodeEditor)) {
+		if (!isWritableCodeEditor(activeTextEditorWidget)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noWritableCodeEditor', "The active code editor is read-only.") }]);
 		}
 
-		const textModel = activeCodeEditor.getModel();
+		const textModel = activeTextEditorWidget.getModel();
 
 		const EOLOptions: IChangeEOLEntry[] = [
 			{ label: nlsEOLLF, eol: EndOfLineSequence.LF },
@@ -1115,7 +1115,7 @@ export class ChangeEOLAction extends Action {
 
 		return this.quickOpenService.pick(EOLOptions, { placeHolder: nls.localize('pickEndOfLine', "Select End of Line Sequence"), autoFocus: { autoFocusIndex: selectedIndex } }).then(eol => {
 			if (eol) {
-				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorControl);
+				const activeCodeEditor = getCodeEditor(this.editorService.activeTextEditorWidget);
 				if (activeCodeEditor && isWritableCodeEditor(activeCodeEditor)) {
 					const textModel = activeCodeEditor.getModel();
 					textModel.pushEOL(eol.eol);
@@ -1142,7 +1142,7 @@ export class ChangeEncodingAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		if (!getCodeEditor(this.editorService.activeTextEditorControl)) {
+		if (!getCodeEditor(this.editorService.activeTextEditorWidget)) {
 			return this.quickOpenService.pick([{ label: nls.localize('noEditor', "No text editor active at this time") }]);
 		}
 

@@ -549,25 +549,19 @@ export function registerCommands(): void {
 			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 		}
 
-		return editorService.openEditor({ leftResource, rightResource, label, description, options }, position).then(() => {
-			return void 0;
-		});
+		return editorService.openEditor({ leftResource, rightResource, label, description, options }, position).then(() => void 0);
 	});
 
 	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
 		const editorService = accessor.get(INextEditorService);
 		const [resource, options, column] = args;
 
-		return editorService.openEditor({ resource, options }, column).then(() => {
-			return void 0;
-		});
+		return editorService.openEditor({ resource, options }, column).then(() => void 0);
 	});
 
 	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string) {
 		const windowsService = accessor.get(IWindowsService);
 
-		return windowsService.removeFromRecentlyOpened([path]).then(() => {
-			return void 0;
-		});
+		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
 	});
 }

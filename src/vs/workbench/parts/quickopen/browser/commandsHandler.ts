@@ -402,10 +402,10 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.lastSearchValue = searchValue;
 
 		// Editor Actions
-		const activeTextEditor = this.editorService.activeTextEditorControl;
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		let editorActions: IEditorAction[] = [];
-		if (activeTextEditor && types.isFunction(activeTextEditor.getSupportedActions)) {
-			editorActions = activeTextEditor.getSupportedActions();
+		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+			editorActions = activeTextEditorWidget.getSupportedActions();
 		}
 
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);

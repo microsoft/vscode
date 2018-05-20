@@ -59,7 +59,7 @@ export class RangeHighlightDecorations implements IDisposable {
 		const resource = activeEditor && activeEditor.getResource();
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return this.editorService.activeTextEditorControl as ICodeEditor;
+				return this.editorService.activeTextEditorWidget as ICodeEditor;
 			}
 		}
 		return null;

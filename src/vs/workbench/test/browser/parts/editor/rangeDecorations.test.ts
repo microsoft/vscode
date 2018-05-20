@@ -41,7 +41,7 @@ suite('Editor - Range decorations', () => {
 		codeEditor = createTestCodeEditor({ model: model });
 
 		instantiationService.stub(INextEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
-		instantiationService.stub(INextEditorService, 'activeTextEditorControl', codeEditor);
+		instantiationService.stub(INextEditorService, 'activeTextEditorWidget', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);
 	});

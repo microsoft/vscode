@@ -97,11 +97,11 @@ function save(resource: URI, isSaveAs: boolean, editorService: INextEditorServic
 			}
 
 			let viewStateOfSource: IEditorViewState;
-			const activeCodeEditor = getCodeEditor(editorService.activeTextEditorControl);
-			if (activeCodeEditor) {
+			const activeTextEditorWidget = getCodeEditor(editorService.activeTextEditorWidget);
+			if (activeTextEditorWidget) {
 				const activeResource = toResource(editorService.activeEditor, { supportSideBySide: true });
 				if (activeResource && (fileService.canHandleResource(activeResource) || resource.scheme === Schemas.untitled) && activeResource.toString() === resource.toString()) {
-					viewStateOfSource = activeCodeEditor.saveViewState();
+					viewStateOfSource = activeTextEditorWidget.saveViewState();
 				}
 			}
 

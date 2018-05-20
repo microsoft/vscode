@@ -22,13 +22,13 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 	}
 
 	getActiveCodeEditor(): ICodeEditor {
-		let activeEditor = this.editorService.activeTextEditorControl;
-		if (isCodeEditor(activeEditor)) {
-			return activeEditor;
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (isCodeEditor(activeTextEditorWidget)) {
+			return activeTextEditorWidget;
 		}
 
-		if (isDiffEditor(activeEditor)) {
-			return activeEditor.getModifiedEditor();
+		if (isDiffEditor(activeTextEditorWidget)) {
+			return activeTextEditorWidget.getModifiedEditor();
 		}
 
 		return null;

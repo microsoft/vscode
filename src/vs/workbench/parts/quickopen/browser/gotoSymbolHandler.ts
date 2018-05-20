@@ -320,10 +320,10 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 		// Apply selection and focus
 		else {
 			const range = this.toSelection();
-			const codeEditor = this.editorService.activeTextEditorControl;
-			if (codeEditor) {
-				codeEditor.setSelection(range);
-				codeEditor.revealRangeInCenter(range, ScrollType.Smooth);
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			if (activeTextEditorWidget) {
+				activeTextEditorWidget.setSelection(range);
+				activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 			}
 		}
 
@@ -334,13 +334,13 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 
 		// Select Outline Position
 		const range = this.toSelection();
-		const editorControl = this.editorService.activeTextEditorControl;
-		if (editorControl) {
-			editorControl.revealRangeInCenter(range, ScrollType.Smooth);
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
-			if (types.isFunction(editorControl.changeDecorations)) {
-				this.handler.decorateOutline(this.range, range, editorControl, this.editorService.activeControl.group);
+			if (types.isFunction(activeTextEditorWidget.changeDecorations)) {
+				this.handler.decorateOutline(this.range, range, activeTextEditorWidget, this.editorService.activeControl.group);
 			}
 		}
 
@@ -389,8 +389,8 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
-			const editor = this.editorService.activeTextEditorControl;
-			this.lastKnownEditorViewState = editor.saveViewState();
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			this.lastKnownEditorViewState = activeTextEditorWidget.saveViewState();
 		}
 
 		// Resolve Outline Model
@@ -418,9 +418,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	public canRun(): boolean | string {
 		let canRun = false;
 
-		const editorControl = this.editorService.activeTextEditorControl;
-		if (editorControl) {
-			let model = editorControl.getModel();
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			let model = activeTextEditorWidget.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
@@ -430,7 +430,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			}
 		}
 
-		return canRun ? true : editorControl !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
+		return canRun ? true : activeTextEditorWidget !== null ? nls.localize('cannotRunGotoSymbolInFile', "No symbol information for the file") : nls.localize('cannotRunGotoSymbol', "Open a text file first to go to a symbol");
 	}
 
 	public getAutoFocus(searchValue: string): IAutoFocus {
@@ -477,9 +477,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	}
 
 	private doGetActiveOutline(): TPromise<OutlineModel> {
-		const editorControl = this.editorService.activeTextEditorControl;
-		if (editorControl) {
-			let model = editorControl.getModel();
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			let model = activeTextEditorWidget.getModel();
 			if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 				model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 			}
@@ -582,9 +582,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 
 		// Restore selection if canceled
 		if (canceled && this.lastKnownEditorViewState) {
-			const codeEditor = this.editorService.activeTextEditorControl;
-			if (codeEditor) {
-				codeEditor.restoreViewState(this.lastKnownEditorViewState);
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			if (activeTextEditorWidget) {
+				activeTextEditorWidget.restoreViewState(this.lastKnownEditorViewState);
 			}
 		}
 

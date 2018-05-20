@@ -328,10 +328,10 @@ export class ConfigurationManager implements IConfigurationManager {
 				return TPromise.as(adapter);
 			}
 
-			const codeEditor = this.editorService.activeTextEditorControl;
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 			let candidates: Debugger[];
-			if (isCodeEditor(codeEditor)) {
-				const model = codeEditor.getModel();
+			if (isCodeEditor(activeTextEditorWidget)) {
+				const model = activeTextEditorWidget.getModel();
 				const language = model ? model.getLanguageIdentifier().language : undefined;
 				const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
 				if (adapters.length === 1) {

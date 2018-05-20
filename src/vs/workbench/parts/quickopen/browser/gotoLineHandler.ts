@@ -39,16 +39,16 @@ export class GotoLineAction extends QuickOpenAction {
 
 	public run(): TPromise<void> {
 
-		let editor = this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editor)) {
-			editor = editor.getModifiedEditor();
+		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 		}
 		let restoreOptions: IEditorOptions = null;
 
-		if (isCodeEditor(editor)) {
-			const config = editor.getConfiguration();
+		if (isCodeEditor(activeTextEditorWidget)) {
+			const config = activeTextEditorWidget.getConfiguration();
 			if (config.viewInfo.renderLineNumbers === RenderLineNumbersType.Relative) {
-				editor.updateOptions({
+				activeTextEditorWidget.updateOptions({
 					lineNumbers: 'on'
 				});
 				restoreOptions = {
@@ -66,7 +66,7 @@ export class GotoLineAction extends QuickOpenAction {
 				}
 				toDispose.dispose();
 				toDispose = null;
-				editor.updateOptions(restoreOptions);
+				activeTextEditorWidget.updateOptions(restoreOptions);
 			});
 		}
 
@@ -113,9 +113,9 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	}
 
 	private getMaxLineNumber(): number {
-		const codeEditor = this.editorService.activeTextEditorControl;
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 
-		let model = codeEditor.getModel();
+		let model = activeTextEditorWidget.getModel();
 		if (model && (<IDiffEditorModel>model).modified && (<IDiffEditorModel>model).original) {
 			model = (<IDiffEditorModel>model).modified; // Support for diff editor models
 		}
@@ -157,10 +157,10 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 		// Apply selection and focus
 		const range = this.toSelection();
-		const codeEditor = this.editorService.activeTextEditorControl;
-		if (codeEditor) {
-			codeEditor.setSelection(range);
-			codeEditor.revealRangeInCenter(range, ScrollType.Smooth);
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.setSelection(range);
+			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 		}
 
 		return true;
@@ -177,13 +177,13 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 
 		// Select Line Position
 		const range = this.toSelection();
-		const codeEditor = this.editorService.activeTextEditorControl;
-		if (codeEditor) {
-			codeEditor.revealRangeInCenter(range, ScrollType.Smooth);
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.revealRangeInCenter(range, ScrollType.Smooth);
 
 			// Decorate if possible
-			if (types.isFunction(codeEditor.changeDecorations)) {
-				this.handler.decorateOutline(range, codeEditor, this.editorService.activeControl.group);
+			if (types.isFunction(activeTextEditorWidget.changeDecorations)) {
+				this.handler.decorateOutline(range, activeTextEditorWidget, this.editorService.activeControl.group);
 			}
 		}
 
@@ -226,15 +226,15 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 		// Remember view state to be able to restore on cancel
 		if (!this.lastKnownEditorViewState) {
-			const codeEditor = this.editorService.activeTextEditorControl;
-			this.lastKnownEditorViewState = codeEditor.saveViewState();
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			this.lastKnownEditorViewState = activeTextEditorWidget.saveViewState();
 		}
 
 		return TPromise.as(new QuickOpenModel([new GotoLineEntry(searchValue, this.editorService, this)]));
 	}
 
 	public canRun(): boolean | string {
-		const canRun = !!this.editorService.activeTextEditorControl;
+		const canRun = !!this.editorService.activeTextEditorWidget;
 
 		return canRun ? true : nls.localize('cannotRunGotoLine', "Open a text file first to go to a line");
 	}
@@ -309,9 +309,9 @@ export class GotoLineHandler extends QuickOpenHandler {
 
 		// Restore selection if canceled
 		if (canceled && this.lastKnownEditorViewState) {
-			const codeEditor = this.editorService.activeTextEditorControl;
-			if (codeEditor) {
-				codeEditor.restoreViewState(this.lastKnownEditorViewState);
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+			if (activeTextEditorWidget) {
+				activeTextEditorWidget.restoreViewState(this.lastKnownEditorViewState);
 			}
 		}
 

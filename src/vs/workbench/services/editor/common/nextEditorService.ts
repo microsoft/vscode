@@ -7,9 +7,9 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
-import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
+import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -71,11 +71,11 @@ export interface INextEditorService {
 	readonly activeControl: IEditor;
 
 	/**
-	 * The currently active text editor control if there is a control active
+	 * The currently active text editor widget if there is a control active
 	 * and it is an instance of the code text editor (either normal or diff
 	 * editor).
 	 */
-	readonly activeTextEditorControl: ITextEditor;
+	readonly activeTextEditorWidget: ICodeEditor;
 
 	/**
 	 * All editors that are opened.
@@ -93,10 +93,10 @@ export interface INextEditorService {
 	readonly visibleControls: ReadonlyArray<IEditor>;
 
 	/**
-	 * All text editor controls (either normal or diff editor) that are currently
+	 * All text editor widgets (either normal or diff editor) that are currently
 	 * visible.
 	 */
-	readonly visibleTextEditorControls: ReadonlyArray<ITextEditor>;
+	readonly visibleTextEditorWidgets: ReadonlyArray<ICodeEditor>;
 
 	/**
 	 * All editors that are currently visible.
@@ -113,16 +113,9 @@ export interface INextEditorService {
 	 * of the currently active group.
 	 */
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
-
-	/**
-	 * Open an editor in an editor group.
-	 *
-	 * @param editor the editor to open
-	 * @param group the target group. If unspecified, the editor will open in the currently
-	 * active group. Use `SIDE_GROUP_TYPE` to open the editor in a new editor group to the side
-	 * of the currently active group.
-	 */
-	openEditor(editor: IResourceEditor, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextEditor>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextDiffEditor>;
+	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextSideBySideEditor>;
 
 	/**
 	 * Open editors in an editor group.

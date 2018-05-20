@@ -890,34 +890,33 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			return null;
 		}
 
-		let editorControl = this.editorService.activeTextEditorControl;
-		if (isDiffEditor(editorControl)) {
-			if (editorControl.getOriginalEditor().hasTextFocus()) {
-				editorControl = editorControl.getOriginalEditor();
+		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			if (activeTextEditorWidget.getOriginalEditor().hasTextFocus()) {
+				activeTextEditorWidget = activeTextEditorWidget.getOriginalEditor();
 			} else {
-				editorControl = editorControl.getModifiedEditor();
+				activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 			}
 		}
 
-		if (!isCodeEditor(editorControl)) {
+		if (!isCodeEditor(activeTextEditorWidget)) {
 			return null;
 		}
 
-		const codeEditor: ICodeEditor = <ICodeEditor>editorControl;
-		const range = codeEditor.getSelection();
+		const range = activeTextEditorWidget.getSelection();
 		if (!range) {
 			return null;
 		}
 
 		if (range.isEmpty() && !this.searchWidget.searchInput.getValue()) {
-			const wordAtPosition = codeEditor.getModel().getWordAtPosition(range.getStartPosition());
+			const wordAtPosition = activeTextEditorWidget.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}
 		}
 
 		if (!range.isEmpty() && range.startLineNumber === range.endLineNumber) {
-			let searchText = editorControl.getModel().getLineContent(range.startLineNumber);
+			let searchText = activeTextEditorWidget.getModel().getLineContent(range.startLineNumber);
 			searchText = searchText.substring(range.startColumn - 1, range.endColumn - 1);
 			return searchText;
 		}

@@ -185,13 +185,13 @@ export class HistoryService implements IHistoryService {
 		this.handleActiveEditorChange(activeControl);
 
 		// Apply listener for selection changes if this is a text editor
-		const control = getCodeEditor(this.editorService.activeTextEditorControl);
-		if (control) {
+		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		if (activeTextEditorWidget) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
 				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 		}

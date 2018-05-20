@@ -462,6 +462,29 @@ export interface IEditor {
 }
 
 /**
+ * A diff editor.
+ *
+ * @internal
+ */
+export interface IDiffEditor extends IEditor {
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): IDiffEditorModel;
+
+	/**
+	 * Get the `original` editor.
+	 */
+	getOriginalEditor(): IEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
+	getModifiedEditor(): IEditor;
+}
+
+/**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
  */
 export interface IEditorContribution {

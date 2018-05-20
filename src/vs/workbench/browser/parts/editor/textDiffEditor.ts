@@ -11,12 +11,11 @@ import { toWinJsPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Action, IAction } from 'vs/base/common/actions';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import * as types from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -44,7 +43,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 /**
  * The text editor that leverages the diff text editor for the editing experience.
  */
-export class TextDiffEditor extends BaseTextEditor {
+export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
@@ -239,7 +238,7 @@ export class TextDiffEditor extends BaseTextEditor {
 				modifiedInput.setForceOpenAsBinary();
 			}
 
-			this.editorService.openEditor(binaryDiffInput, options, this.group).done(null, onUnexpectedError);
+			this.editorService.openEditor(binaryDiffInput, options, this.group);
 
 			return true;
 		}

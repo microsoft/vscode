@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, IEditorOpeningEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -29,8 +29,7 @@ import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
-import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditor as ITextEditor } from 'vs/editor/common/editorCommon';
+import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -140,7 +139,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return activeGroup ? activeGroup.activeControl : void 0;
 	}
 
-	get activeTextEditorControl(): ITextEditor {
+	get activeTextEditorWidget(): ICodeEditor | IDiffEditor {
 		const activeControl = this.activeControl;
 		if (activeControl) {
 			const activeControlWidget = activeControl.getControl();
@@ -171,8 +170,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 		return coalesce(this.editorGroupService.groups.map(group => group.activeControl));
 	}
 
-	get visibleTextEditorControls(): ITextEditor[] {
-		return this.visibleControls.map(control => control.getControl() as ITextEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
+	get visibleTextEditorWidgets(): (ICodeEditor | IDiffEditor)[] {
+		return this.visibleControls.map(control => control.getControl() as ICodeEditor | IDiffEditor).filter(widget => isCodeEditor(widget) || isDiffEditor(widget));
 	}
 
 	get visibleEditors(): IEditorInput[] {
@@ -218,7 +217,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
-	openEditor(editor: IResourceEditor, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
+	openEditor(editor: IResourceInput | IUntitledResourceInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextEditor>;
+	openEditor(editor: IResourceDiffInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextDiffEditor>;
+	openEditor(editor: IResourceSideBySideInput, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<ITextSideBySideEditor>;
 	openEditor(editor: IEditorInput | IResourceEditor, optionsOrGroup?: IEditorOptions | ITextEditorOptions | IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE, group?: GroupIdentifier): TPromise<IEditor> {
 
 		// Typed Editor Support
@@ -448,9 +449,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	//#region invokeWithinEditorContext()
 
 	invokeWithinEditorContext<T>(fn: (accessor: ServicesAccessor) => T): T {
-		const activeTextEditorControl = this.activeTextEditorControl;
-		if (isCodeEditor(activeTextEditorControl)) {
-			return activeTextEditorControl.invokeWithinContext(fn);
+		const activeTextEditorWidget = this.activeTextEditorWidget;
+		if (isCodeEditor(activeTextEditorWidget)) {
+			return activeTextEditorWidget.invokeWithinContext(fn);
 		}
 
 		const activeGroup = this.editorGroupService.activeGroup;

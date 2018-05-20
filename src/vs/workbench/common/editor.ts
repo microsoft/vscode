@@ -10,7 +10,7 @@ import * as objects from 'vs/base/common/objects';
 import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
-import { IEditor, IEditorViewState, ScrollType } from 'vs/editor/common/editorCommon';
+import { IEditor as ICodeEditor, IEditorViewState, ScrollType, IDiffEditor } from 'vs/editor/common/editorCommon';
 import { IEditorModel, IEditorOptions, ITextEditorOptions, IBaseResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -77,8 +77,39 @@ export interface IEditor {
 	isVisible(): boolean;
 }
 
+export interface ITextEditor extends IEditor {
+
+	/**
+	 * Returns the underlying text editor widget of this editor.
+	 */
+	getControl(): ICodeEditor;
+}
+
+export interface ITextDiffEditor extends IEditor {
+
+	/**
+	 * Returns the underlying text editor widget of this editor.
+	 */
+	getControl(): IDiffEditor;
+}
+
+export interface ITextSideBySideEditor extends IEditor {
+
+	/**
+	 * Returns the underlying text editor widget of the master side
+	 * of this side-by-side editor.
+	 */
+	getMasterEditor(): ITextEditor;
+
+	/**
+	 * Returns the underlying text editor widget of the details side
+	 * of this side-by-side editor.
+	 */
+	getDetailsEditor(): ITextEditor;
+}
+
 /**
- * Marker interface for the editor control
+ * Marker interface for the base editor control
  */
 export interface IEditorControl extends ICompositeControl { }
 
@@ -821,7 +852,7 @@ export class TextEditorOptions extends EditorOptions {
 	/**
 	 * Create a TextEditorOptions inline to be used when the editor is opening.
 	 */
-	public static fromEditor(editor: IEditor, settings?: IEditorOptions): TextEditorOptions {
+	public static fromEditor(editor: ICodeEditor, settings?: IEditorOptions): TextEditorOptions {
 		const options = TextEditorOptions.create(settings);
 
 		// View state
@@ -835,13 +866,13 @@ export class TextEditorOptions extends EditorOptions {
 	 *
 	 * @return if something was applied
 	 */
-	public apply(editor: IEditor, scrollType: ScrollType): boolean {
+	public apply(editor: ICodeEditor, scrollType: ScrollType): boolean {
 
 		// View state
 		return this.applyViewState(editor, scrollType);
 	}
 
-	private applyViewState(editor: IEditor, scrollType: ScrollType): boolean {
+	private applyViewState(editor: ICodeEditor, scrollType: ScrollType): boolean {
 		let gotApplied = false;
 
 		// First try viewstate

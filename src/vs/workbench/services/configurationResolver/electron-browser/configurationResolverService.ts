@@ -61,10 +61,10 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				return paths.normalize(fileResource.fsPath, true);
 			},
 			getSelectedText: (): string | undefined => {
-				const editorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(editorControl)) {
-					const editorModel = editorControl.getModel();
-					const editorSelection = editorControl.getSelection();
+				const activeTextEditorWidget = editorService.activeTextEditorWidget;
+				if (isCodeEditor(activeTextEditorWidget)) {
+					const editorModel = activeTextEditorWidget.getModel();
+					const editorSelection = activeTextEditorWidget.getSelection();
 					if (editorModel && editorSelection) {
 						return editorModel.getValueInRange(editorSelection);
 					}
@@ -72,9 +72,9 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 				return undefined;
 			},
 			getLineNumber: (): string => {
-				const editorControl = editorService.activeTextEditorControl;
-				if (isCodeEditor(editorControl)) {
-					const lineNumber = editorControl.getSelection().positionLineNumber;
+				const activeTextEditorWidget = editorService.activeTextEditorWidget;
+				if (isCodeEditor(activeTextEditorWidget)) {
+					const lineNumber = activeTextEditorWidget.getSelection().positionLineNumber;
 					return String(lineNumber);
 				}
 				return undefined;

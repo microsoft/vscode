@@ -407,7 +407,7 @@ export class BulkEditService implements IBulkEditService {
 		// try to find code editor
 		// todo@joh, prefer edit that gets edited
 		if (!codeEditor) {
-			let candidate = this._editorService.activeTextEditorControl;
+			let candidate = this._editorService.activeTextEditorWidget;
 			if (isCodeEditor(candidate)) {
 				codeEditor = candidate;
 			}
