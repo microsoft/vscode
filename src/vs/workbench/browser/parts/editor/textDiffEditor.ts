@@ -35,9 +35,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
-import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
-import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**

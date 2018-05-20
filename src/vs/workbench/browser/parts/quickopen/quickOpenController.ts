@@ -55,8 +55,8 @@ import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addClass } from 'vs/base/browser/dom';
-import { INextEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const HELP_PREFIX = '?';
 

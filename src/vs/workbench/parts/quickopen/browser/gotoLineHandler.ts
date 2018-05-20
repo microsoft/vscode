@@ -19,9 +19,9 @@ import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export const GOTO_LINE_PREFIX = ':';
 

@@ -31,7 +31,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 

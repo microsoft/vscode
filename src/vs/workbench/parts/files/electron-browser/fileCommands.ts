@@ -40,8 +40,8 @@ import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/edito
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 // Commands
 

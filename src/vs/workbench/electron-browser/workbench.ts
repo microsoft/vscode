@@ -107,9 +107,9 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
+import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { NextEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 interface WorkbenchParams {

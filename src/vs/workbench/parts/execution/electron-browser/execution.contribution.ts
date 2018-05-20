@@ -27,7 +27,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);

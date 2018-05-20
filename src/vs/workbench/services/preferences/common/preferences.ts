@@ -17,7 +17,7 @@ import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
-import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface ISettingsGroup {
 	id: string;

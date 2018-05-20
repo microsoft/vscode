@@ -25,7 +25,7 @@ import URI from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/modes';
 import { provideReferences, defaultReferenceSearchOptions } from 'vs/editor/contrib/referenceSearch/referenceSearch';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class WorkbenchReferencesController extends ReferencesController {
 

@@ -18,8 +18,8 @@ import URI from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class LogViewerInput extends ResourceEditorInput {
 

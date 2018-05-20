@@ -15,7 +15,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { INextEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class ToggleEditorLayoutAction extends Action {
 

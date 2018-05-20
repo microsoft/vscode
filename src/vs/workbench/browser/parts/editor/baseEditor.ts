@@ -10,7 +10,7 @@ import { EditorInput, EditorOptions, IEditor } from 'vs/workbench/common/editor'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.

@@ -10,7 +10,7 @@ import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/
 import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
-import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/editorGroupsService';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 

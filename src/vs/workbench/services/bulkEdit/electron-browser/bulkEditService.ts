@@ -22,7 +22,7 @@ import { localize } from 'vs/nls';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class Recording {
 

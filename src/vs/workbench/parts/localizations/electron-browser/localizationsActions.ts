@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getPathLabel } from 'vs/base/common/labels';
 import { language } from 'vs/base/common/platform';
 

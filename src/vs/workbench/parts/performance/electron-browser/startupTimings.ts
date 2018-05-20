@@ -16,7 +16,7 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as files from 'vs/workbench/parts/files/common/files';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';

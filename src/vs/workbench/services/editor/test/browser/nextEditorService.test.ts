@@ -15,12 +15,12 @@ import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/w
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NextEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
-import { IEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
+import { NextEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';

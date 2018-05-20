@@ -15,7 +15,7 @@ import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEdi
 import URI from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { IFileService } from 'vs/platform/files/common/files';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 /**
  * An implementation of editor for binary files like images.
