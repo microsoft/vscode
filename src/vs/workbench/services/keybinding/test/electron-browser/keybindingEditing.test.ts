@@ -17,8 +17,8 @@ import { KeyCode, SimpleKeybinding, ChordKeybinding } from 'vs/base/common/keyCo
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as extfs from 'vs/base/node/extfs';
 import { TestTextFileService, TestLifecycleService, TestBackupFileService, TestContextService, TestTextResourceConfigurationService, TestHashService, TestEnvironmentService, TestStorageService, TestEditorGroupsService, TestEditorService } from 'vs/workbench/test/workbenchTestServices';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import * as uuid from 'vs/base/common/uuid';
@@ -78,8 +78,8 @@ suite('Keybindings Editing', () => {
 			instantiationService.stub(ILifecycleService, lifecycleService);
 			instantiationService.stub(IContextKeyService, <IContextKeyService>instantiationService.createInstance(MockContextKeyService));
 			instantiationService.stub(IHashService, new TestHashService());
-			instantiationService.stub(INextEditorGroupsService, new TestEditorGroupsService());
-			instantiationService.stub(INextEditorService, new TestEditorService());
+			instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService());
+			instantiationService.stub(IEditorService, new TestEditorService());
 			instantiationService.stub(ITelemetryService, NullTelemetryService);
 			instantiationService.stub(IModeService, ModeServiceImpl);
 			instantiationService.stub(IModelService, instantiationService.createInstance(ModelServiceImpl));

@@ -107,9 +107,9 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
-import { NextEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
 interface WorkbenchParams {
@@ -188,8 +188,8 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchCreated: boolean;
 	private workbenchShutdown: boolean;
 
-	private editorService: NextEditorService;
-	private editorGroupService: INextEditorGroupsService;
+	private editorService: EditorService;
+	private editorGroupService: IEditorGroupsService;
 	private viewletService: IViewletService;
 	private contextKeyService: IContextKeyService;
 	private keybindingService: IKeybindingService;
@@ -381,9 +381,9 @@ export class Workbench extends Disposable implements IPartService {
 		this.editorPart = this.instantiationService.createInstance(EditorPart, Identifiers.EDITOR_PART, restorePreviousEditorState);
 		this._register(toDisposable(() => this.editorPart.shutdown()));
 		this.editorGroupService = this.editorPart;
-		serviceCollection.set(INextEditorGroupsService, this.editorPart);
-		this.editorService = this.instantiationService.createInstance(NextEditorService);
-		serviceCollection.set(INextEditorService, this.editorService);
+		serviceCollection.set(IEditorGroupsService, this.editorPart);
+		this.editorService = this.instantiationService.createInstance(EditorService);
+		serviceCollection.set(IEditorService, this.editorService);
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);

@@ -24,7 +24,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
-import { INextEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
@@ -55,7 +55,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -382,7 +382,7 @@ class Launch implements ILaunch {
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private fileService: IFileService,
-		@INextEditorService protected editorService: INextEditorService,
+		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 	) {
@@ -504,7 +504,7 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 	constructor(
 		configurationManager: ConfigurationManager,
 		@IFileService fileService: IFileService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
@@ -533,7 +533,7 @@ class UserLaunch extends Launch implements ILaunch {
 	constructor(
 		configurationManager: ConfigurationManager,
 		@IFileService fileService: IFileService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService

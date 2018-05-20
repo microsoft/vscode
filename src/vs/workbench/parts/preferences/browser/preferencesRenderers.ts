@@ -37,7 +37,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
@@ -592,7 +592,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,

@@ -29,8 +29,8 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
@@ -48,9 +48,9 @@ export class TextFileEditor extends BaseTextEditor {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IPreferencesService private preferencesService: IPreferencesService

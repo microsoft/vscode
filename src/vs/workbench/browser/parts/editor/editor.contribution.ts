@@ -38,7 +38,7 @@ import {
 	SplitEditorGroupUpAction, SplitEditorGroupDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToUpwardsGroupAction, MoveEditorToDownwardsGroupAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getQuickNavigateHandler, inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -139,7 +139,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 			const language = deserialized.modeId;
 			const encoding = deserialized.encoding;
 
-			return accessor.get(INextEditorService).createInput({ resource, filePath, language, encoding }) as UntitledEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, filePath, language, encoding }) as UntitledEditorInput;
 		});
 	}
 }

@@ -13,7 +13,7 @@ import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Panel } from 'vs/workbench/browser/panel';
-import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
@@ -56,7 +56,7 @@ export class MarkersPanel extends Panel {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,

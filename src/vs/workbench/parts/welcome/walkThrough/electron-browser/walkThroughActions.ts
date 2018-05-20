@@ -5,7 +5,7 @@
 'use strict';
 
 import { localize } from 'vs/nls';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WalkThroughPart } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
@@ -18,7 +18,7 @@ export class WalkThroughArrowUpAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -40,7 +40,7 @@ export class WalkThroughArrowDownAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -62,7 +62,7 @@ export class WalkThroughPageUpAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -84,7 +84,7 @@ export class WalkThroughPageDownAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}

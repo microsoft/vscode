@@ -15,7 +15,7 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { endsWith } from 'vs/base/common/strings';
@@ -35,7 +35,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService

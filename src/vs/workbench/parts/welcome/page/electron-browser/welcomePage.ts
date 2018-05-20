@@ -11,7 +11,7 @@ import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -50,7 +50,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -217,7 +217,7 @@ class WelcomePage {
 	readonly editorInput: WalkThroughInput;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
 		@IWindowsService private windowsService: IWindowsService,

@@ -18,7 +18,7 @@ import { EditorOptions, EditorInput, IEditorInput } from 'vs/workbench/common/ed
 import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
 
@@ -245,7 +245,7 @@ export interface IEditorQuickOpenEntry {
  */
 export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuickOpenEntry {
 
-	constructor(private _editorService: INextEditorService) {
+	constructor(private _editorService: IEditorService) {
 		super();
 	}
 

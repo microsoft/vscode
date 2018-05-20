@@ -12,7 +12,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getPathLabel } from 'vs/base/common/labels';
 import { language } from 'vs/base/common/platform';
 
@@ -33,7 +33,7 @@ export class ConfigureLocaleAction extends Action {
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}

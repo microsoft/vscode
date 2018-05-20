@@ -31,7 +31,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -48,7 +48,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private name: string,
 		private description: string,
 		private icon: string,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -117,7 +117,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheState: CacheState;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,

@@ -16,7 +16,7 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import * as files from 'vs/workbench/parts/files/common/files';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -28,7 +28,7 @@ class StartupTimings implements IWorkbenchContribution {
 		@ILogService private readonly _logService: ILogService,
 		@ITimerService private readonly _timerService: ITimerService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IViewletService private readonly _viewletService: IViewletService,
 		@IPanelService private readonly _panelService: IPanelService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,

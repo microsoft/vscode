@@ -32,8 +32,8 @@ import { ExplorerViewlet, ExplorerViewletViewsContribution } from 'vs/workbench/
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -44,7 +44,7 @@ export class OpenExplorerViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
@@ -137,7 +137,7 @@ class FileEditorInputFactory implements IEditorInputFactory {
 			const resource = !!fileInput.resourceJSON ? URI.revive(fileInput.resourceJSON) : URI.parse(fileInput.resource);
 			const encoding = fileInput.encoding;
 
-			return accessor.get(INextEditorService).createInput({ resource, encoding }) as FileEditorInput;
+			return accessor.get(IEditorService).createInput({ resource, encoding }) as FileEditorInput;
 		});
 	}
 }

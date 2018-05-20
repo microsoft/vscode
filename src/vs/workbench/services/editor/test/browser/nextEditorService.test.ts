@@ -15,12 +15,12 @@ import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/w
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { NextEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { Dimension } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEditorRegistry, EditorDescriptor, Extensions } from 'vs/workbench/browser/editor';
@@ -32,9 +32,9 @@ import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 
 export class TestEditorControl extends BaseEditor {
 
-	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForNextEditorService', NullTelemetryService, new TestThemeService()); }
+	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestEditorForNextEditorService'; }
+	getId(): string { return 'myTestEditorForEditorService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -43,7 +43,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 	public gotDisposed: boolean;
 	constructor(private resource: URI) { super(); }
 
-	getTypeId() { return 'testEditorInputForNextEditorService'; }
+	getTypeId() { return 'testEditorInputForEditorService'; }
 	resolve(): TPromise<IEditorModel> { return null; }
 	matches(other: TestEditorInput): boolean { return other && other.resource && this.resource.toString() === other.resource.toString() && other instanceof TestEditorInput; }
 	setEncoding(encoding: string) { }
@@ -60,7 +60,7 @@ export class TestEditorInput extends EditorInput implements IFileEditorInput {
 suite('Editor service', () => {
 
 	function registerTestEditorInput(): void {
-		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForNextEditorService', 'My Test Editor For Next Editor Service'), new SyncDescriptor(TestEditorInput));
+		Registry.as<IEditorRegistry>(Extensions.Editors).registerEditor(new EditorDescriptor(TestEditorControl, 'MyTestEditorForEditorService', 'My Test Editor For Next Editor Service'), new SyncDescriptor(TestEditorInput));
 	}
 
 	registerTestEditorInput();
@@ -72,9 +72,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -140,9 +140,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -161,7 +161,7 @@ suite('Editor service', () => {
 
 	test('caching', function () {
 		const instantiationService = workbenchInstantiationService();
-		const service: NextEditorService = <any>instantiationService.createInstance(NextEditorService);
+		const service: EditorService = <any>instantiationService.createInstance(EditorService);
 
 		// Cached Input (Files)
 		const fileResource1 = toFileResource(this, '/foo/bar/cache1.js');
@@ -210,7 +210,7 @@ suite('Editor service', () => {
 
 	test('createInput', function () {
 		const instantiationService = workbenchInstantiationService();
-		const service: NextEditorService = <any>instantiationService.createInstance(NextEditorService);
+		const service: EditorService = <any>instantiationService.createInstance(EditorService);
 
 		// Untyped Input (file)
 		let input = service.createInput({ resource: toFileResource(this, '/index.html'), options: { selection: { startLineNumber: 1, startColumn: 1 } } });
@@ -278,9 +278,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 
@@ -314,9 +314,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -352,9 +352,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -379,9 +379,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -408,9 +408,9 @@ suite('Editor service', () => {
 		part.create(document.createElement('div'));
 		part.layout(new Dimension(400, 300));
 
-		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([INextEditorGroupsService, part]));
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: INextEditorService = testInstantiationService.createInstance(NextEditorService);
+		const service: IEditorService = testInstantiationService.createInstance(EditorService);
 
 		const input1 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource1'));
 		const input2 = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));

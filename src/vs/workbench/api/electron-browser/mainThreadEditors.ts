@@ -17,8 +17,8 @@ import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/ed
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { ITextEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
@@ -38,8 +38,8 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		extHostContext: IExtHostContext,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
-		@INextEditorService private readonly _editorService: INextEditorService,
-		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService
+		@IEditorService private readonly _editorService: IEditorService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostEditors);
 		this._documentsAndEditors = documentsAndEditors;
@@ -241,7 +241,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 	}
 }
 
-export function findEditorGroup(editorGroupService: INextEditorGroupsService, position?: EditorPosition): GroupIdentifier {
+export function findEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorPosition): GroupIdentifier {
 	if (typeof position !== 'number') {
 		return ACTIVE_GROUP; // prefer active group when position is undefined
 	}

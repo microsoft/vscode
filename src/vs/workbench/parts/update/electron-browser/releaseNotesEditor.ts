@@ -24,7 +24,7 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
-import { INextEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 
@@ -59,7 +59,7 @@ export class ReleaseNotesManager {
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IRequestService private readonly _requestService: IRequestService,
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IWebviewEditorService private readonly _webviewEditorService: IWebviewEditorService,
 	) { }
 

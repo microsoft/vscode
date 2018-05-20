@@ -12,7 +12,7 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { IEditor } from 'vs/workbench/common/editor';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -22,7 +22,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import URI from 'vs/base/common/uri';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
@@ -161,7 +161,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@INextEditorService private readonly _editorService: INextEditorService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
@@ -300,13 +300,13 @@ export class MainThreadDocumentsAndEditors {
 		extHostContext: IExtHostContext,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IModeService modeService: IModeService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IBulkEditService bulkEditService: IBulkEditService
 
 	) {

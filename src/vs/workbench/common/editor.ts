@@ -18,7 +18,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
@@ -1024,7 +1024,7 @@ export class EditorViewStateMemento<T> {
 	private cache: LRUCache<string, MapGroupToViewStates<T>>;
 
 	constructor(
-		private editorGroupService: INextEditorGroupsService,
+		private editorGroupService: IEditorGroupsService,
 		private memento: object,
 		private key: string,
 		private limit: number = 10

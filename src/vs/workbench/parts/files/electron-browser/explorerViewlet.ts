@@ -32,8 +32,8 @@ import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorInput } from 'vs/workbench/common/editor';
 
@@ -155,8 +155,8 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IStorageService protected storageService: IStorageService,
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -218,7 +218,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 				return this.editorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
 			});
 
-			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
+			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
 			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
 		}
 		return super.createView(viewDescriptor, options);

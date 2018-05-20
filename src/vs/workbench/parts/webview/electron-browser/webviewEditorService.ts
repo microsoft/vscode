@@ -8,8 +8,8 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewEditorInput';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -85,9 +85,9 @@ export class WebviewEditorService implements IWebviewEditorService {
 	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 	) { }
 
 	createWebview(

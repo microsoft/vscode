@@ -14,7 +14,7 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import URI from 'vs/base/common/uri';
 import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget } from 'vs/platform/list/browser/listService';
@@ -536,7 +536,7 @@ export function registerCommands(): void {
 	});
 
 	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(INextEditorService);
+		const editorService = accessor.get(IEditorService);
 		let [leftResource, rightResource, label, description, options, position] = args;
 
 		if (!options || typeof options !== 'object') {
@@ -553,7 +553,7 @@ export function registerCommands(): void {
 	});
 
 	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(INextEditorService);
+		const editorService = accessor.get(IEditorService);
 		const [resource, options, column] = args;
 
 		return editorService.openEditor({ resource, options }, column).then(() => void 0);

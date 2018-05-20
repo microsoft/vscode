@@ -25,7 +25,7 @@ import URI from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/modes';
 import { provideReferences, defaultReferenceSearchOptions } from 'vs/editor/contrib/referenceSearch/referenceSearch';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class WorkbenchReferencesController extends ReferencesController {
 
@@ -70,7 +70,7 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, position');
 	}
 
-	return accessor.get(INextEditorService).openEditor({ resource }).then(editor => {
+	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 		let control = editor.getControl();
 		if (!isCodeEditor(control)) {
 			return undefined;
@@ -92,7 +92,7 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, uri expected');
 	}
 
-	return accessor.get(INextEditorService).openEditor({ resource }).then(editor => {
+	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
 		let control = editor.getControl();
 		if (!isCodeEditor(control)) {
 			return undefined;

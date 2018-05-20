@@ -8,7 +8,7 @@ import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
 import { KeyMod, KeyCode, KeyChord } from 'vs/base/common/keyCodes';
@@ -19,7 +19,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
@@ -88,7 +88,7 @@ function moveActiveEditor(args: ActiveEditorMoveArguments = Object.create(null),
 	args.by = args.by || 'tab';
 	args.value = typeof args.value === 'number' ? args.value : 1;
 
-	const activeControl = accessor.get(INextEditorService).activeControl;
+	const activeControl = accessor.get(IEditorService).activeControl;
 	if (activeControl) {
 		switch (args.by) {
 			case 'tab':
@@ -128,7 +128,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, access
 }
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
-	const editorGroupService = accessor.get(INextEditorGroupsService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const groups = editorGroupService.groups;
 	const sourceGroup = control.group;
@@ -202,7 +202,7 @@ function registerDiffEditorCommands(): void {
 	});
 
 	function navigateInDiffEditor(accessor: ServicesAccessor, next: boolean): void {
-		const editorService = accessor.get(INextEditorService);
+		const editorService = accessor.get(IEditorService);
 		const candidates = [editorService.activeControl, ...editorService.visibleControls].filter(e => e instanceof TextDiffEditor);
 
 		if (candidates.length > 0) {
@@ -216,7 +216,7 @@ function registerDiffEditorCommands(): void {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resource, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const { control } = resolveCommandsContext(editorGroupService, context);
 			if (control instanceof TextDiffEditor) {
@@ -244,7 +244,7 @@ function registerOpenEditorAtIndexCommands(): void {
 			primary: KeyMod.Alt | toKeyCode(visibleIndex),
 			mac: { primary: KeyMod.WinCtrl | toKeyCode(visibleIndex) },
 			handler: accessor => {
-				const editorService = accessor.get(INextEditorService);
+				const editorService = accessor.get(IEditorService);
 
 				const activeControl = editorService.activeControl;
 				if (activeControl) {
@@ -289,7 +289,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 			when: void 0,
 			primary: KeyMod.CtrlCmd | toKeyCode(groupIndex),
 			handler: accessor => {
-				const editorGroupService = accessor.get(INextEditorGroupsService);
+				const editorGroupService = accessor.get(IEditorGroupsService);
 				const configurationService = accessor.get(IConfigurationService);
 
 				// To keep backwards compatibility (pre-grid), allow to focus a group
@@ -360,7 +360,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
 			if (contexts.length === 0 && editorGroupService.activeGroup) {
 				contexts.push({ groupId: editorGroupService.activeGroup.id }); // If command is triggered from the command palette use the active group
@@ -378,7 +378,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
 			const distinctGroupIds = distinct(contexts.map(c => c.groupId));
 
@@ -399,7 +399,7 @@ function registerEditorCommands() {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
 			const activeGroup = editorGroupService.activeGroup;
 			if (contexts.length === 0 && activeGroup && activeGroup.activeEditor) {
@@ -422,7 +422,7 @@ function registerEditorCommands() {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			let group: IEditorGroup;
 			if (context && typeof context.groupId === 'number') {
@@ -442,7 +442,7 @@ function registerEditorCommands() {
 		primary: void 0,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
 		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
 
 			if (contexts.length === 0) {
@@ -471,7 +471,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, context);
 			if (group && editor) {
@@ -488,7 +488,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 
 			const { group, editor } = resolveCommandsContext(editorGroupService, context);
 			if (group && editor) {
@@ -505,7 +505,7 @@ function registerEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
-			const editorGroupService = accessor.get(INextEditorGroupsService);
+			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
 
 			if (editorGroupService.count <= 1) {
@@ -521,7 +521,7 @@ function registerEditorCommands() {
 	});
 }
 
-function resolveCommandsContext(editorGroupService: INextEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
+function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
 
 	// Resolve from context
 	let group = context && typeof context.groupId === 'number' ? editorGroupService.getGroup(context.groupId) : undefined;
@@ -538,7 +538,7 @@ function resolveCommandsContext(editorGroupService: INextEditorGroupsService, co
 	return { group, editor, control };
 }
 
-export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService, editorGroupService: INextEditorGroupsService): IEditorCommandsContext[] {
+export function getMultiSelectedEditorContexts(editorContext: IEditorCommandsContext, listService: IListService, editorGroupService: IEditorGroupsService): IEditorCommandsContext[] {
 
 	// First check for a focused list to return the selected items from
 	const list = listService.lastFocusedList;

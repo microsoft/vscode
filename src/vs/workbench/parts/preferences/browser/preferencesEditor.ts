@@ -59,9 +59,9 @@ import { IProgressService } from 'vs/platform/progress/common/progress';
 import { ILogService } from 'vs/platform/log/common/log';
 import { PreferencesEditorInput, DefaultPreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -84,7 +84,7 @@ export class PreferencesEditor extends BaseEditor {
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -965,8 +965,8 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 	}
@@ -1237,7 +1237,7 @@ registerEditorContribution(SettingsEditorContribution);
 abstract class SettingsCommand extends Command {
 
 	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor {
-		const activeControl = accessor.get(INextEditorService).activeControl;
+		const activeControl = accessor.get(IEditorService).activeControl;
 		if (activeControl instanceof PreferencesEditor) {
 			return activeControl;
 		}

@@ -11,7 +11,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
@@ -25,7 +25,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,

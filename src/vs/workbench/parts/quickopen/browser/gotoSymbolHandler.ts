@@ -24,7 +24,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { GroupIdentifier, IEditorInput } from 'vs/workbench/common/editor';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export const GOTO_SYMBOL_PREFIX = '@';
@@ -239,7 +239,7 @@ class OutlineModel extends QuickOpenModel {
 }
 
 class SymbolEntry extends EditorQuickOpenEntryGroup {
-	private editorService: INextEditorService;
+	private editorService: IEditorService;
 	private index: number;
 	private name: string;
 	private type: string;
@@ -248,7 +248,7 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	private range: IRange;
 	private handler: GotoSymbolHandler;
 
-	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: INextEditorService, handler: GotoSymbolHandler) {
+	constructor(index: number, name: string, type: string, description: string, icon: string, range: IRange, highlights: IHighlight[], editorService: IEditorService, handler: GotoSymbolHandler) {
 		super();
 
 		this.index = index;
@@ -377,7 +377,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 	private activeOutlineRequest: TPromise<OutlineModel>;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super();
 

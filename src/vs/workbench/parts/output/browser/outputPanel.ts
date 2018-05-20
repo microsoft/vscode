@@ -22,9 +22,9 @@ import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOu
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
@@ -39,9 +39,9 @@ export class OutputPanel extends AbstractTextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorService editorService: IEditorService
 	) {
 		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService);
 

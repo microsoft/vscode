@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { EncodingMode, Verbosity } from 'vs/workbench/common/editor';
@@ -23,7 +23,7 @@ function toResource(self, path) {
 
 class ServiceAccessor {
 	constructor(
-		@INextEditorService public editorService: INextEditorService,
+		@IEditorService public editorService: IEditorService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IModelService public modelService: IModelService
 	) {

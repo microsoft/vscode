@@ -15,7 +15,7 @@ import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class ToggleEditorLayoutAction extends Action {
 
@@ -27,7 +27,7 @@ export class ToggleEditorLayoutAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 
@@ -63,7 +63,7 @@ export class ToggleEditorLayoutAction extends Action {
 }
 
 CommandsRegistry.registerCommand('_workbench.editor.setGroupOrientation', function (accessor: ServicesAccessor, args: [GroupOrientation]) {
-	const editorGroupService = accessor.get(INextEditorGroupsService);
+	const editorGroupService = accessor.get(IEditorGroupsService);
 	const [orientation] = args;
 
 	editorGroupService.setGroupOrientation(orientation);

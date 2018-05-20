@@ -49,7 +49,7 @@ import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export interface IEditableData {
 	action: IAction;
@@ -480,7 +480,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -511,7 +511,7 @@ class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -789,7 +789,7 @@ export class AddFilesAction extends BaseFileAction {
 		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IDialogService private dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
@@ -944,7 +944,7 @@ class PasteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -1007,7 +1007,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		fileToDuplicate: ExplorerItem,
 		target: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -1104,7 +1104,7 @@ export class GlobalCompareResourcesAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 	) {
 		super(id, label);
@@ -1305,7 +1305,7 @@ export class ShowActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -1384,7 +1384,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 		id: string,
 		label: string,
 		@IWindowsService private windowsService: IWindowsService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 	) {
 		super(id, label);
@@ -1495,7 +1495,7 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelService: ITextModelService,
 		@IFileService private fileService: IFileService

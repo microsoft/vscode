@@ -24,7 +24,7 @@ import { Dimension } from 'vs/base/browser/dom';
 import { BaseWebviewEditor } from 'vs/workbench/parts/webview/electron-browser/baseWebviewEditor';
 import { WebviewElement, WebviewOptions } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface HtmlPreviewEditorViewState {
@@ -60,7 +60,7 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 		@IStorageService readonly _storageService: IStorageService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(HtmlPreviewPart.ID, telemetryService, themeService, contextKeyService);
 

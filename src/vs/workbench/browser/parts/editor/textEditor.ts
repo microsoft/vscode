@@ -24,9 +24,9 @@ import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/service
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { isDiffEditor, isCodeEditor, ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY = 'textEditorViewState';
 
@@ -54,8 +54,8 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@INextEditorService protected editorService: INextEditorService,
-		@INextEditorGroupsService protected editorGroupService: INextEditorGroupsService,
+		@IEditorService protected editorService: IEditorService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 	) {
 		super(id, telemetryService, themeService);
 

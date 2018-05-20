@@ -35,7 +35,7 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -73,7 +73,7 @@ class RequestOracle {
 	constructor(
 		private readonly _callback: (editor: ICodeEditor, change: IModelContentChangedEvent) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		_featureRegistry.onDidChange(this._update, this, this._disposables);
@@ -211,7 +211,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,

@@ -12,7 +12,7 @@ import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/ed
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
-export const INextEditorGroupsService = createDecorator<INextEditorGroupsService>('nextEditorGroupsService');
+export const IEditorGroupsService = createDecorator<IEditorGroupsService>('editorGroupsService');
 
 export enum GroupDirection {
 	UP,
@@ -128,7 +128,7 @@ export enum EditorsOrder {
 	SEQUENTIAL
 }
 
-export interface INextEditorGroupsService {
+export interface IEditorGroupsService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

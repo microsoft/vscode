@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
@@ -83,7 +83,7 @@ export class ReloadWebviewAction extends Action {
 	public constructor(
 		id: string,
 		label: string,
-		@INextEditorService private readonly editorService: INextEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -103,7 +103,7 @@ export class ReloadWebviewAction extends Action {
 }
 
 function getActiveWebviewEditor(accessor: ServicesAccessor): BaseWebviewEditor | null {
-	const editorService = accessor.get(INextEditorService);
+	const editorService = accessor.get(IEditorService);
 	const activeControl = editorService.activeControl as BaseWebviewEditor;
 	return activeControl.isWebviewEditor ? activeControl : null;
 }

@@ -24,8 +24,8 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { INextEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
@@ -33,7 +33,7 @@ import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
-export class NextEditorService extends Disposable implements INextEditorService {
+export class EditorService extends Disposable implements IEditorService {
 
 	_serviceBrand: any;
 
@@ -60,7 +60,7 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	private lastActiveEditor: IEditorInput;
 
 	constructor(
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -529,8 +529,8 @@ export class NextEditorService extends Disposable implements INextEditorService 
 	}
 
 	private createOrGet(resource: URI, instantiationService: IInstantiationService, label: string, description: string, encoding?: string): ICachedEditorInput {
-		if (NextEditorService.CACHE.has(resource)) {
-			const input = NextEditorService.CACHE.get(resource);
+		if (EditorService.CACHE.has(resource)) {
+			const input = EditorService.CACHE.get(resource);
 			if (input instanceof ResourceEditorInput) {
 				input.setName(label);
 				input.setDescription(description);
@@ -558,9 +558,9 @@ export class NextEditorService extends Disposable implements INextEditorService 
 			input = instantiationService.createInstance(ResourceEditorInput, label, description, resource);
 		}
 
-		NextEditorService.CACHE.set(resource, input);
+		EditorService.CACHE.set(resource, input);
 		once(input.onDispose)(() => {
-			NextEditorService.CACHE.delete(resource);
+			EditorService.CACHE.delete(resource);
 		});
 
 		return input;
@@ -589,11 +589,11 @@ export interface IEditorOpenHandler {
  * The delegating workbench editor service can be used to override the behaviour of the openEditor()
  * method by providing a IEditorOpenHandler.
  */
-export class DelegatingWorkbenchEditorService extends NextEditorService {
+export class DelegatingWorkbenchEditorService extends EditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,

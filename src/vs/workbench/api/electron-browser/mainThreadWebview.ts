@@ -15,9 +15,9 @@ import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, Mai
 import { WebviewEditor } from 'vs/workbench/parts/webview/electron-browser/webviewEditor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 import { IWebviewEditorService, WebviewInputOptions, WebviewReviver, ICreateWebViewShowOptions } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { extHostNamedCustomer } from './extHostCustomers';
 import { findEditorGroup } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
@@ -42,9 +42,9 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	constructor(
 		context: IExtHostContext,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IExtensionService private readonly _extensionService: IExtensionService,

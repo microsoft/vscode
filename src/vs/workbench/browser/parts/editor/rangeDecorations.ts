@@ -6,7 +6,7 @@
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { Event, Emitter } from 'vs/base/common/event';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
@@ -28,7 +28,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	private readonly _onHighlightRemoved: Emitter<void> = new Emitter<void>();
 	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
 
-	constructor(@INextEditorService private editorService: INextEditorService) {
+	constructor(@IEditorService private editorService: IEditorService) {
 	}
 
 	public removeHighlightRange() {

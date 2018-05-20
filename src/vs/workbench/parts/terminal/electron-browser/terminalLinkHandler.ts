@@ -15,7 +15,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';
@@ -69,7 +69,7 @@ export class TerminalLinkHandler {
 		private _platform: platform.Platform,
 		private _initialCwd: string,
 		@IOpenerService private readonly _openerService: IOpenerService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ITerminalService private readonly _terminalService: ITerminalService
 	) {

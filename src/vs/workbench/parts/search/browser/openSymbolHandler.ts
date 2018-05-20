@@ -25,7 +25,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -36,7 +36,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(editorService);

@@ -46,8 +46,8 @@ import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const promptDownloadManually = (extension: IExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	notificationService.prompt(Severity.Error, message, [{
@@ -958,7 +958,7 @@ export class OpenExtensionsViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
@@ -1487,7 +1487,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 		label: string,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
@@ -1578,7 +1578,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		label: string,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
@@ -1619,7 +1619,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		label: string,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private commandService: ICommandService

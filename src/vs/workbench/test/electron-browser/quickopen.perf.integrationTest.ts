@@ -9,12 +9,12 @@ import 'vs/workbench/parts/search/electron-browser/search.contribution'; // load
 import * as assert from 'assert';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { createSyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ISearchService } from 'vs/platform/search/common/search';
 import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { IExperimentService, IExperiments } from 'vs/platform/telemetry/common/experiments';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import * as minimist from 'minimist';
 import * as path from 'path';
 import { IQuickOpenRegistry, Extensions } from 'vs/workbench/browser/quickopen';
@@ -76,8 +76,8 @@ suite.skip('QuickOpen performance (integration)', () => {
 			[IConfigurationService, configurationService],
 			[IModelService, new ModelServiceImpl(null, configurationService)],
 			[IWorkspaceContextService, new TestContextService(testWorkspace(URI.file(testWorkspacePath)))],
-			[INextEditorService, new TestEditorService()],
-			[INextEditorGroupsService, new TestEditorGroupsService()],
+			[IEditorService, new TestEditorService()],
+			[IEditorGroupsService, new TestEditorGroupsService()],
 			[IEnvironmentService, TestEnvironmentService],
 			[IUntitledEditorService, createSyncDescriptor(UntitledEditorService)],
 			[ISearchService, createSyncDescriptor(SearchService)]

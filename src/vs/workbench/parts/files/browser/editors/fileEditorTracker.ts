@@ -27,8 +27,8 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -39,10 +39,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,

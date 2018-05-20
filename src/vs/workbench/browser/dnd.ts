@@ -31,7 +31,7 @@ import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiati
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorIdentifier, GroupIdentifier } from 'vs/workbench/common/editor';
 import { basenameOrAuthority } from 'vs/base/common/resources';
-import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
 
@@ -163,7 +163,7 @@ export class ResourcesDropHandler {
 		@ITextFileService private textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 	}
@@ -385,7 +385,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 	// Editors: enables cross window DND of tabs into the editor area
 	const textFileService = accessor.get(ITextFileService);
 	const backupFileService = accessor.get(IBackupFileService);
-	const editorService = accessor.get(INextEditorService);
+	const editorService = accessor.get(IEditorService);
 
 	const draggedEditors: ISerializedDraggedEditor[] = [];
 	files.forEach(file => {

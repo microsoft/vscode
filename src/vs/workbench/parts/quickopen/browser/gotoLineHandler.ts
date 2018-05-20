@@ -19,7 +19,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { IEditorOptions, RenderLineNumbersType } from 'vs/editor/common/config/editorOptions';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
@@ -32,7 +32,7 @@ export class GotoLineAction extends QuickOpenAction {
 
 	constructor(actionId: string, actionLabel: string,
 		@IQuickOpenService private readonly _quickOpenService: IQuickOpenService,
-		@INextEditorService private readonly editorService: INextEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(actionId, actionLabel, GOTO_LINE_PREFIX, _quickOpenService);
 	}
@@ -79,7 +79,7 @@ class GotoLineEntry extends EditorQuickOpenEntry {
 	private column: number;
 	private handler: GotoLineHandler;
 
-	constructor(line: string, editorService: INextEditorService, handler: GotoLineHandler) {
+	constructor(line: string, editorService: IEditorService, handler: GotoLineHandler) {
 		super(editorService);
 
 		this.parseInput(line);
@@ -213,7 +213,7 @@ export class GotoLineHandler extends QuickOpenHandler {
 	private rangeHighlightDecorationId: IEditorLineDecoration;
 	private lastKnownEditorViewState: IEditorViewState;
 
-	constructor(@INextEditorService private editorService: INextEditorService) {
+	constructor(@IEditorService private editorService: IEditorService) {
 		super();
 	}
 

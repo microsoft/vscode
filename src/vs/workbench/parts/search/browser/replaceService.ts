@@ -10,7 +10,7 @@ import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
@@ -93,7 +93,7 @@ export class ReplaceService implements IReplaceService {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@IBulkEditService private bulkEditorService: IBulkEditService
 	) { }

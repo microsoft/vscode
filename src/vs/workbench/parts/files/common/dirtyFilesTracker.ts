@@ -18,8 +18,8 @@ import URI from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -30,8 +30,8 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService

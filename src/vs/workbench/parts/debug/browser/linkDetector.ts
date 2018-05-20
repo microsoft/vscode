@@ -8,7 +8,7 @@ import { isMacintosh } from 'vs/base/common/platform';
 import * as errors from 'vs/base/common/errors';
 import { IMouseEvent, StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import * as nls from 'vs/nls';
-import { INextEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class LinkDetector {
 	private static readonly MAX_LENGTH = 500;
@@ -23,7 +23,7 @@ export class LinkDetector {
 	];
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		// noop
 	}

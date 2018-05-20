@@ -33,7 +33,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -53,7 +53,7 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 		@INotificationService private notificationService: INotificationService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService
@@ -230,7 +230,7 @@ class ResolveSaveConflictAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -311,7 +311,7 @@ class OverwriteReadonlyAction extends Action {
 }
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const editorService = accessor.get(INextEditorService);
+	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 	const modelService = accessor.get(IModelService);
 
@@ -348,7 +348,7 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 };
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const editorService = accessor.get(INextEditorService);
+	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
 	const control = editorService.activeControl;

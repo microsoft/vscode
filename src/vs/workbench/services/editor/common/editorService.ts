@@ -14,7 +14,7 @@ import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/co
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const INextEditorService = createDecorator<INextEditorService>('nextEditorService');
+export const IEditorService = createDecorator<IEditorService>('editorService');
 
 export type IResourceEditor = IResourceInput | IUntitledResourceInput | IResourceDiffInput | IResourceSideBySideInput;
 
@@ -42,20 +42,20 @@ export interface IOpenEditorOverride {
 	override?: TPromise<any>;
 }
 
-export interface INextEditorService {
+export interface IEditorService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	/**
 	 * Emitted when the currently active editor changes.
 	 *
-	 * @see `INextEditorService.activeEditor`
+	 * @see `IEditorService.activeEditor`
 	 */
 	readonly onDidActiveEditorChange: Event<void>;
 
 	/**
 	 * Emitted when any of the current visible editors changes.
 	 *
-	 * @see `INextEditorService.visibleEditors`
+	 * @see `IEditorService.visibleEditors`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
 
@@ -80,7 +80,7 @@ export interface INextEditorService {
 	 * The currently active editor control or `undefined` if none. The editor control is
 	 * the workbench container for editors of any kind.
 	 *
-	 * @see `INextEditorService.activeEditor`
+	 * @see `IEditorService.activeEditor`
 	 */
 	readonly activeControl: IEditor;
 
@@ -88,7 +88,7 @@ export interface INextEditorService {
 	 * The currently active text editor widget or `undefined` if there is currently no active
 	 * editor or the active editor widget is neither a text nor a diff editor.
 	 *
-	 * @see `INextEditorService.activeEditor`
+	 * @see `IEditorService.activeEditor`
 	 */
 	readonly activeTextEditorWidget: ICodeEditor;
 

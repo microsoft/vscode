@@ -26,7 +26,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
-import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -1136,7 +1136,7 @@ export abstract class BaseNavigationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService protected groupService: INextEditorGroupsService,
+		@IEditorGroupsService protected groupService: IEditorGroupsService,
 		@IPanelService protected panelService: IPanelService,
 		@IPartService protected partService: IPartService,
 		@IViewletService protected viewletService: IViewletService
@@ -1224,7 +1224,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService groupService: INextEditorGroupsService,
+		@IEditorGroupsService groupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
@@ -1276,7 +1276,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService groupService: INextEditorGroupsService,
+		@IEditorGroupsService groupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
@@ -1328,7 +1328,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService groupService: INextEditorGroupsService,
+		@IEditorGroupsService groupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
@@ -1357,7 +1357,7 @@ export class NavigateDownAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService groupService: INextEditorGroupsService,
+		@IEditorGroupsService groupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService

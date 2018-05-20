@@ -20,8 +20,8 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { INextEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -32,7 +32,7 @@ export class BaseSplitEditorGroupAction extends Action {
 		label: string,
 		clazz: string,
 		protected direction: GroupDirection,
-		private editorGroupService: INextEditorGroupsService
+		private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, clazz);
 	}
@@ -75,7 +75,7 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, label, null, preferredGroupDirection(configurationService), editorGroupService);
@@ -150,7 +150,7 @@ export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, 'split-editor-vertical-action', GroupDirection.DOWN, editorGroupService);
 	}
@@ -164,7 +164,7 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, 'split-editor-horizontal-action', GroupDirection.RIGHT, editorGroupService);
 	}
@@ -178,7 +178,7 @@ export class SplitEditorGroupLeftAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, null, GroupDirection.LEFT, editorGroupService);
 	}
@@ -192,7 +192,7 @@ export class SplitEditorGroupRightAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, null, GroupDirection.RIGHT, editorGroupService);
 	}
@@ -206,7 +206,7 @@ export class SplitEditorGroupUpAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, null, GroupDirection.UP, editorGroupService);
 	}
@@ -220,7 +220,7 @@ export class SplitEditorGroupDownAction extends BaseSplitEditorGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, null, GroupDirection.DOWN, editorGroupService);
 	}
@@ -234,7 +234,7 @@ export class JoinTwoGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -269,7 +269,7 @@ export class NavigateBetweenGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -294,7 +294,7 @@ export class FocusActiveGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -314,7 +314,7 @@ export class FocusFirstGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -334,7 +334,7 @@ export class FocusLastGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -354,7 +354,7 @@ export class FocusPreviousGroup extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -377,7 +377,7 @@ export class FocusNextGroup extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -398,7 +398,7 @@ export class OpenToSideAction extends Action {
 	public static readonly OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
@@ -474,7 +474,7 @@ export class CloseOneEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, 'close-editor-action');
 	}
@@ -519,7 +519,7 @@ export class RevertAndCloseEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -552,8 +552,8 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private groupService: INextEditorGroupsService
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private groupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -568,7 +568,7 @@ export class CloseLeftEditorsInGroupAction extends Action {
 	}
 }
 
-function getTarget(editorService: INextEditorService, editorGroupService: INextEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: IEditorGroup } {
+function getTarget(editorService: IEditorService, editorGroupService: IEditorGroupsService, context?: IEditorIdentifier): { editor: IEditorInput, group: IEditorGroup } {
 	if (context) {
 		return { editor: context.editor, group: editorGroupService.getGroup(context.groupId) };
 	}
@@ -586,7 +586,7 @@ export class CloseAllEditorsAction extends Action {
 		id: string,
 		label: string,
 		@ITextFileService private textFileService: ITextFileService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, 'action-close-all-files');
 	}
@@ -630,7 +630,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 	) {
 		super(id, label);
 	}
@@ -653,7 +653,7 @@ export class BaseMoveGroupAction extends Action {
 		id: string,
 		label: string,
 		private direction: GroupDirection,
-		private editorGroupService: INextEditorGroupsService
+		private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
@@ -683,7 +683,7 @@ export class MoveGroupLeftAction extends BaseMoveGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.LEFT, editorGroupService);
 	}
@@ -697,7 +697,7 @@ export class MoveGroupRightAction extends BaseMoveGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.RIGHT, editorGroupService);
 	}
@@ -711,7 +711,7 @@ export class MoveGroupUpAction extends BaseMoveGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.UP, editorGroupService);
 	}
@@ -725,7 +725,7 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, GroupDirection.DOWN, editorGroupService);
 	}
@@ -736,7 +736,7 @@ export class MinimizeOtherGroupsAction extends Action {
 	public static readonly ID = 'workbench.action.minimizeOtherEditors';
 	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
 
-	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
+	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
 		super(id, label);
 	}
 
@@ -752,7 +752,7 @@ export class EvenGroupWidthsAction extends Action {
 	public static readonly ID = 'workbench.action.evenEditorWidths';
 	public static readonly LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
 
-	constructor(id: string, label: string, @INextEditorGroupsService private editorGroupService: INextEditorGroupsService) {
+	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
 		super(id, label);
 	}
 
@@ -771,8 +771,8 @@ export class MaximizeGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IPartService private partService: IPartService
 	) {
 		super(id, label);
@@ -794,8 +794,8 @@ export abstract class BaseNavigateEditorAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		protected editorGroupService: INextEditorGroupsService,
-		protected editorService: INextEditorService
+		protected editorGroupService: IEditorGroupsService,
+		protected editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -826,8 +826,8 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}
@@ -861,8 +861,8 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}
@@ -896,8 +896,8 @@ export class OpenNextEditorInGroup extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}
@@ -919,8 +919,8 @@ export class OpenPreviousEditorInGroup extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}
@@ -942,8 +942,8 @@ export class OpenFirstEditorInGroup extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}
@@ -964,8 +964,8 @@ export class OpenLastEditorInGroup extends BaseNavigateEditorAction {
 	constructor(
 		id: string,
 		label: string,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
-		@INextEditorService editorService: INextEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
 		super(id, label, editorGroupService, editorService);
 	}

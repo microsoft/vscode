@@ -36,8 +36,8 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
 import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**
@@ -59,9 +59,9 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IConfigurationService private readonly _actualConfigurationService: IConfigurationService,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService,
-		@INextEditorGroupsService editorGroupService: INextEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@ITextFileService textFileService: ITextFileService,
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
@@ -120,7 +120,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([INextEditorService, delegatingEditorService]));
+		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}

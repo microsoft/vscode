@@ -30,7 +30,7 @@ import { TrimTrailingWhitespaceAction } from 'vs/editor/contrib/linesOperations/
 import { IndentUsingSpaces, IndentUsingTabs, DetectIndentation, IndentationToSpacesAction, IndentationToTabsAction } from 'vs/editor/contrib/indentation/indentation';
 import { BaseBinaryResourceEditor } from 'vs/workbench/browser/parts/editor/binaryEditor';
 import { BinaryResourceDiffEditor } from 'vs/workbench/browser/parts/editor/binaryDiffEditor';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
@@ -57,7 +57,7 @@ import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -295,8 +295,8 @@ export class EditorStatus implements IStatusbarItem {
 	private screenReaderExplanation: ScreenReaderDetectedExplanation;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -827,7 +827,7 @@ export class ChangeModeAction extends Action {
 		actionLabel: string,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IPreferencesService private preferencesService: IPreferencesService,
@@ -1038,7 +1038,7 @@ class ChangeIndentationAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel);
@@ -1088,7 +1088,7 @@ export class ChangeEOLAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService
 	) {
 		super(actionId, actionLabel);
@@ -1133,7 +1133,7 @@ export class ChangeEncodingAction extends Action {
 	constructor(
 		actionId: string,
 		actionLabel: string,
-		@INextEditorService private editorService: INextEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@ITextResourceConfigurationService private textResourceConfigurationService: ITextResourceConfigurationService,
 		@IFileService private fileService: IFileService

@@ -10,13 +10,13 @@ import { FileEditorTracker } from 'vs/workbench/parts/files/browser/editors/file
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 // import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { workbenchInstantiationService, TestTextFileService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { /*FileOperation, FileOperationEvent,*/ FileChangesEvent, FileChangeType, IFileService, snapshotToString } from 'vs/platform/files/common/files';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 // import { once } from 'vs/base/common/event';
 
 // class TestFileEditorTracker extends FileEditorTracker {
@@ -32,8 +32,8 @@ function toResource(self: any, path: string) {
 
 class ServiceAccessor {
 	constructor(
-		@INextEditorService public editorService: INextEditorService,
-		@INextEditorGroupsService public editorGroupService: INextEditorGroupsService,
+		@IEditorService public editorService: IEditorService,
+		@IEditorGroupsService public editorGroupService: IEditorGroupsService,
 		@ITextFileService public textFileService: TestTextFileService,
 		@IFileService public fileService: TestFileService
 	) {

@@ -20,7 +20,7 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { CoreNavigationCommands } from 'vs/editor/browser/controller/coreCommands';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 suite('Editor - Range decorations', () => {
 
@@ -33,15 +33,15 @@ suite('Editor - Range decorations', () => {
 
 	setup(() => {
 		instantiationService = <TestInstantiationService>workbenchInstantiationService();
-		instantiationService.stub(INextEditorService, new TestEditorService());
+		instantiationService.stub(IEditorService, new TestEditorService());
 		instantiationService.stub(IModeService, ModeServiceImpl);
 		instantiationService.stub(IModelService, stubModelService(instantiationService));
 		text = 'LINE1' + '\n' + 'LINE2' + '\n' + 'LINE3' + '\n' + 'LINE4' + '\r\n' + 'LINE5';
 		model = aModel(URI.file('some_file'));
 		codeEditor = createTestCodeEditor({ model: model });
 
-		instantiationService.stub(INextEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
-		instantiationService.stub(INextEditorService, 'activeTextEditorWidget', codeEditor);
+		instantiationService.stub(IEditorService, 'activeEditor', { getResource: () => { return codeEditor.getModel().uri; } });
+		instantiationService.stub(IEditorService, 'activeTextEditorWidget', codeEditor);
 
 		testObject = instantiationService.createInstance(RangeHighlightDecorations);
 	});

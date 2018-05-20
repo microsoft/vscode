@@ -28,8 +28,8 @@ import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { forEach } from 'vs/base/common/collections';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -158,7 +158,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
 					@IStorageService storageService: IStorageService,
-					@INextEditorService editorService: INextEditorService,
+					@IEditorService editorService: IEditorService,
 					@IInstantiationService instantiationService: IInstantiationService,
 					@IContextKeyService contextKeyService: IContextKeyService,
 					@IThemeService themeService: IThemeService,
@@ -184,7 +184,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@INextEditorGroupsService editorGroupService: INextEditorGroupsService
+					@IEditorGroupsService editorGroupService: IEditorGroupsService
 				) {
 					super(id, label, id, viewletService, editorGroupService);
 				}

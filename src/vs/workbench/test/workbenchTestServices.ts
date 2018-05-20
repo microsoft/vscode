@@ -66,8 +66,8 @@ import { IExtensionPoint } from 'vs/workbench/services/extensions/common/extensi
 import { IKeybindingService } from '../../platform/keybinding/common/keybinding';
 import { IDecorationsService, IResourceDecorationChangeEvent, IDecoration, IDecorationData, IDecorationsProvider } from 'vs/workbench/services/decorations/browser/decorations';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { INextEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
-import { INextEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, GroupsArrangement, GroupDirection, IAddGroupOptions, IMergeGroupOptions, IMoveEditorOptions, ICopyEditorOptions, IEditorReplacement, IGroupChangeEvent, EditorsOrder, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
@@ -272,9 +272,9 @@ export function workbenchInstantiationService(): IInstantiationService {
 	instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 	instantiationService.stub(IThemeService, new TestThemeService());
 	instantiationService.stub(IHashService, new TestHashService());
-	instantiationService.stub(INextEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
+	instantiationService.stub(IEditorGroupsService, new TestEditorGroupsService([new TestEditorGroup(0)]));
 	const editorService = new TestEditorService();
-	instantiationService.stub(INextEditorService, editorService);
+	instantiationService.stub(IEditorService, editorService);
 	instantiationService.stub(ICodeEditorService, new TestCodeEditorService());
 
 	return instantiationService;
@@ -492,7 +492,7 @@ export class TestStorageService implements IStorageService {
 	}
 }
 
-export class TestEditorGroupsService implements INextEditorGroupsService {
+export class TestEditorGroupsService implements IEditorGroupsService {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	constructor(public groups: TestEditorGroup[] = []) { }
@@ -649,7 +649,7 @@ export class TestEditorGroup implements IEditorGroup {
 	}
 }
 
-export class TestEditorService implements INextEditorService {
+export class TestEditorService implements IEditorService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

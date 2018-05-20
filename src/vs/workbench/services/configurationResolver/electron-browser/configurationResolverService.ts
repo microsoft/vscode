@@ -15,7 +15,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -29,7 +29,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 	constructor(
 		envVariables: IProcessEnvironment,
-		@INextEditorService editorService: INextEditorService,
+		@IEditorService editorService: IEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ICommandService private commandService: ICommandService,

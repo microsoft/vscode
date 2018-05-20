@@ -35,8 +35,8 @@ import { parse } from 'vs/base/common/json';
 import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
-import { INextEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -56,8 +56,8 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private _defaultFolderSettingsContentModel: DefaultSettings;
 
 	constructor(
-		@INextEditorService private editorService: INextEditorService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService,
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
 		@INotificationService private notificationService: INotificationService,

@@ -27,7 +27,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { Schemas } from 'vs/base/common/network';
 import { distinct } from 'vs/base/common/arrays';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 if (env.isWindows) {
 	registerSingleton(ITerminalService, WinTerminalService);
@@ -81,7 +81,7 @@ CommandsRegistry.registerCommand({
 	id: OPEN_IN_TERMINAL_COMMAND_ID,
 	handler: (accessor, resource: uri) => {
 		const configurationService = accessor.get(IConfigurationService);
-		const editorService = accessor.get(INextEditorService);
+		const editorService = accessor.get(IEditorService);
 		const fileService = accessor.get(IFileService);
 		const integratedTerminalService = accessor.get(IIntegratedTerminalService);
 		const terminalService = accessor.get(ITerminalService);

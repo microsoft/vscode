@@ -17,7 +17,7 @@ import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/togg
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INextEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
@@ -120,7 +120,7 @@ export class ToggleViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@INextEditorGroupsService private editorGroupService: INextEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, name);
 

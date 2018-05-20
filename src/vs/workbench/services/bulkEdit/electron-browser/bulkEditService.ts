@@ -22,7 +22,7 @@ import { localize } from 'vs/nls';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { INextEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 abstract class Recording {
 
@@ -380,7 +380,7 @@ export class BulkEditService implements IBulkEditService {
 
 	constructor(
 		@IModelService private readonly _modelService: IModelService,
-		@INextEditorService private readonly _editorService: INextEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService
 	) {
