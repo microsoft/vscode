@@ -261,6 +261,29 @@ export class JoinTwoGroupsAction extends Action {
 	}
 }
 
+export class JoinAllGroupsAction extends Action {
+
+	public static readonly ID = 'workbench.action.joinAllGroups';
+	public static readonly LABEL = nls.localize('joinAllGroups', "Join Editors of All Groups");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	public run(context?: IEditorIdentifier): TPromise<any> {
+		const firstGroup = this.editorGroupService.groups[0];
+		while (this.editorGroupService.count > 1) {
+			this.editorGroupService.mergeGroup(this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, firstGroup), firstGroup);
+		}
+
+		return TPromise.as(true);
+	}
+}
+
 export class NavigateBetweenGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.navigateEditorGroups';
@@ -577,25 +600,22 @@ function getTarget(editorService: IEditorService, editorGroupService: IEditorGro
 	return { group: editorGroupService.activeGroup, editor: editorGroupService.activeGroup.activeEditor };
 }
 
-export class CloseAllEditorsAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeAllEditors';
-	public static readonly LABEL = nls.localize('closeAllEditors', "Close All Editors");
+export abstract class BaseCloseAllAction extends Action {
 
 	constructor(
 		id: string,
 		label: string,
-		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		clazz: string,
+		private textFileService: ITextFileService
 	) {
-		super(id, label, 'action-close-all-files');
+		super(id, label, clazz);
 	}
 
 	public run(): TPromise<any> {
 
 		// Just close all if there are no or one dirty editor
 		if (this.textFileService.getDirty().length < 2) {
-			return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
+			return this.doCloseAll();
 		}
 
 		// Otherwise ask for combined confirmation
@@ -613,11 +633,53 @@ export class CloseAllEditorsAction extends Action {
 
 			return saveOrRevertPromise.then(success => {
 				if (success) {
-					return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
+					return this.doCloseAll();
 				}
 
 				return void 0;
 			});
+		});
+	}
+
+	protected abstract doCloseAll(): TPromise<any>;
+}
+
+export class CloseAllEditorsAction extends BaseCloseAllAction {
+
+	public static readonly ID = 'workbench.action.closeAllEditors';
+	public static readonly LABEL = nls.localize('closeAllEditors', "Close All Editors");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, 'action-close-all-files', textFileService);
+	}
+
+	protected doCloseAll(): TPromise<any> {
+		return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
+	}
+}
+
+export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
+
+	public static readonly ID = 'workbench.action.closeAllEditorGroups';
+	public static readonly LABEL = nls.localize('closeAllGroups', "Close All Editor Groups");
+
+	constructor(
+		id: string,
+		label: string,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, void 0, textFileService);
+	}
+
+	protected doCloseAll(): TPromise<any> {
+		return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors())).then(() => {
+			this.editorGroupService.groups.forEach(group => this.editorGroupService.removeGroup(group));
 		});
 	}
 }
