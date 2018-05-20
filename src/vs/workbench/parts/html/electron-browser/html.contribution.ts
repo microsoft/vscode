@@ -8,19 +8,20 @@ import URI from 'vs/base/common/uri';
 import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
 import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from './htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorGroupsService } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { findEditorGroup } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
-	return accessor.get(IWorkbenchEditorService).getVisibleEditors()
+	return accessor.get(INextEditorService).visibleControls
 		.filter(c => c instanceof HtmlPreviewPart && c.model)
 		.map(e => e as HtmlPreviewPart)
 		.filter(e => e.model.uri.scheme === uri.scheme && e.model.uri.toString() === uri.toString());
@@ -47,13 +48,20 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 
 	let input: HtmlInput;
 
+	const editorGroupService = accessor.get(INextEditorGroupsService);
+	const groups = editorGroupService.groups;
+
 	// Find already opened HTML input if any
-	const stacks = accessor.get(IEditorGroupService).getStacksModel();
-	const targetGroup = stacks.groupAt(position) || stacks.activeGroup;
+	const targetGroup = groups[position] || editorGroupService.activeGroup;
 	if (targetGroup) {
-		const existingInput = targetGroup.getEditor(uri);
-		if (existingInput instanceof HtmlInput) {
-			input = existingInput;
+		const editors = targetGroup.editors;
+		for (let i = 0; i < editors.length; i++) {
+			const editor = editors[i];
+			const editorResource = editor.getResource();
+			if (editor instanceof HtmlInput && editorResource && editorResource.toString() === resource.toString()) {
+				input = editor;
+				break;
+			}
 		}
 	}
 
@@ -72,8 +80,8 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 		input.setName(label); // make sure to use passed in label
 	}
 
-	return accessor.get(IWorkbenchEditorService)
-		.openEditor(input, { pinned: true }, position)
+	return accessor.get(INextEditorService)
+		.openEditor(input, { pinned: true }, findEditorGroup(editorGroupService, position))
 		.then(editor => true);
 });
 

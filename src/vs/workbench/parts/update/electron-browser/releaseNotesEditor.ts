@@ -24,9 +24,8 @@ import { IRequestService } from 'vs/platform/request/node/request';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { addGAParameters } from 'vs/platform/telemetry/node/telemetryNodeUtils';
 import { IWebviewEditorService } from 'vs/workbench/parts/webview/electron-browser/webviewEditorService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/nextEditorService';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
-import { Position } from 'vs/platform/editor/common/editor';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
 
 function renderBody(
@@ -76,12 +75,12 @@ export class ReleaseNotesManager {
 		if (this._currentReleaseNotes) {
 			this._currentReleaseNotes.setName(title);
 			this._currentReleaseNotes.html = html;
-			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group.id : undefined, false); // TODO@grid [EXTENSIONS] adopt group identifier
+			this._webviewEditorService.revealWebview(this._currentReleaseNotes, activeControl ? activeControl.group : undefined, false);
 		} else {
 			this._currentReleaseNotes = this._webviewEditorService.createWebview(
 				'releaseNotes',
 				title,
-				{ viewColumn: activeControl ? activeControl.group.id : Position.ONE, preserveFocus: false }, // TODO@grid [EXTENSIONS] adopt group identifier
+				{ group: ACTIVE_GROUP, preserveFocus: false },
 				{ tryRestoreScrollPosition: true, enableFindWidget: true },
 				undefined, {
 					onDidClickLink: uri => this.onDidClickLink(uri),

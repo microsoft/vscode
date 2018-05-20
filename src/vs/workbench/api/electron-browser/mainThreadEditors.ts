@@ -119,7 +119,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		return this._editorService.openEditor(input, this._findEditorGroup(options.position)).then(editor => {
+		return this._editorService.openEditor(input, findEditorGroup(this._editorGroupService, options.position)).then(editor => {
 			if (!editor) {
 				return undefined;
 			}
@@ -134,29 +134,9 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			return this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, this._findEditorGroup(position)).then(() => { return; });
+			}, findEditorGroup(this._editorGroupService, position)).then(() => { return; });
 		}
 		return undefined;
-	}
-
-	private _findEditorGroup(position?: EditorPosition): GroupIdentifier {
-		if (typeof position !== 'number') {
-			return ACTIVE_GROUP; // prefer active group when position is undefined
-		}
-
-		const groups = this._editorGroupService.groups;
-
-		let candidate = groups[position];
-		if (candidate) {
-			return candidate.id; // found direct match
-		}
-
-		let firstGroup = groups[0];
-		if (groups.length === 1 && firstGroup.count === 0) {
-			return firstGroup.id; // first editor should always open in first group
-		}
-
-		return SIDE_GROUP; // open to the side if group not found
 	}
 
 	$tryHideEditor(id: string): TPromise<void> {
@@ -259,4 +239,24 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 		return TPromise.as(diffEditor.getLineChanges());
 	}
+}
+
+export function findEditorGroup(editorGroupService: INextEditorGroupsService, position?: EditorPosition): GroupIdentifier {
+	if (typeof position !== 'number') {
+		return ACTIVE_GROUP; // prefer active group when position is undefined
+	}
+
+	const groups = editorGroupService.groups;
+
+	let candidate = groups[position];
+	if (candidate) {
+		return candidate.id; // found direct match
+	}
+
+	let firstGroup = groups[0];
+	if (groups.length === 1 && firstGroup.count === 0) {
+		return firstGroup.id; // first editor should always open in first group
+	}
+
+	return SIDE_GROUP; // open to the side if group not found
 }

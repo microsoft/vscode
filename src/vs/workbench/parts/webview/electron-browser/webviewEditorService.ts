@@ -8,12 +8,18 @@ import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { INextEditorService, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import * as vscode from 'vscode';
 import { WebviewEditorInput } from './webviewEditorInput';
+import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 export const IWebviewEditorService = createDecorator<IWebviewEditorService>('webviewEditorService');
+
+export interface ICreateWebViewShowOptions {
+	group: IEditorGroup | GroupIdentifier | ACTIVE_GROUP_TYPE | SIDE_GROUP_TYPE;
+	preserveFocus: boolean;
+}
 
 export interface IWebviewEditorService {
 	_serviceBrand: any;
@@ -21,7 +27,7 @@ export interface IWebviewEditorService {
 	createWebview(
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn: Position, preserveFocus: boolean },
+		showOptions: ICreateWebViewShowOptions,
 		options: WebviewInputOptions,
 		extensionLocation: URI,
 		events: WebviewEvents
@@ -37,7 +43,7 @@ export interface IWebviewEditorService {
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | null,
+		group: IEditorGroup,
 		preserveFocus: boolean
 	): void;
 
@@ -79,33 +85,33 @@ export class WebviewEditorService implements IWebviewEditorService {
 	private _awaitingRevival: { input: WebviewEditorInput, resolve: (x: any) => void }[] = [];
 
 	constructor(
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@INextEditorService private readonly _editorService: INextEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IEditorGroupService private readonly _editorGroupService: IEditorGroupService,
+		@INextEditorGroupsService private readonly _editorGroupService: INextEditorGroupsService,
 	) { }
 
 	createWebview(
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn: Position, preserveFocus: boolean },
+		showOptions: ICreateWebViewShowOptions,
 		options: vscode.WebviewOptions,
 		extensionLocation: URI,
 		events: WebviewEvents
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, {}, events, extensionLocation, undefined);
-		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.viewColumn);
+		this._editorService.openEditor(webviewInput, { pinned: true, preserveFocus: showOptions.preserveFocus }, showOptions.group);
 		return webviewInput;
 	}
 
 	revealWebview(
 		webview: WebviewEditorInput,
-		column: Position | null,
+		group: IEditorGroup,
 		preserveFocus: boolean
 	): void {
-		if (!column || webview.group === column) { // TODO@grid [EXTENSIONS] adopt group identifier
-			this._editorService.openEditor(webview, { preserveFocus }, column || webview.group);
+		if (webview.group === group.id) {
+			this._editorService.openEditor(webview, { preserveFocus }, webview.group);
 		} else {
-			this._editorGroupService.moveEditor(webview, webview.group, column, { preserveFocus });
+			this._editorGroupService.getGroup(webview.group).moveEditor(webview, group, { preserveFocus });
 		}
 	}
 
