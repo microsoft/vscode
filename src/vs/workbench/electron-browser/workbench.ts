@@ -60,11 +60,9 @@ import { IConfigurationResolverService } from 'vs/workbench/services/configurati
 import { ConfigurationResolverService } from 'vs/workbench/services/configurationResolver/electron-browser/configurationResolverService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ITitleService } from 'vs/workbench/services/title/common/titleService';
-import { IWorkbenchEditorService, WorkbenchEditorService, NoOpEditorPart, IResourceInputType } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ClipboardService } from 'vs/platform/clipboard/electron-browser/clipboardService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
@@ -109,7 +107,7 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
-import { INextEditorService } from 'vs/workbench/services/editor/common/nextEditorService';
+import { INextEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/nextEditorService';
 import { INextEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/nextEditorGroupsService';
 import { NextEditorService } from 'vs/workbench/services/editor/browser/nextEditorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
@@ -386,11 +384,6 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(INextEditorGroupsService, this.editorPart);
 		this.editorService = this.instantiationService.createInstance(NextEditorService);
 		serviceCollection.set(INextEditorService, this.editorService);
-
-		// TODO@grid Remove Legacy Editor Services
-		const noOpEditorPart = new NoOpEditorPart(this.instantiationService);
-		serviceCollection.set(IWorkbenchEditorService, this.instantiationService.createInstance(WorkbenchEditorService, noOpEditorPart));
-		serviceCollection.set(IEditorGroupService, noOpEditorPart);
 
 		// Title bar
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
@@ -714,7 +707,7 @@ export class Workbench extends Disposable implements IPartService {
 		return restore;
 	}
 
-	private resolveEditorsToOpen(): TPromise<IResourceInputType[]> {
+	private resolveEditorsToOpen(): TPromise<IResourceEditor[]> {
 		const config = this.workbenchParams.configuration;
 
 		// Files to open, diff or create

@@ -28,7 +28,6 @@ import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { TValueCallback, TPromise } from 'vs/base/common/winjs.base';
 import { always } from 'vs/base/common/async';
-import { GroupOrientation as LegacyGroupOrientation } from 'vs/workbench/services/group/common/groupService';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -737,7 +736,7 @@ export class EditorPart extends Part implements INextEditorGroupsService, IEdito
 
 		interface ILegacyEditorPartUIState {
 			ratio: number[];
-			groupOrientation: LegacyGroupOrientation;
+			groupOrientation: 'vertical' | 'horizontal';
 		}
 
 		interface ISerializedLegacyEditorStacksModel {
