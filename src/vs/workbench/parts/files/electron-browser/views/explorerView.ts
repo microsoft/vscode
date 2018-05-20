@@ -345,7 +345,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
-					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).then(null, errors.onUnexpectedError);
+					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
 
 					return refreshPromise;
 				}
@@ -363,7 +363,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const stat: ExplorerItem = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).then(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } });
 		}
 	}
 

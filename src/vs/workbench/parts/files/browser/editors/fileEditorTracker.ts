@@ -308,7 +308,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// Binary editor that should reload from event
 			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group).then(null, errors.onUnexpectedError);
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group);
 			}
 		});
 	}

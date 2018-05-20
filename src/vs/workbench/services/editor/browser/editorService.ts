@@ -193,27 +193,6 @@ export class EditorService extends Disposable implements IEditorService {
 
 	//#endregion
 
-	//#region openTextEditor()
-
-	openTextEditor(editor: IResourceInput, sideBySide?: boolean): TPromise<ICodeEditor> {
-		return this.openEditor(editor, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(control => {
-			if (!control) {
-				return null;
-			}
-
-			if (control) {
-				const widget = control.getControl();
-				if (isCodeEditor(widget)) {
-					return widget;
-				}
-			}
-
-			return null;
-		});
-	}
-
-	//#endregion
-
 	//#region openEditor()
 
 	openEditor(editor: IEditorInput, options?: IEditorOptions | ITextEditorOptions, group?: IEditorGroup | GroupIdentifier | SIDE_GROUP_TYPE | ACTIVE_GROUP_TYPE): TPromise<IEditor>;
