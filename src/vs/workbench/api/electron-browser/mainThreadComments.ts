@@ -83,6 +83,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	$registerWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.set(handle, undefined);
 		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, true);
+		this._panelService.openPanel(COMMENTS_PANEL_ID);
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
 				this._commentService.setAllComments(commentThreads);
