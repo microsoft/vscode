@@ -55,17 +55,20 @@ export class RipgrepTextSearchEngine {
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
-			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
+			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			process.once('exit', this.killRgProcFn);
 			this.rgProc.on('error', e => {
-				console.log(e);
+				console.error(e);
+				this.outputChannel.append('Error: ' + (e && e.message));
 				reject(e);
 			});
 
+			let gotResult = false;
 			this.ripgrepParser = new RipgrepParser(MAX_TEXT_RESULTS, cwd);
 			this.ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
+				gotResult = true;
 				progress.report(match);
 			});
 
@@ -83,11 +86,14 @@ export class RipgrepTextSearchEngine {
 			let stderr = '';
 			this.rgProc.stderr.on('data', data => {
 				const message = data.toString();
-				this.outputChannel.appendLine(message);
+				this.outputChannel.append(message);
 				stderr += message;
 			});
 
 			this.rgProc.on('close', code => {
+				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
+				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
+				this.outputChannel.appendLine('');
 				process.removeListener('exit', this.killRgProcFn);
 				if (this.isDone) {
 					resolve();
