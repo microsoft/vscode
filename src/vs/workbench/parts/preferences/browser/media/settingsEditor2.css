@@ -102,16 +102,14 @@
 	white-space: normal;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd {
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd:not(.focused):not(.selected):not(:hover),
+.settings-editor > .settings-body > .settings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.odd:not(.selected):not(:hover),
+.settings-editor > .settings-body > .settings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.odd:not(.selected):not(:hover) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row:not(.odd) {
-	background-color: initial;
-}
-
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item {
-	padding: 3px 0px;
+	padding: 3px;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container {
@@ -260,6 +258,10 @@
 	margin-left: -15px;
 }
 
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-label {
+	margin: 5px 3px;
+}
+
 .settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded,
 .settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed {
 	cursor: pointer;
@@ -293,5 +295,5 @@
 	position: absolute;
 	content: ' ';
 	left: -19px;
-	top: 14px;
+	top: 4px;
 }

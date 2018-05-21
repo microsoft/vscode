@@ -105,8 +105,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchWidget: SearchWidget;
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
-	private showConfiguredSettingsOnly = false;
-	private showAllSettings = false;
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
 
 	private settingsListContainer: HTMLElement;
@@ -123,11 +121,15 @@ export class SettingsEditor2 extends BaseEditor {
 	private currentLocalSearchProvider: ISearchProvider;
 	private currentRemoteSearchProvider: ISearchProvider;
 
-	private searchResultModel: SearchResultModel;
 	private pendingSettingModifiedReport: { key: string, value: any };
 
+	// <TODO@roblou> factor out tree/list viewmodel to somewhere outside this class
+	private searchResultModel: SearchResultModel;
 	private groupExpanded = new Map<string, boolean>();
 	private itemExpanded = new Map<string, boolean>();
+	private showConfiguredSettingsOnly = false;
+	private showAllSettings = false;
+	// </TODO>
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -265,20 +267,13 @@ export class SettingsEditor2 extends BaseEditor {
 		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer, this.settingsListContainer);
 		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
-		this._register(settingItemRenderer.onDidToggleExpandSetting(e => {
-			this.itemExpanded.set(e.key, e.expandState === ExpandState.Expanded);
-			this.renderEntries();
-		}));
+		this._register(settingItemRenderer.onDidToggleExpandSetting(e => this.toggleSettingExpanded(e)));
 
 		const buttonItemRenderer = new ButtonRowRenderer();
-		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsClicked()));
+		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsToggled()));
 
 		const groupTitleRenderer = new GroupTitleRenderer();
-		this._register(groupTitleRenderer.onDidClickGroup(e => {
-			const isExpanded = !!this.groupExpanded.get(e);
-			this.groupExpanded.set(e, !isExpanded);
-			this.renderEntries();
-		}));
+		this._register(groupTitleRenderer.onDidClickGroup(id => this.toggleGroupExpanded(id)));
 
 		this.settingsList = this._register(this.instantiationService.createInstance(
 			WorkbenchList,
@@ -287,18 +282,47 @@ export class SettingsEditor2 extends BaseEditor {
 			[settingItemRenderer, groupTitleRenderer, buttonItemRenderer],
 			{
 				identityProvider: e => e.id,
-				ariaLabel: localize('settingsListLabel', "Settings"),
-				focusOnMouseDown: false,
-				selectOnMouseDown: false,
-				keyboardSupport: false,
-				mouseSupport: false
+				ariaLabel: localize('settingsListLabel', "Settings")
 			})
 		) as WorkbenchList<ListEntry>;
 
-		this.settingsList.style({ listHoverBackground: Color.transparent, listFocusOutline: Color.transparent });
+		this._register(this.settingsList.onDidFocus(() => {
+			DOM.addClass(this.settingsList.getHTMLElement(), 'focused');
+		}));
+		this._register(this.settingsList.onDidBlur(() => {
+			DOM.removeClass(this.settingsList.getHTMLElement(), 'focused');
+		}));
+
+		this.settingsList.onOpen(e => {
+			const entry = e.elements[0];
+			if (!entry) {
+				return;
+			}
+
+			if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
+				this.toggleGroupExpanded(entry.id);
+			} else if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
+				this.toggleSettingExpanded(entry);
+			} else if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
+				this.onShowAllSettingsToggled();
+			}
+		});
 	}
 
-	private onShowAllSettingsClicked(): void {
+	private toggleGroupExpanded(id: string): void {
+		const isExpanded = !!this.groupExpanded.get(id);
+		this.groupExpanded.set(id, !isExpanded);
+		this.renderEntries();
+	}
+
+	private toggleSettingExpanded(entry: ISettingItemEntry): void {
+		if (entry.isExpandable) {
+			this.itemExpanded.set(entry.key, !entry.isExpanded);
+			this.renderEntries();
+		}
+	}
+
+	private onShowAllSettingsToggled(): void {
 		this.showAllSettings = !this.showAllSettings;
 		this.render();
 	}
@@ -650,7 +674,7 @@ class SettingItemDelegate implements IDelegate<ListEntry> {
 
 	getHeight(entry: ListEntry) {
 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-			return 42;
+			return 30;
 		}
 
 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
@@ -722,11 +746,6 @@ interface ISettingChangeEvent {
 	value: any; // undefined => reset unconfigure
 }
 
-interface ISettingExpandEvent {
-	key: string;
-	expandState: ExpandState;
-}
-
 class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
@@ -735,8 +754,8 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
 
-	private readonly _onDidToggleExpandSetting: Emitter<ISettingExpandEvent> = new Emitter<ISettingExpandEvent>();
-	public readonly onDidToggleExpandSetting: Event<ISettingExpandEvent> = this._onDidToggleExpandSetting.event;
+	private readonly _onDidToggleExpandSetting: Emitter<ISettingItemEntry> = new Emitter<ISettingItemEntry>();
+	public readonly onDidToggleExpandSetting: Event<ISettingItemEntry> = this._onDidToggleExpandSetting.event;
 
 	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
 
@@ -782,8 +801,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			toDispose.push(DOM.addDisposableListener(descriptionElement, 'click', () => {
 				const entry = template.context;
 				if (entry && entry.isExpandable) {
-					const newState = entry.isExpanded ? ExpandState.Collapsed : ExpandState.Expanded;
-					that._onDidToggleExpandSetting.fire({ key: entry.key, expandState: newState });
+					that._onDidToggleExpandSetting.fire(entry);
 				}
 			}));
 		}
@@ -869,6 +887,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = entry.value;
+		checkboxElement.tabIndex = 0;
 
 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
@@ -879,6 +898,9 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.toDispose.push(selectBox);
 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
+		if (template.valueElement.firstElementChild) {
+			template.valueElement.firstElementChild.setAttribute('tabindex', '0');
+		}
 
 		template.toDispose.push(
 			selectBox.onDidSelect(e => onChange(entry.enum[e.index])));
@@ -889,6 +911,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
+		inputBox.inputElement.tabIndex = 0;
 
 		template.toDispose.push(
 			inputBox.onDidChange(e => onChange(e)));
