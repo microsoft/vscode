@@ -48,6 +48,10 @@ export class PullRequestModel {
 	public base: GitHubRef;
 
 	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) {
+		this.update(prItem);
+	}
+
+	update(prItem: any) {
 		this.prNumber = prItem.number;
 		this.title = prItem.title;
 		this.html_url = prItem.html_url;
@@ -183,6 +187,17 @@ export class PullRequestModel {
 
 	getUserGravatar(): string {
 		return this.prItem.user.avatar_url;
+	}
+
+	async close() {
+		let ret = await this.otcokit.pullRequests.update({
+			owner: this.remote.owner,
+			repo: this.remote.repositoryName,
+			number: this.prItem.number,
+			state: 'closed'
+		});
+
+		return ret.data;
 	}
 
 	equals(other: PullRequestModel): boolean {

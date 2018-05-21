@@ -35,6 +35,17 @@ export function registerCommands(context: vscode.ExtensionContext) {
 		});
 	}));
 
+	context.subscriptions.push(vscode.commands.registerCommand('pr.close', async (pr: PullRequestModel) => {
+		vscode.window.showWarningMessage(`Are you sure you want to close PR`, 'Yes', 'No').then(async value => {
+			if (value === 'Yes') {
+				let newPR = await pr.close();
+				return newPR;
+			}
+
+			return null;
+		});
+	}));
+
 	context.subscriptions.push(vscode.commands.registerCommand('pr.openDescription', async (pr: PullRequestModel) => {
 		// Create and show a new webview
 		PullRequestOverviewPanel.createOrShow(context.extensionPath, pr);

@@ -73,6 +73,10 @@
         "title": "Checkout Pull Request"
       },
       {
+        "command": "pr.close",
+        "title": "Close Pull Request"
+      },
+      {
         "command": "pr.openInGitHub",
         "title": "Open in GitHub"
       },
@@ -107,6 +111,10 @@
           "when": "view == pr && viewItem =~ /pullrequest/"
         },
         {
+          "command": "pr.close",
+          "when": "view == pr && viewItem =~ /pullrequest/"
+        },
+        {
           "command": "pr.openInGitHub",
           "when": "view =~ /(pr|prStatus)/ && viewItem == filechange"
         }
@@ -123,7 +131,7 @@
   "scripts": {
     "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -watch -p ./",
-    "watch": "npm run build-preview && npm run compile",
+    "watch-preview": "npm run build-preview",
     "build-preview": "webpack --watch --mode development"
   },
   "devDependencies": {

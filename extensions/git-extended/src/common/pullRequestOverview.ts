@@ -9,8 +9,6 @@ import * as path from 'path';
 import { PullRequestModel } from './models/pullRequestModel';
 import { ReviewManager } from '../review/reviewManager';
 
-const MarkdownIt = require('markdown-it');
-
 export class PullRequestOverviewPanel {
 	/**
 	 * Track the currently panel. Only allow a single panel to exist at a time.
@@ -23,7 +21,6 @@ export class PullRequestOverviewPanel {
 	private readonly _extensionPath: string;
 	private _disposables: vscode.Disposable[] = [];
 	private _pullRequest: PullRequestModel;
-	private _md = MarkdownIt();
 
 	public static createOrShow(extensionPath: string, pullRequestModel: PullRequestModel) {
 		const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
@@ -73,7 +70,7 @@ export class PullRequestOverviewPanel {
 		const isCurrentlyCheckedOut = pullRequestModel.equals(ReviewManager.instance.currentPullRequest);
 		const timelineEvents = await pullRequestModel.getTimelineEvents();
 		this._panel.webview.postMessage({
-			command: 'initialize',
+			command: 'pr.initialize',
 			pullrequest: {
 				number: pullRequestModel.prNumber,
 				title: pullRequestModel.title,
@@ -102,6 +99,21 @@ export class PullRequestOverviewPanel {
 					});
 				});
 				return;
+			case 'pr.close':
+				vscode.commands.executeCommand('pr.close', this._pullRequest).then(pr => {
+					if (pr) {
+						this._pullRequest.update(pr);
+						this._panel.webview.postMessage({
+							command: 'pr-update',
+							pullrequest: {
+								title: this._pullRequest.title,
+								body: this._pullRequest.prItem.body,
+								author: this._pullRequest.author,
+								state: this._pullRequest.state,
+							}
+						});
+					}
+				});
 			case 'pr.comment':
 				const text = message.text;
 				this._pullRequest.createDiscussionComment(text).then(comment => {

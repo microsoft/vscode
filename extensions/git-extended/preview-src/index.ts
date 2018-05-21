@@ -11,8 +11,11 @@ const vscode = acquireVsCodeApi();
 function handleMessage(event: any) {
 	const message = event.data; // The json data that the extension sent
 	switch (message.command) {
-		case 'initialize':
+		case 'pr.initialize':
 			renderPullRequest(message.pullrequest);
+			break;
+		case 'pr.update':
+			updatePullRequest(message.pullrequest);
 			break;
 		case 'checked-out':
 			updateCheckoutButton(true);
@@ -33,6 +36,12 @@ function renderPullRequest(pullRequest: any) {
 	updateCheckoutButton(pullRequest.isCurrentlyCheckedOut);
 
 	addEventListeners();
+}
+
+function updatePullRequest(pullRequest: any) {
+	if (pullRequest.state || pullRequest.body || pullRequest.author || pullRequest.title) {
+		setTitleHTML(pullRequest);
+	}
 }
 
 function setTitleHTML(pr: any) {
@@ -69,6 +78,13 @@ function addEventListeners() {
 			text: (<HTMLTextAreaElement>document.getElementById('commentTextArea')!).value
 		});
 		(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).value = '';
+	});
+
+	document.getElementById('close-button')!.addEventListener('click', () => {
+		(<HTMLButtonElement>document.getElementById('close-button')).disabled = true;
+		vscode.postMessage({
+			command: 'pr.close'
+		});
 	});
 }
 
