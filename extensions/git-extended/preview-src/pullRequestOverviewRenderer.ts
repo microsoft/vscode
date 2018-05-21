@@ -179,7 +179,7 @@ export function renderReview(timelineEvent: ReviewEvent): string {
 	<div class="review-comment" tabindex="0" role="treeitem">
 		<div class="review-comment-contents">
 			<div class="review">
-				<strong><a href="${timelineEvent.html_url}">${timelineEvent.user.login} left a review </a></strong><span></span>
+				<strong>${timelineEvent.user.login} left a <a href="${timelineEvent.html_url}">review </a></strong><span></span>
 				<div class="timestamp">${moment(timelineEvent.submitted_at).fromNow()}</div>
 			</div>
 		</div>

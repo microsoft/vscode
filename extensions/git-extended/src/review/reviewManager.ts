@@ -45,7 +45,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _prFileChangesProvider: FileChangesProvider;
 	get prFileChangesProvider() {
 		if (!this._prFileChangesProvider) {
-			this._prFileChangesProvider = new FileChangesProvider(this._context);
+			this._prFileChangesProvider = new FileChangesProvider(this._context, this._pr);
 			this._disposables.push(this._prFileChangesProvider);
 		}
 
@@ -158,7 +158,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}
 
 		await this.getPullRequestData(pr);
-		await this.prFileChangesProvider.showPullRequestFileChanges(this._localFileChanges);
+		await this.prFileChangesProvider.showPullRequestFileChanges(pr, this._localFileChanges);
 
 		this._onDidChangeDecorations.fire();
 		this.registerCommentProvider();
