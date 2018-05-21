@@ -23,7 +23,7 @@ import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-bro
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
-import { appendStylizedStringToContainer } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
+import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 
 const $ = dom.$;
 
@@ -253,7 +253,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		let result = this.handleANSIOutput(element.value);
+		let result = handleANSIOutput(element.value, this.linkDetector);
 		templateData.value.appendChild(result);
 
 		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
@@ -284,109 +284,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
 		}
-	}
-
-	/**
-	 * @param text The content to stylize.
-	 * @returns An {@link HTMLSpanElement} that contains the potentially stylized text.
-	 */
-	private handleANSIOutput(text: string): HTMLSpanElement {
-
-		const root: HTMLSpanElement = document.createElement('span');
-		const textLength: number = text.length;
-
-		let styleNames: string[] = [];
-		let currentPos: number = 0;
-		let buffer: string = '';
-
-		while (currentPos < textLength) {
-
-			// Potentially an ANSI escape sequence.
-			// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
-			if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
-
-				const startPos: number = currentPos;
-				currentPos += 2; // Ignore 'Esc[' as it's in every sequence.
-
-				let ansiSequence: string = '';
-				let sequenceFound: boolean = false;
-
-				while (currentPos < textLength) {
-					const char: string = text.charAt(currentPos);
-					ansiSequence += char;
-
-					currentPos++;
-
-					// Look for a known sequence terminating character.
-					if (char.match(/^[ABCDHIJKfhmpsu]$/)) {
-						sequenceFound = true;
-						break;
-					}
-
-				}
-
-				if (sequenceFound) {
-
-					// Flush buffer with previous styles.
-					appendStylizedStringToContainer(root, buffer, styleNames, this.linkDetector);
-
-					buffer = '';
-
-					/*
-					 * Certain ranges that are matched here do not contain real graphics rendition sequences. For
-					 * the sake of having a simpler expression, they have been included anyway.
-					 */
-					if (ansiSequence.match(/^(?:[39][0-7]|[0-8]|39)(?:;(?:[39][0-7]|[0-8]|39))*;?m$/)) {
-
-						const styleCodes: number[] = ansiSequence.slice(0, -1)	// Remove final 'm' character.
-							.split(';')											// Separate style codes.
-							.filter(elem => elem !== '')						// Filter empty elems as '34;m' -> ['34', ''].
-							.map(elem => parseInt(elem, 10));					// Convert to numbers.
-
-						for (let code of styleCodes) {
-							if (code === 0) {
-								styleNames = [];
-							} else if (code === 1) {
-								styleNames.push('code-bold');
-							} else if (code === 4) {
-								styleNames.push('code-underline');
-							} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-								styleNames.push('code-foreground-' + code);
-							} else if (code === 39) {
-								// Remove all foreground colour codes
-								styleNames = styleNames.filter(style => !style.match(/^code-foreground-\d+$/));
-							}
-						}
-
-					} else {
-						// Unsupported sequence so simply hide it.
-					}
-
-				}
-
-				if (sequenceFound === false) {
-					/*
-					 * Reached end of text without ending the escape sequence,
-					 * or given sequence is currently unsupported. In either
-					 * case, treat sequence as regular text.
-					 */
-					currentPos = startPos + 1;
-				}
-
-			} else {
-				buffer += text.charAt(currentPos);
-				currentPos++;
-			}
-
-		}
-
-		// Flush remaining text buffer if not empty.
-		if (buffer) {
-			appendStylizedStringToContainer(root, buffer, styleNames, this.linkDetector);
-		}
-
-		return root;
-
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
