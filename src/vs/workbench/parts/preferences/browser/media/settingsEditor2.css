@@ -179,6 +179,16 @@
 	cursor: pointer;
 }
 
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expandable:not(.is-expanded) .setting-item-description::after {
+	content: '…';
+	display: block;
+	height: 4px;
+	width: 8px;
+	position: absolute;
+	bottom: 16px;
+	left: 580px;
+}
+
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {
 	display: flex;
 }

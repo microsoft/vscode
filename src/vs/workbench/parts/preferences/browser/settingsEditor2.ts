@@ -754,6 +754,7 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
+	showMoreElement: HTMLElement;
 	valueElement: HTMLElement;
 	overridesElement: HTMLElement;
 }
@@ -811,6 +812,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
+		const showMoreElement = DOM.append(leftElement, $('.setting-show-more'));
 
 		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
 
@@ -823,6 +825,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 			categoryElement,
 			labelElement,
 			descriptionElement,
+			showMoreElement,
 			valueElement,
 			overridesElement
 		};
