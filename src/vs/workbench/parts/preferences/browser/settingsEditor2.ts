@@ -272,6 +272,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.createList(bodyContainer);
+		this.createFeedbackButton(bodyContainer);
 	}
 
 	private createList(parent: HTMLElement): void {
@@ -325,6 +326,18 @@ export class SettingsEditor2 extends BaseEditor {
 			if (!this.inRender) {
 				this.renderEntries();
 			}
+		}));
+	}
+
+	private createFeedbackButton(parent: HTMLElement): void {
+		const feedbackButton = this._register(new Button(parent));
+		feedbackButton.label = localize('feedbackButtonLabel', "Provide Feedback");
+		feedbackButton.element.classList.add('settings-feedback-button');
+
+		this._register(attachButtonStyler(feedbackButton, this.themeService));
+		this._register(feedbackButton.onDidClick(() => {
+			// Github master issue
+			window.open('https://go.microsoft.com/fwlink/?linkid=2000807');
 		}));
 	}
 
