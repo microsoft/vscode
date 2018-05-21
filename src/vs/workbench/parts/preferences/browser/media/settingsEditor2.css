@@ -32,6 +32,16 @@
 	display: inline;
 }
 
+.settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
+	text-align: right;
+	text-transform: uppercase;
+	background: rgba(136, 136, 136, 0.3);
+	border-radius: 2px;
+	font-size: 0.8em;
+	padding: 0 3px;
+	margin-right: 7px;
+}
+
 .settings-editor > .settings-header > .search-container {
 	position: relative;
 }

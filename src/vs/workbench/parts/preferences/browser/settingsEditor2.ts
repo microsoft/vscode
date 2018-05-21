@@ -204,15 +204,19 @@ export class SettingsEditor2 extends BaseEditor {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
 		const previewHeader = DOM.append(this.headerContainer, $('.settings-preview-header'));
-		const previewLabel = DOM.append(previewHeader, $('span.settings-preview-label'));
-		previewLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor. To open the original editor, ");
+
+		const previewAlert = DOM.append(previewHeader, $('span.settings-preview-warning'));
+		previewAlert.textContent = localize('previewWarning', "Preview");
+
+		const previewTextLabel = DOM.append(previewHeader, $('span.settings-preview-label'));
+		previewTextLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor. You can also ");
 		const openSettingsButton = this._register(new Button(previewHeader, { title: true, buttonBackground: null, buttonHoverBackground: null }));
 		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
 			buttonHoverBackground: Color.transparent.toString(),
 			buttonForeground: 'foreground'
 		}));
-		openSettingsButton.label = localize('openSettingsLabel', "click here");
+		openSettingsButton.label = localize('openSettingsLabel', "open the original editor.");
 		openSettingsButton.element.classList.add('open-settings-button');
 
 		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
