@@ -23,6 +23,7 @@ import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-bro
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { appendStylizedStringToContainer } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 
 const $ = dom.$;
 
@@ -327,7 +328,8 @@ export class ReplExpressionsRenderer implements IRenderer {
 				if (sequenceFound) {
 
 					// Flush buffer with previous styles.
-					this.appendStylizedStringToContainer(root, buffer, styleNames);
+					appendStylizedStringToContainer(root, buffer, styleNames, this.linkDetector);
+
 					buffer = '';
 
 					/*
@@ -380,35 +382,11 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 		// Flush remaining text buffer if not empty.
 		if (buffer) {
-			this.appendStylizedStringToContainer(root, buffer, styleNames);
+			appendStylizedStringToContainer(root, buffer, styleNames, this.linkDetector);
 		}
 
 		return root;
 
-	}
-
-	/**
-	 * @param root The {@link HTMLElement} to append the content to.
-	 * @param stringContent The text content to be appended.
-	 * @param cssClasses The list of CSS styles to apply to the text content.
-	 */
-	private appendStylizedStringToContainer(root: HTMLElement, stringContent: string, cssClasses: string[]): void {
-		if (!root || !stringContent) {
-			return;
-		}
-
-		const content = this.linkDetector.handleLinks(stringContent);
-		let container: HTMLElement;
-
-		if (typeof content === 'string') {
-			container = document.createElement('span');
-			container.textContent = content;
-		} else {
-			container = content;
-		}
-
-		container.className = cssClasses.join(' ');
-		root.appendChild(container);
 	}
 
 	public disposeTemplate(tree: ITree, templateId: string, templateData: any): void {
