@@ -14,7 +14,7 @@ import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IRawFileMatch2, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats, IFileMatch } from 'vs/platform/search/common/search';
+import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats, IRawFileMatch2 } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -133,9 +133,11 @@ function reviveFolderQuery(rawFolderQuery: IFolderQuery<UriComponents>): IFolder
 class TextSearchResultsCollector {
 	private _batchedCollector: BatchedCollector<IRawFileMatch2>;
 
+	private _currentFolderIdx: number;
+	private _currentRelativePath: string;
 	private _currentFileMatch: IRawFileMatch2;
 
-	constructor(private _onResult: (result: IRawFileMatch2[]) => void) {
+	constructor(private folderQueries: IFolderQuery[], private _onResult: (result: IRawFileMatch2[]) => void) {
 		this._batchedCollector = new BatchedCollector<IRawFileMatch2>(512, items => this.sendItems(items));
 	}
 
@@ -143,17 +145,15 @@ class TextSearchResultsCollector {
 		// Collects TextSearchResults into IInternalFileMatches and collates using BatchedCollector.
 		// This is efficient for ripgrep which sends results back one file at a time. It wouldn't be efficient for other search
 		// providers that send results in random order. We could do this step afterwards instead.
-		if (this._currentFileMatch && (this._currentFileMatch.resource.folderIdx !== folderIdx || this._currentFileMatch.resource.relativePath !== data.path)) {
+		if (this._currentFileMatch && (this._currentFolderIdx !== folderIdx || this._currentRelativePath !== data.path)) {
 			this.pushToCollector();
 			this._currentFileMatch = null;
 		}
 
 		if (!this._currentFileMatch) {
+			const resource = URI.file(path.join(this.folderQueries[folderIdx].folder.fsPath, data.path));
 			this._currentFileMatch = {
-				resource: {
-					folderIdx,
-					relativePath: data.path
-				},
+				resource,
 				lineMatches: []
 			};
 		}
@@ -393,7 +393,7 @@ class TextSearchEngine {
 		const folderQueries = this.config.folderQueries;
 
 		return new PPromise<{ limitHit: boolean }, IRawFileMatch2[]>((resolve, reject, _onResult) => {
-			this.collector = new TextSearchResultsCollector(_onResult);
+			this.collector = new TextSearchResultsCollector(this.config.folderQueries, _onResult);
 
 			const onResult = (match: vscode.TextSearchResult, folderIdx: number) => {
 				if (this.isCanceled) {

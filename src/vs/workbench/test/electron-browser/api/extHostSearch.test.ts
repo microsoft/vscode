@@ -9,7 +9,7 @@ import * as path from 'path';
 import * as extfs from 'vs/base/node/extfs';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo } from 'vs/platform/search/common/search';
+import { IRawFileMatch2, IRawSearchQuery, QueryType, ISearchQuery, IPatternInfo, IFileMatch } from 'vs/platform/search/common/search';
 import { MainContext, MainThreadSearchShape } from 'vs/workbench/api/node/extHost.protocol';
 import { ExtHostSearch } from 'vs/workbench/api/node/extHostSearch';
 import { TestRPCProtocol } from 'vs/workbench/test/electron-browser/api/testRPCProtocol';
@@ -78,7 +78,7 @@ suite('ExtHostSearch', () => {
 		return (<UriComponents[]>mockMainThreadSearch.results).map(r => URI.revive(r));
 	}
 
-	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IRawFileMatch2[]> {
+	async function runTextSearch(pattern: IPatternInfo, query: IRawSearchQuery, cancel = false): TPromise<IFileMatch[]> {
 		try {
 			const p = extHostSearch.$provideTextSearchResults(mockMainThreadSearch.lastHandle, 0, pattern, query);
 			if (cancel) {
@@ -95,7 +95,12 @@ suite('ExtHostSearch', () => {
 		}
 
 		await rpcProtocol.sync();
-		return <IRawFileMatch2[]>mockMainThreadSearch.results;
+		return (<IRawFileMatch2[]>mockMainThreadSearch.results).map(r => ({
+			...r,
+			...{
+				resource: URI.revive(r.resource)
+			}
+		}));
 	}
 
 	setup(() => {
@@ -114,7 +119,7 @@ suite('ExtHostSearch', () => {
 		return rpcProtocol.sync();
 	});
 
-	const rootFolderA = URI.file('/foo/bar');
+	const rootFolderA = URI.file('/foo/bar1');
 	const rootFolderB = URI.file('/foo/bar2');
 	// const rootFolderC = URI.file('/foo/bar3');
 
@@ -647,15 +652,17 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function assertResults(actual: IRawFileMatch2[], expected: vscode.TextSearchResult[]) {
+		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
 			for (let fileMatch of actual) {
+				// Make relative
+				const relativePath = fileMatch.resource.fsPath.substr(rootFolderA.fsPath.length + 1);
 				for (let lineMatch of fileMatch.lineMatches) {
 					for (let [offset, length] of lineMatch.offsetAndLengths) {
 						actualTextSearchResults.push({
 							preview: { text: lineMatch.preview, match: null },
 							range: new Range(lineMatch.lineNumber, offset, lineMatch.lineNumber, length + offset),
-							path: fileMatch.resource.relativePath
+							path: relativePath
 						});
 					}
 				}
