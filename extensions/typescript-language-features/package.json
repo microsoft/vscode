@@ -482,6 +482,28 @@
           "default": true,
           "description": "%typescript.showUnused.enabled%",
           "scope": "resource"
+        },
+        "typescript.updateImportsOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "default": "prompt",
+          "description": "%typescript.updateImportsOnFileMove.enabled%",
+          "scope": "resource"
+        },
+        "javascript.updateImportsOnFileMove.enabled": {
+          "type": "string",
+          "enum": [
+            "prompt",
+            "always",
+            "never"
+          ],
+          "default": "prompt",
+          "description": "%typescript.updateImportsOnFileMove.enabled%",
+          "scope": "resource"
         }
       }
     },

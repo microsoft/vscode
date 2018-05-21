@@ -568,7 +568,10 @@ export function createApiFactory(
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerSearchProvider(scheme, provider);
-			})
+			}),
+			onDidRenameResource: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDocuments.onDidRenameResource(listener, thisArg, disposables);
+			}),
 		};
 
 		// namespace: scm
