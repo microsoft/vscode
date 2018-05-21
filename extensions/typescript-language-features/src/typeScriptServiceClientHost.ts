@@ -25,7 +25,6 @@ import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
