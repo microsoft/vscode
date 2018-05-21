@@ -283,7 +283,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
 		this._register(settingItemRenderer.onDidToggleExpandSetting(e => this.toggleSettingExpanded(e)));
 
-		const buttonItemRenderer = new ButtonRowRenderer();
+		const buttonItemRenderer = this.instantiationService.createInstance(ButtonRowRenderer);
 		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsToggled()));
 
 		const groupTitleRenderer = new GroupTitleRenderer();
@@ -1046,6 +1046,8 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 	private readonly _onDidClick: Emitter<string> = new Emitter<string>();
 	public readonly onDidClick: Event<string> = this._onDidClick.event;
 
+	constructor(@IThemeService private themeService: IThemeService) { }
+
 	get templateId(): string { return BUTTON_ROW_ENTRY_TEMPLATE; }
 
 	renderTemplate(parent: HTMLElement): IButtonRowTemplate {
@@ -1055,6 +1057,7 @@ class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate
 
 		const button = new Button(buttonElement);
 		const toDispose: IDisposable[] = [button];
+		toDispose.push(attachButtonStyler(button, this.themeService));
 
 		const template: IButtonRowTemplate = {
 			parent: parent,
