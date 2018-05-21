@@ -15,6 +15,23 @@
 	padding: 0px 10px 0px 0px;
 }
 
+.settings-editor > .settings-header > .settings-preview-header {
+	margin-bottom: 5px;
+	text-align: center;
+}
+
+.settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
+	opacity: .7;
+}
+
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button,
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button:active {
+	padding: 0;
+	text-decoration: underline;
+	display: inline;
+}
+
 .settings-editor > .settings-header > .search-container {
 	position: relative;
 }
@@ -52,13 +69,6 @@
 	margin-left: auto;
 	padding-top: 3px;
 	display: flex;
-}
-
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
 }
 
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {

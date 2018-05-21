@@ -198,6 +198,20 @@ export class SettingsEditor2 extends BaseEditor {
 	private createHeader(parent: HTMLElement): void {
 		this.headerContainer = DOM.append(parent, $('.settings-header'));
 
+		const previewHeader = DOM.append(this.headerContainer, $('.settings-preview-header'));
+		const previewLabel = DOM.append(previewHeader, $('span.settings-preview-label'));
+		previewLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor. To open the original editor, ");
+		const openSettingsButton = this._register(new Button(previewHeader, { title: true, buttonBackground: null, buttonHoverBackground: null }));
+		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: 'foreground'
+		}));
+		openSettingsButton.label = localize('openSettingsLabel', "click here");
+		openSettingsButton.element.classList.add('open-settings-button');
+
+		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
+
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
@@ -225,17 +239,6 @@ export class SettingsEditor2 extends BaseEditor {
 		showConfiguredSettingsOnlyLabel.htmlFor = 'configured-only-checkbox';
 
 		this._register(DOM.addDisposableListener(this.showConfiguredSettingsOnlyCheckbox, 'change', e => this.onShowConfiguredOnlyClicked()));
-
-		const openSettingsButton = this._register(new Button(headerControlsContainerRight, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
-		}));
-		openSettingsButton.label = localize('openSettingsLabel', "Open settings.json");
-		openSettingsButton.element.classList.add('open-settings-button');
-
-		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
 	}
 
 	private openSettingsFile(): TPromise<IEditor> {
