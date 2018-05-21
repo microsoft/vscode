@@ -100,9 +100,10 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		const hierarchy = new Hierarchy(symbolInfo);
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
 
-		if (item.childItems && item.childItems.length > 0) {
+		if (item.childItems) {
 			for (const child of item.childItems) {
-				shouldInclude = shouldInclude || TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
+				const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
+				shouldInclude = shouldInclude || includedChild;
 			}
 		}
 
