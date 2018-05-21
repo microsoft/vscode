@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { renderTimelineEvent, getStatus } from './pullRequestOverviewRenderer';
+import { renderTimelineEvent, getStatus, renderComment } from './pullRequestOverviewRenderer';
 
 declare var acquireVsCodeApi: any;
 const vscode = acquireVsCodeApi();
@@ -17,6 +17,8 @@ function handleMessage(event: any) {
 		case 'checked-out':
 			updateCheckoutButton(true);
 			break;
+		case 'append-comment':
+			appendComment(message.value);
 		default:
 			break;
 	}
@@ -59,6 +61,20 @@ function addEventListeners() {
 			command: 'pr.checkout'
 		});
 	});
+
+	document.getElementById('reply-button')!.addEventListener('click', () => {
+		(<HTMLButtonElement>document.getElementById('reply-button')).disabled = true;
+		vscode.postMessage({
+			command: 'pr.comment',
+			text: (<HTMLTextAreaElement>document.getElementById('commentTextArea')!).value
+		});
+		(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).value = '';
+	});
+}
+
+function appendComment(comment: any) {
+	let newComment = renderComment(comment);
+	document.getElementById('pullrequest')!.insertAdjacentHTML('beforeend', newComment);
 }
 
 function updateCheckoutButton(isCheckedOut: boolean) {

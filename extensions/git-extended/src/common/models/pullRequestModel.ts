@@ -144,6 +144,17 @@ export class PullRequestModel {
 		return promise.data;
 	}
 
+	async createDiscussionComment(text: string): Promise<Comment> {
+		const promise = await this.otcokit.issues.createComment({
+			body: text,
+			number: this.prNumber,
+			owner: this.remote.owner,
+			repo: this.remote.repositoryName
+		});
+
+		return promise.data;
+	}
+
 	async createCommentReply(body: string, reply_to: string) {
 		let ret = await this.otcokit.pullRequests.createCommentReply({
 			owner: this.remote.owner,
