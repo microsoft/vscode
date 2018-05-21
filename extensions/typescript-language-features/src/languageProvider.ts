@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter } from 'vscode';
+import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter, DiagnosticSeverity } from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -273,7 +273,15 @@ export default class LanguageProvider {
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+			if (!reportUnnecessary) {
+				diag.customTags = undefined;
+				if (diag.reportUnnecessary && diag.severity === DiagnosticSeverity.Hint) {
+					return false;
+				}
+			}
+			return true;
+		}));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
