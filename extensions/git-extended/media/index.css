@@ -128,3 +128,53 @@ body {
 	flex-direction: column;
 	width: 100%;
 }
+
+body .comment-form {
+	padding: 10px 10px 10px 30px;
+}
+
+body .comment-form textarea {
+	display: block;
+	width: 100%;
+	min-height: 100px;
+	max-height: 500px;
+	resize: vertical;
+	border-radius: 3px;
+	border: 2px;
+	border-color: var(--vscode-activityBar-background);
+	background-color: var(--vscode-peekViewEditor-background);
+	color: var(--vscode-editor-foreground);
+}
+
+body .comment-form .form-actions {
+	overflow: auto;
+	padding: 10px 0;
+}
+body .comment-form .form-actions {
+	overflow: auto;
+	padding: 10px 0;
+}
+
+body .comment-form .form-actions button {
+	width: auto;
+	padding: 4px 10px;
+	background-color: var(--vscode-button-background);
+	color: var(--vscode-button-foreground);
+	border-radius: 0px;
+	border: 1px solid transparent;
+	outline: none;
+}
+
+body .comment-form .form-actions button.close-button {
+	float: left;
+}
+
+body .comment-form .form-actions button.reply-button {
+	float: right;
+}
+
+body .comment-form .form-actions button:hover:enabled,
+body .comment-form .form-actions button:focus:enabled {
+	background-color: var(--vscode-button-hoverBackground);
+	cursor: pointer;
+}

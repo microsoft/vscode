@@ -124,7 +124,7 @@
     "vscode:prepublish": "tsc -p ./",
     "compile": "tsc -watch -p ./",
     "watch": "npm run build-preview && npm run compile",
-    "build-preview": "webpack --mode development"
+    "build-preview": "webpack --watch --mode development"
   },
   "devDependencies": {
     "@types/lodash": "^4.14.106",

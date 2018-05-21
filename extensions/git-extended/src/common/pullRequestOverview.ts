@@ -142,6 +142,13 @@ export class PullRequestOverviewPanel {
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 				<div id="title" class="title"></div>
 				<div id="pullrequest" class="discussion"></div>
+				<div class="comment-form">
+					<textarea id="commentTextArea"></textarea>
+					<div class="form-actions">
+						<button class="close-button" id="close-button"></button>
+						<button class="reply-button" id="reply-button"></button>
+					</div>
+				</div>
 			</body>
 			</html>`;
 	}
