@@ -349,10 +349,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 							} else if (code === 4) {
 								styleNames.push('code-underline');
 							} else if ((code >= 30 && code <= 37) || (code >= 90 && code <= 97)) {
-								styleNames.push('code-fg-' + code);
+								styleNames.push('code-foreground-' + code);
 							} else if (code === 39) {
 								// Remove all foreground colour codes
-								styleNames = styleNames.filter(style => !style.match(/^code-fg-\d+$/));
+								styleNames = styleNames.filter(style => !style.match(/^code-foreground-\d+$/));
 							}
 						}
 
