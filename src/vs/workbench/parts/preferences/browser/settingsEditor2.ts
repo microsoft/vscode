@@ -37,7 +37,8 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IPreferencesSearchService, ISearchProvider } from '../common/preferences';
+import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
@@ -59,6 +60,7 @@ interface ISettingItemEntry extends IListEntry {
 	overriddenScopeList: string[];
 	isExpanded: boolean;
 	isExpandable?: boolean;
+	isFocused?: boolean;
 	type?: string | string[];
 	enum?: string[];
 }
@@ -129,6 +131,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private itemExpanded = new Map<string, boolean>();
 	private showConfiguredSettingsOnly = false;
 	private showAllSettings = false;
+	private inRender = false;
 	// </TODO>
 
 	constructor(
@@ -221,6 +224,12 @@ export class SettingsEditor2 extends BaseEditor {
 			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
+		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
+			if (e.keyCode === KeyCode.DownArrow) {
+				this.settingsList.focusFirst();
+				this.settingsList.domFocus();
+			}
+		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
@@ -307,6 +316,12 @@ export class SettingsEditor2 extends BaseEditor {
 				this.onShowAllSettingsToggled();
 			}
 		});
+
+		this._register(this.settingsList.onFocusChange(e => {
+			if (!this.inRender) {
+				this.renderEntries();
+			}
+		}));
 	}
 
 	private toggleGroupExpanded(id: string): void {
@@ -532,6 +547,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const entries: ISettingItemEntry[] = [];
 		const seenSettings = new Set<string>();
 
+		const focusedElement = this.settingsList.getFocusedElements()[0];
+		const focusedId = focusedElement && focusedElement.id;
 		for (let result of searchResults) {
 			if (!result) {
 				continue;
@@ -539,7 +556,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 			for (let match of result.filterMatches) {
 				if (!seenSettings.has(match.setting.key)) {
-					const entry = this.settingToEntry(match.setting);
+					const entry = this.settingToEntry(match.setting, 'search');
+					entry.isFocused = entry.id === focusedId;
+
 					if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
 						seenSettings.add(entry.key);
 						entries.push(entry);
@@ -552,6 +571,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private renderEntries(): void {
+		this.inRender = true;
 		if (!this.defaultSettingsEditorModel) {
 			return;
 		}
@@ -574,10 +594,15 @@ export class SettingsEditor2 extends BaseEditor {
 				inputElementToFocus.focus();
 			}
 		}
+
+		this.inRender = false;
 	}
 
 	private getEntriesFromModel(): ListEntry[] {
 		const entries: ListEntry[] = [];
+		const focusedElement = this.settingsList.getFocusedElements()[0];
+		const focusedId = focusedElement && focusedElement.id;
+
 		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
 			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
 				break;
@@ -590,7 +615,8 @@ export class SettingsEditor2 extends BaseEditor {
 			if (isExpanded) {
 				for (const section of group.sections) {
 					for (const setting of section.settings) {
-						const entry = this.settingToEntry(setting);
+						const entry = this.settingToEntry(setting, group.id);
+						entry.isFocused = entry.id === focusedId;
 
 						if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
 							groupEntries.push(entry);
@@ -629,7 +655,7 @@ export class SettingsEditor2 extends BaseEditor {
 		return entries;
 	}
 
-	private settingToEntry(s: ISetting): ISettingItemEntry {
+	private settingToEntry(s: ISetting, groupId: string): ISettingItemEntry {
 		const targetSelector = this.settingsTargetsWidget.settingsTarget === ConfigurationTarget.USER ? 'user' : 'workspace';
 		const inspected = this.configurationService.inspect(s.key);
 		const isConfigured = typeof inspected[targetSelector] !== 'undefined';
@@ -646,7 +672,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const isExpanded = !!this.itemExpanded.get(s.key);
 
 		return <ISettingItemEntry>{
-			id: s.key,
+			id: `${groupId}_${s.key}`,
 			key: s.key,
 			value: displayValue,
 			isConfigured,
@@ -842,6 +868,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const resetButton = new Button(template.valueElement);
 		resetButton.element.title = localize('resetButtonTitle', "Reset");
 		resetButton.element.classList.add('setting-reset-button');
+		resetButton.element.tabIndex = entry.isFocused ? 0 : -1;
 
 		if (that) {
 			attachButtonStyler(resetButton, that.themeService, {
@@ -887,7 +914,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = entry.value;
-		checkboxElement.tabIndex = 0;
+		checkboxElement.tabIndex = entry.isFocused ? 0 : -1;
 
 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
@@ -899,7 +926,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
 		if (template.valueElement.firstElementChild) {
-			template.valueElement.firstElementChild.setAttribute('tabindex', '0');
+			template.valueElement.firstElementChild.setAttribute('tabindex', entry.isFocused ? '0' : '-1');
 		}
 
 		template.toDispose.push(
@@ -911,7 +938,7 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = entry.value;
-		inputBox.inputElement.tabIndex = 0;
+		inputBox.inputElement.tabIndex = entry.isFocused ? 0 : -1;
 
 		template.toDispose.push(
 			inputBox.onDidChange(e => onChange(e)));
@@ -922,6 +949,8 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
+		openSettingsButton.element.tabIndex = entry.isFocused ? 0 : -1;
+
 		template.toDispose.push(openSettingsButton);
 		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
