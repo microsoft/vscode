@@ -66,7 +66,7 @@ export class PullRequestOverviewPanel {
 
 	public async update(pullRequestModel: PullRequestModel) {
 		this._pullRequest = pullRequestModel;
-		this._panel.webview.html = this.getHtmlForWebview();
+		this._panel.webview.html = this.getHtmlForWebview(pullRequestModel.prNumber.toString());
 		const isCurrentlyCheckedOut = pullRequestModel.equals(ReviewManager.instance.currentPullRequest);
 		const timelineEvents = await pullRequestModel.getTimelineEvents();
 		this._panel.webview.postMessage({
@@ -74,6 +74,7 @@ export class PullRequestOverviewPanel {
 			pullrequest: {
 				number: pullRequestModel.prNumber,
 				title: pullRequestModel.title,
+				url: pullRequestModel.html_url,
 				body: pullRequestModel.prItem.body,
 				author: pullRequestModel.author,
 				state: pullRequestModel.state,
@@ -140,7 +141,7 @@ export class PullRequestOverviewPanel {
 		}
 	}
 
-	private getHtmlForWebview() {
+	private getHtmlForWebview(number: string) {
 		const scriptPathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'index.js'));
 		const scriptUri = scriptPathOnDisk.with({ scheme: 'vscode-resource' });
 		const stylePathOnDisk = vscode.Uri.file(path.join(this._extensionPath, 'media', 'index.css'));
@@ -157,12 +158,12 @@ export class PullRequestOverviewPanel {
 				${baseStyles}
 
 				<meta name="viewport" content="width=device-width, initial-scale=1.0">
-				<title>Cat Coding</title>
+				<title>Pull Request #${number}</title>
 			</head>
 			<body>
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 				<div id="title" class="title"></div>
-				<div id="pullrequest" class="discussion"></div>
+				<div id="pullrequest" class="discussion" aria-live="polite"></div>
 				<div class="comment-form">
 					<textarea id="commentTextArea"></textarea>
 					<div class="form-actions">

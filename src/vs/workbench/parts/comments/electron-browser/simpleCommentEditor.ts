@@ -32,7 +32,7 @@ export class SimpleCommentEditor extends CodeEditorWidget {
 		@IThemeService themeService: IThemeService,
 		@INotificationService notificationService: INotificationService,
 	) {
-		super(domElement, options, true, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
+		super(domElement, options, { isSimpleWidget: true }, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
 	}
 
 	protected _getContributions(): IEditorContributionCtor[] {

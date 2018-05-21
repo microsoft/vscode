@@ -143,7 +143,7 @@ export type TimelineEvent = CommitEvent | ReviewEvent | SubscribeEvent | Comment
 export function renderComment(comment: CommentEvent): string {
 	return `<div class="comment-container">
 
-	<div class="review-comment" tabindex="0" role="treeitem">
+	<div class="review-comment" role="treeitem">
 		<div class="review-comment-contents">
 			<div class="review-comment-header">
 				<div class="avatar-container">
@@ -163,7 +163,7 @@ export function renderComment(comment: CommentEvent): string {
 export function renderCommit(timelineEvent: CommitEvent): string {
 	return `<div class="comment-container">
 
-	<div class="review-comment" tabindex="0" role="treeitem">
+	<div class="review-comment" role="treeitem">
 		<div class="review-comment-contents">
 			<div class="commit">
 				<strong>${timelineEvent.author.name} commit: <a href="${timelineEvent.html_url}">${timelineEvent.message} (${timelineEvent.sha})</a></strong>
@@ -176,7 +176,7 @@ export function renderCommit(timelineEvent: CommitEvent): string {
 export function renderReview(timelineEvent: ReviewEvent): string {
 	return `<div class="comment-container">
 
-	<div class="review-comment" tabindex="0" role="treeitem">
+	<div class="review-comment" role="treeitem">
 		<div class="review-comment-contents">
 			<div class="review">
 				<strong>${timelineEvent.user.login} left a <a href="${timelineEvent.html_url}">review </a></strong><span></span>
