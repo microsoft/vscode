@@ -135,6 +135,8 @@ body .comment-form {
 
 body .comment-form textarea {
 	display: block;
+	box-sizing: border-box;
+	padding: 10px;
 	width: 100%;
 	min-height: 100px;
 	max-height: 500px;

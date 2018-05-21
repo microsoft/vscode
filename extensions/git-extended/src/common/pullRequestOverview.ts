@@ -24,13 +24,15 @@ export class PullRequestOverviewPanel {
 
 	public static createOrShow(extensionPath: string, pullRequestModel: PullRequestModel) {
 		const column = vscode.window.activeTextEditor ? vscode.window.activeTextEditor.viewColumn : undefined;
+		const title = `Pull Request #${pullRequestModel.prNumber.toString()}`;
 
 		// If we already have a panel, show it.
 		// Otherwise, create a new panel.
 		if (PullRequestOverviewPanel.currentPanel) {
 			PullRequestOverviewPanel.currentPanel._panel.reveal(column);
+			PullRequestOverviewPanel.currentPanel._panel.title = title;
 		} else {
-			PullRequestOverviewPanel.currentPanel = new PullRequestOverviewPanel(extensionPath, column || vscode.ViewColumn.One);
+			PullRequestOverviewPanel.currentPanel = new PullRequestOverviewPanel(extensionPath, column || vscode.ViewColumn.One, title);
 		}
 
 		PullRequestOverviewPanel.currentPanel.update(pullRequestModel);
@@ -39,11 +41,11 @@ export class PullRequestOverviewPanel {
 		});
 	}
 
-	private constructor(extensionPath: string, column: vscode.ViewColumn) {
+	private constructor(extensionPath: string, column: vscode.ViewColumn, title: string) {
 		this._extensionPath = extensionPath;
 
 		// Create and show a new webview panel
-		this._panel = vscode.window.createWebviewPanel(PullRequestOverviewPanel.viewType, 'Pull Request', column, {
+		this._panel = vscode.window.createWebviewPanel(PullRequestOverviewPanel.viewType, title, column, {
 			// Enable javascript in the webview
 			enableScripts: true,
 

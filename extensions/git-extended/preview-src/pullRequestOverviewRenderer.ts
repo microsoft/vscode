@@ -138,6 +138,12 @@ export interface CommitEvent {
 	event: EventType;
 }
 
+export enum PullRequestStateEnum {
+	Open,
+	Merged,
+	Closed,
+}
+
 export type TimelineEvent = CommitEvent | ReviewEvent | SubscribeEvent | CommentEvent | MentionEvent;
 
 export function renderComment(comment: CommentEvent): string {
@@ -199,20 +205,20 @@ export function renderTimelineEvent(timelineEvent: TimelineEvent): string {
 	return '';
 }
 
-// export function getStatusBGCoor(pr: any) {
-// 	if (pr.isMerged) {
-// 		return '#6f42c1';
-// 	} else if (pr.isOpen) {
-// 		return '#2cbe4e';
-// 	} else {
-// 		return '#cb2431';
-// 	}
-// }
+export function getStatusBGCoor(state: PullRequestStateEnum) {
+	if (state === PullRequestStateEnum.Merged) {
+		return '#6f42c1';
+	} else if (state === PullRequestStateEnum.Open) {
+		return '#2cbe4e';
+	} else {
+		return '#cb2431';
+	}
+}
 
-export function getStatus(pr: any) {
-	if (pr.isMerged) {
+export function getStatus(state: PullRequestStateEnum) {
+	if (state === PullRequestStateEnum.Merged) {
 		return 'Merged';
-	} else if (pr.isOpen) {
+	} else if (state === PullRequestStateEnum.Open) {
 		return 'Open';
 	} else {
 		return 'Closed';

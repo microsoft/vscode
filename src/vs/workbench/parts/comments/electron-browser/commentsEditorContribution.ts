@@ -277,7 +277,7 @@ export class ReviewController implements IEditorContribution {
 						this.addComment(lineNumber);
 					})
 					: this._newCommentGlyph = new CommentGlyphWidget('comment-hint', this.editor, lineNumber, true, () => {
-						this.notificationService.warn('Commenting is not supported outside of diff chunk areas.');
+						this.notificationService.warn('Commenting is not supported outside of diff hunk areas.');
 					});
 
 				this.editor.layoutContentWidget(this._newCommentGlyph);

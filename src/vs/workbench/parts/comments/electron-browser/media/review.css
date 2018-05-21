@@ -34,8 +34,7 @@
 }
 
 .monaco-editor .review-widget .body .review-comment {
-	margin-left: 20px;
-	padding: 8px 16px 8px 0px;
+	padding: 8px 16px 8px 20px;
 	display: flex;
 }
 
