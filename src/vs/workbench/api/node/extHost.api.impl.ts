@@ -672,6 +672,7 @@ export function createApiFactory(
 			Color: extHostTypes.Color,
 			ColorPresentation: extHostTypes.ColorPresentation,
 			ColorInformation: extHostTypes.ColorInformation,
+			CodeActionTrigger: extHostTypes.CodeActionTrigger,
 			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,

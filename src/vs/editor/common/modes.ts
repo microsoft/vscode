@@ -351,8 +351,17 @@ export interface CodeAction {
 /**
  * @internal
  */
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
+/**
+ * @internal
+ */
 export interface CodeActionContext {
 	only?: string;
+	trigger: CodeActionTrigger;
 }
 
 /**

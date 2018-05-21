@@ -126,7 +126,7 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return [];
 		}
 
-		if (!(rangeOrSelection instanceof vscode.Selection) || rangeOrSelection.isEmpty) {
+		if (!(rangeOrSelection instanceof vscode.Selection) || (rangeOrSelection.isEmpty && context.triggerKind !== vscode.CodeActionTrigger.Manual)) {
 			return [];
 		}
 

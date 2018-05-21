@@ -307,7 +307,10 @@ class CodeActionOnParticipant implements ISaveParticipant {
 	}
 
 	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
-		const actions = await getCodeActions(model, model.getFullModelRange(), { kind: CodeActionKind.Source, includeSourceActions: true });
+		const actions = await getCodeActions(model, model.getFullModelRange(), {
+			type: 'auto',
+			filter: { kind: CodeActionKind.Source, includeSourceActions: true },
+		});
 		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
 		return actionsToRun;
 	}
