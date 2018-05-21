@@ -116,15 +116,16 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 
 		const bundledTranslations = (product['bundledTranslations'] || {})[platform.locale];
-		if (language === platform.locale || !bundledTranslations) {
+		if (language === platform.locale || !bundledTranslations || !bundledTranslations['languageName']) {
 			return;
 		}
 
 		// The initial value for below dont get used. We just have it here so that they get localized.
 		// The localized strings get pulled into the "product.json" file during endgame to get shipped
-		let searchForLanguagePacks = localize('searchForLanguagePacks', "Your locale is not supported by VS Code. There are extensions in the marketplace that can localize VS Code.");
+		let searchForLanguagePacks = localize('searchForLanguagePacks', "There are extensions in the Marketplace that can localize VS Code using the ${0} language.", bundledTranslations['languageName']);
 		let searchMarketplace = localize('searchMarketplace', "Search Marketplace");
 		let dontShowAgain = localize('neverAgain', "Don't Show Again");
+
 		searchForLanguagePacks = bundledTranslations['searchForLanguagePacks'];
 		searchMarketplace = bundledTranslations['searchMarketplace'];
 		dontShowAgain = bundledTranslations['neverAgain'];
