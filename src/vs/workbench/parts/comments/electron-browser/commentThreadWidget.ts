@@ -293,7 +293,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	}
 
 	protected _doLayout(heightInPixel: number, widthInPixel: number): void {
-		this._commentEditor.layout({ height: (this._commentEditor.isFocused() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
+		this._commentEditor.layout({ height: (this._commentEditor.hasWidgetFocus() ? 5 : 1) * 18, width: widthInPixel - 20 /* margin */ });
 	}
 
 	display(lineNumber: number) {
@@ -433,7 +433,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 				}
 			};
 
-			this._commentEditor.onDidBlurEditor(() => {
+			this._commentEditor.onDidBlurEditorWidget(() => {
 				if (this._commentEditor.getModel().getValueLength() === 0 && dom.hasClass(this._commentForm, 'expand')) {
 					dom.removeClass(this._commentForm, 'expand');
 				}
