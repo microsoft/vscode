@@ -109,7 +109,7 @@
 					"include": "#fenced_code_block_groovy"
 				},
 				{
-					"include": "#fenced_code_block_jade"
+					"include": "#fenced_code_block_pug"
 				},
 				{
 					"include": "#fenced_code_block_js"
@@ -1058,7 +1058,7 @@
 						}
 					]
 				},
-				"fenced_code_block_jade": {
+				"fenced_code_block_pug": {
 					"begin": "(^|\\G)(\\s*)(`{3,}|~{3,})\\s*(?i:(jade|pug)(\\s+[^`~]*)?$)",
 					"name": "markup.fenced_code.block.markdown",
 					"end": "(^|\\G)(\\2|\\s{0,3})(\\3)\\s*$",
@@ -1082,10 +1082,10 @@
 						{
 							"begin": "(^|\\G)(\\s*)(.*)",
 							"while": "(^|\\G)(?!\\s*([`~]{3,})\\s*$)",
-							"contentName": "meta.embedded.block.jade",
+							"contentName": "meta.embedded.block.pug",
 							"patterns": [
 								{
-									"include": "text.jade"
+									"include": "text.pug"
 								}
 							]
 						}

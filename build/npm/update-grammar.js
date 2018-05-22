@@ -83,7 +83,7 @@ exports.update = function (repoId, repoPath, dest, modifyGrammar, version = 'mas
 			grammar = plist.parse(content);
 		} else if (ext === '.cson') {
 			grammar = cson.parse(content);
-		} else if (ext === '.json') {
+		} else if (ext === '.json' || ext === '.JSON-tmLanguage') {
 			grammar = JSON.parse(content);
 		} else {
 			return Promise.reject(new Error('Unknown file extension: ' + ext));

@@ -121,7 +121,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public addComposite({ id, name, order }: { id: string; name: string, order: number }, open: boolean): void {
 		const state = this.storedState.filter(s => s.id === id)[0];
 		const pinned = state ? state.pinned : true;
-		let index = this.model.items.length;
+		let index = order >= 0 ? order : this.model.items.length;
 
 		if (state) {
 			// Find the index by looking its previous item
@@ -137,9 +137,10 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		}
 
 		// Add to the model
-		if (this.addToModel(id, name, order, pinned, index)) {
-			if (open) {
-				this.pin(id, true);
+		if (this.model.add(id, name, order, index)) {
+			this.computeSizes([this.model.findItem(id)]);
+			if (pinned || open) {
+				this.pin(id, open);
 			} else {
 				this.updateCompositeSwitcher();
 			}
@@ -257,14 +258,6 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public getAction(compositeId): ActivityAction {
 		const item = this.model.findItem(compositeId);
 		return item && item.activityAction;
-	}
-
-	private addToModel(id: string, name: string, order: number, pinned: boolean, index: number): boolean {
-		if (this.model.add(id, name, order, pinned, index)) {
-			this.computeSizes([this.model.findItem(id)]);
-			return true;
-		}
-		return false;
 	}
 
 	private computeSizes(items: ICompositeBarItem[]): void {
@@ -482,7 +475,7 @@ class CompositeBarModel {
 		};
 	}
 
-	add(id: string, name: string, order: number, pinned: boolean, index: number): boolean {
+	add(id: string, name: string, order: number, index: number): boolean {
 		const item = this.findItem(id);
 		if (item) {
 			item.order = order;
@@ -495,7 +488,7 @@ class CompositeBarModel {
 					index++;
 				}
 			}
-			this.items.splice(index, 0, this.createCompositeBarItem(id, name, order, pinned));
+			this.items.splice(index, 0, this.createCompositeBarItem(id, name, order, false));
 			return true;
 		}
 	}

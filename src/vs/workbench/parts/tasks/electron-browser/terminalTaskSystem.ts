@@ -649,8 +649,21 @@ export class TerminalTaskSystem implements ITaskSystem {
 					return false;
 				}
 			}
+			let quote: string;
 			for (let i = 0; i < value.length; i++) {
-				if (value[i] === ' ' && value[i - 1] !== shellQuoteOptions.escape) {
+				// We found the end quote.
+				let ch = value[i];
+				if (ch === quote) {
+					quote = undefined;
+				} else if (quote !== void 0) {
+					// skip the character. We are quoted.
+					continue;
+				} else if (ch === shellQuoteOptions.escape) {
+					// Skip the next character
+					i++;
+				} else if (ch === shellQuoteOptions.strong || ch === shellQuoteOptions.weak) {
+					quote = ch;
+				} else if (ch === ' ') {
 					return true;
 				}
 			}
