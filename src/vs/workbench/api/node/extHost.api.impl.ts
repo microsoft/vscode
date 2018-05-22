@@ -568,7 +568,10 @@ export function createApiFactory(
 			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerSearchProvider(scheme, provider);
-			})
+			}),
+			onDidRenameResource: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostDocuments.onDidRenameResource(listener, thisArg, disposables);
+			}),
 		};
 
 		// namespace: scm
@@ -669,6 +672,7 @@ export function createApiFactory(
 			Color: extHostTypes.Color,
 			ColorPresentation: extHostTypes.ColorPresentation,
 			ColorInformation: extHostTypes.ColorInformation,
+			CodeActionTrigger: extHostTypes.CodeActionTrigger,
 			EndOfLine: extHostTypes.EndOfLine,
 			CompletionItem: extHostTypes.CompletionItem,
 			CompletionItemKind: extHostTypes.CompletionItemKind,

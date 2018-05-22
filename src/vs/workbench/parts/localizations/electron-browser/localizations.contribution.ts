@@ -23,10 +23,11 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import URI from 'vs/base/common/uri';
 import { join } from 'vs/base/common/paths';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { IStorageService, } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope, } from 'vs/platform/storage/common/storage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { VIEWLET_ID as EXTENSIONS_VIEWLET_ID, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
+import product from 'vs/platform/node/product';
 
 // Register action to configure locale and related settings
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
@@ -111,7 +112,57 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							});
 					}
 				});
+			return;
 		}
+
+		const bundledTranslations = (product['bundledTranslations'] || {})[platform.locale];
+		if (language === platform.locale || !bundledTranslations || !bundledTranslations['languageName']) {
+			return;
+		}
+
+		// The initial value for below dont get used. We just have it here so that they get localized.
+		// The localized strings get pulled into the "product.json" file during endgame to get shipped
+		let searchForLanguagePacks = localize('searchForLanguagePacks', "There are extensions in the Marketplace that can localize VS Code using the ${0} language.", bundledTranslations['languageName']);
+		let searchMarketplace = localize('searchMarketplace', "Search Marketplace");
+		let dontShowAgain = localize('neverAgain', "Don't Show Again");
+
+		searchForLanguagePacks = bundledTranslations['searchForLanguagePacks'];
+		searchMarketplace = bundledTranslations['searchMarketplace'];
+		dontShowAgain = bundledTranslations['neverAgain'];
+
+		const dontShowSearchLanguagePacksAgainKey = 'language.install.donotask';
+		let dontShowSearchForLanguages = JSON.parse(this.storageService.get(dontShowSearchLanguagePacksAgainKey, StorageScope.GLOBAL, '[]'));
+		if (!Array.isArray(dontShowSearchForLanguages)) {
+			dontShowSearchForLanguages = [];
+		}
+
+		if (dontShowSearchForLanguages.indexOf(platform.locale) > -1
+			|| !searchForLanguagePacks
+			|| !searchMarketplace
+			|| !dontShowAgain) {
+			return;
+		}
+
+		this.notificationService.prompt(Severity.Info, searchForLanguagePacks,
+			[
+				{
+					label: searchMarketplace, run: () => {
+						this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+							.then(viewlet => viewlet as IExtensionsViewlet)
+							.then(viewlet => {
+								viewlet.search(`tag:lp-${platform.locale}`);
+								viewlet.focus();
+							});
+					}
+				},
+				{
+					label: dontShowAgain, run: () => {
+						dontShowSearchForLanguages.push(language);
+						this.storageService.store(dontShowSearchLanguagePacksAgainKey, StorageScope.GLOBAL, dontShowSearchForLanguages);
+					}
+				}
+			]);
+
 	}
 
 	private getLanguagePackExtension(language: string): TPromise<IGalleryExtension> {

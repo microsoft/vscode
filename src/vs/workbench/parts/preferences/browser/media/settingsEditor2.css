@@ -15,6 +15,32 @@
 	padding: 0px 10px 0px 0px;
 }
 
+.settings-editor > .settings-header > .settings-preview-header {
+	margin-bottom: 5px;
+}
+
+.settings-editor > .settings-header > .settings-preview-header .settings-preview-label {
+	opacity: .7;
+}
+
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button,
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-preview-header .open-settings-button:active {
+	padding: 0;
+	text-decoration: underline;
+	display: inline;
+}
+
+.settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
+	text-align: right;
+	text-transform: uppercase;
+	background: rgba(136, 136, 136, 0.3);
+	border-radius: 2px;
+	font-size: 0.8em;
+	padding: 0 3px;
+	margin-right: 7px;
+}
+
 .settings-editor > .settings-header > .search-container {
 	position: relative;
 }
@@ -54,13 +80,6 @@
 	display: flex;
 }
 
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button,
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right .open-settings-button:active {
-	padding: 0;
-	text-decoration: underline;
-}
-
 .settings-editor > .settings-header > .settings-header-controls .settings-header-controls-right #configured-only-checkbox {
 	flex-shrink: 0;
 }
@@ -92,16 +111,14 @@
 	white-space: normal;
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd {
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.odd:not(.focused):not(.selected):not(:hover),
+.settings-editor > .settings-body > .settings-list-container .monaco-list:not(:focus) .monaco-list-row.focused.odd:not(.selected):not(:hover),
+.settings-editor > .settings-body > .settings-list-container .monaco-list:not(.focused) .monaco-list-row.focused.odd:not(.selected):not(:hover) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
 
-.settings-editor > .settings-body > .settings-list-container .monaco-list-row:not(.odd) {
-	background-color: initial;
-}
-
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.setting-item {
-	padding: 3px 0px;
+	padding: 3px;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row > .setting-item-container {
@@ -160,6 +177,16 @@
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expandable .setting-item-description {
 	cursor: pointer;
+}
+
+.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-expandable:not(.is-expanded) .setting-item-description::after {
+	content: '…';
+	display: block;
+	height: 4px;
+	width: 8px;
+	position: absolute;
+	bottom: 16px;
+	left: 590px;
 }
 
 .settings-editor > .settings-body > .settings-list-container .monaco-list-row .setting-item-value {
@@ -250,6 +277,10 @@
 	margin-left: -15px;
 }
 
+.settings-editor > .settings-body > .settings-list-container .settings-group-title-label {
+	margin: 5px 3px;
+}
+
 .settings-editor > .settings-body > .settings-list-container .settings-group-title-expanded,
 .settings-editor > .settings-body > .settings-list-container .settings-group-title-collapsed {
 	cursor: pointer;
@@ -283,5 +314,18 @@
 	position: absolute;
 	content: ' ';
 	left: -19px;
-	top: 14px;
+	top: 4px;
+}
+
+.settings-editor > .settings-body .settings-feedback-button {
+	color: rgb(255, 255, 255);
+	background-color: rgb(14, 99, 156);
+	position: absolute;
+	bottom: 0;
+	right: 0;
+	width: initial;
+	margin-right: 15px;
+	margin-bottom: 15px;
+	padding: 10px;
+	border-radius: 5px;
 }

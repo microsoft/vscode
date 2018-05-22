@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter } from 'vscode';
+import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter, DiagnosticSeverity } from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -21,6 +21,7 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -40,6 +41,7 @@ export default class LanguageProvider {
 	private readonly versionDependentDisposables: Disposable[] = [];
 
 	private foldingProviderRegistration: Disposable | undefined = void 0;
+	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -64,6 +66,15 @@ export default class LanguageProvider {
 			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
 		});
+
+		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
+			try {
+				const doc = await workspace.openTextDocument(uri);
+				return this.handles(uri, doc);
+			} catch {
+				return false;
+			}
+		});
 	}
 
 	public dispose(): void {
@@ -73,6 +84,7 @@ export default class LanguageProvider {
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
 		this.fileConfigurationManager.dispose();
+		this.renameHandler.dispose();
 	}
 
 	@memoize
@@ -261,7 +273,15 @@ export default class LanguageProvider {
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+			if (!reportUnnecessary) {
+				diag.customTags = undefined;
+				if (diag.reportUnnecessary && diag.severity === DiagnosticSeverity.Hint) {
+					return false;
+				}
+			}
+			return true;
+		}));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

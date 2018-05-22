@@ -903,6 +903,11 @@ export class Hierarchy<T> {
 	}
 }
 
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
 export class CodeAction {
 	title: string;
 

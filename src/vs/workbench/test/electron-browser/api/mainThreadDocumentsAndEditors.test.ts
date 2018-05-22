@@ -20,6 +20,7 @@ import { Event } from 'vs/base/common/event';
 import { ITextModel } from 'vs/editor/common/model';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IFileService } from 'vs/platform/files/common/files';
 
 suite('MainThreadDocumentsAndEditors', () => {
 
@@ -55,6 +56,10 @@ suite('MainThreadDocumentsAndEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 
+		const fileService = new class extends mock<IFileService>() {
+			onAfterOperation = Event.None;
+		};
+
 		/* tslint:disable */
 		new MainThreadDocumentsAndEditors(
 			SingleProxyRPCProtocol(new class extends mock<ExtHostDocumentsAndEditorsShape>() {
@@ -65,7 +70,7 @@ suite('MainThreadDocumentsAndEditors', () => {
 			workbenchEditorService,
 			codeEditorService,
 			null,
-			null,
+			fileService,
 			null,
 			null,
 			editorGroupService,
