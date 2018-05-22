@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, IEditorOpeningEvent, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -730,6 +730,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return TPromise.as(void 0);
 		}
 
+		// Use the last non-inactive editor as new active editor
+		let newActiveEditor: EditorInput;
+		editors.forEach(({ editor, options }) => {
+			if (options && options.inactive) {
+				return;
+			}
+
+			newActiveEditor = editor;
+		});
+
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift();
 		return this.openEditor(editor, options).then(() => {
@@ -743,7 +753,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				adjustedEditorOptions.index = startingIndex + index;
 
 				return this.openEditor(editor, adjustedEditorOptions);
-			})).then(() => void 0);
+			})).then(() => {
+
+				// Ensure to restore active editor
+				if (newActiveEditor) {
+					this.openEditor(newActiveEditor);
+				}
+			});
 		});
 	}
 

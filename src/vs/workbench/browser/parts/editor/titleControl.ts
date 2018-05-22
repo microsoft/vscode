@@ -59,7 +59,7 @@ export abstract class TitleControl extends Themable {
 	private mapEditorToActions: Map<string, IToolbarActions> = new Map();
 
 	private resourceContext: ResourceContextKey;
-	private disposeOnEditorActions: IDisposable[] = [];
+	private editorToolBarMenuDisposables: IDisposable[] = [];
 
 	private splitEditorAction: SplitEditorAction;
 
@@ -149,6 +149,9 @@ export abstract class TitleControl extends Themable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 
+		// Dispose previous listeners
+		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
+
 		// Update the resource context
 		this.resourceContext.set(toResource(this.group.activeEditor, { supportSideBySide: true }));
 
@@ -166,11 +169,15 @@ export abstract class TitleControl extends Themable {
 			secondary.push(...editorActions.secondary);
 
 			// Contributed Actions
-			this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
 			const codeEditor = getCodeEditor(activeControl.getControl());
 			const scopedContextKeyService = codeEditor && codeEditor.invokeWithinContext(accessor => accessor.get(IContextKeyService)) || this.contextKeyService;
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
-			this.disposeOnEditorActions.push(titleBarMenu, titleBarMenu.onDidChange(() => this.updateEditorActionsToolbar()));
+			this.editorToolBarMenuDisposables.push(titleBarMenu);
+			this.editorToolBarMenuDisposables.push(titleBarMenu.onDidChange(() => {
+
+				// Update editor toolbar whenever contributed actions change
+				this.updateEditorActionsToolbar();
+			}));
 
 			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, this.contextMenuService);
 		}
@@ -335,7 +342,7 @@ export abstract class TitleControl extends Themable {
 	}
 
 	dispose(): void {
-		this.disposeOnEditorActions = dispose(this.disposeOnEditorActions);
+		this.editorToolBarMenuDisposables = dispose(this.editorToolBarMenuDisposables);
 
 		super.dispose();
 	}
