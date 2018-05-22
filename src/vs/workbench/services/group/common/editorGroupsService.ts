@@ -217,8 +217,8 @@ export interface IEditorGroupsService {
 	 * * `GroupLocation.LAST`: the last group
 	 * * `GroupLocation.NEXT`: the next group from either the active one or `source`
 	 * * `GroupLocation.PREVIOUS`: the previous group from either the active one or `source`
-	 * * `GroupDirection.UP`: the next group upwards the active one or `source`
-	 * * `GroupDirection.DOWN`: the next group downwards the active one or `source`
+	 * * `GroupDirection.UP`: the next group above the active one or `source`
+	 * * `GroupDirection.DOWN`: the next group below the active one or `source`
 	 * * `GroupDirection.LEFT`: the next group to the left of the active one or `source`
 	 * * `GroupDirection.RIGHT`: the next group to the right of the active one or `source`
 	 *

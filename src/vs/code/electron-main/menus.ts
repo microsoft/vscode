@@ -756,19 +756,33 @@ export class CodeMenu {
 
 		const switchGroupMenu = new Menu();
 
-		const focusFirstGroup = this.createMenuItem(nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "&&First Group"), 'workbench.action.focusFirstEditorGroup');
-		const focusSecondGroup = this.createMenuItem(nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "&&Second Group"), 'workbench.action.focusSecondEditorGroup');
-		const focusThirdGroup = this.createMenuItem(nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "&&Third Group"), 'workbench.action.focusThirdEditorGroup');
+		const focusFirstGroup = this.createMenuItem(nls.localize({ key: 'miFocusFirstGroup', comment: ['&& denotes a mnemonic'] }, "Group &&1"), 'workbench.action.focusFirstEditorGroup');
+		const focusSecondGroup = this.createMenuItem(nls.localize({ key: 'miFocusSecondGroup', comment: ['&& denotes a mnemonic'] }, "Group &&2"), 'workbench.action.focusSecondEditorGroup');
+		const focusThirdGroup = this.createMenuItem(nls.localize({ key: 'miFocusThirdGroup', comment: ['&& denotes a mnemonic'] }, "Group &&3"), 'workbench.action.focusThirdEditorGroup');
+		const focusFourthGroup = this.createMenuItem(nls.localize({ key: 'miFocusFourthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&4"), 'workbench.action.focusFourthEditorGroup');
+		const focusFifthGroup = this.createMenuItem(nls.localize({ key: 'miFocusFifthGroup', comment: ['&& denotes a mnemonic'] }, "Group &&5"), 'workbench.action.focusFifthEditorGroup');
 		const nextGroup = this.createMenuItem(nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"), 'workbench.action.focusNextGroup');
 		const previousGroup = this.createMenuItem(nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"), 'workbench.action.focusPreviousGroup');
+
+		const focusLeftGroup = this.createMenuItem(nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "&&Left Group"), 'workbench.action.focusLeftGroup');
+		const focusRightGroup = this.createMenuItem(nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "&&Right Group"), 'workbench.action.focusRightGroup');
+		const focusAboveGroup = this.createMenuItem(nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "&&Above Group"), 'workbench.action.focusAboveGroup');
+		const focusBelowGroup = this.createMenuItem(nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "&&Below Group"), 'workbench.action.focusBelowGroup');
 
 		[
 			focusFirstGroup,
 			focusSecondGroup,
 			focusThirdGroup,
+			focusFourthGroup,
+			focusFifthGroup,
 			__separator__(),
 			nextGroup,
-			previousGroup
+			previousGroup,
+			__separator__(),
+			focusAboveGroup,
+			focusBelowGroup,
+			focusLeftGroup,
+			focusRightGroup
 		].forEach(item => switchGroupMenu.append(item));
 
 		const switchGroup = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'miSwitchGroup', comment: ['&& denotes a mnemonic'] }, "Switch &&Group")), submenu: switchGroupMenu, enabled: true });

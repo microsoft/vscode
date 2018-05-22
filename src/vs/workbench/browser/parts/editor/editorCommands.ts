@@ -22,17 +22,24 @@ import { distinct } from 'vs/base/common/arrays';
 import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
-export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeEditorGroup';
 export const CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeOtherEditors';
+
+export const MOVE_ACTIVE_EDITOR_COMMAND_ID = 'moveActiveEditor';
 export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
+
+export const SPLIT_EDITOR_UP = 'splitEditor.up';
+export const SPLIT_EDITOR_DOWN = 'splitEditor.down';
+export const SPLIT_EDITOR_LEFT = 'splitEditor.left';
+export const SPLIT_EDITOR_RIGHT = 'splitEditor.right';
 
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';
@@ -352,7 +359,47 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 	}
 }
 
-function registerEditorCommands() {
+export function splitEditor(editorGroupService: IEditorGroupsService, direction: GroupDirection, context?: IEditorCommandsContext): void {
+	let sourceGroup: IEditorGroup;
+	if (context && typeof context.groupId === 'number') {
+		sourceGroup = editorGroupService.getGroup(context.groupId);
+	} else {
+		sourceGroup = editorGroupService.activeGroup;
+	}
+
+	// Add group
+	const newGroup = editorGroupService.addGroup(sourceGroup, direction);
+
+	// Split editor (if it can be split)
+	let editorToCopy: IEditorInput;
+	if (context && typeof context.editorIndex === 'number') {
+		editorToCopy = sourceGroup.getEditor(context.editorIndex);
+	} else {
+		editorToCopy = sourceGroup.activeEditor;
+	}
+
+	if (editorToCopy && (editorToCopy as EditorInput).supportsSplitEditor()) {
+		sourceGroup.copyEditor(editorToCopy, newGroup);
+	}
+
+	// Focus
+	newGroup.focus();
+}
+
+function registerSplitEditorCommands() {
+	[
+		{ id: SPLIT_EDITOR_UP, direction: GroupDirection.UP },
+		{ id: SPLIT_EDITOR_DOWN, direction: GroupDirection.DOWN },
+		{ id: SPLIT_EDITOR_LEFT, direction: GroupDirection.LEFT },
+		{ id: SPLIT_EDITOR_RIGHT, direction: GroupDirection.RIGHT }
+	].forEach(({ id, direction }) => {
+		CommandsRegistry.registerCommand(id, function (accessor, resource: URI | object, context: IEditorCommandsContext) {
+			splitEditor(accessor.get(IEditorGroupsService), direction, context);
+		});
+	});
+}
+
+function registerCloseEditorCommands() {
 
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: CLOSE_SAVED_EDITORS_COMMAND_ID,
@@ -588,6 +635,7 @@ export function setup(): void {
 	registerActiveEditorMoveCommand();
 	registerDiffEditorCommands();
 	registerOpenEditorAtIndexCommands();
-	registerEditorCommands();
+	registerCloseEditorCommands();
 	registerFocusEditorGroupAtIndexCommands();
+	registerSplitEditorCommands();
 }
