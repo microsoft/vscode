@@ -321,10 +321,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	private async getPullRequestData(pr: PullRequestModel): Promise<void> {
-		let comments = await pr.getComments();
-		let activeComments = comments.filter(comment => comment.position);
-		this._comments = activeComments;
-		let outdatedComments = comments.filter(comment => !comment.position);
+		this._comments = await pr.getComments();
+		let activeComments = this._comments.filter(comment => comment.position);
+		let outdatedComments = this._comments.filter(comment => !comment.position);
 
 		const data = await pr.getFiles();
 		const baseSha = await pr.getBaseCommitSha();
@@ -341,7 +340,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 				this._repository.path,
 				change.diffHunks
 			);
-			changedItem.comments = this._comments.filter(comment => comment.path === changedItem.fileName);
+			changedItem.comments = activeComments.filter(comment => comment.path === changedItem.fileName);
 			return changedItem;
 		});
 
