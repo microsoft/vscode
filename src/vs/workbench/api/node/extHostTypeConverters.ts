@@ -158,23 +158,22 @@ export namespace DiagnosticSeverity {
 
 export namespace ViewColumn {
 	export function from(column?: vscode.ViewColumn): EditorViewColumn {
-		let editorColumn = 0;
-		if (typeof column !== 'number') {
-			// stick with ONE
+		let editorColumn: EditorViewColumn;
+		if (column === <number>types.ViewColumn.One) {
+			editorColumn = 0;
 		} else if (column === <number>types.ViewColumn.Two) {
 			editorColumn = 1;
 		} else if (column === <number>types.ViewColumn.Three) {
 			editorColumn = 2;
-		} else if (column === <number>types.ViewColumn.Active) {
+		} else {
+			// in any other case (no column or ViewColumn.Active), leave the
+			// editorColumn as undefined which signals to use the active column
 			editorColumn = undefined;
 		}
 		return editorColumn;
 	}
 
 	export function to(position?: EditorViewColumn): vscode.ViewColumn {
-		if (typeof position !== 'number') {
-			return undefined;
-		}
 		if (position === 0) {
 			return <number>types.ViewColumn.One;
 		} else if (position === 1) {
