@@ -29,18 +29,18 @@ phases:
   - powershell: |
       .\scripts\test.bat --tfs
     displayName: Run Unit Tests
-  # - powershell: |
-  #     .\scripts\test-integration.bat
-  #   displayName: Run Integration Tests
-  # - powershell: |
-  #     yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
-  #   displayName: Run Smoke Tests
-  # - task: PublishBuildArtifacts@1
-  #   inputs:
-  #     PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-  #     ArtifactName: build-artifacts-win32
-  #     publishLocation: Container
-  #   condition: succeededOrFailed()
+  - powershell: |
+      .\scripts\test-integration.bat
+    displayName: Run Integration Tests
+  - powershell: |
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
+    displayName: Run Smoke Tests
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
+      ArtifactName: build-artifacts-win32
+      publishLocation: Container
+    condition: succeededOrFailed()
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -113,15 +113,15 @@ phases:
   - script: |
       ./scripts/test.sh --tfs
     displayName: Run Unit Tests
-  # - script: |
-  #     ./scripts/test-integration.sh
-  #   displayName: Run Integration Tests
-  # - script: |
-  #     yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
-  #   displayName: Run Smoke Tests
-  # - task: PublishBuildArtifacts@1
-  #   inputs:
-  #     PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
-  #     ArtifactName: build-artifacts-darwin
-  #     publishLocation: Container
-  #   condition: succeededOrFailed()
+  - script: |
+      ./scripts/test-integration.sh
+    displayName: Run Integration Tests
+  - script: |
+      yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
+    displayName: Run Smoke Tests
+  - task: PublishBuildArtifacts@1
+    inputs:
+      PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
+      ArtifactName: build-artifacts-darwin
+      publishLocation: Container
+    condition: succeededOrFailed()
