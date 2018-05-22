@@ -164,6 +164,8 @@ export class ReviewController implements IEditorContribution {
 		this.globalToDispose = dispose(this.globalToDispose);
 		this.localToDispose = dispose(this.localToDispose);
 
+		this._commentWidgets.forEach(widget => widget.dispose());
+
 		if (this._newCommentWidget) {
 			this._newCommentWidget.dispose();
 			this._newCommentWidget = null;
