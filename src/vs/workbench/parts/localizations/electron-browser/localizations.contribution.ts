@@ -15,7 +15,7 @@ import { ExtensionsRegistry } from 'vs/workbench/services/extensions/common/exte
 import { ILocalizationsService, LanguageType } from 'vs/platform/localizations/common/localizations';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import * as platform from 'vs/base/common/platform';
-import { IExtensionManagementService, DidInstallExtensionEvent, LocalExtensionType, IExtensionGalleryService, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, DidInstallExtensionEvent, LocalExtensionType, IExtensionGalleryService, IGalleryExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import Severity from 'vs/base/common/severity';
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
@@ -68,7 +68,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 
 	private onDidInstallExtension(e: DidInstallExtensionEvent): void {
 		const donotAskUpdateKey = 'langugage.update.donotask';
-		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
+		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
 				this.notificationService.prompt(

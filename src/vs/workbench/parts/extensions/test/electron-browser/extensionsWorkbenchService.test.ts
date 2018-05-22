@@ -15,7 +15,7 @@ import { IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/parts/
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IGalleryExtensionAssets, IExtensionIdentifier, EnablementState, InstallOperation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -334,7 +334,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			assert.equal(ExtensionState.Installing, actual.state);
 
 			// Installed
-			didInstallEvent.fire({ identifier, gallery, local: aLocalExtension(gallery.name, gallery, { identifier }) });
+			didInstallEvent.fire({ identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, { identifier }) });
 			assert.equal(ExtensionState.Installed, actual.state);
 			assert.equal(1, testObject.local.length);
 
@@ -410,7 +410,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 			testObject.onChange(target);
 
 			// Installed
-			didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension(gallery.name, gallery, gallery) });
+			didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension(gallery.name, gallery, gallery) });
 
 			assert.ok(target.calledOnce);
 		});

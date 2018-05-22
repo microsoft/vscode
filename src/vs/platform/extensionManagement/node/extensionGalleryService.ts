@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, DownloadOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -473,7 +473,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	download(extension: IGalleryExtension, operation: DownloadOperation): TPromise<string> {
+	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string> {
 		return this.loadCompatibleVersion(extension)
 			.then(extension => {
 				if (!extension) {
@@ -492,7 +492,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				*/
 				const log = (duration: number) => this.telemetryService.publicLog('galleryService:downloadVSIX', assign(data, { duration }));
 
-				const operationParam = operation === DownloadOperation.Install ? 'install' : operation === DownloadOperation.Update ? 'update' : '';
+				const operationParam = operation === InstallOperation.Install ? 'install' : operation === InstallOperation.Update ? 'update' : '';
 				const downloadAsset = operationParam ? {
 					uri: `${extension.assets.download.uri}&${operationParam}=true`,
 					fallbackUri: `${extension.assets.download.fallbackUri}?${operationParam}=true`
