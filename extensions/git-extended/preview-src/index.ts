@@ -54,7 +54,7 @@ function setTitleHTML(pr: any) {
 				<div>
 					<div class="status">${getStatus(pr.state)}</div>
 					<img class="avatar" src="${pr.author.avatarUrl}" alt="">
-					<strong class="author"><a href="${pr.author.html_url}">${pr.author.login}</a></strong>
+					<strong class="author"><a href="${pr.author.htmlUrl}">${pr.author.login}</a></strong>
 				</div>
 				<div class="comment-body">
 					${pr.body}

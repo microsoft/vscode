@@ -6,7 +6,6 @@
 import { Remote } from './remote';
 import { parseComments } from '../comment';
 import { Comment } from './comment';
-import { IAccount } from './account';
 import { GitHubRef } from './githubRef';
 import { TimelineEvent, parseTimelineEvents } from './timelineEvent';
 
@@ -23,6 +22,16 @@ export enum PullRequestStateEnum {
 	Open,
 	Merged,
 	Closed,
+}
+
+export interface IAccount {
+	login: string;
+	isUser: boolean;
+	isEnterprise: boolean;
+	avatarUrl: string;
+	htmlUrl: string;
+	ownedPrivateRepositoryCount?: number;
+	privateRepositoryInPlanCount?: number;
 }
 
 export class PullRequestModel {
@@ -60,6 +69,7 @@ export class PullRequestModel {
 			isUser: prItem.user.type === 'User',
 			isEnterprise: prItem.user.type === 'Enterprise',
 			avatarUrl: prItem.user.avatar_url,
+			htmlUrl: prItem.user.html_url
 		};
 		switch (prItem.state) {
 			case 'open':
@@ -78,6 +88,7 @@ export class PullRequestModel {
 				isUser: prItem.assignee.type === 'User',
 				isEnterprise: prItem.assignee.type === 'Enterprise',
 				avatarUrl: prItem.assignee.avatar_url,
+				htmlUrl: prItem.assignee.html_url
 			};
 		}
 
