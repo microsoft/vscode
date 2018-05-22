@@ -576,7 +576,7 @@ declare module 'vscode' {
 	 */
 	export interface TextEditorViewColumnChangeEvent {
 		/**
-		 * The [text editor](#TextEditor) for which the options have changed.
+		 * The [text editor](#TextEditor) for which the view column has changed.
 		 */
 		textEditor: TextEditor;
 		/**
@@ -752,7 +752,7 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
-		 * The default is the [one](#ViewColumn.Active), other values are adjusted to
+		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
 		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 */
@@ -1100,7 +1100,8 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the main editors, e.g an embedded editor.
+		 * isn't one of the main editors, e.g an embedded editor, or when the editor
+		 * column is larger than three.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -1152,10 +1153,10 @@ declare module 'vscode' {
 		/**
 		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
@@ -5479,7 +5480,7 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.Active), other values
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [active](#ViewColumn.Active), other values
 		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
