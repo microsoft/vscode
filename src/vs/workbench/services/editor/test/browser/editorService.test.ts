@@ -29,12 +29,13 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { IEditorPartService } from 'vs/workbench/browser/parts/editor/editor';
 
 export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyTestEditorForEditorService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestEditorForEditorService'; }
+	getId(): string { return 'MyTestEditorForEditorService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
@@ -74,7 +75,7 @@ suite('Editor service', () => {
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: IEditorService = testInstantiationService.createInstance(EditorService);
+		const service: IEditorPartService = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -431,6 +432,200 @@ suite('Editor service', () => {
 				});
 			});
 		});
+	});
+
+	// TODO define what should happen with { forceOpen: true } and events
+	test('pasero active editor change / visible editor change events', async function () {
+		const partInstantiator = workbenchInstantiationService();
+
+		const part = partInstantiator.createInstance(EditorPart, 'id', false);
+		part.create(document.createElement('div'));
+		part.layout(new Dimension(400, 300));
+
+		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
+
+		const service: IEditorPartService = testInstantiationService.createInstance(EditorService);
+
+		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
+		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
+
+		let activeEditorChangeEventFired = false;
+		const activeEditorChangeListener = service.onDidActiveEditorChange(() => {
+			activeEditorChangeEventFired = true;
+		});
+
+		let visibleEditorChangeEventFired = false;
+		const visibleEditorChangeListener = service.onDidVisibleEditorsChange(() => {
+			visibleEditorChangeEventFired = true;
+		});
+
+		function assertActiveEditorChangedEvent(expected: boolean) {
+			assert.equal(activeEditorChangeEventFired, expected, `Unexpected active editor change state (got ${activeEditorChangeEventFired}, expected ${expected})`);
+			activeEditorChangeEventFired = false;
+		}
+
+		function assertVisibleEditorsChangedEvent(expected: boolean) {
+			assert.equal(visibleEditorChangeEventFired, expected, `Unexpected visible editors change state (got ${visibleEditorChangeEventFired}, expected ${expected})`);
+			visibleEditorChangeEventFired = false;
+		}
+
+		// 1.) open, open same, open other, close
+		let editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor = await service.openEditor(input);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor = await service.openEditor(otherInput);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		await editor.group.closeEditor(otherInput);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		await editor.group.closeEditor(input);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// // 2.) open, open same (forced open)
+		editor = await service.openEditor(input);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor = await service.openEditor(input, { forceOpen: true });
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		await editor.group.closeEditor(input);
+
+		// 3.) open, open inactive, close
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor = await service.openEditor(otherInput, { inactive: true });
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 4.) open, open inactive, close inactive
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor = await service.openEditor(otherInput, { inactive: true });
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeEditor(otherInput);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 5.) add group, remove group
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		let rightGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		rightGroup.focus();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(false);
+
+		part.removeGroup(rightGroup);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 6.) open editor in inactive group
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		rightGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		rightGroup.openEditor(otherInput);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(true);
+
+		rightGroup.closeEditor(otherInput);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(true);
+
+		part.removeGroup(rightGroup);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 7.) activate group
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		rightGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		rightGroup.openEditor(otherInput);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(true);
+
+		rightGroup.focus();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(false);
+
+		rightGroup.closeEditor(otherInput);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		part.removeGroup(rightGroup);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 8.) move editor
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor = await service.openEditor(otherInput, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor.group.moveEditor(otherInput, editor.group, { index: 0 });
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		editor.group.closeAllEditors();
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// cleanup
+		activeEditorChangeListener.dispose();
+		visibleEditorChangeListener.dispose();
 	});
 });
 

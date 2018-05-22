@@ -14,7 +14,8 @@ import URI from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
-import { ConfirmResult, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorOpeningEvent, IEditorPartService, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -71,6 +72,7 @@ import { IEditorService, IOpenEditorOverrideHandler } from 'vs/workbench/service
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
+import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -531,10 +533,6 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return 'Group 1';
 	}
 
-	focusGroup(group: number | IEditorGroup): IEditorGroup {
-		return null;
-	}
-
 	findGroup(scope: IFindGroupScope, source?: number | IEditorGroup): IEditorGroup {
 		return null;
 	}
@@ -570,16 +568,24 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 	}
 }
 
-export class TestEditorGroup implements IEditorGroup {
+export class TestEditorGroup implements IEditorGroupView {
 
 	constructor(public id: number) { }
 
+	group: EditorGroup = void 0;
 	activeControl: IEditor;
 	activeEditor: IEditorInput;
 	previewEditor: IEditorInput;
 	count: number;
+	disposed: boolean;
 	editors: ReadonlyArray<IEditorInput> = [];
 	label: string;
+	whenRestored: Promise<void, any> = TPromise.as(void 0);
+	element: HTMLElement;
+	minimumWidth: number;
+	maximumWidth: number;
+	minimumHeight: number;
+	maximumHeight: number;
 
 	onWillDispose: Event<void> = Event.None;
 	onDidGroupChange: Event<IGroupChangeEvent> = Event.None;
@@ -587,6 +593,8 @@ export class TestEditorGroup implements IEditorGroup {
 	onDidCloseEditor: Event<IEditorCloseEvent> = Event.None;
 	onWillOpenEditor: Event<IEditorOpeningEvent> = Event.None;
 	onDidOpenEditorFail: Event<IEditorInput> = Event.None;
+	onDidFocus: Event<void> = Event.None;
+	onDidChange: Event<{ width: number; height: number; }> = Event.None;
 
 	getEditors(order?: EditorsOrder): ReadonlyArray<IEditorInput> {
 		return [];
@@ -647,9 +655,17 @@ export class TestEditorGroup implements IEditorGroup {
 	invokeWithinContext<T>(fn: (accessor: ServicesAccessor) => T): T {
 		return fn(null);
 	}
+
+	isEmpty(): boolean { return true; }
+	setActive(isActive: boolean): void { }
+	setLabel(label: string): void { }
+	shutdown(): void { }
+	dispose(): void { }
+	toJSON(): object { return Object.create(null); }
+	layout(width: number, height: number): void { }
 }
 
-export class TestEditorService implements IEditorService {
+export class TestEditorService implements IEditorPartService {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

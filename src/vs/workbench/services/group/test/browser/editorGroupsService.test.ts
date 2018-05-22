@@ -28,7 +28,7 @@ export class TestEditorControl extends BaseEditor {
 
 	constructor(@ITelemetryService telemetryService: ITelemetryService) { super('MyFileEditorForEditorGroupService', NullTelemetryService, new TestThemeService()); }
 
-	getId(): string { return 'myTestEditorForEditorGroupService'; }
+	getId(): string { return 'MyFileEditorForEditorGroupService'; }
 	layout(): void { }
 	createEditor(): any { }
 }
