@@ -554,6 +554,7 @@ declare module 'vscode' {
 		body: MarkdownString;
 		userName: string;
 		gravatar: string;
+		command?: Command;
 	}
 
 	export interface CommentThreadChangedEvent {

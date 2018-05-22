@@ -397,7 +397,14 @@ export class ReviewManager implements vscode.DecorationProvider {
 							commentId: comment.id,
 							body: new vscode.MarkdownString(comment.body),
 							userName: comment.user.login,
-							gravatar: comment.user.avatar_url
+							gravatar: comment.user.avatar_url,
+							command: {
+								title: 'View Changes',
+								command: 'pr.viewChanges',
+								arguments: [
+									fileChange
+								]
+							}
 						};
 					}),
 					collapsibleState: collapsibleState

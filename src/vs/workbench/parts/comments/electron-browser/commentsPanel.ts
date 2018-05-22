@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -23,6 +23,10 @@ import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'v
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ICommandService } from '../../../../platform/commands/common/commands';
+import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
+import { TextDiffEditor } from '../../../browser/parts/editor/textDiffEditor';
+import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditorWidget';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';
@@ -39,6 +43,7 @@ export class CommentsPanel extends Panel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@ICommandService private commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
 		@IActivityService private activityService: IActivityService
@@ -151,24 +156,65 @@ export class CommentsPanel extends Panel {
 				}
 			});
 		});
-		Promise.all([this.editorService.openEditor({
-			resource: element.resource,
-			options: {
-				pinned: pinned,
-				preserveFocus: preserveFocus,
-				selection: range
-			}
-		}, sideBySide), setCommentsForFile]).then(vals => {
-			let editor = vals[0];
-			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
-			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
-			const control = editor.getControl();
-			if (threadToReveal && isCodeEditor(control)) {
-				const controller = ReviewController.get(control);
-				controller.revealCommentThread(threadToReveal, commentToReveal);
-			}
-			setCommentsForFile = null;
-		});
+
+		const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
+		const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment : element.comment;
+
+		if (commentToReveal.command) {
+			Promise.all([
+				this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments),
+				setCommentsForFile
+			]).then(_ => {
+				let activeInput = this.editorService.getActiveEditorInput();
+				if (activeInput && activeInput instanceof DiffEditorInput) {
+					let activeEditor = this.editorService.getActiveEditor();
+					const control = activeEditor.getControl() as DiffEditorWidget;
+					const originalEditorControl = control.getOriginalEditor();
+					const modifiedEditorControl = control.getModifiedEditor();
+
+					let controller;
+					if (activeInput.originalInput.getResource().toString() === element.resource.toString()) {
+						controller = ReviewController.get(originalEditorControl);
+					} else if (activeInput.modifiedInput.getResource().toString() === element.resource.toString()) {
+						controller = ReviewController.get(modifiedEditorControl);
+					}
+
+					if (controller) {
+						controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+					}
+				} else {
+					let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
+					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
+						const control = this.editorService.getActiveEditor().getControl();
+						if (threadToReveal && isCodeEditor(control)) {
+							const controller = ReviewController.get(control);
+							controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+						}
+					}
+				}
+
+				return true;
+			});
+		} else {
+			Promise.all([this.editorService.openEditor({
+				resource: element.resource,
+				options: {
+					pinned: pinned,
+					preserveFocus: preserveFocus,
+					selection: range
+				}
+			}, sideBySide), setCommentsForFile]).then(vals => {
+				let editor = vals[0];
+				const control = editor.getControl();
+				if (threadToReveal && isCodeEditor(control)) {
+					const controller = ReviewController.get(control);
+					console.log(commentToReveal.command);
+					controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
+				}
+				setCommentsForFile = null;
+			});
+		}
+
 
 		return true;
 	}

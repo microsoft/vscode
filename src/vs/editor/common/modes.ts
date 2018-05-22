@@ -985,6 +985,7 @@ export interface Comment {
 	readonly body: IMarkdownString;
 	readonly userName: string;
 	readonly gravatar: string;
+	readonly command?: Command;
 }
 
 export interface CommentThreadChangedEvent {

@@ -75,7 +75,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return asWinJsPromise(token => {
 			let provider = this._documentProviders.get(handle);
 			return provider.createNewCommentThread(data.document, ran, text, token);
-		}).then(commentThread => commentThread ? convertToCommentThread(commentThread) : null);
+		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
 	$replyToCommentThread(handle: number, uri: UriComponents, range: IRange, thread: modes.CommentThread, text: string): TPromise<modes.CommentThread> {
@@ -89,7 +89,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return asWinJsPromise(token => {
 			let provider = this._documentProviders.get(handle);
 			return provider.replyToCommentThread(data.document, ran, convertFromCommentThread(thread), text, token);
-		}).then(commentThread => commentThread ? convertToCommentThread(commentThread) : null);
+		}).then(commentThread => commentThread ? convertToCommentThread(commentThread, this._commandsConverter) : null);
 	}
 
 	$provideDocumentComments(handle: number, uri: UriComponents): TPromise<modes.CommentInfo> {
@@ -114,7 +114,7 @@ export class ExtHostComments implements ExtHostCommentsShape {
 		return asWinJsPromise(token => {
 			return provider.provideWorkspaceComments(token);
 		}).then(comments =>
-			comments.map(x => convertToCommentThread(x)
+			comments.map(x => convertToCommentThread(x, this._commandsConverter)
 			));
 	}
 
@@ -123,9 +123,9 @@ export class ExtHostComments implements ExtHostCommentsShape {
 
 			this._proxy.$onDidCommentThreadsChange(handle, {
 				owner: handle,
-				changed: event.changed.map(x => convertToCommentThread(x)),
-				added: event.added.map(x => convertToCommentThread(x)),
-				removed: event.removed.map(x => convertToCommentThread(x))
+				changed: event.changed.map(x => convertToCommentThread(x, this._commandsConverter)),
+				added: event.added.map(x => convertToCommentThread(x, this._commandsConverter)),
+				removed: event.removed.map(x => convertToCommentThread(x, this._commandsConverter))
 			});
 		});
 	}
@@ -134,17 +134,17 @@ export class ExtHostComments implements ExtHostCommentsShape {
 function convertCommentInfo(owner: number, vscodeCommentInfo: vscode.CommentInfo, commandsConverter: CommandsConverter): modes.CommentInfo {
 	return {
 		owner: owner,
-		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(x)),
+		threads: vscodeCommentInfo.threads.map(x => convertToCommentThread(x, commandsConverter)),
 		commentingRanges: vscodeCommentInfo.commentingRanges ? vscodeCommentInfo.commentingRanges.map(range => extHostTypeConverter.Range.from(range)) : []
 	};
 }
 
-function convertToCommentThread(vscodeCommentThread: vscode.CommentThread): modes.CommentThread {
+function convertToCommentThread(vscodeCommentThread: vscode.CommentThread, commandsConverter: CommandsConverter): modes.CommentThread {
 	return {
 		threadId: vscodeCommentThread.threadId,
 		resource: vscodeCommentThread.resource.toString(),
 		range: extHostTypeConverter.Range.from(vscodeCommentThread.range),
-		comments: vscodeCommentThread.comments.map(convertToComment),
+		comments: vscodeCommentThread.comments.map(comment => convertToComment(comment, commandsConverter)),
 		collapsibleState: vscodeCommentThread.collapsibleState
 	};
 }
@@ -168,11 +168,12 @@ function convertFromComment(comment: modes.Comment): vscode.Comment {
 	};
 }
 
-function convertToComment(vscodeComment: vscode.Comment): modes.Comment {
+function convertToComment(vscodeComment: vscode.Comment, commandsConverter: CommandsConverter): modes.Comment {
 	return {
 		commentId: vscodeComment.commentId,
 		body: extHostTypeConverter.MarkdownString.from(vscodeComment.body),
 		userName: vscodeComment.userName,
-		gravatar: vscodeComment.gravatar
+		gravatar: vscodeComment.gravatar,
+		command: vscodeComment.command ? commandsConverter.toInternal(vscodeComment.command) : null
 	};
 }

@@ -85,6 +85,10 @@
         "title": "View Pull Request Description"
       },
       {
+        "command": "pr.viewChanges",
+        "title": "View Changes"
+      },
+      {
         "command": "review.openFile",
         "title": "Open File",
         "icon": {

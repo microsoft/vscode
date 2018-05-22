@@ -9,6 +9,7 @@ import { PullRequestModel } from './common/models/pullRequestModel';
 import { FileChangeTreeItem } from './common/treeItems';
 import { ReviewManager } from './review/reviewManager';
 import { PullRequestOverviewPanel } from './common/pullRequestOverview';
+import { fromGitUri, toGitUri } from './common/uri';
 
 export function registerCommands(context: vscode.ExtensionContext) {
 	// initialize resources
@@ -49,5 +50,19 @@ export function registerCommands(context: vscode.ExtensionContext) {
 	context.subscriptions.push(vscode.commands.registerCommand('pr.openDescription', async (pr: PullRequestModel) => {
 		// Create and show a new webview
 		PullRequestOverviewPanel.createOrShow(context.extensionPath, pr);
+	}));
+
+	context.subscriptions.push(vscode.commands.registerCommand('pr.viewChanges', async (fileChange: FileChangeTreeItem) => {
+		// Show the file change in a diff view.
+		let { path, ref, commit } = fromGitUri(fileChange.filePath);
+		let previousCommit = `${commit}^`;
+		let previousFileUri = fileChange.filePath.with({
+			query: JSON.stringify({
+				path: path,
+				ref: ref,
+				commit: previousCommit
+			})
+		});
+		return vscode.commands.executeCommand('vscode.diff', previousFileUri, fileChange.filePath, `${fileChange.fileName} from ${commit}`);
 	}));
 }
