@@ -1885,6 +1885,9 @@ declare module 'vscode' {
 	 * Kind of a code action.
 	 *
 	 * Kinds are a hierarchical list of identifiers separated by `.`, e.g. `"refactor.extract.function"`.
+	 *
+	 * Code action kinds are used by VS Code for UI elements such as the refactoring context menu. Users
+	 * can also trigger code actions with a specific kind with the `editor.action.codeAction` command.
 	 */
 	export class CodeActionKind {
 		/**
@@ -1893,12 +1896,16 @@ declare module 'vscode' {
 		static readonly Empty: CodeActionKind;
 
 		/**
-		 * Base kind for quickfix actions: `quickfix`
+		 * Base kind for quickfix actions: `quickfix`.
+		 *
+		 * Quick fix actions address a problem in the code and are shown in the normal code action context menu.
 		 */
 		static readonly QuickFix: CodeActionKind;
 
 		/**
 		 * Base kind for refactoring actions: `refactor`
+		 *
+		 * Refactoring actions are shown in the refactoring context menu.
 		 */
 		static readonly Refactor: CodeActionKind;
 
@@ -1944,12 +1951,13 @@ declare module 'vscode' {
 		/**
 		 * Base kind for source actions: `source`
 		 *
-		 * Source code actions apply to the entire file.
+		 * Source code actions apply to the entire file and can be run on save
+		 * using `editor.codeActionsOnSave`. They also are shown in `source` context menu.
 		 */
 		static readonly Source: CodeActionKind;
 
 		/**
-		 * Base kind for an organize imports source action: `source.organizeImports`
+		 * Base kind for an organize imports source action: `source.organizeImports`.
 		 */
 		static readonly SourceOrganizeImports: CodeActionKind;
 
