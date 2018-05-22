@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
@@ -141,7 +142,7 @@ export class UpdateImportsOnFileRenameHandler {
 				choice: Choice.Never,
 			},
 		], {
-				placeHolder: localize('prompt', "Update import paths?"),
+				placeHolder: localize('prompt', "Update import paths for '{0}'?", path.basename(newDocument.fileName)),
 				ignoreFocusOut: true,
 			});
 
