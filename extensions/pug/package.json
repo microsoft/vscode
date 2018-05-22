@@ -6,18 +6,18 @@
 	"publisher": "vscode",
 	"engines": { "vscode": "*" },
 	"scripts": {
-		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/jade-tmbundle Syntaxes/Jade.tmLanguage ./syntaxes/pug.tmLanguage.json"
+		"update-grammar": "node ../../build/npm/update-grammar.js davidrios/pug-tmbundle Syntaxes/Pug.JSON-tmLanguage ./syntaxes/pug.tmLanguage.json"
 	},
 	"contributes": {
 		"languages": [{
-			"id": "jade",
+			"id": "pug",
 			"extensions": [ ".jade", ".pug" ],
 			"aliases": [ "Pug", "Jade", "jade" ],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
-			"language": "jade",
-			"scopeName": "text.jade",
+			"language": "pug",
+			"scopeName": "text.pug",
 			"path": "./syntaxes/pug.tmLanguage.json"
 		}]
 	}
