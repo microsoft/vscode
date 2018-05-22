@@ -42,6 +42,10 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { CLOSE_EDITOR_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { NoTabsTitleControl } from 'vs/workbench/browser/parts/editor/noTabsTitleControl';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 
 export class EditorGroupView extends Themable implements IEditorGroupView {
 
@@ -118,7 +122,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IMenuService private menuService: IMenuService,
+		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		super(themeService);
 
@@ -150,6 +156,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Container toolbar
 		this.createContainerToolbar();
+
+		// Container context menu
+		this.createContainerContextMenu();
 
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
@@ -219,9 +228,41 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 
 		// Toolbar actions
-		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('removeGroupAction', "Remove Editor Group"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
+		const removeGroupAction = this._register(new Action(CLOSE_EDITOR_GROUP_COMMAND_ID, localize('closeGroupAction', "Close"), 'close-editor-group', true, () => { this.accessor.removeGroup(this); return TPromise.as(true); }));
 		const keybinding = this.keybindingService.lookupKeybinding(removeGroupAction.id);
 		containerToolbar.push(removeGroupAction, { icon: true, label: false, keybinding: keybinding ? keybinding.getLabel() : void 0 });
+	}
+
+	private createContainerContextMenu(): void {
+		const menu = this._register(this.menuService.createMenu(MenuId.EmptyEditorGroupContext, this.contextKeyService));
+
+		this._register(addDisposableListener(this.element, EventType.CONTEXT_MENU, event => this.onShowContainerContextMenu(menu, event)));
+		this._register(addDisposableListener(this.element, TouchEventType.Contextmenu, event => this.onShowContainerContextMenu(menu)));
+	}
+
+	private onShowContainerContextMenu(menu: IMenu, e?: MouseEvent): void {
+		if (!this.isEmpty()) {
+			return; // only for empty editor groups
+		}
+
+		// Find target anchor
+		let anchor: HTMLElement | { x: number, y: number } = this.element;
+		if (e instanceof MouseEvent) {
+			const event = new StandardMouseEvent(e);
+			anchor = { x: event.posx, y: event.posy };
+		}
+
+		// Fill in contributed actions
+		const actions: IAction[] = [];
+		fillInActions(menu, void 0, actions, this.contextMenuService);
+
+		// Show it
+		this.contextMenuService.showContextMenu({
+			getAnchor: () => anchor,
+			getActions: () => TPromise.as(actions),
+			getKeyBinding: action => this.keybindingService.lookupKeybinding(action.id),
+			onHide: () => this.focus()
+		});
 	}
 
 	private doTrackFocus(): void {
