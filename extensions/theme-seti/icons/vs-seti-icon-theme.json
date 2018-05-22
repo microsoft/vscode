@@ -1403,7 +1403,7 @@
 		"perl": "_perl",
 		"php": "_php",
 		"powershell": "_powershell",
-		"pug": "_jade",
+		"jade": "_jade",
 		"python": "_python",
 		"ruby": "_ruby",
 		"rust": "_rust",

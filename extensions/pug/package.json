@@ -10,13 +10,13 @@
 	},
 	"contributes": {
 		"languages": [{
-			"id": "pug",
+			"id": "jade",
 			"extensions": [ ".jade", ".pug" ],
 			"aliases": [ "Pug", "Jade", "jade" ],
 			"configuration": "./language-configuration.json"
 		}],
 		"grammars": [{
-			"language": "pug",
+			"language": "jade",
 			"scopeName": "text.pug",
 			"path": "./syntaxes/pug.tmLanguage.json"
 		}]
