@@ -7,7 +7,7 @@ import { Application } from '../../application';
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
 export function setup() {
-	describe('Preferences', () => {
+	describe.skip('Preferences', () => {
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 
