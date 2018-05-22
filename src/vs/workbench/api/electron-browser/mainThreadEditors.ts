@@ -18,7 +18,7 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -101,7 +101,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		for (let workbenchEditor of this._editorService.visibleControls) {
 			const id = this._documentsAndEditors.findTextEditorIdFor(workbenchEditor);
 			if (id) {
-				result[id] = this._documentsAndEditors.findEditorPosition(workbenchEditor);
+				result[id] = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
 			}
 		}
 		return result;
