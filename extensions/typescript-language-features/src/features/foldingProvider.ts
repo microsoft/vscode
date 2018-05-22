@@ -51,8 +51,7 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingRangePro
 	}
 
 	private static getFoldingRangeKind(span: Proto.OutliningSpan): vscode.FoldingRangeKind | undefined {
-		// TODO: remove cast once we get a new TS insiders
-		switch ((span as Proto.OutliningSpan & { kind: any }).kind) {
+		switch (span.kind) {
 			case 'comment': return vscode.FoldingRangeKind.Comment;
 			case 'region': return vscode.FoldingRangeKind.Region;
 			case 'imports': return vscode.FoldingRangeKind.Imports;
