@@ -5,17 +5,11 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
-import { List } from 'vs/base/browser/ui/list/listWidget';
-import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
@@ -25,7 +19,7 @@ import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList } from 'vs/platform/list/browser/listService';
+import { WorkbenchList, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { registerColor } from 'vs/platform/theme/common/colorRegistry';
@@ -39,50 +33,10 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { SettingsRenderer, SettingsDataSource, SettingsTreeController, SettingsAccessibilityProvider, TreeElement, TreeItemType } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
-const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
-const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
-const BUTTON_ROW_ENTRY_TEMPLATE = 'settings.buttonRow.template';
 
 const ALL_SETTINGS_BUTTON_ID = 'allSettings';
-
-interface IListEntry {
-	id: string;
-	templateId: string;
-}
-
-interface ISettingItemEntry extends IListEntry {
-	templateId: typeof SETTINGS_ENTRY_TEMPLATE_ID;
-	key: string;
-	value: any;
-	isConfigured: boolean;
-	description: string;
-	overriddenScopeList: string[];
-	isExpanded: boolean;
-	isExpandable?: boolean;
-	isFocused?: boolean;
-	type?: string | string[];
-	enum?: string[];
-}
-
-enum ExpandState {
-	Expanded,
-	Collapsed,
-	NA
-}
-
-interface IGroupTitleEntry extends IListEntry {
-	templateId: typeof SETTINGS_GROUP_ENTRY_TEMPLATE_ID;
-	title: string;
-	expandState: ExpandState;
-}
-
-interface IButtonRowEntry extends IListEntry {
-	templateId: typeof BUTTON_ROW_ENTRY_TEMPLATE;
-	label: string;
-}
-
-type ListEntry = ISettingItemEntry | IGroupTitleEntry | IButtonRowEntry;
 
 enum SearchResultIdx {
 	Local = 0,
@@ -90,12 +44,6 @@ enum SearchResultIdx {
 }
 
 const $ = DOM.$;
-
-export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', {
-	light: '#019001',
-	dark: '#73C991',
-	hc: '#73C991'
-}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
 
 export class SettingsEditor2 extends BaseEditor {
 
@@ -109,8 +57,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
 
-	private settingsListContainer: HTMLElement;
-	private settingsList: List<ListEntry>;
+	private settingsTreeContainer: HTMLElement;
+	private settingsTree: WorkbenchTree;
+	private treeDataSource: SettingsDataSource;
 
 	private dimension: DOM.Dimension;
 	private searchFocusContextKey: IContextKey<boolean>;
@@ -125,10 +74,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private pendingSettingModifiedReport: { key: string, value: any };
 
+	private focusedElement: TreeElement;
+
 	// <TODO@roblou> factor out tree/list viewmodel to somewhere outside this class
 	private searchResultModel: SearchResultModel;
-	private groupExpanded = new Map<string, boolean>();
-	private itemExpanded = new Map<string, boolean>();
 	private showConfiguredSettingsOnly = false;
 	private showAllSettings = false;
 	private inRender = false;
@@ -151,7 +100,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.searchResultModel = new SearchResultModel();
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.renderEntries()));
+		// this._register(configurationService.onDidChangeConfiguration(() => this.renderEntries()));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -228,18 +177,18 @@ export class SettingsEditor2 extends BaseEditor {
 			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
-		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
-			if (e.keyCode === KeyCode.DownArrow) {
-				this.settingsList.focusFirst();
-				this.settingsList.domFocus();
-			}
-		}));
+		// this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
+		// 	if (e.keyCode === KeyCode.DownArrow) {
+		// 		this.settingsList.focusFirst();
+		// 		this.settingsList.domFocus();
+		// 	}
+		// }));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, targetWidgetContainer));
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
-		this.settingsTargetsWidget.onDidTargetChange(e => this.renderEntries());
+		this.settingsTargetsWidget.onDidTargetChange(e => this.settingsTree.refresh());
 
 		this.createHeaderControls(headerControlsContainer);
 	}
@@ -276,57 +225,38 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private createList(parent: HTMLElement): void {
-		this.settingsListContainer = DOM.append(parent, $('.settings-list-container'));
+		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		const settingItemRenderer = this.instantiationService.createInstance(SettingItemRenderer, this.settingsListContainer);
-		this._register(settingItemRenderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
-		this._register(settingItemRenderer.onDidOpenSettings(() => this.openSettingsFile()));
-		this._register(settingItemRenderer.onDidToggleExpandSetting(e => this.toggleSettingExpanded(e)));
+		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, { settingsTarget: ConfigurationTarget.USER });
+		const renderer = this.instantiationService.createInstance(SettingsRenderer, {});
 
-		const buttonItemRenderer = this.instantiationService.createInstance(ButtonRowRenderer);
-		this._register(buttonItemRenderer.onDidClick(e => this.onShowAllSettingsToggled()));
-
-		const groupTitleRenderer = new GroupTitleRenderer();
-		this._register(groupTitleRenderer.onDidClickGroup(id => this.toggleGroupExpanded(id)));
-
-		this.settingsList = this._register(this.instantiationService.createInstance(
-			WorkbenchList,
-			this.settingsListContainer,
-			new SettingItemDelegate(this.settingsListContainer),
-			[settingItemRenderer, groupTitleRenderer, buttonItemRenderer],
+		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
 			{
-				identityProvider: e => e.id,
-				ariaLabel: localize('settingsListLabel', "Settings")
-			})
-		) as WorkbenchList<ListEntry>;
+				dataSource: this.treeDataSource,
+				renderer: renderer,
+				controller: this.instantiationService.createInstance(SettingsTreeController),
+				accessibilityProvider: this.instantiationService.createInstance(SettingsAccessibilityProvider),
+			},
+			{
+				ariaLabel: localize('treeAriaLabel', "Settings"),
+				showLoading: false,
+				indentPixels: 0,
+				twistiePixels: 15
+			});
 
-		this._register(this.settingsList.onDidFocus(() => {
-			DOM.addClass(this.settingsList.getHTMLElement(), 'focused');
-		}));
-		this._register(this.settingsList.onDidBlur(() => {
-			DOM.removeClass(this.settingsList.getHTMLElement(), 'focused');
-		}));
-
-		this.settingsList.onOpen(e => {
-			const entry = e.elements[0];
-			if (!entry) {
-				return;
+		this.settingsTree.onDidChangeFocus(e => {
+			if (this.focusedElement && this.focusedElement.type === TreeItemType.setting) {
+				const row = document.getElementById(this.focusedElement.id);
+				setTabindexes(row, -1);
 			}
 
-			if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-				this.toggleGroupExpanded(entry.id);
-			} else if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-				this.toggleSettingExpanded(entry);
-			} else if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
-				this.onShowAllSettingsToggled();
+			this.focusedElement = e.focus;
+
+			if (this.focusedElement && this.focusedElement.type === TreeItemType.setting) {
+				const row = document.getElementById(this.focusedElement.id);
+				setTabindexes(row, 0);
 			}
 		});
-
-		this._register(this.settingsList.onFocusChange(e => {
-			if (!this.inRender) {
-				this.renderEntries();
-			}
-		}));
 	}
 
 	private createFeedbackButton(parent: HTMLElement): void {
@@ -341,114 +271,102 @@ export class SettingsEditor2 extends BaseEditor {
 		}));
 	}
 
-	private toggleGroupExpanded(id: string): void {
-		const isExpanded = !!this.groupExpanded.get(id);
-		this.groupExpanded.set(id, !isExpanded);
-		this.renderEntries();
-	}
-
-	private toggleSettingExpanded(entry: ISettingItemEntry): void {
-		if (entry.isExpandable) {
-			this.itemExpanded.set(entry.key, !entry.isExpanded);
-			this.renderEntries();
-		}
-	}
-
-	private onShowAllSettingsToggled(): void {
-		this.showAllSettings = !this.showAllSettings;
-		this.render();
-	}
-
 	private onShowConfiguredOnlyClicked(): void {
 		this.showConfiguredSettingsOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.render();
 	}
 
-	private onDidChangeSetting(key: string, value: any): void {
-		// ConfigurationService displays the error if this fails.
-		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
-		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
-			.then(() => this.renderEntries());
+	// private onDidChangeSetting(key: string, value: any): void {
+	// 	// ConfigurationService displays the error if this fails.
+	// 	// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
+	// 	this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
+	// 		// .then(() => this.renderEntries());
 
-		const reportModifiedProps = {
-			key,
-			query: this.searchWidget.getValue(),
-			searchResults: this.searchResultModel.getUniqueResults(),
-			rawResults: this.searchResultModel.getRawResults(),
-			showConfiguredOnly: this.showConfiguredSettingsOnly,
-			isReset: typeof value === 'undefined',
-			settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
-		};
+	// 	const reportModifiedProps = {
+	// 		key,
+	// 		query: this.searchWidget.getValue(),
+	// 		searchResults: this.searchResultModel.getUniqueResults(),
+	// 		rawResults: this.searchResultModel.getRawResults(),
+	// 		showConfiguredOnly: this.showConfiguredSettingsOnly,
+	// 		isReset: typeof value === 'undefined',
+	// 		settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
+	// 	};
 
-		if (this.pendingSettingModifiedReport && key !== this.pendingSettingModifiedReport.key) {
-			this.reportModifiedSetting(reportModifiedProps);
-		}
+	// 	if (this.pendingSettingModifiedReport && key !== this.pendingSettingModifiedReport.key) {
+	// 		this.reportModifiedSetting(reportModifiedProps);
+	// 	}
 
-		this.pendingSettingModifiedReport = { key, value };
-		this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
-	}
+	// 	this.pendingSettingModifiedReport = { key, value };
+	// 	this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
+	// }
 
-	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
-		this.pendingSettingModifiedReport = null;
+	// private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
+	// 	this.pendingSettingModifiedReport = null;
 
-		const remoteResult = props.searchResults && props.searchResults[SearchResultIdx.Remote];
-		const localResult = props.searchResults && props.searchResults[SearchResultIdx.Local];
+	// 	const remoteResult = props.searchResults && props.searchResults[SearchResultIdx.Remote];
+	// 	const localResult = props.searchResults && props.searchResults[SearchResultIdx.Local];
 
-		let groupId = undefined;
-		let nlpIndex = undefined;
-		let displayIndex = undefined;
-		if (props.searchResults) {
-			const localIndex = arrays.firstIndex(localResult.filterMatches, m => m.setting.key === props.key);
-			groupId = localIndex >= 0 ?
-				'local' :
-				'remote';
+	// 	let groupId = undefined;
+	// 	let nlpIndex = undefined;
+	// 	let displayIndex = undefined;
+	// 	if (props.searchResults) {
+	// 		const localIndex = arrays.firstIndex(localResult.filterMatches, m => m.setting.key === props.key);
+	// 		groupId = localIndex >= 0 ?
+	// 			'local' :
+	// 			'remote';
 
-			displayIndex = localIndex >= 0 ?
-				localIndex :
-				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
+	// 		displayIndex = localIndex >= 0 ?
+	// 			localIndex :
+	// 			remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
 
-			const rawResults = this.searchResultModel.getRawResults();
-			if (rawResults[SearchResultIdx.Remote]) {
-				const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
-				nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
-			}
-		}
+	// 		const rawResults = this.searchResultModel.getRawResults();
+	// 		if (rawResults[SearchResultIdx.Remote]) {
+	// 			const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+	// 			nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
+	// 		}
+	// 	}
 
-		const reportedTarget = props.settingsTarget === ConfigurationTarget.USER ? 'user' :
-			props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
-				'folder';
+	// 	const reportedTarget = props.settingsTarget === ConfigurationTarget.USER ? 'user' :
+	// 		props.settingsTarget === ConfigurationTarget.WORKSPACE ? 'workspace' :
+	// 			'folder';
 
-		const data = {
-			key: props.key,
-			query: props.query,
-			groupId,
-			nlpIndex,
-			displayIndex,
-			showConfiguredOnly: props.showConfiguredOnly,
-			isReset: props.isReset,
-			target: reportedTarget
-		};
+	// 	const data = {
+	// 		key: props.key,
+	// 		query: props.query,
+	// 		groupId,
+	// 		nlpIndex,
+	// 		displayIndex,
+	// 		showConfiguredOnly: props.showConfiguredOnly,
+	// 		isReset: props.isReset,
+	// 		target: reportedTarget
+	// 	};
 
-		/* __GDPR__
-			"settingsEditor.settingModified" : {
-				"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-			}
-		*/
-		this.telemetryService.publicLog('settingsEditor.settingModified', data);
-	}
+	// 	/* __GDPR__
+	// 		"settingsEditor.settingModified" : {
+	// 			"key" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	// 			"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+	// 			"groupId" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	// 			"nlpIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+	// 			"displayIndex" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+	// 			"showConfiguredOnly" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	// 			"isReset" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+	// 			"target" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+	// 		}
+	// 	*/
+	// 	this.telemetryService.publicLog('settingsEditor.settingModified', data);
+	// }
 
 	private render(): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((model: DefaultSettingsEditorModel) => this.defaultSettingsEditorModel = model)
-				.then(() => this.renderEntries());
+				.then((model: DefaultSettingsEditorModel) => {
+					this.defaultSettingsEditorModel = model;
+					if (!this.settingsTree.getInput()) {
+						this.settingsTree.setInput(this.defaultSettingsEditorModel);
+						const commonlyUsedGroup = this.defaultSettingsEditorModel.settingsGroups[0];
+						this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup));
+					}
+				});
 		}
 		return TPromise.as(null);
 	}
@@ -475,7 +393,7 @@ export class SettingsEditor2 extends BaseEditor {
 			this.remoteSearchThrottle.cancel();
 
 			this.searchResultModel.clear();
-			this.renderEntries();
+			// this.renderEntries();
 			return TPromise.wrap(null);
 		}
 	}
@@ -560,546 +478,368 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private getEntriesFromSearch(searchResults: ISearchResult[]): ListEntry[] {
-		const entries: ISettingItemEntry[] = [];
-		const seenSettings = new Set<string>();
+	// private getEntriesFromSearch(searchResults: ISearchResult[]): ListEntry[] {
+	// 	const entries: ISettingItemEntry[] = [];
+	// 	const seenSettings = new Set<string>();
 
-		const focusedElement = this.settingsList.getFocusedElements()[0];
-		const focusedId = focusedElement && focusedElement.id;
-		for (let result of searchResults) {
-			if (!result) {
-				continue;
-			}
+	// 	const focusedElement = this.settingsList.getFocusedElements()[0];
+	// 	const focusedId = focusedElement && focusedElement.id;
+	// 	for (let result of searchResults) {
+	// 		if (!result) {
+	// 			continue;
+	// 		}
 
-			for (let match of result.filterMatches) {
-				if (!seenSettings.has(match.setting.key)) {
-					const entry = this.settingToEntry(match.setting, 'search');
-					entry.isFocused = entry.id === focusedId;
+	// 		for (let match of result.filterMatches) {
+	// 			if (!seenSettings.has(match.setting.key)) {
+	// 				const entry = this.settingToEntry(match.setting, 'search');
+	// 				entry.isFocused = entry.id === focusedId;
 
-					if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
-						seenSettings.add(entry.key);
-						entries.push(entry);
-					}
-				}
-			}
-		}
+	// 				if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
+	// 					seenSettings.add(entry.key);
+	// 					entries.push(entry);
+	// 				}
+	// 			}
+	// 		}
+	// 	}
 
-		return entries;
-	}
-
-	private renderEntries(): void {
-		this.inRender = true;
-		if (!this.defaultSettingsEditorModel) {
-			return;
-		}
-
-		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'monaco-list-row');
-		const focusedRowId = focusedRowItem && focusedRowItem.id;
-
-		const entries = this.searchResultModel.hasResults() ?
-			this.getEntriesFromSearch(this.searchResultModel.getUniqueResults()) :
-			this.getEntriesFromModel();
-
-		this.settingsList.splice(0, this.settingsList.length, entries);
-
-		// Hack to restore the same focused element after editing.
-		// TODO@roblou figure out the whole keyboard navigation story
-		if (focusedRowId) {
-			const rowSelector = `.monaco-list-row#${focusedRowId}`;
-			const inputElementToFocus: HTMLElement = this.settingsListContainer.querySelector(`${rowSelector} input, ${rowSelector} select`);
-			if (inputElementToFocus) {
-				inputElementToFocus.focus();
-			}
-		}
-
-		this.inRender = false;
-	}
-
-	private getEntriesFromModel(): ListEntry[] {
-		const entries: ListEntry[] = [];
-		const focusedElement = this.settingsList.getFocusedElements()[0];
-		const focusedId = focusedElement && focusedElement.id;
-
-		for (let groupIdx = 0; groupIdx < this.defaultSettingsEditorModel.settingsGroups.length; groupIdx++) {
-			if (groupIdx > 0 && !this.showAllSettings && !this.showConfiguredSettingsOnly) {
-				break;
-			}
-
-			const group = this.defaultSettingsEditorModel.settingsGroups[groupIdx];
-			const isExpanded = groupIdx === 0 || this.groupExpanded.get(group.id);
-
-			const groupEntries = [];
-			if (isExpanded) {
-				for (const section of group.sections) {
-					for (const setting of section.settings) {
-						const entry = this.settingToEntry(setting, group.id);
-						entry.isFocused = entry.id === focusedId;
-
-						if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
-							groupEntries.push(entry);
-						}
-					}
-				}
-			}
-
-			if (!isExpanded || groupEntries.length) {
-				const expandState = groupIdx === 0 ? ExpandState.NA :
-					isExpanded ? ExpandState.Expanded :
-						ExpandState.Collapsed;
-
-				entries.push(<IGroupTitleEntry>{
-					id: group.id,
-					templateId: SETTINGS_GROUP_ENTRY_TEMPLATE_ID,
-					title: group.title,
-					expandState
-				});
-
-				entries.push(...groupEntries);
-			}
-
-			if (groupIdx === 0 && !this.showConfiguredSettingsOnly) {
-				const showAllSettingsLabel = this.showAllSettings ?
-					localize('showFewerSettingsLabel', "Show Fewer Settings") :
-					localize('showAllSettingsLabel', "Show All Settings");
-				entries.push(<IButtonRowEntry>{
-					id: ALL_SETTINGS_BUTTON_ID,
-					label: showAllSettingsLabel,
-					templateId: BUTTON_ROW_ENTRY_TEMPLATE
-				});
-			}
-		}
-
-		return entries;
-	}
-
-	private settingToEntry(s: ISetting, groupId: string): ISettingItemEntry {
-		const targetSelector = this.settingsTargetsWidget.settingsTarget === ConfigurationTarget.USER ? 'user' : 'workspace';
-		const inspected = this.configurationService.inspect(s.key);
-		const isConfigured = typeof inspected[targetSelector] !== 'undefined';
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-		const overriddenScopeList = [];
-		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
-			overriddenScopeList.push('Workspace');
-		}
-
-		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
-			overriddenScopeList.push('User');
-		}
-
-		const isExpanded = !!this.itemExpanded.get(s.key);
-
-		return <ISettingItemEntry>{
-			id: `${groupId}_${s.key}`,
-			key: s.key,
-			value: displayValue,
-			isConfigured,
-			overriddenScopeList,
-			description: s.description.join('\n'),
-			enum: s.enum,
-			type: s.type,
-			templateId: SETTINGS_ENTRY_TEMPLATE_ID,
-			isExpanded
-		};
-	}
+	// 	return entries;
+	// }
 
 	private layoutSettingsList(): void {
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
-		this.settingsListContainer.style.height = `${listHeight}px`;
-		this.settingsList.layout(listHeight);
+		this.settingsTreeContainer.style.height = `${listHeight}px`;
+		this.settingsTree.layout(listHeight, 800);
 	}
 }
 
-class SettingItemDelegate implements IDelegate<ListEntry> {
-
-	constructor(private measureContainer: HTMLElement) {
-
-	}
-
-	getHeight(entry: ListEntry) {
-		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-			return 30;
-		}
-
-		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-			if (entry.isExpanded) {
-				return this.getDynamicHeight(entry);
-			} else {
-				return 68;
-			}
-		}
-
-		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
-			return 60;
-		}
-
-		return 0;
-	}
-
-	getTemplateId(element: ListEntry) {
-		return element.templateId;
-	}
-
-	private getDynamicHeight(entry: ISettingItemEntry): number {
-		return measureSettingItemEntry(entry, this.measureContainer);
+function setTabindexes(element: HTMLElement, tabIndex: number): void {
+	const focusableElements = element.querySelectorAll('input, button, select, a');
+	for (let i = 0; focusableElements && i < focusableElements.length; i++) {
+		const element = focusableElements[i];
+		(<HTMLElement>element).tabIndex = tabIndex;
 	}
 }
 
-function measureSettingItemEntry(entry: ISettingItemEntry, measureContainer: HTMLElement): number {
-	const measureHelper = DOM.append(measureContainer, $('.setting-item-measure-helper.monaco-list-row'));
-
-	const template = SettingItemRenderer.renderTemplate(measureHelper);
-	SettingItemRenderer.renderElement(entry, 0, template);
-
-	const height = measureHelper.offsetHeight;
-	measureContainer.removeChild(measureHelper);
-	return height;
-}
-
-interface IDisposableTemplate {
-	toDispose: IDisposable[];
-}
-
-interface ISettingItemTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
-	context?: ISettingItemEntry;
-	containerElement: HTMLElement;
-	categoryElement: HTMLElement;
-	labelElement: HTMLElement;
-	descriptionElement: HTMLElement;
-	showMoreElement: HTMLElement;
-	valueElement: HTMLElement;
-	overridesElement: HTMLElement;
-}
-
-interface IGroupTitleTemplate extends IDisposableTemplate {
-	context?: IGroupTitleEntry;
-	parent: HTMLElement;
-	labelElement: HTMLElement;
-}
-
-interface IButtonRowTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
-	button: Button;
-	entry?: IButtonRowEntry;
-}
-
-interface ISettingChangeEvent {
-	key: string;
-	value: any; // undefined => reset unconfigure
-}
-
-class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
-
-	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
-	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
-
-	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
-	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
-
-	private readonly _onDidToggleExpandSetting: Emitter<ISettingItemEntry> = new Emitter<ISettingItemEntry>();
-	public readonly onDidToggleExpandSetting: Event<ISettingItemEntry> = this._onDidToggleExpandSetting.event;
-
-	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
-
-	constructor(
-		private measureContainer: HTMLElement,
-		@IContextViewService private contextViewService: IContextViewService,
-		@IThemeService private themeService: IThemeService
-	) { }
-
-	renderTemplate(parent: HTMLElement): ISettingItemTemplate {
-		return SettingItemRenderer.renderTemplate(parent, this);
-	}
-
-	static renderTemplate(parent: HTMLElement, that?: SettingItemRenderer): ISettingItemTemplate {
-		DOM.addClass(parent, 'setting-item');
-
-		const itemContainer = DOM.append(parent, $('.setting-item-container'));
-		const leftElement = DOM.append(itemContainer, $('.setting-item-left'));
-		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
-
-		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
-		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
-		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
-		const showMoreElement = DOM.append(leftElement, $('.setting-show-more'));
-
-		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
-
-		const toDispose = [];
-		const template: ISettingItemTemplate = {
-			parent: parent,
-			toDispose,
-
-			containerElement: itemContainer,
-			categoryElement,
-			labelElement,
-			descriptionElement,
-			showMoreElement,
-			valueElement,
-			overridesElement
-		};
-
-		if (that) {
-			toDispose.push(DOM.addDisposableListener(descriptionElement, 'click', () => {
-				const entry = template.context;
-				if (entry && entry.isExpandable) {
-					that._onDidToggleExpandSetting.fire(entry);
-				}
-			}));
-
-			// Hack to prevent mousedown on value from causing list 'open'
-			toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', e => {
-				e.stopPropagation();
-			}));
-		}
-
-		return template;
-	}
-
-	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
-		return SettingItemRenderer.renderElement(entry, index, template, this);
-	}
-
-	static renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate, that?: SettingItemRenderer): void {
-		template.context = entry;
-		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
-		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
-		DOM.toggleClass(template.parent, 'is-expanded', entry.isExpanded);
-
-		const titleTooltip = entry.key;
-		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
-		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
-		template.categoryElement.title = titleTooltip;
-
-		template.labelElement.textContent = settingKeyDisplay.label;
-		template.labelElement.title = titleTooltip;
-		template.descriptionElement.textContent = entry.description;
-		template.descriptionElement.title = entry.description;
-
-		if (that) {
-			const expandedHeight = measureSettingItemEntry(entry, that.measureContainer);
-			entry.isExpandable = expandedHeight > 68;
-			DOM.toggleClass(template.parent, 'is-expandable', entry.isExpandable);
-		}
-
-		if (that) {
-			that.renderValue(entry, template);
-		}
-
-		const resetButton = new Button(template.valueElement);
-		resetButton.element.title = localize('resetButtonTitle', "Reset");
-		resetButton.element.classList.add('setting-reset-button');
-		resetButton.element.tabIndex = entry.isFocused ? 0 : -1;
-
-		if (that) {
-			attachButtonStyler(resetButton, that.themeService, {
-				buttonBackground: Color.transparent.toString(),
-				buttonHoverBackground: Color.transparent.toString()
-			});
-		}
-
-		if (that) {
-			template.toDispose.push(resetButton.onDidClick(e => {
-				that._onDidChangeSetting.fire({ key: entry.key, value: undefined });
-			}));
-		}
-		template.toDispose.push(resetButton);
-
-		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
-		let overridesElementText = entry.isConfigured ? 'Modified ' : '';
-
-		if (entry.overriddenScopeList.length) {
-			overridesElementText = overridesElementText + `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})`;
-		}
-
-		template.overridesElement.textContent = overridesElementText;
-	}
-
-	private renderValue(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
-		const onChange = value => this._onDidChangeSetting.fire({ key: entry.key, value });
-		template.valueElement.innerHTML = '';
-		if (entry.type === 'string' && entry.enum) {
-			this.renderEnum(entry, template, onChange);
-		} else if (entry.type === 'boolean') {
-			this.renderBool(entry, template, onChange);
-		} else if (entry.type === 'string') {
-			this.renderText(entry, template, onChange);
-		} else if (entry.type === 'number') {
-			this.renderText(entry, template, value => onChange(parseInt(value)));
-		} else {
-			this.renderEditInSettingsJson(entry, template);
-		}
-	}
-
-	private renderBool(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
-		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
-		checkboxElement.type = 'checkbox';
-		checkboxElement.checked = entry.value;
-		checkboxElement.tabIndex = entry.isFocused ? 0 : -1;
-
-		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
-	}
-
-	private renderEnum(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
-		const idx = entry.enum.indexOf(entry.value);
-		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
-		template.toDispose.push(selectBox);
-		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
-		selectBox.render(template.valueElement);
-		if (template.valueElement.firstElementChild) {
-			template.valueElement.firstElementChild.setAttribute('tabindex', entry.isFocused ? '0' : '-1');
-		}
-
-		template.toDispose.push(
-			selectBox.onDidSelect(e => onChange(entry.enum[e.index])));
-	}
-
-	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
-		const inputBox = new InputBox(template.valueElement, this.contextViewService);
-		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
-		template.toDispose.push(inputBox);
-		inputBox.value = entry.value;
-		inputBox.inputElement.tabIndex = entry.isFocused ? 0 : -1;
-
-		template.toDispose.push(
-			inputBox.onDidChange(e => onChange(e)));
-	}
-
-	private renderEditInSettingsJson(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
-		const openSettingsButton = new Button(template.valueElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
-		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
-		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
-		openSettingsButton.element.classList.add('edit-in-settings-button');
-		openSettingsButton.element.tabIndex = entry.isFocused ? 0 : -1;
-
-		template.toDispose.push(openSettingsButton);
-		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
-		}));
-	}
-
-	disposeTemplate(template: ISettingItemTemplate): void {
-		dispose(template.toDispose);
-	}
-}
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
-	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
-	}
-});
-
-class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
-
-	private static readonly EXPANDED_CLASS = 'settings-group-title-expanded';
-	private static readonly COLLAPSED_CLASS = 'settings-group-title-collapsed';
-
-	private readonly _onDidClickGroup: Emitter<string> = new Emitter<string>();
-	public readonly onDidClickGroup: Event<string> = this._onDidClickGroup.event;
-
-	get templateId(): string { return SETTINGS_GROUP_ENTRY_TEMPLATE_ID; }
-
-	renderTemplate(parent: HTMLElement): IGroupTitleTemplate {
-		DOM.addClass(parent, 'group-title');
-
-		const labelElement = DOM.append(parent, $('h3.settings-group-title-label'));
-
-		const toDispose = [];
-		const template: IGroupTitleTemplate = {
-			parent: parent,
-			labelElement,
-			toDispose
-		};
-
-		toDispose.push(DOM.addDisposableListener(labelElement, 'click', () => {
-			if (template.context) {
-				this._onDidClickGroup.fire(template.context.id);
-			}
-		}));
-
-		return template;
-	}
-
-	renderElement(entry: IGroupTitleEntry, index: number, template: IGroupTitleTemplate): void {
-		template.context = entry;
-		template.labelElement.textContent = entry.title;
-
-		template.labelElement.classList.remove(GroupTitleRenderer.EXPANDED_CLASS);
-		template.labelElement.classList.remove(GroupTitleRenderer.COLLAPSED_CLASS);
-
-		if (entry.expandState === ExpandState.Expanded) {
-			template.labelElement.classList.add(GroupTitleRenderer.EXPANDED_CLASS);
-		} else if (entry.expandState === ExpandState.Collapsed) {
-			template.labelElement.classList.add(GroupTitleRenderer.COLLAPSED_CLASS);
-		}
-	}
-
-	disposeTemplate(template: IGroupTitleTemplate): void {
-		dispose(template.toDispose);
-	}
-}
-
-class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate> {
-
-	private readonly _onDidClick: Emitter<string> = new Emitter<string>();
-	public readonly onDidClick: Event<string> = this._onDidClick.event;
-
-	constructor(@IThemeService private themeService: IThemeService) { }
-
-	get templateId(): string { return BUTTON_ROW_ENTRY_TEMPLATE; }
-
-	renderTemplate(parent: HTMLElement): IButtonRowTemplate {
-		DOM.addClass(parent, 'all-settings');
-
-		const buttonElement = DOM.append(parent, $('.all-settings-button'));
-
-		const button = new Button(buttonElement);
-		const toDispose: IDisposable[] = [button];
-		toDispose.push(attachButtonStyler(button, this.themeService));
-
-		const template: IButtonRowTemplate = {
-			parent: parent,
-			toDispose,
-
-			button
-		};
-		toDispose.push(button.onDidClick(e => this._onDidClick.fire(template.entry && template.entry.label)));
-
-		return template;
-	}
-
-	renderElement(entry: IButtonRowEntry, index: number, template: IButtonRowTemplate): void {
-		template.button.label = entry.label;
-		template.entry = entry;
-	}
-
-	disposeTemplate(template: IButtonRowTemplate): void {
-		dispose(template.toDispose);
-	}
-}
-
-export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
-	let label = key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
-
-	const lastDotIdx = label.lastIndexOf('.');
-	let category = '';
-	if (lastDotIdx >= 0) {
-		category = label.substr(0, lastDotIdx);
-		label = label.substr(lastDotIdx + 1);
-	}
-
-	return { category, label };
-}
+// class SettingItemDelegate implements IDelegate<ListEntry> {
+
+// 	constructor(private measureContainer: HTMLElement) {
+
+// 	}
+
+// 	getHeight(entry: ListEntry) {
+// 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
+// 			return 30;
+// 		}
+
+// 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
+// 			if (entry.isExpanded) {
+// 				return this.getDynamicHeight(entry);
+// 			} else {
+// 				return 68;
+// 			}
+// 		}
+
+// 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
+// 			return 60;
+// 		}
+
+// 		return 0;
+// 	}
+
+// 	getTemplateId(element: ListEntry) {
+// 		return element.templateId;
+// 	}
+
+// 	private getDynamicHeight(entry: ISettingItemEntry): number {
+// 		return measureSettingItemEntry(entry, this.measureContainer);
+// 	}
+// }
+
+// function measureSettingItemEntry(entry: ISettingItemEntry, measureContainer: HTMLElement): number {
+// 	const measureHelper = DOM.append(measureContainer, $('.setting-item-measure-helper.monaco-list-row'));
+
+// 	const template = SettingItemRenderer.renderTemplate(measureHelper);
+// 	SettingItemRenderer.renderElement(entry, 0, template);
+
+// 	const height = measureHelper.offsetHeight;
+// 	measureContainer.removeChild(measureHelper);
+// 	return height;
+// }
+
+
+
+// interface ISettingChangeEvent {
+// 	key: string;
+// 	value: any; // undefined => reset unconfigure
+// }
+
+// class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTemplate> {
+
+// 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
+// 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
+
+// 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
+// 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
+
+// 	private readonly _onDidToggleExpandSetting: Emitter<ISettingItemEntry> = new Emitter<ISettingItemEntry>();
+// 	public readonly onDidToggleExpandSetting: Event<ISettingItemEntry> = this._onDidToggleExpandSetting.event;
+
+// 	get templateId(): string { return SETTINGS_ENTRY_TEMPLATE_ID; }
+
+// 	constructor(
+// 		private measureContainer: HTMLElement,
+// 		@IContextViewService private contextViewService: IContextViewService,
+// 		@IThemeService private themeService: IThemeService
+// 	) { }
+
+// 	renderTemplate(parent: HTMLElement): ISettingItemTemplate {
+// 		return SettingItemRenderer.renderTemplate(parent, this);
+// 	}
+
+// 	static renderTemplate(parent: HTMLElement, that?: SettingItemRenderer): ISettingItemTemplate {
+// 		DOM.addClass(parent, 'setting-item');
+
+// 		const itemContainer = DOM.append(parent, $('.setting-item-container'));
+// 		const leftElement = DOM.append(itemContainer, $('.setting-item-left'));
+// 		const rightElement = DOM.append(itemContainer, $('.setting-item-right'));
+
+// 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+// 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
+// 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+// 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+// 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
+
+// 		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
+
+// 		const toDispose = [];
+// 		const template: ISettingItemTemplate = {
+// 			parent: parent,
+// 			toDispose,
+
+// 			containerElement: itemContainer,
+// 			categoryElement,
+// 			labelElement,
+// 			descriptionElement,
+// 			valueElement,
+// 			overridesElement
+// 		};
+
+// 		if (that) {
+// 			toDispose.push(DOM.addDisposableListener(descriptionElement, 'click', () => {
+// 				const entry = template.context;
+// 				if (entry && entry.isExpandable) {
+// 					that._onDidToggleExpandSetting.fire(entry);
+// 				}
+// 			}));
+// 		}
+
+// 		return template;
+// 	}
+
+// 	renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate): void {
+// 		return SettingItemRenderer.renderElement(entry, index, template, this);
+// 	}
+
+// 	static renderElement(entry: ISettingItemEntry, index: number, template: ISettingItemTemplate, that?: SettingItemRenderer): void {
+// 		template.context = entry;
+// 		DOM.toggleClass(template.parent, 'odd', index % 2 === 1);
+// 		DOM.toggleClass(template.parent, 'is-configured', entry.isConfigured);
+// 		DOM.toggleClass(template.parent, 'is-expanded', entry.isExpanded);
+
+// 		const titleTooltip = entry.key;
+// 		const settingKeyDisplay = settingKeyToDisplayFormat(entry.key);
+// 		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
+// 		template.categoryElement.title = titleTooltip;
+
+// 		template.labelElement.textContent = settingKeyDisplay.label;
+// 		template.labelElement.title = titleTooltip;
+// 		template.descriptionElement.textContent = entry.description;
+// 		template.descriptionElement.title = entry.description;
+
+// 		if (that) {
+// 			const expandedHeight = measureSettingItemEntry(entry, that.measureContainer);
+// 			entry.isExpandable = expandedHeight > 68;
+// 			DOM.toggleClass(template.parent, 'is-expandable', entry.isExpandable);
+// 		}
+
+// 		if (that) {
+// 			that.renderValue(entry, template);
+// 		}
+
+// 		const resetButton = new Button(template.valueElement);
+// 		resetButton.element.title = localize('resetButtonTitle', "Reset");
+// 		resetButton.element.classList.add('setting-reset-button');
+// 		resetButton.element.tabIndex = entry.isFocused ? 0 : -1;
+
+// 		if (that) {
+// 			attachButtonStyler(resetButton, that.themeService, {
+// 				buttonBackground: Color.transparent.toString(),
+// 				buttonHoverBackground: Color.transparent.toString()
+// 			});
+// 		}
+
+// 		if (that) {
+// 			template.toDispose.push(resetButton.onDidClick(e => {
+// 				that._onDidChangeSetting.fire({ key: entry.key, value: undefined });
+// 			}));
+// 		}
+// 		template.toDispose.push(resetButton);
+
+// 		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
+// 		let overridesElementText = entry.isConfigured ? 'Modified ' : '';
+
+// 		if (entry.overriddenScopeList.length) {
+// 			overridesElementText = overridesElementText + `(${alsoConfiguredInLabel} ${entry.overriddenScopeList.join(', ')})`;
+// 		}
+
+// 		template.overridesElement.textContent = overridesElementText;
+// 	}
+
+// 	private renderValue(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
+// 		const onChange = value => this._onDidChangeSetting.fire({ key: entry.key, value });
+// 		template.valueElement.innerHTML = '';
+// 		if (entry.type === 'string' && entry.enum) {
+// 			this.renderEnum(entry, template, onChange);
+// 		} else if (entry.type === 'boolean') {
+// 			this.renderBool(entry, template, onChange);
+// 		} else if (entry.type === 'string') {
+// 			this.renderText(entry, template, onChange);
+// 		} else if (entry.type === 'number') {
+// 			this.renderText(entry, template, value => onChange(parseInt(value)));
+// 		} else {
+// 			this.renderEditInSettingsJson(entry, template);
+// 		}
+// 	}
+
+// 	private renderBool(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
+// 		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
+// 		checkboxElement.type = 'checkbox';
+// 		checkboxElement.checked = entry.value;
+// 		checkboxElement.tabIndex = entry.isFocused ? 0 : -1;
+
+// 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
+// 	}
+
+// 	private renderEnum(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
+// 		const idx = entry.enum.indexOf(entry.value);
+// 		const selectBox = new SelectBox(entry.enum, idx, this.contextViewService);
+// 		template.toDispose.push(selectBox);
+// 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
+// 		selectBox.render(template.valueElement);
+// 		if (template.valueElement.firstElementChild) {
+// 			template.valueElement.firstElementChild.setAttribute('tabindex', entry.isFocused ? '0' : '-1');
+// 		}
+
+// 		template.toDispose.push(
+// 			selectBox.onDidSelect(e => onChange(entry.enum[e.index])));
+// 	}
+
+// 	private renderText(entry: ISettingItemEntry, template: ISettingItemTemplate, onChange: (value: string) => void): void {
+// 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
+// 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
+// 		template.toDispose.push(inputBox);
+// 		inputBox.value = entry.value;
+// 		inputBox.inputElement.tabIndex = entry.isFocused ? 0 : -1;
+
+// 		template.toDispose.push(
+// 			inputBox.onDidChange(e => onChange(e)));
+// 	}
+
+// 	private renderEditInSettingsJson(entry: ISettingItemEntry, template: ISettingItemTemplate): void {
+// 		const openSettingsButton = new Button(template.valueElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
+// 		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
+// 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
+// 		openSettingsButton.element.classList.add('edit-in-settings-button');
+// 		openSettingsButton.element.tabIndex = entry.isFocused ? 0 : -1;
+
+// 		template.toDispose.push(openSettingsButton);
+// 		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
+// 			buttonBackground: Color.transparent.toString(),
+// 			buttonHoverBackground: Color.transparent.toString(),
+// 			buttonForeground: 'foreground'
+// 		}));
+// 	}
+
+// 	disposeTemplate(template: ISettingItemTemplate): void {
+// 		dispose(template.toDispose);
+// 	}
+// }
+
+// registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+// 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
+// 	if (modifiedItemForegroundColor) {
+// 		collector.addRule(`.settings-editor > .settings-body > .settings-list-container .monaco-list-row.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
+// 	}
+// });
+
+// class GroupTitleRenderer implements IRenderer<IGroupTitleEntry, IGroupTitleTemplate> {
+
+// 	private static readonly EXPANDED_CLASS = 'settings-group-title-expanded';
+// 	private static readonly COLLAPSED_CLASS = 'settings-group-title-collapsed';
+
+// 	private readonly _onDidClickGroup: Emitter<string> = new Emitter<string>();
+// 	public readonly onDidClickGroup: Event<string> = this._onDidClickGroup.event;
+
+// 	get templateId(): string { return SETTINGS_GROUP_ENTRY_TEMPLATE_ID; }
+
+// 	renderTemplate(parent: HTMLElement): IGroupTitleTemplate {
+
+// 	}
+
+// 	renderElement(entry: IGroupTitleEntry, index: number, template: IGroupTitleTemplate): void {
+// 		template.context = entry;
+// 		template.labelElement.textContent = entry.title;
+
+// 		template.labelElement.classList.remove(GroupTitleRenderer.EXPANDED_CLASS);
+// 		template.labelElement.classList.remove(GroupTitleRenderer.COLLAPSED_CLASS);
+
+// 		if (entry.expandState === ExpandState.Expanded) {
+// 			template.labelElement.classList.add(GroupTitleRenderer.EXPANDED_CLASS);
+// 		} else if (entry.expandState === ExpandState.Collapsed) {
+// 			template.labelElement.classList.add(GroupTitleRenderer.COLLAPSED_CLASS);
+// 		}
+// 	}
+
+// 	disposeTemplate(template: IGroupTitleTemplate): void {
+// 		dispose(template.toDispose);
+// 	}
+// }
+
+// class ButtonRowRenderer implements IRenderer<IButtonRowEntry, IButtonRowTemplate> {
+
+// 	private readonly _onDidClick: Emitter<string> = new Emitter<string>();
+// 	public readonly onDidClick: Event<string> = this._onDidClick.event;
+
+// 	get templateId(): string { return BUTTON_ROW_ENTRY_TEMPLATE; }
+
+// 	renderTemplate(parent: HTMLElement): IButtonRowTemplate {
+// 		DOM.addClass(parent, 'all-settings');
+
+// 		const buttonElement = DOM.append(parent, $('.all-settings-button'));
+
+// 		const button = new Button(buttonElement);
+// 		const toDispose: IDisposable[] = [button];
+
+// 		const template: IButtonRowTemplate = {
+// 			parent: parent,
+// 			toDispose,
+
+// 			button
+// 		};
+// 		toDispose.push(button.onDidClick(e => this._onDidClick.fire(template.entry && template.entry.label)));
+
+// 		return template;
+// 	}
+
+// 	renderElement(entry: IButtonRowEntry, index: number, template: IButtonRowTemplate): void {
+// 		template.button.label = entry.label;
+// 		template.entry = entry;
+// 	}
+
+// 	disposeTemplate(template: IButtonRowTemplate): void {
+// 		dispose(template.toDispose);
+// 	}
+// }
 
 class SearchResultModel {
 	private rawSearchResults: ISearchResult[];
