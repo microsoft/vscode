@@ -131,10 +131,13 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
 		this.disposables.push(languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
-		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
+
+
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
 
+		const TypescriptSignatureHelpProvider = (await import('./features/signatureHelpProvider')).default;
+		this.disposables.push(languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
 		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 

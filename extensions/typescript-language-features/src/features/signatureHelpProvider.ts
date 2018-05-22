@@ -12,6 +12,8 @@ import * as typeConverters from '../utils/typeConverters';
 
 export default class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
+	public static readonly triggerCharacters = ['(', ','];
+
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
