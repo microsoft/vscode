@@ -221,9 +221,6 @@ export class ProgressService2 implements IProgressService2 {
 
 		let handle: INotificationHandle;
 		const updateNotification = (message?: string, increment?: number): void => {
-			if (!message) {
-				message = ' ';
-			}
 			if (!handle) {
 				handle = createNotification(message, increment);
 			} else {

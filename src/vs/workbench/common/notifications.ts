@@ -315,6 +315,7 @@ export class NotificationViewItemProgress implements INotificationViewItemProgre
 
 	public worked(value: number): void {
 		if (this._state.worked === value) {
+			this._onDidChange.fire();
 			return;
 		}
 
