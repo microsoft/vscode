@@ -76,3 +76,11 @@ export function isDescendant(parent: string, descendant: string): boolean {
 
 	return descendant.startsWith(parent);
 }
+
+export function groupBy<T>(arr: T[], fn: (el: T) => string): { [key: string]: T[] } {
+	return arr.reduce((result, el) => {
+		const key = fn(el);
+		result[key] = [...(result[key] || []), el];
+		return result;
+	}, Object.create(null));
+}

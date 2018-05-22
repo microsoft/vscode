@@ -7,8 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { mapCommentsToHead, parseDiff, mapHeadLineToDiffHunkPosition, getDiffLineByPosition, parseDiffHunk, mapOldPositionToNew } from '../common/diff';
-import * as _ from 'lodash';
+import { mapCommentsToHead, parseDiff, mapHeadLineToDiffHunkPosition, getDiffLineByPosition, parseDiffHunk, mapOldPositionToNew, getLastDiffLine } from '../common/diff';
 import { GitContentProvider } from './gitContentProvider';
 import { Comment } from '../common/models/comment';
 import { PullRequestModel } from '../common/models/pullRequestModel';
@@ -17,6 +16,7 @@ import { GitChangeType } from '../common/models/file';
 import { FileChangesProvider } from './fileChangesProvider';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { GitErrorCodes } from '../common/models/gitError';
+import { groupBy } from '../common/util';
 
 const REVIEW_STATE = 'git-extended.state';
 

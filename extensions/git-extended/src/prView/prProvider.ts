@@ -8,7 +8,6 @@ import * as vscode from 'vscode';
 import { parseDiff, parseDiffHunk, getDiffLineByPosition, mapHeadLineToDiffHunkPosition } from '../common/diff';
 import { Repository } from '../common//models/repository';
 import { Comment } from '../common/models/comment';
-import * as _ from 'lodash';
 import { Configuration } from '../configuration';
 import { parseComments } from '../common/comment';
 import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType, PRDescriptionTreeItem } from '../common/treeItems';
@@ -18,6 +17,7 @@ import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { ReviewManager } from '../review/reviewManager';
+import { groupBy } from '../common/util';
 
 export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private static _instance: PRProvider;
@@ -207,7 +207,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							};
 						}
 
-						let sections = _.groupBy(matchingComments, comment => comment.position);
+						let sections = groupBy(matchingComments, comment => String(comment.position));
 						let threads: vscode.CommentThread[] = [];
 
 						for (let i in sections) {
@@ -271,11 +271,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					return Promise.resolve([]);
 				}
 
-				return await githubRepo.getPullRequest(prNumber);
+				return [await githubRepo.getPullRequest(prNumber)];
 			});
 
 			return Promise.all(promises).then(values => {
-				return _.flatten(values).filter(value => value !== null);
+				return values.reduce((prev, curr) => prev.concat(...curr), []).filter(value => value !== null);
 			});
 		}
 
@@ -285,11 +285,11 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 			if (isRemoteForPR) {
 				return Promise.resolve([]);
 			}
-			return await githubRepository.getPullRequests(element.type);
+			return [await githubRepository.getPullRequests(element.type)];
 		});
 
 		return Promise.all(promises).then(values => {
-			return _.flatten(values);
+			return values.reduce((prev, curr) => prev.concat(...curr), []);
 		});
 	}
 

@@ -137,17 +137,16 @@
   "devDependencies": {
     "@types/lodash": "^4.14.106",
     "@types/node": "*",
-	"typescript": "^2.1.4",
-	"webpack": "^4.1.0",
-	"webpack-cli": "^2.0.10",
-	"ts-loader": "^4.0.1"
+    "typescript": "^2.1.4",
+    "webpack": "^4.1.0",
+    "webpack-cli": "^2.0.10",
+    "ts-loader": "^4.0.1"
   },
   "dependencies": {
     "@octokit/rest": "^15.2.6",
     "dugite": "^1.63.0",
     "markdown-it": "^8.4.0",
     "git-credential-node": "^1.1.0",
-    "lodash": "4.17.5",
     "tmp": "^0.0.31",
     "moment": "^2.22.1"
   }
