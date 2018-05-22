@@ -14,6 +14,8 @@ import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEX
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorService } from 'vs/platform/editor/common/editor';
+import { Selection } from 'vs/editor/common/core/selection';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -209,6 +211,91 @@ class ShowDebugHoverAction extends EditorAction {
 	}
 }
 
+class GoToBreakpointAction extends EditorAction {
+	constructor(private isNext, opts) {
+		super(opts);
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void, any> {
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+		const currentUri = editor.getModel().uri;
+		const currentLine = editor.getPosition().lineNumber;
+		const allEnabledBreakpoints =
+			debugService.getModel().getBreakpoints()
+				.filter(bp => bp.enabled)
+				.sort((a, b) => {
+					if (this.isNext) {
+						if (a.uri === b.uri) {
+							return a.lineNumber - b.lineNumber;
+						}
+						return a.uri.path.localeCompare(b.uri.path);
+					}
+					else {
+						if (a.uri === b.uri) {
+							return b.lineNumber - a.lineNumber;
+						}
+						return b.uri.path.localeCompare(a.uri.path);
+					}
+				});
+
+		//Try to find breakpoint in current file
+		let moveBreakpoint =
+			this.isNext
+				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine)[0]
+				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine)[0];
+
+		//Try to find breakpoints in following files
+		if (!moveBreakpoint) {
+			moveBreakpoint =
+				this.isNext
+					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString())[0]
+					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString())[0];
+		}
+
+		//Move to first possible breakpoint
+		if (!moveBreakpoint) {
+			moveBreakpoint = allEnabledBreakpoints[0];
+		}
+
+		if (moveBreakpoint) {
+			const selection = new Selection(moveBreakpoint.lineNumber, moveBreakpoint.column || 0, moveBreakpoint.lineNumber, moveBreakpoint.column || 0);
+			editorService.openEditor({
+				resource: moveBreakpoint.uri,
+				options: {
+					pinned: false,
+					revealIfOpened: true,
+					revealInCenterIfOutsideViewport: true,
+					selection: selection
+				}
+			});
+		}
+		return TPromise.as(null);
+	}
+}
+
+class GoToNextBreakpointAction extends GoToBreakpointAction {
+	constructor() {
+		super(true, {
+			id: 'editor.debug.action.goToNextBreakpoint',
+			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
+			alias: 'Debug: Go To Next Breakpoint',
+			precondition: null
+		});
+	}
+}
+
+class GoToPreviousBreakpointAction extends GoToBreakpointAction {
+	constructor() {
+		super(false, {
+			id: 'editor.debug.action.goToPreviousBreakpoint',
+			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
+			alias: 'Debug: Go To Previous Breakpoint',
+			precondition: null
+		});
+	}
+}
+
 registerEditorAction(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
@@ -216,3 +303,5 @@ registerEditorAction(RunToCursorAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
+registerEditorAction(GoToNextBreakpointAction);
+registerEditorAction(GoToPreviousBreakpointAction);
