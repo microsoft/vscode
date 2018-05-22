@@ -15,19 +15,19 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export enum ShellQuoting {
 	/**
-	 * Default is character escaping.
+	 * Use character escaping.
 	 */
 	Escape = 1,
 
 	/**
-	 * Default is strong quoting
+	 * Use strong quoting
 	 */
 	Strong = 2,
 
 	/**
-	 * Default is weak quoting.
+	 * Use weak quoting.
 	 */
-	Weak = 3
+	Weak = 3,
 }
 
 export namespace ShellQuoting {
