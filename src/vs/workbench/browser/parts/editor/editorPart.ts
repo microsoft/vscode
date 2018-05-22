@@ -111,7 +111,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		this.registerListeners();
 	}
 
-	//#region IEditorPartOptions
+	//#region IEditorGroupsAccessor
 
 	private enforcedPartOptions: IEditorPartOptions[] = [];
 
@@ -153,6 +153,14 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 			this.enforcedPartOptions.splice(this.enforcedPartOptions.indexOf(options), 1);
 			this.handleChangedPartOptions();
 		});
+	}
+
+	activatePreviousActiveGroup(): void {
+		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+		const previousActiveGroup = mostRecentlyActiveGroups[1];
+		if (previousActiveGroup) {
+			this.activateGroup(previousActiveGroup);
+		}
 	}
 
 	//#endregion
@@ -478,9 +486,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
-			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
-			this.activateGroup(nextActiveGroup);
+			this.activatePreviousActiveGroup();
 		}
 
 		// Remove from grid widget & dispose

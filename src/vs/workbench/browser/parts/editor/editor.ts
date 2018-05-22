@@ -91,6 +91,7 @@ export interface IEditorGroupsAccessor {
 	getGroup(identifier: GroupIdentifier): IEditorGroupView;
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
+	activatePreviousActiveGroup();
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;

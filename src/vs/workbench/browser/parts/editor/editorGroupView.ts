@@ -884,6 +884,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editorToClose = this.activeEditor;
 		const editorHasFocus = isAncestor(document.activeElement, this.element);
 
+		// Optimization: if we are about to close the last editor in this group and settings
+		// are configured to close the group since it will be empty, we first set the last
+		// active group as empty before closing the editor. This reduces the amount of editor
+		// change events that this operation emits and will reduce flicker. Without this
+		// optimization, this group (if active) would first trigger a active editor change
+		// event because it became empty, only to then trigger another one when the next
+		// group gets active.
+		const closeEmptyGroup = this.accessor.partOptions.closeEmptyGroups;
+		if (closeEmptyGroup && this.active && this._group.count === 1) {
+			this.accessor.activatePreviousActiveGroup();
+		}
+
 		// Update model
 		this._group.closeEditor(editorToClose);
 
@@ -906,23 +918,22 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			});
 		}
 
-		// Otherwise clear from editor control and send event
+		// Otherwise we are empty, so clear from editor control and send event
 		else {
 
 			// Forward to editor control
 			this.editorControl.closeEditor(editorToClose);
 
-			// Restore focus to group container as needed
-			if (editorHasFocus) {
+			// Restore focus to group container as needed unless group gets closed
+			if (editorHasFocus && !closeEmptyGroup) {
 				this.focus();
 			}
 
 			// Events
 			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
 
-			// Check if group gets closed now
-			const closeGroup = this.isEmpty() && this.accessor.partOptions.closeEmptyGroups;
-			if (closeGroup) {
+			// Remove empty group if we should
+			if (closeEmptyGroup) {
 				this.accessor.removeGroup(this);
 			}
 		}
