@@ -36,7 +36,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _disposables: vscode.Disposable[];
 
 	private _comments: Comment[] = [];
-	private _outdatedComments: Comment[] = [];
 	private _localFileChanges: FileChangeTreeItem[] = [];
 	private _obsoleteFileChanges: FileChangeTreeItem[] = [];
 	private _lastCommitSha: string;
@@ -315,7 +314,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 		let activeComments = comments.filter(comment => comment.position);
 		this._comments = activeComments;
 		let outdatedComments = comments.filter(comment => !comment.position);
-		this._outdatedComments = outdatedComments;
 
 		const data = await pr.getFiles();
 		const baseSha = await pr.getBaseCommitSha();

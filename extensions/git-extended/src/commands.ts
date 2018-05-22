@@ -9,7 +9,7 @@ import { PullRequestModel } from './common/models/pullRequestModel';
 import { FileChangeTreeItem } from './common/treeItems';
 import { ReviewManager } from './review/reviewManager';
 import { PullRequestOverviewPanel } from './common/pullRequestOverview';
-import { fromGitUri, toGitUri } from './common/uri';
+import { fromGitUri } from './common/uri';
 
 export function registerCommands(context: vscode.ExtensionContext) {
 	// initialize resources

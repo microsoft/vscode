@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -25,7 +25,6 @@ import { ICommentService } from 'vs/workbench/services/comments/electron-browser
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from '../../../../platform/commands/common/commands';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { TextDiffEditor } from '../../../browser/parts/editor/textDiffEditor';
 import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditorWidget';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
