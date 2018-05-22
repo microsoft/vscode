@@ -221,10 +221,10 @@ export default class BufferSyncSupport {
 		if (!syncedBuffer) {
 			return;
 		}
-		this.diagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		if (!fs.existsSync(resource.fsPath)) {
+			this.diagnostics.delete(resource);
 			this.requestAllDiagnostics();
 		}
 	}
