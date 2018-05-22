@@ -22,6 +22,7 @@ export interface Comment {
 	id: string;
 	path: string;
 	pull_request_review_id: string;
+	diff_hunk: string;
 	diff_hunk_range: DiffHunkRange;
 	position: number;
 	original_position: number;

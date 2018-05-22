@@ -36,8 +36,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _disposables: vscode.Disposable[];
 
 	private _comments: Comment[] = [];
-	private _commentsCache: Map<String, Comment[]>;
+	private _outdatedComments: Comment[] = [];
 	private _localFileChanges: FileChangeTreeItem[] = [];
+	private _obsoleteFileChanges: FileChangeTreeItem[] = [];
 	private _lastCommitSha: string;
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
@@ -68,7 +69,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 		return this._pr;
 	}
 
-
 	private constructor(
 		private _context: vscode.ExtensionContext,
 		private _repository: Repository,
@@ -78,7 +78,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this._workspaceCommentProvider = null;
 		this._command = null;
 		this._disposables = [];
-		this._commentsCache = new Map<String, Comment[]>();
 		this._disposables.push(vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository)));
 		this._disposables.push(vscode.commands.registerCommand('review.openFile', (uri: vscode.Uri) => {
 			let params = JSON.parse(uri.query);
@@ -312,7 +311,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	private async getPullRequestData(pr: PullRequestModel): Promise<void> {
-		this._comments = await pr.getComments();
+		let comments = await pr.getComments();
+		let activeComments = comments.filter(comment => comment.position);
+		this._comments = activeComments;
+		let outdatedComments = comments.filter(comment => !comment.position);
+		this._outdatedComments = outdatedComments;
+
 		const data = await pr.getFiles();
 		const baseSha = await pr.getBaseCommitSha();
 		const richContentChanges = await parseDiff(data, this._repository, baseSha);
@@ -332,12 +336,76 @@ export class ReviewManager implements vscode.DecorationProvider {
 			return changedItem;
 		});
 
-		this._localFileChanges.forEach(changedItem => {
-			let matchingComments = this._comments.filter(comment => comment.path === changedItem.fileName);
-			this._commentsCache.set(changedItem.filePath.toString(), matchingComments);
-		});
+		let commitsGroup = groupBy(outdatedComments, comment => comment.commit_id);
+		this._obsoleteFileChanges = [];
+		for (let commit in commitsGroup) {
+			let commentsForCommit = commitsGroup[commit];
+			let commentsForFile = groupBy(commentsForCommit, comment => comment.path);
+			for (let fileName in commentsForFile) {
+				let oldComments = commentsForFile[fileName];
+				let obsoleteFileChange = new FileChangeTreeItem(
+					pr,
+					fileName,
+					GitChangeType.MODIFY,
+					fileName,
+					null,
+					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
+					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
+					this._repository.path,
+					oldComments[0].diff_hunk
+				);
+
+				obsoleteFileChange.comments = oldComments;
+				this._obsoleteFileChanges.push(obsoleteFileChange);
+			}
+		}
 
 		return Promise.resolve(null);
+	}
+
+	private outdatedCommentsToCommentThreads(fileChange: FileChangeTreeItem, comments: Comment[], collapsibleState: vscode.CommentThreadCollapsibleState = vscode.CommentThreadCollapsibleState.Expanded): vscode.CommentThread[] {
+		if (!comments || !comments.length) {
+			return [];
+		}
+
+		let fileCommentGroups = groupBy(comments, comment => comment.path);
+		let ret: vscode.CommentThread[] = [];
+
+		for (let file in fileCommentGroups) {
+			let fileComments = fileCommentGroups[file];
+			let sections = groupBy(fileComments, comment => String(comment.position));
+
+			for (let i in sections) {
+				let comments = sections[i];
+
+				const comment = comments[0];
+				let diffLine = getDiffLineByPosition(comment.diff_hunk, comment.position === null ? comment.original_position : comment.position);
+
+				if (diffLine) {
+					comment.absolutePosition = diffLine.newLineNumber;
+				}
+
+				const pos = new vscode.Position(comment.absolutePosition ? comment.absolutePosition - 1 : 0, 0);
+				const range = new vscode.Range(pos, pos);
+
+				ret.push({
+					threadId: comment.id,
+					resource: fileChange.filePath,
+					range,
+					comments: comments.map(comment => {
+						return {
+							commentId: comment.id,
+							body: new vscode.MarkdownString(comment.body),
+							userName: comment.user.login,
+							gravatar: comment.user.avatar_url
+						};
+					}),
+					collapsibleState: collapsibleState
+				});
+			}
+
+		}
+		return ret;
 	}
 
 	private commentsToCommentThreads(comments: Comment[], collapsibleState: vscode.CommentThreadCollapsibleState = vscode.CommentThreadCollapsibleState.Expanded): vscode.CommentThread[] {
@@ -345,12 +413,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 			return [];
 		}
 
-		let fileCommentGroups = _.groupBy(comments, comment => comment.path);
+		let fileCommentGroups = groupBy(comments, comment => comment.path);
 		let ret: vscode.CommentThread[] = [];
 
 		for (let file in fileCommentGroups) {
 			let fileComments = fileCommentGroups[file];
-			let sections = _.groupBy(fileComments, comment => comment.position);
+			let sections = groupBy(fileComments, comment => String(comment.position));
 
 			for (let i in sections) {
 				let comments = sections[i];
@@ -383,7 +451,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 	onDidChangeDecorations: vscode.Event<vscode.Uri | vscode.Uri[]> = this._onDidChangeDecorations.event;
 	provideDecoration(uri: vscode.Uri, token: vscode.CancellationToken): vscode.ProviderResult<vscode.DecorationData> {
 		if (uri.scheme === 'review') {
-			let matchingComments = this._commentsCache.get(uri.toString());
+			let query = JSON.parse(uri.query);
+			let matchingComments = this._comments.filter(comment => comment.path === query.path);
 			if (matchingComments && matchingComments.length) {
 				return {
 					bubble: true,
@@ -414,33 +483,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 				let ranges: vscode.Range[] = [];
 				let matchingComments: Comment[];
 
-				if (document.uri.scheme === 'review') {
-					// from scm viewlet
-					matchingComments = this._commentsCache.get(document.uri.toString());
-					let query = JSON.parse(document.uri.query);
-					let matchedFiles = this._localFileChanges.filter(fileChange => fileChange.fileName === query.path);
-					if (matchedFiles && matchedFiles.length) {
-						let matchedFile = matchedFiles[0];
-
-						matchingComments.forEach(comment => {
-							let diffLine = getDiffLineByPosition(matchedFiles[0].patch, comment.position === null ? comment.original_position : comment.position);
-
-							if (diffLine) {
-								comment.absolutePosition = diffLine.newLineNumber;
-							}
-						});
-
-						let diffHunkReader = parseDiffHunk(matchedFile.patch);
-						let diffHunkIter = diffHunkReader.next();
-
-						while (!diffHunkIter.done) {
-							let diffHunk = diffHunkIter.value;
-							ranges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
-							diffHunkIter = diffHunkReader.next();
-						}
-					}
-				} else if (document.uri.scheme === 'file') {
-					// local file
+				if (document.uri.scheme === 'file') {
+					// local file, we only provide active comments.
 					const fileName = document.uri.path;
 					const matchedFiles = this._localFileChanges.filter(fileChange => path.resolve(this._repository.path, fileChange.fileName) === fileName);
 					if (matchedFiles && matchedFiles.length) {
@@ -475,12 +519,78 @@ export class ReviewManager implements vscode.DecorationProvider {
 							diffHunkIter = diffHunkReader.next();
 						}
 					}
+
+					return {
+						threads: this.commentsToCommentThreads(matchingComments, vscode.CommentThreadCollapsibleState.Collapsed),
+						commentingRanges: ranges,
+					};
 				}
 
-				return {
-					threads: this.commentsToCommentThreads(matchingComments, document.uri.scheme === 'file' ? vscode.CommentThreadCollapsibleState.Collapsed : vscode.CommentThreadCollapsibleState.Expanded),
-					commentingRanges: ranges,
-				};
+				if (document.uri.scheme === 'review') {
+					let matchedFile = this.findMatchedFileChange(this._localFileChanges, document.uri);
+
+					if (matchedFile) {
+						let matchingComments = matchedFile.comments;
+						matchingComments.forEach(comment => {
+							let diffLine = getDiffLineByPosition(matchedFile.patch, comment.position === null ? comment.original_position : comment.position);
+
+							if (diffLine) {
+								comment.absolutePosition = diffLine.newLineNumber;
+							}
+						});
+
+						let diffHunkReader = parseDiffHunk(matchedFile.patch);
+						let diffHunkIter = diffHunkReader.next();
+
+						while (!diffHunkIter.done) {
+							let diffHunk = diffHunkIter.value;
+							ranges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
+							diffHunkIter = diffHunkReader.next();
+						}
+
+						return {
+							threads: this.commentsToCommentThreads(matchingComments, vscode.CommentThreadCollapsibleState.Expanded),
+							commentingRanges: ranges,
+						};
+					}
+
+					// comments are outdated
+					matchedFile = this.findMatchedFileChange(this._obsoleteFileChanges, document.uri);
+					if (!matchedFile) {
+						return null;
+					}
+
+
+					let sections = groupBy(matchedFile.comments, comment => comment.original_position); // comment.position is null in this case.
+					let ret: vscode.CommentThread[] = [];
+					for (let i in sections) {
+						let comments = sections[i];
+						const comment = comments[0];
+						let diffLine = getLastDiffLine(comment.diff_hunk);
+						const pos = new vscode.Position(diffLine.newLineNumber - 1, 0);
+						const range = new vscode.Range(pos, pos);
+
+						ret.push({
+							threadId: comment.id,
+							resource: matchedFile.filePath,
+							range,
+							comments: comments.map(comment => {
+								return {
+									commentId: comment.id,
+									body: new vscode.MarkdownString(comment.body),
+									userName: comment.user.login,
+									gravatar: comment.user.avatar_url
+								};
+							}),
+							collapsibleState: vscode.CommentThreadCollapsibleState.Expanded
+						});
+
+
+						return {
+							threads: ret
+						};
+					}
+				}
 			},
 			createNewCommentThread: this.createNewCommentThread.bind(this),
 			replyToCommentThread: this.replyToCommentThread.bind(this)
@@ -492,11 +602,36 @@ export class ReviewManager implements vscode.DecorationProvider {
 				const comments = await Promise.all(this._localFileChanges.map(async fileChange => {
 					return this.commentsToCommentThreads(fileChange.comments);
 				}));
-				return comments.reduce((prev, curr) => prev.concat(curr), []);
+				const outdatedComments = this._obsoleteFileChanges.map(fileChange => {
+					return this.outdatedCommentsToCommentThreads(fileChange, fileChange.comments);
+				});
+				return [...comments, ...outdatedComments].reduce((prev, curr) => prev.concat(curr), []);
 			},
 			createNewCommentThread: this.createNewCommentThread.bind(this),
 			replyToCommentThread: this.replyToCommentThread.bind(this)
 		});
+	}
+
+	private findMatchedFileChange(fileChanges: FileChangeTreeItem[], uri: vscode.Uri) {
+		let query = JSON.parse(uri.query);
+		let matchedFiles = fileChanges.filter(fileChange => {
+			if (fileChange.fileName !== query.path) {
+				return false;
+			}
+
+			let q = JSON.parse(fileChange.filePath.query);
+
+			if (q.commit !== query.commit) {
+				return false;
+			}
+			return true;
+		});
+
+		if (matchedFiles && matchedFiles.length) {
+			return matchedFiles[0];
+		}
+
+		return null;
 	}
 
 	public async switch(pr: PullRequestModel): Promise<void> {

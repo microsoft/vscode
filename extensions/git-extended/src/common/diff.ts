@@ -117,6 +117,21 @@ export function* parseDiffHunk(diffHunkPatch: string): IterableIterator<DiffHunk
 	}
 }
 
+export function getLastDiffLine(prPatch: string): DiffLine {
+	let lastDiffLine = null;
+	let prDiffReader = parseDiffHunk(prPatch);
+	let prDiffIter = prDiffReader.next();
+
+	while (!prDiffIter.done) {
+		let diffHunk = prDiffIter.value;
+		lastDiffLine = diffHunk.diffLines[diffHunk.diffLines.length - 1];
+
+		prDiffIter = prDiffReader.next();
+	}
+
+	return lastDiffLine;
+}
+
 export function getDiffLineByPosition(prPatch: string, diffLineNumber: number): DiffLine {
 	let prDiffReader = parseDiffHunk(prPatch);
 	let prDiffIter = prDiffReader.next();
