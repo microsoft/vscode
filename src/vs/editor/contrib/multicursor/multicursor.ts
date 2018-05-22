@@ -139,6 +139,69 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 	}
 }
 
+class InsertCursorAtEndOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsUntilItReachesEOF',
+			label: nls.localize('mutlicursor.addCursorsUntilItReachesEOF', "Add Cursors Until it Reaches End of File"),
+			alias: 'Add Cursors to End Of File',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_N
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const model = editor.getModel();
+		const selections = editor.getSelections();
+
+		let maxLine = model.getLineCount();
+		let selectionsToChange = [];
+
+
+		for (let i = selections[0].startLineNumber; i <= maxLine; i++) {
+			selectionsToChange.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (selectionsToChange.length > 0) {
+			editor.setSelections(selectionsToChange);
+		}
+	}
+}
+
+class InsertCursorAtTopOfLineSelected extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.addCursorsUntilItReachesTop',
+			label: nls.localize('mutlicursor.addCursorsUntilItReachesTop', "Add Cursors Until it Reaches Top of File"),
+			alias: 'Add Cursors to Top Of File',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.editorTextFocus,
+				primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_Q
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		const selections = editor.getSelections();
+
+		let selectionsToChange = [];
+
+		for (let i = selections[0].startLineNumber; i >= 1; i--) {
+			selectionsToChange.push(new Selection(i, selections[0].startColumn, i, selections[0].endColumn));
+		}
+
+		if (selectionsToChange.length > 0) {
+			editor.setSelections(selectionsToChange);
+		}
+	}
+}
+
 export class MultiCursorSessionResult {
 	constructor(
 		public readonly selections: Selection[],
@@ -909,3 +972,5 @@ registerEditorAction(MoveSelectionToNextFindMatchAction);
 registerEditorAction(MoveSelectionToPreviousFindMatchAction);
 registerEditorAction(SelectHighlightsAction);
 registerEditorAction(CompatChangeAll);
+registerEditorAction(InsertCursorAtEndOfLineSelected);
+registerEditorAction(InsertCursorAtTopOfLineSelected);
