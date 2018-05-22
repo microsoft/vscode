@@ -850,6 +850,11 @@ class SettingItemRenderer implements IRenderer<ISettingItemEntry, ISettingItemTe
 					that._onDidToggleExpandSetting.fire(entry);
 				}
 			}));
+
+			// Hack to prevent mousedown on value from causing list 'open'
+			toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', e => {
+				e.stopPropagation();
+			}));
 		}
 
 		return template;
