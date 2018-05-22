@@ -104,7 +104,7 @@
 	flex: 1;
 	max-width: 170px;
 	min-width: 60px;
-	margin-right: 0 4px; /* match spacing for action icons */
+	margin: 0 4px; /* match spacing for action icons */
 	display: flex;
 	align-items: center;
 	justify-content: center;
