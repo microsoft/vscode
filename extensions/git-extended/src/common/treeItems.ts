@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import { GitChangeType } from './models/file';
 import { PullRequestModel, PRType } from './models/pullRequestModel';
 import { Resource } from './resources';
+import { DiffHunk } from './models/diffHunk';
 
 export enum PRGroupActionType {
 	Empty,
@@ -118,7 +119,7 @@ export class FileChangeTreeItem implements vscode.TreeItem {
 		public readonly filePath: vscode.Uri,
 		public readonly parentFilePath: vscode.Uri,
 		public readonly workspaceRoot: string,
-		public readonly patch: string
+		public readonly diffHunks: DiffHunk[]
 	) {
 		this.contextValue = 'filechange';
 		this.command = {

@@ -36,7 +36,7 @@ export function getDiffChangeType(text: string) {
 		case ' ': return DiffChangeType.Context;
 		case '+': return DiffChangeType.Add;
 		case '-': return DiffChangeType.Delete;
-		case '\\': return DiffChangeType.Control;
+		default: return DiffChangeType.Control;
 	}
 }
 

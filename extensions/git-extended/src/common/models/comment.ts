@@ -3,13 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-export interface DiffHunkRange {
-	originalStart: number;
-	originalLength: number;
-	start: number;
-	length: number;
-
-}
+import { DiffHunk } from './diffHunk';
 
 export interface User {
 	id: string;
@@ -23,7 +17,7 @@ export interface Comment {
 	path: string;
 	pull_request_review_id: string;
 	diff_hunk: string;
-	diff_hunk_range: DiffHunkRange;
+	diff_hunks: DiffHunk[];
 	position: number;
 	original_position: number;
 	commit_id: string;

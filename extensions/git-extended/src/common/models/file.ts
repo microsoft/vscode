@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { DiffHunk } from './diffHunk';
+
 export enum GitChangeType {
 	ADD,
 	COPY,
@@ -51,7 +53,6 @@ export class RichFileChange {
 		public readonly originalFilePath: string,
 		public readonly status: GitChangeType,
 		public readonly fileName: string,
-		// public readonly diffHunks: DiffHunk[],
-		public readonly patch: string
+		public readonly diffHunks: DiffHunk[]
 	) { }
 }

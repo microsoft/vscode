@@ -23,9 +23,9 @@ import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'v
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ICommandService } from '../../../../platform/commands/common/commands';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorWidget } from '../../../../editor/browser/widget/diffEditorWidget';
+import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
 export const COMMENTS_PANEL_TITLE = 'Comments';

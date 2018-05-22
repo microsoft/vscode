@@ -4,8 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as path from 'path';
+import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { parseDiff, parseDiffHunk, getDiffLineByPosition, mapHeadLineToDiffHunkPosition } from '../common/diff';
+import { parseDiff } from '../common/diff';
+import { mapHeadLineToDiffHunkPosition, getDiffLineByPosition } from '../common/diffPositionMapping';
 import { Repository } from '../common//models/repository';
 import { Comment } from '../common/models/comment';
 import { Configuration } from '../configuration';
@@ -13,7 +15,6 @@ import { parseComments } from '../common/comment';
 import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType, PRDescriptionTreeItem } from '../common/treeItems';
 import { Resource } from '../common/resources';
 import { toPRUri } from '../common/uri';
-import * as fs from 'fs';
 import { PullRequestModel, PRType } from '../common/models/pullRequestModel';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { ReviewManager } from '../review/reviewManager';
@@ -119,7 +120,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
 					toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
 					this.repository.path,
-					change.patch
+					change.diffHunks
 				);
 				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
 				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
@@ -136,7 +137,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 					return null;
 				}
 
-				let position = mapHeadLineToDiffHunkPosition(fileChange.patch, '', range.start.line);
+				let position = mapHeadLineToDiffHunkPosition(fileChange.diffHunks, '', range.start.line);
 
 				if (position < 0) {
 					return;
@@ -188,15 +189,21 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 						}
 
 						let commentingRanges: vscode.Range[] = [];
+						let diffHunks = fileChange.diffHunks;
 
-						let diffHunkReader = parseDiffHunk(fileChange.patch);
-						let diffHunkIter = diffHunkReader.next();
-
-						while (!diffHunkIter.done) {
-							let diffHunk = diffHunkIter.value;
+						for (let i = 0; i < diffHunks.length; i++) {
+							let diffHunk = diffHunks[i];
 							commentingRanges.push(new vscode.Range(diffHunk.newLineNumber - 1, 0, diffHunk.newLineNumber + diffHunk.newLength - 1 - 1, 0));
-							diffHunkIter = diffHunkReader.next();
 						}
+
+						// let diffHunkReader = parseDiffHunk(fileChange.patch);
+						// let diffHunkIter = diffHunkReader.next();
+
+						// while (!diffHunkIter.done) {
+						// 	let diffHunk = diffHunkIter.value;
+						// 	commentingRanges.push(new vscode.Range(diffHunk.newLineNumber - 1, 0, diffHunk.newLineNumber + diffHunk.newLength - 1 - 1, 0));
+						// 	diffHunkIter = diffHunkReader.next();
+						// }
 
 						let matchingComments = commentsCache.get(document.uri.toString());
 
@@ -214,7 +221,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 							let comments = sections[i];
 
 							const comment = comments[0];
-							let diffLine = getDiffLineByPosition(fileChange.patch, comment.position === null ? comment.original_position : comment.position);
+							let diffLine = getDiffLineByPosition(fileChange.diffHunks, comment.position === null ? comment.original_position : comment.position);
 							let commentAbsolutePosition = 1;
 							if (diffLine) {
 								commentAbsolutePosition = diffLine.newLineNumber;

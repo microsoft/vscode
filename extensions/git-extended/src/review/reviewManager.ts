@@ -7,7 +7,7 @@ import * as path from 'path';
 import * as vscode from 'vscode';
 import { Repository } from '../common/models/repository';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { mapCommentsToHead, parseDiff, mapHeadLineToDiffHunkPosition, getDiffLineByPosition, parseDiffHunk, mapOldPositionToNew, getLastDiffLine } from '../common/diff';
+import { parseDiff } from '../common/diff';
 import { GitContentProvider } from './gitContentProvider';
 import { Comment } from '../common/models/comment';
 import { PullRequestModel } from '../common/models/pullRequestModel';
@@ -17,6 +17,7 @@ import { FileChangesProvider } from './fileChangesProvider';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { GitErrorCodes } from '../common/models/gitError';
 import { groupBy } from '../common/util';
+import { mapHeadLineToDiffHunkPosition, mapCommentsToHead, mapOldPositionToNew, getDiffLineByPosition, getLastDiffLine } from '../common/diffPositionMapping';
 
 const REVIEW_STATE = 'git-extended.state';
 
@@ -190,7 +191,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 				let matchedFile = matchedFiles[0];
 				// git diff sha -- fileName
 				let contentDiff = await this._repository.diff(matchedFile.fileName, this._lastCommitSha);
-				let position = mapHeadLineToDiffHunkPosition(matchedFile.patch, contentDiff, range.start.line);
+				let position = mapHeadLineToDiffHunkPosition(matchedFile.diffHunks, contentDiff, range.start.line);
 
 				if (position < 0) {
 					return;
@@ -328,7 +329,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
 				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
 				this._repository.path,
-				change.patch
+				change.diffHunks
 			);
 			changedItem.comments = this._comments.filter(comment => comment.path === changedItem.fileName);
 			return changedItem;
@@ -350,7 +351,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
 					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
 					this._repository.path,
-					oldComments[0].diff_hunk
+					[]
 				);
 
 				obsoleteFileChange.comments = oldComments;
@@ -377,7 +378,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 				let comments = sections[i];
 
 				const comment = comments[0];
-				let diffLine = getDiffLineByPosition(comment.diff_hunk, comment.position === null ? comment.original_position : comment.position);
+				let diffLine = getDiffLineByPosition(comment.diff_hunks, comment.position === null ? comment.original_position : comment.position);
 
 				if (diffLine) {
 					comment.absolutePosition = diffLine.newLineNumber;
@@ -509,19 +510,17 @@ export class ReviewManager implements vscode.DecorationProvider {
 						}
 
 						matchingComments = this._comments.filter(comment => path.resolve(this._repository.path, comment.path) === fileName);
-						matchingComments = mapCommentsToHead(matchedFile.patch, contentDiff, matchingComments);
+						matchingComments = mapCommentsToHead(matchedFile.diffHunks, contentDiff, matchingComments);
 
-						let diffHunkReader = parseDiffHunk(matchedFile.patch);
-						let diffHunkIter = diffHunkReader.next();
+						let diffHunks = matchedFile.diffHunks;
 
-						while (!diffHunkIter.done) {
-							let diffHunk = diffHunkIter.value;
+						for (let i = 0; i < diffHunks.length; i++) {
+							let diffHunk = diffHunks[i];
 							let start = mapOldPositionToNew(contentDiff, diffHunk.newLineNumber);
 							let end = mapOldPositionToNew(contentDiff, diffHunk.newLineNumber + diffHunk.newLength - 1);
 							if (start > 0 && end > 0) {
 								ranges.push(new vscode.Range(start - 1, 0, end - 1, 0));
 							}
-							diffHunkIter = diffHunkReader.next();
 						}
 					}
 
@@ -537,20 +536,18 @@ export class ReviewManager implements vscode.DecorationProvider {
 					if (matchedFile) {
 						let matchingComments = matchedFile.comments;
 						matchingComments.forEach(comment => {
-							let diffLine = getDiffLineByPosition(matchedFile.patch, comment.position === null ? comment.original_position : comment.position);
+							let diffLine = getDiffLineByPosition(matchedFile.diffHunks, comment.position === null ? comment.original_position : comment.position);
 
 							if (diffLine) {
 								comment.absolutePosition = diffLine.newLineNumber;
 							}
 						});
 
-						let diffHunkReader = parseDiffHunk(matchedFile.patch);
-						let diffHunkIter = diffHunkReader.next();
+						let diffHunks = matchedFile.diffHunks;
 
-						while (!diffHunkIter.done) {
-							let diffHunk = diffHunkIter.value;
+						for (let i = 0; i < diffHunks.length; i++) {
+							let diffHunk = diffHunks[i];
 							ranges.push(new vscode.Range(diffHunk.newLineNumber, 1, diffHunk.newLineNumber + diffHunk.newLength - 1, 1));
-							diffHunkIter = diffHunkReader.next();
 						}
 
 						return {

@@ -7,12 +7,8 @@ import * as path from 'path';
 import { getFileContent, writeTmpFile } from './file';
 import { GitChangeType, RichFileChange } from './models/file';
 import { Repository } from './models/repository';
-import { Comment } from './models/comment';
 import { DiffHunk, getDiffChangeType, DiffLine, DiffChangeType } from './models/diffHunk';
 
-export const MODIFY_DIFF_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*index.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
-export const NEW_FILE_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*new file mode .*\nindex.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
-export const DELETE_FILE_INFO = /diff --git a\/(\S+) b\/(\S+).*\n*deleted file mode .*\nindex.*\n*-{3}.*\n*\+{3}.*\n*((.*\n*)+)/;
 export const DIFF_HUNK_HEADER = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/;
 
 export function countCarriageReturns(text: string): number {
@@ -117,108 +113,17 @@ export function* parseDiffHunk(diffHunkPatch: string): IterableIterator<DiffHunk
 	}
 }
 
-export function getLastDiffLine(prPatch: string): DiffLine {
-	let lastDiffLine = null;
-	let prDiffReader = parseDiffHunk(prPatch);
-	let prDiffIter = prDiffReader.next();
-
-	while (!prDiffIter.done) {
-		let diffHunk = prDiffIter.value;
-		lastDiffLine = diffHunk.diffLines[diffHunk.diffLines.length - 1];
-
-		prDiffIter = prDiffReader.next();
-	}
-
-	return lastDiffLine;
-}
-
-export function getDiffLineByPosition(prPatch: string, diffLineNumber: number): DiffLine {
-	let prDiffReader = parseDiffHunk(prPatch);
-	let prDiffIter = prDiffReader.next();
-
-	while (!prDiffIter.done) {
-		let diffHunk = prDiffIter.value;
-		for (let i = 0; i < diffHunk.diffLines.length; i++) {
-			if (diffHunk.diffLines[i].positionInHunk === diffLineNumber) {
-				return diffHunk.diffLines[i];
-			}
-		}
-
-		prDiffIter = prDiffReader.next();
-	}
-
-	return null;
-}
-
-export function mapHeadLineToDiffHunkPosition(prPatch: string, localDiff: string, line: number): number {
-	let delta = 0;
-
-	let localDiffReader = parseDiffHunk(localDiff);
-	let localDiffIter = localDiffReader.next();
-	let lineInPRDiff = line;
-
-	while (!localDiffIter.done) {
-		let diffHunk = localDiffIter.value;
-		if (diffHunk.newLineNumber + diffHunk.newLength - 1 < line) {
-			delta += diffHunk.oldLength - diffHunk.newLength;
-		} else {
-			lineInPRDiff = line + delta;
-			break;
-		}
-
-		localDiffIter = localDiffReader.next();
-	}
-
-	let prDiffReader = parseDiffHunk(prPatch);
-	let prDiffIter = prDiffReader.next();
-
-	let positionInDiffHunk = -1;
-
-	while (!prDiffIter.done) {
-		let diffHunk = prDiffIter.value;
-		if (diffHunk.newLineNumber <= lineInPRDiff && diffHunk.newLineNumber + diffHunk.newLength - 1 >= lineInPRDiff) {
-			positionInDiffHunk = lineInPRDiff - diffHunk.newLineNumber + diffHunk.positionInHunk + 1;
-			break;
-		}
-
-		prDiffIter = prDiffReader.next();
-	}
-
-	return positionInDiffHunk;
-}
-
-export function mapOldPositionToNew(patch: string, line: number): number {
-	let diffReader = parseDiffHunk(patch);
-	let diffIter = diffReader.next();
-
-	let delta = 0;
-	while (!diffIter.done) {
-		let diffHunk = diffIter.value;
-
-		if (diffHunk.oldLineNumber > line) {
-			// No-op
-		} else if (diffHunk.oldLineNumber + diffHunk.oldLength - 1 < line) {
-			delta += diffHunk.newLength - diffHunk.oldLength;
-		} else {
-			delta += diffHunk.newLength - diffHunk.oldLength;
-			return line + delta;
-		}
-
-		diffIter = diffReader.next();
-	}
-
-	return line + delta;
-}
-
 async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 	let left = originalContent.split(/\r|\n|\r\n/);
 	let diffHunkReader = parseDiffHunk(patch);
 	let diffHunkIter = diffHunkReader.next();
+	let diffHunks = [];
 
 	let right = [];
 	let lastCommonLine = 0;
 	while (!diffHunkIter.done) {
 		let diffHunk = diffHunkIter.value;
+		diffHunks.push(diffHunk);
 
 		let oriStartLine = diffHunk.oldLineNumber;
 
@@ -251,37 +156,37 @@ async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 	let contentPath = await writeTmpFile(right.join('\n'), path.extname(b));
 	let originalContentPath = await writeTmpFile(left.join('\n'), path.extname(a));
 
-	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, patch);
+	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, diffHunks);
 }
 
 async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 	let left = [];
 	let right = [];
 
-	let diffHunks = modifyDiffInfo.split('\n');
-	diffHunks.pop(); // there is one additional line break at the end of the diff ??
+	let diffHunkReader = parseDiffHunk(modifyDiffInfo);
+	let diffHunkIter = diffHunkReader.next();
+	let diffHunks = [];
 
-	for (let i = 0; i < diffHunks.length; i++) {
-		let line = diffHunks[i];
-		if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/.test(line)) {
-			// let changeInfo = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/.exec(line);
-			left.push(line);
-			right.push(line);
-		} else if (/^\-/.test(line)) {
-			left.push(line.substr(1));
-		} else if (/^\+/.test(line)) {
-			right.push(line.substr(1));
-		} else {
-			let codeInFirstLine = line.substr(1);
-			left.push(codeInFirstLine);
-			right.push(codeInFirstLine);
+	while (!diffHunkIter.done) {
+		let diffHunk = diffHunkIter.value;
+		diffHunks.push(diffHunk);
+		for (let i = 0, len = diffHunk.diffLines.length; i < len; i++) {
+			let diffLine = diffHunk.diffLines[i];
+			if (diffLine.type === DiffChangeType.Add) {
+				right.push(diffLine.text);
+			} else if (diffLine.type === DiffChangeType.Delete) {
+				left.push(diffLine.text);
+			} else {
+				left.push(diffLine.text);
+				right.push(diffLine.text);
+			}
 		}
 	}
 
 	let contentPath = await writeTmpFile(right.join('\n'), path.extname(b));
 	let originalContentPath = await writeTmpFile(left.join('\n'), path.extname(a));
 
-	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, modifyDiffInfo);
+	return new RichFileChange(contentPath, originalContentPath, GitChangeType.MODIFY, b, diffHunks);
 }
 
 export async function parseDiff(reviews: any[], repository: Repository, parentCommit: string): Promise<RichFileChange[]> {
@@ -301,41 +206,49 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 				richFileChange.blobUrl = review.blob_url;
 				richFileChanges.push(richFileChange);
 			}
-		} else if (review.status === 'removed') {
-			let fileName = review.filename;
-			let diffHunks = review.patch.split('\n');
-			let contentArray = [];
-			for (let i = 0; i < diffHunks.length; i++) {
-				if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@$/.test(diffHunks[i])) {
-					continue;
-				} else if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].replace(/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /, ''));
-				} else if (/^\-/.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].substr(1));
-				}
+		} else if (review.status === 'removed' || review.status === 'added' || review.status === 'renamed') {
+			if (!review.patch) {
+				continue;
 			}
-			let originalFilePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
-			let filePath = await writeTmpFile('', path.extname(fileName));
-			let richFileChange = new RichFileChange(filePath, originalFilePath, GitChangeType.DELETE, fileName, review.patch);
-			richFileChange.blobUrl = review.blob_url;
-			richFileChanges.push(richFileChange);
-		} else {
-			// added
-			let fileName = review.filename;
-			let diffHunks = review.patch.split('\n');
-			let contentArray = [];
-			for (let i = 0; i < diffHunks.length; i++) {
-				if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@$/.test(diffHunks[i])) {
-					continue;
-				} else if (/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].replace(/@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@ /, ''));
-				} else if (/^\+/.test(diffHunks[i])) {
-					contentArray.push(diffHunks[i].substr(1));
-				}
+
+			let gitChangeType = GitChangeType.UNKNOWN;
+			switch (review.status) {
+				case 'removed':
+					gitChangeType = GitChangeType.DELETE;
+					break;
+				case 'added':
+					gitChangeType = GitChangeType.ADD;
+					break;
+				case 'renamed':
+					gitChangeType = GitChangeType.RENAME;
+					break;
+				default:
+					break;
 			}
-			let oriFilePath = await writeTmpFile('', path.extname(fileName));
-			let filePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
-			let richFileChange = new RichFileChange(filePath, oriFilePath, GitChangeType.ADD, fileName, review.patch);
+
+			let contentArray = [];
+			let fileName = review.filename;
+			let prDiffReader = parseDiffHunk(review.patch);
+			let prDiffIter = prDiffReader.next();
+			let diffHunks = [];
+
+			while (!prDiffIter.done) {
+				let diffHunk = prDiffIter.value;
+				diffHunks.push(diffHunk);
+				for (let j = 0, len = diffHunk.diffLines.length; j < len; j++) {
+					let diffLine = diffHunk.diffLines[j];
+					if (diffLine.type !== DiffChangeType.Control) {
+						contentArray.push(diffLine.text);
+					}
+				}
+				prDiffIter = prDiffReader.next();
+			}
+
+			let contentFilePath = await writeTmpFile(contentArray.join('\n'), path.extname(fileName));
+			let emptyContentFilePath = await writeTmpFile('', path.extname(fileName));
+			let richFileChange = review.status === 'removed' ?
+				new RichFileChange(emptyContentFilePath, contentFilePath, gitChangeType, fileName, diffHunks) :
+				new RichFileChange(contentFilePath, emptyContentFilePath, gitChangeType, fileName, diffHunks);
 			richFileChange.blobUrl = review.blob_url;
 			richFileChanges.push(richFileChange);
 		}
@@ -343,18 +256,3 @@ export async function parseDiff(reviews: any[], repository: Repository, parentCo
 	return richFileChanges;
 }
 
-export function mapCommentsToHead(prPatch: string, localDiff: string, comments: Comment[]) {
-	for (let i = 0; i < comments.length; i++) {
-		const comment = comments[i];
-
-		// Diff line is null when the original line the comment was on has been removed
-		const diffLine = getDiffLineByPosition(prPatch, comment.position | comment.original_position);
-		if (diffLine) {
-			const positionInPr = diffLine.newLineNumber;
-			const newPosition = mapOldPositionToNew(localDiff, positionInPr);
-			comment.absolutePosition = newPosition;
-		}
-	}
-
-	return comments;
-}
