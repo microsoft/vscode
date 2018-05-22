@@ -16,7 +16,11 @@ export default class TypeScriptSignatureHelpProvider implements vscode.Signature
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async provideSignatureHelp(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken): Promise<vscode.SignatureHelp | undefined> {
+	public async provideSignatureHelp(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.SignatureHelp | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return undefined;
