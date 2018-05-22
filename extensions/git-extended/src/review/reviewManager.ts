@@ -19,8 +19,6 @@ import { GitErrorCodes } from '../common/models/gitError';
 import { groupBy } from '../common/util';
 import { mapHeadLineToDiffHunkPosition, mapCommentsToHead, mapOldPositionToNew, getDiffLineByPosition, getLastDiffLine } from '../common/diffPositionMapping';
 
-const REVIEW_STATE = 'git-extended.state';
-
 export interface ReviewState {
 	remote: string;
 	prNumber: number;
@@ -40,6 +38,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _localFileChanges: FileChangeTreeItem[] = [];
 	private _obsoleteFileChanges: FileChangeTreeItem[] = [];
 	private _lastCommitSha: string;
+	private _updateMessageShown: boolean = false;
 
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 
@@ -71,8 +70,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 	private constructor(
 		private _context: vscode.ExtensionContext,
-		private _repository: Repository,
-		private _workspaceState: vscode.Memento
+		private _repository: Repository
 	) {
 		this._documentCommentProvider = null;
 		this._workspaceCommentProvider = null;
@@ -96,7 +94,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 		_context: vscode.ExtensionContext,
 		_repository: Repository
 	) {
-		ReviewManager._instance = new ReviewManager(_context, _repository, _context.workspaceState);
+		ReviewManager._instance = new ReviewManager(_context, _repository);
 	}
 
 	static get instance() {
@@ -222,15 +220,22 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	private async updateComments(): Promise<void> {
-		const branch = this._repository.HEAD.name;
-		const state = this._workspaceState.get(`${REVIEW_STATE}:${branch}`) as ReviewState;
-		if (!state) { return; }
+		const matchingPullRequestMetadata = await PullRequestGitHelper.getMatchingPullRequestMetadataForBranch(this._repository, this._repository.HEAD.name);
+		if (!matchingPullRequestMetadata) { return; }
 
-		const remote = this._repository.remotes.find(remote => remote.remoteName === state.remote);
+		const branch = this._repository.HEAD;
+		if (!branch) { return; }
+
+		const remote = branch.upstream ? branch.upstream.remote : null;
 		if (!remote) { return; }
 
-		const githubRepo = this._repository.githubRepositories.find(repo => repo.remote.equals(remote));
-		if (!githubRepo) { return; }
+		const githubRepo = this._repository.githubRepositories.find(repo =>
+			repo.remote.owner.toLocaleLowerCase() === matchingPullRequestMetadata.owner.toLocaleLowerCase()
+		);
+
+		if (!githubRepo) {
+			return;
+		}
 
 		const pr = await githubRepo.getPullRequest(this._prNumber);
 		if (!pr) {
@@ -238,10 +243,15 @@ export class ReviewManager implements vscode.DecorationProvider {
 			return;
 		}
 
-		if (pr.prItem.head.sha !== this._lastCommitSha) {
-			await vscode.window.showInformationMessage('There are updates available for this branch.');
-			// TODO: Have 'Pull' option that will fetch latest from ref branch and apply to read only branch
-			// TODO: Prevent repeatedly popping this message up if user has already dismissed it
+		if (pr.prItem.head.sha !== this._lastCommitSha && !this._updateMessageShown) {
+			this._updateMessageShown = true;
+			await vscode.window.showInformationMessage('There are updates available for this branch.', {}, 'Pull').then(result => {
+				if (result === 'Pull') {
+					vscode.commands.executeCommand('git.pull').then(() => {
+						this._updateMessageShown = false;
+					});
+				}
+			});
 		}
 
 		const comments = await pr.getComments();
@@ -676,6 +686,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private clear(quitReviewMode: boolean) {
 		this._prNumber = null;
 		this._pr = null;
+		this._updateMessageShown = false;
 
 		if (this._command) {
 			this._command.dispose();
