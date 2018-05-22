@@ -546,7 +546,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private checkForDependenciesAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
 		return this.preUninstallExtension(extension)
-			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.promptAndUninstall(extension, installed, force))
+			.then(() => this.hasDependencies(extension, installed) ? this.promptForDependenciesAndUninstall(extension, installed, force) : this.uninstallWithDependencies(extension, [], installed))
 			.then(() => this.postUninstallExtension(extension),
 				error => {
 					this.postUninstallExtension(extension, new ExtensionManagementError(error instanceof Error ? error.message : error, INSTALL_ERROR_LOCAL));
@@ -582,27 +582,6 @@ export class ExtensionManagementService extends Disposable implements IExtension
 				if (value === 1) {
 					const dependencies = distinct(this.getDependenciesToUninstallRecursively(extension, installed, [])).filter(e => e !== extension);
 					return this.uninstallWithDependencies(extension, dependencies, installed);
-				}
-				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
-				return TPromise.wrapError(errors.canceled());
-			}, error => TPromise.wrapError(errors.canceled()));
-	}
-
-	private promptAndUninstall(extension: ILocalExtension, installed: ILocalExtension[], force: boolean): TPromise<void> {
-		if (force) {
-			return this.uninstallWithDependencies(extension, [], installed);
-		}
-
-		const message = nls.localize('uninstallConfirmation', "Are you sure you want to uninstall '{0}'?", extension.manifest.displayName || extension.manifest.name);
-		const buttons = [
-			nls.localize('ok', "OK"),
-			nls.localize('cancel', "Cancel")
-		];
-		this.logService.info('Requesting for confirmation to uninstall extension', extension.identifier.id);
-		return this.dialogService.show(Severity.Info, message, buttons, { cancelId: 1 })
-			.then<void>(value => {
-				if (value === 0) {
-					return this.uninstallWithDependencies(extension, [], installed);
 				}
 				this.logService.info('Cancelled uninstalling extension:', extension.identifier.id);
 				return TPromise.wrapError(errors.canceled());
