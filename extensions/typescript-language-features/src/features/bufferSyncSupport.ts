@@ -216,8 +216,7 @@ export default class BufferSyncSupport {
 		this.requestDiagnostic(resource);
 	}
 
-	private onDidCloseTextDocument(document: TextDocument): void {
-		const resource = document.uri;
+	public closeResource(resource: Uri): void {
 		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
@@ -228,6 +227,10 @@ export default class BufferSyncSupport {
 		if (!fs.existsSync(resource.fsPath)) {
 			this.requestAllDiagnostics();
 		}
+	}
+
+	private onDidCloseTextDocument(document: TextDocument): void {
+		this.closeResource(document.uri);
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {

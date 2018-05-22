@@ -71,6 +71,7 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
+		this.bufferSyncSupport.closeResource(oldResource);
 		this.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
