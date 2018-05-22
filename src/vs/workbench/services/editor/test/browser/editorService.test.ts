@@ -434,8 +434,7 @@ suite('Editor service', () => {
 		});
 	});
 
-	// TODO define what should happen with { forceOpen: true } and events
-	test('pasero active editor change / visible editor change events', async function () {
+	test('active editor change / visible editor change events', async function () {
 		const partInstantiator = workbenchInstantiationService();
 
 		const part = partInstantiator.createInstance(EditorPart, 'id', false);
@@ -490,7 +489,7 @@ suite('Editor service', () => {
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		// // 2.) open, open same (forced open)
+		// 2.) open, open same (forced open)
 		editor = await service.openEditor(input);
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
@@ -562,16 +561,12 @@ suite('Editor service', () => {
 		assertVisibleEditorsChangedEvent(false);
 
 		rightGroup.openEditor(otherInput);
-		assertActiveEditorChangedEvent(false);
+		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
 		rightGroup.closeEditor(otherInput);
-		assertActiveEditorChangedEvent(false);
+		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
-
-		part.removeGroup(rightGroup);
-		assertActiveEditorChangedEvent(false);
-		assertVisibleEditorsChangedEvent(false);
 
 		editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
@@ -587,20 +582,16 @@ suite('Editor service', () => {
 		assertVisibleEditorsChangedEvent(false);
 
 		rightGroup.openEditor(otherInput);
-		assertActiveEditorChangedEvent(false);
+		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(true);
 
-		rightGroup.focus();
+		editor.group.focus();
 		assertActiveEditorChangedEvent(true);
 		assertVisibleEditorsChangedEvent(false);
 
 		rightGroup.closeEditor(otherInput);
-		assertActiveEditorChangedEvent(true);
+		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
-
-		part.removeGroup(rightGroup);
-		assertActiveEditorChangedEvent(true);
-		assertVisibleEditorsChangedEvent(false);
 
 		editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
@@ -621,6 +612,23 @@ suite('Editor service', () => {
 
 		editor.group.closeAllEditors();
 		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		// 9.) close editor in inactive group
+		editor = await service.openEditor(input, { pinned: true });
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		rightGroup = part.addGroup(part.activeGroup, GroupDirection.RIGHT);
+		assertActiveEditorChangedEvent(false);
+		assertVisibleEditorsChangedEvent(false);
+
+		rightGroup.openEditor(otherInput);
+		assertActiveEditorChangedEvent(true);
+		assertVisibleEditorsChangedEvent(true);
+
+		editor.group.closeEditor(input);
+		assertActiveEditorChangedEvent(false);
 		assertVisibleEditorsChangedEvent(true);
 
 		// cleanup

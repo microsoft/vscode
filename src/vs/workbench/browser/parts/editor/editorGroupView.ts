@@ -663,7 +663,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
-		return this.doShowEditor(editor, openEditorOptions.active, options);
+		const showEditorResult = this.doShowEditor(editor, openEditorOptions.active, options);
+
+		// Set group active unless we open inactive or preserve focus
+		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
+			this.accessor.activateGroup(this);
+		}
+
+		return showEditorResult;
 	}
 
 	private doShowEditor(editor: EditorInput, active: boolean, options?: EditorOptions): TPromise<void> {
@@ -910,15 +917,14 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.focus();
 			}
 
+			// Events
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
+
 			// Check if group gets closed now
 			const closeGroup = this.isEmpty() && this.accessor.partOptions.closeEmptyGroups;
 			if (closeGroup) {
 				this.accessor.removeGroup(this);
 			}
-
-			// Editor Change Event (intentionally put after the possible removeGroup() call
-			// to reduce event spam to clients)
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
 		}
 	}
 

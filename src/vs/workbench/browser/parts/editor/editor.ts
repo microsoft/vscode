@@ -34,9 +34,11 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	tabSizing: 'fit',
 	showIcons: true,
 	enablePreview: true,
+	openPositioning: 'right',
+	openSideBySideDirection: 'right',
+	closeEmptyGroups: true,
 	labelFormat: 'default',
-	iconTheme: 'vs-seti',
-	revealIfOpen: false
+	iconTheme: 'vs-seti'
 };
 
 export function impactsEditorPartOptions(event: IConfigurationChangeEvent): boolean {
