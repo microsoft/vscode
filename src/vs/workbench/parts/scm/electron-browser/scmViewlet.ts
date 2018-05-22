@@ -1202,7 +1202,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		const start = this.getContributedViewsStartIndex();
 
-		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+		for (let i = 0; i < this.contributedViews.visibleViewDescriptors.length; i++) {
 			const panel = this.panels[start + i] as ViewsViewletPanel;
 			promises.push(panel.setVisible(visible));
 		}
