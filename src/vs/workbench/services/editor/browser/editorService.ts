@@ -58,7 +58,9 @@ export class EditorService extends Disposable implements IEditorService {
 
 	private fileInputFactory: IFileInputFactory;
 	private openEditorHandlers: IOpenEditorOverrideHandler[] = [];
+
 	private lastActiveEditor: IEditorInput;
+	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
@@ -91,6 +93,11 @@ export class EditorService extends Disposable implements IEditorService {
 			return; // ignore if we still have no active editor
 		}
 
+		if (this.lastActiveGroupId === group.id && this.lastActiveEditor === group.activeEditor) {
+			return; // ignore if the editor actually did not change
+		}
+
+		this.lastActiveGroupId = group.id;
 		this.lastActiveEditor = group.activeEditor;
 
 		this._onDidActiveEditorChange.fire();

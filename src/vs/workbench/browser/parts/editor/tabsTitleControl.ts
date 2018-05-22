@@ -978,14 +978,14 @@ export class TabsTitleControl extends TitleControl {
 				sourceGroup.copyEditor(draggedEditor.editor, this.group, { index: targetIndex });
 			}
 
-			this.accessor.focusGroup(this.group.id);
+			this.group.focus();
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
 		}
 
 		// External DND
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false /* open workspace file as file if dropped */ });
-			dropHandler.handleDrop(e, () => this.accessor.focusGroup(this.group.id), () => this.group.id, targetIndex);
+			dropHandler.handleDrop(e, () => this.group, () => this.group.focus(), targetIndex);
 		}
 	}
 

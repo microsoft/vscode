@@ -6,7 +6,6 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
@@ -18,8 +17,7 @@ import URI from 'vs/base/common/uri';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
@@ -30,7 +28,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IEditorService private editorService: IEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
@@ -90,7 +87,6 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 
 	private doOpenDirtyResources(resources: URI[]): void {
 		const activeEditor = this.editorService.activeControl;
-		const activeGroup = activeEditor ? activeEditor.group : this.editorGroupService.activeGroup;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
@@ -98,7 +94,7 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 				resource,
 				options: { inactive: true, pinned: true, preserveFocus: true }
 			};
-		}), activeGroup).then(undefined, errors.onUnexpectedError);
+		}), activeEditor ? activeEditor.group : ACTIVE_GROUP);
 	}
 
 	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {

@@ -166,7 +166,7 @@ class DropOverlay extends Themable {
 		const ensureTargetGroup = () => {
 			let targetGroup: IEditorGroupView;
 			if (typeof splitDirection === 'number') {
-				targetGroup = this.accessor.addGroup(this.groupView, splitDirection, { activate: true });
+				targetGroup = this.accessor.addGroup(this.groupView, splitDirection);
 			} else {
 				targetGroup = this.groupView;
 			}
@@ -222,8 +222,8 @@ class DropOverlay extends Themable {
 			const options = getActiveTextEditorOptions(sourceGroup, draggedEditor.editor, EditorOptions.create({ pinned: true }));
 			targetGroup.openEditor(draggedEditor.editor, options);
 
-			// Ensure target is active
-			this.accessor.activateGroup(targetGroup);
+			// Ensure target has focus
+			targetGroup.focus();
 
 			// Close in source group unless we copy
 			const copyEditor = this.isCopyOperation(event, draggedEditor);
@@ -237,12 +237,12 @@ class DropOverlay extends Themable {
 		// Check for URI transfer
 		else {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true /* open workspace instead of file if dropped */ });
-			dropHandler.handleDrop(event, targetGroupIdentifier => this.accessor.activateGroup(targetGroupIdentifier), () => ensureTargetGroup().id);
+			dropHandler.handleDrop(event, () => ensureTargetGroup(), targetGroup => targetGroup.focus());
 		}
 	}
 
 	private isCopyOperation(e: DragEvent, draggedEditor?: IEditorIdentifier): boolean {
-		if (draggedEditor && draggedEditor.editor instanceof EditorInput && !draggedEditor.editor.supportsSplitEditor()) {
+		if (draggedEditor && !(draggedEditor.editor as EditorInput).supportsSplitEditor()) {
 			return false;
 		}
 

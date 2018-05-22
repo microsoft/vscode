@@ -154,7 +154,7 @@ export class EditorControl extends Disposable {
 		const operation = this.editorOperation.start(this.partService.isCreated() ? 800 : 3200);
 
 		// Call into editor control
-		const editorWillChange = !inputMatches || forceOpen;
+		const editorWillChange = !inputMatches;
 		return toWinJsPromise(control.setInput(editor, options, operation.token)).then(() => {
 
 			// Focus (unless prevented or another operation is running)

@@ -265,16 +265,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		return groupView;
 	}
 
-	focusGroup(group: IEditorGroupView | GroupIdentifier): IEditorGroupView {
-		const groupView = this.assertGroupView(group);
-
-		// Activate and focus group
-		this.doSetGroupActive(groupView);
-		groupView.focus();
-
-		return groupView;
-	}
-
 	resizeGroup(group: IEditorGroupView | GroupIdentifier, sizeDelta: number): IEditorGroupView {
 		const groupView = this.assertGroupView(group);
 		const currentSize = this.gridWidget.getViewSize(groupView);
@@ -500,7 +490,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this.focusGroup(this._activeGroup);
+			this._activeGroup.focus();
 		}
 
 		// Update labels: since our labels are created using the index of the
@@ -541,7 +531,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
 		if (groupHasFocus) {
-			this.focusGroup(sourceView);
+			sourceView.focus();
 		}
 
 		// Event
@@ -561,7 +551,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Restore focus if we had it
 		if (groupHasFocus) {
-			this.focusGroup(copiedGroupView);
+			copiedGroupView.focus();
 		}
 
 		return copiedGroupView;

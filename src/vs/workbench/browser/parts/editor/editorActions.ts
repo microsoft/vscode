@@ -52,16 +52,15 @@ export class BaseSplitEditorGroupAction extends Action {
 		}
 
 		// Add group
-		const newGroup = this.editorGroupService.addGroup(sourceGroup, direction, { activate: true });
+		const newGroup = this.editorGroupService.addGroup(sourceGroup, direction);
 
 		// Split editor (if it can be split)
-		if (sourceGroup.activeEditor) {
-			if (sourceGroup.activeEditor instanceof EditorInput && !sourceGroup.activeEditor.supportsSplitEditor()) {
-				return;
-			}
-
+		if (sourceGroup.activeEditor && (sourceGroup.activeEditor as EditorInput).supportsSplitEditor()) {
 			sourceGroup.copyEditor(sourceGroup.activeEditor, newGroup);
 		}
+
+		// Focus
+		newGroup.focus();
 	}
 }
 
@@ -549,7 +548,7 @@ export class RevertAndCloseEditorAction extends Action {
 
 	public run(): TPromise<any> {
 		const activeControl = this.editorService.activeControl;
-		if (activeControl && activeControl.input) {
+		if (activeControl) {
 			const editor = activeControl.input;
 			const group = activeControl.group;
 
@@ -576,13 +575,13 @@ export class CloseLeftEditorsInGroupAction extends Action {
 		id: string,
 		label: string,
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private groupService: IEditorGroupsService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, label);
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		const { group, editor } = getTarget(this.editorService, this.groupService, context);
+		const { group, editor } = getTarget(this.editorService, this.editorGroupService, context);
 		if (group && editor) {
 			return group.closeEditors({ direction: CloseDirection.LEFT, except: editor });
 		}

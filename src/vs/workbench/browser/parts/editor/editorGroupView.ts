@@ -894,14 +894,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.focus();
 			}
 
-			// Editor Change Event
-			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
-
 			// Check if group gets closed now
 			const closeGroup = this.isEmpty() && this.accessor.partOptions.closeEmptyGroups;
 			if (closeGroup) {
 				this.accessor.removeGroup(this);
 			}
+
+			// Editor Change Event (intentionally put after the possible removeGroup() call
+			// to reduce event spam to clients)
+			this._onDidGroupChange.fire({ kind: GroupChangeKind.EDITOR_ACTIVE });
 		}
 	}
 

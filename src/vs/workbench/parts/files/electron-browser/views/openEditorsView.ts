@@ -529,7 +529,7 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 				this.editorGroupService.activateGroup(editorGroupTemplate.editorGroup);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(editorGroupTemplate.editorGroup), () => editorGroupTemplate.editorGroup.id);
+				dropHandler.handleDrop(e, () => editorGroupTemplate.editorGroup, () => editorGroupTemplate.editorGroup.focus());
 			}
 		}));
 
@@ -614,7 +614,7 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 				this.editorGroupService.activateGroup(editorTemplate.openEditor.group);
 			} else {
 				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: false });
-				dropHandler.handleDrop(e, () => this.editorGroupService.activateGroup(editorTemplate.openEditor.group), () => editorTemplate.openEditor.group.id, index);
+				dropHandler.handleDrop(e, () => editorTemplate.openEditor.group, () => editorTemplate.openEditor.group.focus(), index);
 			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_END, () => {

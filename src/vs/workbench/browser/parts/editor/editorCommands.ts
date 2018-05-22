@@ -138,25 +138,25 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 		case 'left':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT, { activate: true });
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.LEFT);
 			}
 			break;
 		case 'right':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT, { activate: true });
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.RIGHT);
 			}
 			break;
 		case 'up':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP, { activate: true });
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.UP);
 			}
 			break;
 		case 'down':
 			targetGroup = editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
 			if (!targetGroup) {
-				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN, { activate: true });
+				targetGroup = editorGroupService.addGroup(sourceGroup, GroupDirection.DOWN);
 			}
 			break;
 		case 'first':
@@ -181,6 +181,7 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 
 	if (targetGroup) {
 		sourceGroup.moveEditor(control.input, targetGroup);
+		targetGroup.focus();
 	}
 }
 
@@ -308,17 +309,16 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				// Group does not exist: create new by splitting the active one of the last group
 				const direction = preferredGroupDirection(configurationService);
 				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
-				const newGroup = editorGroupService.addGroup(lastGroup, direction, { activate: true });
+				const newGroup = editorGroupService.addGroup(lastGroup, direction);
 
 				// To keep backwards compatibility (pre-grid) we automatically copy the active editor
 				// of the last group over to the new group as long as it supports to be split.
-				if (lastGroup.activeEditor) {
-					if (lastGroup.activeEditor instanceof EditorInput && !lastGroup.activeEditor.supportsSplitEditor()) {
-						return;
-					}
-
+				if (lastGroup.activeEditor && (lastGroup.activeEditor as EditorInput).supportsSplitEditor()) {
 					lastGroup.copyEditor(lastGroup.activeEditor, newGroup);
 				}
+
+				// Focus
+				newGroup.focus();
 			}
 		});
 	}

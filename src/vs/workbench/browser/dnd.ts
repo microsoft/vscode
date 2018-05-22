@@ -34,6 +34,7 @@ import { basenameOrAuthority } from 'vs/base/common/resources';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface IDraggedResource {
 	resource: URI;
@@ -168,7 +169,7 @@ export class ResourcesDropHandler {
 	) {
 	}
 
-	handleDrop(event: DragEvent, afterDrop: (targetGroup: GroupIdentifier) => void, resolveTargetGroup: () => GroupIdentifier, targetIndex?: number): void {
+	handleDrop(event: DragEvent, resolveTargetGroup: () => IEditorGroup, afterDrop: (targetGroup: IEditorGroup) => void, targetIndex?: number): void {
 		const untitledOrFileResources = extractResources(event).filter(r => this.fileService.canHandleResource(r.resource) || r.resource.scheme === Schemas.untitled);
 		if (!untitledOrFileResources.length) {
 			return;

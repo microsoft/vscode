@@ -1136,7 +1136,7 @@ export abstract class BaseNavigationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService protected groupService: IEditorGroupsService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IPanelService protected panelService: IPanelService,
 		@IPartService protected partService: IPartService,
 		@IViewletService protected viewletService: IViewletService
@@ -1200,9 +1200,9 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
-		const nextGroup = this.groupService.findGroup({ direction });
+		const nextGroup = this.editorGroupService.findGroup({ direction });
 		if (nextGroup) {
-			this.groupService.focusGroup(nextGroup);
+			nextGroup.focus();
 			return TPromise.as(true);
 		}
 
@@ -1210,7 +1210,7 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateToActiveEditorGroup(): TPromise<boolean> {
-		this.groupService.focusGroup(this.groupService.activeGroup);
+		this.editorGroupService.activeGroup.focus();
 
 		return TPromise.as(true);
 	}
@@ -1224,12 +1224,12 @@ export class NavigateLeftAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService groupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
@@ -1276,12 +1276,12 @@ export class NavigateRightAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService groupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet | IPanel> {
@@ -1328,12 +1328,12 @@ export class NavigateUpAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService groupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
@@ -1357,12 +1357,12 @@ export class NavigateDownAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService groupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
 	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
