@@ -5,19 +5,19 @@
 
 import * as path from 'path';
 import * as vscode from 'vscode';
-import { Repository } from '../common/models/repository';
-import { FileChangeTreeItem } from '../common/treeItems';
 import { parseDiff } from '../common/diff';
-import { GitContentProvider } from './gitContentProvider';
-import { Comment } from '../common/models/comment';
-import { PullRequestModel } from '../common/models/pullRequestModel';
-import { toGitUri } from '../common/uri';
-import { GitChangeType } from '../common/models/file';
-import { FileChangesProvider } from './fileChangesProvider';
+import { getDiffLineByPosition, getLastDiffLine, mapCommentsToHead, mapHeadLineToDiffHunkPosition, mapOldPositionToNew } from '../common/diffPositionMapping';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
-import { GitErrorCodes } from '../common/models/gitError';
+import { FileChangeTreeItem } from '../common/treeItems';
+import { toGitUri } from '../common/uri';
 import { groupBy } from '../common/util';
-import { mapHeadLineToDiffHunkPosition, mapCommentsToHead, mapOldPositionToNew, getDiffLineByPosition, getLastDiffLine } from '../common/diffPositionMapping';
+import { Comment } from '../models/comment';
+import { GitChangeType } from '../models/file';
+import { GitErrorCodes } from '../models/gitError';
+import { PullRequestModel } from '../models/pullRequestModel';
+import { Repository } from '../models/repository';
+import { FileChangesProvider } from './fileChangesProvider';
+import { GitContentProvider } from './gitContentProvider';
 
 export interface ReviewState {
 	remote: string;

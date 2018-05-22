@@ -5,7 +5,7 @@
 'use strict';
 
 import * as vscode from 'vscode';
-import { PullRequestModel } from './common/models/pullRequestModel';
+import { PullRequestModel } from './models/pullRequestModel';
 import { FileChangeTreeItem } from './common/treeItems';
 import { ReviewManager } from './review/reviewManager';
 import { PullRequestOverviewPanel } from './common/pullRequestOverview';

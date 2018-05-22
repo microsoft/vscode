@@ -5,9 +5,9 @@
 
 import * as path from 'path';
 import { getFileContent, writeTmpFile } from './file';
-import { GitChangeType, RichFileChange } from './models/file';
-import { Repository } from './models/repository';
-import { DiffHunk, getDiffChangeType, DiffLine, DiffChangeType } from './models/diffHunk';
+import { GitChangeType, RichFileChange } from '../models/file';
+import { Repository } from '../models/repository';
+import { DiffHunk, getDiffChangeType, DiffLine, DiffChangeType } from '../models/diffHunk';
 
 export const DIFF_HUNK_HEADER = /@@ \-(\d+)(,(\d+))?( \+(\d+)(,(\d+)?))? @@/;
 

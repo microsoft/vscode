@@ -8,8 +8,8 @@ import * as path from 'path';
 import * as tmp from 'tmp';
 import * as vscode from 'vscode';
 import { GitProcess } from 'dugite';
-import { Repository } from './models/repository';
-import { SlimFileChange, GitChangeType, fromStatus } from './models/file';
+import { Repository } from '../models/repository';
+import { SlimFileChange, GitChangeType, fromStatus } from '../models/file';
 
 
 export async function writeTmpFile(content: string, ext: string): Promise<string> {

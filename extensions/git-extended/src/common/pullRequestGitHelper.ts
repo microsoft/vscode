@@ -3,10 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Repository } from '../common/models/repository';
-import { PullRequestModel } from '../common/models/pullRequestModel';
-import { Protocol } from '../common/models/protocol';
-import { Remote } from './models/remote';
+import { Repository } from '../models/repository';
+import { PullRequestModel } from '../models/pullRequestModel';
+import { Protocol } from '../models/protocol';
+import { Remote } from '../models/remote';
 
 const PullRequestRemoteMetadataKey = 'github-pr-remote';
 const PullRequestMetadataKey = 'github-pr-owner-number';

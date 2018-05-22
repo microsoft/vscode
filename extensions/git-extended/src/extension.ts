@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import { PRProvider } from './prView/prProvider';
-import { Repository } from './common/models/repository';
+import { Repository } from './models/repository';
 import { Configuration } from './configuration';
 import { Resource } from './common/resources';
 import { ReviewManager } from './review/reviewManager';

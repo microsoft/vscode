@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { FileChangeTreeItem, PRDescriptionTreeItem } from '../common/treeItems';
 import { Resource } from '../common/resources';
-import { PullRequestModel } from '../common/models/pullRequestModel';
+import { PullRequestModel } from '../models/pullRequestModel';
 
 export class FileChangesProvider extends vscode.Disposable implements vscode.TreeDataProvider<FileChangeTreeItem | PRDescriptionTreeItem> {
 	private _onDidChangeTreeData = new vscode.EventEmitter<FileChangeTreeItem | PRDescriptionTreeItem>();

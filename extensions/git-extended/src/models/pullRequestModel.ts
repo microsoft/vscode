@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { Remote } from './remote';
-import { parseComments } from '../comment';
+import { parseComments } from '../common/comment';
 import { Comment } from './comment';
 import { GitHubRef } from './githubRef';
 import { TimelineEvent, parseTimelineEvents } from './timelineEvent';

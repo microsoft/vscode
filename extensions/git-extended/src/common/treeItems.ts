@@ -4,10 +4,10 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { GitChangeType } from './models/file';
-import { PullRequestModel, PRType } from './models/pullRequestModel';
+import { GitChangeType } from '../models/file';
+import { PullRequestModel, PRType } from '../models/pullRequestModel';
 import { Resource } from './resources';
-import { DiffHunk } from './models/diffHunk';
+import { DiffHunk } from '../models/diffHunk';
 
 export enum PRGroupActionType {
 	Empty,

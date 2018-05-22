@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DiffLine, DiffHunk } from './models/diffHunk';
+import { DiffLine, DiffHunk } from '../models/diffHunk';
 import { parseDiffHunk } from './diff';
-import { Comment } from './models/comment';
+import { Comment } from '../models/comment';
 export function getLastDiffLine(prPatch: string): DiffLine {
 	let lastDiffLine = null;
 	let prDiffReader = parseDiffHunk(prPatch);

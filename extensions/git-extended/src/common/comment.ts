@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Comment } from './models/comment';
+import { Comment } from '../models/comment';
 import { parseDiffHunk } from './diff';
 
 export function parseComments(comments: any[]): Comment[] {

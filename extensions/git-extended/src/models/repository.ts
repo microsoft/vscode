@@ -6,12 +6,12 @@
 import * as vscode from 'vscode';
 import { Remote } from './remote';
 import { GitProcess } from 'dugite';
-import { uniqBy, anyEvent, filterEvent, isDescendant } from '../util';
-import { CredentialStore } from '../../credentials';
+import { uniqBy, anyEvent, filterEvent, isDescendant } from '../common/util';
+import { CredentialStore } from '../credentials';
 import { PullRequestModel, PRType } from './pullRequestModel';
 import { Protocol } from './protocol';
 import { GitError, GitErrorCodes } from './gitError';
-import { PullRequestGitHelper } from '../pullRequestGitHelper';
+import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 
 export enum RefType {
 	Head,

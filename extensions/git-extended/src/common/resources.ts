@@ -5,9 +5,9 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { GitChangeType } from './models/file';
+import { GitChangeType } from '../models/file';
 import { FileChangeTreeItem } from './treeItems';
-import { PullRequestModel } from './models/pullRequestModel';
+import { PullRequestModel } from '../models/pullRequestModel';
 
 export class Resource {
 	static icons: any;
