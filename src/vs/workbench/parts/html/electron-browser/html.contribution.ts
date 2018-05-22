@@ -9,7 +9,7 @@ import { localize } from 'vs/nls';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from './htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -17,7 +17,6 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
-import { findEditorGroup } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 
 function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI | string) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
@@ -40,7 +39,7 @@ function getActivePreviewsForResource(accessor: ServicesAccessor, resource: URI 
 CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	accessor: ServicesAccessor,
 	resource: URI | string,
-	position?: EditorPosition,
+	position?: EditorViewColumn,
 	label?: string
 ) {
 	const uri = resource instanceof URI ? resource : URI.parse(resource);
@@ -81,7 +80,7 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	}
 
 	return accessor.get(IEditorService)
-		.openEditor(input, { pinned: true }, findEditorGroup(editorGroupService, position))
+		.openEditor(input, { pinned: true }, viewColumnToEditorGroup(editorGroupService, position))
 		.then(editor => true);
 });
 

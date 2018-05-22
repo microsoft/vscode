@@ -9,7 +9,7 @@ import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -71,7 +71,7 @@ export class OpenAPICommand {
 	public static ID = 'vscode.open';
 	public static execute(executor: ICommandsExecutor, resource: URI, columnOrOptions?: vscode.ViewColumn | vscode.TextDocumentShowOptions): Thenable<any> {
 		let options: ITextEditorOptions;
-		let position: EditorPosition;
+		let position: EditorViewColumn;
 
 		if (columnOrOptions) {
 			if (typeof columnOrOptions === 'number') {

@@ -7,7 +7,7 @@
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
@@ -157,7 +157,7 @@ export namespace DiagnosticSeverity {
 }
 
 export namespace ViewColumn {
-	export function from(column?: vscode.ViewColumn): EditorPosition {
+	export function from(column?: vscode.ViewColumn): EditorViewColumn {
 		let editorColumn = 0;
 		if (typeof column !== 'number') {
 			// stick with ONE
@@ -171,7 +171,7 @@ export namespace ViewColumn {
 		return editorColumn;
 	}
 
-	export function to(position?: EditorPosition): vscode.ViewColumn {
+	export function to(position?: EditorViewColumn): vscode.ViewColumn {
 		if (typeof position !== 'number') {
 			return undefined;
 		}

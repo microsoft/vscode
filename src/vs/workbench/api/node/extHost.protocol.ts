@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
@@ -181,7 +181,7 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 }
 
 export interface ITextDocumentShowOptions {
-	position?: EditorPosition;
+	position?: EditorViewColumn;
 	preserveFocus?: boolean;
 	pinned?: boolean;
 	selection?: IRange;
@@ -191,7 +191,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
-	$tryShowEditor(id: string, position: EditorPosition): TPromise<void>;
+	$tryShowEditor(id: string, position: EditorViewColumn): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
@@ -356,9 +356,9 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewPanelHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, viewOptions: { viewColumn: EditorPosition, preserveFocus: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionLocation: UriComponents): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, viewOptions: { viewColumn: EditorViewColumn, preserveFocus: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
-	$reveal(handle: WebviewPanelHandle, viewColumn: EditorPosition | null, preserveFocus: boolean): void;
+	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
@@ -369,9 +369,9 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorPosition): void;
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorViewColumn): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
+	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: vscode.WebviewOptions): Thenable<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -543,10 +543,10 @@ export interface ITextEditorAddData {
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	visibleRanges: IRange[];
-	editorPosition: EditorPosition;
+	editorPosition: EditorViewColumn;
 }
 export interface ITextEditorPositionData {
-	[id: string]: EditorPosition;
+	[id: string]: EditorViewColumn;
 }
 export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;

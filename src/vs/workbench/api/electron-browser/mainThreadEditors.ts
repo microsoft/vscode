@@ -18,12 +18,11 @@ import { IRange } from 'vs/editor/common/core/range';
 import { ISelection } from 'vs/editor/common/core/selection';
 import { IDecorationOptions, IDecorationRenderOptions, ILineChange } from 'vs/editor/common/editorCommon';
 import { ISingleEditOperation } from 'vs/editor/common/model';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IApplyEditsOptions, ITextEditorConfigurationUpdate, IUndoStopOptions, TextEditorRevealType, WorkspaceEditDto, reviveWorkspaceEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from './mainThreadEditor';
@@ -123,7 +122,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 			options: editorOptions
 		};
 
-		return this._editorService.openEditor(input, findEditorGroup(this._editorGroupService, options.position)).then(editor => {
+		return this._editorService.openEditor(input, viewColumnToEditorGroup(this._editorGroupService, options.position)).then(editor => {
 			if (!editor) {
 				return undefined;
 			}
@@ -131,14 +130,14 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 		});
 	}
 
-	$tryShowEditor(id: string, position?: EditorPosition): TPromise<void> {
+	$tryShowEditor(id: string, position?: EditorViewColumn): TPromise<void> {
 		let mainThreadEditor = this._documentsAndEditors.getEditor(id);
 		if (mainThreadEditor) {
 			let model = mainThreadEditor.getModel();
 			return this._editorService.openEditor({
 				resource: model.uri,
 				options: { preserveFocus: false }
-			}, findEditorGroup(this._editorGroupService, position)).then(() => { return; });
+			}, viewColumnToEditorGroup(this._editorGroupService, position)).then(() => { return; });
 		}
 		return undefined;
 	}
@@ -247,16 +246,16 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 // --- commands
 
-CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
+CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	const [resource, options, position] = args;
 
-	return editorService.openEditor({ resource, options }, findEditorGroup(editorGroupService, position)).then(() => void 0);
+	return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
 });
 
-CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorPosition]) {
+CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
@@ -272,25 +271,5 @@ CommandsRegistry.registerCommand('_workbench.diff', function (accessor: Services
 		label = localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
 	}
 
-	return editorService.openEditor({ leftResource, rightResource, label, description, options }, findEditorGroup(editorGroupService, position)).then(() => void 0);
+	return editorService.openEditor({ leftResource, rightResource, label, description, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
 });
-
-export function findEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorPosition): GroupIdentifier {
-	if (typeof position !== 'number') {
-		return ACTIVE_GROUP; // prefer active group when position is undefined
-	}
-
-	const groups = editorGroupService.groups;
-
-	let candidate = groups[position];
-	if (candidate) {
-		return candidate.id; // found direct match
-	}
-
-	let firstGroup = groups[0];
-	if (groups.length === 1 && firstGroup.count === 0) {
-		return firstGroup.id; // first editor should always open in first group
-	}
-
-	return SIDE_GROUP; // open to the side if group not found
-}

@@ -8,7 +8,7 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn, viewColumnToEditorGroup } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { ExtHostContext, ExtHostWebviewsShape, IExtHostContext, MainContext, MainThreadWebviewsShape, WebviewPanelHandle } from 'vs/workbench/api/node/extHost.protocol';
@@ -19,7 +19,6 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { extHostNamedCustomer } from './extHostCustomers';
-import { findEditorGroup } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
@@ -69,14 +68,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
-		showOptions: { viewColumn: EditorPosition | null, preserveFocus: boolean },
+		showOptions: { viewColumn: EditorViewColumn | null, preserveFocus: boolean },
 		options: WebviewInputOptions,
 		extensionLocation: UriComponents
 	): void {
 		const mainThreadShowOptions: ICreateWebViewShowOptions = Object.create(null);
 		if (showOptions) {
 			mainThreadShowOptions.preserveFocus = showOptions.preserveFocus;
-			mainThreadShowOptions.group = findEditorGroup(this._editorGroupService, showOptions.viewColumn);
+			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
 		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, mainThreadShowOptions, options, URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
@@ -104,13 +103,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		webview.html = value;
 	}
 
-	$reveal(handle: WebviewPanelHandle, viewColumn: EditorPosition | null, preserveFocus: boolean): void {
+	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
 		}
 
-		const targetGroup = this._editorGroupService.getGroup(findEditorGroup(this._editorGroupService, viewColumn));
+		const targetGroup = this._editorGroupService.getGroup(viewColumnToEditorGroup(this._editorGroupService, viewColumn));
 
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, preserveFocus);
 	}

@@ -13,7 +13,7 @@ import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, IText
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IEditor } from 'vs/workbench/common/editor';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
@@ -421,7 +421,7 @@ export class MainThreadDocumentsAndEditors {
 		};
 	}
 
-	private _findEditorPosition(editor: MainThreadTextEditor): EditorPosition {
+	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn {
 		for (let workbenchEditor of this._editorService.visibleControls) {
 			if (editor.matches(workbenchEditor)) {
 				return this.findEditorPosition(workbenchEditor);

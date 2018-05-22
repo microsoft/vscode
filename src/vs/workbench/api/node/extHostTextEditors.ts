@@ -11,7 +11,7 @@ import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { EditorPosition } from 'vs/workbench/api/shared/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, WorkspaceEditDto, IEditorPropertiesChangeData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -73,7 +73,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			};
 		} else {
 			options = {
-				position: 0 as EditorPosition,
+				position: 0 as EditorViewColumn,
 				preserveFocus: false
 			};
 		}
