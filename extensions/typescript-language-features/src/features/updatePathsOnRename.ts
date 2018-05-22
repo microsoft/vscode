@@ -142,7 +142,7 @@ export class UpdateImportsOnFileRenameHandler {
 				choice: Choice.Never,
 			},
 		], {
-				placeHolder: localize('prompt', "Update import paths for '{0}'?", path.basename(newDocument.fileName)),
+				placeHolder: localize('prompt', "Update import paths for moved file: '{0}'?", path.basename(newDocument.fileName)),
 				ignoreFocusOut: true,
 			});
 
