@@ -7,7 +7,7 @@
 
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, ITextEditorOptions, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, IEditorOpeningEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IFileEditorInput, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInputFactoryRegistry, Extensions as EditorExtensions, IFileInputFactory, EditorInput, SideBySideEditorInput, IEditorInputWithOptions, isEditorInputWithOptions, EditorOptions, TextEditorOptions, IEditorIdentifier, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -30,6 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorGroupView, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -76,9 +77,9 @@ export class EditorService extends Disposable implements IEditorService {
 	}
 
 	private registerListeners(): void {
-		this.editorGroupService.whenRestored.then(() => this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group)));
+		this.editorGroupService.whenRestored.then(() => this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView)));
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
-		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group));
+		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
 	}
 
 	private handleActiveEditorChange(group: IEditorGroup): void {
@@ -95,7 +96,7 @@ export class EditorService extends Disposable implements IEditorService {
 		this._onDidActiveEditorChange.fire();
 	}
 
-	private registerGroupListeners(group: IEditorGroup): void {
+	private registerGroupListeners(group: IEditorGroupView): void {
 		const groupDisposeables: IDisposable[] = [];
 
 		groupDisposeables.push(group.onDidGroupChange(e => {

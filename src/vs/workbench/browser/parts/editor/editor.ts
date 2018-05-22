@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput } from 'vs/workbench/common/editor';
+import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -16,6 +16,8 @@ import { assign } from 'vs/base/common/objects';
 import { IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ISerializableView } from 'vs/base/browser/ui/grid/grid';
 import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const EDITOR_TITLE_HEIGHT = 35;
 
@@ -64,6 +66,19 @@ export interface IEditorPartOptionsChangeEvent {
 	newPartOptions: IEditorPartOptions;
 }
 
+export interface IEditorOpeningEvent extends IEditorIdentifier {
+	options?: IEditorOptions;
+
+	/**
+	 * Allows to prevent the opening of an editor by providing a callback
+	 * that will be executed instead. By returning another editor promise
+	 * it is possible to override the opening with another editor. It is ok
+	 * to return a promise that resolves to NULL to prevent the opening
+	 * altogether.
+	 */
+	prevent(callback: () => Thenable<any>): void;
+}
+
 export interface IEditorGroupsAccessor {
 	readonly groups: IEditorGroupView[];
 	readonly activeGroup: IEditorGroupView;
@@ -74,7 +89,6 @@ export interface IEditorGroupsAccessor {
 	getGroup(identifier: GroupIdentifier): IEditorGroupView;
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
-	focusGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
@@ -92,6 +106,10 @@ export interface IEditorGroupView extends IDisposable, ISerializableView, IEdito
 
 	readonly onDidFocus: Event<void>;
 	readonly onWillDispose: Event<void>;
+	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
+	readonly onDidOpenEditorFail: Event<IEditorInput>;
+	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	isEmpty(): boolean;
 	setActive(isActive: boolean): void;
@@ -109,4 +127,21 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
 	}
 
 	return presetOptions || new EditorOptions();
+}
+
+/**
+ * A sub-interface of IEditorService to hide some workbench-core specific
+ * events from clients.
+ */
+export interface IEditorPartService extends IEditorService {
+
+	/**
+	 * Emitted when an editor is closed.
+	 */
+	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
+
+	/**
+	 * Emitted when an editor failed to open.
+	 */
+	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
 }

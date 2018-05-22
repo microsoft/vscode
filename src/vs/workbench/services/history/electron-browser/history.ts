@@ -31,6 +31,7 @@ import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorE
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { Schemas } from 'vs/base/common/network';
+import { IEditorPartService } from 'vs/workbench/browser/parts/editor/editor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -124,7 +125,7 @@ export class HistoryService implements IHistoryService {
 	private fileInputFactory: IFileInputFactory;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private editorService: IEditorPartService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,

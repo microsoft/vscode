@@ -7,7 +7,7 @@
 
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IResourceInput, IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorCloseEvent, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, ITextEditor, ITextDiffEditor, ITextSideBySideEditor } from 'vs/workbench/common/editor';
 import { Event } from 'vs/base/common/event';
 import { IEditor as ICodeEditor } from 'vs/editor/common/editorCommon';
 import { IEditorGroup, IEditorReplacement } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -58,16 +58,6 @@ export interface IEditorService {
 	 * @see `IEditorService.visibleEditors`
 	 */
 	readonly onDidVisibleEditorsChange: Event<void>;
-
-	/**
-	 * Emitted when an editor is closed.
-	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
-	 * Emitted when an editor failed to open.
-	 */
-	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
 
 	/**
 	 * The currently active editor or `undefined` if none. An editor is active when it is

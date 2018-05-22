@@ -7,7 +7,7 @@
 
 import { Event } from 'vs/base/common/event';
 import { createDecorator, ServiceIdentifier, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IEditorInput, IEditor, GroupIdentifier, IEditorOpeningEvent, IEditorInputWithOptions, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { IEditorInput, IEditor, GroupIdentifier, IEditorInputWithOptions, CloseDirection } from 'vs/workbench/common/editor';
 import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -192,11 +192,6 @@ export interface IEditorGroupsService {
 	getGroup(identifier: GroupIdentifier): IEditorGroup;
 
 	/**
-	 * Move keyboard focus into the provided group.
-	 */
-	focusGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
-
-	/**
 	 * Set a group as active. An active group is the default location for new editors to open.
 	 */
 	activateGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
@@ -305,6 +300,11 @@ export interface IGroupChangeEvent {
 export interface IEditorGroup {
 
 	/**
+	 * An aggregated event for when the group changes in any way.
+	 */
+	readonly onDidGroupChange: Event<IGroupChangeEvent>;
+
+	/**
 	 * A unique identifier of this group that remains identical even if the
 	 * group is moved to different locations.
 	 */
@@ -343,40 +343,6 @@ export interface IEditorGroup {
 	 * All opened editors in the group. There can only be one editor active.
 	 */
 	readonly editors: ReadonlyArray<IEditorInput>;
-
-	/**
-	 * An aggregated event for when the group changes in any way.
-	 */
-	readonly onDidGroupChange: Event<IGroupChangeEvent>;
-
-	/**
-	 * Emitted when this group is being disposed.
-	 */
-	readonly onWillDispose: Event<void>;
-
-	/**
-	 * Emitted when an editor is about to open. This can be prevented from
-	 * the provided event.
-	 */
-	readonly onWillOpenEditor: Event<IEditorOpeningEvent>;
-
-	/**
-	 * Emitted when an editor failed to open.
-	 */
-	readonly onDidOpenEditorFail: Event<IEditorInput>;
-
-	/**
-	 * Emitted when an editor of this group is about to get closed.
-	 *
-	 * Listeners can for example save view state now before the
-	 * underlying widget gets disposed.
-	 */
-	readonly onWillCloseEditor: Event<IEditorCloseEvent>;
-
-	/**
-	 * Emitted when an editor of this group is closed.
-	 */
-	readonly onDidCloseEditor: Event<IEditorCloseEvent>;
 
 	/**
 	 * Returns the editor at a specific index of the group.

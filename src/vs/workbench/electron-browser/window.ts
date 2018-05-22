@@ -46,6 +46,7 @@ import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { AccessibilitySupport, isRootUser, isWindows, isMacintosh } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorPartService } from 'vs/workbench/browser/parts/editor/editor';
 
 const TextInputActions: IAction[] = [
 	new Action('undo', nls.localize('undo', "Undo"), null, true, () => document.execCommand('undo') && TPromise.as(true)),
@@ -74,7 +75,7 @@ export class ElectronWindow extends Themable {
 
 	constructor(
 		shellContainer: HTMLElement,
-		@IEditorService private editorService: IEditorService,
+		@IEditorService private editorService: IEditorPartService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService,
