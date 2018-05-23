@@ -216,18 +216,21 @@ export default class BufferSyncSupport {
 		this.requestDiagnostic(resource);
 	}
 
-	private onDidCloseTextDocument(document: TextDocument): void {
-		const resource = document.uri;
+	public closeResource(resource: Uri): void {
 		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
 		}
-		this.diagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		if (!fs.existsSync(resource.fsPath)) {
+			this.diagnostics.delete(resource);
 			this.requestAllDiagnostics();
 		}
+	}
+
+	private onDidCloseTextDocument(document: TextDocument): void {
+		this.closeResource(document.uri);
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {

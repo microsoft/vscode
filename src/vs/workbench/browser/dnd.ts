@@ -304,7 +304,7 @@ export class ResourcesDropHandler {
 
 			// Open
 			workspacesToOpen.then(workspaces => {
-				this.windowsService.openWindow(workspaces, { forceReuseWindow: true });
+				this.windowService.openWindow(workspaces, { forceReuseWindow: true });
 			});
 
 			return true;

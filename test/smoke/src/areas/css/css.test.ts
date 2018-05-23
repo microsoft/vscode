@@ -28,7 +28,7 @@ export function setup() {
 			await app.workbench.problems.hideProblemsView();
 		});
 
-		it.skip('verifies that warning becomes an error once setting changed', async function () {
+		it('verifies that warning becomes an error once setting changed', async function () {
 			// settings might take a while to update?
 			this.timeout(40000);
 
