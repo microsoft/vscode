@@ -5,7 +5,6 @@
 
 .settings-editor {
 	padding: 11px 0px 0px 27px;
-	max-width: 800px;
 	margin: auto;
 }
 
@@ -90,9 +89,18 @@
 	margin-left: 2px;
 }
 
-.settings-editor > .settings-body .settings-tree-container .settings-list-offset-helper {
-	opacity: 0;
-	position: absolute;
+.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
+	max-width: 800px;
+	margin: auto;
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow.top-left-corner {
+	left: calc((100% - 800px)/2);
+}
+
+.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow {
+	left: calc((100% - 794px)/2);
+	width: 800px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
