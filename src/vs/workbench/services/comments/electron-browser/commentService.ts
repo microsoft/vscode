@@ -28,6 +28,7 @@ export interface ICommentService {
 	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
 	readonly onDidSetDataProvider: Event<void>;
+	readonly onDidDeleteDataProvider: Event<number>;
 	setComments(resource: URI, commentInfos: CommentInfo[]): void;
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
@@ -44,6 +45,9 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
+
+	private readonly _onDidDeletetDataProvider: Emitter<number> = this._register(new Emitter<number>());
+	readonly onDidDeleteDataProvider: Event<number> = this._onDidDeletetDataProvider.event;
 
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
@@ -79,6 +83,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 	unregisterDataProvider(owner: number): void {
 		this._commentProviders.delete(owner);
+		this._onDidDeletetDataProvider.fire(owner);
 	}
 
 	updateComments(event: CommentThreadChangedEvent): void {

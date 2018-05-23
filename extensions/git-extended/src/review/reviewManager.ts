@@ -707,6 +707,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 			if (this._prFileChangesProvider) {
 				this.prFileChangesProvider.hide();
 			}
+
+			// Ensure file explorer decorations are removed. When switching to a different PR branch,
+			// comments are recalculated when getting the data and the change decoration fired then,
+			// so comments only needs to be emptied in this case.
+			this._comments = [];
+			this._onDidChangeDecorations.fire();
 		}
 
 		vscode.commands.executeCommand('pr.refreshList');

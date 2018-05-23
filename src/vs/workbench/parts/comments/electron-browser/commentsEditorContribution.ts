@@ -124,6 +124,21 @@ export class ReviewController implements IEditorContribution {
 			});
 		});
 
+		this.globalToDispose.push(this.commentService.onDidDeleteDataProvider(e => {
+			// Remove new comment widget and glyph, refresh comments
+			if (this._newCommentWidget) {
+				this._newCommentWidget.dispose();
+				this._newCommentWidget = null;
+			}
+
+			if (this._newCommentGlyph) {
+				this.editor.removeContentWidget(this._newCommentGlyph);
+				this._newCommentGlyph = null;
+			}
+
+			this.getComments();
+		}));
+
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
@@ -131,19 +146,20 @@ export class ReviewController implements IEditorContribution {
 			}
 		}));
 
-		this.globalToDispose.push(this.commentService.onDidSetDataProvider(async () => {
-			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
-
-
-			if (editorURI) {
-				this.commentService.getComments(editorURI).then(commentInfos => {
-					this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
-				}, error => console.log(error));
-			}
-		}));
+		this.globalToDispose.push(this.commentService.onDidSetDataProvider(_ => this.getComments()));
 
 		this.globalToDispose.push(this.editor.onDidChangeModel(() => this.onModelChanged()));
 		this.codeEditorService.registerDecorationType(COMMENTEDITOR_DECORATION_KEY, {});
+	}
+
+	private getComments(): void {
+		const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
+
+		if (editorURI) {
+			this.commentService.getComments(editorURI).then(commentInfos => {
+				this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
+			}, error => console.log(error));
+		}
 	}
 
 	public static get(editor: ICodeEditor): ReviewController {
