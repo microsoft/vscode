@@ -40,8 +40,11 @@ export class DiagnosticsManager {
 
 	private readonly _diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
+	private readonly _pendingUpdates: { [key: string]: any } = Object.create(null);
 	private _validate: boolean = true;
 	private _enableSuggestions: boolean = true;
+
+	private readonly updateDelay = 50;
 
 	constructor(
 		owner: string
@@ -55,6 +58,11 @@ export class DiagnosticsManager {
 
 	public dispose() {
 		this._currentDiagnostics.dispose();
+
+		for (const key in Object.keys(this._pendingUpdates)) {
+			clearTimeout(this._pendingUpdates[key]);
+			delete this._pendingUpdates[key];
+		}
 	}
 
 	public reInitialize(): void {
@@ -93,9 +101,15 @@ export class DiagnosticsManager {
 		diagnostics: vscode.Diagnostic[]
 	): void {
 		const collection = this._diagnostics.get(kind);
-		if (collection) {
-			collection.set(file, diagnostics);
-			this.updateCurrentDiagnostics(file);
+		if (!collection) {
+			return;
+		}
+
+		collection.set(file, diagnostics);
+
+		const key = file.fsPath;
+		if (!this._pendingUpdates[key]) {
+			this._pendingUpdates[key] = setTimeout(() => this.updateCurrentDiagnostics(file), this.updateDelay);
 		}
 	}
 
@@ -108,6 +122,11 @@ export class DiagnosticsManager {
 	}
 
 	private updateCurrentDiagnostics(file: vscode.Uri) {
+		if (this._pendingUpdates[file.fsPath]) {
+			clearTimeout(this._pendingUpdates[file.fsPath]);
+			delete this._pendingUpdates[file.fsPath];
+		}
+
 		if (!this._validate) {
 			return;
 		}
