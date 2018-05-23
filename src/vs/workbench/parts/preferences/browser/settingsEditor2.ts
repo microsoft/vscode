@@ -24,7 +24,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement, TreeItemType } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -55,7 +55,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private pendingSettingModifiedReport: { key: string, value: any };
 
-	private focusedElement: TreeElement;
+	private selectedElement: TreeElement;
 
 	private viewState: ISettingsEditorViewState;
 	private searchResultModel: SearchResultModel;
@@ -185,8 +185,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private createList(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
-		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, { settingsTarget: ConfigurationTarget.USER });
-		const renderer = this.instantiationService.createInstance(SettingsRenderer, {});
+		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
+		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.viewState, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(renderer.onDidClickButton(e => this.onDidClickShowAllSettings()));
 
@@ -206,17 +206,15 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this.settingsTree.onDidChangeFocus(e => {
-			if (this.focusedElement && this.focusedElement.type === TreeItemType.setting) {
-				const row = document.getElementById(this.focusedElement.id);
-				setTabindexes(row, -1);
+			if (this.selectedElement) {
+				this.settingsTree.refresh(this.selectedElement);
 			}
 
-			this.focusedElement = e.focus;
-
-			if (this.focusedElement && this.focusedElement.type === TreeItemType.setting) {
-				const row = document.getElementById(this.focusedElement.id);
-				setTabindexes(row, 0);
+			if (e.focus) {
+				this.settingsTree.refresh(e.focus);
 			}
+
+			this.selectedElement = e.focus;
 		});
 	}
 
@@ -467,57 +465,3 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTree.layout(listHeight, 800);
 	}
 }
-
-function setTabindexes(element: HTMLElement, tabIndex: number): void {
-	const focusableElements = element.querySelectorAll('input, button, select, a');
-	for (let i = 0; focusableElements && i < focusableElements.length; i++) {
-		const element = focusableElements[i];
-		(<HTMLElement>element).tabIndex = tabIndex;
-	}
-}
-
-// class SettingItemDelegate implements IDelegate<ListEntry> {
-
-// 	constructor(private measureContainer: HTMLElement) {
-
-// 	}
-
-// 	getHeight(entry: ListEntry) {
-// 		if (entry.templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
-// 			return 30;
-// 		}
-
-// 		if (entry.templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-// 			if (entry.isExpanded) {
-// 				return this.getDynamicHeight(entry);
-// 			} else {
-// 				return 68;
-// 			}
-// 		}
-
-// 		if (entry.templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
-// 			return 60;
-// 		}
-
-// 		return 0;
-// 	}
-
-// 	getTemplateId(element: ListEntry) {
-// 		return element.templateId;
-// 	}
-
-// 	private getDynamicHeight(entry: ISettingItemEntry): number {
-// 		return measureSettingItemEntry(entry, this.measureContainer);
-// 	}
-// }
-
-// function measureSettingItemEntry(entry: ISettingItemEntry, measureContainer: HTMLElement): number {
-// 	const measureHelper = DOM.append(measureContainer, $('.setting-item-measure-helper.monaco-list-row'));
-
-// 	const template = SettingItemRenderer.renderTemplate(measureHelper);
-// 	SettingItemRenderer.renderElement(entry, 0, template);
-
-// 	const height = measureHelper.offsetHeight;
-// 	measureContainer.removeChild(measureHelper);
-// 	return height;
-// }

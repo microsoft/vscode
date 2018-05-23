@@ -109,7 +109,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	cursor: default;
 	white-space: normal;
-	padding: 3px 0px;
 	display: flex;
 	height: 100%;
 }
@@ -164,14 +163,18 @@
 	white-space: pre-wrap;
 }
 
-/* .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
-.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-item-measure-helper .setting-item-description {
+.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
+	padding-left: 15px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
+.settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .setting-item-description {
 	cursor: pointer;
-} */
+}
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
 	display: flex;
@@ -217,6 +220,19 @@
 	margin: auto;
 	margin-left: 3px;
 	visibility: hidden;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
+	visibility: hidden;
+	position: absolute;
+	bottom: 3px;
+	width: calc(100% - 190px);
+	text-align: center;
+	opacity: .5;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .expand-indicator {
+	visibility: visible;
 }
 
 .vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {

@@ -23,6 +23,7 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
 const $ = DOM.$;
 
@@ -112,6 +113,8 @@ export class SettingsDataSource implements IDataSource {
 			parent: group,
 			id: `${group.id}_${setting.key}`,
 			setting,
+
+			isExpanded: false,
 
 			value: displayValue,
 			isConfigured,
@@ -210,6 +213,7 @@ export interface ISettingItemTemplate extends IDisposableTemplate {
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
+	expandIndicatorElement: HTMLElement;
 	valueElement: HTMLElement;
 	overridesElement: HTMLElement;
 }
@@ -227,9 +231,9 @@ export interface IButtonRowTemplate extends IDisposableTemplate {
 	entry?: IButtonElement;
 }
 
-const SETTINGS_ENTRY_TEMPLATE_ID = 'settings.entry.template';
-const SETTINGS_GROUP_ENTRY_TEMPLATE_ID = 'settings.group.template';
-const BUTTON_ROW_ENTRY_TEMPLATE = 'settings.buttonRow.template';
+const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
+const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
+const BUTTON_ROW_ELEMENT_TEMPLATE = 'settings.buttonRow.template';
 
 export interface ISettingChangeEvent {
 	key: string;
@@ -247,11 +251,16 @@ export class SettingsRenderer implements IRenderer {
 	private readonly _onDidOpenSettings: Emitter<void> = new Emitter<void>();
 	public readonly onDidOpenSettings: Event<void> = this._onDidOpenSettings.event;
 
+	private measureContainer: HTMLElement;
+
 	constructor(
 		private viewState: ISettingsEditorViewState,
+		_measureContainer: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IContextViewService private contextViewService: IContextViewService
-	) { }
+	) {
+		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
+	}
 
 	getHeight(tree: ITree, element: TreeElement): number {
 		if (element.type === TreeItemType.groupTitle) {
@@ -259,7 +268,12 @@ export class SettingsRenderer implements IRenderer {
 		}
 
 		if (element.type === TreeItemType.setting) {
-			return 68;
+			const isSelected = this.elementIsSelected(tree, element);
+			if (isSelected) {
+				return this.measureSettingElementHeight(tree, element);
+			} else {
+				return 68;
+			}
 		}
 
 		if (element.type === TreeItemType.buttonRow) {
@@ -269,32 +283,43 @@ export class SettingsRenderer implements IRenderer {
 		return 0;
 	}
 
+	private measureSettingElementHeight(tree: ITree, element: ISettingElement): number {
+		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
+
+		const template = this.renderSettingTemplate(measureHelper);
+		this.renderSettingElement(tree, element, template, true);
+
+		const height = measureHelper.offsetHeight;
+		this.measureContainer.removeChild(measureHelper);
+		return height;
+	}
+
 	getTemplateId(tree: ITree, element: TreeElement): string {
 		if (element.type === TreeItemType.groupTitle) {
-			return SETTINGS_GROUP_ENTRY_TEMPLATE_ID;
+			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
 		if (element.type === TreeItemType.buttonRow) {
-			return BUTTON_ROW_ENTRY_TEMPLATE;
+			return BUTTON_ROW_ELEMENT_TEMPLATE;
 		}
 
 		if (element.type === TreeItemType.setting) {
-			return SETTINGS_ENTRY_TEMPLATE_ID;
+			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
 
 		return '';
 	}
 
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
-		if (templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
+		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			return this.renderGroupTitleTemplate(container);
 		}
 
-		if (templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
+		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
 			return this.renderButtonRowTemplate(container);
 		}
 
-		if (templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
+		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
 			return this.renderSettingTemplate(container);
 		}
 
@@ -347,6 +372,7 @@ export class SettingsRenderer implements IRenderer {
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
+		const expandIndicatorElement = DOM.append(leftElement, $('.expand-indicator'));
 
 		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
 
@@ -359,6 +385,7 @@ export class SettingsRenderer implements IRenderer {
 			categoryElement,
 			labelElement,
 			descriptionElement,
+			expandIndicatorElement,
 			valueElement,
 			overridesElement
 		};
@@ -367,25 +394,33 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: TreeElement, templateId: string, template: any): void {
-		if (templateId === SETTINGS_ENTRY_TEMPLATE_ID) {
-			return this.renderSettingElement(<ISettingElement>element, template);
+		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
+			return this.renderSettingElement(tree, <ISettingElement>element, template);
 		}
 
-		if (templateId === SETTINGS_GROUP_ENTRY_TEMPLATE_ID) {
+		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			(<IGroupTitleTemplate>template).labelElement.textContent = (<IGroupElement>element).group.title;
 			return;
 		}
 
-		if (templateId === BUTTON_ROW_ENTRY_TEMPLATE) {
+		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
 			return this.renderButtonRowElement(<IButtonElement>element, template);
 		}
 	}
 
-	private renderSettingElement(element: ISettingElement, template: ISettingItemTemplate): void {
+	private elementIsSelected(tree: ITree, element: TreeElement): boolean {
+		const selection = tree.getFocus();
+		const selectedElement: TreeElement = selection;
+		return selectedElement && selectedElement.id === element.id;
+	}
+
+	private renderSettingElement(tree: ITree, element: ISettingElement, template: ISettingItemTemplate, measuring?: boolean): void {
+		const isSelected = this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
 		template.context = element;
 		DOM.toggleClass(template.parent, 'is-configured', element.isConfigured);
+		DOM.toggleClass(template.parent, 'is-expanded', isSelected);
 		template.containerElement.id = element.id;
 
 		const titleTooltip = setting.key;
@@ -398,9 +433,19 @@ export class SettingsRenderer implements IRenderer {
 		template.descriptionElement.textContent = element.description;
 		template.descriptionElement.title = element.description;
 
-		// const expandedHeight = measureSettingItemEntry(entry, that.measureContainer);
-		// entry.isExpandable = expandedHeight > 68;
-		// DOM.toggleClass(template.parent, 'is-expandable', entry.isExpandable);
+		if (!measuring) {
+			const expandedHeight = this.measureSettingElementHeight(tree, element);
+			const isExpandable = expandedHeight > 68;
+			DOM.toggleClass(template.parent, 'is-expandable', isExpandable);
+
+			if (isSelected) {
+				template.expandIndicatorElement.innerHTML = renderOcticons('$(chevron-up)');
+			} else if (isExpandable) {
+				template.expandIndicatorElement.innerHTML = renderOcticons('$(chevron-down)');
+			} else {
+				template.expandIndicatorElement.innerHTML = '';
+			}
+		}
 
 		this.renderValue(element, template);
 
