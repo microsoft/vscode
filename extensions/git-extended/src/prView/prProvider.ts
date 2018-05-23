@@ -106,8 +106,8 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		if (element instanceof PullRequestModel) {
 			const comments = await element.getComments();
 			const data = await element.getFiles();
-			const baseSha = await element.getBaseCommitSha();
-			const richContentChanges = await parseDiff(data, this.repository, baseSha);
+			await element.fetchBaseCommitSha();
+			const richContentChanges = await parseDiff(data, this.repository, element.base.sha);
 			const commentsCache = new Map<String, Comment[]>();
 			let fileChanges = richContentChanges.map(change => {
 				let fileInRepo = path.resolve(this.repository.path, change.fileName);

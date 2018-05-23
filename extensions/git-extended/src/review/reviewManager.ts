@@ -9,7 +9,7 @@ import { parseDiff } from '../common/diff';
 import { getDiffLineByPosition, getLastDiffLine, mapCommentsToHead, mapHeadLineToDiffHunkPosition, mapOldPositionToNew } from '../common/diffPositionMapping';
 import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
 import { FileChangeTreeItem } from '../common/treeItems';
-import { toGitUri } from '../common/uri';
+import { toGitUri, fromGitUri } from '../common/uri';
 import { groupBy } from '../common/util';
 import { Comment } from '../models/comment';
 import { GitChangeType } from '../models/file';
@@ -18,6 +18,7 @@ import { PullRequestModel } from '../models/pullRequestModel';
 import { Repository } from '../models/repository';
 import { FileChangesProvider } from './fileChangesProvider';
 import { GitContentProvider } from './gitContentProvider';
+import { DiffChangeType } from '../models/diffHunk';
 
 
 export class ReviewManager implements vscode.DecorationProvider {
@@ -69,7 +70,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this._workspaceCommentProvider = null;
 		this._command = null;
 		this._disposables = [];
-		this._disposables.push(vscode.workspace.registerTextDocumentContentProvider('review', new GitContentProvider(_repository)));
+		let gitContentProvider = new GitContentProvider(_repository);
+		gitContentProvider.registerTextDocumentContentFallback(this.provideTextDocumentContent.bind(this));
+		this._disposables.push(vscode.workspace.registerTextDocumentContentProvider('review', gitContentProvider));
 		this._disposables.push(vscode.commands.registerCommand('review.openFile', (uri: vscode.Uri) => {
 			let params = JSON.parse(uri.query);
 			vscode.commands.executeCommand('vscode.open', vscode.Uri.file(path.resolve(this._repository.path, params.path)), {});
@@ -318,7 +321,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 		let outdatedComments = this._comments.filter(comment => !comment.position);
 
 		const data = await pr.getFiles();
-		const baseSha = await pr.getBaseCommitSha();
+		await pr.fetchBaseCommitSha();
+		let baseSha = pr.base.sha;
+		let headSha = pr.head.sha;
 		const richContentChanges = await parseDiff(data, this._repository, baseSha);
 		this._localFileChanges = richContentChanges.map(change => {
 			let changedItem = new FileChangeTreeItem(
@@ -332,11 +337,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 				this._repository.path,
 				change.diffHunks
 			);
+			changedItem.sha = headSha;
 			changedItem.comments = activeComments.filter(comment => comment.path === changedItem.fileName);
 			return changedItem;
 		});
 
-		let commitsGroup = groupBy(outdatedComments, comment => comment.commit_id);
+		let commitsGroup = groupBy(outdatedComments, comment => comment.original_commit_id);
 		this._obsoleteFileChanges = [];
 		for (let commit in commitsGroup) {
 			let commentsForCommit = commitsGroup[commit];
@@ -354,6 +360,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 					this._repository.path,
 					[] // @todo Peng.
 				);
+
+				obsoleteFileChange.sha = commit;
 
 				obsoleteFileChange.comments = oldComments;
 				this._obsoleteFileChanges.push(obsoleteFileChange);
@@ -702,6 +710,45 @@ export class ReviewManager implements vscode.DecorationProvider {
 		}
 
 		vscode.commands.executeCommand('pr.refreshList');
+	}
+
+	async provideTextDocumentContent(uri: vscode.Uri): Promise<string> {
+		let { path, commit } = fromGitUri(uri);
+		let changedItems = this._localFileChanges
+			.filter(change => change.fileName === path)
+			.filter(fileChange => fileChange.sha === commit || (fileChange.parentSha ? fileChange.parentSha : `${fileChange.sha}^`) === commit);
+
+		if (changedItems.length) {
+			let changedItem = changedItems[0];
+			let diffChangeTypeFilter = commit === changedItem.sha ? DiffChangeType.Delete : DiffChangeType.Add;
+			let ret = changedItem.diffHunks.map(diffHunk => diffHunk.diffLines.filter(diffLine => diffLine.type !== diffChangeTypeFilter).map(diffLine => diffLine.text));
+			return ret.reduce((prev, curr) => prev.concat(...curr), []).join('\n');
+		}
+
+		changedItems = this._obsoleteFileChanges
+			.filter(change => change.fileName === path)
+			.filter(fileChange => fileChange.sha === commit || (fileChange.parentSha ? fileChange.parentSha : `${fileChange.sha}^`) === commit);
+
+		if (changedItems.length) {
+			// it's from obsolete file changes, which means the content is in complete.
+			let changedItem = changedItems[0];
+			let diffChangeTypeFilter = commit === changedItem.sha ? DiffChangeType.Delete : DiffChangeType.Add;
+			let ret = [];
+			let commentGroups = groupBy(changedItem.comments, comment => comment.original_position);
+
+			for (let comment_position in commentGroups) {
+				let lines = commentGroups[comment_position][0].diff_hunks
+					.map(diffHunk =>
+						diffHunk.diffLines.filter(diffLine => diffLine.type !== diffChangeTypeFilter)
+							.map(diffLine => diffLine.text)
+					).reduce((prev, curr) => prev.concat(...curr), []);
+				ret.push(...lines);
+			}
+
+			return ret.join('\n');
+		}
+
+		return null;
 	}
 
 	dispose() {

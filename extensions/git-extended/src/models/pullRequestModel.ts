@@ -111,7 +111,7 @@ export class PullRequestModel {
 		return data;
 	}
 
-	async getBaseCommitSha() {
+	async fetchBaseCommitSha() {
 		if (!this.prItem.base) {
 			// this one is from search results, which is not complete.
 			const { data } = await this.otcokit.pullRequests.get({
@@ -119,10 +119,8 @@ export class PullRequestModel {
 				repo: this.remote.repositoryName,
 				number: this.prItem.number
 			});
-			this.prItem = data;
+			this.update(data);
 		}
-
-		return this.prItem.base.sha;
 	}
 
 	async getComments(): Promise<Comment[]> {
