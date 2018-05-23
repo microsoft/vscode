@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult } from 'vs/platform/windows/common/windows';
+import { OpenContext, IWindowConfiguration, ReadyState, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IOpenOptions } from 'vs/platform/windows/common/windows';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -117,20 +117,17 @@ export interface IWindowsMainService {
 	quit(): void;
 }
 
-export interface IOpenConfiguration {
+export interface IOpenConfiguration extends IOpenOptions {
 	context: OpenContext;
-	cli: ParsedArgs;
-	userEnv?: IProcessEnvironment;
 	pathsToOpen?: string[];
 	preferNewWindow?: boolean;
-	forceNewWindow?: boolean;
 	forceReuseWindow?: boolean;
 	forceEmpty?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
 	forceOpenWorkspaceAsFile?: boolean;
-	initialStartup?: boolean;
 }
+
 
 export interface ISharedProcess {
 	whenReady(): TPromise<void>;
