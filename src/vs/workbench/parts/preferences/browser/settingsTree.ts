@@ -56,6 +56,8 @@ export interface ISettingElement extends ITreeItem {
 	parent: ISettingsGroup;
 	setting: ISetting;
 
+	displayCategory: string;
+	displayLabel: string;
 	value: any;
 	isConfigured: boolean;
 	overriddenScopeList: string[];
@@ -71,7 +73,7 @@ export interface IGroupElement extends ITreeItem {
 	index: number;
 }
 
-const ALL_SETTINGS_BUTTON_ID = 'all_settings_button_element';
+const ALL_SETTINGS_BUTTON_ID = 'all_settings_button_row';
 export interface IButtonElement extends ITreeItem {
 	type: TreeItemType.buttonRow;
 	parent: DefaultSettingsEditorModel;
@@ -109,12 +111,15 @@ export class SettingsDataSource implements IDataSource {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
+		const displayKeyFormat = settingKeyToDisplayFormat(setting.key);
 		return <ISettingElement>{
 			type: TreeItemType.setting,
 			parent: group,
 			id: `${group.id}_${setting.key}`,
 			setting,
 
+			displayLabel: displayKeyFormat.label,
+			displayCategory: displayKeyFormat.category,
 			isExpanded: false,
 
 			value: displayValue,
@@ -198,6 +203,22 @@ export class SettingsDataSource implements IDataSource {
 
 		return TPromise.wrap(null);
 	}
+}
+
+export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
+	let label = key
+		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
+		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
+
+	const lastDotIdx = label.lastIndexOf('.');
+	let category = '';
+	if (lastDotIdx >= 0) {
+		category = label.substr(0, lastDotIdx);
+		label = label.substr(lastDotIdx + 1);
+	}
+
+	return { category, label };
 }
 
 export interface ISettingsEditorViewState {
@@ -434,11 +455,10 @@ export class SettingsRenderer implements IRenderer {
 		template.containerElement.id = element.id;
 
 		const titleTooltip = setting.key;
-		const settingKeyDisplay = settingKeyToDisplayFormat(setting.key);
-		template.categoryElement.textContent = settingKeyDisplay.category + ': ';
+		template.categoryElement.textContent = element.displayCategory + ': ';
 		template.categoryElement.title = titleTooltip;
 
-		template.labelElement.textContent = settingKeyDisplay.label;
+		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = element.description;
 
@@ -559,22 +579,6 @@ export class SettingsRenderer implements IRenderer {
 	}
 }
 
-export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
-	let label = key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
-
-	const lastDotIdx = label.lastIndexOf('.');
-	let category = '';
-	if (lastDotIdx >= 0) {
-		category = label.substr(0, lastDotIdx);
-		label = label.substr(lastDotIdx + 1);
-	}
-
-	return { category, label };
-}
-
 export class SettingsTreeFilter implements IFilter {
 	constructor(private viewState: ISettingsEditorViewState) { }
 
@@ -600,18 +604,26 @@ export class SettingsTreeController extends WorkbenchTreeController {
 }
 
 export class SettingsAccessibilityProvider implements IAccessibilityProvider {
-	getAriaLabel(tree: ITree, element: any): string {
-		return 'temp';
+	getAriaLabel(tree: ITree, element: TreeElement): string {
+		if (!element) {
+			return '';
+		}
+
+		if (element.type === TreeItemType.setting) {
+			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
+		}
+
+		if (element.type === TreeItemType.groupTitle) {
+			return localize('groupRowAriaLabel', "{0}, group", element.group.title);
+		}
+
+		if (element.type === TreeItemType.buttonRow) {
+			return localize('buttonRowAriaLabel', "{0}, button", element.id);
+		}
+
+		return '';
 	}
-
-	// getPosInSet(tree: ITree, element: any): string {
-	// throw new Error('Method not implemented.');
-	// }
-	// getSetSize(): string {
-	// throw new Error('Method not implemented.');
-	// }
 }
-
 
 export enum SearchResultIdx {
 	Local = 0,
