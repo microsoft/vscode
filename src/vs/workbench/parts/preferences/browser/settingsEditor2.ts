@@ -176,12 +176,12 @@ export class SettingsEditor2 extends BaseEditor {
 			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
-		// this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
-		// 	if (e.keyCode === KeyCode.DownArrow) {
-		// 		this.settingsList.focusFirst();
-		// 		this.settingsList.domFocus();
-		// 	}
-		// }));
+		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
+			if (e.keyCode === KeyCode.DownArrow) {
+				this.settingsTree.focusFirst();
+				this.settingsTree.domFocus();
+			}
+		}));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
