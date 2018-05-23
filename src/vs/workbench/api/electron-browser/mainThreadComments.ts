@@ -93,6 +93,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterDocumentCommentProvider(handle: number): void {
 		this._documentProviders.delete(handle);
+		this._commentService.unregisterDataProvider(handle);
 	}
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {

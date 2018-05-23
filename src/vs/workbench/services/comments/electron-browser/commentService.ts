@@ -32,6 +32,7 @@ export interface ICommentService {
 	setAllComments(commentsByResource: CommentThread[]): void;
 	removeAllComments(): void;
 	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider | WorkspaceCommentProvider): void;
+	unregisterDataProvider(owner: number): void;
 	updateComments(event: CommentThreadChangedEvent): void;
 	createNewCommenThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
 	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread>;
@@ -43,6 +44,7 @@ export class CommentService extends Disposable implements ICommentService {
 
 	private readonly _onDidSetDataProvider: Emitter<void> = this._register(new Emitter<void>());
 	readonly onDidSetDataProvider: Event<void> = this._onDidSetDataProvider.event;
+
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
 
@@ -53,6 +55,7 @@ export class CommentService extends Disposable implements ICommentService {
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
 	private _commentProviders = new Map<number, (DocumentCommentProvider | WorkspaceCommentProvider)>();
+
 	constructor() {
 		super();
 	}
@@ -74,32 +77,38 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidSetDataProvider.fire();
 	}
 
+	unregisterDataProvider(owner: number): void {
+		this._commentProviders.delete(owner);
+	}
+
 	updateComments(event: CommentThreadChangedEvent): void {
 		this._onDidUpdateCommentThreads.fire(event);
 	}
 
 	createNewCommenThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread> {
-		let commentProvider = this._commentProviders.get(owner);
+		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return asWinJsPromise(token => commentProvider.createNewCommentThread(resource, range, text, token));
 		}
+
 		return null;
 	}
 
 	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread> {
-		let commentProvider = this._commentProviders.get(owner);
+		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {
 			return asWinJsPromise(token => commentProvider.replyToCommentThread(resource, range, thread, text, token));
 		}
+
 		return null;
 	}
 
 	async getComments(resource: URI): TPromise<CommentInfo[]> {
 		const result = [];
 		for (const handle of keys(this._commentProviders)) {
-			let provider = this._commentProviders.get(handle);
+			const provider = this._commentProviders.get(handle);
 			if ((<DocumentCommentProvider>provider).provideDocumentComments) {
 				result.push(asWinJsPromise(token => (<DocumentCommentProvider>provider).provideDocumentComments(resource, token)));
 			}

@@ -127,7 +127,7 @@ export class ReviewController implements IEditorContribution {
 		this.globalToDispose.push(this.commentService.onDidSetResourceCommentInfos(e => {
 			const editorURI = this.editor && this.editor.getModel() && this.editor.getModel().uri;
 			if (editorURI && editorURI.toString() === e.resource.toString()) {
-				this.setComments(e.commentInfos);
+				this.setComments(e.commentInfos.filter(commentInfo => commentInfo !== null));
 			}
 		}));
 
@@ -136,8 +136,9 @@ export class ReviewController implements IEditorContribution {
 
 
 			if (editorURI) {
-				let commentInfos = await this.commentService.getComments(editorURI);
-				this.setComments(commentInfos);
+				this.commentService.getComments(editorURI).then(commentInfos => {
+					this.setComments(commentInfos.filter(commentInfo => commentInfo !== null));
+				}, error => console.log(error));
 			}
 		}));
 
