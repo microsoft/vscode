@@ -192,6 +192,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
 	padding-left: 15px;
 	opacity: 0;
+	max-width: 800px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
