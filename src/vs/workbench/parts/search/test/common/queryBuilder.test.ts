@@ -342,18 +342,18 @@ suite('QueryBuilder', () => {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					<ISearchPathsResult>{
-						pattern: patternsToIExpression(...arrays.flatten(expectedPatterns.map(globalGlob)))
+						pattern: patternsToIExpression(...expectedPatterns)
 					},
 					includePattern);
 			}
 
 			[
-				['a', ['a']],
-				['a/b', ['a/b']],
-				['a/b,  c', ['a/b', 'c']],
-				['a,.txt', ['a', '*.txt']],
-				['a,,,b', ['a', 'b']],
-				['**/a,b/**', ['**/a', 'b/**']]
+				['a', ['**/a/**', '**/a']],
+				['a/b', ['**/a/b', '**/a/b/**']],
+				['a/b,  c', ['**/a/b', '**/c', '**/a/b/**', '**/c/**']],
+				['a,.txt', ['**/a', '**/a/**', '**/*.txt', '**/*.txt/**']],
+				['a,,,b', ['**/a', '**/a/**', '**/b', '**/b/**']],
+				['**/a,b/**', ['**/a', '**/a/**', '**/b/**']]
 			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
 		});
 
