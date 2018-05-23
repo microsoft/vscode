@@ -120,7 +120,7 @@ suite('Chockidar normalizeRoots', () => {
 	});
 });
 
-suite('Chockidar watching', () => {
+suite.skip('Chockidar watching', () => {
 	const tmpdir = os.tmpdir();
 	const testDir = path.join(tmpdir, 'chockidartest-' + Date.now());
 	const aFolder = path.join(testDir, 'a');
