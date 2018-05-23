@@ -261,42 +261,6 @@
 	padding: 5px 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-expanded,
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-collapsed {
-	cursor: pointer;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .settings-group-title-collapsed::before {
-	background-image: url(collapsed-dark.svg);
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-collapsed::before {
-	display: inline-block;
-	background-image: url(collapsed.svg);
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .settings-group-title-expanded::before {
-	background-image: url(expanded-dark.svg);
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-expanded::before {
-	display: inline-block;
-	background-image: url(expanded.svg);
-}
-
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-collapsed::before,
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title-expanded::before {
-	background-size: 16px;
-	background-position: 50% 50%;
-	background-repeat: no-repeat;
-	width: 16px;
-	height: 22px;
-	position: absolute;
-	content: ' ';
-	left: -19px;
-	top: 4px;
-}
-
 .settings-editor > .settings-body .settings-feedback-button {
 	color: rgb(255, 255, 255);
 	background-color: rgb(14, 99, 156);
