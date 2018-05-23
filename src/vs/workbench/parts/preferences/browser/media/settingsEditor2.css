@@ -111,6 +111,7 @@
 	white-space: normal;
 	display: flex;
 	height: 100%;
+	min-height: 75px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
@@ -121,11 +122,13 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-left {
 	flex: 1;
+	padding-top: 3px;
+	padding-bottom: 12px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
 	min-width: 180px;
-	margin: 21px 10px;
+	margin: 21px 10px 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
@@ -138,12 +141,13 @@
 	font-style: italic;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	font-weight: bold;
+	font-size: 14px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
-	font-weight: bold;
 	opacity: 0.7;
 }
 
@@ -157,7 +161,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
 	opacity: 0.7;
-	margin-top: 5px;
+	margin-top: 3px;
 	height: 36px;
 	overflow: hidden;
 	white-space: pre-wrap;
@@ -225,7 +229,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
 	visibility: hidden;
 	position: absolute;
-	bottom: 3px;
+	bottom: -1px;
 	width: calc(100% - 190px);
 	text-align: center;
 	opacity: .5;

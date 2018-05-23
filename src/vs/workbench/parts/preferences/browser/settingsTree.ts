@@ -242,6 +242,8 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
+	private static readonly SETTING_ROW_HEIGHT = 75;
+
 	private readonly _onDidClickButton: Emitter<string> = new Emitter<string>();
 	public readonly onDidClickButton: Event<string> = this._onDidClickButton.event;
 
@@ -272,7 +274,7 @@ export class SettingsRenderer implements IRenderer {
 			if (isSelected) {
 				return this.measureSettingElementHeight(tree, element);
 			} else {
-				return 68;
+				return SettingsRenderer.SETTING_ROW_HEIGHT;
 			}
 		}
 
@@ -431,11 +433,10 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = settingKeyDisplay.label;
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = element.description;
-		template.descriptionElement.title = element.description;
 
 		if (!measuring) {
 			const expandedHeight = this.measureSettingElementHeight(tree, element);
-			const isExpandable = expandedHeight > 68;
+			const isExpandable = expandedHeight > SettingsRenderer.SETTING_ROW_HEIGHT;
 			DOM.toggleClass(template.parent, 'is-expandable', isExpandable);
 
 			if (isSelected) {
