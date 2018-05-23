@@ -62,8 +62,6 @@ export class ElectronWindow extends Themable {
 
 	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
-	private touchBarUpdater: RunOnceScheduler;
-	private touchBarMenu: IMenu;
 	private touchBarDisposables: IDisposable[];
 	private lastInstalledTouchedBar: ICommandAction[][];
 
@@ -95,9 +93,6 @@ export class ElectronWindow extends Themable {
 		super(themeService);
 
 		this.touchBarDisposables = [];
-
-		this.touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(), 300);
-		this.toUnbind.push(this.touchBarUpdater);
 
 		this.pendingFoldersToAdd = [];
 		this.addFoldersScheduler = new RunOnceScheduler(() => this.doAddFolders(), 100);
@@ -350,24 +345,22 @@ export class ElectronWindow extends Themable {
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
 
 		// Create new
-		this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
-		this.touchBarDisposables.push(this.touchBarMenu);
-		this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => {
-			this.scheduleSetupTouchbar();
-		}));
+		const touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+		this.touchBarDisposables.push(touchBarMenu);
 
-		this.scheduleSetupTouchbar();
+		const touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(touchBarMenu), 300);
+		this.touchBarDisposables.push(touchBarUpdater);
+		touchBarUpdater.schedule();
+
+		// Schedule update
+		this.touchBarDisposables.push(touchBarMenu.onDidChange(() => touchBarUpdater.schedule()));
 	}
 
-	private scheduleSetupTouchbar(): void {
-		this.touchBarUpdater.schedule();
-	}
-
-	private doSetupTouchbar(): void {
+	private doSetupTouchbar(touchBarMenu: IMenu): void {
 		const actions: (MenuItemAction | Separator)[] = [];
 
 		// Fill actions into groups respecting order
-		fillInActions(this.touchBarMenu, void 0, actions, this.contextMenuService);
+		fillInActions(touchBarMenu, void 0, actions, this.contextMenuService);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
