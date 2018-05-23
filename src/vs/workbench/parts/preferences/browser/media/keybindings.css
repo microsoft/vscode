@@ -15,7 +15,7 @@
 
 .defineKeybindingWidget .monaco-inputbox,
 .defineKeybindingWidget .output,
-.defineKeybindingWidget .conflicts {
+.defineKeybindingWidget .existing {
 	margin-top:10px;
 	width: 400px;
 	display: block;
@@ -31,7 +31,7 @@
 	justify-content: center;
 }
 
-.defineKeybindingWidget .conflicts .conflictText {
+.defineKeybindingWidget .existing .existingText {
 	text-decoration: underline;
 	cursor: pointer;
 }

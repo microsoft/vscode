@@ -260,16 +260,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 	}
 
 	showSimilarKeybindings(keybindingEntry: IKeybindingItemEntry): TPromise<any> {
-		let value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel().replace(' ', '+')}+"`;
+		const value = `"${keybindingEntry.keybindingItem.keybinding.getAriaLabel()}"`;
 		if (value !== this.searchWidget.getValue()) {
 			this.searchWidget.setValue(value);
 		}
 		return TPromise.as(null);
-	}
-
-	private showOverlayConflicts(keybindingStr: String): void {
-		const conflictsList: IKeybindingItemEntry[] = this.keybindingsEditorModel.fetch(`${keybindingStr}`, this.sortByPrecedence.checked);
-		this.defineKeybindingWidget.printConflicts(conflictsList.length);
 	}
 
 	private createOverlayContainer(parent: HTMLElement): void {
@@ -277,8 +272,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.position = 'absolute';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
-		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.showOverlayConflicts(keybindingStr)));
-		this._register(this.defineKeybindingWidget.onLinkClick(keybindingStr => { this.showSimilarKeybindings(this.keybindingsEditorModel.fetch(`${keybindingStr}`, this.sortByPrecedence.checked)[0]); }));
+		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.defineKeybindingWidget.printExisting(this.keybindingsEditorModel.fetch(`"${keybindingStr}"`).length)));
+		this._register(this.defineKeybindingWidget.onShowExistingKeybidings(keybindingStr => this.searchWidget.setValue(`"${keybindingStr}"`)));
 		this.hideOverlayContainer();
 	}
 
