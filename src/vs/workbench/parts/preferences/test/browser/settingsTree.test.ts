@@ -6,9 +6,9 @@
 'use strict';
 
 import * as assert from 'assert';
-import { settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
+import { settingKeyToDisplayFormat } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
-suite('SettingsEditor', () => {
+suite('SettingsTree', () => {
 	test('settingKeyToDisplayFormat', () => {
 		assert.deepEqual(
 			settingKeyToDisplayFormat('foo.bar'),
