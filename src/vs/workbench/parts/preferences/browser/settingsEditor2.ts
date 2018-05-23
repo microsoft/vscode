@@ -5,34 +5,30 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { IAction } from 'vs/base/common/actions';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditor } from 'vs/platform/editor/common/editor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchList, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
-import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler, attachStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme } from 'vs/platform/theme/common/themeService';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement, TreeItemType } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { SettingsRenderer, SettingsDataSource, SettingsTreeController, SettingsAccessibilityProvider, TreeElement, TreeItemType, ISettingsEditorViewState, SearchResultModel, SearchResultIdx, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
 const $ = DOM.$;
 
@@ -52,16 +48,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTree: WorkbenchTree;
 	private treeDataSource: SettingsDataSource;
 
-	private dimension: DOM.Dimension;
-	private searchFocusContextKey: IContextKey<boolean>;
-
 	private delayedModifyLogging: Delayer<void>;
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
-
-	private currentLocalSearchProvider: ISearchProvider;
-	private currentRemoteSearchProvider: ISearchProvider;
 
 	private pendingSettingModifiedReport: { key: string, value: any };
 
@@ -74,7 +64,6 @@ export class SettingsEditor2 extends BaseEditor {
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
@@ -107,32 +96,13 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	clearInput(): void {
-		super.clearInput();
-	}
-
 	layout(dimension: DOM.Dimension): void {
-		this.dimension = dimension;
 		this.searchWidget.layout(dimension);
-
-		this.layoutSettingsList();
+		this.layoutSettingsList(dimension);
 	}
 
 	focus(): void {
 		this.searchWidget.focus();
-	}
-
-	getSecondaryActions(): IAction[] {
-		return <IAction[]>[
-		];
-	}
-
-	search(filter: string): void {
-		this.searchWidget.focus();
-	}
-
-	clearSearchResults(): void {
-		this.searchWidget.clear();
 	}
 
 	private createHeader(parent: HTMLElement): void {
@@ -159,8 +129,7 @@ export class SettingsEditor2 extends BaseEditor {
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
-			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
-			focusKey: this.searchFocusContextKey
+			placeholder: localize('SearchSettings.Placeholder', "Search settings")
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
@@ -294,6 +263,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onDidClickShowAllSettings(): void {
 		this.viewState.showAllSettings = !this.viewState.showAllSettings;
+		this.refreshTree();
 	}
 
 	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
@@ -443,13 +413,13 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private localFilterPreferences(query: string): TPromise<void> {
-		this.currentLocalSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, this.currentLocalSearchProvider);
+		const localSearchProvider = this.preferencesSearchService.getLocalSearchProvider(query);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Local, localSearchProvider);
 	}
 
 	private remoteSearchPreferences(query: string): TPromise<void> {
-		this.currentRemoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
-		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, this.currentRemoteSearchProvider);
+		const remoteSearchProvider = this.preferencesSearchService.getRemoteSearchProvider(query);
+		return this.filterOrSearchPreferences(query, SearchResultIdx.Remote, remoteSearchProvider);
 	}
 
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
@@ -491,8 +461,8 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private layoutSettingsList(): void {
-		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
+	private layoutSettingsList(dimension: DOM.Dimension): void {
+		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
 	}

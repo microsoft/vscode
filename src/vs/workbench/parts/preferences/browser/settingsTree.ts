@@ -3,15 +3,16 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAccessibilityProvider, IDataSource, IRenderer, ITree, IFilter } from 'vs/base/parts/tree/browser/tree';
+import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -20,9 +21,8 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ISetting, ISettingsGroup, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
+import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
 
@@ -330,7 +330,8 @@ export class SettingsRenderer implements IRenderer {
 
 			button
 		};
-		toDispose.push(button.onDidClick(e => this._onDidClickButton.fire(template.entry && template.entry.id)));
+		template.toDispose.push(attachButtonStyler(button, this.themeService));
+		template.toDispose.push(button.onDidClick(e => this._onDidClickButton.fire(template.entry && template.entry.id)));
 
 		return template;
 	}
@@ -494,7 +495,9 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	private renderButtonRowElement(element: IButtonElement, template: IButtonRowTemplate): void {
-		template.button.label = 'Show all settings';
+		template.button.label = this.viewState.showAllSettings ?
+			localize('showFewerSettings', "Show Fewer Settings") :
+			localize('showAllSettings', "Show All Settings");
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
@@ -548,10 +551,10 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 	}
 
 	// getPosInSet(tree: ITree, element: any): string {
-		// throw new Error('Method not implemented.');
+	// throw new Error('Method not implemented.');
 	// }
 	// getSetSize(): string {
-		// throw new Error('Method not implemented.');
+	// throw new Error('Method not implemented.');
 	// }
 }
 
