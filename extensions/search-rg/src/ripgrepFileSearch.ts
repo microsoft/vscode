@@ -11,6 +11,7 @@ import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { normalizeNFC, normalizeNFD } from './normalization';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
+import { anchorGlob } from './ripgrepHelpers';
 
 const isMac = process.platform === 'darwin';
 
@@ -162,7 +163,7 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	const args = ['--files', '--hidden', '--case-sensitive'];
 
 	options.includes.forEach(globArg => {
-		const inclusion = anchor(globArg);
+		const inclusion = anchorGlob(globArg);
 		args.push('-g', inclusion);
 		if (isMac) {
 			const normalized = normalizeNFD(inclusion);
@@ -173,7 +174,7 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	});
 
 	options.excludes.forEach(globArg => {
-		const exclusion = `!${anchor(globArg)}`;
+		const exclusion = `!${anchorGlob(globArg)}`;
 		args.push('-g', exclusion);
 		if (isMac) {
 			const normalized = normalizeNFD(exclusion);
@@ -201,8 +202,4 @@ function getRgArgs(options: vscode.FileSearchOptions): string[] {
 	args.push('.');
 
 	return args;
-}
-
-function anchor(glob: string) {
-	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
 }
