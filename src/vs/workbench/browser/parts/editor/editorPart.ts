@@ -155,14 +155,6 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 		});
 	}
 
-	activatePreviousActiveGroup(): void {
-		const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
-		const previousActiveGroup = mostRecentlyActiveGroups[1];
-		if (previousActiveGroup) {
-			this.activateGroup(previousActiveGroup);
-		}
-	}
-
 	//#endregion
 
 	//#region IEditorGroupsService
@@ -489,7 +481,9 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
-			this.activatePreviousActiveGroup();
+			const mostRecentlyActiveGroups = this.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current group we are about to dispose
+			this.activateGroup(nextActiveGroup);
 		}
 
 		// Remove from grid widget & dispose

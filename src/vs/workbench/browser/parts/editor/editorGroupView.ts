@@ -19,7 +19,7 @@ import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
-import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
 import { IProgressService } from 'vs/platform/progress/common/progress';
@@ -934,7 +934,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// group gets active.
 		const closeEmptyGroup = this.accessor.partOptions.closeEmptyGroups;
 		if (closeEmptyGroup && this.active && this._group.count === 1) {
-			this.accessor.activatePreviousActiveGroup();
+			const mostRecentlyActiveGroups = this.accessor.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE);
+			const nextActiveGroup = mostRecentlyActiveGroups[1]; // [0] will be the current one, so take [1]
+			if (nextActiveGroup) {
+				if (editorHasFocus) {
+					nextActiveGroup.focus();
+				} else {
+					this.accessor.activateGroup(nextActiveGroup);
+				}
+			}
 		}
 
 		// Update model

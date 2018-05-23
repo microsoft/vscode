@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -89,9 +89,9 @@ export interface IEditorGroupsAccessor {
 	readonly onDidEditorPartOptionsChange: Event<IEditorPartOptionsChangeEvent>;
 
 	getGroup(identifier: GroupIdentifier): IEditorGroupView;
+	getGroups(order: GroupsOrder): IEditorGroupView[];
 
 	activateGroup(identifier: IEditorGroupView | GroupIdentifier): IEditorGroupView;
-	activatePreviousActiveGroup();
 
 	addGroup(location: IEditorGroupView | GroupIdentifier, direction: GroupDirection, options?: IAddGroupOptions): IEditorGroupView;
 	mergeGroup(group: IEditorGroupView | GroupIdentifier, target: IEditorGroupView | GroupIdentifier, options?: IMergeGroupOptions): IEditorGroupView;
