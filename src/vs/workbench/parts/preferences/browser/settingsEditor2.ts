@@ -28,7 +28,7 @@ import { IThemeService, registerThemingParticipant, ICssStyleCollector, ITheme }
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
@@ -175,7 +175,7 @@ export class SettingsEditor2 extends BaseEditor {
 			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
 			focusKey: this.searchFocusContextKey
 		}));
-		this._register(this.searchWidget.onDidChange(() => this.onInputChanged()));
+		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 		// this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
 		// 	if (e.keyCode === KeyCode.DownArrow) {
 		// 		this.settingsList.focusFirst();
@@ -289,8 +289,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const reportModifiedProps = {
 			key,
 			query: this.searchWidget.getValue(),
-			searchResults: this.searchResultModel.getUniqueResults(),
-			rawResults: this.searchResultModel.getRawResults(),
+			searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
+			rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
 			showConfiguredOnly: this.showConfiguredSettingsOnly,
 			isReset: typeof value === 'undefined',
 			settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
@@ -327,10 +327,12 @@ export class SettingsEditor2 extends BaseEditor {
 				localIndex :
 				remoteResult && (arrays.firstIndex(remoteResult.filterMatches, m => m.setting.key === props.key) + localResult.filterMatches.length);
 
-			const rawResults = this.searchResultModel.getRawResults();
-			if (rawResults[SearchResultIdx.Remote]) {
-				const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
-				nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
+			if (this.searchResultModel) {
+				const rawResults = this.searchResultModel.getRawResults();
+				if (rawResults[SearchResultIdx.Remote]) {
+					const _nlpIndex = arrays.firstIndex(rawResults[SearchResultIdx.Remote].filterMatches, m => m.setting.key === props.key);
+					nlpIndex = _nlpIndex >= 0 ? _nlpIndex : undefined;
+				}
 			}
 		}
 
@@ -371,19 +373,18 @@ export class SettingsEditor2 extends BaseEditor {
 					this.defaultSettingsEditorModel = model;
 					if (!this.settingsTree.getInput()) {
 						this.settingsTree.setInput(this.defaultSettingsEditorModel);
-						const commonlyUsedGroup = this.defaultSettingsEditorModel.settingsGroups[0];
-						this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup));
+						this.expandCommonlyUsedSettings();
 					}
 				});
 		}
 		return TPromise.as(null);
 	}
 
-	private onInputChanged(): void {
+	private onSearchInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
 		this.triggerSearch(query).then(() => {
-			if (query && this.searchResultModel.hasResults()) {
+			if (query && this.searchResultModel) {
 				this.delayedFilterLogging.trigger(() => this.reportFilteringUsed(query, this.searchResultModel.getUniqueResults()));
 			}
 		});
@@ -394,16 +395,25 @@ export class SettingsEditor2 extends BaseEditor {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
 				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
-			]) as TPromise;
+			]).then(() => {
+				this.settingsTree.setInput(this.searchResultModel.resultsAsGroup());
+			});
 		} else {
 			// When clearing the input, update immediately to clear it
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
 
-			this.searchResultModel.clear();
-			// this.renderEntries();
+			this.searchResultModel = null;
+			this.settingsTree.setInput(this.defaultSettingsEditorModel);
+			this.expandCommonlyUsedSettings();
+
 			return TPromise.wrap(null);
 		}
+	}
+
+	private expandCommonlyUsedSettings(): void {
+		const commonlyUsedGroup = this.defaultSettingsEditorModel.settingsGroups[0];
+		this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup));
 	}
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
@@ -485,33 +495,6 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			});
 	}
-
-	// private getEntriesFromSearch(searchResults: ISearchResult[]): ListEntry[] {
-	// 	const entries: ISettingItemEntry[] = [];
-	// 	const seenSettings = new Set<string>();
-
-	// 	const focusedElement = this.settingsList.getFocusedElements()[0];
-	// 	const focusedId = focusedElement && focusedElement.id;
-	// 	for (let result of searchResults) {
-	// 		if (!result) {
-	// 			continue;
-	// 		}
-
-	// 		for (let match of result.filterMatches) {
-	// 			if (!seenSettings.has(match.setting.key)) {
-	// 				const entry = this.settingToEntry(match.setting, 'search');
-	// 				entry.isFocused = entry.id === focusedId;
-
-	// 				if (!this.showConfiguredSettingsOnly || entry.isConfigured) {
-	// 					seenSettings.add(entry.key);
-	// 					entries.push(entry);
-	// 				}
-	// 			}
-	// 		}
-	// 	}
-
-	// 	return entries;
-	// }
 
 	private layoutSettingsList(): void {
 		const listHeight = this.dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
@@ -607,18 +590,29 @@ class SearchResultModel {
 		return this.rawSearchResults;
 	}
 
-	hasResults(): boolean {
-		return !!this.rawSearchResults;
-	}
-
-	clear(): void {
-		this.cachedUniqueSearchResults = null;
-		this.rawSearchResults = null;
-	}
-
 	setResult(type: SearchResultIdx, result: ISearchResult): void {
 		this.cachedUniqueSearchResults = null;
 		this.rawSearchResults = this.rawSearchResults || [];
 		this.rawSearchResults[type] = result;
+	}
+
+	resultsAsGroup(): ISettingsGroup {
+		const flatSettings: ISetting[] = [];
+		this.getUniqueResults()
+			.filter(r => !!r)
+			.forEach(r => {
+				flatSettings.push(
+					...r.filterMatches.map(m => m.setting));
+			});
+
+		return <ISettingsGroup>{
+			id: 'settingsSearchResultGroup',
+			range: null,
+			sections: [
+				{ settings: flatSettings }
+			],
+			title: 'searchResults',
+			titleRange: null
+		};
 	}
 }

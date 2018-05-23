@@ -61,7 +61,7 @@ export interface IButtonElement extends ITreeItem {
 }
 
 export type TreeElement = ISettingElement | IGroupElement | IButtonElement;
-export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel;
+export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | ISettingsGroup;
 
 export class SettingsDataSource implements IDataSource {
 	constructor(
@@ -69,7 +69,7 @@ export class SettingsDataSource implements IDataSource {
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	public getGroupElement(group: ISettingsGroup): IGroupElement {
+	getGroupElement(group: ISettingsGroup): IGroupElement {
 		return <IGroupElement>{
 			type: TreeItemType.groupTitle,
 			group,
@@ -77,7 +77,7 @@ export class SettingsDataSource implements IDataSource {
 		};
 	}
 
-	public getSettingElement(setting: ISetting, group: ISettingsGroup): ISettingElement {
+	getSettingElement(setting: ISetting, group: ISettingsGroup): ISettingElement {
 		const targetSelector = this.viewState.settingsTarget === ConfigurationTarget.USER ? 'user' : 'workspace';
 		const inspected = this.configurationService.inspect(setting.key);
 		const isConfigured = typeof inspected[targetSelector] !== 'undefined';
@@ -110,8 +110,12 @@ export class SettingsDataSource implements IDataSource {
 		return element instanceof DefaultSettingsEditorModel ? 'root' : element.id;
 	}
 
-	hasChildren(tree: ITree, element: TreeElement): boolean {
+	hasChildren(tree: ITree, element: TreeElementOrRoot): boolean {
 		if (element instanceof DefaultSettingsEditorModel) {
+			return true;
+		}
+
+		if (elementIsSettingsGroup(element)) {
 			return true;
 		}
 
@@ -122,22 +126,21 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	getChildren(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
+	_getChildren(element: TreeElementOrRoot): TreeElement[] {
 		if (element instanceof DefaultSettingsEditorModel) {
-			return TPromise.as(this.getRootChildren(element));
+			return this.getRootChildren(element);
+		} else if (elementIsSettingsGroup(element)) {
+			return this.getGroupChildren(element);
 		} else if (element.type === TreeItemType.groupTitle) {
-			const entries: ISettingElement[] = [];
-			for (const section of element.group.sections) {
-				for (const setting of section.settings) {
-					entries.push(this.getSettingElement(setting, element.group));
-				}
-			}
-
-			return TPromise.wrap(entries);
+			return this.getGroupChildren(element.group);
 		} else {
 			// No children...
-			return TPromise.wrap(null);
+			return null;
 		}
+	}
+
+	getChildren(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
+		return TPromise.as(this._getChildren(element));
 	}
 
 	private getRootChildren(root: DefaultSettingsEditorModel): TreeElement[] {
@@ -153,6 +156,17 @@ export class SettingsDataSource implements IDataSource {
 		return groupItems;
 	}
 
+	private getGroupChildren(group: ISettingsGroup): ISettingElement[] {
+		const entries: ISettingElement[] = [];
+		for (const section of group.sections) {
+			for (const setting of section.settings) {
+				entries.push(this.getSettingElement(setting, group));
+			}
+		}
+
+		return entries;
+	}
+
 	getParent(tree: ITree, element: TreeElement): TPromise<any, any> {
 		if (!(element instanceof DefaultSettingsEditorModel)) {
 			return TPromise.wrap(element.parent);
@@ -160,6 +174,10 @@ export class SettingsDataSource implements IDataSource {
 
 		return TPromise.wrap(null);
 	}
+}
+
+function elementIsSettingsGroup(element: TreeElementOrRoot): element is ISettingsGroup {
+	return !!(<ISettingsGroup>element).sections;
 }
 
 export interface ISettingsEditorViewState {
