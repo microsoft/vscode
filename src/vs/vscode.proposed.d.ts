@@ -590,25 +590,47 @@ declare module 'vscode' {
 	 */
 	export interface QuickInput3 {
 
-		text: string | undefined;
+		inputBox: {
+			visible: boolean;
 
-		placeholder: string | undefined;
+			text: string | undefined;
 
-		onDidTextChange: Event<string>;
+			placeholder: string | undefined;
 
-		toolbarItems: QuickInputToolbarItem3[] | undefined;
+			onDidTextChange: Event<string>;
 
-		onDidTriggerToolbarItem: Event<QuickInputToolbarItem3>;
+			onDidAccept: Event<string>;
+		};
 
-		onDidAccept: Event<string>;
+		toolbar: {
+			// TODO: Investigate using commands.
 
-		items: QuickPickItem[] | undefined;
+			visible: boolean;
 
-		pickMany: boolean;
+			toolbarItems: QuickInputToolbarItem3[] | undefined;
 
-		onDidPickItem: Event<QuickPickItem>;
+			onDidTriggerToolbarItem: Event<QuickInputToolbarItem3>;
+		};
 
-		message: { text: string; severity: number; } | undefined;
+		list: {
+			visible: boolean;
+
+			items: QuickPickItem[] | undefined;
+
+			canSelectMany: boolean;
+
+			selectedItems: QuickPickItem[];
+
+			onDidSelectItem: Event<QuickPickItem>;
+		};
+
+		message: {
+			visible: boolean;
+
+			text: string;
+
+			severity: number;
+		};
 
 		enabled: boolean;
 		busy: boolean;

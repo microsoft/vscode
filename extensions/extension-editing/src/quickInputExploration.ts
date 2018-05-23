@@ -122,12 +122,15 @@ async function showQuickPick3({ input, items, placeHolder }: QuickPickParameters
 	const disposables: Disposable[] = [];
 	try {
 		return await new Promise<QuickPickItem>(resolve => {
-			input.placeholder = placeHolder;
-			input.text = '';
-			input.message = undefined;
-			input.items = items;
+			const { inputBox, message, list } = input;
+			inputBox.visible = true;
+			inputBox.placeholder = placeHolder;
+			inputBox.text = '';
+			message.visible = false;
+			list.visible = true;
+			list.items = items;
 			disposables.push(
-				input.onDidPickItem(item => resolve(item)),
+				list.onDidSelectItem(item => resolve(item)),
 				input.onHide(() => resolve(undefined))
 			);
 			input.show();
@@ -147,26 +150,33 @@ async function showInputBox3({ input, prompt, validate }: InputBoxParameters3) {
 	const disposables: Disposable[] = [];
 	try {
 		return await new Promise<string>(resolve => {
-			input.placeholder = undefined;
-			input.text = '';
-			input.message = { text: prompt, severity: 0 };
-			input.items = undefined;
+			const { inputBox, message, list } = input;
+			inputBox.visible = true;
+			inputBox.placeholder = undefined;
+			inputBox.text = '';
+			message.visible = true;
+			message.text = prompt;
+			message.severity = 0;
+			list.visible = true;
+			list.items = undefined;
 			let validating = validate('');
 			disposables.push(
-				input.onDidAccept(async text => {
+				inputBox.onDidAccept(async text => {
 					if (!(await validate(text))) {
 						resolve(text);
 					}
 				}),
-				input.onDidTextChange(async text => {
+				inputBox.onDidTextChange(async text => {
 					const current = validate(text);
 					validating = current;
-					const message = await current;
+					const validationMessage = await current;
 					if (current === validating) {
-						if (message) {
-							input.message = { text: message, severity: 2 };
+						if (validationMessage) {
+							message.text = validationMessage;
+							message.severity = 2;
 						} else {
-							input.message = { text: prompt, severity: 0 };
+							message.text = prompt;
+							message.severity = 0;
 						}
 					}
 				}),
@@ -405,7 +415,7 @@ async function collectInputs10() {
 				result.resourceGroup = text;
 				return inputName;
 			},
-			cancel: suspend
+			shouldResume: suspend
 		});
 	}
 
@@ -418,7 +428,7 @@ async function collectInputs10() {
 				result.name = text;
 				return pickRuntime;
 			},
-			cancel: suspend
+			shouldResume: suspend
 		});
 	}
 
@@ -431,15 +441,15 @@ async function collectInputs10() {
 			pick: item => {
 				result.runtime = item;
 			},
-			cancel: suspend
+			shouldResume: suspend
 		});
 	}
 
 	function suspend() {
 		// Could show a notification with the option to resume.
-		const resume = async () => {
-			await stepThrough(multiStep);
-		};
+		return new Promise<boolean>((resolve, reject) => {
+
+		});
 	}
 
 	return <Result10>result;
@@ -463,14 +473,19 @@ async function stepThrough(multiStep: MultiStepInput) {
 	let step = multiStep.steps.pop();
 	while (step) {
 		multiStep.steps.push(step);
+		multiStep.input.enabled = false;
+		multiStep.input.busy = true;
 		try {
 			step = await step();
 		} catch (e) {
-			if (e !== 'back') {
+			if (e === 'back') {
+				multiStep.steps.pop();
+				step = multiStep.steps.pop();
+			} if (e === 'resume') {
+				multiStep.steps.pop();
+			} else {
 				throw e;
 			}
-			multiStep.steps.pop();
-			step = multiStep.steps.pop();
 		}
 	}
 	multiStep.input.hide();
@@ -483,35 +498,47 @@ interface QuickPickParameters10 {
 	toolbarItems?: QuickInputToolbarItem3[]; // TODO
 	triggerToolbarItem?: (item: QuickInputToolbarItem3) => InputStep10;
 	pick: (item: QuickPickItem) => InputStep10;
-	cancel?: () => void;
+	shouldResume?: () => Thenable<boolean>;
 }
 
 const backItem: QuickInputToolbarItem3 = { iconPath: 'back.svg' };
 
-async function showQuickPick10({ multiStep, items, placeHolder, pick, cancel }: QuickPickParameters10) {
+async function showQuickPick10({ multiStep, items, placeHolder, pick, shouldResume }: QuickPickParameters10) {
 	const disposables: Disposable[] = [];
 	try {
 		return await new Promise<InputStep10>((resolve, reject) => {
-			const input = multiStep.input;
-			input.placeholder = placeHolder;
-			input.text = '';
-			input.message = undefined;
-			input.items = items;
-			input.toolbarItems = multiStep.steps.length > 1 ? [backItem] : undefined;
-			input.onDidTriggerToolbarItem(item => {
+			const { input } = multiStep;
+			const { inputBox, toolbar, message, list } = input;
+			inputBox.visible = true;
+			inputBox.placeholder = placeHolder;
+			inputBox.text = '';
+			message.visible = false;
+			list.visible = true;
+			list.items = items;
+			toolbar.visible = multiStep.steps.length > 1;
+			toolbar.toolbarItems = [backItem];
+			toolbar.onDidTriggerToolbarItem(item => {
 				if (item === backItem) {
 					reject('back');
 				}
 			});
 			disposables.push(
-				input.onDidPickItem(item => resolve(pick(item))),
+				list.onDidSelectItem(item => resolve(pick(item))),
 				input.onHide(() => {
-					if (cancel) {
-						cancel();
+					if (shouldResume) {
+						resolve(shouldResume().then(resume => {
+							if (resume) {
+								// tslint:disable-next-line:no-string-throw
+								throw 'resume';
+							}
+						}));
+					} else {
+						resolve();
 					}
-					resolve();
 				})
 			);
+			input.enabled = true;
+			input.busy = false;
 			input.show();
 		});
 	} finally {
@@ -526,50 +553,66 @@ interface InputBoxParameters10 {
 	toolbarItems?: QuickInputToolbarItem3[]; // TODO
 	triggerToolbarItem?: (item: QuickInputToolbarItem3) => InputStep10;
 	accept: (text: string) => InputStep10;
-	cancel?: () => void;
+	shouldResume?: () => Thenable<boolean>;
 }
 
-async function showInputBox10({ multiStep, prompt, validate, accept, cancel }: InputBoxParameters10) {
+async function showInputBox10({ multiStep, prompt, validate, accept, shouldResume }: InputBoxParameters10) {
 	const disposables: Disposable[] = [];
 	try {
 		return await new Promise<InputStep10>((resolve, reject) => {
-			const input = multiStep.input;
-			input.placeholder = undefined;
-			input.text = '';
-			input.message = { text: prompt, severity: 0 };
-			input.items = undefined;
-			input.toolbarItems = multiStep.steps.length > 1 ? [backItem] : undefined;
-			input.onDidTriggerToolbarItem(item => {
+			const { input } = multiStep;
+			const { inputBox, toolbar, message, list } = input;
+			inputBox.visible = true;
+			inputBox.placeholder = undefined;
+			inputBox.text = '';
+			message.visible = true;
+			message.text = prompt;
+			message.severity = 0;
+			list.visible = true;
+			list.items = undefined;
+			toolbar.visible = multiStep.steps.length > 1;
+			toolbar.toolbarItems = [backItem];
+			toolbar.onDidTriggerToolbarItem(item => {
 				if (item === backItem) {
 					reject('back');
 				}
 			});
 			let validating = validate('');
 			disposables.push(
-				input.onDidAccept(async text => {
+				inputBox.onDidAccept(async text => {
 					if (!(await validate(text))) {
 						resolve(accept(text));
 					}
 				}),
-				input.onDidTextChange(async text => {
+				inputBox.onDidTextChange(async text => {
 					const current = validate(text);
 					validating = current;
-					const message = await current;
+					const validationMessage = await current;
 					if (current === validating) {
-						if (message) {
-							input.message = { text: message, severity: 2 };
+						if (validationMessage) {
+							message.text = validationMessage;
+							message.severity = 2;
 						} else {
-							input.message = { text: prompt, severity: 0 };
+							message.text = prompt;
+							message.severity = 0;
 						}
 					}
 				}),
 				input.onHide(() => {
-					if (cancel) {
-						cancel();
+					if (shouldResume) {
+						resolve(shouldResume().then(resume => {
+							if (resume) {
+								// tslint:disable-next-line:no-string-throw
+								throw 'resume';
+							}
+						}));
+					} else {
+						resolve();
 					}
-					resolve();
 				})
 			);
+			input.enabled = true;
+			input.busy = false;
 			input.show();
 		});
 	} finally {
