@@ -157,6 +157,11 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	return false;
 }
 
+function isDebugScript(script: string): boolean {
+	let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+	return match !== null;
+}
+
 async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> {
 	let emptyTasks: Task[] = [];
 
@@ -182,6 +187,9 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		}
 		if (prePostScripts.has(each)) {
 			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
+		}
+		if (isDebugScript(scripts![each])) {
+			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
 	});
