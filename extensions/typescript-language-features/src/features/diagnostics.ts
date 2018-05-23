@@ -107,10 +107,7 @@ export class DiagnosticsManager {
 
 		collection.set(file, diagnostics);
 
-		const key = file.fsPath;
-		if (!this._pendingUpdates[key]) {
-			this._pendingUpdates[key] = setTimeout(() => this.updateCurrentDiagnostics(file), this.updateDelay);
-		}
+		this.scheduleDiagnosticsUpdate(file);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
@@ -119,6 +116,17 @@ export class DiagnosticsManager {
 
 	public delete(resource: vscode.Uri): void {
 		this._currentDiagnostics.delete(resource);
+	}
+
+	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
+		return this._currentDiagnostics.get(file) || [];
+	}
+
+	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
+		const key = file.fsPath;
+		if (!this._pendingUpdates[key]) {
+			this._pendingUpdates[key] = setTimeout(() => this.updateCurrentDiagnostics(file), this.updateDelay);
+		}
 	}
 
 	private updateCurrentDiagnostics(file: vscode.Uri) {
@@ -145,9 +153,5 @@ export class DiagnosticsManager {
 		}
 
 		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
-	}
-
-	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
-		return this._currentDiagnostics.get(file) || [];
 	}
 }
