@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as moment from 'moment';
+import md from './mdRenderer';
 
 export enum EventType {
 	Committed,
@@ -159,7 +160,7 @@ export function renderComment(comment: CommentEvent): string {
 				<div class="timestamp">${moment(comment.created_at).fromNow()}</div>
 			</div>
 			<div class="comment-body">
-				${comment.body}
+				${md.render(comment.body)}
 			</div>
 		</div>
 	</div>

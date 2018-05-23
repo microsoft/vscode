@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { renderTimelineEvent, getStatus, renderComment } from './pullRequestOverviewRenderer';
+import md from './mdRenderer';
 
 declare var acquireVsCodeApi: any;
 const vscode = acquireVsCodeApi();
@@ -57,7 +58,7 @@ function setTitleHTML(pr: any) {
 					<strong class="author"><a href="${pr.author.htmlUrl}">${pr.author.login}</a></strong>
 				</div>
 				<div class="comment-body">
-					${pr.body}
+					${md.render(pr.body)}
 				</div>
 			</div>
 		`;

@@ -19,13 +19,6 @@ import { Repository } from '../models/repository';
 import { FileChangesProvider } from './fileChangesProvider';
 import { GitContentProvider } from './gitContentProvider';
 
-export interface ReviewState {
-	remote: string;
-	prNumber: number;
-	branch: string;
-	head: any;
-	base: any;
-}
 
 export class ReviewManager implements vscode.DecorationProvider {
 	private static _instance: ReviewManager;
@@ -360,7 +353,7 @@ export class ReviewManager implements vscode.DecorationProvider {
 					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
 					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
 					this._repository.path,
-					[]
+					[] // @todo Peng.
 				);
 
 				obsoleteFileChange.comments = oldComments;
