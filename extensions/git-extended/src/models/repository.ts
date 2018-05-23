@@ -287,7 +287,7 @@ export class Repository {
 			const result = await GitProcess.exec(['show', filePath], this.path);
 			return result.stdout.trim();
 		} catch (e) {
-			return '';
+			return null;
 		}
 	}
 

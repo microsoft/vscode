@@ -63,6 +63,6 @@ export function registerCommands(context: vscode.ExtensionContext) {
 				commit: previousCommit
 			})
 		});
-		return vscode.commands.executeCommand('vscode.diff', previousFileUri, fileChange.filePath, `${fileChange.fileName} from ${commit}`);
+		return vscode.commands.executeCommand('vscode.diff', previousFileUri, fileChange.filePath, `${fileChange.fileName} from ${commit.substr(0, 8)}`);
 	}));
 }

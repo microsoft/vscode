@@ -7,7 +7,6 @@
 import * as vscode from 'vscode';
 import { Repository } from '../models/repository';
 import { fromGitUri } from '../common/uri';
-import { PullRequestModel } from '../models/pullRequestModel';
 
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
@@ -23,6 +22,11 @@ export class GitContentProvider implements vscode.TextDocumentContentProvider {
 		}
 
 		let ret = await this.repository.show(`${commit}:${path}`);
-		return ret;
+
+		if (!ret) {
+			vscode.window.showErrorMessage(`We couldn't find commit ${commit} locally. You may want to sync the branch with remote. Sometimes commits can disappear after a force-push`);
+		}
+
+		return ret || '';
 	}
 }
