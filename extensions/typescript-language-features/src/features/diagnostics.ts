@@ -59,7 +59,7 @@ export class DiagnosticsManager {
 	public dispose() {
 		this._currentDiagnostics.dispose();
 
-		for (const key in Object.keys(this._pendingUpdates)) {
+		for (const key of Object.keys(this._pendingUpdates)) {
 			clearTimeout(this._pendingUpdates[key]);
 			delete this._pendingUpdates[key];
 		}
