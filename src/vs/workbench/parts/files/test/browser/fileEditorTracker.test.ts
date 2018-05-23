@@ -55,7 +55,8 @@ suite('Files - FileEditorTracker', () => {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
 
-		const tracker = instantiationService.createInstance(FileEditorTracker);
+		const tracker = instantiationService.createInstance(TestFileEditorTracker);
+		tracker.setCloseOnFileDelete(true);
 		assert.ok(tracker);
 
 		const parent = toResource(this, '/foo/bar');
@@ -130,7 +131,8 @@ suite('Files - FileEditorTracker', () => {
 		const stacks = accessor.editorGroupService.getStacksModel() as EditorStacksModel;
 		const group = stacks.openGroup('first', true);
 
-		const tracker = instantiationService.createInstance(FileEditorTracker);
+		const tracker = instantiationService.createInstance(TestFileEditorTracker);
+		tracker.setCloseOnFileDelete(true);
 		assert.ok(tracker);
 
 		const parent = toResource(this, '/foo/bar');
