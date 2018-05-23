@@ -36,7 +36,7 @@ import {
 	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup, SplitEditorGroupHorizontalAction, SplitEditorGroupVerticalAction,
 	ShowEditorsInActiveGroupAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorGroupLeftAction, SplitEditorGroupRightAction,
 	SplitEditorGroupUpAction, SplitEditorGroupDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
-	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction, EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutThreeColumnsTopAction, EditorLayoutThreeColumnsRightAction, EditorLayoutGoldenRatioAction
+	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction, EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, EditorLayoutGoldenRatioAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -364,8 +364,8 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeColum
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoRowsAction, EditorLayoutTwoRowsAction.ID, EditorLayoutTwoRowsAction.LABEL), 'View: Two Rows Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeRowsAction, EditorLayoutThreeRowsAction.ID, EditorLayoutThreeRowsAction.LABEL), 'View: Three Rows Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoByTwoGridAction, EditorLayoutTwoByTwoGridAction.ID, EditorLayoutTwoByTwoGridAction.LABEL), 'View: Grid Editor Layout (2x2)', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeColumnsTopAction, EditorLayoutThreeColumnsTopAction.ID, EditorLayoutThreeColumnsTopAction.LABEL), 'View: Three Columns Top Editor Layout', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeColumnsRightAction, EditorLayoutThreeColumnsRightAction.ID, EditorLayoutThreeColumnsRightAction.LABEL), 'View: Three Columns Right Editor Layout', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsRightAction, EditorLayoutTwoColumnsRightAction.ID, EditorLayoutTwoColumnsRightAction.LABEL), 'View: Two Columns Right Editor Layout', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsBottomAction.ID, EditorLayoutTwoColumnsBottomAction.LABEL), 'View: Two Columns Bottom Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutGoldenRatioAction, EditorLayoutGoldenRatioAction.ID, EditorLayoutGoldenRatioAction.LABEL), 'View: Golden Ratio Editor Layout', category);
 
 // Register Editor Picker Actions including quick navigate support

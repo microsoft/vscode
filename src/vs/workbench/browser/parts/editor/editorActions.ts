@@ -1550,31 +1550,31 @@ export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
 	}
 }
 
-export class EditorLayoutThreeColumnsTopAction extends ExecuteCommandAction {
+export class EditorLayoutTwoColumnsBottomAction extends ExecuteCommandAction {
 
-	public static readonly ID = 'workbench.action.editorLayoutThreeColumnsTop';
-	public static readonly LABEL = nls.localize('editorLayoutThreeColumnsTop', "Three Columns Top Editor Layout");
+	public static readonly ID = 'workbench.action.editorLayoutTwoColumnsBottom';
+	public static readonly LABEL = nls.localize('editorLayoutTwoColumnsBottom', "Two Columns Bottom Editor Layout");
 
 	constructor(
 		id: string,
 		label: string,
 		@ICommandService commandService: ICommandService
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ groups: [{}, {}, {}] }, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
 	}
 }
 
-export class EditorLayoutThreeColumnsRightAction extends ExecuteCommandAction {
+export class EditorLayoutTwoColumnsRightAction extends ExecuteCommandAction {
 
-	public static readonly ID = 'workbench.action.editorLayoutThreeColumnsRight';
-	public static readonly LABEL = nls.localize('editorLayoutThreeColumnsRight', "Three Columns Right Editor Layout");
+	public static readonly ID = 'workbench.action.editorLayoutTwoColumnsRight';
+	public static readonly LABEL = nls.localize('editorLayoutTwoColumnsRight', "Two Columns Right Editor Layout");
 
 	constructor(
 		id: string,
 		label: string,
 		@ICommandService commandService: ICommandService
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
 	}
 }
 
