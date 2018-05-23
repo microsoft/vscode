@@ -297,10 +297,10 @@ function registerDiffEditorCommands(): void {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resource, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { control } = resolveCommandsContext(editorGroupService, context);
+			const { control } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (control instanceof TextDiffEditor) {
 				const widget = control.getControl();
 				const isInlineMode = !widget.renderSideBySide;
@@ -310,6 +310,14 @@ function registerDiffEditorCommands(): void {
 			}
 		}
 	});
+}
+
+function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext {
+	if (URI.isUri(resourceOrContext)) {
+		return context;
+	}
+
+	return resourceOrContext;
 }
 
 function registerOpenEditorAtIndexCommands(): void {
@@ -467,8 +475,8 @@ function registerSplitEditorCommands() {
 		{ id: SPLIT_EDITOR_LEFT, direction: GroupDirection.LEFT },
 		{ id: SPLIT_EDITOR_RIGHT, direction: GroupDirection.RIGHT }
 	].forEach(({ id, direction }) => {
-		CommandsRegistry.registerCommand(id, function (accessor, resource: URI | object, context: IEditorCommandsContext) {
-			splitEditor(accessor.get(IEditorGroupsService), direction, context);
+		CommandsRegistry.registerCommand(id, function (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) {
+			splitEditor(accessor.get(IEditorGroupsService), direction, getCommandsContext(resourceOrContext, context));
 		});
 	});
 }
@@ -480,9 +488,9 @@ function registerCloseEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_U),
-		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
+			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
 			if (contexts.length === 0 && editorGroupService.activeGroup) {
 				contexts.push({ groupId: editorGroupService.activeGroup.id }); // If command is triggered from the command palette use the active group
 			}
@@ -498,9 +506,9 @@ function registerCloseEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_W),
-		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
+			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
 			const distinctGroupIds = distinct(contexts.map(c => c.groupId));
 
 			if (distinctGroupIds.length === 0) {
@@ -519,9 +527,9 @@ function registerCloseEditorCommands() {
 		when: void 0,
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
+			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
 			const activeGroup = editorGroupService.activeGroup;
 			if (contexts.length === 0 && activeGroup && activeGroup.activeEditor) {
 				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });
@@ -542,12 +550,13 @@ function registerCloseEditorCommands() {
 		when: ContextKeyExpr.and(ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		win: { primary: KeyMod.CtrlCmd | KeyCode.F4, secondary: [KeyMod.CtrlCmd | KeyCode.KEY_W] },
-		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
+			const commandsContext = getCommandsContext(resourceOrContext, context);
 
 			let group: IEditorGroup;
-			if (context && typeof context.groupId === 'number') {
-				group = editorGroupService.getGroup(context.groupId);
+			if (commandsContext && typeof commandsContext.groupId === 'number') {
+				group = editorGroupService.getGroup(commandsContext.groupId);
 			} else {
 				group = editorGroupService.activeGroup;
 			}
@@ -562,9 +571,9 @@ function registerCloseEditorCommands() {
 		when: void 0,
 		primary: void 0,
 		mac: { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_T },
-		handler: (accessor, resource: URI | object, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
-			const contexts = getMultiSelectedEditorContexts(context, accessor.get(IListService), editorGroupService);
+			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
 
 			if (contexts.length === 0) {
 				// Cover the case when run from command palette
@@ -591,10 +600,10 @@ function registerCloseEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, context);
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
 				return group.closeEditors({ direction: CloseDirection.RIGHT, except: editor });
 			}
@@ -608,10 +617,10 @@ function registerCloseEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.Enter),
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 
-			const { group, editor } = resolveCommandsContext(editorGroupService, context);
+			const { group, editor } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
 			if (group && editor) {
 				return group.pinEditor(editor);
 			}
@@ -625,7 +634,7 @@ function registerCloseEditorCommands() {
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 		when: void 0,
 		primary: void 0,
-		handler: (accessor, resource: URI, context: IEditorCommandsContext) => {
+		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const quickOpenService = accessor.get(IQuickOpenService);
 
@@ -633,8 +642,9 @@ function registerCloseEditorCommands() {
 				return quickOpenService.show(NAVIGATE_ALL_EDITORS_GROUP_PREFIX);
 			}
 
-			if (context && typeof context.groupId === 'number') {
-				editorGroupService.activateGroup(editorGroupService.getGroup(context.groupId)); // we need the group to be active
+			const commandsContext = getCommandsContext(resourceOrContext, context);
+			if (commandsContext && typeof commandsContext.groupId === 'number') {
+				editorGroupService.activateGroup(editorGroupService.getGroup(commandsContext.groupId)); // we need the group to be active
 			}
 
 			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
