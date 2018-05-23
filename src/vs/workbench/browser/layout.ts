@@ -688,8 +688,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		const sizeChangePxHeight = this.workbenchSize.height * (sizeChange / 100);
 
 		let doLayout = false;
-
-
 		switch (part) {
 			case Parts.SIDEBAR_PART:
 				this.sidebarWidth = this.sidebarWidth + sizeChangePxWidth; // Sidebar can not become smaller than MIN_PART_WIDTH
@@ -728,8 +726,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 				} else {
 					const activeGroup = this.editorGroupService.activeGroup;
 
-					this.editorGroupService.resizeGroup(activeGroup, sizeChangePxWidth);
-					doLayout = false;
+					const activeGroupSize = this.editorGroupService.getSize(activeGroup);
+					this.editorGroupService.setSize(activeGroup, activeGroupSize + sizeChangePxWidth);
 				}
 		}
 

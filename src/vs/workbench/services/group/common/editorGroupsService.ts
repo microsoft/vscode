@@ -197,9 +197,14 @@ export interface IEditorGroupsService {
 	activateGroup(group: IEditorGroup | GroupIdentifier): IEditorGroup;
 
 	/**
-	 * Resize the group given the provided size delta.
+	 * Returns the size of a group.
 	 */
-	resizeGroup(group: IEditorGroup | GroupIdentifier, sizeDelta: number): IEditorGroup;
+	getSize(group: IEditorGroup | GroupIdentifier): number;
+
+	/**
+	 * Sets the size of a group.
+	 */
+	setSize(group: IEditorGroup | GroupIdentifier, size: number): void;
 
 	/**
 	 * Arrange all groups according to the provided arrangement.

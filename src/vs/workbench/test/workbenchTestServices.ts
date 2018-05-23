@@ -541,9 +541,11 @@ export class TestEditorGroupsService implements IEditorGroupsService {
 		return null;
 	}
 
-	resizeGroup(group: number | IEditorGroup, sizeDelta: number): IEditorGroup {
-		return null;
+	getSize(group: number | IEditorGroup): number {
+		return 100;
 	}
+
+	setSize(group: number | IEditorGroup, size: number): void { }
 
 	arrangeGroups(arrangement: GroupsArrangement): void { }
 

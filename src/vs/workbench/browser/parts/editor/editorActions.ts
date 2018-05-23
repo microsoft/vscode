@@ -19,11 +19,28 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, EditorGroupLayout, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection, IFindGroupScope, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+
+export class ExecuteCommandAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private commandId: string,
+		private commandService: ICommandService,
+		private commandArgs?: any
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		return this.commandService.executeCommand(this.commandId, this.commandArgs);
+	}
+}
 
 export class BaseSplitEditorGroupAction extends Action {
 
@@ -153,7 +170,7 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 	}
 }
 
-export class SplitEditorGroupLeftAction extends Action {
+export class SplitEditorGroupLeftAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_LEFT;
 	public static readonly LABEL = nls.localize('splitEditorGroupLeft', "Split Editor Left");
@@ -161,17 +178,13 @@ export class SplitEditorGroupLeftAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(SPLIT_EDITOR_LEFT);
+		super(id, label, SPLIT_EDITOR_LEFT, commandService);
 	}
 }
 
-export class SplitEditorGroupRightAction extends Action {
+export class SplitEditorGroupRightAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_RIGHT;
 	public static readonly LABEL = nls.localize('splitEditorGroupRight', "Split Editor Right");
@@ -179,17 +192,13 @@ export class SplitEditorGroupRightAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(SPLIT_EDITOR_RIGHT);
+		super(id, label, SPLIT_EDITOR_RIGHT, commandService);
 	}
 }
 
-export class SplitEditorGroupUpAction extends Action {
+export class SplitEditorGroupUpAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_UP;
 	public static readonly LABEL = nls.localize('splitEditorGroupUp', "Split Editor Up");
@@ -197,17 +206,13 @@ export class SplitEditorGroupUpAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(SPLIT_EDITOR_UP);
+		super(id, label, SPLIT_EDITOR_UP, commandService);
 	}
 }
 
-export class SplitEditorGroupDownAction extends Action {
+export class SplitEditorGroupDownAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_DOWN;
 	public static readonly LABEL = nls.localize('splitEditorGroupDown', "Split Editor Down");
@@ -215,13 +220,9 @@ export class SplitEditorGroupDownAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(SPLIT_EDITOR_DOWN);
+		super(id, label, SPLIT_EDITOR_DOWN, commandService);
 	}
 }
 
@@ -274,10 +275,7 @@ export class JoinAllGroupsAction extends Action {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		const firstGroup = this.editorGroupService.groups[0];
-		while (this.editorGroupService.count > 1) {
-			this.editorGroupService.mergeGroup(this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, firstGroup), firstGroup);
-		}
+		mergeAllGroups(this.editorGroupService);
 
 		return TPromise.as(true);
 	}
@@ -1328,7 +1326,7 @@ export class ClearEditorHistoryAction extends Action {
 	}
 }
 
-export class MoveEditorLeftInGroupAction extends Action {
+export class MoveEditorLeftInGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorLeftInGroup';
 	public static readonly LABEL = nls.localize('moveEditorLeft', "Move Editor Left");
@@ -1336,20 +1334,13 @@ export class MoveEditorLeftInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'left' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left' } as ActiveEditorMoveArguments);
 	}
 }
 
-export class MoveEditorRightInGroupAction extends Action {
+export class MoveEditorRightInGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorRightInGroup';
 	public static readonly LABEL = nls.localize('moveEditorRight', "Move Editor Right");
@@ -1357,20 +1348,13 @@ export class MoveEditorRightInGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'right' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right' } as ActiveEditorMoveArguments);
 	}
 }
 
-export class MoveEditorToPreviousGroupAction extends Action {
+export class MoveEditorToPreviousGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorToPreviousGroup';
 	public static readonly LABEL = nls.localize('moveEditorToPreviousGroup', "Move Editor into Previous Group");
@@ -1378,104 +1362,13 @@ export class MoveEditorToPreviousGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'previous', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'previous', by: 'group' } as ActiveEditorMoveArguments);
 	}
 }
 
-export class MoveEditorToAboveGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.moveEditorToAboveGroup';
-	public static readonly LABEL = nls.localize('moveEditorToAboveGroup', "Move Editor into Above Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'up', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToBelowGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.moveEditorToBelowGroup';
-	public static readonly LABEL = nls.localize('moveEditorToBelowGroup', "Move Editor into Below Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'down', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToLeftGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.moveEditorToLeftGroup';
-	public static readonly LABEL = nls.localize('moveEditorToLeftGroup', "Move Editor into Left Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'left', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToRightGroupAction extends Action {
-
-	public static readonly ID = 'workbench.action.moveEditorToRightGroup';
-	public static readonly LABEL = nls.localize('moveEditorToRightGroup', "Move Editor into Right Group");
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'right', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
-	}
-}
-
-export class MoveEditorToNextGroupAction extends Action {
+export class MoveEditorToNextGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorToNextGroup';
 	public static readonly LABEL = nls.localize('moveEditorToNextGroup', "Move Editor into Next Group");
@@ -1483,20 +1376,69 @@ export class MoveEditorToNextGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'next', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'next', by: 'group' } as ActiveEditorMoveArguments);
 	}
 }
 
-export class MoveEditorToFirstGroupAction extends Action {
+export class MoveEditorToAboveGroupAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.moveEditorToAboveGroup';
+	public static readonly LABEL = nls.localize('moveEditorToAboveGroup', "Move Editor into Above Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'up', by: 'group' } as ActiveEditorMoveArguments);
+	}
+}
+
+export class MoveEditorToBelowGroupAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.moveEditorToBelowGroup';
+	public static readonly LABEL = nls.localize('moveEditorToBelowGroup', "Move Editor into Below Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'down', by: 'group' } as ActiveEditorMoveArguments);
+	}
+}
+
+export class MoveEditorToLeftGroupAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.moveEditorToLeftGroup';
+	public static readonly LABEL = nls.localize('moveEditorToLeftGroup', "Move Editor into Left Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'left', by: 'group' } as ActiveEditorMoveArguments);
+	}
+}
+
+export class MoveEditorToRightGroupAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.moveEditorToRightGroup';
+	public static readonly LABEL = nls.localize('moveEditorToRightGroup', "Move Editor into Right Group");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'right', by: 'group' } as ActiveEditorMoveArguments);
+	}
+}
+
+export class MoveEditorToFirstGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorToFirstGroup';
 	public static readonly LABEL = nls.localize('moveEditorToFirstGroup', "Move Editor into First Group");
@@ -1504,20 +1446,13 @@ export class MoveEditorToFirstGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'first', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
-
-		return TPromise.as(true);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'first', by: 'group' } as ActiveEditorMoveArguments);
 	}
 }
 
-export class MoveEditorToLastGroupAction extends Action {
+export class MoveEditorToLastGroupAction extends ExecuteCommandAction {
 
 	public static readonly ID = 'workbench.action.moveEditorToLastGroup';
 	public static readonly LABEL = nls.localize('moveEditorToLastGroup', "Move Editor into Last Group");
@@ -1525,15 +1460,134 @@ export class MoveEditorToLastGroupAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private commandService: ICommandService
+		@ICommandService commandService: ICommandService
 	) {
-		super(id, label);
+		super(id, label, MOVE_ACTIVE_EDITOR_COMMAND_ID, commandService, { to: 'last', by: 'group' } as ActiveEditorMoveArguments);
 	}
+}
 
-	public run(): TPromise<any> {
-		const args: ActiveEditorMoveArguments = { to: 'last', by: 'group' };
-		this.commandService.executeCommand(MOVE_ACTIVE_EDITOR_COMMAND_ID, args);
+export class EditorLayoutSingleAction extends ExecuteCommandAction {
 
-		return TPromise.as(true);
+	public static readonly ID = 'workbench.action.editorLayoutSingle';
+	public static readonly LABEL = nls.localize('editorLayoutSingle', "Single Column Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}] } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoColumnsAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutTwoColumns';
+	public static readonly LABEL = nls.localize('editorLayoutTwoColumns', "Two Columns Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeColumnsAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutThreeColumns';
+	public static readonly LABEL = nls.localize('editorLayoutThreeColumns', "Three Columns Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoRowsAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutTwoRows';
+	public static readonly LABEL = nls.localize('editorLayoutTwoRows', "Two Rows Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeRowsAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutThreeRows';
+	public static readonly LABEL = nls.localize('editorLayoutThreeRows', "Three Rows Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, {}, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutTwoByTwoGridAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutTwoByTwoGrid';
+	public static readonly LABEL = nls.localize('editorLayoutTwoByTwoGrid', "Grid Editor Layout (2x2)");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeColumnsTopAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutThreeColumnsTop';
+	public static readonly LABEL = nls.localize('editorLayoutThreeColumnsTop', "Three Columns Top Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ groups: [{}, {}, {}] }, {}], orientation: GroupOrientation.VERTICAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutThreeColumnsRightAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutThreeColumnsRight';
+	public static readonly LABEL = nls.localize('editorLayoutThreeColumnsRight', "Three Columns Right Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{}, { groups: [{}, {}, {}] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class EditorLayoutGoldenRatioAction extends ExecuteCommandAction {
+
+	public static readonly ID = 'workbench.action.editorLayoutGoldenRatio';
+	public static readonly LABEL = nls.localize('editorLayoutGoldenRatio', "Golden Ratio Editor Layout");
+
+	constructor(
+		id: string,
+		label: string,
+		@ICommandService commandService: ICommandService
+	) {
+		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ size: 0.618 }, { size: 0.382, groups: [{ size: 0.618 }, { size: 0.382 }] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
 	}
 }
