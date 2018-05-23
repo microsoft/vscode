@@ -39,7 +39,7 @@ import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -1380,7 +1380,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INotificationService private notificationService: INotificationService,
 	) {
@@ -1390,7 +1390,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			this.windowService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}

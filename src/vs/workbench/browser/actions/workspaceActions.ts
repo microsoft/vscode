@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
@@ -228,7 +228,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(id, label);
@@ -239,7 +239,7 @@ export class DuplicateWorkspaceInNewWindowAction extends Action {
 
 		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
 			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-				return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
+				return this.windowService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 			});
 		});
 	}
