@@ -5,13 +5,9 @@
 
 import * as dom from 'vs/base/browser/dom';
 import { renderMarkdown } from 'vs/base/browser/htmlContentRenderer';
-import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
-import { IDisposable } from 'vs/base/common/lifecycle';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer as ITreeRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 
@@ -57,8 +53,6 @@ export class CommentsDataSource implements IDataSource {
 
 interface IResourceTemplateData {
 	resourceLabel: FileLabel;
-	count: CountBadge;
-	styler: IDisposable;
 }
 
 interface ICommentThreadTemplateData {
@@ -73,8 +67,7 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 
 	constructor(
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 	}
 
@@ -106,7 +99,6 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		switch (templateId) {
 			case CommentsModelRenderer.RESOURCE_ID:
 				(<IResourceTemplateData>templateData).resourceLabel.dispose();
-				(<IResourceTemplateData>templateData).styler.dispose();
 		}
 	}
 
@@ -124,10 +116,6 @@ export class CommentsModelRenderer implements ITreeRenderer {
 		const labelContainer = dom.append(container, dom.$('.resource-container'));
 		data.resourceLabel = this.instantiationService.createInstance(FileLabel, labelContainer, {});
 
-		const badgeWrapper = dom.append(labelContainer, dom.$('.count-badge-wrapper'));
-		data.count = new CountBadge(badgeWrapper);
-		data.styler = attachBadgeStyler(data.count, this.themeService);
-
 		return data;
 	}
 
@@ -142,9 +130,6 @@ export class CommentsModelRenderer implements ITreeRenderer {
 
 	private renderResourceElement(tree: ITree, element: ResourceWithCommentThreads, templateData: IResourceTemplateData) {
 		templateData.resourceLabel.setFile(element.resource);
-		let numComments = element.commentThreads.length;
-		element.commentThreads.forEach(thread => numComments += thread.replies.length);
-		templateData.count.setCount(numComments);
 	}
 
 	private renderCommentElement(tree: ITree, element: CommentNode, templateData: ICommentThreadTemplateData) {

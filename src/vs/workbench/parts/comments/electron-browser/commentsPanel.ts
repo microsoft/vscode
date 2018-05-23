@@ -11,7 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
-import { localize } from 'vs/nls';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -20,7 +19,6 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
-import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
@@ -44,8 +42,7 @@ export class CommentsPanel extends Panel {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ICommandService private commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IThemeService themeService: IThemeService,
-		@IActivityService private activityService: IActivityService
+		@IThemeService themeService: IThemeService
 	) {
 		super(COMMENTS_PANEL_ID, telemetryService, themeService);
 	}
@@ -106,7 +103,7 @@ export class CommentsPanel extends Panel {
 	private createTree(): void {
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
 			dataSource: new CommentsDataSource(),
-			renderer: new CommentsModelRenderer(this.instantiationService, this.themeService),
+			renderer: new CommentsModelRenderer(this.instantiationService),
 			accessibilityProvider: new DefaultAccessibilityProvider,
 			controller: new DefaultController(),
 			dnd: new DefaultDragAndDrop(),
@@ -220,7 +217,6 @@ export class CommentsPanel extends Panel {
 
 	private refresh(): void {
 		if (this.isVisible()) {
-			this.updateBadge();
 			this.collapseAllAction.enabled = this.commentsModel.hasCommentThreads();
 
 			dom.toggleClass(this.treeContainer, 'hidden', !this.commentsModel.hasCommentThreads());
@@ -240,11 +236,5 @@ export class CommentsPanel extends Panel {
 	private onCommentsUpdated(e: CommentThreadChangedEvent): void {
 		this.commentsModel.updateCommentThreads(e);
 		this.refresh();
-	}
-
-	private updateBadge(): void {
-		const total = this.commentsModel.getCommentsCount();
-		const message = localize('totalComments', 'Total {0} Comments', total);
-		this.activityService.showActivity(COMMENTS_PANEL_ID, new NumberBadge(total, () => message));
 	}
 }
