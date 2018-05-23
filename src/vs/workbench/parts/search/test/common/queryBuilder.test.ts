@@ -7,18 +7,15 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IFolderQuery, IPatternInfo, ISearchQuery, QueryType } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
+import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-
-
-import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
