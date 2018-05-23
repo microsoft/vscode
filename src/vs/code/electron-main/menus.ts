@@ -812,10 +812,10 @@ export class CodeMenu {
 		const nextGroup = this.createMenuItem(nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group"), 'workbench.action.focusNextGroup');
 		const previousGroup = this.createMenuItem(nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group"), 'workbench.action.focusPreviousGroup');
 
-		const focusLeftGroup = this.createMenuItem(nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "&&Left Group"), 'workbench.action.focusLeftGroup');
-		const focusRightGroup = this.createMenuItem(nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "&&Right Group"), 'workbench.action.focusRightGroup');
-		const focusAboveGroup = this.createMenuItem(nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "&&Above Group"), 'workbench.action.focusAboveGroup');
-		const focusBelowGroup = this.createMenuItem(nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "&&Below Group"), 'workbench.action.focusBelowGroup');
+		const focusLeftGroup = this.createMenuItem(nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left"), 'workbench.action.focusLeftGroup');
+		const focusRightGroup = this.createMenuItem(nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right"), 'workbench.action.focusRightGroup');
+		const focusAboveGroup = this.createMenuItem(nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above"), 'workbench.action.focusAboveGroup');
+		const focusBelowGroup = this.createMenuItem(nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below"), 'workbench.action.focusBelowGroup');
 
 		[
 			focusFirstGroup,
