@@ -107,10 +107,10 @@ export function setup() {
 		// 	await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
 		// });
 
-		it('stop debugging', async function () {
-			const app = this.app as Application;
+		// it('stop debugging', async function () {
+		// 	const app = this.app as Application;
 
-			await app.workbench.debug.stopDebugging();
-		});
+		// 	await app.workbench.debug.stopDebugging();
+		// });
 	});
 }
