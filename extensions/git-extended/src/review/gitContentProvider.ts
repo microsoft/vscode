@@ -7,6 +7,7 @@
 import * as vscode from 'vscode';
 import { Repository } from '../models/repository';
 import { fromGitUri } from '../common/uri';
+import { PullRequestModel } from '../models/pullRequestModel';
 
 export class GitContentProvider implements vscode.TextDocumentContentProvider {
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();

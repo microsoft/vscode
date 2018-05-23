@@ -238,13 +238,12 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 		if (pr.prItem.head.sha !== this._lastCommitSha && !this._updateMessageShown) {
 			this._updateMessageShown = true;
-			await vscode.window.showInformationMessage('There are updates available for this branch.', {}, 'Pull').then(result => {
-				if (result === 'Pull') {
-					vscode.commands.executeCommand('git.pull').then(() => {
-						this._updateMessageShown = false;
-					});
-				}
-			});
+			let result = await vscode.window.showInformationMessage('There are updates available for this branch.', {}, 'Pull');
+
+			if (result === 'Pull') {
+				await vscode.commands.executeCommand('git.pull');
+				this._updateMessageShown = false;
+			}
 		}
 
 		const comments = await pr.getComments();
@@ -328,8 +327,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 				change.status,
 				change.fileName,
 				change.blobUrl,
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
-				toGitUri(vscode.Uri.parse(change.fileName), null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
+				toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
 				this._repository.path,
 				change.diffHunks
 			);
@@ -350,8 +349,8 @@ export class ReviewManager implements vscode.DecorationProvider {
 					GitChangeType.MODIFY,
 					fileName,
 					null,
-					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
-					toGitUri(vscode.Uri.parse(fileName), null, oldComments[0].original_commit_id, {}),
+					toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
+					toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
 					this._repository.path,
 					[] // @todo Peng.
 				);

@@ -25,9 +25,9 @@ export interface GitUriOptions {
 // As a mitigation for extensions like ESLint showing warnings and errors
 // for git URIs, let's change the file extension of these uris to .git,
 // when `replaceFileExtension` is true.
-export function toGitUri(uri: Uri, ref: string, commit: string, options: GitUriOptions = {}): Uri {
+export function toGitUri(uri: Uri, filePath: string, ref: string, commit: string, options: GitUriOptions = {}): Uri {
 	const params: GitUriParams = {
-		path: uri.path,
+		path: filePath ? filePath : uri.path,
 		ref,
 		commit: commit
 	};
