@@ -10,7 +10,6 @@ import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import * as objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -33,13 +32,7 @@ import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/p
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { SettingsRenderer, SettingsDataSource, SettingsTreeController, SettingsAccessibilityProvider, TreeElement, TreeItemType, ISettingsEditorViewState } from 'vs/workbench/parts/preferences/browser/settingsTree';
-
-
-enum SearchResultIdx {
-	Local = 0,
-	Remote = 1
-}
+import { SettingsRenderer, SettingsDataSource, SettingsTreeController, SettingsAccessibilityProvider, TreeElement, TreeItemType, ISettingsEditorViewState, SearchResultModel, SearchResultIdx, SettingsTreeFilter } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
 const $ = DOM.$;
 
@@ -75,11 +68,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private focusedElement: TreeElement;
 
 	private viewState: ISettingsEditorViewState;
-	// <TODO@roblou> factor out tree/list viewmodel to somewhere outside this class
 	private searchResultModel: SearchResultModel;
-	private showConfiguredSettingsOnly = false;
-	private inRender = false;
-	// </TODO>
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -96,7 +85,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
-		this.searchResultModel = new SearchResultModel();
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 
 		this._register(configurationService.onDidChangeConfiguration(() => this.settingsTree.refresh()));
@@ -128,7 +116,6 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.layout(dimension);
 
 		this.layoutSettingsList();
-		this.render();
 	}
 
 	focus(): void {
@@ -240,6 +227,7 @@ export class SettingsEditor2 extends BaseEditor {
 				renderer: renderer,
 				controller: this.instantiationService.createInstance(SettingsTreeController),
 				accessibilityProvider: this.instantiationService.createInstance(SettingsAccessibilityProvider),
+				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
 				ariaLabel: localize('treeAriaLabel', "Settings"),
@@ -276,8 +264,8 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onShowConfiguredOnlyClicked(): void {
-		this.showConfiguredSettingsOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
-		this.render();
+		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
+		this.refreshTree();
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -291,7 +279,7 @@ export class SettingsEditor2 extends BaseEditor {
 			query: this.searchWidget.getValue(),
 			searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
 			rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
-			showConfiguredOnly: this.showConfiguredSettingsOnly,
+			showConfiguredOnly: this.viewState.showConfiguredOnly,
 			isReset: typeof value === 'undefined',
 			settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
 		};
@@ -380,6 +368,10 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.as(null);
 	}
 
+	private refreshTree(): TPromise<any> {
+		return this.settingsTree.refresh();
+	}
+
 	private onSearchInputChanged(): void {
 		const query = this.searchWidget.getValue().trim();
 		this.delayedFilterLogging.cancel();
@@ -395,9 +387,7 @@ export class SettingsEditor2 extends BaseEditor {
 			return TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
 				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
-			]).then(() => {
-				this.settingsTree.setInput(this.searchResultModel.resultsAsGroup());
-			});
+			]) as TPromise;
 		} else {
 			// When clearing the input, update immediately to clear it
 			this.localSearchDelayer.cancel();
@@ -413,7 +403,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private expandCommonlyUsedSettings(): void {
 		const commonlyUsedGroup = this.defaultSettingsEditorModel.settingsGroups[0];
-		this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup));
+		this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup, 0));
 	}
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
@@ -467,8 +457,13 @@ export class SettingsEditor2 extends BaseEditor {
 
 		return TPromise.join(filterPs).then(results => {
 			const [result] = results;
+			if (!this.searchResultModel) {
+				this.searchResultModel = new SearchResultModel();
+				this.settingsTree.setInput(this.searchResultModel);
+			}
+
 			this.searchResultModel.setResult(type, result);
-			return this.render();
+			return this.refreshTree();
 		});
 	}
 
@@ -556,63 +551,3 @@ function setTabindexes(element: HTMLElement, tabIndex: number): void {
 // 	measureContainer.removeChild(measureHelper);
 // 	return height;
 // }
-
-
-class SearchResultModel {
-	private rawSearchResults: ISearchResult[];
-	private cachedUniqueSearchResults: ISearchResult[];
-
-	getUniqueResults(): ISearchResult[] {
-		if (this.cachedUniqueSearchResults) {
-			return this.cachedUniqueSearchResults;
-		}
-
-		if (!this.rawSearchResults) {
-			return null;
-		}
-
-		const localMatchKeys = new Set();
-		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
-		if (localResult) {
-			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
-		}
-
-		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
-		if (remoteResult) {
-			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
-		}
-
-		this.cachedUniqueSearchResults = [localResult, remoteResult];
-		return this.cachedUniqueSearchResults;
-	}
-
-	getRawResults(): ISearchResult[] {
-		return this.rawSearchResults;
-	}
-
-	setResult(type: SearchResultIdx, result: ISearchResult): void {
-		this.cachedUniqueSearchResults = null;
-		this.rawSearchResults = this.rawSearchResults || [];
-		this.rawSearchResults[type] = result;
-	}
-
-	resultsAsGroup(): ISettingsGroup {
-		const flatSettings: ISetting[] = [];
-		this.getUniqueResults()
-			.filter(r => !!r)
-			.forEach(r => {
-				flatSettings.push(
-					...r.filterMatches.map(m => m.setting));
-			});
-
-		return <ISettingsGroup>{
-			id: 'settingsSearchResultGroup',
-			range: null,
-			sections: [
-				{ settings: flatSettings }
-			],
-			title: 'searchResults',
-			titleRange: null
-		};
-	}
-}

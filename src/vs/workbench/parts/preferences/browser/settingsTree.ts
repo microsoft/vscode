@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as objects from 'vs/base/common/objects';
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -10,7 +11,7 @@ import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAccessibilityProvider, IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
+import { IAccessibilityProvider, IDataSource, IRenderer, ITree, IFilter } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -19,11 +20,24 @@ import { registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ISetting, ISettingsGroup, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { Emitter, Event } from 'vs/base/common/event';
 
 const $ = DOM.$;
+
+export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', {
+	light: '#019001',
+	dark: '#73C991',
+	hc: '#73C991'
+}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
+	if (modifiedItemForegroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
+	}
+});
 
 export interface ITreeItem {
 	id: string;
@@ -52,6 +66,7 @@ export interface IGroupElement extends ITreeItem {
 	type: TreeItemType.groupTitle;
 	parent: DefaultSettingsEditorModel;
 	group: ISettingsGroup;
+	index: number;
 }
 
 const ALL_SETTINGS_BUTTON_ID = 'all_settings_button_element';
@@ -61,7 +76,7 @@ export interface IButtonElement extends ITreeItem {
 }
 
 export type TreeElement = ISettingElement | IGroupElement | IButtonElement;
-export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | ISettingsGroup;
+export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | SearchResultModel;
 
 export class SettingsDataSource implements IDataSource {
 	constructor(
@@ -69,11 +84,12 @@ export class SettingsDataSource implements IDataSource {
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	getGroupElement(group: ISettingsGroup): IGroupElement {
+	getGroupElement(group: ISettingsGroup, index: number): IGroupElement {
 		return <IGroupElement>{
 			type: TreeItemType.groupTitle,
 			group,
-			id: `${group.title}_${group.id}`
+			id: `${group.title}_${group.id}`,
+			index
 		};
 	}
 
@@ -115,7 +131,7 @@ export class SettingsDataSource implements IDataSource {
 			return true;
 		}
 
-		if (elementIsSettingsGroup(element)) {
+		if (element instanceof SearchResultModel) {
 			return true;
 		}
 
@@ -129,8 +145,8 @@ export class SettingsDataSource implements IDataSource {
 	_getChildren(element: TreeElementOrRoot): TreeElement[] {
 		if (element instanceof DefaultSettingsEditorModel) {
 			return this.getRootChildren(element);
-		} else if (elementIsSettingsGroup(element)) {
-			return this.getGroupChildren(element);
+		} else if (element instanceof SearchResultModel) {
+			return this.getGroupChildren(element.resultsAsGroup());
 		} else if (element.type === TreeItemType.groupTitle) {
 			return this.getGroupChildren(element.group);
 		} else {
@@ -145,7 +161,7 @@ export class SettingsDataSource implements IDataSource {
 
 	private getRootChildren(root: DefaultSettingsEditorModel): TreeElement[] {
 		const groupItems: TreeElement[] = root.settingsGroups
-			.map(g => this.getGroupElement(g));
+			.map((g, i) => this.getGroupElement(g, i));
 
 		groupItems.splice(1, 0, <IButtonElement>{
 			id: ALL_SETTINGS_BUTTON_ID,
@@ -174,10 +190,6 @@ export class SettingsDataSource implements IDataSource {
 
 		return TPromise.wrap(null);
 	}
-}
-
-function elementIsSettingsGroup(element: TreeElementOrRoot): element is ISettingsGroup {
-	return !!(<ISettingsGroup>element).sections;
 }
 
 export interface ISettingsEditorViewState {
@@ -490,19 +502,6 @@ export class SettingsRenderer implements IRenderer {
 	}
 }
 
-export const modifiedItemForeground = registerColor('settings.modifiedItemForeground', {
-	light: '#019001',
-	dark: '#73C991',
-	hc: '#73C991'
-}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
-
-registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
-	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
-	}
-});
-
 export function settingKeyToDisplayFormat(key: string): { category: string, label: string } {
 	let label = key
 		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
@@ -519,6 +518,21 @@ export function settingKeyToDisplayFormat(key: string): { category: string, labe
 	return { category, label };
 }
 
+export class SettingsTreeFilter implements IFilter {
+	constructor(private viewState: ISettingsEditorViewState) { }
+
+	isVisible(tree: ITree, element: TreeElement): boolean {
+		if (this.viewState.showConfiguredOnly && element.type === TreeItemType.setting) {
+			return element.isConfigured;
+		}
+
+		if (!this.viewState.showAllSettings && element.type === TreeItemType.groupTitle) {
+			return element.index === 0;
+		}
+
+		return true;
+	}
+}
 
 export class SettingsTreeController extends WorkbenchTreeController {
 	constructor(
@@ -539,4 +553,71 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 	// getSetSize(): string {
 		// throw new Error('Method not implemented.');
 	// }
+}
+
+
+export enum SearchResultIdx {
+	Local = 0,
+	Remote = 1
+}
+
+export class SearchResultModel {
+	private rawSearchResults: ISearchResult[];
+	private cachedUniqueSearchResults: ISearchResult[];
+
+	readonly id = 'searchResultModel';
+
+	getUniqueResults(): ISearchResult[] {
+		if (this.cachedUniqueSearchResults) {
+			return this.cachedUniqueSearchResults;
+		}
+
+		if (!this.rawSearchResults) {
+			return [];
+		}
+
+		const localMatchKeys = new Set();
+		const localResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Local]);
+		if (localResult) {
+			localResult.filterMatches.forEach(m => localMatchKeys.add(m.setting.key));
+		}
+
+		const remoteResult = objects.deepClone(this.rawSearchResults[SearchResultIdx.Remote]);
+		if (remoteResult) {
+			remoteResult.filterMatches = remoteResult.filterMatches.filter(m => !localMatchKeys.has(m.setting.key));
+		}
+
+		this.cachedUniqueSearchResults = [localResult, remoteResult];
+		return this.cachedUniqueSearchResults;
+	}
+
+	getRawResults(): ISearchResult[] {
+		return this.rawSearchResults;
+	}
+
+	setResult(type: SearchResultIdx, result: ISearchResult): void {
+		this.cachedUniqueSearchResults = null;
+		this.rawSearchResults = this.rawSearchResults || [];
+		this.rawSearchResults[type] = result;
+	}
+
+	resultsAsGroup(): ISettingsGroup {
+		const flatSettings: ISetting[] = [];
+		this.getUniqueResults()
+			.filter(r => !!r)
+			.forEach(r => {
+				flatSettings.push(
+					...r.filterMatches.map(m => m.setting));
+			});
+
+		return <ISettingsGroup>{
+			id: 'settingsSearchResultGroup',
+			range: null,
+			sections: [
+				{ settings: flatSettings }
+			],
+			title: 'searchResults',
+			titleRange: null
+		};
+	}
 }
