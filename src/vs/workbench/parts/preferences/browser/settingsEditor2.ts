@@ -19,8 +19,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -202,10 +202,38 @@ export class SettingsEditor2 extends BaseEditor {
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				showLoading: false,
 				indentPixels: 0,
-				twistiePixels: 15
+				twistiePixels: 15,
 			});
 
+		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+			const activeListBackground = theme.getColor('list.activeSelectionBackground');
+			if (activeListBackground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree.focused .monaco-tree-row.focused .content::before { background-color: ${activeListBackground}; }`);
+			}
+
+			const inactiveListBackground = theme.getColor('list.inactiveSelectionBackground');
+			if (inactiveListBackground) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused .content::before { background-color: ${inactiveListBackground}; }`);
+			}
+		}));
+
+		attachStyler(this.themeService, {
+			listActiveSelectionBackground: null,
+			listActiveSelectionForeground: null,
+			listFocusAndSelectionBackground: null,
+			listFocusAndSelectionForeground: null,
+			listFocusBackground: null,
+			listFocusForeground: null,
+			listHoverForeground: null,
+			listHoverBackground: null,
+			listInactiveSelectionBackground: null,
+			listInactiveSelectionForeground: null
+		}, colors => {
+			this.settingsTree.style(colors);
+		});
+
 		this.settingsTree.onDidChangeFocus(e => {
+			this.settingsTree.setSelection([e.focus]);
 			if (this.selectedElement) {
 				this.settingsTree.refresh(this.selectedElement);
 			}
@@ -239,7 +267,8 @@ export class SettingsEditor2 extends BaseEditor {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
-			.then(() => this.settingsTree.refresh());
+			.then(() => this.refreshTree())
+			.then(() => this.settingsTree.domFocus());
 
 		const reportModifiedProps = {
 			key,

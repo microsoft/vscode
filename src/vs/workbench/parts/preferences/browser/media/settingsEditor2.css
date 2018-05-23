@@ -114,6 +114,20 @@
 	min-height: 75px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row .content::before {
+	content: ' ';
+	display: inline-block;
+	position: absolute;
+	width: 10px;
+	left: -14px;
+	top: 2px;
+	bottom: 10px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row {
+	background-color: initial !important;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
@@ -169,6 +183,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
 	padding-left: 15px;
+	opacity: 0;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
@@ -229,7 +244,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
 	visibility: hidden;
 	position: absolute;
-	bottom: -1px;
+	bottom: -2px;
 	width: calc(100% - 190px);
 	text-align: center;
 	opacity: .5;

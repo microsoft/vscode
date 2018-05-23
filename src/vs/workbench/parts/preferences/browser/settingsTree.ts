@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -23,7 +24,7 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
 
@@ -187,6 +188,10 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	getParent(tree: ITree, element: TreeElement): TPromise<any, any> {
+		if (!element) {
+			return null;
+		}
+
 		if (!(element instanceof DefaultSettingsEditorModel)) {
 			return TPromise.wrap(element.parent);
 		}
@@ -392,6 +397,9 @@ export class SettingsRenderer implements IRenderer {
 			overridesElement
 		};
 
+		// Prevent clicks from being handled by list
+		toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
 		return template;
 	}
 
@@ -411,13 +419,13 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	private elementIsSelected(tree: ITree, element: TreeElement): boolean {
-		const selection = tree.getFocus();
-		const selectedElement: TreeElement = selection;
+		const selection = tree.getSelection();
+		const selectedElement: TreeElement = selection && selection[0];
 		return selectedElement && selectedElement.id === element.id;
 	}
 
 	private renderSettingElement(tree: ITree, element: ISettingElement, template: ISettingItemTemplate, measuring?: boolean): void {
-		const isSelected = this.elementIsSelected(tree, element);
+		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
 		template.context = element;
@@ -448,12 +456,12 @@ export class SettingsRenderer implements IRenderer {
 			}
 		}
 
-		this.renderValue(element, template);
+		this.renderValue(element, isSelected, template);
 
 		const resetButton = new Button(template.valueElement);
 		resetButton.element.title = localize('resetButtonTitle', "Reset");
 		resetButton.element.classList.add('setting-reset-button');
-		// resetButton.element.tabIndex = element.isFocused ? 0 : -1; // TODO
+		resetButton.element.tabIndex = isSelected ? 0 : -1;
 
 		attachButtonStyler(resetButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
@@ -475,62 +483,62 @@ export class SettingsRenderer implements IRenderer {
 		template.overridesElement.textContent = overridesElementText;
 	}
 
-	private renderValue(element: ISettingElement, template: ISettingItemTemplate): void {
+	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
 		if (element.valueType === 'string' && element.enum) {
-			this.renderEnum(element, template, onChange);
+			this.renderEnum(element, isSelected, template, onChange);
 		} else if (element.valueType === 'boolean') {
-			this.renderBool(element, template, onChange);
+			this.renderBool(element, isSelected, template, onChange);
 		} else if (element.valueType === 'string') {
-			this.renderText(element, template, onChange);
+			this.renderText(element, isSelected, template, onChange);
 		} else if (element.valueType === 'number') {
-			this.renderText(element, template, value => onChange(parseInt(value)));
+			this.renderText(element, isSelected, template, value => onChange(parseInt(value)));
 		} else {
-			this.renderEditInSettingsJson(element, template);
+			this.renderEditInSettingsJson(element, isSelected, template);
 		}
 	}
 
-	private renderBool(element: ISettingElement, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
+	private renderBool(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
 		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = element.value;
-		// checkboxElement.tabIndex = element.isFocused ? 0 : -1; // TODO
+		checkboxElement.tabIndex = isSelected ? 0 : -1;
 
 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
 
-	private renderEnum(element: ISettingElement, template: ISettingItemTemplate, onChange: (value: string) => void): void {
+	private renderEnum(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const idx = element.enum.indexOf(element.value);
 		const selectBox = new SelectBox(element.enum, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
 		if (template.valueElement.firstElementChild) {
-			// template.valueElement.firstElementChild.setAttribute('tabindex', element.isFocused ? '0' : '-1');
+			template.valueElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 		}
 
 		template.toDispose.push(
 			selectBox.onDidSelect(e => onChange(element.enum[e.index])));
 	}
 
-	private renderText(element: ISettingElement, template: ISettingItemTemplate, onChange: (value: string) => void): void {
+	private renderText(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(template.valueElement, this.contextViewService);
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
 		inputBox.value = element.value;
-		// inputBox.inputElement.tabIndex = element.isFocused ? 0 : -1;
+		inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		template.toDispose.push(
 			inputBox.onDidChange(e => onChange(e)));
 	}
 
-	private renderEditInSettingsJson(element: ISettingElement, template: ISettingItemTemplate): void {
+	private renderEditInSettingsJson(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const openSettingsButton = new Button(template.valueElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
 		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
-		// openSettingsButton.element.tabIndex = element.isFocused ? 0 : -1;
+		openSettingsButton.element.tabIndex = isSelected ? 0 : -1;
 
 		template.toDispose.push(openSettingsButton);
 		template.toDispose.push(attachButtonStyler(openSettingsButton, this.themeService, {
