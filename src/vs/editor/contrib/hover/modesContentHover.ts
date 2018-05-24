@@ -391,7 +391,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					const colorChangeListener = model.onDidChangeColor(updateColorPresentations);
 
 					this._colorPicker = widget;
-					this.showAt(new Position(renderRange.startLineNumber, renderColumn), this._shouldFocus);
+					this.showAt(new Position(renderRange.startLineNumber, msg.range.startColumn), this._shouldFocus);
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
