@@ -105,8 +105,6 @@ export class DiagnosticsManager {
 			return;
 		}
 
-		collection.set(file, diagnostics);
-
 		if (diagnostics.length === 0) {
 			const existing = collection.get(file);
 			if (existing.length === 0) {
@@ -114,6 +112,8 @@ export class DiagnosticsManager {
 				return;
 			}
 		}
+
+		collection.set(file, diagnostics);
 
 		this.scheduleDiagnosticsUpdate(file);
 	}
