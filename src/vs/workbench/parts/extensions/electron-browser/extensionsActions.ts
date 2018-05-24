@@ -1721,13 +1721,15 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	constructor(
 		id: string,
 		label: string,
+		cssClass: string,
+		enabled: boolean,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IEditorService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
-		super(id, label, null);
+		super(id, label, cssClass, enabled);
 	}
 
 	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
@@ -1755,6 +1757,75 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					selection
 				}
 			}));
+	}
+
+	protected getFolderRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
+		return this.fileService.resolveContent(extensionsFileResource)
+			.then(content => {
+					const folderRecommendations = (<IExtensionsContent>json.parse(content.value));
+					return folderRecommendations.recommendations || [];
+			});
+	}
+
+	protected getWorkspaceRecommendedExtensions(workspaceConfigurationFile: URI): TPromise<string[]> {
+		return this.fileService.resolveContent(workspaceConfigurationFile)
+			.then(content => {
+				const workspaceRecommendations = <IExtensionsContent>json.parse(content.value)['extensions'];
+				if (workspaceRecommendations) {
+					return workspaceRecommendations.recommendations || [];
+				}
+				return [];
+			});
+	}
+
+	protected addRecommendedExtensionToFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
+		return this.getOrCreateExtensionsFile(extensionsFileResource)
+			.then(({ created, content }) => {
+				const folderRecommendations: string[] = (<IExtensionsContent>json.parse(content)).recommendations || [];
+
+				if (folderRecommendations.indexOf(extensionId) !== -1) {
+					return TPromise.as(null);
+				}
+
+				// TODO:
+				// This will actually overwrite the contents of this key in the file,
+				// removing comments and any additional user modifications.
+				return this.jsonEditingService.write(extensionsFileResource,
+					{
+						key: 'recommendations',
+						value: [
+								...folderRecommendations,
+								extensionId
+						]
+					},
+					true);
+			});
+	}
+
+	protected addRecommendedExtensionToWorkspace(workspaceConfigurationFile: URI, extensionId: string): TPromise<any> {
+		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
+			.then(content => {
+				const workspaceRecommendations: string[] = (<IExtensionsContent>json.parse(content.value)['extensions']).recommendations;
+
+				if (workspaceRecommendations.indexOf(extensionId) !== -1) {
+					return TPromise.as(null);
+				}
+
+				// TODO:
+				// This will actually overwrite the contents of this key in the file,
+				// removing comments and any additional user modifications.
+				return this.jsonEditingService.write(workspaceConfigurationFile,
+					{
+						key: 'extensions',
+						value: {
+							recommendations: [
+								...workspaceRecommendations,
+								extensionId
+							]
+						}
+					},
+					true);
+			});
 	}
 
 	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<IContent> {
@@ -1818,7 +1889,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, null, false, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -1860,7 +1931,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, null, false, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -1951,6 +2022,149 @@ export class DisabledStatusLabelAction extends Action {
 
 	run(): TPromise<any> {
 		return TPromise.as(null);
+	}
+}
+
+// TODO: test when workspace is folder
+//				TODO: test when recomendation file already exists
+//							TODO: test when current extension is already recommended
+//							TODO: test when current extension is NOT recommended
+//				TODO: test when recomendation file doesnt exists
+// TODO: test when workspace is workspace
+//				TODO: test when recomendation file already exists
+//							TODO: test when current extension is already recommended
+//							TODO: test when current extension is NOT recommended
+//				TODO: test when recomendation file doesnt exists
+// TODO: test when workspace is empty
+// TODO: make sure we preserve comments
+
+export class RecommendToFolderAction extends AbstractConfigureRecommendedExtensionsAction {
+	private static readonly Class = 'extension-action recommend-to-folder';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private disposables: IDisposable[] = [];
+
+	private _configurationFile: URI;
+	get configurationFile(): URI {
+		if (!this._configurationFile) {
+			this._configurationFile = this.contextService.getWorkspace().folders[0].toResource(paths.join('.vscode', 'extensions.json'));
+		}
+		return this._configurationFile;
+	}
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(
+			'extensions.install',
+			localize('recommendToFolder', "Recommend To Folder"),
+			`${RecommendToFolderAction.Class}`,
+			false,
+			contextService,
+			fileService,
+			editorService,
+			jsonEditingService,
+			textModelResolverService
+	);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
+			this.enabled = false;
+			this.class = this.enabled ? RecommendToFolderAction.Class : `${RecommendToFolderAction.Class} hide`;
+		} else {
+			if (this.extension) {
+				this.getFolderRecommendedExtensions(this.configurationFile).then(recommendedExtensions => {
+					this.enabled = recommendedExtensions.indexOf(this.extension.id) === -1;
+					this.class = this.enabled ? RecommendToFolderAction.Class : `${RecommendToFolderAction.Class} hide`;
+				});
+			}
+		}
+	}
+
+	run(): TPromise<any> {
+		return this.addRecommendedExtensionToFolder(this.configurationFile, this.extension.id)
+			.then(() => this.update());
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class RecommendToWorkspaceAction extends AbstractConfigureRecommendedExtensionsAction {
+	private static readonly Class = 'extension-action recommend-to-workspace';
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private disposables: IDisposable[] = [];
+
+	private _configurationFile: URI;
+	get configurationFile(): URI {
+		if (!this._configurationFile) {
+			this._configurationFile = this.contextService.getWorkspace().configuration;
+		}
+		return this._configurationFile;
+	}
+
+	constructor(
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+	) {
+		super(
+			'extensions.install',
+			localize('recommendToWorkspace', "Recommend To Workspace"),
+			`${RecommendToWorkspaceAction.Class}`,
+			false,
+			contextService,
+			fileService,
+			editorService,
+			jsonEditingService,
+			textModelResolverService
+	);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
+			this.enabled = false;
+			this.class = this.enabled ? RecommendToWorkspaceAction.Class : `${RecommendToWorkspaceAction.Class} hide`;
+		} else {
+			if (this.extension) {
+				this.getWorkspaceRecommendedExtensions(this.configurationFile).then(recommendedExtensions => {
+					this.enabled = recommendedExtensions.indexOf(this.extension.id) === -1;
+					this.class = this.enabled ? RecommendToWorkspaceAction.Class : `${RecommendToWorkspaceAction.Class} hide`;
+				});
+			}
+		}
+	}
+
+	run(): TPromise<any> {
+		return this.addRecommendedExtensionToWorkspace(this.configurationFile, this.extension.id)
+			.then(() => this.update());
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
 

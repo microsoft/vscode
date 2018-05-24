@@ -41,6 +41,6 @@
 	"npm.exclude": "**/extensions/**",
 	"emmet.excludeLanguages": [],
 	"typescript.preferences.importModuleSpecifier": "non-relative",
-	"typescript.preferences.quoteStyle": "single"
-
+	"typescript.preferences.quoteStyle": "single",
+	"editor.formatOnSave": false
 }
