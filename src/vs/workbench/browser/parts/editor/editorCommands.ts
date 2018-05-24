@@ -216,10 +216,10 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
 	// Remember which editor was in which group with associated options
-	let groups = editorGroupService.groups;
-	const originalFirstGroupEditors = groups[0].editors;
+	let groupsInGridOrder = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+	const originalFirstGroupEditors = groupsInGridOrder[0].editors;
 	const mapGroupToEditor: Map<number, IEditorInputWithOptions[]> = new Map();
-	groups.forEach((group, index) => {
+	groupsInGridOrder.forEach((group, index) => {
 		const editors: IEditorInputWithOptions[] = [];
 		group.editors.forEach((editor, editorIndex) => {
 			let options: EditorOptions;
@@ -241,7 +241,7 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 	});
 
 	// Reduce to one editor group to start building the layout
-	mergeAllGroups(editorGroupService);
+	mergeAllGroups(editorGroupService, groupsInGridOrder[0]);
 
 	// Apply orientation
 	if (typeof args.orientation === 'number') {
@@ -282,13 +282,13 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 		});
 	}
 
-	buildLayout([groups[0]], args.groups, editorGroupService.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
+	buildLayout([groupsInGridOrder[0]], args.groups, editorGroupService.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
 
 	// Restore editors as much as possible
-	groups = editorGroupService.groups;
-	const firstGroup = groups[0];
+	groupsInGridOrder = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+	const firstGroup = groupsInGridOrder[0];
 	const firstGroupEditorsToClose: IEditorInput[] = [];
-	groups.forEach((group, index) => {
+	groupsInGridOrder.forEach((group, index) => {
 		if (group === firstGroup) {
 			return; // nothing to do here, this group already contains all editors
 		}
@@ -315,11 +315,14 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 	editorGroupService.activeGroup.focus();
 }
 
-export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
-	const firstGroup = editorGroupService.groups[0];
-	while (editorGroupService.count > 1) {
-		editorGroupService.mergeGroup(editorGroupService.findGroup({ location: GroupLocation.NEXT }, firstGroup), firstGroup);
-	}
+export function mergeAllGroups(editorGroupService: IEditorGroupsService, target = editorGroupService.groups[0]): void {
+	editorGroupService.groups.forEach(group => {
+		if (group === target) {
+			return; // keep target
+		}
+
+		editorGroupService.mergeGroup(group, target);
+	});
 }
 
 function registerDiffEditorCommands(): void {
