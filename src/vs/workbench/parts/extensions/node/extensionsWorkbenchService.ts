@@ -930,7 +930,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		const extensionId = match[1];
 
 		this.queryLocal().then(local => {
-			const extension = local.filter(local => local.id === extensionId)[0];
+			const extension = local.filter(local => areSameExtensions({ id: local.id }, { id: extensionId }))[0];
 
 			if (extension) {
 				return this.windowService.show()
