@@ -104,35 +104,7 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 	}
 }
 
-export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
-
-	public static readonly ID = 'workbench.action.splitEditorGroupVertical';
-	public static readonly LABEL = nls.localize('splitEditorGroupVertical', "Split Editor Vertically");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, null, GroupDirection.DOWN, editorGroupService);
-	}
-}
-
-export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction {
-
-	public static readonly ID = 'workbench.action.splitEditorGroupHorizontal';
-	public static readonly LABEL = nls.localize('splitEditorGroupHorizontal', "Split Editor Horizontally");
-
-	constructor(
-		id: string,
-		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, null, GroupDirection.RIGHT, editorGroupService);
-	}
-}
-
-export class SplitEditorGroupLeftAction extends ExecuteCommandAction {
+export class SplitEditorLeftAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_LEFT;
 	public static readonly LABEL = nls.localize('splitEditorGroupLeft', "Split Editor Left");
@@ -146,7 +118,7 @@ export class SplitEditorGroupLeftAction extends ExecuteCommandAction {
 	}
 }
 
-export class SplitEditorGroupRightAction extends ExecuteCommandAction {
+export class SplitEditorRightAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_RIGHT;
 	public static readonly LABEL = nls.localize('splitEditorGroupRight', "Split Editor Right");
@@ -160,7 +132,7 @@ export class SplitEditorGroupRightAction extends ExecuteCommandAction {
 	}
 }
 
-export class SplitEditorGroupUpAction extends ExecuteCommandAction {
+export class SplitEditorUpAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_UP;
 	public static readonly LABEL = nls.localize('splitEditorGroupUp', "Split Editor Up");
@@ -174,7 +146,7 @@ export class SplitEditorGroupUpAction extends ExecuteCommandAction {
 	}
 }
 
-export class SplitEditorGroupDownAction extends ExecuteCommandAction {
+export class SplitEditorDownAction extends ExecuteCommandAction {
 
 	public static readonly ID = SPLIT_EDITOR_DOWN;
 	public static readonly LABEL = nls.localize('splitEditorGroupDown', "Split Editor Down");
@@ -421,8 +393,7 @@ export class FocusBelowGroup extends BaseFocusGroupAction {
 	}
 }
 
-
-export class OpenToSideAction extends Action {
+export class OpenToSideFromQuickOpenAction extends Action {
 
 	public static readonly OPEN_TO_SIDE_ID = 'workbench.action.openToSide';
 	public static readonly OPEN_TO_SIDE_LABEL = nls.localize('openToSide', "Open to the Side");
@@ -431,7 +402,7 @@ export class OpenToSideAction extends Action {
 		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(OpenToSideAction.OPEN_TO_SIDE_ID, OpenToSideAction.OPEN_TO_SIDE_LABEL);
+		super(OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_ID, OpenToSideFromQuickOpenAction.OPEN_TO_SIDE_LABEL);
 
 		this.updateClass();
 	}
@@ -1551,5 +1522,79 @@ export class EditorLayoutGoldenRatioAction extends ExecuteCommandAction {
 		@ICommandService commandService: ICommandService
 	) {
 		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ size: 0.618 }, { size: 0.382, groups: [{ size: 0.618 }, { size: 0.382 }] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+	}
+}
+
+export class BaseCreateEditorGroupAction extends Action {
+
+	constructor(
+		id: string,
+		label: string,
+		private direction: GroupDirection,
+		private editorGroupService: IEditorGroupsService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.editorGroupService.addGroup(this.editorGroupService.activeGroup, this.direction, { activate: true });
+
+		return TPromise.as(true);
+	}
+}
+
+export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.newEditorGroupLeft';
+	public static readonly LABEL = nls.localize('newEditorGroupLeft', "New Editor Group to the Left");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.LEFT, editorGroupService);
+	}
+}
+
+export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.newEditorGroupRight';
+	public static readonly LABEL = nls.localize('newEditorGroupRight', "New Editor Group to the Right");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.RIGHT, editorGroupService);
+	}
+}
+
+export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.newEditorGroupAbove';
+	public static readonly LABEL = nls.localize('newEditorGroupAbove', "New Editor Group Above");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.UP, editorGroupService);
+	}
+}
+
+export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
+
+	public static readonly ID = 'workbench.action.newEditorGroupBelow';
+	public static readonly LABEL = nls.localize('newEditorGroupBelow', "New Editor Group Below");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
+	) {
+		super(id, label, GroupDirection.DOWN, editorGroupService);
 	}
 }
