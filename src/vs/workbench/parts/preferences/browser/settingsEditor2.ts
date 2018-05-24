@@ -19,7 +19,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
+import { attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -216,21 +216,6 @@ export class SettingsEditor2 extends BaseEditor {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused .content::before { background-color: ${inactiveListBackground}; }`);
 			}
 		}));
-
-		attachStyler(this.themeService, {
-			listActiveSelectionBackground: null,
-			listActiveSelectionForeground: null,
-			listFocusAndSelectionBackground: null,
-			listFocusAndSelectionForeground: null,
-			listFocusBackground: null,
-			listFocusForeground: null,
-			listHoverForeground: null,
-			listHoverBackground: null,
-			listInactiveSelectionBackground: null,
-			listInactiveSelectionForeground: null
-		}, colors => {
-			this.settingsTree.style(colors);
-		});
 
 		this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus]);
