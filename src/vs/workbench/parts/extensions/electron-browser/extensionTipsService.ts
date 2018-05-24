@@ -45,7 +45,6 @@ const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
-const coreLanguages = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'];
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
