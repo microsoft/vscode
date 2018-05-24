@@ -872,5 +872,81 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Take 13
+
+	export namespace window {
+
+		export function createQuickPick13(): QuickPick13;
+		export function createInputBox13(): InputBox13;
+	}
+
+	export interface QuickInput13 {
+
+		enabled: boolean;
+
+		busy: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick13 extends QuickInput13 {
+
+		value: string;
+
+		placeholder: string;
+
+		onDidValueChange: Event<string>;
+
+		onDidAccept: Event<string>;
+
+		commands: QuickInputCommand13[];
+
+		onDidTriggerCommand: Event<QuickInputCommand13>;
+
+		items: QuickPickItem[];
+
+		canSelectMany: boolean;
+
+		builtInFilter: boolean;
+
+		selectedItems: QuickPickItem[];
+
+		onDidSelectItem: Event<QuickPickItem>;
+	}
+
+	export interface InputBox13 extends QuickInput13 {
+
+		value: string;
+
+		placeholder: string;
+
+		password: boolean;
+
+		onDidValueChange: Event<string>;
+
+		onDidAccept: Event<string>;
+
+		commands: QuickInputCommand13[];
+
+		onDidTriggerCommand: Event<QuickInputCommand13>;
+
+		prompt: string;
+
+		validationMessage: string;
+	}
+
+	export interface QuickInputCommand13 {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
+	}
+
+	//#endregion
+
 	//#endregion
 }

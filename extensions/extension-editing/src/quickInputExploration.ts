@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickInputToolbarItem3, ExtensionContext, commands, QuickPickItem, window, QuickInputSession9, QuickInput3, Disposable, CancellationToken, QuickInput7, QuickInput6, QuickInput11, QuickInputToolbarItem11 } from 'vscode';
+import { QuickInputToolbarItem3, ExtensionContext, commands, QuickPickItem, window, QuickInputSession9, QuickInput3, Disposable, CancellationToken, QuickInput7, QuickInput6, QuickInput11, QuickInputToolbarItem11, QuickInputCommand13, QuickInput13 } from 'vscode';
 
 export function activate(context: ExtensionContext) {
 	context.subscriptions.push(commands.registerCommand('foobar', async () => {
@@ -19,6 +19,7 @@ export function activate(context: ExtensionContext) {
 		const inputs10 = await collectInputs10();
 		const inputs11 = await collectInputs11();
 		const inputs12 = await collectInputs12();
+		const inputs13 = await collectInputs13();
 	}));
 }
 
@@ -1071,6 +1072,225 @@ class MultiStepInput12 {
 					input.show();
 				}
 				this.current = input;
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
+	}
+}
+
+// #endregion
+
+// #region Take 13 --------------------------------------------------------------------------------
+
+interface Result13 {
+	resourceGroup: QuickPickItem | string;
+	name: string;
+	runtime: QuickPickItem;
+}
+
+async function collectInputs13() {
+	const result = {} as Partial<Result13>;
+	await MultiStepInput13.run(input => pickResourceGroup13(input, {}));
+	return result;
+}
+
+class MyCommand13 implements QuickInputCommand13 {
+	constructor(public iconPath: string) { }
+}
+
+async function pickResourceGroup13(input: MultiStepInput13, state: Partial<Result13>) {
+	const createResourceGroupItem13 = new MyCommand13('createResourceGroup.svg');
+	const pick = await input.showQuickPick13({
+		placeHolder: 'Pick a resource group',
+		items: resourceGroups,
+		commands: [createResourceGroupItem13],
+		shouldResume: shouldResume13
+	});
+	if (pick instanceof MyCommand13) {
+		return (input: MultiStepInput13) => inputResourceGroupName13(input, state);
+	}
+	state.resourceGroup = pick;
+	return (input: MultiStepInput13) => inputName13(input, state);
+}
+
+async function inputResourceGroupName13(input: MultiStepInput13, state: Partial<Result13>) {
+	state.resourceGroup = await input.showInputBox13({
+		prompt: 'Choose a unique name for the resource group',
+		validate: validateNameIsUnique,
+		shouldResume: shouldResume13
+	});
+	return (input: MultiStepInput13) => inputName13(input, state);
+}
+
+async function inputName13(input: MultiStepInput13, state: Partial<Result13>) {
+	state.name = await input.showInputBox13({
+		prompt: 'Choose a unique name for the application service',
+		validate: validateNameIsUnique,
+		shouldResume: shouldResume13
+	});
+	return (input: MultiStepInput13) => pickRuntime13(input, state);
+}
+
+async function pickRuntime13(input: MultiStepInput13, state: Partial<Result13>) {
+	const runtimes = await getAvailableRuntimes(state.resourceGroup, null /* token */);
+	state.runtime = await input.showQuickPick13({
+		placeHolder: 'Pick a runtime',
+		items: runtimes,
+		shouldResume: shouldResume13
+	});
+}
+
+function shouldResume13() {
+	// Could show a notification with the option to resume.
+	return new Promise<boolean>((resolve, reject) => {
+
+	});
+}
+
+class InputFlowAction13 {
+	private constructor() { }
+	static back = new InputFlowAction13();
+	static cancel = new InputFlowAction13();
+	static resume = new InputFlowAction13();
+}
+
+type InputStep13 = (input: MultiStepInput13) => Thenable<InputStep13 | void>;
+
+interface QuickPickParameters13 {
+	items: QuickPickItem[];
+	placeHolder: string;
+	commands?: QuickInputCommand13[];
+	shouldResume: () => Thenable<boolean>;
+}
+
+interface InputBoxParameters13 {
+	prompt: string;
+	validate: (value: string) => Promise<string>;
+	commands?: QuickInputCommand13[];
+	shouldResume: () => Thenable<boolean>;
+}
+
+const backItem13: QuickInputCommand13 = { iconPath: 'back.svg' };
+
+class MultiStepInput13 {
+
+	static async run<T>(start: InputStep13) {
+		const input = new MultiStepInput13();
+		return input.stepThrough13(start);
+	}
+
+	private current?: QuickInput13;
+	private steps: InputStep13[] = [];
+
+	private async stepThrough13<T>(start: InputStep13) {
+		let step: InputStep13 | void = start;
+		while (step) {
+			this.steps.push(step);
+			if (this.current) {
+				this.current.enabled = false;
+				this.current.busy = true;
+			}
+			try {
+				step = await step(this);
+			} catch (err) {
+				if (err === InputFlowAction13.back) {
+					this.steps.pop();
+					step = this.steps.pop();
+				} else if (err === InputFlowAction13.resume) {
+					step = this.steps.pop();
+				} else if (err === InputFlowAction13.cancel) {
+					step = undefined;
+				} else {
+					throw err;
+				}
+			}
+		}
+		if (this.current) {
+			this.current.dispose();
+		}
+	}
+
+	async showQuickPick13<P extends QuickPickParameters13>({ items, placeHolder, commands, shouldResume }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<QuickPickItem | (P extends { commands: (infer I)[] } ? I : never)>((resolve, reject) => {
+				const input = window.createQuickPick13();
+				input.placeholder = placeHolder;
+				input.items = items;
+				input.commands = [
+					...(this.steps.length > 1 ? [backItem13] : []),
+					...(commands || [])
+				];
+				disposables.push(
+					input,
+					input.onDidTriggerCommand(item => {
+						if (item === backItem13) {
+							reject(InputFlowAction13.back);
+						}
+					}),
+					input.onDidSelectItem(item => resolve(item)),
+					input.onHide(() => {
+						(async () => {
+							reject(shouldResume && await shouldResume() ? InputFlowAction13.resume : InputFlowAction13.cancel);
+						})()
+							.catch(reject);
+					})
+				);
+				if (this.current) {
+					this.current.hide();
+				}
+				this.current = input;
+				this.current.show();
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
+	}
+
+	async showInputBox13<P extends InputBoxParameters13>({ prompt, validate, commands, shouldResume }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<string | (P extends { commands: (infer I)[] } ? I : never)>((resolve, reject) => {
+				const input = window.createInputBox13();
+				input.prompt = prompt;
+				input.commands = [
+					...(this.steps.length > 1 ? [backItem13] : []),
+					...(commands || [])
+				];
+				let validating = validate('');
+				disposables.push(
+					input,
+					input.onDidTriggerCommand(item => {
+						if (item === backItem13) {
+							reject(InputFlowAction13.back);
+						}
+					}),
+					input.onDidAccept(async text => {
+						if (!(await validate(text))) {
+							resolve(text);
+						}
+					}),
+					input.onDidValueChange(async text => {
+						const current = validate(text);
+						validating = current;
+						const validationMessage = await current;
+						if (current === validating) {
+							input.validationMessage = validationMessage;
+						}
+					}),
+					input.onHide(() => {
+						(async () => {
+							reject(shouldResume && await shouldResume() ? InputFlowAction13.resume : InputFlowAction13.cancel);
+						})()
+							.catch(reject);
+					})
+				);
+				if (this.current) {
+					this.current.hide();
+				}
+				this.current = input;
+				this.current.show();
 			});
 		} finally {
 			disposables.forEach(d => d.dispose());
