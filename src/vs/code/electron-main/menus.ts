@@ -810,20 +810,20 @@ export class CodeMenu {
 		const killTerminal = this.createMenuItem(nls.localize({ key: 'miKillTerminal', comment: ['&& denotes a mnemonic'] }, "&&Kill Terminal"), 'workbench.action.terminal.kill');
 
 		const clear = this.createMenuItem(nls.localize({ key: 'miClear', comment: ['&& denotes a mnemonic'] }, "&&Clear"), 'workbench.action.terminal.clear');
-		const deleteWordLeft = this.createMenuItem(nls.localize({ key: 'miDeleteWordLeft', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Left"), 'workbench.action.terminal.deleteWordLeft');
-		const deleteWordRight = this.createMenuItem(nls.localize({ key: 'miDeleteWordRight', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Right"), 'workbench.action.terminal.deleteWordRight');
-		const moveToLineStart = this.createMenuItem(nls.localize({ key: 'miMoveToLineStart', comment: ['&& denotes a mnemonic'] }, "Move to Line Start"), 'workbench.action.terminal.moveToLineStart');
-		const moveToLineEnd = this.createMenuItem(nls.localize({ key: 'miMoveToLineEnd', comment: ['&& denotes a mnemonic'] }, "Move to Line &&End"), 'workbench.action.terminal.moveToLineEnd');
+		// const deleteWordLeft = this.createMenuItem(nls.localize({ key: 'miDeleteWordLeft', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Left"), 'workbench.action.terminal.deleteWordLeft');
+		// const deleteWordRight = this.createMenuItem(nls.localize({ key: 'miDeleteWordRight', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Right"), 'workbench.action.terminal.deleteWordRight');
+		// const moveToLineStart = this.createMenuItem(nls.localize({ key: 'miMoveToLineStart', comment: ['&& denotes a mnemonic'] }, "Move to Line Start"), 'workbench.action.terminal.moveToLineStart');
+		// const moveToLineEnd = this.createMenuItem(nls.localize({ key: 'miMoveToLineEnd', comment: ['&& denotes a mnemonic'] }, "Move to Line &&End"), 'workbench.action.terminal.moveToLineEnd');
 
 		const runActiveFile = this.createMenuItem(nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File"), 'workbench.action.terminal.runActiveFile');
 		const runSelectedText = this.createMenuItem(nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text"), 'workbench.action.terminal.runSelectedText');
 
-		const scrollUp = this.createMenuItem(nls.localize({ key: 'miScrollUp', comment: ['&& denotes a mnemonic'] }, "Scroll Up"), 'workbench.action.terminal.scrollUp');
-		const scrollDown = this.createMenuItem(nls.localize({ key: 'miScrollDown', comment: ['&& denotes a mnemonic'] }, "Scroll Down"), 'workbench.action.terminal.scrollDown');
-		const scrollUpPage = this.createMenuItem(nls.localize({ key: 'miScrollUpPage', comment: ['&& denotes a mnemonic'] }, "Scroll Up Page"), 'workbench.action.terminal.scrollUpPage');
-		const scrollDownPage = this.createMenuItem(nls.localize({ key: 'miScrollDownPage', comment: ['&& denotes a mnemonic'] }, "Scroll Down Page"), 'workbench.action.terminal.scrollDownPage');
-		const scrollToTop = this.createMenuItem(nls.localize({ key: 'miScrollToTop', comment: ['&& denotes a mnemonic'] }, "Scroll To Top"), 'workbench.action.terminal.scrollToTop');
-		const scrollToBottom = this.createMenuItem(nls.localize({ key: 'miScrollToBottom', comment: ['&& denotes a mnemonic'] }, "Scroll To Bottom"), 'workbench.action.terminal.scrollToBottom');
+		// const scrollUp = this.createMenuItem(nls.localize({ key: 'miScrollUp', comment: ['&& denotes a mnemonic'] }, "Scroll Up"), 'workbench.action.terminal.scrollUp');
+		// const scrollDown = this.createMenuItem(nls.localize({ key: 'miScrollDown', comment: ['&& denotes a mnemonic'] }, "Scroll Down"), 'workbench.action.terminal.scrollDown');
+		// const scrollUpPage = this.createMenuItem(nls.localize({ key: 'miScrollUpPage', comment: ['&& denotes a mnemonic'] }, "Scroll Up Page"), 'workbench.action.terminal.scrollUpPage');
+		// const scrollDownPage = this.createMenuItem(nls.localize({ key: 'miScrollDownPage', comment: ['&& denotes a mnemonic'] }, "Scroll Down Page"), 'workbench.action.terminal.scrollDownPage');
+		// const scrollToTop = this.createMenuItem(nls.localize({ key: 'miScrollToTop', comment: ['&& denotes a mnemonic'] }, "Scroll To Top"), 'workbench.action.terminal.scrollToTop');
+		// const scrollToBottom = this.createMenuItem(nls.localize({ key: 'miScrollToBottom', comment: ['&& denotes a mnemonic'] }, "Scroll To Bottom"), 'workbench.action.terminal.scrollToBottom');
 		const scrollToPreviousCommand = this.createMenuItem(nls.localize({ key: 'miScrollToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Previous Command"), 'workbench.action.terminal.scrollToPreviousCommand');
 		const scrollToNextCommand = this.createMenuItem(nls.localize({ key: 'miScrollToNextCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Next Command"), 'workbench.action.terminal.scrollToNextCommand');
 
@@ -837,33 +837,32 @@ export class CodeMenu {
 			__separator__(),
 			clear,
 		];
-		if (!isWindows) {
-			menuItems.push(
-				deleteWordLeft,
-				deleteWordRight,
-			);
+		// if (!isWindows) {
+		// 	menuItems.push(
+		// 		deleteWordLeft,
+		// 		deleteWordRight,
+		// 	);
 
-		}
-		if (isMacintosh) {
-			menuItems.push(
-				moveToLineStart,
-				moveToLineEnd
-			);
-		}
+		// }
+		// if (isMacintosh) {
+		// 	menuItems.push(
+		// 		moveToLineStart,
+		// 		moveToLineEnd
+		// 	);
+		// }
 		menuItems.push(
-			__separator__(),
 			runActiveFile,
 			runSelectedText,
 			__separator__(),
-			scrollUp,
-			scrollDown,
-			scrollUpPage,
-			scrollDownPage,
-			scrollToTop,
-			scrollToBottom,
+			// scrollUp,
+			// scrollDown,
+			// scrollUpPage,
+			// scrollDownPage,
+			// scrollToTop,
+			// scrollToBottom,
 			scrollToPreviousCommand,
 			scrollToNextCommand,
-			__separator__(),
+			// __separator__(),
 			selectToPreviousCommand,
 			selectToNextCommand
 		);
