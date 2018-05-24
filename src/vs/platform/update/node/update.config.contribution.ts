@@ -28,6 +28,12 @@ configurationRegistry.registerConfiguration({
 			'default': true,
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('enableWindowsBackgroundUpdates', "Enables Windows background updates.")
+		},
+		'update.showReleaseNotes': {
+			'type': 'boolean',
+			'default': true,
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('showReleaseNotes', 'Show release notes after updating.')
 		}
 	}
 });
