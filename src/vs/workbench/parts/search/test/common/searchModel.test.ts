@@ -125,25 +125,24 @@ suite('SearchModel', () => {
 		assert.deepEqual(['searchResultsFirstRender', { duration: -1 }], data);
 	});
 
-	// test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
-	// 	let target2 = sinon.spy();
-	// 	stub(nullEvent, 'stop', target2);
-	// 	let target1 = sinon.stub().returns(nullEvent);
-	// 	instantiationService.stub(ITelemetryService, 'publicLog', target1);
+	test('Search Model: Search reports timed telemetry on search when progress is not called', () => {
+		let target2 = sinon.spy();
+		stub(nullEvent, 'stop', target2);
+		let target1 = sinon.stub().returns(nullEvent);
+		instantiationService.stub(ITelemetryService, 'publicLog', target1);
 
-	// 	instantiationService.stub(ISearchService, 'search', ppromiseWithProgress([]));
+		instantiationService.stub(ISearchService, 'search', ppromiseWithProgress([]));
 
-	// 	let testObject = instantiationService.createInstance(SearchModel);
-	// 	const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
+		let testObject = instantiationService.createInstance(SearchModel);
+		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-	// 	return timeout(1).then(() => {
-	// 		return result.then(() => {
-	// 			assert.ok(target1.calledWith('searchResultsFirstRender'));
-	// 			assert.ok(target1.calledWith('searchResultsFinished'));
-	// 		});
-
-	// 	});
-	// });
+		return result.then(() => {
+			return timeout(1).then(() => {
+				assert.ok(target1.calledWith('searchResultsFirstRender'));
+				assert.ok(target1.calledWith('searchResultsFinished'));
+			});
+		});
+	});
 
 	test('Search Model: Search reports timed telemetry on search when progress is called', () => {
 		let target2 = sinon.spy();

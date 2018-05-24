@@ -53,7 +53,11 @@
       },
       {
         "command": "npm.debugScript",
-        "title": "%command.debug%"
+        "title": "%command.debug%",
+        "icon": {
+          "light": "resources/light/debug.svg",
+          "dark": "resources/dark/debug.svg"
+        }
       },
       {
         "command": "npm.openScript",
@@ -93,11 +97,20 @@
           "group": "navigation@2"
         },
         {
-        "command": "npm.runScript",
+          "command": "npm.runScript",
 					"when": "view == npm && viewItem == script",
 					"group": "inline"
         },
         {
+          "command": "npm.runScript",
+					"when": "view == npm && viewItem == debugScript",
+					"group": "inline"
+        },
+        {
+          "command": "npm.debugScript",
+					"when": "view == npm && viewItem == debugScript",
+					"group": "inline"
+        },        {
           "command": "npm.debugScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@3"

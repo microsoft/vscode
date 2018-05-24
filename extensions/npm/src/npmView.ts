@@ -72,6 +72,9 @@ class NpmScript extends TreeItem {
 	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
 		super(task.name, TreeItemCollapsibleState.None);
 		this.contextValue = 'script';
+		if (task.group && task.group === TaskGroup.Rebuild) {
+			this.contextValue = 'debugScript';
+		}
 		this.package = packageJson;
 		this.task = task;
 		this.command = {
@@ -141,7 +144,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		workspace.executeTask(script.task);
 	}
 
-	private async extractDebugArg(scripts: any, task: Task): Promise<[string, number] | undefined> {
+	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
 		let script: string = scripts[task.name];
 
 		let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);

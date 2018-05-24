@@ -40,8 +40,11 @@ export class DiagnosticsManager {
 
 	private readonly _diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
+	private readonly _pendingUpdates: { [key: string]: any } = Object.create(null);
 	private _validate: boolean = true;
 	private _enableSuggestions: boolean = true;
+
+	private readonly updateDelay = 50;
 
 	constructor(
 		owner: string
@@ -55,6 +58,11 @@ export class DiagnosticsManager {
 
 	public dispose() {
 		this._currentDiagnostics.dispose();
+
+		for (const key of Object.keys(this._pendingUpdates)) {
+			clearTimeout(this._pendingUpdates[key]);
+			delete this._pendingUpdates[key];
+		}
 	}
 
 	public reInitialize(): void {
@@ -93,10 +101,21 @@ export class DiagnosticsManager {
 		diagnostics: vscode.Diagnostic[]
 	): void {
 		const collection = this._diagnostics.get(kind);
-		if (collection) {
-			collection.set(file, diagnostics);
-			this.updateCurrentDiagnostics(file);
+		if (!collection) {
+			return;
 		}
+
+		collection.set(file, diagnostics);
+
+		if (diagnostics.length === 0) {
+			const existing = collection.get(file);
+			if (existing.length === 0) {
+				// No need to update
+				return;
+			}
+		}
+
+		this.scheduleDiagnosticsUpdate(file);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
@@ -107,7 +126,23 @@ export class DiagnosticsManager {
 		this._currentDiagnostics.delete(resource);
 	}
 
+	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
+		return this._currentDiagnostics.get(file) || [];
+	}
+
+	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
+		const key = file.fsPath;
+		if (!this._pendingUpdates[key]) {
+			this._pendingUpdates[key] = setTimeout(() => this.updateCurrentDiagnostics(file), this.updateDelay);
+		}
+	}
+
 	private updateCurrentDiagnostics(file: vscode.Uri) {
+		if (this._pendingUpdates[file.fsPath]) {
+			clearTimeout(this._pendingUpdates[file.fsPath]);
+			delete this._pendingUpdates[file.fsPath];
+		}
+
 		if (!this._validate) {
 			return;
 		}
@@ -126,9 +161,5 @@ export class DiagnosticsManager {
 		}
 
 		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
-	}
-
-	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
-		return this._currentDiagnostics.get(file) || [];
 	}
 }
