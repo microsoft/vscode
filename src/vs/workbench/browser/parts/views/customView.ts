@@ -63,8 +63,9 @@ export class CustomViewsService extends Disposable implements IViewsService {
 				return this.viewletService.openViewlet(viewletDescriptor.id)
 					.then((viewlet: IViewsViewlet) => {
 						if (viewlet && viewlet.openView) {
-							viewlet.openView(id, focus);
+							return viewlet.openView(id, focus);
 						}
+						return null;
 					});
 			}
 		}
@@ -280,17 +281,21 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
 		if (this.tree && this.isVisible) {
 			options = options ? options : { select: true };
-			const select = isUndefinedOrNull(options.select) ? true : options.select;
-			var result = TPromise.as(null);
-			parentChain.forEach((e) => {
-				result = result.then(() => this.tree.expand(e));
-			});
-			return result.then(() => this.tree.reveal(item))
-				.then(() => {
-					if (select) {
-						this.tree.setSelection([item], { source: 'api' });
-					}
+			const root: Root = this.tree.getInput();
+			const promise = root.children ? TPromise.as(null) : this.refresh(); // Refresh if root is not populated
+			return promise.then(() => {
+				const select = isUndefinedOrNull(options.select) ? true : options.select;
+				var result = TPromise.as(null);
+				parentChain.forEach((e) => {
+					result = result.then(() => this.tree.expand(e));
 				});
+				return result.then(() => this.tree.reveal(item))
+					.then(() => {
+						if (select) {
+							this.tree.setSelection([item], { source: 'api' });
+						}
+					});
+			});
 		}
 		return TPromise.as(null);
 	}
