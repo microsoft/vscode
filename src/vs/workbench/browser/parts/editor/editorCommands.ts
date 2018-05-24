@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput, IEditorInputWithOptions, EditorOptions } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -23,6 +23,7 @@ import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, Grou
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
+import { getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -214,7 +215,32 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
-	// Reduce to one editor group
+	// Remember which editor was in which group with associated options
+	let groups = editorGroupService.groups;
+	const originalFirstGroupEditors = groups[0].editors;
+	const mapGroupToEditor: Map<number, IEditorInputWithOptions[]> = new Map();
+	groups.forEach((group, index) => {
+		const editors: IEditorInputWithOptions[] = [];
+		group.editors.forEach((editor, editorIndex) => {
+			let options: EditorOptions;
+			if (group.isActive(editor)) {
+				options = getActiveTextEditorOptions(group);
+			} else {
+				options = new EditorOptions();
+			}
+
+			options.index = editorIndex;
+			options.pinned = group.previewEditor !== editor;
+			options.inactive = group.activeEditor !== editor;
+			options.preserveFocus = true;
+
+			editors.push({ editor, options });
+		});
+
+		mapGroupToEditor.set(index, editors);
+	});
+
+	// Reduce to one editor group to start building the layout
 	mergeAllGroups(editorGroupService);
 
 	// Apply orientation
@@ -256,7 +282,37 @@ function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLay
 		});
 	}
 
-	buildLayout([editorGroupService.groups[0]], args.groups, editorGroupService.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
+	buildLayout([groups[0]], args.groups, editorGroupService.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
+
+	// Restore editors as much as possible
+	groups = editorGroupService.groups;
+	const firstGroup = groups[0];
+	const firstGroupEditorsToClose: IEditorInput[] = [];
+	groups.forEach((group, index) => {
+		if (group === firstGroup) {
+			return; // nothing to do here, this group already contains all editors
+		}
+
+		const previousEditors = mapGroupToEditor.get(index);
+		if (previousEditors) {
+
+			// Restore in group
+			group.openEditors(previousEditors);
+
+			// Mark to be deleted in first group unless previously opened
+			previousEditors.forEach(({ editor }) => {
+				if (originalFirstGroupEditors.indexOf(editor) === -1) {
+					firstGroupEditorsToClose.push(editor);
+				}
+			});
+		}
+	});
+
+	// Close those editors that were never opened in the first group
+	firstGroup.closeEditors(firstGroupEditorsToClose);
+
+	// Restore focus
+	editorGroupService.activeGroup.focus();
 }
 
 export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {

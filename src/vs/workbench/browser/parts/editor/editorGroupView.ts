@@ -788,6 +788,9 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			newActiveEditor = editor;
 		});
 
+		// Do not modify original array
+		editors = editors.slice(0);
+
 		// Use the first editor as active editor
 		const { editor, options } = editors.shift();
 		return this.openEditor(editor, options).then(() => {
