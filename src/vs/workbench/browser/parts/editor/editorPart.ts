@@ -617,7 +617,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 				}
 			});
 
-			this._preferredSize = new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews) * EDITOR_MIN_DIMENSIONS.height);
+			this._preferredSize = new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews, 1) * EDITOR_MIN_DIMENSIONS.height);
 		}
 
 		return this._preferredSize;
