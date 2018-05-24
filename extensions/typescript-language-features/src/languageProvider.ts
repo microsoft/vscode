@@ -247,6 +247,10 @@ export default class LanguageProvider {
 		this.registerVersionDependentProviders();
 	}
 
+	public getErr(resources: Uri[]) {
+		this.bufferSyncSupport.getErr(resources);
+	}
+
 	private async registerVersionDependentProviders(): Promise<void> {
 		disposeAll(this.versionDependentDisposables);
 
