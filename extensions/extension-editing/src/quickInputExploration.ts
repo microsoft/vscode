@@ -18,6 +18,7 @@ export function activate(context: ExtensionContext) {
 		const inputs9 = await collectInputs9();
 		const inputs10 = await collectInputs10();
 		const inputs11 = await collectInputs11();
+		const inputs12 = await collectInputs12();
 	}));
 }
 
@@ -632,14 +633,14 @@ interface Result11 {
 }
 
 async function collectInputs11() {
-	return (await MultiStepInput11.run(pickResourceGroup, {} as Partial<Result11>)) as Result11;
+	return (await MultiStepInput11.run(pickResourceGroup11, {} as Partial<Result11>)) as Result11;
 }
 
 class MyToolbarItem11 implements QuickInputToolbarItem11 {
 	constructor(public iconPath: string) { }
 }
 
-async function pickResourceGroup(input: MultiStepInput11, state: Partial<Result11>) {
+async function pickResourceGroup11(input: MultiStepInput11, state: Partial<Result11>) {
 	const createResourceGroupItem11 = new MyToolbarItem11('createResourceGroup.svg');
 	const pick = await input.showQuickPick11({
 		placeHolder: 'Pick a resource group',
@@ -650,49 +651,49 @@ async function pickResourceGroup(input: MultiStepInput11, state: Partial<Result1
 		return pick;
 	}
 	if (pick instanceof MyToolbarItem11) {
-		return inputResourceGroupName;
+		return inputResourceGroupName11;
 	}
 	state.resourceGroup = pick;
-	return inputName;
+	return inputName11;
 }
 
-async function inputResourceGroupName(input: MultiStepInput11, state: Partial<Result11>) {
+async function inputResourceGroupName11(input: MultiStepInput11, state: Partial<Result11>) {
 	const name = await input.showInputBox11({
 		prompt: 'Choose a unique name for the resource group',
 		validate: validateNameIsUnique
 	});
-	if (name === InputFlowAction11.cancel && await suspend()) {
+	if (name === InputFlowAction11.cancel && await suspend11()) {
 		return InputFlowAction11.resume;
 	}
 	if (name instanceof InputFlowAction11) {
 		return name;
 	}
 	state.resourceGroup = name;
-	return inputName;
+	return inputName11;
 }
 
-async function inputName(input: MultiStepInput11, state: Partial<Result11>) {
+async function inputName11(input: MultiStepInput11, state: Partial<Result11>) {
 	const name = await input.showInputBox11({
 		prompt: 'Choose a unique name for the application service',
 		validate: validateNameIsUnique
 	});
-	if (name === InputFlowAction11.cancel && await suspend()) {
+	if (name === InputFlowAction11.cancel && await suspend11()) {
 		return InputFlowAction11.resume;
 	}
 	if (name instanceof InputFlowAction11) {
 		return name;
 	}
 	state.name = name;
-	return pickRuntime;
+	return pickRuntime11;
 }
 
-async function pickRuntime(input: MultiStepInput11, state: Partial<Result11>) {
+async function pickRuntime11(input: MultiStepInput11, state: Partial<Result11>) {
 	const runtimes = await getAvailableRuntimes(state.resourceGroup, null /* token */);
 	const runtime = await input.showQuickPick11({
 		placeHolder: 'Pick a runtime',
 		items: runtimes
 	});
-	if (runtime === InputFlowAction11.cancel && await suspend()) {
+	if (runtime === InputFlowAction11.cancel && await suspend11()) {
 		return InputFlowAction11.resume;
 	}
 	if (runtime instanceof InputFlowAction11) {
@@ -701,7 +702,7 @@ async function pickRuntime(input: MultiStepInput11, state: Partial<Result11>) {
 	state.runtime = runtime;
 }
 
-function suspend() {
+function suspend11() {
 	// Could show a notification with the option to resume.
 	return new Promise<boolean>((resolve, reject) => {
 
@@ -833,6 +834,236 @@ class MultiStepInput11 {
 						}
 					}),
 					input.onHide(() => resolve(InputFlowAction11.cancel))
+				);
+				if (this.current) {
+					this.current.replace(input);
+				} else {
+					input.show();
+				}
+				this.current = input;
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
+	}
+}
+
+// #endregion
+
+// #region Take 12 --------------------------------------------------------------------------------
+
+interface Result12 {
+	resourceGroup: QuickPickItem | string;
+	name: string;
+	runtime: QuickPickItem;
+}
+
+async function collectInputs12() {
+	const result = {} as Partial<Result12>;
+	await MultiStepInput12.run(input => pickResourceGroup12(input, {}));
+	return result;
+}
+
+class MyToolbarItem12 implements QuickInputToolbarItem11 {
+	constructor(public iconPath: string) { }
+}
+
+async function pickResourceGroup12(input: MultiStepInput12, state: Partial<Result12>) {
+	const createResourceGroupItem12 = new MyToolbarItem12('createResourceGroup.svg');
+	const pick = await input.showQuickPick12({
+		placeHolder: 'Pick a resource group',
+		items: resourceGroups,
+		toolbarItems: [createResourceGroupItem12],
+		shouldResume: shouldResume12
+	});
+	if (pick instanceof MyToolbarItem12) {
+		return (input: MultiStepInput12) => inputResourceGroupName12(input, state);
+	}
+	state.resourceGroup = pick;
+	return (input: MultiStepInput12) => inputName12(input, state);
+}
+
+async function inputResourceGroupName12(input: MultiStepInput12, state: Partial<Result12>) {
+	state.resourceGroup = await input.showInputBox12({
+		prompt: 'Choose a unique name for the resource group',
+		validate: validateNameIsUnique,
+		shouldResume: shouldResume12
+	});
+	return (input: MultiStepInput12) => inputName12(input, state);
+}
+
+async function inputName12(input: MultiStepInput12, state: Partial<Result12>) {
+	state.name = await input.showInputBox12({
+		prompt: 'Choose a unique name for the application service',
+		validate: validateNameIsUnique,
+		shouldResume: shouldResume12
+	});
+	return (input: MultiStepInput12) => pickRuntime12(input, state);
+}
+
+async function pickRuntime12(input: MultiStepInput12, state: Partial<Result12>) {
+	const runtimes = await getAvailableRuntimes(state.resourceGroup, null /* token */);
+	state.runtime = await input.showQuickPick12({
+		placeHolder: 'Pick a runtime',
+		items: runtimes,
+		shouldResume: shouldResume12
+	});
+}
+
+function shouldResume12() {
+	// Could show a notification with the option to resume.
+	return new Promise<boolean>((resolve, reject) => {
+
+	});
+}
+
+class InputFlowAction12 {
+	private constructor() { }
+	static back = new InputFlowAction12();
+	static cancel = new InputFlowAction12();
+	static resume = new InputFlowAction12();
+}
+
+type InputStep12 = (input: MultiStepInput12) => Thenable<InputStep12 | void>;
+
+interface QuickPickParameters12 {
+	items: QuickPickItem[];
+	placeHolder: string;
+	toolbarItems?: QuickInputToolbarItem11[];
+	shouldResume: () => Thenable<boolean>;
+}
+
+interface InputBoxParameters12 {
+	prompt: string;
+	validate: (value: string) => Promise<string>;
+	toolbarItems?: QuickInputToolbarItem11[];
+	shouldResume: () => Thenable<boolean>;
+}
+
+const backItem12: QuickInputToolbarItem11 = { iconPath: 'back.svg' };
+
+class MultiStepInput12 {
+
+	static async run<T>(start: InputStep12) {
+		const input = new MultiStepInput12();
+		return input.stepThrough12(start);
+	}
+
+	private current?: QuickInput11;
+	private steps: InputStep12[] = [];
+
+	private async stepThrough12<T>(start: InputStep12) {
+		let step: InputStep12 | void = start;
+		while (step) {
+			this.steps.push(step);
+			if (this.current) {
+				this.current.enabled = false;
+				this.current.busy = true;
+			}
+			try {
+				step = await step(this);
+			} catch (err) {
+				if (err === InputFlowAction12.back) {
+					this.steps.pop();
+					step = this.steps.pop();
+				} else if (err === InputFlowAction12.resume) {
+					step = this.steps.pop();
+				} else if (err === InputFlowAction12.cancel) {
+					step = undefined;
+				} else {
+					throw err;
+				}
+			}
+		}
+		if (this.current) {
+			this.current.dispose();
+		}
+	}
+
+	async showQuickPick12<P extends QuickPickParameters12>({ items, placeHolder, toolbarItems, shouldResume }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<QuickPickItem | (P extends { toolbarItems: (infer I)[] } ? I : never)>((resolve, reject) => {
+				const input = window.createQuickPick11();
+				const { inputBox, toolbar, list } = input;
+				inputBox.placeholder = placeHolder;
+				list.items = items;
+				toolbar.toolbarItems = [
+					...(this.steps.length > 1 ? [backItem12] : []),
+					...(toolbarItems || [])
+				];
+				disposables.push(
+					input,
+					toolbar.onDidTriggerToolbarItem(item => {
+						if (item === backItem12) {
+							reject(InputFlowAction12.back);
+						}
+					}),
+					list.onDidSelectItem(item => resolve(item)),
+					input.onHide(() => {
+						(async () => {
+							reject(shouldResume && await shouldResume() ? InputFlowAction12.resume : InputFlowAction12.cancel);
+						})()
+							.catch(reject);
+					})
+				);
+				if (this.current) {
+					this.current.replace(input);
+				} else {
+					input.show();
+				}
+				this.current = input;
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
+	}
+
+	async showInputBox12<P extends InputBoxParameters12>({ prompt, validate, toolbarItems, shouldResume }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<string | (P extends { toolbarItems: (infer I)[] } ? I : never)>((resolve, reject) => {
+				const input = window.createInputBox11();
+				const { inputBox, toolbar, message } = input;
+				message.text = prompt;
+				message.severity = 0;
+				toolbar.toolbarItems = [
+					...(this.steps.length > 1 ? [backItem12] : []),
+					...(toolbarItems || [])
+				];
+				let validating = validate('');
+				disposables.push(
+					input,
+					toolbar.onDidTriggerToolbarItem(item => {
+						if (item === backItem12) {
+							reject(InputFlowAction12.back);
+						}
+					}),
+					inputBox.onDidAccept(async text => {
+						if (!(await validate(text))) {
+							resolve(text);
+						}
+					}),
+					inputBox.onDidTextChange(async text => {
+						const current = validate(text);
+						validating = current;
+						const validationMessage = await current;
+						if (current === validating) {
+							if (validationMessage) {
+								message.text = validationMessage;
+								message.severity = 2;
+							} else {
+								message.text = prompt;
+								message.severity = 0;
+							}
+						}
+					}),
+					input.onHide(() => {
+						(async () => {
+							reject(shouldResume && await shouldResume() ? InputFlowAction12.resume : InputFlowAction12.cancel);
+						})()
+							.catch(reject);
+					})
 				);
 				if (this.current) {
 					this.current.replace(input);
