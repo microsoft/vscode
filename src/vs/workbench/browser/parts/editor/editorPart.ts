@@ -477,7 +477,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 	}
 
 	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const groupHasFocus = isAncestor(document.activeElement, groupView.element);
+		const gridHasFocus = isAncestor(document.activeElement, this.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
@@ -492,7 +492,7 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 		// Restore focus if we had it previously (we run this after gridWidget.removeView() is called
 		// because removing a view can mean to reparent it and thus focus would be removed otherwise)
-		if (groupHasFocus) {
+		if (gridHasFocus) {
 			this._activeGroup.focus();
 		}
 
