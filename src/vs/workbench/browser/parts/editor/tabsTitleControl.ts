@@ -40,6 +40,7 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
 import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 interface IEditorInputLabel {
 	name: string;
@@ -55,6 +56,7 @@ export class TabsTitleControl extends TitleControl {
 	private tabsContainer: HTMLElement;
 	private editorToolbarContainer: HTMLElement;
 	private scrollbar: ScrollableElement;
+	private closeOneEditorAction: CloseOneEditorAction;
 
 	private tabLabelWidgets: ResourceLabel[] = [];
 	private tabLabels: IEditorInputLabel[] = [];
@@ -105,6 +107,9 @@ export class TabsTitleControl extends TitleControl {
 
 		// Editor Actions Toolbar
 		this.createEditorActionsToolBar(this.editorToolbarContainer);
+
+		// Close Action
+		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 	}
 
 	private createScrollbar(): void {

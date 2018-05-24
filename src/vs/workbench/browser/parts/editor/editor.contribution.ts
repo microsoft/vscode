@@ -456,7 +456,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.not('splitEditorsVertically'),
-	order: Number.POSITIVE_INFINITY // at the end
+	order: 100000 // towards the end
 });
 
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
@@ -478,7 +478,30 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	},
 	group: 'navigation',
 	when: ContextKeyExpr.has('splitEditorsVertically'),
-	order: Number.POSITIVE_INFINITY // at the end
+	order: 100000 // towards the end
+});
+
+// Editor Title Menu: Close Group (tabs disabled)
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close.svg')).fsPath
+		}
+	},
+	alt: {
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall.svg')).fsPath
+		}
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.not('config.workbench.editor.showTabs'),
+	order: 1000000 // towards the end
 });
 
 // Editor Commands for Command Palette

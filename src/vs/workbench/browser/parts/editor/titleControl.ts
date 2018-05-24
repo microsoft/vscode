@@ -23,7 +23,6 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { createActionItem, fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IMenuService, MenuId, IMenu, ExecuteCommandAction } from 'vs/platform/actions/common/actions';
@@ -46,8 +45,6 @@ export interface IToolbarActions {
 }
 
 export abstract class TitleControl extends Themable {
-
-	protected closeOneEditorAction: CloseOneEditorAction;
 
 	protected readonly groupTransfer = LocalSelectionTransfer.getInstance<DraggedEditorGroupIdentifier>();
 	protected readonly editorTransfer = LocalSelectionTransfer.getInstance<DraggedEditorIdentifier>();
@@ -82,8 +79,6 @@ export abstract class TitleControl extends Themable {
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.contextMenu = this._register(this.menuService.createMenu(MenuId.EditorTitleContext, this.contextKeyService));
-
-		this.closeOneEditorAction = this._register(this.instantiationService.createInstance(CloseOneEditorAction, CloseOneEditorAction.ID, CloseOneEditorAction.LABEL));
 
 		this.create(parent);
 		this.registerListeners();
@@ -196,15 +191,11 @@ export abstract class TitleControl extends Themable {
 			primaryEditorActions = prepareActions(editorActions.primary);
 		}
 
+		// Secondary actions for all groups
 		secondaryEditorActions = prepareActions(editorActions.secondary);
 
-		const { showTabs } = this.accessor.partOptions;
-
+		// Only update if something actually has changed
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		if (!showTabs) {
-			primaryEditorActionIds.push(this.closeOneEditorAction.id); // always show "Close" when tabs are disabled
-		}
-
 		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
 		if (
 			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
@@ -213,10 +204,6 @@ export abstract class TitleControl extends Themable {
 			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
 		) {
 			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
-
-			if (!showTabs) {
-				this.editorActionsToolbar.addPrimaryAction(this.closeOneEditorAction)();
-			}
 
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;

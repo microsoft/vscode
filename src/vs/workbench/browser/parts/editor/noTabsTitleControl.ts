@@ -78,7 +78,7 @@ export class NoTabsTitleControl extends TitleControl {
 
 		// Close editor on middle mouse click
 		if (e instanceof MouseEvent && e.button === 1 /* Middle Button */) {
-			this.closeOneEditorAction.run({ groupId: this.group.id, editorIndex: this.group.getIndexOfEditor(this.group.activeEditor) });
+			this.group.closeEditor(this.group.activeEditor);
 		}
 	}
 
