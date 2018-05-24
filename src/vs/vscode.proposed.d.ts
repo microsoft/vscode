@@ -5,6 +5,8 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
@@ -601,22 +603,74 @@ declare module 'vscode' {
 
 	export namespace window {
 
-		/**
-		 * Collect multiple inputs from the user. The provided handler will be called with a
-		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
-		 *
-		 * @param handler The callback that will collect the inputs.
-		 */
-		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+		export function createQuickPick(): QuickPick;
+		export function createInputBox(): InputBox;
 	}
 
-	/**
-	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
-	 * should use the instance of this interface passed to it to collect all inputs.
-	 */
 	export interface QuickInput {
-		showQuickPick: typeof window.showQuickPick;
-		showInputBox: typeof window.showInputBox;
+
+		enabled: boolean;
+
+		busy: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		onDidValueChange: Event<string>;
+
+		onDidAccept: Event<string>;
+
+		commands: QuickInputCommand[];
+
+		onDidTriggerCommand: Event<QuickInputCommand>;
+
+		items: QuickPickItem[];
+
+		canSelectMany: boolean;
+
+		builtInFilter: boolean;
+
+		selectedItems: QuickPickItem[];
+
+		onDidSelectItem: Event<QuickPickItem>;
+	}
+
+	export interface InputBox extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		password: boolean;
+
+		onDidValueChange: Event<string>;
+
+		onDidAccept: Event<string>;
+
+		commands: QuickInputCommand[];
+
+		onDidTriggerCommand: Event<QuickInputCommand>;
+
+		prompt: string;
+
+		validationMessage: string;
+	}
+
+	export interface QuickInputCommand {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
 	}
 
 	//#endregion
