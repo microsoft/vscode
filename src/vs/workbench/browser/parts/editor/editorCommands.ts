@@ -19,7 +19,7 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -455,7 +455,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				}
 
 				// Group does not exist: create new by splitting the active one of the last group
-				const direction = preferredGroupDirection(configurationService);
+				const direction = preferredSideBySideGroupDirection(configurationService);
 				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
 				const newGroup = editorGroupService.addGroup(lastGroup, direction);
 

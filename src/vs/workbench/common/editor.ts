@@ -28,6 +28,7 @@ export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeE
 export const MultipleEditorGroupsContext = new RawContextKey<boolean>('multipleEditorGroups', false);
 export const SingleEditorGroupsContext = MultipleEditorGroupsContext.toNegated();
 export const InEditorZenModeContext = new RawContextKey<boolean>('inZenMode', false);
+export const SplitEditorsVertically = new RawContextKey<boolean>('splitEditorsVertically', false);
 
 /**
  * Text diff editor id.
@@ -946,7 +947,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	enablePreviewFromQuickOpen?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
-	openSideBySideDirection?: 'left' | 'right' | 'up' | 'down';
+	openSideBySideDirection?: 'horizontal' | 'vertical';
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;

@@ -35,7 +35,7 @@ export const DEFAULT_EDITOR_PART_OPTIONS: IEditorPartOptions = {
 	showIcons: true,
 	enablePreview: true,
 	openPositioning: 'right',
-	openSideBySideDirection: 'right',
+	openSideBySideDirection: 'horizontal',
 	closeEmptyGroups: true,
 	labelFormat: 'default',
 	iconTheme: 'vs-seti'

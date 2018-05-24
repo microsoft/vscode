@@ -21,16 +21,14 @@ export enum GroupDirection {
 	RIGHT
 }
 
-export function preferredGroupDirection(configurationService: IConfigurationService): GroupDirection {
-	const openSideBySideDirection = configurationService.getValue<'left' | 'right' | 'up' | 'down'>('workbench.editor.openSideBySideDirection');
+export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
+	const openSideBySideDirection = configurationService.getValue<'horizontal' | 'vertical'>('workbench.editor.openSideBySideDirection');
 
-	switch (openSideBySideDirection) {
-		case 'left': return GroupDirection.LEFT;
-		case 'right': return GroupDirection.RIGHT;
-		case 'up': return GroupDirection.UP;
-		case 'down': return GroupDirection.DOWN;
-		default: return GroupDirection.RIGHT;
+	if (openSideBySideDirection === 'vertical') {
+		return GroupDirection.DOWN;
 	}
+
+	return GroupDirection.RIGHT;
 }
 
 export enum GroupOrientation {

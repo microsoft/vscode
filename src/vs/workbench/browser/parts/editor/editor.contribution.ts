@@ -436,6 +436,51 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
+// Editor Title Menu: Split Editor
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SplitEditorAction.ID,
+		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
+		}
+	},
+	alt: {
+		id: editorCommands.SPLIT_EDITOR_DOWN,
+		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
+		}
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.not('splitEditorsVertically'),
+	order: Number.POSITIVE_INFINITY // at the end
+});
+
+MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+	command: {
+		id: SplitEditorAction.ID,
+		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
+		}
+	},
+	alt: {
+		id: editorCommands.SPLIT_EDITOR_RIGHT,
+		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
+		}
+	},
+	group: 'navigation',
+	when: ContextKeyExpr.has('splitEditorsVertically'),
+	order: Number.POSITIVE_INFINITY // at the end
+});
+
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepEditor', "Keep Editor"), category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeEditorsInGroup', "Close All Editors in Group"), category } });

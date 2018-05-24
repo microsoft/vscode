@@ -24,7 +24,7 @@ import { basename } from 'vs/base/common/paths';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsOrder, IEditorReplacement, GroupChangeKind, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, IResourceEditor, ACTIVE_GROUP_TYPE, SIDE_GROUP_TYPE, SIDE_GROUP, ACTIVE_GROUP, IResourceEditorReplacement, IOpenEditorOverrideHandler } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -302,7 +302,7 @@ export class EditorService extends Disposable implements IEditorService {
 	}
 
 	private findSideBySideGroup(): IEditorGroup {
-		const direction = preferredGroupDirection(this.configurationService);
+		const direction = preferredSideBySideGroupDirection(this.configurationService);
 
 		let neighbourGroup = this.editorGroupService.findGroup({ direction });
 		if (!neighbourGroup) {

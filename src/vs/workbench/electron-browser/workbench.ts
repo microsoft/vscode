@@ -23,7 +23,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
-import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput } from 'vs/workbench/common/editor';
+import { IEditorInputFactoryRegistry, Extensions as EditorExtensions, TextCompareEditorVisibleContext, TEXT_DIFF_EDITOR_ID, EditorsVisibleContext, InEditorZenModeContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, IUntitledResourceInput, IResourceDiffInput, SplitEditorsVertically } from 'vs/workbench/common/editor';
 import { HistoryService } from 'vs/workbench/services/history/electron-browser/history';
 import { ActivitybarPart } from 'vs/workbench/browser/parts/activitybar/activitybarPart';
 import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
@@ -108,7 +108,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
@@ -621,6 +621,21 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(this.configurationService.onDidChangeWorkspaceFolders(() => {
 			workspaceFolderCountContext.set(this.configurationService.getWorkspace().folders.length);
 		}));
+
+		const splitEditorsVerticallyContext = SplitEditorsVertically.bindTo(this.contextKeyService);
+
+		const updateSplitEditorsVerticallyContext = () => {
+			const direction = preferredSideBySideGroupDirection(this.configurationService);
+			splitEditorsVerticallyContext.set(direction === GroupDirection.DOWN);
+		};
+
+		this._register(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
+				updateSplitEditorsVerticallyContext();
+			}
+		}));
+
+		updateSplitEditorsVerticallyContext();
 	}
 
 	private restoreParts(): TPromise<IWorkbenchStartedInfo> {

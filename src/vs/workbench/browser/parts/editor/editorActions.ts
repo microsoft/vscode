@@ -20,7 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, EditorGroupLayout, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredGroupDirection, IFindGroupScope, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -60,8 +60,8 @@ export class BaseSplitEditorGroupAction extends Action {
 		return TPromise.as(true);
 	}
 
-	protected splitEditor(groupId?: number, direction = this.direction): void {
-		splitEditor(this.editorGroupService, direction, { groupId });
+	protected splitEditor(groupId?: number): void {
+		splitEditor(this.editorGroupService, this.direction, { groupId });
 	}
 }
 
@@ -78,61 +78,23 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(id, label, null, preferredGroupDirection(configurationService), editorGroupService);
-
-		this.updateAction();
+		super(id, label, null, preferredSideBySideGroupDirection(configurationService), editorGroupService);
 
 		this.registerListeners();
-	}
-
-	private updateAction(): void {
-		switch (this.direction) {
-			case GroupDirection.LEFT:
-				this.label = SplitEditorGroupLeftAction.LABEL;
-				this.class = 'split-editor-horizontal-action';
-				break;
-			case GroupDirection.RIGHT:
-				this.label = SplitEditorGroupRightAction.LABEL;
-				this.class = 'split-editor-horizontal-action';
-				break;
-			case GroupDirection.UP:
-				this.label = SplitEditorGroupUpAction.LABEL;
-				this.class = 'split-editor-vertical-action';
-				break;
-			case GroupDirection.DOWN:
-				this.label = SplitEditorGroupDownAction.LABEL;
-				this.class = 'split-editor-vertical-action';
-				break;
-		}
 	}
 
 	private registerListeners(): void {
 		this.toDispose.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('workbench.editor.openSideBySideDirection')) {
-				this.direction = preferredGroupDirection(this.configurationService);
-				this.updateAction();
+				this.direction = preferredSideBySideGroupDirection(this.configurationService);
 			}
 		}));
 	}
 
-	public run(context?: IEditorIdentifier & { event?: Event }): TPromise<any> {
-		let direction = this.direction;
-		if (context && context.event instanceof MouseEvent && (context.event.altKey)) {
-			direction = this.alternateGroupDirection;
-		}
-
-		this.splitEditor(context ? context.groupId : void 0, direction);
+	public run(context?: IEditorIdentifier): TPromise<any> {
+		this.splitEditor(context ? context.groupId : void 0);
 
 		return TPromise.as(true);
-	}
-
-	private get alternateGroupDirection(): GroupDirection {
-		switch (this.direction) {
-			case GroupDirection.LEFT: return GroupDirection.UP;
-			case GroupDirection.RIGHT: return GroupDirection.DOWN;
-			case GroupDirection.UP: return GroupDirection.LEFT;
-			case GroupDirection.DOWN: return GroupDirection.RIGHT;
-		}
 	}
 
 	public dispose(): void {
@@ -152,7 +114,7 @@ export class SplitEditorGroupVerticalAction extends BaseSplitEditorGroupAction {
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'split-editor-vertical-action', GroupDirection.DOWN, editorGroupService);
+		super(id, label, null, GroupDirection.DOWN, editorGroupService);
 	}
 }
 
@@ -166,7 +128,7 @@ export class SplitEditorGroupHorizontalAction extends BaseSplitEditorGroupAction
 		label: string,
 		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'split-editor-horizontal-action', GroupDirection.RIGHT, editorGroupService);
+		super(id, label, null, GroupDirection.RIGHT, editorGroupService);
 	}
 }
 
@@ -475,9 +437,9 @@ export class OpenToSideAction extends Action {
 	}
 
 	public updateClass(): void {
-		const preferredDirection = preferredGroupDirection(this.configurationService);
+		const preferredDirection = preferredSideBySideGroupDirection(this.configurationService);
 
-		this.class = (preferredDirection === GroupDirection.LEFT || preferredDirection === GroupDirection.RIGHT) ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
+		this.class = (preferredDirection === GroupDirection.RIGHT) ? 'quick-open-sidebyside-vertical' : 'quick-open-sidebyside-horizontal';
 	}
 
 	public run(context: any): TPromise<any> {
