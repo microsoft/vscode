@@ -5,11 +5,6 @@
 
 import { ISuiteCallbackContext, ITestCallbackContext } from 'mocha';
 
-/*---------------------------------------------------------------------------------------------
- *  Copyright (c) Microsoft Corporation. All rights reserved.
- *  Licensed under the MIT License. See License.txt in the project root for license information.
- *--------------------------------------------------------------------------------------------*/
-
 export function describeRepeat(n: number, description: string, callback: (this: ISuiteCallbackContext) => void): void {
 	for (let i = 0; i < n; i++) {
 		describe(`${description} (iteration ${i})`, callback);
