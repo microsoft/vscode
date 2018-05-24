@@ -350,7 +350,7 @@ class PatternBuilder {
 
 function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, resolved: number) {
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	assert.ok(!reporter.receivedMessage);
 	assert.strictEqual(result.custom.length, 1);
 	let task = result.custom[0];
@@ -361,7 +361,7 @@ function testDefaultProblemMatcher(external: ExternalTaskRunnerConfiguration, re
 function testConfiguration(external: ExternalTaskRunnerConfiguration, builder: ConfiguationBuilder): void {
 	builder.done();
 	let reporter = new ProblemReporter();
-	let result = parse(workspaceFolder, external, reporter);
+	let result = parse(workspaceFolder, Platform.platform, external, reporter);
 	if (reporter.receivedMessage) {
 		assert.ok(false, reporter.lastMessage);
 	}
