@@ -42,43 +42,23 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class BaseSplitEditorGroupAction extends Action {
-
-	constructor(
-		id: string,
-		label: string,
-		clazz: string,
-		protected direction: GroupDirection,
-		private editorGroupService: IEditorGroupsService
-	) {
-		super(id, label, clazz);
-	}
-
-	public run(context?: IEditorIdentifier & { event?: Event }): TPromise<any> {
-		this.splitEditor(context ? context.groupId : void 0);
-
-		return TPromise.as(true);
-	}
-
-	protected splitEditor(groupId?: number): void {
-		splitEditor(this.editorGroupService, this.direction, { groupId });
-	}
-}
-
-export class SplitEditorAction extends BaseSplitEditorGroupAction {
+export class SplitEditorAction extends Action {
 
 	public static readonly ID = 'workbench.action.splitEditor';
 	public static readonly LABEL = nls.localize('splitEditor', "Split Editor");
 
 	private toDispose: IDisposable[] = [];
+	private direction: GroupDirection;
 
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super(id, label, null, preferredSideBySideGroupDirection(configurationService), editorGroupService);
+		super(id, label);
+
+		this.direction = preferredSideBySideGroupDirection(configurationService);
 
 		this.registerListeners();
 	}
@@ -92,7 +72,7 @@ export class SplitEditorAction extends BaseSplitEditorGroupAction {
 	}
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
-		this.splitEditor(context ? context.groupId : void 0);
+		splitEditor(this.editorGroupService, this.direction, context);
 
 		return TPromise.as(true);
 	}

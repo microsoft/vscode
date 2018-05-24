@@ -429,9 +429,7 @@ function registerOpenEditorAtIndexCommands(): void {
 function registerFocusEditorGroupAtIndexCommands(): void {
 
 	// Keybindings to focus a specific group (2-8) in the editor area
-	for (let i = 1; i < 8; i++) {
-		const groupIndex = i;
-
+	for (let groupIndex = 1; groupIndex < 8; groupIndex++) {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: toCommandId(groupIndex),
 			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
@@ -458,12 +456,6 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				const direction = preferredSideBySideGroupDirection(configurationService);
 				const lastGroup = editorGroupService.findGroup({ location: GroupLocation.LAST });
 				const newGroup = editorGroupService.addGroup(lastGroup, direction);
-
-				// To keep backwards compatibility (pre-grid) we automatically copy the active editor
-				// of the last group over to the new group as long as it supports to be split.
-				if (lastGroup.activeEditor && (lastGroup.activeEditor as EditorInput).supportsSplitEditor()) {
-					lastGroup.copyEditor(lastGroup.activeEditor, newGroup);
-				}
 
 				// Focus
 				newGroup.focus();
