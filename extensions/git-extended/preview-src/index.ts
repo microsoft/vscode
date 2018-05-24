@@ -103,6 +103,12 @@ function updateCheckoutButton(isCheckedOut: boolean) {
 }
 
 function setTextArea() {
+	document.getElementById('comment-form')!.innerHTML = `<textarea id="commentTextArea"></textarea>
+		<div class="form-actions">
+			<button class="close-button" id="close-button"></button>
+			<button class="reply-button" id="reply-button"></button>
+		</div>`;
+
 	(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).placeholder = 'Leave a comment';
 	(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).addEventListener('keydown', e => {
 		if (e.keyCode === 65 && e.metaKey) {

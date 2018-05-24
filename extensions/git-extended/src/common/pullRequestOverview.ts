@@ -36,9 +36,6 @@ export class PullRequestOverviewPanel {
 		}
 
 		PullRequestOverviewPanel.currentPanel.update(pullRequestModel);
-		PullRequestOverviewPanel.currentPanel._panel.webview.postMessage({
-			command: 'refactor'
-		});
 	}
 
 	private constructor(extensionPath: string, column: vscode.ViewColumn, title: string) {
@@ -58,6 +55,13 @@ export class PullRequestOverviewPanel {
 		// Listen for when the panel is disposed
 		// This happens when the user closes the panel or when the panel is closed programatically
 		this._panel.onDidDispose(() => this.dispose(), null, this._disposables);
+
+		// Listen for changes to panel visibility, if the webview comes into view resubmit data
+		this._panel.onDidChangeViewState(e => {
+			if (e.webviewPanel.visible) {
+				this.update(this._pullRequest);
+			}
+		}, this, this._disposables);
 
 		// Handle messages from the webview
 		this._panel.webview.onDidReceiveMessage(message => {
@@ -166,12 +170,7 @@ export class PullRequestOverviewPanel {
 				<script nonce="${nonce}" src="${scriptUri}"></script>
 				<div id="title" class="title"></div>
 				<div id="pullrequest" class="discussion" aria-live="polite"></div>
-				<div class="comment-form">
-					<textarea id="commentTextArea"></textarea>
-					<div class="form-actions">
-						<button class="close-button" id="close-button"></button>
-						<button class="reply-button" id="reply-button"></button>
-					</div>
+				<div id="comment-form" class="comment-form">
 				</div>
 			</body>
 			</html>`;
