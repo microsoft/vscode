@@ -104,6 +104,12 @@ function updateCheckoutButton(isCheckedOut: boolean) {
 
 function setTextArea() {
 	(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).placeholder = 'Leave a comment';
+	(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).addEventListener('keydown', e => {
+		console.log(e);
+		if (e.keyCode === 65 && e.metaKey) {
+			(<HTMLTextAreaElement>document.getElementById('commentTextArea')!).select();
+		}
+	});
 	(<HTMLButtonElement>document.getElementById('reply-button')!).textContent = 'Comment';
 	(<HTMLButtonElement>document.getElementById('close-button')!).textContent = 'Close pull request';
 }
