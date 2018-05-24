@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { QuickInputToolbarItem3, ExtensionContext, commands, QuickPickItem, window, QuickInputSession9, QuickInput3, Disposable, CancellationToken, QuickInput7, QuickInput6 } from 'vscode';
+import { QuickInputToolbarItem3, ExtensionContext, commands, QuickPickItem, window, QuickInputSession9, QuickInput3, Disposable, CancellationToken, QuickInput7, QuickInput6, QuickInput11, QuickInputToolbarItem11 } from 'vscode';
 
 export function activate(context: ExtensionContext) {
 	context.subscriptions.push(commands.registerCommand('foobar', async () => {
@@ -17,6 +17,7 @@ export function activate(context: ExtensionContext) {
 		const inputs8 = await collectInputs8();
 		const inputs9 = await collectInputs9();
 		const inputs10 = await collectInputs10();
+		const inputs11 = await collectInputs11();
 	}));
 }
 
@@ -384,20 +385,20 @@ interface Result10 {
 	runtime: QuickPickItem;
 }
 
-const createResourceGroupItem = { iconPath: 'createResourceGroup.svg' };
+const createResourceGroupItem10 = { iconPath: 'createResourceGroup.svg' };
 
 async function collectInputs10() {
 	const result: Partial<Result10> = {};
 
-	const multiStep = createMultiStepInput([pickResourceGroup]);
-	await stepThrough(multiStep);
+	const multiStep = createMultiStepInput10([pickResourceGroup]);
+	await stepThrough10(multiStep);
 
 	async function pickResourceGroup() {
 		return showQuickPick10({
 			multiStep,
 			placeHolder: 'Pick a resource group',
 			items: resourceGroups,
-			toolbarItems: [createResourceGroupItem],
+			toolbarItems: [createResourceGroupItem10],
 			triggerToolbarItem: item => inputResourceGroupName,
 			pick: item => {
 				result.resourceGroup = item;
@@ -455,12 +456,12 @@ async function collectInputs10() {
 	return <Result10>result;
 }
 
-interface MultiStepInput {
+interface MultiStepInput10 {
 	input: QuickInput3;
 	steps: InputStep10[];
 }
 
-function createMultiStepInput(steps: InputStep10[]): MultiStepInput {
+function createMultiStepInput10(steps: InputStep10[]): MultiStepInput10 {
 	return {
 		input: window.createQuickInput3(),
 		steps
@@ -469,7 +470,7 @@ function createMultiStepInput(steps: InputStep10[]): MultiStepInput {
 
 type InputStep10 = (() => Thenable<InputStep10>) | void;
 
-async function stepThrough(multiStep: MultiStepInput) {
+async function stepThrough10(multiStep: MultiStepInput10) {
 	let step = multiStep.steps.pop();
 	while (step) {
 		multiStep.steps.push(step);
@@ -492,7 +493,7 @@ async function stepThrough(multiStep: MultiStepInput) {
 }
 
 interface QuickPickParameters10 {
-	multiStep: MultiStepInput;
+	multiStep: MultiStepInput10;
 	items: QuickPickItem[];
 	placeHolder: string;
 	toolbarItems?: QuickInputToolbarItem3[]; // TODO
@@ -501,7 +502,7 @@ interface QuickPickParameters10 {
 	shouldResume?: () => Thenable<boolean>;
 }
 
-const backItem: QuickInputToolbarItem3 = { iconPath: 'back.svg' };
+const backItem10: QuickInputToolbarItem3 = { iconPath: 'back.svg' };
 
 async function showQuickPick10({ multiStep, items, placeHolder, pick, shouldResume }: QuickPickParameters10) {
 	const disposables: Disposable[] = [];
@@ -516,9 +517,9 @@ async function showQuickPick10({ multiStep, items, placeHolder, pick, shouldResu
 			list.visible = true;
 			list.items = items;
 			toolbar.visible = multiStep.steps.length > 1;
-			toolbar.toolbarItems = [backItem];
+			toolbar.toolbarItems = [backItem10];
 			toolbar.onDidTriggerToolbarItem(item => {
-				if (item === backItem) {
+				if (item === backItem10) {
 					reject('back');
 				}
 			});
@@ -547,7 +548,7 @@ async function showQuickPick10({ multiStep, items, placeHolder, pick, shouldResu
 }
 
 interface InputBoxParameters10 {
-	multiStep: MultiStepInput;
+	multiStep: MultiStepInput10;
 	prompt: string;
 	validate: (value: string) => Promise<string>;
 	toolbarItems?: QuickInputToolbarItem3[]; // TODO
@@ -571,9 +572,9 @@ async function showInputBox10({ multiStep, prompt, validate, accept, shouldResum
 			list.visible = true;
 			list.items = undefined;
 			toolbar.visible = multiStep.steps.length > 1;
-			toolbar.toolbarItems = [backItem];
+			toolbar.toolbarItems = [backItem10];
 			toolbar.onDidTriggerToolbarItem(item => {
-				if (item === backItem) {
+				if (item === backItem10) {
 					reject('back');
 				}
 			});
@@ -617,6 +618,232 @@ async function showInputBox10({ multiStep, prompt, validate, accept, shouldResum
 		});
 	} finally {
 		disposables.forEach(d => d.dispose());
+	}
+}
+
+// #endregion
+
+// #region Take 11 --------------------------------------------------------------------------------
+
+interface Result11 {
+	resourceGroup: QuickPickItem | string;
+	name: string;
+	runtime: QuickPickItem;
+}
+
+async function collectInputs11() {
+	return (await MultiStepInput11.run(pickResourceGroup, {} as Partial<Result11>)) as Result11;
+}
+
+class MyToolbarItem11 implements QuickInputToolbarItem11 {
+	constructor(public iconPath: string) { }
+}
+
+async function pickResourceGroup(input: MultiStepInput11, state: Partial<Result11>) {
+	const createResourceGroupItem11 = new MyToolbarItem11('createResourceGroup.svg');
+	const pick = await input.showQuickPick11({
+		placeHolder: 'Pick a resource group',
+		items: resourceGroups,
+		toolbarItems: [createResourceGroupItem11]
+	});
+	if (pick instanceof InputFlowAction11) {
+		return pick;
+	}
+	if (pick instanceof MyToolbarItem11) {
+		return inputResourceGroupName;
+	}
+	state.resourceGroup = pick;
+	return inputName;
+}
+
+async function inputResourceGroupName(input: MultiStepInput11, state: Partial<Result11>) {
+	const name = await input.showInputBox11({
+		prompt: 'Choose a unique name for the resource group',
+		validate: validateNameIsUnique
+	});
+	if (name === InputFlowAction11.cancel && await suspend()) {
+		return InputFlowAction11.resume;
+	}
+	if (name instanceof InputFlowAction11) {
+		return name;
+	}
+	state.resourceGroup = name;
+	return inputName;
+}
+
+async function inputName(input: MultiStepInput11, state: Partial<Result11>) {
+	const name = await input.showInputBox11({
+		prompt: 'Choose a unique name for the application service',
+		validate: validateNameIsUnique
+	});
+	if (name === InputFlowAction11.cancel && await suspend()) {
+		return InputFlowAction11.resume;
+	}
+	if (name instanceof InputFlowAction11) {
+		return name;
+	}
+	state.name = name;
+	return pickRuntime;
+}
+
+async function pickRuntime(input: MultiStepInput11, state: Partial<Result11>) {
+	const runtimes = await getAvailableRuntimes(state.resourceGroup, null /* token */);
+	const runtime = await input.showQuickPick11({
+		placeHolder: 'Pick a runtime',
+		items: runtimes
+	});
+	if (runtime === InputFlowAction11.cancel && await suspend()) {
+		return InputFlowAction11.resume;
+	}
+	if (runtime instanceof InputFlowAction11) {
+		return runtime;
+	}
+	state.runtime = runtime;
+}
+
+function suspend() {
+	// Could show a notification with the option to resume.
+	return new Promise<boolean>((resolve, reject) => {
+
+	});
+}
+
+class InputFlowAction11 {
+	private constructor() { }
+	static back = new InputFlowAction11();
+	static cancel = new InputFlowAction11();
+	static resume = new InputFlowAction11();
+}
+
+type InputStep11<T> = (input: MultiStepInput11, state: T) => Thenable<InputStep11<T> | InputFlowAction11 | void>;
+
+interface QuickPickParameters11 {
+	items: QuickPickItem[];
+	placeHolder: string;
+	toolbarItems?: QuickInputToolbarItem11[]; // TODO
+}
+
+interface InputBoxParameters11 {
+	prompt: string;
+	validate: (value: string) => Promise<string>;
+	toolbarItems?: QuickInputToolbarItem11[]; // TODO
+}
+
+const backItem11: QuickInputToolbarItem11 = { iconPath: 'back.svg' };
+
+class MultiStepInput11 {
+
+	static async run<T>(start: InputStep11<T>, state: T) {
+		const input = new MultiStepInput11();
+		return input.stepThrough11(start, state);
+	}
+
+	private current?: QuickInput11;
+	private steps: InputStep11<any>[] = [];
+
+	private async stepThrough11<T>(start: InputStep11<T>, state: T) {
+		let step: InputStep11<T> | void = start;
+		while (step) {
+			this.steps.push(step);
+			if (this.current) {
+				this.current.enabled = false;
+				this.current.busy = true;
+			}
+			let next = await step(this, state);
+			if (next === 'back') {
+				this.steps.pop();
+				step = this.steps.pop();
+			} if (next === 'resume') {
+				step = this.steps.pop();
+			} else {
+				step = next;
+			}
+		}
+		if (this.current) {
+			this.current.dispose();
+		}
+		return state;
+	}
+
+	async showQuickPick11<P extends QuickPickParameters11>({ items, placeHolder }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<QuickPickItem | (P extends { toolbarItems: (infer I)[] } ? I : never) | InputFlowAction11>((resolve, reject) => {
+				const input = window.createQuickPick11();
+				const { inputBox, toolbar, list } = input;
+				inputBox.placeholder = placeHolder;
+				list.items = items;
+				toolbar.toolbarItems = this.steps.length > 1 ? [backItem11] : [];
+				disposables.push(
+					input,
+					toolbar.onDidTriggerToolbarItem(item => {
+						if (item === backItem11) {
+							resolve(InputFlowAction11.back);
+						}
+					}),
+					list.onDidSelectItem(item => resolve(item)),
+					input.onHide(() => resolve(InputFlowAction11.cancel))
+				);
+				if (this.current) {
+					this.current.replace(input);
+				} else {
+					input.show();
+				}
+				this.current = input;
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
+	}
+
+	async showInputBox11<P extends InputBoxParameters11>({ prompt, validate }: P) {
+		const disposables: Disposable[] = [];
+		try {
+			return await new Promise<string | (P extends { toolbarItems: QuickInputToolbarItem11[] } ? QuickInputToolbarItem11 : never) | InputFlowAction11>((resolve, reject) => {
+				const input = window.createInputBox11();
+				const { inputBox, toolbar, message } = input;
+				message.text = prompt;
+				message.severity = 0;
+				toolbar.toolbarItems = this.steps.length > 1 ? [backItem11] : [];
+				let validating = validate('');
+				disposables.push(
+					input,
+					toolbar.onDidTriggerToolbarItem(item => {
+						if (item === backItem11) {
+							resolve(InputFlowAction11.back);
+						}
+					}),
+					inputBox.onDidAccept(async text => {
+						if (!(await validate(text))) {
+							resolve(text);
+						}
+					}),
+					inputBox.onDidTextChange(async text => {
+						const current = validate(text);
+						validating = current;
+						const validationMessage = await current;
+						if (current === validating) {
+							if (validationMessage) {
+								message.text = validationMessage;
+								message.severity = 2;
+							} else {
+								message.text = prompt;
+								message.severity = 0;
+							}
+						}
+					}),
+					input.onHide(() => resolve(InputFlowAction11.cancel))
+				);
+				if (this.current) {
+					this.current.replace(input);
+				} else {
+					input.show();
+				}
+				this.current = input;
+			});
+		} finally {
+			disposables.forEach(d => d.dispose());
+		}
 	}
 }
 

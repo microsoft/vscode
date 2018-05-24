@@ -779,5 +779,98 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Take 11
+
+	export namespace window {
+
+		export function createQuickPick11(): QuickPick11;
+		export function createInputBox11(): InputBox11;
+	}
+
+	export interface QuickInput11 {
+
+		enabled: boolean;
+		busy: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onHide: Event<void>;
+
+		replace(input: QuickInput11): void;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick11 extends QuickInput11 {
+
+		inputBox: {
+			text: string;
+
+			placeholder: string;
+
+			onDidTextChange: Event<string>;
+
+			onDidAccept: Event<string>;
+		};
+
+		toolbar: {
+			// TODO: Investigate using commands.
+
+			toolbarItems: QuickInputToolbarItem11[];
+
+			onDidTriggerToolbarItem: Event<QuickInputToolbarItem11>;
+		};
+
+		list: {
+			items: QuickPickItem[];
+
+			canSelectMany: boolean;
+
+			builtInFilter: boolean;
+
+			selectedItems: QuickPickItem[];
+
+			onDidSelectItem: Event<QuickPickItem>;
+		};
+	}
+
+	export interface InputBox11 extends QuickInput11 {
+
+		inputBox: {
+			text: string;
+
+			placeholder: string;
+
+			password: boolean;
+
+			onDidTextChange: Event<string>;
+
+			onDidAccept: Event<string>;
+		};
+
+		toolbar: {
+			// TODO: Investigate using commands.
+
+			toolbarItems: QuickInputToolbarItem11[];
+
+			onDidTriggerToolbarItem: Event<QuickInputToolbarItem11>;
+		};
+
+		message: {
+			text: string | undefined;
+
+			severity: number;
+		};
+	}
+
+	export interface QuickInputToolbarItem11 {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
+	}
+
+	//#endregion
+
 	//#endregion
 }
