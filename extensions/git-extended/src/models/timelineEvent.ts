@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import { PullRequestModel } from './pullRequestModel';
+
 export enum EventType {
 	Committed,
 	Mentioned,
@@ -155,10 +157,18 @@ export function getEventType(text: string) {
 	}
 }
 
-export function parseTimelineEvents(events: any[]): TimelineEvent[] {
-	return events.map(event => {
+export async function parseTimelineEvents(pullRequest: PullRequestModel, events: any[]): Promise<TimelineEvent[]> {
+	events.forEach(event => {
 		let type = getEventType(event.event);
 		event.event = type;
 		return event;
 	});
+
+	await Promise.all(
+		events.filter(event => event.event === EventType.Reviewed)
+			.map(event => pullRequest.getReviewComments(event.id).then(result => {
+				event.comments = result;
+			})));
+
+	return events;
 }

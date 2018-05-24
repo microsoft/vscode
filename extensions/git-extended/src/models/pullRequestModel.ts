@@ -123,6 +123,18 @@ export class PullRequestModel {
 		}
 	}
 
+	async getReviewComments(reviewId: string): Promise<Comment[]> {
+		const reviewData = await this.otcokit.pullRequests.getReviewComments({
+			owner: this.remote.owner,
+			repo: this.remote.repositoryName,
+			number: this.prItem.number,
+			id: reviewId
+		});
+
+		const rawComments = reviewData.data;
+		return parseComments(rawComments);
+	}
+
 	async getComments(): Promise<Comment[]> {
 		const reviewData = await this.otcokit.pullRequests.getComments({
 			owner: this.remote.owner,
@@ -143,7 +155,7 @@ export class PullRequestModel {
 			per_page: 100
 		});
 
-		return parseTimelineEvents(ret.data);
+		return await parseTimelineEvents(this, ret.data);
 	}
 
 	async getDiscussionComments(): Promise<Comment[]> {

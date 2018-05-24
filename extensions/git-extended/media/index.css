@@ -324,3 +324,37 @@ body .comment-form .form-actions button:focus:enabled {
 .vscode-dark .comment-body table > tbody > tr + tr > td {
 	border-color: rgba(255, 255, 255, 0.18);
 }
+
+.diff {
+	background-color: var(--vscode-peekViewEditor-background);
+	margin: 8px;
+	border: 1px;
+}
+
+.diff .diffHeader {
+	padding: 2px 12px;
+	border-bottom: solid 1px;
+	line-height: 1.5;
+}
+
+.diff .diffLine.add {
+	background-color: var(--vscode-diffEditor-insertedTextBackground);
+}
+
+.diff .diffLine.delete {
+	background-color: var(--vscode-diffEditor-removedTextBackground);
+}
+
+.diff .diffLine .lineNumber {
+	width: 1%;
+	min-width: 50px;
+	padding-right: 10px;
+	padding-left: 10px;
+	font-size: 12px;
+	line-height: 20px;
+	text-align: right;
+	white-space: nowrap;
+	vertical-align: top;
+	box-sizing: border-box;
+	display: inline-block;
+}

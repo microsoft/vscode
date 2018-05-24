@@ -6,6 +6,75 @@
 import * as moment from 'moment';
 import md from './mdRenderer';
 
+
+export enum DiffChangeType {
+	Context,
+	Add,
+	Delete,
+	Control
+}
+
+export class DiffLine {
+	public get raw(): string {
+		return this._raw;
+	}
+
+	public get text(): string {
+		return this._raw.substr(1);
+	}
+
+	public endwithLineBreak: boolean = true;
+
+	constructor(
+		public type: DiffChangeType,
+		public oldLineNumber: number, /* 1 based */
+		public newLineNumber: number, /* 1 based */
+		public positionInHunk: number,
+		private _raw: string
+	) { }
+}
+
+export function getDiffChangeType(text: string) {
+	let c = text[0];
+	switch (c) {
+		case ' ': return DiffChangeType.Context;
+		case '+': return DiffChangeType.Add;
+		case '-': return DiffChangeType.Delete;
+		default: return DiffChangeType.Control;
+	}
+}
+
+export class DiffHunk {
+	public diffLines: DiffLine[] = [];
+
+	constructor(
+		public oldLineNumber: number,
+		public oldLength: number,
+		public newLineNumber: number,
+		public newLength: number,
+		public positionInHunk: number
+	) { }
+}
+export interface Comment {
+	url: string;
+	id: string;
+	path: string;
+	pull_request_review_id: string;
+	diff_hunk: string;
+	diff_hunks: DiffHunk[];
+	position: number;
+	original_position: number;
+	commit_id: string;
+	original_commit_id: string;
+	user: User;
+	body: string;
+	created_at: string;
+	updated_at: string;
+	html_url: string;
+	absolutePosition?: number;
+}
+
+
 export enum EventType {
 	Committed,
 	Mentioned,
@@ -124,6 +193,7 @@ export interface ReviewEvent {
 	author_association: string;
 	_links: Links;
 	event: EventType;
+	comments: Comment[];
 }
 
 export interface CommitEvent {
@@ -146,6 +216,14 @@ export enum PullRequestStateEnum {
 }
 
 export type TimelineEvent = CommitEvent | ReviewEvent | SubscribeEvent | CommentEvent | MentionEvent;
+
+export function renderCommentBody(comment: Comment): string {
+	return `
+			<div class="comment-body">
+				${md.render(comment.body)}
+			</div>`;
+}
+
 
 export function renderComment(comment: CommentEvent): string {
 	return `<div class="comment-container">
@@ -180,15 +258,54 @@ export function renderCommit(timelineEvent: CommitEvent): string {
 </div>`;
 }
 
+function getDiffChangeClass(type: DiffChangeType) {
+	switch (type) {
+		case DiffChangeType.Add:
+			return 'add';
+		case DiffChangeType.Delete:
+			return 'delete';
+		case DiffChangeType.Context:
+			return 'context';
+		case DiffChangeType.Context:
+			return 'context';
+		default:
+			return 'control';
+	}
+}
+
 export function renderReview(timelineEvent: ReviewEvent): string {
+	let comments = timelineEvent.comments;
+	let avatar = '';
+	let diffView = '';
+	let diffLines = [];
+	if (comments && comments.length) {
+		avatar = `<div class="avatar-container">
+			<img class="avatar" src="${timelineEvent.comments[0].user.avatar_url}">
+		</div>`;
+		for (let i = 0; i < comments[0].diff_hunks.length; i++) {
+			diffLines.push(comments[0].diff_hunks[i].diffLines.slice(-4).map(diffLine => `<div class="diffLine ${getDiffChangeClass(diffLine.type)}">
+				<span class="lineNumber old">${diffLine.oldLineNumber > 0 ? diffLine.oldLineNumber : ' '}</span>
+				<span class="lineNumber new">${diffLine.newLineNumber > 0 ? diffLine.newLineNumber : ' '}</span>
+				<span class="lineContent">${(diffLine as any)._raw}</span>
+				</div>`).join(''));
+		}
+
+		diffView = `<div class="diff">
+			<div class="diffHeader">${comments[0].path}</div>
+			${diffLines.join('')}
+		</div>`;
+	}
 	return `<div class="comment-container">
 
 	<div class="review-comment" role="treeitem">
 		<div class="review-comment-contents">
-			<div class="review">
-				<strong>${timelineEvent.user.login} left a <a href="${timelineEvent.html_url}">review </a></strong><span></span>
+			<div class="review-comment-header">
+				${avatar}
+				<strong class="author">${timelineEvent.user.login} left a <a href="${timelineEvent.html_url}">review </a></strong><span></span>
 				<div class="timestamp">${moment(timelineEvent.submitted_at).fromNow()}</div>
 			</div>
+			${diffView}
+			<div>${ timelineEvent.comments && timelineEvent.comments.length ? timelineEvent.comments.map(comment => renderCommentBody(comment)) : ''}</div>
 		</div>
 	</div>
 </div>`;
