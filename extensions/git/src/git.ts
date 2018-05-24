@@ -365,6 +365,14 @@ function getGitErrorCode(stderr: string): string | undefined {
 	return void 0;
 }
 
+function sanitizeCwd(cwd: string): string {
+	// Make the drive letter uppercase on Windows for includeIf (#40354)
+	if (os.platform() === 'win32' && cwd && cwd[1] === ':') {
+		return cwd[0].toUpperCase() + cwd.substr(1);
+	}
+	return cwd;
+}
+
 export class Git {
 
 	readonly path: string;
@@ -420,11 +428,13 @@ export class Git {
 	}
 
 	async exec(cwd: string, args: string[], options: SpawnOptions = {}): Promise<IExecutionResult<string>> {
+		cwd = sanitizeCwd(cwd);
 		options = assign({ cwd }, options || {});
 		return await this._exec(args, options);
 	}
 
 	stream(cwd: string, args: string[], options: SpawnOptions = {}): cp.ChildProcess {
+		cwd = sanitizeCwd(cwd);
 		options = assign({ cwd }, options || {});
 		return this.spawn(args, options);
 	}
