@@ -200,10 +200,12 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						};
 
 						const mainActions = extensionToInstall ? [installAndRestartAction, installAction] : [searchAction];
+						const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
+							.replace('{0}', locContribution.languageNameLocalized || locContribution.languageName || locale);
 
 						this.notificationService.prompt(
 							Severity.Info,
-							translations['showLanguagePackExtensions'],
+							promptMessage,
 							[...mainActions,
 							{
 								label: localize('neverAgain', "Don't Show Again"),
