@@ -37,10 +37,10 @@ export const KEEP_EDITOR_COMMAND_ID = 'workbench.action.keepEditor';
 export const SHOW_EDITORS_IN_GROUP = 'workbench.action.showEditorsInGroup';
 export const TOGGLE_DIFF_INLINE_MODE = 'toggle.diff.editorMode';
 
-export const SPLIT_EDITOR_UP = 'splitEditor.up';
-export const SPLIT_EDITOR_DOWN = 'splitEditor.down';
-export const SPLIT_EDITOR_LEFT = 'splitEditor.left';
-export const SPLIT_EDITOR_RIGHT = 'splitEditor.right';
+export const SPLIT_EDITOR_UP = 'workbench.action.splitEditorUp';
+export const SPLIT_EDITOR_DOWN = 'workbench.action.splitEditorDown';
+export const SPLIT_EDITOR_LEFT = 'workbench.action.splitEditorLeft';
+export const SPLIT_EDITOR_RIGHT = 'workbench.action.splitEditorRight';
 
 export const NAVIGATE_ALL_EDITORS_GROUP_PREFIX = 'edt ';
 export const NAVIGATE_IN_ACTIVE_GROUP_PREFIX = 'edt active ';

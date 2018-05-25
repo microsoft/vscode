@@ -217,7 +217,6 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': [
 				ToggleTabFocusModeAction.ID,
-				FocusActiveGroupAction.ID,
 				QUICKOPEN_ACTION_ID,
 				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
 				ShowAllCommandsAction.ID,
@@ -274,6 +273,7 @@ configurationRegistry.registerConfiguration({
 				debugActions.StepOverAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
 				OpenPreviousRecentlyUsedEditorInGroupAction.ID,
+				FocusActiveGroupAction.ID,
 				FocusFirstGroupAction.ID,
 				FocusLastGroupAction.ID,
 				OpenFirstEditorInGroup.ID,

@@ -664,10 +664,10 @@ export class CodeMenu {
 
 		const editorLayoutMenu = new Menu();
 
-		const splitEditorUp = this.createMenuItem(nls.localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up"), 'splitEditor.up');
-		const splitEditorDown = this.createMenuItem(nls.localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down"), 'splitEditor.down');
-		const splitEditorLeft = this.createMenuItem(nls.localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left"), 'splitEditor.left');
-		const splitEditorRight = this.createMenuItem(nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right"), 'splitEditor.right');
+		const splitEditorUp = this.createMenuItem(nls.localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up"), 'workbench.action.splitEditorUp');
+		const splitEditorDown = this.createMenuItem(nls.localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down"), 'workbench.action.splitEditorDown');
+		const splitEditorLeft = this.createMenuItem(nls.localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left"), 'workbench.action.splitEditorLeft');
+		const splitEditorRight = this.createMenuItem(nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right"), 'workbench.action.splitEditorRight');
 
 		const singleColumnEditorLayout = this.createMenuItem(nls.localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single"), 'workbench.action.editorLayoutSingle');
 		const centeredEditorLayout = this.createMenuItem(nls.localize({ key: 'miCenteredEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered"), 'workbench.action.editorLayoutCentered');

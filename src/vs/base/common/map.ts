@@ -440,7 +440,7 @@ export class ResourceMap<T> {
 	public clone(): ResourceMap<T> {
 		const resourceMap = new ResourceMap<T>();
 
-		resourceMap.map.forEach((value, key) => resourceMap.map.set(key, value));
+		this.map.forEach((value, key) => resourceMap.map.set(key, value));
 
 		return resourceMap;
 	}
