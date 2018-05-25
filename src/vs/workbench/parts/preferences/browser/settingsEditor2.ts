@@ -21,7 +21,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -215,14 +215,14 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeListBackground = theme.getColor('list.activeSelectionBackground');
-			if (activeListBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree.focused .monaco-tree-row.focused .content::before { background-color: ${activeListBackground}; }`);
+			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
+			if (activeBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
-			const inactiveListBackground = theme.getColor('list.inactiveSelectionBackground');
-			if (inactiveListBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused .content::before { background-color: ${inactiveListBackground}; }`);
+			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
+			if (inactiveBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
 		}));
 

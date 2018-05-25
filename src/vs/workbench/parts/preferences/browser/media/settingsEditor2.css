@@ -4,15 +4,16 @@
  *--------------------------------------------------------------------------------------------*/
 
 .settings-editor {
-	padding: 11px 0px 0px 27px;
+	padding-top: 11px;
 	margin: auto;
 }
 
 /* header styling */
-
 .settings-editor > .settings-header {
-	padding: 0px 10px 0px 0px;
+	padding-left: 15px;
+	padding-right: 5px;
 	max-width: 800px;
+	box-sizing: border-box;
 	margin: auto;
 }
 
@@ -94,6 +95,7 @@
 	white-space: nowrap;
 	margin-right: 10px;
 	margin-left: 2px;
+	opacity: 0.7;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
@@ -129,16 +131,6 @@
 	min-height: 75px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row .content::before {
-	content: ' ';
-	display: inline-block;
-	position: absolute;
-	width: 5px;
-	left: -9px;
-	top: 2px;
-	bottom: 10px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
@@ -153,7 +145,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
 	min-width: 180px;
-	margin: 21px 10px 0px;
+	margin: 21px 10px 0px 5px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
@@ -182,14 +174,6 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	opacity: 0.7;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-key {
-	margin-left: 10px;
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 90%;
-	opacity: 0.8;
-	display: none;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
@@ -227,20 +211,6 @@
 	width: 100%;
 	font: inherit;
 	height: 26px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-value-checkbox {
-	position: relative;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-value-checkbox::after {
-	content: ' ';
-	display: block;
-	height: 3px;
-	width: 18px;
-	position: absolute;
-	top: 15px;
-	left: -3px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
@@ -291,10 +261,6 @@
 */
 .settings-editor .settings-tree-container .setting-item {
 	overflow: visible;
-}
-
-.settings-editor .settings-body {
-	margin-left: -15px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
