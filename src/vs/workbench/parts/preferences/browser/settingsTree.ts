@@ -25,6 +25,7 @@ import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferenc
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
+import URI from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
@@ -75,6 +76,17 @@ export interface IGroupElement extends ITreeItem {
 export type TreeElement = ISettingElement | IGroupElement;
 export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | SearchResultModel;
 
+function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
+	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
+	const inspected = configurationService.inspect(key, inspectOverrides);
+	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
+		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+			'workspaceFolder';
+	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+
+	return { isConfigured, inspected, targetSelector };
+}
+
 export class SettingsDataSource implements IDataSource {
 	constructor(
 		private viewState: ISettingsEditorViewState,
@@ -91,9 +103,8 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	getSettingElement(setting: ISetting, group: ISettingsGroup): ISettingElement {
-		const targetSelector = this.viewState.settingsTarget === ConfigurationTarget.USER ? 'user' : 'workspace';
-		const inspected = this.configurationService.inspect(setting.key);
-		const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+		const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 		const overriddenScopeList = [];
 		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
@@ -514,18 +525,34 @@ export class SettingsRenderer implements IRenderer {
 }
 
 export class SettingsTreeFilter implements IFilter {
-	constructor(private viewState: ISettingsEditorViewState) { }
+	constructor(
+		private viewState: ISettingsEditorViewState,
+		@IConfigurationService private configurationService: IConfigurationService
+	) { }
 
 	isVisible(tree: ITree, element: TreeElement): boolean {
 		if (this.viewState.showConfiguredOnly && element.type === TreeItemType.setting) {
 			return element.isConfigured;
 		}
 
-		if (element.type === TreeItemType.groupTitle) {
-			// TODO - hide if no visible children
+		if (element.type === TreeItemType.groupTitle && this.viewState.showConfiguredOnly) {
+			return this.groupHasConfiguredSetting(element.group);
 		}
 
 		return true;
+	}
+
+	private groupHasConfiguredSetting(group: ISettingsGroup): boolean {
+		for (let section of group.sections) {
+			for (let setting of section.settings) {
+				const { isConfigured } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+				if (isConfigured) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }
 

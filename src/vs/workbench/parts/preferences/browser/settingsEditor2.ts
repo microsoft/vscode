@@ -46,6 +46,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
+	private savedExpandedGroups: any[];
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
@@ -267,6 +268,25 @@ export class SettingsEditor2 extends BaseEditor {
 	private onShowConfiguredOnlyClicked(): void {
 		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.refreshTree();
+
+		// TODO@roblou - This is slow
+		if (this.viewState.showConfiguredOnly) {
+			this.savedExpandedGroups = this.settingsTree.getExpandedElements();
+			const nav = this.settingsTree.getNavigator();
+			let element;
+			while (element = nav.next()) {
+				this.settingsTree.expand(element);
+			}
+		} else if (this.savedExpandedGroups) {
+			const nav = this.settingsTree.getNavigator();
+			let element;
+			while (element = nav.next()) {
+				this.settingsTree.collapse(element);
+			}
+
+			this.settingsTree.expandAll(this.savedExpandedGroups);
+			this.savedExpandedGroups = null;
+		}
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
