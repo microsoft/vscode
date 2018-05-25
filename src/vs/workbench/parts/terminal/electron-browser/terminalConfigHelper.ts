@@ -49,11 +49,9 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	public configFontIsMonospace(): boolean {
-		const editorConfig = this._configurationService.getValue<IEditorOptions>('editor');
-
 		this._createCharMeasureElementIfNecessary();
 		let fontSize = 15;
-		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
+		let fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
 		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
 
@@ -63,12 +61,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			return true;
 		}
 
-		if (i_rect.width === w_rect.width) {
-			return true;
-		}
-
-		return false;
-
+		return i_rect.width === w_rect.width;
 	}
 
 	private _createCharMeasureElementIfNecessary() {
@@ -93,11 +86,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 	}
 
 	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
-		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
-		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
-			this._charMeasureElement = document.createElement('div');
-			this.panelContainer.appendChild(this._charMeasureElement);
-		}
+		this._createCharMeasureElementIfNecessary();
 
 		let rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
