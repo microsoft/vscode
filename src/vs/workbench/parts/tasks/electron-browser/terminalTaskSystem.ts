@@ -538,6 +538,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}
 			} else {
 				if (!shellSpecified) {
+					// Under Mac remove -l to not start it as a login shell.
+					if (Platform.isMacintosh) {
+						let index = shellArgs.indexOf('-l');
+						if (index !== -1) {
+							shellArgs.splice(index, 1);
+						}
+					}
 					toAdd.push('-c');
 				}
 			}
