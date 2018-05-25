@@ -24,12 +24,17 @@
 	opacity: .7;
 }
 
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button,
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button:active {
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
 	padding: 0;
 	text-decoration: underline;
 	display: inline;
+}
+
+.settings-editor > .settings-header > .settings-advanced-customization {
+	opacity: .7;
+	margin-top: 10px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -61,7 +66,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 7px;
+	margin-top: 2px;
 	height: 30px;
 	display: flex;
 }
