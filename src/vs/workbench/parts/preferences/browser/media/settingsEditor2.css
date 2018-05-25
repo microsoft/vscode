@@ -173,7 +173,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	font-weight: bold;
-	font-size: 14px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
@@ -205,10 +204,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
 	height: initial;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .setting-item-description {
-	cursor: pointer;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
@@ -310,6 +305,7 @@
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
 	padding: 5px 0px;
+	font-size: 13px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {
