@@ -6,40 +6,41 @@
 
 import * as vscode from 'vscode';
 import { PullRequestModel } from './models/pullRequestModel';
-import { FileChangeTreeItem } from './common/treeItems';
 import { ReviewManager } from './review/reviewManager';
 import { PullRequestOverviewPanel } from './common/pullRequestOverview';
 import { fromGitUri } from './common/uri';
+import { PRFileChangeNode } from './tree/prFileChangeNode';
+import { PRNode } from './tree/prNode';
 
 export function registerCommands(context: vscode.ExtensionContext) {
 	// initialize resources
-	context.subscriptions.push(vscode.commands.registerCommand('pr.openInGitHub', (e: PullRequestModel | FileChangeTreeItem) => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.openInGitHub', (e: PRNode | PRFileChangeNode) => {
 		if (!e) {
 			if (ReviewManager.instance.currentPullRequest) {
 				vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(ReviewManager.instance.currentPullRequest.html_url));
 			}
 			return;
 		}
-		if (e instanceof PullRequestModel) {
-			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(e.html_url));
+		if (e instanceof PRNode) {
+			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(e.element.html_url));
 		} else {
 			vscode.commands.executeCommand('vscode.open', vscode.Uri.parse(e.blobUrl));
 		}
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PullRequestModel) => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.pick', async (pr: PRNode) => {
 		vscode.window.withProgress({
 			location: vscode.ProgressLocation.SourceControl,
-			title: `Switching to Pull Request #${pr.prNumber}`,
+			title: `Switching to Pull Request #${pr.element.prNumber}`,
 		}, async (progress, token) => {
-			await ReviewManager.instance.switch(pr);
+			await ReviewManager.instance.switch(pr.element);
 		});
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('pr.close', async (pr: PullRequestModel) => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.close', async (pr: PRNode) => {
 		vscode.window.showWarningMessage(`Are you sure you want to close PR`, 'Yes', 'No').then(async value => {
 			if (value === 'Yes') {
-				let newPR = await pr.close();
+				let newPR = await pr.element.close();
 				return newPR;
 			}
 
@@ -52,7 +53,7 @@ export function registerCommands(context: vscode.ExtensionContext) {
 		PullRequestOverviewPanel.createOrShow(context.extensionPath, pr);
 	}));
 
-	context.subscriptions.push(vscode.commands.registerCommand('pr.viewChanges', async (fileChange: FileChangeTreeItem) => {
+	context.subscriptions.push(vscode.commands.registerCommand('pr.viewChanges', async (fileChange: PRFileChangeNode) => {
 		// Show the file change in a diff view.
 		let { path, ref, commit } = fromGitUri(fileChange.filePath);
 		let previousCommit = `${commit}^`;

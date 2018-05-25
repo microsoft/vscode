@@ -6,8 +6,8 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import { GitChangeType } from '../models/file';
-import { FileChangeTreeItem } from './treeItems';
 import { PullRequestModel } from '../models/pullRequestModel';
+import { PRFileChangeNode } from '../tree/prFileChangeNode';
 
 export class Resource {
 	static icons: any;
@@ -43,7 +43,7 @@ export class Resource {
 		};
 	}
 
-	static getFileStatusUri(element: FileChangeTreeItem): vscode.Uri | { light: vscode.Uri, dark: vscode.Uri } {
+	static getFileStatusUri(element: PRFileChangeNode): vscode.Uri | { light: vscode.Uri, dark: vscode.Uri } {
 		let iconUri: vscode.Uri;
 		let iconDarkUri: vscode.Uri;
 

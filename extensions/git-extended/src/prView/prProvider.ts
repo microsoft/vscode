@@ -3,26 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as path from 'path';
 import * as fs from 'fs';
 import * as vscode from 'vscode';
-import { parseDiff } from '../common/diff';
-import { mapHeadLineToDiffHunkPosition, getDiffLineByPosition } from '../common/diffPositionMapping';
-import { Repository } from '../models/repository';
-import { Comment } from '../models/comment';
 import { Configuration } from '../configuration';
-import { parseComments } from '../common/comment';
-import { PRGroupTreeItem, FileChangeTreeItem, PRGroupActionTreeItem, PRGroupActionType, PRDescriptionTreeItem } from '../common/treeItems';
-import { Resource } from '../common/resources';
-import { toPRUri } from '../common/uri';
-import { PullRequestModel, PRType } from '../models/pullRequestModel';
-import { PullRequestGitHelper } from '../common/pullRequestGitHelper';
-import { ReviewManager } from '../review/reviewManager';
-import { groupBy } from '../common/util';
+import { PRType } from '../models/pullRequestModel';
+import { Repository } from '../models/repository';
+import { TreeNode } from '../tree/TreeNode';
+import { PRGroupActionNode, PRGroupTreeNode, PRGroupActionType } from '../tree/prGroupNode';
 
-export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
+export class PRProvider implements vscode.TreeDataProvider<TreeNode>, vscode.TextDocumentContentProvider, vscode.DecorationProvider {
 	private static _instance: PRProvider;
-	private _onDidChangeTreeData = new vscode.EventEmitter<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem | undefined>();
+	private _onDidChangeTreeData = new vscode.EventEmitter<TreeNode>();
 	readonly onDidChangeTreeData = this._onDidChangeTreeData.event;
 	private _onDidChange = new vscode.EventEmitter<vscode.Uri>();
 	get onDidChange(): vscode.Event<vscode.Uri> { return this._onDidChange.event; }
@@ -37,7 +28,7 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		context.subscriptions.push(vscode.commands.registerCommand('pr.refreshList', _ => {
 			this._onDidChangeTreeData.fire();
 		}));
-		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem>('pr', this));
+		this.context.subscriptions.push(vscode.window.registerTreeDataProvider<TreeNode>('pr', this));
 		this.context.subscriptions.push(this.configuration.onDidChange(e => {
 			this._onDidChangeTreeData.fire();
 		}));
@@ -54,261 +45,25 @@ export class PRProvider implements vscode.TreeDataProvider<PRGroupTreeItem | Pul
 		return PRProvider._instance;
 	}
 
-	getTreeItem(element: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem): vscode.TreeItem {
-		if (element instanceof PRGroupTreeItem || element instanceof PRGroupActionTreeItem || element instanceof PRDescriptionTreeItem) {
-			return element;
-		}
-
-		if (element instanceof PullRequestModel) {
-			let currentBranchIsForThisPR = element.equals(ReviewManager.instance.currentPullRequest);
-			return {
-				label: (currentBranchIsForThisPR ? ' * ' : '') + element.title,
-				tooltip: (currentBranchIsForThisPR ? 'Current Branch * ' : '') + element.title,
-				collapsibleState: 1,
-				contextValue: 'pullrequest' + (currentBranchIsForThisPR ? ':active' : ':nonactive'),
-				iconPath: Resource.getGravatarUri(element)
-			};
-		} else {
-			if (element.comments && element.comments.length) {
-				element.iconPath = Resource.icons.light.Comment;
-			} else {
-				element.iconPath = Resource.getFileStatusUri(element);
-			}
-			element.resourceUri = element.filePath;
-			return element;
-		}
+	getTreeItem(element: TreeNode): vscode.TreeItem {
+		return element.getTreeItem();
 	}
 
-	async getChildren(element?: PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem): Promise<(PRGroupTreeItem | PullRequestModel | PRGroupActionTreeItem | FileChangeTreeItem | PRDescriptionTreeItem)[]> {
+	async getChildren(element?: TreeNode): Promise<TreeNode[]> {
 		if (!element) {
 			return Promise.resolve([
-				new PRGroupTreeItem(PRType.LocalPullRequest),
-				new PRGroupTreeItem(PRType.RequestReview),
-				new PRGroupTreeItem(PRType.ReviewedByMe),
-				new PRGroupTreeItem(PRType.Mine),
-				new PRGroupTreeItem(PRType.All)
+				new PRGroupTreeNode(this.repository, PRType.LocalPullRequest),
+				new PRGroupTreeNode(this.repository, PRType.RequestReview),
+				new PRGroupTreeNode(this.repository, PRType.ReviewedByMe),
+				new PRGroupTreeNode(this.repository, PRType.Mine),
+				new PRGroupTreeNode(this.repository, PRType.All)
 			]);
 		}
-
 		if (!this.repository.remotes || !this.repository.remotes.length) {
-			return Promise.resolve([new PRGroupActionTreeItem(PRGroupActionType.Empty)]);
+			return Promise.resolve([new PRGroupActionNode(PRGroupActionType.Empty)]);
 		}
 
-		if (element instanceof PRGroupTreeItem) {
-			let prItems = await this.getPRs(element);
-			if (prItems && prItems.length) {
-				return prItems;
-			} else {
-				return [new PRGroupActionTreeItem(PRGroupActionType.Empty)];
-			}
-		}
-
-		if (element instanceof PullRequestModel) {
-			const comments = await element.getComments();
-			const data = await element.getFiles();
-			await element.fetchBaseCommitSha();
-			const richContentChanges = await parseDiff(data, this.repository, element.base.sha);
-			const commentsCache = new Map<String, Comment[]>();
-			let fileChanges = richContentChanges.map(change => {
-				let fileInRepo = path.resolve(this.repository.path, change.fileName);
-				let changedItem = new FileChangeTreeItem(
-					element,
-					change.fileName,
-					change.status,
-					change.fileName,
-					change.blobUrl,
-					toPRUri(vscode.Uri.file(change.filePath), fileInRepo, change.fileName, true),
-					toPRUri(vscode.Uri.file(change.originalFilePath), fileInRepo, change.fileName, false),
-					this.repository.path,
-					change.diffHunks
-				);
-				changedItem.comments = comments.filter(comment => comment.path === changedItem.fileName);
-				commentsCache.set(changedItem.filePath.toString(), changedItem.comments);
-				return changedItem;
-			});
-
-			let createNewCommentThread = async (document: vscode.TextDocument, range: vscode.Range, text: string) => {
-				let uri = document.uri;
-				let params = JSON.parse(uri.query);
-
-				let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
-
-				if (!fileChange) {
-					return null;
-				}
-
-				let position = mapHeadLineToDiffHunkPosition(fileChange.diffHunks, '', range.start.line);
-
-				if (position < 0) {
-					return;
-				}
-
-				// there is no thread Id, which means it's a new thread
-				let ret = await element.createComment(text, params.fileName, position);
-				let comment: vscode.Comment = {
-					commentId: ret.data.id,
-					body: new vscode.MarkdownString(ret.data.body),
-					userName: ret.data.user.login,
-					gravatar: ret.data.user.avatar_url
-				};
-
-				let commentThread: vscode.CommentThread = {
-					threadId: comment.commentId,
-					resource: uri,
-					range: range,
-					comments: [comment]
-				};
-
-				return commentThread;
-			};
-
-			let replyToCommentThread = async (uri: vscode.Uri, range: vscode.Range, thread: vscode.CommentThread, text: string) => {
-				try {
-					let ret = await element.createCommentReply(text, thread.threadId);
-					thread.comments.push({
-						commentId: ret.data.id,
-						body: new vscode.MarkdownString(ret.data.body),
-						userName: ret.data.user.login,
-						gravatar: ret.data.user.avatar_url
-					});
-					return thread;
-				} catch (e) {
-					return null;
-				}
-			};
-
-			const _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
-			vscode.workspace.registerDocumentCommentProvider({
-				onDidChangeCommentThreads: _onDidChangeCommentThreads.event,
-				provideDocumentComments: async (document: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.CommentInfo> => {
-					if (document.uri.scheme === 'pr') {
-						let params = JSON.parse(document.uri.query);
-						let fileChange = richContentChanges.find(change => change.fileName === params.fileName);
-						if (!fileChange) {
-							return null;
-						}
-
-						let commentingRanges: vscode.Range[] = [];
-						let diffHunks = fileChange.diffHunks;
-
-						for (let i = 0; i < diffHunks.length; i++) {
-							let diffHunk = diffHunks[i];
-							commentingRanges.push(new vscode.Range(diffHunk.newLineNumber - 1, 0, diffHunk.newLineNumber + diffHunk.newLength - 1 - 1, 0));
-						}
-
-						// let diffHunkReader = parseDiffHunk(fileChange.patch);
-						// let diffHunkIter = diffHunkReader.next();
-
-						// while (!diffHunkIter.done) {
-						// 	let diffHunk = diffHunkIter.value;
-						// 	commentingRanges.push(new vscode.Range(diffHunk.newLineNumber - 1, 0, diffHunk.newLineNumber + diffHunk.newLength - 1 - 1, 0));
-						// 	diffHunkIter = diffHunkReader.next();
-						// }
-
-						let matchingComments = commentsCache.get(document.uri.toString());
-
-						if (!matchingComments || !matchingComments.length) {
-							return {
-								threads: [],
-								commentingRanges,
-							};
-						}
-
-						let sections = groupBy(matchingComments, comment => String(comment.position));
-						let threads: vscode.CommentThread[] = [];
-
-						for (let i in sections) {
-							let comments = sections[i];
-
-							const comment = comments[0];
-							let diffLine = getDiffLineByPosition(fileChange.diffHunks, comment.position === null ? comment.original_position : comment.position);
-							let commentAbsolutePosition = 1;
-							if (diffLine) {
-								commentAbsolutePosition = diffLine.newLineNumber;
-							}
-							// If the position is null, the comment is on a line that has been changed. Fall back to using original position.
-							const pos = new vscode.Position(commentAbsolutePosition - 1, 0);
-							const range = new vscode.Range(pos, pos);
-
-							threads.push({
-								threadId: comment.id,
-								resource: document.uri,
-								range,
-								comments: comments.map(comment => {
-									return {
-										commentId: comment.id,
-										body: new vscode.MarkdownString(comment.body),
-										userName: comment.user.login,
-										gravatar: comment.user.avatar_url
-									};
-								}),
-								collapsibleState: vscode.CommentThreadCollapsibleState.Expanded,
-							});
-						}
-
-						return {
-							threads,
-							commentingRanges,
-						};
-
-					}
-
-					return null;
-				},
-				createNewCommentThread: createNewCommentThread.bind(this),
-				replyToCommentThread: replyToCommentThread.bind(this)
-			});
-
-			return [new PRDescriptionTreeItem('Description', {
-				light: Resource.icons.light.Description,
-				dark: Resource.icons.dark.Description
-			}, element), ...fileChanges];
-		}
-	}
-
-	async getPRs(element: PRGroupTreeItem): Promise<PullRequestModel[]> {
-		if (element.type === PRType.LocalPullRequest) {
-			let infos = await PullRequestGitHelper.getLocalBranchesMarkedAsPullRequest(this.repository);
-			let promises = infos.map(async info => {
-				let owner = info.owner;
-				let prNumber = info.prNumber;
-				let githubRepo = this.repository.githubRepositories.find(repo => repo.remote.owner.toLocaleLowerCase() === owner.toLocaleLowerCase());
-
-				if (!githubRepo) {
-					return Promise.resolve([]);
-				}
-
-				return [await githubRepo.getPullRequest(prNumber)];
-			});
-
-			return Promise.all(promises).then(values => {
-				return values.reduce((prev, curr) => prev.concat(...curr), []).filter(value => value !== null);
-			});
-		}
-
-		let promises = this.repository.githubRepositories.map(async githubRepository => {
-			let remote = githubRepository.remote.remoteName;
-			let isRemoteForPR = await PullRequestGitHelper.isRemoteCreatedForPullRequest(this.repository, remote);
-			if (isRemoteForPR) {
-				return Promise.resolve([]);
-			}
-			return [await githubRepository.getPullRequests(element.type)];
-		});
-
-		return Promise.all(promises).then(values => {
-			return values.reduce((prev, curr) => prev.concat(...curr), []);
-		});
-	}
-
-	async getComments(element: PullRequestModel): Promise<Comment[]> {
-		const reviewData = await element.otcokit.pullRequests.getComments({
-			owner: element.remote.owner,
-			repo: element.remote.repositoryName,
-			number: element.prItem.number,
-			per_page: 100,
-		});
-		const rawComments = reviewData.data;
-		return parseComments(rawComments);
+		return element.getChildren();
 	}
 
 	_onDidChangeDecorations: vscode.EventEmitter<vscode.Uri | vscode.Uri[]> = new vscode.EventEmitter<vscode.Uri | vscode.Uri[]>();
