@@ -525,6 +525,11 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region Comments
+	/**
+	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
+	 */
+
 	interface CommentInfo {
 		threads: CommentThread[];
 		commentingRanges?: Range[];
@@ -593,6 +598,8 @@ declare module 'vscode' {
 		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
 		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
 	}
+	//#endregion
+
 	//#region Terminal
 
 	export interface Terminal {
