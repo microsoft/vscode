@@ -128,14 +128,16 @@ export class Repository {
 	}
 
 	async fetch(remoteName: string, branch?: string) {
-		const result = await GitProcess.exec(
-			[
-				'fetch',
-				remoteName,
-				branch ? branch : ''
-			],
-			this.path
-		);
+		let args = [
+			'fetch',
+			remoteName
+		];
+
+		if (branch) {
+			args.push(branch);
+		}
+
+		const result = await GitProcess.exec(args, this.path);
 
 		if (result.exitCode !== 0) {
 			throw (result.stderr);
