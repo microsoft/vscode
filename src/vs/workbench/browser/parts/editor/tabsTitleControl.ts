@@ -771,9 +771,11 @@ export class TabsTitleControl extends TitleControl {
 		// Label
 		this.redrawLabel(editor, tabContainer, tabLabelWidget, tabLabel);
 
-		// Borders
-		tabContainer.style.borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
-		tabContainer.style.borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+		// Borders / Outline
+		const borderLeftColor = (index !== 0) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+		const borderRightColor = (index === this.group.count - 1) ? (this.getColor(TAB_BORDER) || this.getColor(contrastBorder)) : null;
+		tabContainer.style.borderLeft = borderLeftColor ? `1px solid ${borderLeftColor}` : null;
+		tabContainer.style.borderRight = borderRightColor ? `1px solid ${borderRightColor}` : null;
 		tabContainer.style.outlineColor = this.getColor(activeContrastBorder);
 
 		// Settings
