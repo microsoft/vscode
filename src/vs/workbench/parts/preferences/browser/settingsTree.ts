@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -12,20 +13,19 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
-import URI from 'vs/base/common/uri';
 
 const $ = DOM.$;
 
@@ -429,13 +429,16 @@ export class SettingsRenderer implements IRenderer {
 		this.renderValue(element, isSelected, template);
 
 		const resetButton = new Button(template.valueElement);
-		resetButton.element.title = localize('resetButtonTitle', "Reset");
+		const resetText = localize('resetButtonTitle', "reset");
+		resetButton.label = resetText;
+		resetButton.element.title = resetText;
 		resetButton.element.classList.add('setting-reset-button');
 		resetButton.element.tabIndex = isSelected ? 0 : -1;
 
 		attachButtonStyler(resetButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString()
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: editorActiveLinkForeground
 		});
 
 		template.toDispose.push(resetButton.onDidClick(e => {
