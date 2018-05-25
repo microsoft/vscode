@@ -157,11 +157,16 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					optionsGotApplied = (<TextEditorOptions>options).apply(diffEditor, ScrollType.Immediate);
 				}
 
+				console.log('Diff Editor: setInput()');
+
 				// Otherwise restore View State
 				let hasPreviousViewState = false;
 				if (!optionsGotApplied) {
 					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
 				}
+
+				console.log('optionsGotApplied', optionsGotApplied);
+				console.log('hasPreviousViewState', hasPreviousViewState);
 
 				this.diffNavigator = new DiffNavigator(diffEditor, {
 					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
@@ -204,6 +209,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 			if (resource) {
 				const viewState = this.loadTextEditorViewState(resource);
 				if (viewState) {
+					console.log('restoring viewState', viewState);
 					this.getControl().restoreViewState(viewState);
 
 					return true;
