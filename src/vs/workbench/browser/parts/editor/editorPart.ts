@@ -11,7 +11,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
-import { IEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
@@ -321,6 +321,87 @@ export class EditorPart extends Part implements IEditorGroupsService, IEditorGro
 
 			// Mark preferred size as changed
 			this.resetPreferredSize();
+		}
+	}
+
+	applyLayout(layout: EditorGroupLayout): void {
+		const gridHasFocus = isAncestor(document.activeElement, this.container);
+		const groupsInGridOrder = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+
+		// Determine how many groups we need overall
+		let groupsInLayout = 0;
+		function countGroups(groups: GroupLayoutArgument[]): void {
+			groups.forEach(group => {
+				if (Array.isArray(group.groups)) {
+					countGroups(group.groups);
+				} else {
+					groupsInLayout++;
+				}
+			});
+		}
+		countGroups(layout.groups);
+
+		// If we currently have too many groups, merge them into the last one
+		if (groupsInLayout < groupsInGridOrder.length) {
+			const lastGroupInLayout = groupsInGridOrder[groupsInLayout - 1];
+			groupsInGridOrder.forEach((group, index) => {
+				if (index >= groupsInLayout) {
+					this.mergeGroup(group, lastGroupInLayout);
+				}
+			});
+		}
+
+		// Apply orientation
+		if (typeof layout.orientation === 'number') {
+			this.setGroupOrientation(layout.orientation);
+		}
+
+		// Build layout
+		let currentGroupIndex = 0;
+		const buildLayout = (groups: IEditorGroupView[], descriptions: GroupLayoutArgument[], direction: GroupDirection) => {
+			if (descriptions.length === 0) {
+				return; // we need at least one group to layout
+			}
+
+			// Either move existing or add a new group for each item in the description
+			let totalProportions = 0;
+			descriptions.forEach((description, index) => {
+				if (index > 0) {
+					currentGroupIndex++;
+					const existingGroup = groupsInGridOrder[currentGroupIndex];
+					if (existingGroup) {
+						groups.push(this.moveGroup(existingGroup, groups[index - 1], direction));
+					} else {
+						groups.push(this.addGroup(groups[index - 1], direction));
+					}
+				}
+
+				if (typeof description.size === 'number') {
+					totalProportions += description.size;
+				}
+			});
+
+			// Apply proportions if they are valid (sum() === 1)
+			if (totalProportions === 1) {
+				const totalSize = groups.map(group => this.getSize(group)).reduce(((prev, cur) => prev + cur));
+				descriptions.forEach((description, index) => {
+					this.setSize(groups[index], totalSize * description.size);
+				});
+			}
+
+			// Continue building layout if description.groups is array-type
+			descriptions.forEach((description, index) => {
+				if (Array.isArray(description.groups)) {
+					buildLayout([groups[index]], description.groups, direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT);
+				}
+			});
+		};
+
+		buildLayout([groupsInGridOrder[0]], layout.groups, this.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
+
+		// Restore Focus
+		if (gridHasFocus) {
+			this._activeGroup.focus();
 		}
 	}
 

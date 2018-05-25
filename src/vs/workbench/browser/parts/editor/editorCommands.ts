@@ -7,7 +7,7 @@ import * as nls from 'vs/nls';
 import * as types from 'vs/base/common/types';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput, IEditorInputWithOptions, EditorOptions } from 'vs/workbench/common/editor';
+import { TextCompareEditorVisibleContext, EditorInput, IEditorIdentifier, IEditorCommandsContext, ActiveEditorGroupEmptyContext, MultipleEditorGroupsContext, CloseDirection, IEditor, IEditorInput } from 'vs/workbench/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { TextDiffEditor } from 'vs/workbench/browser/parts/editor/textDiffEditor';
@@ -19,11 +19,10 @@ import { IDiffEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupDirection, GroupLocation, GroupsOrder, preferredSideBySideGroupDirection, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { getActiveTextEditorOptions } from 'vs/workbench/browser/parts/editor/editor';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
@@ -198,121 +197,13 @@ function registerEditorGroupsLayoutCommand(): void {
 	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, applyEditorGroupLayout);
 }
 
-export interface GroupLayoutArgument {
-	size?: number;
-	groups?: Array<GroupLayoutArgument>;
-}
-
-export interface EditorGroupLayout {
-	orientation: GroupOrientation;
-	groups: GroupLayoutArgument[];
-}
-
 function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLayout): void {
 	if (!args || typeof args !== 'object') {
 		return;
 	}
 
 	const editorGroupService = accessor.get(IEditorGroupsService);
-
-	// Remember which editor was in which group with associated options
-	let groupsInGridOrder = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
-	const originalFirstGroupEditors = groupsInGridOrder[0].editors;
-	const mapGroupToEditor: Map<number, IEditorInputWithOptions[]> = new Map();
-	groupsInGridOrder.forEach((group, index) => {
-		const editors: IEditorInputWithOptions[] = [];
-		group.editors.forEach((editor, editorIndex) => {
-			let options: EditorOptions;
-			if (group.isActive(editor)) {
-				options = getActiveTextEditorOptions(group);
-			} else {
-				options = new EditorOptions();
-			}
-
-			options.index = editorIndex;
-			options.pinned = group.previewEditor !== editor;
-			options.inactive = group.activeEditor !== editor;
-			options.preserveFocus = true;
-
-			editors.push({ editor, options });
-		});
-
-		mapGroupToEditor.set(index, editors);
-	});
-
-	// Reduce to one editor group to start building the layout
-	mergeAllGroups(editorGroupService, groupsInGridOrder[0]);
-
-	// Apply orientation
-	if (typeof args.orientation === 'number') {
-		editorGroupService.setGroupOrientation(args.orientation);
-	}
-
-	// Build layout
-	function buildLayout(groups: IEditorGroup[], descriptions: GroupLayoutArgument[], direction: GroupDirection): void {
-		if (descriptions.length === 0) {
-			return; // we need at least one group to layout
-		}
-
-		// Add a group for each item in the description
-		let totalProportions = 0;
-		descriptions.forEach((description, index) => {
-			if (index > 0) {
-				groups.push(editorGroupService.addGroup(groups[index - 1], direction));
-			}
-
-			if (typeof description.size === 'number') {
-				totalProportions += description.size;
-			}
-		});
-
-		// Apply proportions if they are valid (sum() === 1)
-		if (totalProportions === 1) {
-			const totalSize = groups.map(group => editorGroupService.getSize(group)).reduce(((prev, cur) => prev + cur));
-			descriptions.forEach((description, index) => {
-				editorGroupService.setSize(groups[index], totalSize * description.size);
-			});
-		}
-
-		// Continue building layout if description.groups is array-type
-		descriptions.forEach((description, index) => {
-			if (Array.isArray(description.groups)) {
-				buildLayout([groups[index]], description.groups, direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT);
-			}
-		});
-	}
-
-	buildLayout([groupsInGridOrder[0]], args.groups, editorGroupService.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
-
-	// Restore editors as much as possible
-	groupsInGridOrder = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
-	const firstGroup = groupsInGridOrder[0];
-	const firstGroupEditorsToClose: IEditorInput[] = [];
-	groupsInGridOrder.forEach((group, index) => {
-		if (group === firstGroup) {
-			return; // nothing to do here, this group already contains all editors
-		}
-
-		const previousEditors = mapGroupToEditor.get(index);
-		if (previousEditors) {
-
-			// Restore in group
-			group.openEditors(previousEditors);
-
-			// Mark to be deleted in first group unless previously opened
-			previousEditors.forEach(({ editor }) => {
-				if (originalFirstGroupEditors.indexOf(editor) === -1) {
-					firstGroupEditorsToClose.push(editor);
-				}
-			});
-		}
-	});
-
-	// Close those editors that were never opened in the first group
-	firstGroup.closeEditors(firstGroupEditorsToClose);
-
-	// Restore focus
-	editorGroupService.activeGroup.focus();
+	editorGroupService.applyLayout(args);
 }
 
 export function mergeAllGroups(editorGroupService: IEditorGroupsService, target = editorGroupService.groups[0]): void {

@@ -62,6 +62,16 @@ export enum GroupsArrangement {
 	EVEN
 }
 
+export interface GroupLayoutArgument {
+	size?: number;
+	groups?: Array<GroupLayoutArgument>;
+}
+
+export interface EditorGroupLayout {
+	orientation: GroupOrientation;
+	groups: GroupLayoutArgument[];
+}
+
 export interface IMoveEditorOptions {
 	index?: number;
 	inactive?: boolean;
@@ -208,6 +218,11 @@ export interface IEditorGroupsService {
 	 * Arrange all groups according to the provided arrangement.
 	 */
 	arrangeGroups(arrangement: GroupsArrangement): void;
+
+	/**
+	 * Applies the provided layout by either moving existing groups or creating new groups.
+	 */
+	applyLayout(layout: EditorGroupLayout): void;
 
 	/**
 	 * Sets the orientation of the root group to be either vertical or horizontal.
