@@ -47,8 +47,7 @@ export interface ITreeItem {
 
 export enum TreeItemType {
 	setting,
-	groupTitle,
-	buttonRow
+	groupTitle
 }
 
 export interface ISettingElement extends ITreeItem {
@@ -73,13 +72,7 @@ export interface IGroupElement extends ITreeItem {
 	index: number;
 }
 
-const ALL_SETTINGS_BUTTON_ID = 'all_settings_button_row';
-export interface IButtonElement extends ITreeItem {
-	type: TreeItemType.buttonRow;
-	parent: DefaultSettingsEditorModel;
-}
-
-export type TreeElement = ISettingElement | IGroupElement | IButtonElement;
+export type TreeElement = ISettingElement | IGroupElement;
 export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | SearchResultModel;
 
 export class SettingsDataSource implements IDataSource {
@@ -169,16 +162,8 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	private getRootChildren(root: DefaultSettingsEditorModel): TreeElement[] {
-		const groupItems: TreeElement[] = root.settingsGroups
+		return root.settingsGroups
 			.map((g, i) => this.getGroupElement(g, i));
-
-		groupItems.splice(1, 0, <IButtonElement>{
-			id: ALL_SETTINGS_BUTTON_ID,
-			type: TreeItemType.buttonRow,
-			parent: root
-		});
-
-		return groupItems;
 	}
 
 	private getGroupChildren(group: ISettingsGroup): ISettingElement[] {
@@ -224,7 +209,6 @@ export function settingKeyToDisplayFormat(key: string): { category: string, labe
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	showConfiguredOnly?: boolean;
-	showAllSettings?: boolean;
 }
 
 export interface IDisposableTemplate {
@@ -251,16 +235,8 @@ export interface IGroupTitleTemplate extends IDisposableTemplate {
 	labelElement: HTMLElement;
 }
 
-export interface IButtonRowTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
-	button: Button;
-	entry?: IButtonElement;
-}
-
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
-const BUTTON_ROW_ELEMENT_TEMPLATE = 'settings.buttonRow.template';
 
 export interface ISettingChangeEvent {
 	key: string;
@@ -271,9 +247,6 @@ export class SettingsRenderer implements IRenderer {
 
 	private static readonly SETTING_ROW_HEIGHT = 75;
 
-	private readonly _onDidClickButton: Emitter<string> = new Emitter<string>();
-	public readonly onDidClickButton: Event<string> = this._onDidClickButton.event;
-
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
@@ -283,7 +256,6 @@ export class SettingsRenderer implements IRenderer {
 	private measureContainer: HTMLElement;
 
 	constructor(
-		private viewState: ISettingsEditorViewState,
 		_measureContainer: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IContextViewService private contextViewService: IContextViewService
@@ -305,10 +277,6 @@ export class SettingsRenderer implements IRenderer {
 			}
 		}
 
-		if (element.type === TreeItemType.buttonRow) {
-			return 60;
-		}
-
 		return 0;
 	}
 
@@ -328,10 +296,6 @@ export class SettingsRenderer implements IRenderer {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
-		if (element.type === TreeItemType.buttonRow) {
-			return BUTTON_ROW_ELEMENT_TEMPLATE;
-		}
-
 		if (element.type === TreeItemType.setting) {
 			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
@@ -342,10 +306,6 @@ export class SettingsRenderer implements IRenderer {
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			return this.renderGroupTitleTemplate(container);
-		}
-
-		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
-			return this.renderButtonRowTemplate(container);
 		}
 
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
@@ -366,26 +326,6 @@ export class SettingsRenderer implements IRenderer {
 			labelElement,
 			toDispose
 		};
-
-		return template;
-	}
-
-	private renderButtonRowTemplate(container: HTMLElement): IButtonRowTemplate {
-		DOM.addClass(container, 'all-settings');
-
-		const buttonElement = DOM.append(container, $('.all-settings-button'));
-
-		const button = new Button(buttonElement);
-		const toDispose: IDisposable[] = [button];
-
-		const template: IButtonRowTemplate = {
-			parent: container,
-			toDispose,
-
-			button
-		};
-		template.toDispose.push(attachButtonStyler(button, this.themeService));
-		template.toDispose.push(button.onDidClick(e => this._onDidClickButton.fire(template.entry && template.entry.id)));
 
 		return template;
 	}
@@ -435,10 +375,6 @@ export class SettingsRenderer implements IRenderer {
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			(<IGroupTitleTemplate>template).labelElement.textContent = (<IGroupElement>element).group.title;
 			return;
-		}
-
-		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
-			return this.renderButtonRowElement(<IButtonElement>element, template);
 		}
 	}
 
@@ -572,12 +508,6 @@ export class SettingsRenderer implements IRenderer {
 		}));
 	}
 
-	private renderButtonRowElement(element: IButtonElement, template: IButtonRowTemplate): void {
-		template.button.label = this.viewState.showAllSettings ?
-			localize('showFewerSettings', "Show Fewer Settings") :
-			localize('showAllSettings', "Show All Settings");
-	}
-
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
@@ -591,8 +521,8 @@ export class SettingsTreeFilter implements IFilter {
 			return element.isConfigured;
 		}
 
-		if (!this.viewState.showAllSettings && element.type === TreeItemType.groupTitle) {
-			return element.index === 0;
+		if (element.type === TreeItemType.groupTitle) {
+			// TODO - hide if no visible children
 		}
 
 		return true;
@@ -619,10 +549,6 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 
 		if (element.type === TreeItemType.groupTitle) {
 			return localize('groupRowAriaLabel', "{0}, group", element.group.title);
-		}
-
-		if (element.type === TreeItemType.buttonRow) {
-			return localize('buttonRowAriaLabel', "{0}, button", element.id);
 		}
 
 		return '';

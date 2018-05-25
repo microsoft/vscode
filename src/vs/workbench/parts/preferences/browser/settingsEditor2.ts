@@ -189,9 +189,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
 		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
-		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.viewState, this.settingsTreeContainer);
+		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
-		this._register(renderer.onDidClickButton(e => this.onDidClickShowAllSettings()));
 
 		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
@@ -293,11 +292,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.pendingSettingModifiedReport = { key, value };
 		this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
-	}
-
-	private onDidClickShowAllSettings(): void {
-		this.viewState.showAllSettings = !this.viewState.showAllSettings;
-		this.refreshTree();
 	}
 
 	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
