@@ -670,6 +670,7 @@ export class CodeMenu {
 		const splitEditorRight = this.createMenuItem(nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right"), 'splitEditor.right');
 
 		const singleColumnEditorLayout = this.createMenuItem(nls.localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single"), 'workbench.action.editorLayoutSingle');
+		const centeredEditorLayout = this.createMenuItem(nls.localize({ key: 'miCenteredEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered"), 'workbench.action.editorLayoutCentered');
 		const twoColumnsEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns"), 'workbench.action.editorLayoutTwoColumns');
 		const threeColumnsEditorLayout = this.createMenuItem(nls.localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns"), 'workbench.action.editorLayoutThreeColumns');
 		const twoRowsEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows"), 'workbench.action.editorLayoutTwoRows');
@@ -677,7 +678,6 @@ export class CodeMenu {
 		const twoByTwoGridEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)"), 'workbench.action.editorLayoutTwoByTwoGrid');
 		const twoColumnsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right"), 'workbench.action.editorLayoutTwoColumnsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
-		const goldenRatioEditorLayout = this.createMenuItem(nls.localize({ key: 'miGoldenEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Golden Ratio"), 'workbench.action.editorLayoutGoldenRatio');
 
 		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 
@@ -688,6 +688,7 @@ export class CodeMenu {
 			splitEditorRight,
 			__separator__(),
 			singleColumnEditorLayout,
+			centeredEditorLayout,
 			twoColumnsEditorLayout,
 			threeColumnsEditorLayout,
 			twoRowsEditorLayout,
@@ -695,7 +696,6 @@ export class CodeMenu {
 			twoByTwoGridEditorLayout,
 			twoColumnsRightEditorLayout,
 			twoColumnsBottomEditorLayout,
-			goldenRatioEditorLayout,
 			__separator__(),
 			toggleEditorLayout
 		].forEach(item => editorLayoutMenu.append(item));

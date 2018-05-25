@@ -1491,17 +1491,31 @@ export class EditorLayoutTwoColumnsRightAction extends ExecuteCommandAction {
 	}
 }
 
-export class EditorLayoutGoldenRatioAction extends ExecuteCommandAction {
+export class EditorLayoutCenteredAction extends Action {
 
-	public static readonly ID = 'workbench.action.editorLayoutGoldenRatio';
-	public static readonly LABEL = nls.localize('editorLayoutGoldenRatio', "Golden Ratio Editor Layout");
+	public static readonly ID = 'workbench.action.editorLayoutCentered';
+	public static readonly LABEL = nls.localize('editorLayoutCentered', "Centered Editor Layout");
 
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService commandService: ICommandService
+		@IPartService private partService: IPartService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, LAYOUT_EDITOR_GROUPS_COMMAND_ID, commandService, { groups: [{ size: 0.618 }, { size: 0.382, groups: [{ size: 0.618 }, { size: 0.382 }] }], orientation: GroupOrientation.HORIZONTAL } as EditorGroupLayout);
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+
+		// Ensure we can enter centered editor layout even if there are more than 1 groups
+		if (this.editorGroupService.count > 1) {
+			mergeAllGroups(this.editorGroupService);
+		}
+
+		// Center editor layout
+		this.partService.centerEditorLayout(true);
+
+		return TPromise.as(true);
 	}
 }
 

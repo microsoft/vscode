@@ -36,7 +36,9 @@ import {
 	MoveEditorToNextGroupAction, MoveEditorToFirstGroupAction, MoveEditorLeftInGroupAction, ClearRecentFilesAction, OpenLastEditorInGroup,
 	ShowEditorsInActiveGroupAction, MoveEditorToLastGroupAction, OpenFirstEditorInGroup, MoveGroupUpAction, MoveGroupDownAction, FocusLastGroupAction, SplitEditorLeftAction, SplitEditorRightAction,
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
-	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction, EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, EditorLayoutGoldenRatioAction, NewEditorGroupLeftAction, NewEditorGroupRightAction, NewEditorGroupAboveAction, NewEditorGroupBelowAction
+	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
+	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, EditorLayoutCenteredAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
+	NewEditorGroupAboveAction, NewEditorGroupBelowAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -368,7 +370,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutThreeRowsA
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoByTwoGridAction, EditorLayoutTwoByTwoGridAction.ID, EditorLayoutTwoByTwoGridAction.LABEL), 'View: Grid Editor Layout (2x2)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsRightAction, EditorLayoutTwoColumnsRightAction.ID, EditorLayoutTwoColumnsRightAction.LABEL), 'View: Two Columns Right Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsBottomAction.ID, EditorLayoutTwoColumnsBottomAction.LABEL), 'View: Two Columns Bottom Editor Layout', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutGoldenRatioAction, EditorLayoutGoldenRatioAction.ID, EditorLayoutGoldenRatioAction.LABEL), 'View: Golden Ratio Editor Layout', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutCenteredAction, EditorLayoutCenteredAction.ID, EditorLayoutCenteredAction.LABEL), 'View: Centered Editor Layout', category);
 
 // Register Editor Picker Actions including quick navigate support
 const openNextEditorKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } };

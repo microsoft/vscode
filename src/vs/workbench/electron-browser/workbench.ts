@@ -108,7 +108,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 
@@ -1249,6 +1249,8 @@ export class Workbench extends Disposable implements IPartService {
 	// TODO@grid support centered editor layout using empty groups or not? functionality missing:
 	// - resize sashes left and right in sync
 	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
+	// - should we just allow to enter layout even if groups > 1? what does it then mean to be
+	//   actively in centered editor layout though?
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
 		this.centeredEditorLayoutActive = active;
 		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.WORKSPACE);
@@ -1259,6 +1261,8 @@ export class Workbench extends Disposable implements IPartService {
 				const activeGroup = this.editorGroupService.activeGroup;
 				this.editorGroupService.addGroup(activeGroup, GroupDirection.LEFT);
 				this.editorGroupService.addGroup(activeGroup, GroupDirection.RIGHT);
+
+				this.editorGroupService.applyLayout({ groups: [{ size: 0.2 }, { size: 0.6 }, { size: 0.2 }], orientation: GroupOrientation.HORIZONTAL });
 			}
 		}
 
