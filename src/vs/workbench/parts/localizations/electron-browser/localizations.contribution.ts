@@ -71,15 +71,17 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
+				const updateAndRestart = platform.locale !== locale;
 				this.notificationService.prompt(
 					Severity.Info,
-					localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
+						: localize('activateLanguagePack', "Would you like to restart VS Code to activate the language pack that was just installed?"),
 					[{
 						label: localize('yes', "Yes"),
 						run: () => {
 							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-							this.jsonEditingService.write(file, { key: 'locale', value: locale }, true)
-								.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : TPromise.as(null);
+							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {
 						label: localize('no', "No"),
