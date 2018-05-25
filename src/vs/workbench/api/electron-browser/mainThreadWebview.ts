@@ -129,7 +129,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	reviveWebview(webview: WebviewEditorInput): TPromise<void> {
 		const viewType = webview.state.viewType;
-		return this._extensionService.activateByEvent(`onView:${viewType}`).then(() => {
+		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);

@@ -5779,7 +5779,7 @@ declare module 'vscode' {
 		/**
 		 * Registers a [webview panel serializer](#WebviewPanelSerializer).
 		 *
-		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
 		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.
