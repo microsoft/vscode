@@ -489,16 +489,16 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
 		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close.svg')).fsPath
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor.svg')).fsPath
 		}
 	},
 	alt: {
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
 		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall.svg')).fsPath
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors-inverse.svg')).fsPath,
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors.svg')).fsPath
 		}
 	},
 	group: 'navigation',
