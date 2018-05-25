@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { MarkdownContributions } from '../markdownExtensions';
-import { stripSlugifier } from '../slugify';
+import { githubSlugifier } from '../slugify';
 
 const emptyContributions = new class implements MarkdownContributions {
 	readonly previewScripts: vscode.Uri[] = [];
@@ -16,5 +16,5 @@ const emptyContributions = new class implements MarkdownContributions {
 };
 
 export function createNewMarkdownEngine(): MarkdownEngine {
-	return new MarkdownEngine(emptyContributions, stripSlugifier);
+	return new MarkdownEngine(emptyContributions, githubSlugifier);
 }

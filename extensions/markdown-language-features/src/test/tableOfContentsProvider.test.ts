@@ -75,18 +75,17 @@ suite('markdown.TableOfContentsProvider', () => {
 		assert.strictEqual(await provider.lookup('fo o'), undefined);
 	});
 
-	test('should normalize special characters #44779', async () => {
+	test('should handle special characters #44779', async () => {
 		const doc = new InMemoryDocument(testFileName, `# Indentação\n`);
 		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('indentacao'))!.line, 0);
+		assert.strictEqual((await provider.lookup('indentação'))!.line, 0);
 	});
 
-	test('should map special З, #37079', async () => {
-		const doc = new InMemoryDocument(testFileName, `### Заголовок Header 3`);
+	test('should handle special characters 2, #48482', async () => {
+		const doc = new InMemoryDocument(testFileName, `# Инструкция - Делай Раз, Делай Два\n`);
 		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
 
-		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 0);
-		assert.strictEqual((await provider.lookup('3аголовок-header-3'))!.line, 0);
+		assert.strictEqual((await provider.lookup('инструкция---делай-раз-делай-два'))!.line, 0);
 	});
 });
