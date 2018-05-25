@@ -11,7 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, FILE_EDITOR_INPUT_ID, BINARY_FILE_EDITOR_ID, TEXT_FILE_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -24,6 +24,7 @@ import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
+import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.

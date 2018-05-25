@@ -3,12 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as assert from 'assert';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
-import { isFedora } from 'vs/workbench/parts/terminal/electron-browser/terminal';
+import { isFedora } from 'vs/workbench/parts/terminal/node/terminal';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 
 suite('Workbench - TerminalConfigHelper', () => {
@@ -128,29 +126,29 @@ suite('Workbench - TerminalConfigHelper', () => {
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
 
-	test('TerminalConfigHelper - isMonospace Monospace', function() {
+	test('TerminalConfigHelper - isMonospace Monospace', function () {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
 			integrated: {
-				fontFamily: "Monospace"
+				fontFamily: 'Monospace'
 			}
 		});
 
 		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.configFontIsMonospace(), true, "Monospace is mono-spaced");
-	})
+		assert.equal(configHelper.configFontIsMonospace(), true, 'Monospace is mono-spaced');
+	});
 
-	test('TerminalConfigHelper - isMonospace Go', function() {
+	test('TerminalConfigHelper - isMonospace Go', function () {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
 			integrated: {
-				fontFamily: "Go"
+				fontFamily: 'Go'
 			}
 		});
 		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.configFontIsMonospace(), false, "Go is not mono-spaced");
+		assert.equal(configHelper.configFontIsMonospace(), false, 'Go is not mono-spaced');
 	});
 
 });

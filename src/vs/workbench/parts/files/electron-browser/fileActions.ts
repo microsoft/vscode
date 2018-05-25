@@ -39,7 +39,7 @@ import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -160,7 +160,15 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(parent: ExplorerItem, name: string): string {
+	public validateFileName(name: string): string {
+		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		if (names.length > 1) {	// error only occurs on multi-path
+			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
+			if (comparer(names[0], this.element.name) === 0) {
+				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
+			}
+		}
+
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
@@ -182,7 +190,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		viewletState.setEditable(stat, {
 			action: this.renameAction,
 			validator: (value) => {
-				const message = this.validateFileName(this.element.parent, value);
+				const message = this.validateFileName(value);
 
 				if (!message) {
 					return null;
@@ -267,7 +275,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 			return null;
 		}
 
-		return validateFileName(parent, name, false);
+		return validateFileName(parent, name);
 	}
 
 	public abstract runAction(newName: string): TPromise<any>;
@@ -383,6 +391,10 @@ export class BaseNewAction extends BaseFileAction {
 		if (!folder) {
 			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
 		}
+		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
+			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
+			return TPromise.as(new Error('Parent folder is already in the process of creating a file'));
+		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
 			return this.tree.expand(folder).then(() => {
@@ -486,7 +498,7 @@ export abstract class BaseCreateAction extends BaseRenameAction {
 
 	public validateFileName(parent: ExplorerItem, name: string): string {
 		if (this.element instanceof NewStatPlaceholder) {
-			return validateFileName(parent, name, false);
+			return validateFileName(parent, name);
 		}
 
 		return super.validateFileName(parent, name);
@@ -633,9 +645,8 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
-					: distinctElements[0].isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name)
-						: nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+				const message = this.getMoveToTrashMessage(distinctElements);
+
 				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
@@ -649,9 +660,7 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				const message = distinctElements.length > 1 ? getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource))
-					: distinctElements[0].isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name)
-						: nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+				const message = this.getDeleteMessage(distinctElements);
 				confirmDeletePromise = this.dialogService.confirm({
 					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
@@ -723,6 +732,53 @@ class BaseDeleteFileAction extends BaseFileAction {
 				});
 			});
 		});
+	}
+
+	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+	}
+
+	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+	}
+
+	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
+		const directories = distinctElements.filter(element => element.isDirectory);
+		const files = distinctElements.filter(element => !element.isDirectory);
+
+		return directories.length > 0 && files.length > 0;
 	}
 }
 
@@ -865,7 +921,7 @@ class CopyFileAction extends BaseFileAction {
 	public run(): TPromise<any> {
 
 		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeFiles(this.elements.map(e => e.resource));
+		this.clipboardService.writeResources(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
@@ -1002,11 +1058,23 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 	return candidate;
 }
 
-function incrementFileName(name: string, isFolder: boolean): string {
+export function incrementFileName(name: string, isFolder: boolean): string {
+	const separators = '[\\.\\-_]';
 
 	// file.1.txt=>file.2.txt
-	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			return g1 + strings.pad(parseInt(g2) + 1, g2.length) + g3;
+		});
+	}
+
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			return strings.pad(parseInt(g1) + 1, g1.length) + g2 + g3;
+		});
 	}
 
 	// file.txt=>file.1.txt
@@ -1017,7 +1085,12 @@ function incrementFileName(name: string, isFolder: boolean): string {
 
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
 	}
 
 	// file/folder=>file.1/folder.1
@@ -1307,7 +1380,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INotificationService private notificationService: INotificationService,
 	) {
@@ -1317,7 +1390,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			this.windowService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
@@ -1344,8 +1417,7 @@ export class CopyPathAction extends Action {
 	}
 }
 
-
-export function validateFileName(parent: ExplorerItem, name: string, allowOverwriting: boolean = false): string {
+export function validateFileName(parent: ExplorerItem, name: string): string {
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
@@ -1355,25 +1427,17 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
+	// Relative paths only
+	if (name[0] === '/' || name[0] === '\\') {
+		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+	}
+
 	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
 
 	// Do not allow to overwrite existing file
-	if (!allowOverwriting) {
-		let p = parent;
-		const alreadyExisting = names.every((folderName) => {
-			let { exists, child } = alreadyExists(p, folderName);
-
-			if (!exists) {
-				return false;
-			} else {
-				p = child;
-				return true;
-			}
-		});
-
-		if (alreadyExisting) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		}
+	const childExists = !!parent.getChild(name);
+	if (childExists) {
+		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 	}
 
 	// Invalid File name
@@ -1392,17 +1456,6 @@ export function validateFileName(parent: ExplorerItem, name: string, allowOverwr
 	return null;
 }
 
-function alreadyExists(parent: ExplorerItem, name: string): { exists: boolean, child: ExplorerItem | undefined } {
-	let duplicateChild: ExplorerItem;
-
-	if (parent && parent.isDirectory) {
-		duplicateChild = parent.getChild(name);
-		return { exists: !!duplicateChild, child: duplicateChild };
-	}
-
-	return { exists: false, child: undefined };
-}
-
 function trimLongName(name: string): string {
 	if (name && name.length > 255) {
 		return `${name.substr(0, 255)}...`;
@@ -1416,13 +1469,11 @@ export function getWellFormedFileName(filename: string): string {
 		return filename;
 	}
 
-	// Trim whitespaces
-	filename = strings.trim(strings.trim(filename, ' '), '\t');
+	// Trim tabs
+	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots
+	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
-
-	// Remove trailing slashes
 	filename = strings.rtrim(filename, '/');
 	filename = strings.rtrim(filename, '\\');
 
@@ -1602,7 +1653,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(resources.distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
+	return TPromise.join(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));

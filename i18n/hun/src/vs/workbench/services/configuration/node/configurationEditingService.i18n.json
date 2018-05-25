@@ -11,6 +11,7 @@
 	"open": "Beállítások megnyitása",
 	"saveAndRetry": "Mentés és újrapróbálkozás",
 	"errorUnknownKey": "Nem sikerült írni a következőbe: {0}. A(z) {1} nem regisztrált beállítás.",
+	"errorInvalidWorkspaceConfigurationApplication": "Nem sikerült írni a munkaterület beállításaiba, mert ez a beállítás csak a felhasználói beállításokban használható. ",
 	"errorInvalidFolderConfiguration": "Nem sikerült írni a mappa beállításaiba, mert a(z) {0} nem támogatott mappa típusú erőforrások hatókörében.",
 	"errorInvalidUserTarget": "Nem sikerült írni a felhasználói beállításokba, mert a(z) {0} nem támogatott globális hatókörben.",
 	"errorInvalidWorkspaceTarget": "Nem sikerült írni a munkaterület beállításaiba, mert a(z) {0} nem támogatott munkaterületi hatókörben egy több mappát tartalmazó munkaterületen.",

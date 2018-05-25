@@ -96,9 +96,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		const height = dimension.height - 38;
-		this.treeContainer.style.height = `${height}px`;
-		this.tree.layout(height, dimension.width);
+		this.treeContainer.style.height = `${dimension.height}px`;
+		this.tree.layout(dimension.height, dimension.width);
 		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 	}
 
@@ -316,7 +315,7 @@ export class MarkersPanel extends Panel {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
 		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('disableFilesExclude', "Disable Files Exclude.");
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
 		link.setAttribute('tabIndex', '0');
 		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
 	}

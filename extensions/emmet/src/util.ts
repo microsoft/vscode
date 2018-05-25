@@ -54,6 +54,7 @@ const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', '
 // For other languages, users will have to use `emmet.includeLanguages` or
 // language specific extensions can provide emmet completion support
 export const MAPPED_MODES: Object = {
+	'handlebars': 'html',
 	'php': 'html'
 };
 
@@ -527,4 +528,38 @@ export function getCssPropertyFromDocument(editor: vscode.TextEditor, position: 
 		const node = getNode(rootNode, position);
 		return (node && node.type === 'property') ? <Property>node : null;
 	}
+}
+
+
+export function getEmbeddedCssNodeIfAny(document: vscode.TextDocument, currentNode: Node | null, position: vscode.Position): Node | undefined {
+	if (!currentNode) {
+		return;
+	}
+	const currentHtmlNode = <HtmlNode>currentNode;
+	if (currentHtmlNode && currentHtmlNode.close) {
+		const innerRange = getInnerRange(currentHtmlNode);
+		if (innerRange && innerRange.contains(position)) {
+			if (currentHtmlNode.name === 'style'
+				&& currentHtmlNode.open.end.isBefore(position)
+				&& currentHtmlNode.close.start.isAfter(position)
+
+			) {
+				let buffer = new DocumentStreamReader(document, currentHtmlNode.open.end, new vscode.Range(currentHtmlNode.open.end, currentHtmlNode.close.start));
+				return parseStylesheet(buffer);
+			}
+		}
+	}
+}
+
+export function isStyleAttribute(currentNode: Node | null, position: vscode.Position): boolean {
+	if (!currentNode) {
+		return false;
+	}
+	const currentHtmlNode = <HtmlNode>currentNode;
+	const index = (currentHtmlNode.attributes || []).findIndex(x => x.name.toString() === 'style');
+	if (index === -1) {
+		return false;
+	}
+	const styleAttribute = currentHtmlNode.attributes[index];
+	return position.isAfterOrEqual(styleAttribute.value.start) && position.isBeforeOrEqual(styleAttribute.value.end);
 }

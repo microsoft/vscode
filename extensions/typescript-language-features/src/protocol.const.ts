@@ -31,6 +31,7 @@ export class Kind {
 	public static readonly type = 'type';
 	public static readonly variable = 'var';
 	public static readonly warning = 'warning';
+	public static readonly string = 'string';
 }
 
 

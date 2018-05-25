@@ -13,10 +13,6 @@ export const FOLDER_SETTINGS_PATH = `${FOLDER_CONFIG_FOLDER_NAME}/${FOLDER_SETTI
 export const IWorkspaceConfigurationService = createDecorator<IWorkspaceConfigurationService>('configurationService');
 
 export interface IWorkspaceConfigurationService extends IConfigurationService {
-	/**
-	 * Returns untrusted configuration keys for the current workspace.
-	 */
-	getUnsupportedWorkspaceKeys(): string[];
 }
 
 export const defaultSettingsSchemaId = 'vscode://schemas/settings/default';

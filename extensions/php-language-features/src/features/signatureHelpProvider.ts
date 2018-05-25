@@ -7,6 +7,7 @@
 
 import { SignatureHelpProvider, SignatureHelp, SignatureInformation, CancellationToken, TextDocument, Position, workspace } from 'vscode';
 import phpGlobals = require('./phpGlobals');
+import phpGlobalFunctions = require('./phpGlobalFunctions');
 
 var _NL = '\n'.charCodeAt(0);
 var _TAB = '\t'.charCodeAt(0);
@@ -87,7 +88,7 @@ export default class PHPSignatureHelpProvider implements SignatureHelpProvider {
 			return null;
 		}
 
-		var entry = phpGlobals.globalfunctions[ident] || phpGlobals.keywords[ident];
+		var entry = phpGlobalFunctions.globalfunctions[ident] || phpGlobals.keywords[ident];
 		if (!entry || !entry.signature) {
 			return null;
 		}

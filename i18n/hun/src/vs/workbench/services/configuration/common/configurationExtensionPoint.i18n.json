@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "A beállítások összefoglaló leírása. Ez a címke jelenik meg a beállítások fájlban egy különálló megjegyzésként.",
 	"vscode.extension.contributes.configuration.properties": "A konfigurációs tulajdonságok leírása.",
+	"scope.application.description": "Alkalmazásspecifikus beállítás, ami csak a felhasználói beállításokban konfigurálható.",
 	"scope.window.description": "Ablakspecifikus beállítás, ami konfigurálható a felhasználói vagy munkaterületi beállításokban.",
 	"scope.resource.description": "Erőforrásspecifikus beállítás, ami beállítható a felhasználói, munkaterületi és mappaszintű beállításokban.",
 	"scope.description": "A hatókör, amire a beállítás vonatkozik. Az elérhető hatókörök: `window` és `resource`.",

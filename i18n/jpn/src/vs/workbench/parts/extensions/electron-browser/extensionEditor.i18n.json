@@ -37,7 +37,7 @@
 	"localizations": "ローカライズ ({0})",
 	"localizations language id": "言語 ID",
 	"localizations language name": "言語名",
-	"localizations localized language name": "言語名 (ローカライズ済み)",
+	"localizations localized language name": "言語名 (ローカライズ)",
 	"colorThemes": "配色テーマ ({0})",
 	"iconThemes": "アイコン テーマ ({0})",
 	"colors": "配色 ({0})",

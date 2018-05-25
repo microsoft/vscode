@@ -11,294 +11,42 @@ declare module 'vscode' {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Aeschli: folding
+	//#region Joh: file system provider (OLD)
 
-	export class FoldingRangeList {
-
-		/**
-		 * The folding ranges.
-		 */
-		ranges: FoldingRange[];
-
-		/**
-		 * Creates new folding range list.
-		 *
-		 * @param ranges The folding ranges
-		 */
-		constructor(ranges: FoldingRange[]);
-	}
-
-
-	export class FoldingRange {
-
-		/**
-		 * The start line number (zero-based) of the range to fold. The hidden area starts after the last character of that line.
-		 */
-		startLine: number;
-
-		/**
-		 * The end line number (0-based) of the range to fold. The hidden area ends at the last character of that line.
-		 */
-		endLine: number;
-
-		/**
-		 * The actual color value for this color range.
-		 */
-		type?: FoldingRangeType | string;
-
-		/**
-		 * Creates a new folding range.
-		 *
-		 * @param startLineNumber The first line of the fold
-		 * @param type The last line of the fold
-		 */
-		constructor(startLineNumber: number, endLineNumber: number, type?: FoldingRangeType | string);
-	}
-
-	export enum FoldingRangeType {
-		/**
-		 * Folding range for a comment
-		 */
-		Comment = 'comment',
-		/**
-		 * Folding range for a imports or includes
-		 */
-		Imports = 'imports',
-		/**
-		 * Folding range for a region (e.g. `#region`)
-		 */
-		Region = 'region'
-	}
-
-	export namespace languages {
-
-		/**
-		 * Register a folding provider.
-		 *
-		 * Multiple folding can be registered for a language. In that case providers are sorted
-		 * by their [score](#languages.match) and the best-matching provider is used. Failure
-		 * of the selected provider will cause a failure of the whole operation.
-		 *
-		 * @param selector A selector that defines the documents this provider is applicable to.
-		 * @param provider A folding provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerFoldingProvider(selector: DocumentSelector, provider: FoldingProvider): Disposable;
-	}
-
-	export interface FoldingContext {
-		maxRanges?: number;
-	}
-
-	export interface FoldingProvider {
-		/**
-		 * Returns a list of folding ranges or null if the provider does not want to participate or was cancelled.
-		 */
-		provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken): ProviderResult<FoldingRangeList>;
-	}
-
-	//#endregion
-
-	//#region Joh: file system provider
-
-	export enum FileChangeType {
+	export enum DeprecatedFileChangeType {
 		Updated = 0,
 		Added = 1,
 		Deleted = 2
 	}
-
-	export interface FileChange {
-		type: FileChangeType;
+	export interface DeprecatedFileChange {
+		type: DeprecatedFileChangeType;
 		resource: Uri;
 	}
-
-	export enum FileType {
+	export enum DeprecatedFileType {
 		File = 0,
 		Dir = 1,
 		Symlink = 2
 	}
-
-	export interface FileStat {
+	export interface DeprecatedFileStat {
 		id: number | string;
 		mtime: number;
-		// atime: number;
 		size: number;
-		type: FileType;
+		type: DeprecatedFileType;
 	}
-
-	// todo@joh discover files etc
-	// todo@joh CancellationToken everywhere
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider {
-
-		readonly onDidChange?: Event<FileChange[]>;
-
-		// more...
-		// @deprecated - will go away
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
+	export interface DeprecatedFileSystemProvider {
+		readonly onDidChange?: Event<DeprecatedFileChange[]>;
+		utimes(resource: Uri, mtime: number, atime: number): Thenable<DeprecatedFileStat>;
+		stat(resource: Uri): Thenable<DeprecatedFileStat>;
 		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@joh - have an option to create iff not exist
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
 		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
+		move(resource: Uri, target: Uri): Thenable<DeprecatedFileStat>;
+		mkdir(resource: Uri): Thenable<DeprecatedFileStat>;
+		readdir(resource: Uri): Thenable<[Uri, DeprecatedFileStat][]>;
 		rmdir(resource: Uri): Thenable<void>;
 		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
 	}
-
-	export class FileError extends Error {
-
-		/**
-		 * Entry already exists.
-		 */
-		static readonly EEXIST: FileError;
-
-		/**
-		 * Entry does not exist.
-		 */
-		static readonly ENOENT: FileError;
-
-		/**
-		 * Entry is not a directory.
-		 */
-		static readonly ENOTDIR: FileError;
-
-		/**
-		 * Entry is a directory.
-		 */
-		static readonly EISDIR: FileError;
-
-		readonly code: string;
-
-		constructor(code: string, message?: string);
-	}
-
-	export enum FileChangeType2 {
-		Changed = 1,
-		Created = 2,
-		Deleted = 3,
-	}
-
-	export interface FileChange2 {
-		type: FileChangeType2;
-		uri: Uri;
-	}
-
-	export enum FileType2 {
-		File = 0b001,
-		Directory = 0b010,
-		SymbolicLink = 0b100,
-	}
-
-	export interface FileStat2 {
-		type: FileType2;
-		mtime: number;
-		size: number;
-	}
-
-	export enum FileOpenFlags {
-		Read = 0b0001,
-		Write = 0b0010,
-		Create = 0b0100,
-		Exclusive = 0b1000
-	}
-
-	// todo@joh add open/close calls?
-	export interface FileSystemProvider2 {
-
-		_version: 5;
-
-		/**
-		 * An event to signal that a resource has been created, changed, or deleted.
-		 */
-		readonly onDidChange: Event<FileChange2[]>;
-
-		/**
-		 * Retrieve metadata about a file. Must throw an [`ENOENT`](#FileError.ENOENT)-error
-		 * when the file doesn't exist.
-		 *
-		 * @param uri The uri of the file to retrieve meta data about.
-		 * @param token A cancellation token.
-		 * @return The file metadata about the file.
-		 */
-		stat(uri: Uri, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		/**
-		 * Retrieve the meta data of all entries of a [directory](#FileType2.Directory)
-		 *
-		 * @param uri The uri of the folder.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of tuples of file names and files stats.
-		 */
-		readDirectory(uri: Uri, token: CancellationToken): [string, FileStat2][] | Thenable<[string, FileStat2][]>;
-
-		/**
-		 * Read the entire contents of a file.
-		 *
-		 * @param uri The uri of the file.
-		 * @param token A cancellation token.
-		 * @return A thenable that resolves to an array of bytes.
-		 */
-		readFile(uri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): Uint8Array | Thenable<Uint8Array>;
-
-		/**
-		 * Write data to a file, replacing its entire contents.
-		 *
-		 * @param uri The uri of the file.
-		 * @param content The new content of the file.
-		 * @param token A cancellation token.
-		 */
-		writeFile(uri: Uri, content: Uint8Array, options: { flags: FileOpenFlags }, token: CancellationToken): void | Thenable<void>;
-
-		/**
-		 * Rename a file or folder.
-		 *
-		 * @param oldUri The exiting file or folder
-		 * @param newUri The target location
-		 * @param token A cancellation token.
-		 */
-		rename(oldUri: Uri, newUri: Uri, options: { flags: FileOpenFlags }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): FileStat2 | Thenable<FileStat2>;
-
-		// todo@remote
-		// ? useTrash, expose trash
-		delete(uri: Uri, token: CancellationToken): void | Thenable<void>;
-
-		// todo@remote
-		create(uri: Uri, options: { type: FileType2 }, token: CancellationToken): FileStat2 | Thenable<FileStat2>;
-	}
-
 	export namespace workspace {
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, newProvider?: FileSystemProvider2): Disposable;
+		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
 	}
 
 	//#endregion
@@ -312,19 +60,32 @@ declare module 'vscode' {
 		isWordMatch?: boolean;
 	}
 
-	export interface TextSearchOptions {
-		includes: GlobPattern[];
-		excludes: GlobPattern[];
+	export interface SearchOptions {
+		folder: Uri;
+		includes: string[]; // paths relative to folder
+		excludes: string[];
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
 	}
 
+	export interface TextSearchOptions extends SearchOptions {
+		maxFileSize?: number;
+		encoding?: string;
+	}
+
+	export interface FileSearchOptions extends SearchOptions { }
+
 	export interface TextSearchResult {
-		uri: Uri;
+		path: string;
 		range: Range;
-		preview: { leading: string, matching: string, trailing: string };
+
+		// For now, preview must be a single line of text
+		preview: { text: string, match: Range };
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
@@ -485,25 +246,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: rename context
-
-	export interface RenameProvider2 extends RenameProvider {
-
-		/**
-		 * Optional function for resolving and validating a position at which rename is
-		 * being carried out.
-		 *
-		 * @param document The document in which rename will be invoked.
-		 * @param position The position at which rename will be invoked.
-		 * @param token A cancellation token.
-		 * @return The range of the identifier that is to be renamed. The lack of a result can signaled by returning `undefined` or `null`.
-		 */
-		resolveRenameLocation?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Range>;
-
-	}
-
-	//#endregion
-
 	//#region Joao: SCM validation
 
 	/**
@@ -554,188 +296,12 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView
+	//#region Matt: WebView Serializer
 
 	/**
-	 * Content settings for a webview.
-	 */
-	export interface WebviewOptions {
-		/**
-		 * Should scripts be enabled in the webview content?
-		 *
-		 * Defaults to false (scripts-disabled).
-		 */
-		readonly enableScripts?: boolean;
-
-		/**
-		 * Should command uris be enabled in webview content?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableCommandUris?: boolean;
-
-		/**
-		 * Root paths from which the webview can load local (filesystem) resources using the `vscode-resource:` scheme.
-		 *
-		 * Default to the root folders of the current workspace plus the extension's install directory.
-		 *
-		 * Pass in an empty array to disallow access to any local resources.
-		 */
-		readonly localResourceRoots?: ReadonlyArray<Uri>;
-	}
-
-	/**
-	 * A webview displays html content, like an iframe.
-	 */
-	export interface Webview {
-		/**
-		 * Content settings for the webview.
-		 */
-		readonly options: WebviewOptions;
-
-		/**
-		 * Title of the webview shown in UI.
-		 */
-		title: string;
-
-		/**
-		 * Contents of the webview.
-		 *
-		 * Should be a complete html document.
-		 */
-		html: string;
-
-		/**
-		 * Fired when the webview content posts a message.
-		 */
-		readonly onDidReceiveMessage: Event<any>;
-
-		/**
-		 * Post a message to the webview content.
-		 *
-		 * Messages are only develivered if the webview is visible.
-		 *
-		 * @param message Body of the message.
-		 */
-		postMessage(message: any): Thenable<boolean>;
-	}
-
-	/**
-	 * Content settings for a webview panel.
-	 */
-	export interface WebviewPanelOptions {
-		/**
-		 * Should the find widget be enabled in the panel?
-		 *
-		 * Defaults to false.
-		 */
-		readonly enableFindWidget?: boolean;
-
-		/**
-		 * Should the webview panel's content (iframe) be kept around even when the panel
-		 * is no longer visible?
-		 *
-		 * Normally the webview panel's html context is created when the panel becomes visible
-		 * and destroyed when it is is hidden. Extensions that have complex state
-		 * or UI can set the `retainContextWhenHidden` to make VS Code keep the webview
-		 * context around, even when the webview moves to a background tab. When
-		 * the panel becomes visible again, the context is automatically restored
-		 * in the exact same state it was in originally.
-		 *
-		 * `retainContextWhenHidden` has a high memory overhead and should only be used if
-		 * your panel's context cannot be quickly saved and restored.
-		 */
-		readonly retainContextWhenHidden?: boolean;
-	}
-
-	/**
-	 * A panel that contains a webview.
-	 */
-	interface WebviewPanel {
-		/**
-		 * Type of the webview panel, such as `'markdown.preview'`.
-		 */
-		readonly viewType: string;
-
-		/**
-		 * Webview belonging to the panel.
-		 */
-		readonly webview: Webview;
-
-		/**
-		 * Content settings for the webview panel.
-		 */
-		readonly options: WebviewPanelOptions;
-
-		/**
-		 * Editor position of the panel.
-		 */
-		readonly position?: ViewColumn;
-
-		/**
-		 * Is the panel current visible?
-		 */
-		readonly visible: boolean;
-
-		/**
-		 * Fired when the panel's view state changes.
-		 */
-		readonly onDidChangeViewState: Event<WebviewPanelOnDidChangeViewStateEvent>;
-
-		/**
-		 * Fired when the panel is disposed.
-		 *
-		 * This may be because the user closed the panel or because `.dispose()` was
-		 * called on it.
-		 *
-		 * Trying to use the panel after it has been disposed throws an exception.
-		 */
-		readonly onDidDispose: Event<void>;
-
-		/**
-		 * Show the webview panel in a given column.
-		 *
-		 * A webview panel may only show in a single column at a time. If it is already showing, this
-		 * method moves it to a new column.
-		 */
-		reveal(viewColumn: ViewColumn): void;
-
-		/**
-		 * Dispose of the webview panel.
-		 *
-		 * This closes the panel if it showing and disposes of the resources owned by the webview.
-		 * Webview panels are also disposed when the user closes the webview panel. Both cases
-		 * fire the `onDispose` event.
-		 */
-		dispose(): any;
-	}
-
-	/**
-	 * Event fired when a webview panel's view state changes.
-	 */
-	export interface WebviewPanelOnDidChangeViewStateEvent {
-		/**
-		 * Webview panel whose view state changed.
-		 */
-		readonly webviewPanel: WebviewPanel;
-	}
-
-	/**
-	 * Save and restore webview panels that have been persisted when vscode shuts down.
+	 * Restore webview panels that have been persisted when vscode shuts down.
 	 */
 	interface WebviewPanelSerializer {
-		/**
-		 * Save a webview panel's `state`.
-		 *
-		 * Called before shutdown. Extensions have a 250ms timeframe to return a state. If serialization
-		 * takes longer than 250ms, the panel will not be serialized.
-		 *
-		 * @param webviewPanel webview Panel to serialize. May or may not be visible.
-		 *
-		 * @returns JSON serializable state blob.
-		 */
-		serializeWebviewPanel(webviewPanel: WebviewPanel): Thenable<any>;
-
 		/**
 		 * Restore a webview panel from its seriailzed `state`.
 		 *
@@ -750,18 +316,6 @@ declare module 'vscode' {
 	}
 
 	namespace window {
-		/**
-		 * Create and show a new webview panel.
-		 *
-		 * @param viewType Identifies the type of the webview panel.
-		 * @param title Title of the panel.
-		 * @param position Editor column to show the new panel in.
-		 * @param options Settings for the new webview panel.
-		 *
-		 * @return New webview panel.
-		 */
-		export function createWebviewPanel(viewType: string, title: string, position: ViewColumn, options: WebviewPanelOptions & WebviewOptions): WebviewPanel;
-
 		/**
 		 * Registers a webview panel serializer.
 		 *
@@ -822,14 +376,63 @@ declare module 'vscode' {
 		execution: TaskExecution;
 	}
 
+	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
 	export namespace workspace {
 
 		/**
-		 * Fetches all task available in the systems. Thisweweb includes tasks
+		 * Fetches all tasks available in the systems. This includes tasks
 		 * from `tasks.json` files as well as tasks from task providers
 		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
 		 */
-		export function fetchTasks(): Thenable<Task[]>;
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
 
 		/**
 		 * Executes a task that is managed by VS Code. The returned
@@ -838,6 +441,13 @@ declare module 'vscode' {
 		 * @param task the task to execute
 		 */
 		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
 
 		/**
 		 * Fires when a task starts.
@@ -850,9 +460,81 @@ declare module 'vscode' {
 		export const onDidEndTask: Event<TaskEndEvent>;
 	}
 
+	/**
+	 * Namespace for tasks functionality.
+	 */
+	export namespace tasks {
+
+		/**
+		 * Register a task provider.
+		 *
+		 * @param type The task kind type this provider is registered for.
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+		/**
+		 * Fetches all tasks available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
+		 */
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
+	}
+
 	//#endregion
 
 	//#region Terminal
+
+	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including ANSI sequences.
+		 */
+		onData: Event<string>;
+	}
 
 	export namespace window {
 		/**
@@ -870,4 +552,130 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region URLs
+
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a protocol handler capable of handling system-wide URIs.
+		 */
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
+
+	export class Hierarchy<T> {
+		parent: T;
+		children: Hierarchy<T>[];
+		constructor(element: T);
+	}
+
+	export class SymbolInformation2 extends SymbolInformation {
+		detail: string;
+		range: Range;
+		constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location);
+	}
+
+	export interface DocumentSymbolProvider {
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | Hierarchy<SymbolInformation>[]>;
+	}
+
+	//#endregion
+
+	//#region Joh -> exclusive document filters
+
+	export interface DocumentFilter {
+		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region Multi-step input
+
+	export namespace window {
+
+		/**
+		 * Collect multiple inputs from the user. The provided handler will be called with a
+		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
+		 *
+		 * @param handler The callback that will collect the inputs.
+		 */
+		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+	}
+
+	/**
+	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
+	 * should use the instance of this interface passed to it to collect all inputs.
+	 */
+	export interface QuickInput {
+		showQuickPick: typeof window.showQuickPick;
+		showInputBox: typeof window.showInputBox;
+	}
+
+	//#endregion
+
+	//#region mjbvz: Unused diagnostics
+	/**
+	 * Additional metadata about the type of diagnostic.
+	 */
+	export enum DiagnosticTag {
+		/**
+		 * Unused or unnecessary code.
+		 */
+		Unnecessary = 1,
+	}
+
+	export interface Diagnostic {
+		/**
+		 * Additional metadata about the type of the diagnostic.
+		 */
+		customTags?: DiagnosticTag[];
+	}
+
+	//#endregion
+
+	//#region mjbvz: File rename events
+	export interface ResourceRenamedEvent {
+		readonly oldResource: Uri;
+		readonly newResource: Uri;
+	}
+
+	export namespace workspace {
+		export const onDidRenameResource: Event<ResourceRenamedEvent>;
+	}
+	//#endregion
+
+	//#region mjbvz: Code action trigger
+
+	/**
+	 * How a [code action provider](#CodeActionProvider) was triggered
+	 */
+	export enum CodeActionTrigger {
+		/**
+		 * Provider was triggered automatically by VS Code.
+		 */
+		Automatic = 1,
+
+		/**
+		 * User requested code actions.
+		 */
+		Manual = 2,
+	}
+
+	interface CodeActionContext {
+		/**
+		 * How the code action provider was triggered.
+		 */
+		triggerKind?: CodeActionTrigger;
+	}
+
+	//#endregion
+
 }

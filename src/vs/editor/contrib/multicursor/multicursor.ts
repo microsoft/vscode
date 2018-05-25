@@ -113,29 +113,25 @@ class InsertCursorAtEndOfEachLineSelected extends EditorAction {
 		});
 	}
 
-	private getCursorsForSelection(selection: Selection, editor: ICodeEditor): Selection[] {
+	private getCursorsForSelection(selection: Selection, model: ITextModel, result: Selection[]): void {
 		if (selection.isEmpty()) {
-			return [];
+			return;
 		}
 
-		let model = editor.getModel();
-		let newSelections: Selection[] = [];
 		for (let i = selection.startLineNumber; i < selection.endLineNumber; i++) {
 			let currentLineMaxColumn = model.getLineMaxColumn(i);
-			newSelections.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
+			result.push(new Selection(i, currentLineMaxColumn, i, currentLineMaxColumn));
 		}
 		if (selection.endColumn > 1) {
-			newSelections.push(new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn));
+			result.push(new Selection(selection.endLineNumber, selection.endColumn, selection.endLineNumber, selection.endColumn));
 		}
-
-		return newSelections;
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		let selections = editor.getSelections();
-		let newSelections = selections
-			.map((selection) => this.getCursorsForSelection(selection, editor))
-			.reduce((prev, curr) => { return prev.concat(curr); });
+		const model = editor.getModel();
+		const selections = editor.getSelections();
+		let newSelections: Selection[] = [];
+		selections.forEach((sel) => this.getCursorsForSelection(sel, model, newSelections));
 
 		if (newSelections.length > 0) {
 			editor.setSelections(newSelections);
@@ -160,7 +156,7 @@ export class MultiCursorSession {
 		//  - focus is not in the editor (i.e. it is in the find widget)
 		//  - and the search widget is visible
 		//  - and the search string is non-empty
-		if (!editor.isFocused() && findState.isRevealed && findState.searchString.length > 0) {
+		if (!editor.hasTextFocus() && findState.isRevealed && findState.searchString.length > 0) {
 			// Find widget owns what is searched for
 			return new MultiCursorSession(editor, findController, false, findState.searchString, findState.wholeWord, findState.matchCase, null);
 		}
@@ -834,7 +830,9 @@ export class SelectionHighlighter extends Disposable implements IEditorContribut
 				const cmp = Range.compareRangesUsingStarts(match, selections[j]);
 				if (cmp < 0) {
 					// match is before sel
-					matches.push(match);
+					if (!Range.areIntersecting(match, selections[j])) {
+						matches.push(match);
+					}
 					i++;
 				} else if (cmp > 0) {
 					// sel is before match

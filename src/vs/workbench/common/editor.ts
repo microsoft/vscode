@@ -32,23 +32,6 @@ export enum ConfirmResult {
  */
 export const TEXT_DIFF_EDITOR_ID = 'workbench.editors.textDiffEditor';
 
-export const PREFERENCES_EDITOR_ID = 'workbench.editor.preferencesEditor';
-
-/**
- * Text file editor id.
- */
-export const TEXT_FILE_EDITOR_ID = 'workbench.editors.files.textFileEditor';
-
-/**
- * File editor input id.
- */
-export const FILE_EDITOR_INPUT_ID = 'workbench.editors.files.fileEditorInput';
-
-/**
- * Binary file editor id.
- */
-export const BINARY_FILE_EDITOR_ID = 'workbench.editors.files.binaryFileEditor';
-
 /**
  * Binary diff editor id.
  */

@@ -84,7 +84,7 @@ export abstract class AbstractCodeEditorService implements ICodeEditorService {
 		for (let i = 0; i < editors.length; i++) {
 			let editor = editors[i];
 
-			if (editor.isFocused()) {
+			if (editor.hasTextFocus()) {
 				// bingo!
 				return editor;
 			}

@@ -13,5 +13,6 @@
 	"configuration.title": "PHP",
 	"commands.categroy.php": "PHP",
 	"command.untrustValidationExecutable": "Interdire l'exécutable de validation PHP (défini comme paramètre d'espace de travail)",
-	"displayName": "Fonctionnalités de langage PHP"
+	"displayName": "Fonctionnalités de langage PHP",
+	"description": "Fournit une prise en charge de langage riche pour les fichiers PHP."
 }

@@ -291,8 +291,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
-		this.toDispose.push(this.userKeybindings);
+		this.userKeybindings = this._register(new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -306,12 +305,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 
-		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
+		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
 			source: KeybindingSource.User,
 			keybindings: event.config
 		})));
 
-		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
@@ -365,6 +364,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			this._firstTimeComputingResolver = false;
 		}
 		return this._cachedResolver;
+	}
+
+	protected _documentHasFocus(): boolean {
+		return document.hasFocus();
 	}
 
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {

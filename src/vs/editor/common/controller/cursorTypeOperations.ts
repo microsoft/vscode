@@ -579,6 +579,8 @@ export class TypeOperations {
 			return false;
 		}
 
+		const isTypingAQuoteCharacter = (ch === '\'' || ch === '"');
+
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
 
@@ -602,6 +604,15 @@ export class TypeOperations {
 
 			if (selectionContainsOnlyWhitespace) {
 				return false;
+			}
+
+			if (isTypingAQuoteCharacter && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
+				const selectionText = model.getValueInRange(selection);
+				if ((selectionText === '\'' || selectionText === '"')) {
+					// Typing a quote character on top of another quote character
+					// => disable surround selection type
+					return false;
+				}
 			}
 		}
 

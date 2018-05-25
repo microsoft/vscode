@@ -985,7 +985,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@enabled');
+				viewlet.search('@enabled ');
 				viewlet.focus();
 			});
 	}
@@ -1008,7 +1008,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				viewlet.search('@installed');
+				viewlet.search('@installed ');
 				viewlet.focus();
 			});
 	}
@@ -1213,7 +1213,7 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 						return TPromise.as(null);
 					}
 
-					viewlet.search('@recommended');
+					viewlet.search('@recommended ');
 					viewlet.focus();
 
 					return this.extensionsWorkbenchService.queryGallery({ names: toInstall, source: 'install-all-workspace-recommendations' }).then(pager => {
@@ -1292,7 +1292,7 @@ export class InstallRecommendedExtensionAction extends Action {
 					return TPromise.as(null);
 				}
 
-				viewlet.search('@recommended');
+				viewlet.search('@recommended ');
 				viewlet.focus();
 
 				return this.extensionsWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation' }).then(pager => {
@@ -1738,7 +1738,7 @@ export class DisableAllAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.Disabled)));
+		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User), EnablementState.Disabled);
 	}
 
 	dispose(): void {
@@ -1770,7 +1770,7 @@ export class DisableAllWorkpsaceAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User).map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.WorkspaceDisabled)));
+		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local.filter(e => e.type === LocalExtensionType.User), EnablementState.WorkspaceDisabled);
 	}
 
 	dispose(): void {
@@ -1801,7 +1801,7 @@ export class EnableAllAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.Enabled)));
+		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.Enabled);
 	}
 
 	dispose(): void {
@@ -1834,7 +1834,7 @@ export class EnableAllWorkpsaceAction extends Action {
 	}
 
 	run(): TPromise<any> {
-		return TPromise.join(this.extensionsWorkbenchService.local.map(e => this.extensionsWorkbenchService.setEnablement(e, EnablementState.WorkspaceEnabled)));
+		return this.extensionsWorkbenchService.setEnablement(this.extensionsWorkbenchService.local, EnablementState.WorkspaceEnabled);
 	}
 
 	dispose(): void {

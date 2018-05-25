@@ -124,7 +124,7 @@ export class ViewModelDecorations implements IDisposable {
 			decorationsInViewport[decorationsInViewportLen++] = viewModelDecoration;
 
 			if (decorationOptions.inlineClassName) {
-				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, InlineDecorationType.Regular);
+				let inlineDecoration = new InlineDecoration(viewRange, decorationOptions.inlineClassName, decorationOptions.inlineClassNameAffectsLetterSpacing ? InlineDecorationType.RegularAffectingLetterSpacing : InlineDecorationType.Regular);
 				let intersectedStartLineNumber = Math.max(startLineNumber, viewRange.startLineNumber);
 				let intersectedEndLineNumber = Math.min(endLineNumber, viewRange.endLineNumber);
 				for (let j = intersectedStartLineNumber; j <= intersectedEndLineNumber; j++) {

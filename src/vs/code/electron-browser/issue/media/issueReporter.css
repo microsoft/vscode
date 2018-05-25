@@ -21,7 +21,7 @@ th {
 	text-align: inherit;
 }
 td {
-	padding: .75rem;
+	padding: .25rem;
 	vertical-align: top;
 }
 
@@ -48,7 +48,6 @@ input[type="text"], textarea {
 	line-height: 1.5;
 	color: #495057;
 	background-color: #fff;
-	border-radius: .25rem;
 	border: 1px solid #ced4da;
 }
 
@@ -60,19 +59,12 @@ textarea {
 /**
  * Button
  */
-button {
-	display: inline-block;
-	font-weight: 400;
-	line-height: 1.25;
-	text-align: center;
-	white-space: nowrap;
-	vertical-align: middle;
-	user-select: none;
-	padding: .5rem 1rem;
-	font-size: 1rem;
-	border-radius: .25rem;
-	background: none;
-	border: 1px solid transparent;
+
+.monaco-text-button {
+	display: block;
+	width: auto;
+	padding: 4px 10px;
+	align-self: flex-end;
 }
 
 select {
@@ -111,6 +103,10 @@ body {
 	display: none;
 }
 
+.block {
+	font-size: 12px;
+}
+
 .block .block-info {
 	width: 100%;
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
@@ -123,14 +119,6 @@ pre {
 }
 pre code {
 	font-family: 'Menlo', 'Courier New', 'Courier', monospace;
-}
-
-button:hover:enabled {
-	cursor: pointer;
-}
-
-button:disabled {
-	cursor: auto;
 }
 
 #issue-reporter {
@@ -184,40 +172,17 @@ textarea {
 	margin-top: 1em;
 }
 
-.system-info {
-	margin-bottom: 1.25em;
-}
-
 select, input, textarea {
 	border: 1px solid transparent;
 	margin-top: 10px;
 }
 
-summary {
-	border: 1px solid transparent;
-	padding: 0 10px;
-	margin-bottom: 5px;
-	cursor: pointer;
-}
 
 .validation-error {
 	font-size: 12px;
 	margin-top: 1em;
 }
 
-.include-data {
-	display: inline-block;
-}
-
-.include-data > .caption {
-	display: inline-block;
-	font-size: 12px;
-	cursor: pointer;
-}
-
-.sendData {
-	margin-left: 1em;
-}
 
 input[type="checkbox"] {
 	width: auto;
@@ -274,11 +239,6 @@ a {
 
 .required-input, .validation-error {
 	color: #be1100;
-}
-
-button {
-	background-color: #007ACC;
-	color: #fff;
 }
 
 .section .input-group .validation-error {

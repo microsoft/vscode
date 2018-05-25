@@ -11,6 +11,7 @@
 	"invalid.path.0": "È previsto un valore stringa in `contributes.{0}.path`. Valore specificato: {1}",
 	"invalid.injectTo": "Il valore in `contributes.{0}.injectTo` non è valido. Deve essere una matrice di nomi di ambito del linguaggio. Valore specificato: {1}",
 	"invalid.embeddedLanguages": "Il valore in `contributes.{0}.embeddedLanguages` non è valido. Deve essere un mapping di oggetti tra nome ambito e linguaggio. Valore specificato: {1}",
+	"invalid.tokenTypes": "Il valore in `contributes.{0}.tokenTypes` non è valido. Deve essere un mapping di oggetti tra nome ambito e tipo di token. Valore specificato: {1}",
 	"invalid.path.1": "Valore previsto di `contributes.{0}.path` ({1}) da includere nella cartella dell'estensione ({2}). L'estensione potrebbe non essere più portatile.",
 	"no-tm-grammar": "Non è stata registrata alcuna grammatica TM per questo linguaggio."
 }

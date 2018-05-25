@@ -8,6 +8,7 @@
 	],
 	"vscode.extension.contributes.configuration.title": "Riepilogo delle impostazioni. Questa etichetta verrà usata nel file di impostazioni come commento di separazione.",
 	"vscode.extension.contributes.configuration.properties": "Descrizione delle proprietà di configurazione.",
+	"scope.application.description": "Configurazione specifica dell'applicazione, che può essere configurata solo in Impostazioni utente.",
 	"scope.window.description": "Configurazione specifica della finestra, che può essere configurata nelle impostazioni dell'utente o dell'area di lavoro.",
 	"scope.resource.description": "Configurazione specifica di risorse, che possono essere configurate nelle impostazioni utente, in quelle dell'area di lavoro o di una cartella.",
 	"scope.description": "Ambito in cui la configurazione è applicabile. Gli ambiti disponibili sono 'finestra' e 'risorsa'.",

@@ -47,7 +47,8 @@ export class MarkdownContentProvider {
 	public async provideTextDocumentContent(
 		markdownDocument: vscode.TextDocument,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
-		initialLine: number | undefined = undefined
+		initialLine: number | undefined = undefined,
+		state?: any
 	): Promise<string> {
 		const sourceUri = markdownDocument.uri;
 		const config = previewConfigurations.loadAndCacheConfiguration(sourceUri);
@@ -73,7 +74,10 @@ export class MarkdownContentProvider {
 			<head>
 				<meta http-equiv="Content-type" content="text/html;charset=UTF-8">
 				${csp}
-				<meta id="vscode-markdown-preview-data" data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}" data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}">
+				<meta id="vscode-markdown-preview-data"
+					data-settings="${JSON.stringify(initialData).replace(/"/g, '&quot;')}"
+					data-strings="${JSON.stringify(previewStrings).replace(/"/g, '&quot;')}"
+					data-state="${JSON.stringify(state || {}).replace(/"/g, '&quot;')}">
 				<script src="${this.extensionResourcePath('pre.js')}" nonce="${nonce}"></script>
 				${this.getStyles(sourceUri, nonce, config)}
 				<base href="${markdownDocument.uri.with({ scheme: 'vscode-resource' }).toString(true)}">

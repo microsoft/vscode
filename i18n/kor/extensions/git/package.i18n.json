@@ -77,6 +77,7 @@
 	"config.showInlineOpenFileAction": "Git 변경점 보기에서 파일 열기 동작 줄을 표시할지의 여부를 제어합니다.",
 	"config.inputValidation": "커밋 메시지 입력 유효성 검사를 언제 표시할지 제어합니다.",
 	"config.detectSubmodules": "Git 하위 모듈을 자동으로 검색할지 여부를 제어합니다.",
+	"config.detectSubmodulesLimit": "Git submodules 검출 개수의 제한을 제어합니다.",
 	"colors.modified": "수정된 리소스의 색상입니다.",
 	"colors.deleted": "삭제된 리소스의 색상입니다.",
 	"colors.untracked": "추적되지 않은 리소스의 색상입니다.",

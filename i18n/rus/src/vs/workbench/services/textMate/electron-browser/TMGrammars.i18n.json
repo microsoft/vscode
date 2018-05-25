@@ -11,5 +11,6 @@
 	"vscode.extension.contributes.grammars.scopeName": "Имя области TextMate, используемое в файле tmLanguage.",
 	"vscode.extension.contributes.grammars.path": "Путь к файлу tmLanguage. Путь указывается относительно папки расширения и обычно начинается с \"./syntaxes/\".",
 	"vscode.extension.contributes.grammars.embeddedLanguages": "Сопоставление имени области и идентификатора языка, если грамматика содержит внедренные языки.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Сопоставление имени области с типами маркеров.",
 	"vscode.extension.contributes.grammars.injectTo": "Список имен языковых областей, в которые вставляется эта грамматика."
 }

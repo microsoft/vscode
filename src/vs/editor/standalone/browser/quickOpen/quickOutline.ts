@@ -15,7 +15,7 @@ import { IContext, IHighlight, QuickOpenEntryGroup, QuickOpenModel } from 'vs/ba
 import { IAutoFocus, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass, IOutline } from 'vs/editor/common/modes';
+import { SymbolInformation, DocumentSymbolProviderRegistry, symbolKindToCssClass, IOutline, Location } from 'vs/editor/common/modes';
 import { BaseEditorQuickOpenAction, IDecorator } from './editorQuickOpen';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
 import { registerEditorAction, ServicesAccessor } from 'vs/editor/browser/editorExtensions';
@@ -25,7 +25,7 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 let SCOPE_PREFIX = ':';
 
-class SymbolEntry extends QuickOpenEntryGroup {
+export class SymbolEntry extends QuickOpenEntryGroup {
 	private name: string;
 	private type: string;
 	private description: string;
@@ -167,6 +167,10 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 		});
 	}
 
+	private symbolEntry(name: string, type: string, description: string, location: Location, highlights: IHighlight[], editor: ICodeEditor, decorator: IDecorator): SymbolEntry {
+		return new SymbolEntry(name, type, description, Range.lift(location.range), highlights, editor, decorator);
+	}
+
 	private toQuickOpenEntries(editor: ICodeEditor, flattened: SymbolInformation[], searchValue: string): SymbolEntry[] {
 		const controller = this.getController(editor);
 
@@ -193,7 +197,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(new SymbolEntry(label, symbolKindToCssClass(element.kind), description, Range.lift(element.location.range), highlights, editor, controller));
+				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, element.location, highlights, editor, controller));
 			}
 		}
 

@@ -22,10 +22,12 @@ let activeViewlet: Viewlet = {} as any;
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
 	onDidViewletEnableEmitter = new Emitter<{ id: string, enabled: boolean }>();
 
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;

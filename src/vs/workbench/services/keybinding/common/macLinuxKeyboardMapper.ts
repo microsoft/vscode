@@ -74,6 +74,9 @@ export class NativeResolvedKeybinding extends ResolvedKeybinding {
 
 	constructor(mapper: MacLinuxKeyboardMapper, OS: OperatingSystem, firstPart: ScanCodeBinding, chordPart: ScanCodeBinding) {
 		super();
+		if (!firstPart) {
+			throw new Error(`Invalid USLayoutResolvedKeybinding`);
+		}
 		this._mapper = mapper;
 		this._OS = OS;
 		this._firstPart = firstPart;

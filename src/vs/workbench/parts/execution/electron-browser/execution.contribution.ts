@@ -15,7 +15,7 @@ import { ITerminalService } from 'vs/workbench/parts/execution/common/execution'
 import { MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
-import { Extensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
+import { Extensions, IConfigurationRegistry, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { ITerminalService as IIntegratedTerminalService, KEYBINDING_CONTEXT_TERMINAL_NOT_FOCUSED } from 'vs/workbench/parts/terminal/common/terminal';
 import { getDefaultTerminalWindows, getDefaultTerminalLinuxReady, DEFAULT_TERMINAL_OSX, ITerminalConfiguration } from 'vs/workbench/parts/execution/electron-browser/terminal';
 import { WinTerminalService, MacTerminalService, LinuxTerminalService } from 'vs/workbench/parts/execution/electron-browser/terminalService';
@@ -52,26 +52,25 @@ getDefaultTerminalLinuxReady().then(defaultTerminalLinux => {
 					'external'
 				],
 				'description': nls.localize('explorer.openInTerminalKind', "Customizes what kind of terminal to launch."),
-				'default': 'integrated',
-				'isExecutable': false
+				'default': 'integrated'
 			},
 			'terminal.external.windowsExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.windowsExec', "Customizes which terminal to run on Windows."),
 				'default': getDefaultTerminalWindows(),
-				'isExecutable': true
+				'scope': ConfigurationScope.APPLICATION
 			},
 			'terminal.external.osxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.osxExec', "Customizes which terminal application to run on OS X."),
 				'default': DEFAULT_TERMINAL_OSX,
-				'isExecutable': true
+				'scope': ConfigurationScope.APPLICATION
 			},
 			'terminal.external.linuxExec': {
 				'type': 'string',
 				'description': nls.localize('terminal.external.linuxExec', "Customizes which terminal to run on Linux."),
 				'default': defaultTerminalLinux,
-				'isExecutable': true
+				'scope': ConfigurationScope.APPLICATION
 			}
 		}
 	});
@@ -92,7 +91,7 @@ CommandsRegistry.registerCommand({
 			const directoriesToOpen = distinct(stats.map(({ stat }) => stat.isDirectory ? stat.resource.fsPath : paths.dirname(stat.resource.fsPath)));
 			return directoriesToOpen.map(dir => {
 				if (configurationService.getValue<ITerminalConfiguration>().terminal.explorerKind === 'integrated') {
-					const instance = integratedTerminalService.createInstance({ cwd: dir }, true);
+					const instance = integratedTerminalService.createTerminal({ cwd: dir }, true);
 					if (instance && (resources.length === 1 || !resource || dir === resource.fsPath || dir === paths.dirname(resource.fsPath))) {
 						integratedTerminalService.setActiveInstance(instance);
 						integratedTerminalService.showPanel(true);

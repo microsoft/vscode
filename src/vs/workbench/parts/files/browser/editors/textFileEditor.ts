@@ -11,14 +11,14 @@ import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as types from 'vs/base/common/types';
 import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
-import { VIEWLET_ID, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID, IExplorerViewlet, TEXT_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileEditorModel, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorOptions, TextEditorOptions, IEditorCloseEvent, TEXT_FILE_EDITOR_ID } from 'vs/workbench/common/editor';
+import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FALLBACK_MAX_MEMORY_SIZE_MB, MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -171,7 +171,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
+					let memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [

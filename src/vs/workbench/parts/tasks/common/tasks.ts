@@ -7,29 +7,27 @@
 import * as Types from 'vs/base/common/types';
 import { IJSONSchemaMap } from 'vs/base/common/jsonSchema';
 import * as Objects from 'vs/base/common/objects';
-import { generateUuid } from 'vs/base/common/uuid';
 import { UriComponents } from 'vs/base/common/uri';
 
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-
 export enum ShellQuoting {
 	/**
-	 * Default is character escaping.
+	 * Use character escaping.
 	 */
 	Escape = 1,
 
 	/**
-	 * Default is strong quoting
+	 * Use strong quoting
 	 */
 	Strong = 2,
 
 	/**
-	 * Default is weak quoting.
+	 * Use weak quoting.
 	 */
-	Weak = 3
+	Weak = 3,
 }
 
 export namespace ShellQuoting {
@@ -445,20 +443,24 @@ export namespace CustomTask {
 		return candidate && candidate.type === 'custom';
 	}
 	export function getDefinition(task: CustomTask): TaskIdentifier {
-		if (task.command === void 0) {
-			return undefined;
-		}
-		if (task.command.runtime === RuntimeType.Shell) {
-			return {
-				_key: generateUuid(),
-				type: 'shell'
-			};
+		let type: string;
+		if (task.command !== void 0) {
+			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 		} else {
-			return {
-				_key: generateUuid(),
-				type: 'process'
-			};
+			type = '$composite';
 		}
+		let result: TaskIdentifier = {
+			type,
+			_key: task._id,
+			id: task._id
+		};
+		return result;
+	}
+	export function customizes(task: CustomTask): TaskIdentifier {
+		if (task._source && task._source.customizes) {
+			return task._source.customizes;
+		}
+		return undefined;
 	}
 }
 
@@ -614,29 +616,10 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskItem(task: Task): TaskItem {
-		let folder: IWorkspaceFolder = Task.getWorkspaceFolder(task);
-		let definition: TaskIdentifier;
-		if (ContributedTask.is(task)) {
-			definition = task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
-			definition = CustomTask.getDefinition(task);
-		} else {
-			return undefined;
-		}
-		let result: TaskItem = {
-			id: task._id,
-			label: task._label,
-			definition: definition,
-			workspaceFolder: folder
-		};
-		return result;
-	}
-
 	export function getTaskDefinition(task: Task): TaskIdentifier {
 		if (ContributedTask.is(task)) {
 			return task.defines;
-		} else if (CustomTask.is(task) && task.command !== void 0) {
+		} else if (CustomTask.is(task)) {
 			return CustomTask.getDefinition(task);
 		} else {
 			return undefined;
@@ -650,13 +633,6 @@ export namespace Task {
 		};
 		return result;
 	}
-}
-
-export interface TaskItem {
-	id: string;
-	label: string;
-	definition: TaskIdentifier;
-	workspaceFolder: IWorkspaceFolder;
 }
 
 export interface TaskExecution {
@@ -725,10 +701,12 @@ export class TaskSorter {
 
 export enum TaskEventKind {
 	Start = 'start',
+	ProcessStarted = 'processStarted',
 	Active = 'active',
 	Inactive = 'inactive',
 	Changed = 'changed',
 	Terminated = 'terminated',
+	ProcessEnded = 'processEnded',
 	End = 'end'
 }
 
@@ -744,22 +722,34 @@ export interface TaskEvent {
 	taskName?: string;
 	runType?: TaskRunType;
 	group?: string;
+	processId?: number;
+	exitCode?: number;
 	__task?: Task;
 }
 
 export namespace TaskEvent {
-	export function create(kind: TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.Start | TaskEventKind.End, task: Task);
-	export function create(kind: TaskEventKind.Changed);
-	export function create(kind: TaskEventKind, task?: Task): TaskEvent {
+	export function create(kind: TaskEventKind.ProcessStarted, task: Task, processId: number): TaskEvent;
+	export function create(kind: TaskEventKind.ProcessEnded, task: Task, exitCode: number): TaskEvent;
+	export function create(kind: TaskEventKind.Start | TaskEventKind.Active | TaskEventKind.Inactive | TaskEventKind.Terminated | TaskEventKind.End, task: Task): TaskEvent;
+	export function create(kind: TaskEventKind.Changed): TaskEvent;
+	export function create(kind: TaskEventKind, task?: Task, processIdOrExitCode?: number): TaskEvent {
 		if (task) {
-			return Object.freeze({
+			let result = {
 				kind: kind,
 				taskId: task._id,
 				taskName: task.name,
 				runType: task.isBackground ? TaskRunType.Background : TaskRunType.SingleRun,
 				group: task.group,
+				processId: undefined,
+				exitCode: undefined,
 				__task: task,
-			});
+			};
+			if (kind === TaskEventKind.ProcessStarted) {
+				result.processId = processIdOrExitCode;
+			} else if (kind === TaskEventKind.ProcessEnded) {
+				result.exitCode = processIdOrExitCode;
+			}
+			return Object.freeze(result);
 		} else {
 			return Object.freeze({ kind: TaskEventKind.Changed });
 		}

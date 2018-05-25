@@ -53,7 +53,7 @@ import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/file
 import { Schemas } from 'vs/base/common/network';
 import { PanelRegistry, Extensions as PanelExtensions, PanelDescriptor } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand } from 'vs/workbench/parts/search/browser/searchActions';
+import { openSearchView, getSearchView, ReplaceAllInFolderAction, ReplaceAllAction, CloseReplaceAction, FocusNextInputAction, FocusPreviousInputAction, FocusNextSearchResultAction, FocusPreviousSearchResultAction, ReplaceInFilesAction, FindInFilesAction, FocusActiveEditorCommand, toggleCaseSensitiveCommand, ShowNextSearchTermAction, ShowPreviousSearchTermAction, toggleRegexCommand, ShowPreviousSearchIncludeAction, ShowNextSearchIncludeAction, CollapseDeepestExpandedLevelAction, toggleWholeWordCommand, RemoveAction, ReplaceAction, ClearSearchResultsAction, copyPathCommand, copyMatchCommand, copyAllCommand, ShowNextSearchExcludeAction, ShowPreviousSearchExcludeAction, clearHistoryCommand, ShowNextReplaceTermAction, ShowPreviousReplaceTermAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { VIEW_ID, ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -292,6 +292,19 @@ CommandsRegistry.registerCommand({
 });
 
 CommandsRegistry.registerCommand({
+	id: Constants.ClearSearchHistoryCommandId,
+	handler: clearHistoryCommand
+});
+
+const clearSearchHistoryLabel = nls.localize('clearSearchHistoryLabel', "Clear Search History");
+const ClearSearchHistoryCommand: ICommandAction = {
+	id: Constants.ClearSearchHistoryCommandId,
+	title: clearSearchHistoryLabel,
+	category
+};
+MenuRegistry.addCommand(ClearSearchHistoryCommand);
+
+CommandsRegistry.registerCommand({
 	id: Constants.ToggleSearchViewPositionCommandId,
 	handler: (accessor) => {
 		const configurationService = accessor.get(IConfigurationService);
@@ -420,7 +433,7 @@ Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).registerViewlet(new Vie
 	VIEW_ID,
 	nls.localize('name', "Search"),
 	'search',
-	10
+	1
 ));
 
 Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescriptor(
@@ -432,7 +445,7 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 ));
 
 // Register view location updater
-Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Running);
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(SearchViewLocationUpdater, LifecyclePhase.Restoring);
 
 // Actions
 const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
@@ -480,8 +493,14 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(objects.assign({
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextSearchTermAction, ShowNextSearchTermAction.ID, ShowNextSearchTermAction.LABEL, ShowNextFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey)), 'Search: Show Next Search Term', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousSearchTermAction, ShowPreviousSearchTermAction.ID, ShowPreviousSearchTermAction.LABEL, ShowPreviousFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.SearchInputBoxFocusedKey)), 'Search: Show Previous Search Term', category);
 
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextReplaceTermAction, ShowNextReplaceTermAction.ID, ShowNextReplaceTermAction.LABEL, ShowNextFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceInputBoxFocusedKey)), 'Search: Show Next Search Replace Term', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousReplaceTermAction, ShowPreviousReplaceTermAction.ID, ShowPreviousReplaceTermAction.LABEL, ShowPreviousFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.ReplaceInputBoxFocusedKey)), 'Search: Show Previous Search Replace Term', category);
+
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextSearchIncludeAction, ShowNextSearchIncludeAction.ID, ShowNextSearchIncludeAction.LABEL, ShowNextFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternIncludesFocusedKey)), 'Search: Show Next Search Include Pattern', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousSearchIncludeAction, ShowPreviousSearchIncludeAction.ID, ShowPreviousSearchIncludeAction.LABEL, ShowPreviousFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternIncludesFocusedKey)), 'Search: Show Previous Search Include Pattern', category);
+
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowNextSearchExcludeAction, ShowNextSearchExcludeAction.ID, ShowNextSearchExcludeAction.LABEL, ShowNextFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternExcludesFocusedKey)), 'Search: Show Next Search Exclude Pattern', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ShowPreviousSearchExcludeAction, ShowPreviousSearchExcludeAction.ID, ShowPreviousSearchExcludeAction.LABEL, ShowPreviousFindTermKeybinding, ContextKeyExpr.and(Constants.SearchViewVisibleKey, Constants.PatternExcludesFocusedKey)), 'Search: Show Previous Search Exclude Pattern', category);
 
 registry.registerWorkbenchAction(new SyncActionDescriptor(CollapseDeepestExpandedLevelAction, CollapseDeepestExpandedLevelAction.ID, CollapseDeepestExpandedLevelAction.LABEL), 'Search: Collapse All', category);
 
@@ -581,10 +600,16 @@ configurationRegistry.registerConfiguration({
 			included: platform.isMacintosh
 		},
 		'search.location': {
+			type: 'string',
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
 			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space. Next release search in panel will have improved horizontal layout and this will no longer be a preview."),
 		},
+		'search.enableSearchProviders': {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('search.enableSearchProviders', " (Experimental) Controls whether search provider extensions should be enabled.")
+		}
 	}
 });
 

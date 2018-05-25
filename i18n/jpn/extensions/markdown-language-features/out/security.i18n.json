@@ -8,6 +8,8 @@
 	],
 	"strict.title": "高レベル",
 	"strict.description": "セキュリティで保護されたコンテンツのみを読み込む",
+	"insecureLocalContent.title": "安全でないローカル コンテンツを許可する",
+	"insecureLocalContent.description": "localhost から http で提供されるコンテンツの読み込みを有効にします",
 	"insecureContent.title": "セキュリティで保護されていないコンテンツを許可する",
 	"insecureContent.description": "HTTP を介したコンテンツの読み込みを有効にする",
 	"disable.title": "無効にする",

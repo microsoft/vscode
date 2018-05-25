@@ -92,10 +92,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			args = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
-					return extHostTypeConverter.fromPosition(value);
+					return extHostTypeConverter.Position.from(value);
 				}
 				if (value instanceof extHostTypes.Range) {
-					return extHostTypeConverter.fromRange(value);
+					return extHostTypeConverter.Range.from(value);
 				}
 				if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);

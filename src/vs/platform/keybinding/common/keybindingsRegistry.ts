@@ -220,7 +220,7 @@ class KeybindingsRegistryImpl implements IKeybindingsRegistry {
 		this._keybindings.push({
 			keybinding: keybinding,
 			command: commandId,
-			commandArgs: null,
+			commandArgs: undefined,
 			when: when,
 			weight1: weight1,
 			weight2: weight2

@@ -12,7 +12,7 @@ import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -41,6 +41,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { getMultiSelectedEditorContexts } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
 // Commands
 
@@ -76,8 +77,9 @@ export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
-	const windowsService = accessor.get(IWindowsService);
-	windowsService.openWindow(paths, { forceNewWindow });
+	const windowService = accessor.get(IWindowService);
+
+	windowService.openWindow(paths, { forceNewWindow });
 };
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
@@ -322,7 +324,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 			const name = paths.basename(uri.fsPath);
 			const editorLabel = nls.localize('modifiedLabel', "{0} (on disk) ↔ {1}", name, name);
 
-			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: resource, label: editorLabel }).then(() => void 0);
+			return editorService.openEditor({ leftResource: URI.from({ scheme: COMPARE_WITH_SAVED_SCHEMA, path: uri.fsPath }), rightResource: uri, label: editorLabel }).then(() => void 0);
 		}
 
 		return TPromise.as(true);
@@ -386,9 +388,11 @@ CommandsRegistry.registerCommand({
 	}
 });
 
-function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService): void {
+function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, notificationService: INotificationService, workspaceContextService: IWorkspaceContextService): void {
 	if (resources.length) {
 		sequence(resources.map(r => () => windowsService.showItemInFolder(paths.normalize(r.fsPath, true))));
+	} else if (workspaceContextService.getWorkspace().folders.length) {
+		windowsService.showItemInFolder(paths.normalize(workspaceContextService.getWorkspace().folders[0].uri.fsPath, true));
 	} else {
 		notificationService.info(nls.localize('openFileToReveal', "Open a file first to reveal"));
 	}
@@ -396,14 +400,14 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
+	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
 	},
 	handler: (accessor: ServicesAccessor, resource: URI | object) => {
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), accessor.get(IWorkbenchEditorService));
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -415,7 +419,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const editorService = accessor.get(IWorkbenchEditorService);
 		const activeInput = editorService.getActiveEditorInput();
 		const resources = activeInput && activeInput.getResource() ? [activeInput.getResource()] : [];
-		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService));
+		revealResourcesInOS(resources, accessor.get(IWindowsService), accessor.get(INotificationService), accessor.get(IWorkspaceContextService));
 	}
 });
 
@@ -430,7 +434,7 @@ function resourcesToClipboard(resources: URI[], clipboardService: IClipboardServ
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: ExplorerFocusCondition,
+	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C

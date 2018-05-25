@@ -658,7 +658,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							label: localize('installAll', "Install All"),
 							run: () => {
 								/* __GDPR__
-								"extensionRecommendations:popup" : {
+								"extensionWorkspaceRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 								*/
@@ -674,7 +674,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							label: localize('showRecommendations', "Show Recommendations"),
 							run: () => {
 								/* __GDPR__
-									"extensionRecommendations:popup" : {
+									"extensionWorkspaceRecommendations:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
@@ -691,7 +691,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							isSecondary: true,
 							run: () => {
 								/* __GDPR__
-									"extensionRecommendations:popup" : {
+									"extensionWorkspaceRecommendations:popup" : {
 										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 									}
 								*/
@@ -703,7 +703,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						}],
 						() => {
 							/* __GDPR__
-								"extensionRecommendations:popup" : {
+								"extensionWorkspaceRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/

@@ -119,6 +119,7 @@ export interface IWindowsMainService {
 
 export interface IOpenConfiguration {
 	context: OpenContext;
+	contextWindowId?: number;
 	cli: ParsedArgs;
 	userEnv?: IProcessEnvironment;
 	pathsToOpen?: string[];

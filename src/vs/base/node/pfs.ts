@@ -99,6 +99,7 @@ const writeFilePathQueue: { [path: string]: Queue<void> } = Object.create(null);
 
 export function writeFile(path: string, data: string, options?: extfs.IWriteFileOptions): TPromise<void>;
 export function writeFile(path: string, data: NodeBuffer, options?: extfs.IWriteFileOptions): TPromise<void>;
+export function writeFile(path: string, data: Uint8Array, options?: extfs.IWriteFileOptions): TPromise<void>;
 export function writeFile(path: string, data: NodeJS.ReadableStream, options?: extfs.IWriteFileOptions): TPromise<void>;
 export function writeFile(path: string, data: any, options?: extfs.IWriteFileOptions): TPromise<void> {
 	const queueKey = toQueueKey(path);

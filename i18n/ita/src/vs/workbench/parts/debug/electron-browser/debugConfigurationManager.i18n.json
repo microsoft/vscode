@@ -35,7 +35,7 @@
 	"useUniqueNames": "Usare nomi di configurazione univoci.",
 	"app.launch.json.compound.folder": "Nome della cartella in cui si trova l'elemento compounds.",
 	"app.launch.json.compounds.configurations": "Nomi delle configurazioni che verranno avviate per questo elemento compounds.",
-	"debugNoType": "L'adattatore di debug 'type' non può essere omesso e deve essere di tipo 'string'.",
+	"debugNoType": "Il \"tipo\" del debugger non può essere omesso e deve essere di tipo \"string\"",
 	"selectDebug": "Seleziona ambiente",
 	"DebugConfig.failed": "Non è possibile creare il file 'launch.json' all'interno della cartella '.vscode' ({0}).",
 	"workspace": "area di lavoro",

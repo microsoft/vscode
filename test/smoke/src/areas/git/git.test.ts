@@ -11,6 +11,13 @@ const SYNC_STATUSBAR = 'div[id="workbench.parts.statusbar"] .statusbar-entry a[t
 
 export function setup() {
 	describe('Git', () => {
+		before(async function () {
+			const app = this.app as Application;
+
+			cp.execSync('git config user.name testuser', { cwd: app.workspacePath });
+			cp.execSync('git config user.email monacotools@microsoft.com', { cwd: app.workspacePath });
+		});
+
 		it('reflects working tree changes', async function () {
 			const app = this.app as Application;
 
@@ -63,7 +70,7 @@ export function setup() {
 			await app.workbench.scm.commit('first commit');
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 1↑');
 
-			await app.workbench.runCommand('Git: Stage All Changes');
+			await app.workbench.quickopen.runCommand('Git: Stage All Changes');
 			await app.workbench.scm.waitForChange('index.jade', 'Index Modified');
 
 			await app.workbench.scm.commit('second commit');

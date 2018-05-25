@@ -27,6 +27,7 @@ export interface IDriver {
 	_serviceBrand: any;
 
 	getWindowIds(): TPromise<number[]>;
+	capturePage(windowId: number): TPromise<string>;
 	reloadWindow(windowId: number): TPromise<void>;
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): TPromise<void>;
@@ -38,11 +39,13 @@ export interface IDriver {
 	getElements(windowId: number, selector: string, recursive?: boolean): TPromise<IElement[]>;
 	typeInEditor(windowId: number, selector: string, text: string): TPromise<void>;
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]>;
+	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void>;
 }
 //*END
 
 export interface IDriverChannel extends IChannel {
 	call(command: 'getWindowIds'): TPromise<number[]>;
+	call(command: 'capturePage'): TPromise<string>;
 	call(command: 'reloadWindow', arg: number): TPromise<void>;
 	call(command: 'dispatchKeybinding', arg: [number, string]): TPromise<void>;
 	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): TPromise<void>;
@@ -54,6 +57,7 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'getElements', arg: [number, string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTerminalBuffer', arg: [number, string]): TPromise<string[]>;
+	call(command: 'writeInTerminal', arg: [number, string, string]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -64,6 +68,7 @@ export class DriverChannel implements IDriverChannel {
 	call(command: string, arg?: any): TPromise<any> {
 		switch (command) {
 			case 'getWindowIds': return this.driver.getWindowIds();
+			case 'capturePage': return this.driver.capturePage(arg);
 			case 'reloadWindow': return this.driver.reloadWindow(arg);
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
@@ -75,6 +80,7 @@ export class DriverChannel implements IDriverChannel {
 			case 'getElements': return this.driver.getElements(arg[0], arg[1], arg[2]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1], arg[2]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg[0], arg[1]);
+			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1], arg[2]);
 		}
 
 		return undefined;
@@ -89,6 +95,10 @@ export class DriverChannelClient implements IDriver {
 
 	getWindowIds(): TPromise<number[]> {
 		return this.channel.call('getWindowIds');
+	}
+
+	capturePage(windowId: number): TPromise<string> {
+		return this.channel.call('capturePage', windowId);
 	}
 
 	reloadWindow(windowId: number): TPromise<void> {
@@ -134,15 +144,23 @@ export class DriverChannelClient implements IDriver {
 	getTerminalBuffer(windowId: number, selector: string): TPromise<string[]> {
 		return this.channel.call('getTerminalBuffer', [windowId, selector]);
 	}
+
+	writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
+		return this.channel.call('writeInTerminal', [windowId, selector, text]);
+	}
+}
+
+export interface IDriverOptions {
+	verbose: boolean;
 }
 
 export interface IWindowDriverRegistry {
-	registerWindowDriver(windowId: number): TPromise<void>;
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions>;
 	reloadWindowDriver(windowId: number): TPromise<void>;
 }
 
 export interface IWindowDriverRegistryChannel extends IChannel {
-	call(command: 'registerWindowDriver', arg: number): TPromise<void>;
+	call(command: 'registerWindowDriver', arg: number): TPromise<IDriverOptions>;
 	call(command: 'reloadWindowDriver', arg: number): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
@@ -167,7 +185,7 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 
 	constructor(private channel: IWindowDriverRegistryChannel) { }
 
-	registerWindowDriver(windowId: number): TPromise<void> {
+	registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
 		return this.channel.call('registerWindowDriver', windowId);
 	}
 
@@ -186,6 +204,7 @@ export interface IWindowDriver {
 	getElements(selector: string, recursive: boolean): TPromise<IElement[]>;
 	typeInEditor(selector: string, text: string): TPromise<void>;
 	getTerminalBuffer(selector: string): TPromise<string[]>;
+	writeInTerminal(selector: string, text: string): TPromise<void>;
 }
 
 export interface IWindowDriverChannel extends IChannel {
@@ -198,6 +217,7 @@ export interface IWindowDriverChannel extends IChannel {
 	call(command: 'getElements', arg: [string, boolean]): TPromise<IElement[]>;
 	call(command: 'typeInEditor', arg: [string, string]): TPromise<void>;
 	call(command: 'getTerminalBuffer', arg: string): TPromise<string[]>;
+	call(command: 'writeInTerminal', arg: [string, string]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -216,6 +236,7 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 			case 'getElements': return this.driver.getElements(arg[0], arg[1]);
 			case 'typeInEditor': return this.driver.typeInEditor(arg[0], arg[1]);
 			case 'getTerminalBuffer': return this.driver.getTerminalBuffer(arg);
+			case 'writeInTerminal': return this.driver.writeInTerminal(arg[0], arg[1]);
 		}
 
 		return undefined;
@@ -262,5 +283,9 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	getTerminalBuffer(selector: string): TPromise<string[]> {
 		return this.channel.call('getTerminalBuffer', selector);
+	}
+
+	writeInTerminal(selector: string, text: string): TPromise<void> {
+		return this.channel.call('writeInTerminal', [selector, text]);
 	}
 }

@@ -13,7 +13,7 @@ import { IDisposable, dispose, toDisposable, empty as EmptyDisposable, combinedD
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter, anyEvent as anyEvent, filterEvent, once } from 'vs/base/common/event';
 import * as ext from 'vs/workbench/common/contributions';
-import { CodeEditor } from 'vs/editor/browser/codeEditor';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -172,7 +172,7 @@ function getOuterEditorFromDiffEditor(accessor: ServicesAccessor): ICodeEditor {
 	const diffEditors = accessor.get(ICodeEditorService).listDiffEditors();
 
 	for (const diffEditor of diffEditors) {
-		if (diffEditor.isFocused() && diffEditor instanceof EmbeddedDiffEditorWidget) {
+		if (diffEditor.hasTextFocus() && diffEditor instanceof EmbeddedDiffEditorWidget) {
 			return diffEditor.getParentEditor();
 		}
 	}
@@ -705,7 +705,7 @@ export class DirtyDiffController implements IEditorContribution {
 		}
 
 		const data = e.target.detail as IMarginData;
-		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth;
+		const gutterOffsetX = data.offsetX - data.glyphMarginWidth - data.lineNumbersWidth - data.glyphMarginLeft;
 
 		// TODO@joao TODO@alex TODO@martin this is such that we don't collide with folding
 		if (gutterOffsetX > 10) {
@@ -1190,11 +1190,11 @@ export class DirtyDiffWorkbenchController implements ext.IWorkbenchContribution,
 			.map(e => e.getControl())
 
 			// only interested in code editor widgets
-			.filter(c => c instanceof CodeEditor)
+			.filter(c => c instanceof CodeEditorWidget)
 
 			// set model registry and map to models
 			.map(editor => {
-				const codeEditor = editor as CodeEditor;
+				const codeEditor = editor as CodeEditorWidget;
 				const controller = DirtyDiffController.get(codeEditor);
 				controller.modelRegistry = this;
 				return codeEditor.getModel();

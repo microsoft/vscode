@@ -63,7 +63,8 @@ import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKe
 import { ITextBufferFactory, DefaultEndOfLine, EndOfLinePreference } from 'vs/editor/common/model';
 import { Range } from 'vs/editor/common/core/range';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
-import { INotificationService, INotificationHandle, INotification, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -303,33 +304,6 @@ export class TestHistoryService implements IHistoryService {
 
 	public getLastActiveFile(): URI {
 		return void 0;
-	}
-}
-
-export class TestNotificationService implements INotificationService {
-
-	public _serviceBrand: any;
-
-	private static readonly NO_OP: INotificationHandle = new NoOpNotification();
-
-	public info(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Info, message });
-	}
-
-	public warn(message: string): INotificationHandle {
-		return this.notify({ severity: Severity.Warning, message });
-	}
-
-	public error(error: string | Error): INotificationHandle {
-		return this.notify({ severity: Severity.Error, message: error });
-	}
-
-	public notify(notification: INotification): INotificationHandle {
-		return TestNotificationService.NO_OP;
-	}
-
-	public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void): INotificationHandle {
-		return TestNotificationService.NO_OP;
 	}
 }
 
@@ -799,6 +773,12 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
+	onDidChangeFileSystemProviderRegistrations = Event.None;
+
+	registerProvider(scheme: string, provider) {
+		return { dispose() { } };
+	}
+
 	canHandleResource(resource: URI): boolean {
 		return resource.scheme === 'file';
 	}
@@ -955,6 +935,10 @@ export class TestWindowService implements IWindowService {
 	}
 
 	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1145,7 +1129,7 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

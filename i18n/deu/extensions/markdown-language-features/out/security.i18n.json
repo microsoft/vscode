@@ -8,6 +8,8 @@
 	],
 	"strict.title": "Strict",
 	"strict.description": "Nur sicheren Inhalt laden",
+	"insecureLocalContent.title": "Unsichere lokale Inhalte zulassen",
+	"insecureLocalContent.description": "Laden von Inhalten über HTTP von localhost aktivieren",
 	"insecureContent.title": "Unsicheren Inhalt zulassen",
 	"insecureContent.description": "Laden von Inhalten über HTTP aktivieren",
 	"disable.title": "Deaktivieren",

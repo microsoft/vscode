@@ -7,7 +7,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as nls from 'vs/nls';
 import { Delayer } from 'vs/base/common/async';
 import * as arrays from 'vs/base/common/arrays';
-import * as strings from 'vs/base/common/strings';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Position } from 'vs/editor/common/core/position';
 import { IAction } from 'vs/base/common/actions';
@@ -25,7 +24,6 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { SettingsGroupTitleWidget, EditPreferenceWidget, SettingsHeaderWidget, DefaultSettingsHeaderWidget, FloatingClickWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RangeHighlightDecorations } from 'vs/workbench/browser/parts/editor/rangeDecorations';
-import { IMarkerService, IMarkerData, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -188,7 +186,6 @@ export class UserSettingsRenderer extends Disposable implements IPreferencesRend
 
 export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
 
-	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 	private workspaceConfigurationRenderer: WorkspaceConfigurationRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
@@ -198,7 +195,6 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 		this.workspaceConfigurationRenderer = this._register(instantiationService.createInstance(WorkspaceConfigurationRenderer, editor, preferencesModel));
 	}
 
@@ -213,14 +209,11 @@ export class WorkspaceSettingsRenderer extends UserSettingsRenderer implements I
 
 	public render(): void {
 		super.render();
-		this.unsupportedSettingsRenderer.render();
 		this.workspaceConfigurationRenderer.render(this.getAssociatedPreferencesModel());
 	}
 }
 
 export class FolderSettingsRenderer extends UserSettingsRenderer implements IPreferencesRenderer<ISetting> {
-
-	private unsupportedSettingsRenderer: UnsupportedSettingsRenderer;
 
 	constructor(editor: ICodeEditor, preferencesModel: SettingsEditorModel,
 		@IPreferencesService preferencesService: IPreferencesService,
@@ -229,17 +222,12 @@ export class FolderSettingsRenderer extends UserSettingsRenderer implements IPre
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
 		super(editor, preferencesModel, preferencesService, configurationService, instantiationService);
-		this.unsupportedSettingsRenderer = this._register(instantiationService.createInstance(UnsupportedSettingsRenderer, editor, preferencesModel));
 	}
 
 	protected createHeader(): void {
 		this._register(new SettingsHeaderWidget(this.editor, '')).setMessage(nls.localize('emptyFolderSettingsHeader', "Place your folder settings here to overwrite those from the Workspace Settings."));
 	}
 
-	public render(): void {
-		super.render();
-		this.unsupportedSettingsRenderer.render();
-	}
 }
 
 export class DefaultSettingsRenderer extends Disposable implements IPreferencesRenderer<ISetting> {
@@ -606,8 +594,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super();
 	}
@@ -690,86 +677,90 @@ export class FeedbackWidgetRenderer extends Disposable {
 	}
 
 	private sendFeedback(feedbackEditor: ICodeEditor, result: IFilterResult, scoredResults: IScoredResults): TPromise<void> {
-		const model = feedbackEditor.getModel();
-		const expectedQueryLines = model.getLinesContent()
-			.filter(line => !strings.startsWith(line, '//'));
+		// const model = feedbackEditor.getModel();
+		// const expectedQueryLines = model.getLinesContent()
+		// 	.filter(line => !strings.startsWith(line, '//'));
 
-		let expectedQuery: any;
-		try {
-			expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
-		} catch (e) {
-			// invalid JSON
-			return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
-		}
+		// let expectedQuery: any;
+		// try {
+		// 	expectedQuery = JSON.parse(expectedQueryLines.join('\n'));
+		// } catch (e) {
+		// 	// invalid JSON
+		// 	return TPromise.wrapError(new Error('Invalid JSON: ' + e.message));
+		// }
 
-		const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
+		// const userComment = expectedQuery.comment === FeedbackWidgetRenderer.DEFAULT_COMMENT_TEXT ? undefined : expectedQuery.comment;
 
-		// validate alts
-		if (!this.validateAlts(expectedQuery.alts)) {
-			return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
-		}
+		// // validate alts
+		// if (!this.validateAlts(expectedQuery.alts)) {
+		// 	return TPromise.wrapError(new Error('alts must be an array of 2-element string arrays'));
+		// }
 
-		const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
-		const alts = altsAdded ? expectedQuery.alts : undefined;
-		const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
-		const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
+		// const altsAdded = expectedQuery.alts && expectedQuery.alts.length;
+		// const alts = altsAdded ? expectedQuery.alts : undefined;
+		// const workbenchSettings = this.configurationService.getValue<IWorkbenchSettingsConfiguration>().workbench.settings;
+		// const autoIngest = workbenchSettings.naturalLanguageSearchAutoIngestFeedback;
 
-		const nlpMetadata = result.metadata && result.metadata['nlpResult'];
-		const duration = nlpMetadata && nlpMetadata.duration;
-		const requestBody = nlpMetadata && nlpMetadata.requestBody;
+		// const nlpMetadata = result.metadata && result.metadata['nlpResult'];
+		// const duration = nlpMetadata && nlpMetadata.duration;
+		// const requestBody = nlpMetadata && nlpMetadata.requestBody;
 
-		const actualResultScores = {};
-		for (let key in scoredResults) {
-			actualResultScores[key] = {
-				score: scoredResults[key].score
-			};
-		}
+		// const actualResultScores = {};
+		// for (let key in scoredResults) {
+		// 	actualResultScores[key] = {
+		// 		score: scoredResults[key].score
+		// 	};
+		// }
 
-		/* __GDPR__
-			"settingsSearchResultFeedback" : {
-				"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-				"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
-		return this.telemetryService.publicLog('settingsSearchResultFeedback', {
-			query: result.query,
-			requestBody,
-			userComment,
-			actualResults: actualResultScores,
-			expectedResults: expectedQuery.resultScores,
-			duration,
-			buildNumber: this.environmentService.settingsSearchBuildId,
-			alts,
-			autoIngest
-		});
+		// /* __GDPR__
+		// 	"settingsSearchResultFeedback" : {
+		// 		"query" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"requestBody" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"userComment" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
+		// 		"actualResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"expectedResults" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"duration" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		// 		"buildNumber" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		// 		"alts" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		// 		"autoIngest" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+		// 	}
+		// */
+		// return this.telemetryService.publicLog('settingsSearchResultFeedback', {
+		// 	query: result.query,
+		// 	requestBody,
+		// 	userComment,
+		// 	actualResults: actualResultScores,
+		// 	expectedResults: expectedQuery.resultScores,
+		// 	duration,
+		// 	buildNumber: this.environmentService.settingsSearchBuildId,
+		// 	alts,
+		// 	autoIngest
+		// });
+
+		// TODO@roblou - reduce GDPR-relevant telemetry by removing this, but it's still helpful for personal use.
+		// Consider changing this to write to disk.
+		return TPromise.wrap(null);
 	}
 
-	private validateAlts(alts?: string[][]): boolean {
-		if (!alts) {
-			return true;
-		}
+	// private validateAlts(alts?: string[][]): boolean {
+	// 	if (!alts) {
+	// 		return true;
+	// 	}
 
-		if (!Array.isArray(alts)) {
-			return false;
-		}
+	// 	if (!Array.isArray(alts)) {
+	// 		return false;
+	// 	}
 
-		if (!alts.length) {
-			return true;
-		}
+	// 	if (!alts.length) {
+	// 		return true;
+	// 	}
 
-		if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
-			return false;
-		}
+	// 	if (!alts.every(altPair => Array.isArray(altPair) && altPair.length === 2 && typeof altPair[0] === 'string' && typeof altPair[1] === 'string')) {
+	// 		return false;
+	// 	}
 
-		return true;
-	}
+	// 	return true;
+	// }
 
 	private disposeWidget(): void {
 		if (this._feedbackWidget) {
@@ -1309,63 +1300,6 @@ class SettingHighlighter extends Disposable {
 			this.fixedHighlighter.removeHighlightRange();
 		}
 		this.clearFocusEventEmitter.fire(this.highlightedSetting);
-	}
-}
-
-class UnsupportedSettingsRenderer extends Disposable {
-
-	private renderingDelayer: Delayer<void> = new Delayer<void>(200);
-
-	constructor(
-		private editor: ICodeEditor,
-		private settingsEditorModel: SettingsEditorModel,
-		@IMarkerService private markerService: IMarkerService
-	) {
-		super();
-		this._register(this.editor.getModel().onDidChangeContent(() => this.renderingDelayer.trigger(() => this.render())));
-	}
-
-	public render(): void {
-		const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).getConfigurationProperties();
-		const markerData: IMarkerData[] = [];
-		for (const settingsGroup of this.settingsEditorModel.settingsGroups) {
-			for (const section of settingsGroup.sections) {
-				for (const setting of section.settings) {
-					if (this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE || this.settingsEditorModel.configurationTarget === ConfigurationTarget.WORKSPACE_FOLDER) {
-						// Show warnings for executable settings
-						if (configurationRegistry[setting.key] && configurationRegistry[setting.key].isExecutable) {
-							markerData.push({
-								severity: MarkerSeverity.Warning,
-								startLineNumber: setting.keyRange.startLineNumber,
-								startColumn: setting.keyRange.startColumn,
-								endLineNumber: setting.keyRange.endLineNumber,
-								endColumn: setting.keyRange.endColumn,
-								message: this.getMarkerMessage(setting.key)
-							});
-						}
-					}
-				}
-			}
-		}
-		if (markerData.length) {
-			this.markerService.changeOne('preferencesEditor', this.settingsEditorModel.uri, markerData);
-		} else {
-			this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
-		}
-	}
-
-	private getMarkerMessage(settingKey: string): string {
-		switch (settingKey) {
-			case 'php.validate.executablePath':
-				return nls.localize('unsupportedPHPExecutablePathSetting', "This setting must be a User Setting. To configure PHP for the workspace, open a PHP file and click on 'PHP Path' in the status bar.");
-			default:
-				return nls.localize('unsupportedWorkspaceSetting', "This setting must be a User Setting.");
-		}
-	}
-
-	public dispose(): void {
-		this.markerService.remove('preferencesEditor', [this.settingsEditorModel.uri]);
-		super.dispose();
 	}
 }
 

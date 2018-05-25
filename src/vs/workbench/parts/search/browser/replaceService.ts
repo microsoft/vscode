@@ -15,7 +15,6 @@ import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/edi
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
-import { BulkEdit } from 'vs/editor/browser/services/bulkEdit';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -23,10 +22,10 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
 import { ITextModel } from 'vs/editor/common/model';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IFileService } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 const REPLACE_PREVIEW = 'replacePreview';
 
@@ -95,10 +94,10 @@ export class ReplaceService implements IReplaceService {
 	public _serviceBrand: any;
 
 	constructor(
-		@IFileService private fileService: IFileService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEditorService private editorService: IWorkbenchEditorService,
-		@ITextModelService private textModelResolverService: ITextModelService
+		@ITextModelService private textModelResolverService: ITextModelService,
+		@IBulkEditService private bulkEditorService: IBulkEditService
 	) { }
 
 	public replace(match: Match): TPromise<any>;
@@ -107,8 +106,6 @@ export class ReplaceService implements IReplaceService {
 	public replace(arg: any, progress: IProgressRunner = null, resource: URI = null): TPromise<any> {
 
 		const edits: ResourceTextEdit[] = [];
-
-		let bulkEdit = new BulkEdit(null, progress, this.textModelResolverService, this.fileService);
 
 		if (arg instanceof Match) {
 			let match = <Match>arg;
@@ -128,8 +125,8 @@ export class ReplaceService implements IReplaceService {
 			});
 		}
 
-		bulkEdit.add(edits);
-		return bulkEdit.perform().then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
+		return this.bulkEditorService.apply({ edits }, { progress }).then(() => this.textFileService.saveAll(edits.map(e => e.resource)));
+
 	}
 
 	public openReplacePreview(element: FileMatchOrMatch, preserveFocus?: boolean, sideBySide?: boolean, pinned?: boolean): TPromise<any> {

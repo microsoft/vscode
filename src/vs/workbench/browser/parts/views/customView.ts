@@ -5,13 +5,13 @@
 
 import 'vs/css!./media/views';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { ITree, IDataSource, IRenderer, ContextMenuEvent } from 'vs/base/parts/tree/browser/tree';
-import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, ICustomViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
+import { TreeItemCollapsibleState, ITreeItem, ITreeViewer, IViewsService, ITreeViewDataProvider, ViewsRegistry, IViewDescriptor, TreeViewItemHandleArg, ICustomViewDescriptor, IViewsViewlet, ViewLocation } from 'vs/workbench/common/views';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -32,8 +32,9 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { Emitter, Event } from 'vs/base/common/event';
 
-export class CustomViewsService extends Disposable implements ICustomViewsService {
+export class CustomViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
 
@@ -56,12 +57,17 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 	openView(id: string, focus: boolean): TPromise<void> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
-			return this.viewletService.openViewlet(viewDescriptor.id)
-				.then((viewlet: IViewsViewlet) => {
-					if (viewlet && viewlet.openView) {
-						viewlet.openView(id, focus);
-					}
-				});
+			const viewletId = viewDescriptor.location === ViewLocation.SCM ? 'workbench.view.scm' : viewDescriptor.location.id;
+			const viewletDescriptor = this.viewletService.getViewlet(viewletId);
+			if (viewletDescriptor) {
+				return this.viewletService.openViewlet(viewletDescriptor.id)
+					.then((viewlet: IViewsViewlet) => {
+						if (viewlet && viewlet.openView) {
+							return viewlet.openView(id, focus);
+						}
+						return null;
+					});
+			}
 		}
 		return TPromise.as(null);
 	}
@@ -69,7 +75,7 @@ export class CustomViewsService extends Disposable implements ICustomViewsServic
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {
 		for (const viewDescriptor of viewDescriptors) {
 			if ((<ICustomViewDescriptor>viewDescriptor).treeView) {
-				this.viewers.set(viewDescriptor.id, this.instantiationService.createInstance(CustomTreeViewer, viewDescriptor.id));
+				this.viewers.set(viewDescriptor.id, this.instantiationService.createInstance(CustomTreeViewer, viewDescriptor.id, viewDescriptor.location));
 			}
 		}
 	}
@@ -106,10 +112,19 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private elementsToRefresh: ITreeItem[] = [];
 
 	private _dataProvider: ITreeViewDataProvider;
-	private dataProviderDisposables: IDisposable[] = [];
+
+	private _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
+
+	private _onDidCollapseItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
+	readonly onDidCollapseItem: Event<ITreeItem> = this._onDidCollapseItem.event;
+
+	private _onDidChangeSelection: Emitter<ITreeItem[]> = this._register(new Emitter<ITreeItem[]>());
+	readonly onDidChangeSelection: Event<ITreeItem[]> = this._onDidChangeSelection.event;
 
 	constructor(
 		private id: string,
+		private location: ViewLocation,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -126,11 +141,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider) {
-		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				onDidChange = dataProvider.onDidChange;
-				onDispose = dataProvider.onDispose;
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
 					if (node && node.children) {
 						return TPromise.as(node.children);
@@ -142,8 +154,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			this._register(dataProvider.onDidChange(elements => this.refresh(elements), this, this.dataProviderDisposables));
-			this._register(dataProvider.onDispose(() => this.dataProvider = null, this, this.dataProviderDisposables));
 		} else {
 			this._dataProvider = null;
 		}
@@ -212,14 +222,29 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(Menus, this.id);
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.getProgressLocation());
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
 		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
 		this.tree.contextKeyService.createKey<boolean>(this.id, true);
 		this._register(this.tree);
 		this._register(this.tree.onDidChangeSelection(e => this.onSelection(e)));
+		this._register(this.tree.onDidExpandItem(e => this._onDidExpandItem.fire(e.item.getElement())));
+		this._register(this.tree.onDidCollapseItem(e => this._onDidCollapseItem.fire(e.item.getElement())));
+		this._register(this.tree.onDidChangeSelection(e => this._onDidChangeSelection.fire(e.selection)));
 		this.tree.setInput(this.root);
+	}
+
+	private getProgressLocation(): ProgressLocation {
+		switch (this.location.id) {
+			case ViewLocation.Explorer.id:
+				return ProgressLocation.Explorer;
+			case ViewLocation.SCM.id:
+				return ProgressLocation.Scm;
+			case ViewLocation.Debug.id:
+				return null /* No debug progress location yet */;
+		}
+		return null;
 	}
 
 	layout(size: number) {
@@ -256,17 +281,21 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
 		if (this.tree && this.isVisible) {
 			options = options ? options : { select: true };
-			const select = isUndefinedOrNull(options.select) ? true : options.select;
-			var result = TPromise.as(null);
-			parentChain.forEach((e) => {
-				result = result.then(() => this.tree.expand(e));
-			});
-			return result.then(() => this.tree.reveal(item))
-				.then(() => {
-					if (select) {
-						this.tree.setSelection([item], { source: 'api' });
-					}
+			const root: Root = this.tree.getInput();
+			const promise = root.children ? TPromise.as(null) : this.refresh(); // Refresh if root is not populated
+			return promise.then(() => {
+				const select = isUndefinedOrNull(options.select) ? true : options.select;
+				var result = TPromise.as(null);
+				parentChain.forEach((e) => {
+					result = result.then(() => this.tree.expand(e));
 				});
+				return result.then(() => this.tree.reveal(item))
+					.then(() => {
+						if (select) {
+							this.tree.setSelection([item], { source: 'api' });
+						}
+					});
+			});
 		}
 		return TPromise.as(null);
 	}
@@ -308,6 +337,7 @@ class TreeDataSource implements IDataSource {
 
 	constructor(
 		private treeView: ITreeViewer,
+		private location: ProgressLocation,
 		@IProgressService2 private progressService: IProgressService2
 	) {
 	}
@@ -322,7 +352,7 @@ class TreeDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
-			return this.progressService.withProgress({ location: ProgressLocation.Explorer }, () => this.treeView.dataProvider.getChildren(node));
+			return this.location ? this.progressService.withProgress({ location: this.location }, () => this.treeView.dataProvider.getChildren(node)) : this.treeView.dataProvider.getChildren(node);
 		}
 		return TPromise.as([]);
 	}

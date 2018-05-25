@@ -5,8 +5,10 @@
 
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { Client as TelemetryClient } from 'vs/base/parts/ipc/node/ipc.cp';
 import * as strings from 'vs/base/common/strings';
 import * as objects from 'vs/base/common/objects';
+import { TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { IJSONSchema, IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IConfig, IDebuggerContribution, IAdapterExecutable, INTERNAL_CONSOLE_OPTIONS_SCHEMA, IConfigurationManager, IDebugAdapter, IDebugConfiguration, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
@@ -14,28 +16,38 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { DebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { DebugAdapter, SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
+import uri from 'vs/base/common/uri';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { memoize } from 'vs/base/common/decorators';
 
 export class Debugger {
 
-	private _mergedExtensionDescriptions: IExtensionDescription[];
+	private mergedExtensionDescriptions: IExtensionDescription[];
 
 	constructor(private configurationManager: IConfigurationManager, private debuggerContribution: IDebuggerContribution, public extensionDescription: IExtensionDescription,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ICommandService private commandService: ICommandService
+		@ICommandService private commandService: ICommandService,
+		@IConfigurationResolverService private configurationResolverService: IConfigurationResolverService,
+		@ITelemetryService private telemetryService: ITelemetryService,
 	) {
-		this._mergedExtensionDescriptions = [extensionDescription];
+		this.mergedExtensionDescriptions = [extensionDescription];
 	}
 
 	public hasConfigurationProvider = false;
 
-	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService): TPromise<IDebugAdapter> {
+	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
 		return this.getAdapterExecutable(root).then(adapterExecutable => {
-			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-			if (debugConfigs.extensionHostDebugAdapter) {
-				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable);
+			if (this.inEH()) {
+				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
 			} else {
-				return new DebugAdapter(this.type, adapterExecutable, this._mergedExtensionDescriptions, outputService);
+				if (debugPort) {
+					return new SocketDebugAdapter(debugPort);
+				} else {
+					return new DebugAdapter(this.type, adapterExecutable, this.mergedExtensionDescriptions, outputService);
+				}
 			}
 		});
 	}
@@ -59,14 +71,34 @@ export class Debugger {
 		});
 	}
 
-	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		return this.configurationManager.runInTerminal(debugConfigs && debugConfigs.extensionHostDebugAdapter, args, config);
+	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
+
+		// first resolve command variables (which might have a UI)
+		return this.configurationResolverService.executeCommandVariables(config, this.variables).then(commandValueMapping => {
+
+			if (!commandValueMapping) { // cancelled by user
+				return null;
+			}
+
+			// now substitute all other variables
+			return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
+				try {
+					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
+				} catch (e) {
+					return TPromise.wrapError(e);
+				}
+			});
+		});
 	}
 
-	public get aiKey(): string {
-		return this.debuggerContribution.aiKey;
+	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
+		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
+		return this.configurationManager.runInTerminal(this.inEH() ? this.type : '*', args, config);
+	}
+
+	private inEH(): boolean {
+		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+		return debugConfigs.extensionHostDebugAdapter;
 	}
 
 	public get label(): string {
@@ -92,7 +124,7 @@ export class Debugger {
 	public merge(secondRawAdapter: IDebuggerContribution, extensionDescription: IExtensionDescription): void {
 
 		// remember all ext descriptions that are the source of this debugger
-		this._mergedExtensionDescriptions.push(extensionDescription);
+		this.mergedExtensionDescriptions.push(extensionDescription);
 
 		// Give priority to built in debug adapters
 		if (extensionDescription.isBuiltin) {
@@ -134,6 +166,39 @@ export class Debugger {
 		}
 
 		return TPromise.as(content);
+	}
+
+	@memoize
+	public getCustomTelemetryService(): TPromise<TelemetryService> {
+		if (!this.debuggerContribution.aiKey) {
+			return TPromise.as(undefined);
+		}
+
+		return this.telemetryService.getTelemetryInfo().then(info => {
+			const telemetryInfo: { [key: string]: string } = Object.create(null);
+			telemetryInfo['common.vscodemachineid'] = info.machineId;
+			telemetryInfo['common.vscodesessionid'] = info.sessionId;
+			return telemetryInfo;
+		}).then(data => {
+			const client = new TelemetryClient(
+				uri.parse(require.toUrl('bootstrap')).fsPath,
+				{
+					serverName: 'Debug Telemetry',
+					timeout: 1000 * 60 * 5,
+					args: [`${this.extensionDescription.publisher}.${this.type}`, JSON.stringify(data), this.debuggerContribution.aiKey],
+					env: {
+						ELECTRON_RUN_AS_NODE: 1,
+						PIPE_LOGGING: 'true',
+						AMD_ENTRYPOINT: 'vs/workbench/parts/debug/node/telemetryApp'
+					}
+				}
+			);
+
+			const channel = client.getChannel('telemetryAppender');
+			const appender = new TelemetryAppenderClient(channel);
+
+			return new TelemetryService({ appender }, this.configurationService);
+		});
 	}
 
 	public getSchemaAttributes(): IJSONSchema[] {

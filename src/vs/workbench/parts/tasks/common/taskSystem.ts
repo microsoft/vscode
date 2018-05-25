@@ -8,6 +8,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
 import { Event } from 'vs/base/common/event';
+import { Platform } from 'vs/base/common/platform';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -99,6 +100,16 @@ export interface ITaskResolver {
 
 export interface TaskTerminateResponse extends TerminateResponse {
 	task: Task | undefined;
+}
+
+export interface TaskSystemInfo {
+	fileSystemScheme: string;
+	platform: Platform;
+	context: any;
+}
+
+export interface TaskSystemInfoResovler {
+	(workspaceFolder: IWorkspaceFolder): TaskSystemInfo;
 }
 
 export interface ITaskSystem {

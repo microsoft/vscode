@@ -8,6 +8,7 @@
 import { ResourceMap, TernarySearchTree, PathIterator, StringIterator, LinkedMap, Touch, LRUCache } from 'vs/base/common/map';
 import * as assert from 'assert';
 import URI from 'vs/base/common/uri';
+import { IIteratorResult } from 'vs/base/common/iterator';
 
 suite('Map', () => {
 
@@ -418,17 +419,30 @@ suite('Map', () => {
 		map.set('/user/foo/flip/flop', 3);
 		map.set('/usr/foo', 4);
 
-		const elements = map.findSuperstr('/user');
+		let item: IIteratorResult<number>;
+		let iter = map.findSuperstr('/user');
 
-		assertTernarySearchTree(elements, ['foo/bar', 1], ['foo', 2], ['foo/flip/flop', 3]);
-		// assert.equal(elements.length, 3);
-		assert.equal(elements.get('foo/bar'), 1);
-		assert.equal(elements.get('foo'), 2);
-		assert.equal(elements.get('foo/flip/flop'), 3);
+		item = iter.next();
+		assert.equal(item.value, 2);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 1);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, 3);
+		assert.equal(item.done, false);
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
 
-		assertTernarySearchTree(map.findSuperstr('/usr'), ['foo', 4]);
-		assert.equal(map.findSuperstr('/usr/foo'), undefined);
-		assert.equal(map.get('/usr/foo'), 4);
+		iter = map.findSuperstr('/usr');
+		item = iter.next();
+		assert.equal(item.value, 4);
+		assert.equal(item.done, false);
+
+		item = iter.next();
+		assert.equal(item.value, undefined);
+		assert.equal(item.done, true);
 
 		assert.equal(map.findSuperstr('/not'), undefined);
 		assert.equal(map.findSuperstr('/us'), undefined);
@@ -544,32 +558,32 @@ suite('Map', () => {
 		assert.equal(map.get(uncFile), 'true');
 	});
 
-	test('ResourceMap - files (ignorecase)', function () {
-		const map = new ResourceMap<any>(true);
+	// test('ResourceMap - files (ignorecase)', function () {
+	// 	const map = new ResourceMap<any>(true);
 
-		const fileA = URI.parse('file://some/filea');
-		const fileB = URI.parse('some://some/other/fileb');
-		const fileAUpper = URI.parse('file://SOME/FILEA');
+	// 	const fileA = URI.parse('file://some/filea');
+	// 	const fileB = URI.parse('some://some/other/fileb');
+	// 	const fileAUpper = URI.parse('file://SOME/FILEA');
 
-		map.set(fileA, 'true');
-		assert.equal(map.get(fileA), 'true');
+	// 	map.set(fileA, 'true');
+	// 	assert.equal(map.get(fileA), 'true');
 
-		assert.equal(map.get(fileAUpper), 'true');
+	// 	assert.equal(map.get(fileAUpper), 'true');
 
-		assert.ok(!map.get(fileB));
+	// 	assert.ok(!map.get(fileB));
 
-		map.set(fileAUpper, 'false');
-		assert.equal(map.get(fileAUpper), 'false');
+	// 	map.set(fileAUpper, 'false');
+	// 	assert.equal(map.get(fileAUpper), 'false');
 
-		assert.equal(map.get(fileA), 'false');
+	// 	assert.equal(map.get(fileA), 'false');
 
-		const windowsFile = URI.file('c:\\test with %25\\c#code');
-		const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
+	// 	const windowsFile = URI.file('c:\\test with %25\\c#code');
+	// 	const uncFile = URI.file('\\\\shäres\\path\\c#\\plugin.json');
 
-		map.set(windowsFile, 'true');
-		map.set(uncFile, 'true');
+	// 	map.set(windowsFile, 'true');
+	// 	map.set(uncFile, 'true');
 
-		assert.equal(map.get(windowsFile), 'true');
-		assert.equal(map.get(uncFile), 'true');
-	});
+	// 	assert.equal(map.get(windowsFile), 'true');
+	// 	assert.equal(map.get(uncFile), 'true');
+	// });
 });

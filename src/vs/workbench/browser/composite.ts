@@ -242,6 +242,10 @@ export abstract class CompositeDescriptor<T extends Composite> {
 }
 
 export abstract class CompositeRegistry<T extends Composite> {
+
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	readonly onDidRegister: Event<CompositeDescriptor<T>> = this._onDidRegister.event;
+
 	private composites: CompositeDescriptor<T>[];
 
 	constructor() {
@@ -254,6 +258,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 		}
 
 		this.composites.push(descriptor);
+		this._onDidRegister.fire(descriptor);
 	}
 
 	public getComposite(id: string): CompositeDescriptor<T> {

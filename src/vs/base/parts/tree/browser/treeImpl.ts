@@ -92,6 +92,7 @@ export class Tree implements _.ITree {
 		options.alwaysFocused = options.alwaysFocused === true ? true : false;
 		options.useShadows = options.useShadows === false ? false : true;
 		options.paddingOnRow = options.paddingOnRow === false ? false : true;
+		options.showLoading = options.showLoading === false ? false : true;
 
 		this.context = new TreeContext(this, configuration, options);
 		this.model = new Model.TreeModel(this.context);

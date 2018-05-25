@@ -45,6 +45,7 @@
 	"PatternTypeSchema.description": "Patrón de problema o nombre de un patrón de problema que se ha aportado o predefinido. Se puede omitir si se especifica la base.",
 	"ProblemMatcherSchema.base": "Nombre de un buscador de coincidencias de problemas base que se va a usar.",
 	"ProblemMatcherSchema.owner": "Propietario del problema dentro de Code. Se puede omitir si se especifica \"base\". Si se omite y no se especifica \"base\", el valor predeterminado es \"external\".",
+	"ProblemMatcherSchema.source": "Una cadena legible que describe la fuente de este diagnóstico, por ejemplo 'Inicio' o 'super pelusa'.",
 	"ProblemMatcherSchema.severity": "Gravedad predeterminada para los problemas de capturas. Se usa si el patrón no define un grupo de coincidencias para \"severity\".",
 	"ProblemMatcherSchema.applyTo": "Controla si un problema notificado en un documento de texto se aplica solamente a los documentos abiertos, cerrados o a todos los documentos.",
 	"ProblemMatcherSchema.fileLocation": "Define cómo deben interpretarse los nombres de archivo notificados en un patrón de problema.",

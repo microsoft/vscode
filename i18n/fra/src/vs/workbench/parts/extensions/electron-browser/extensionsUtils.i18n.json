@@ -8,7 +8,5 @@
 	],
 	"disableOtherKeymapsConfirmation": "Désactiver les autres mappages de touches ({0}) pour éviter les conflits de combinaisons de touches ?",
 	"yes": "Oui",
-	"no": "Non",
-	"betterMergeDisabled": "L'extension Better Merge est désormais intégrée, l'extension installée est désactivée et peut être désinstallée.",
-	"uninstall": "Désinstaller"
+	"no": "Non"
 }

@@ -64,14 +64,14 @@ let _DEFAULT_TERMINAL_WINDOWS: string = null;
 export function getDefaultTerminalWindows(): string {
 	if (!_DEFAULT_TERMINAL_WINDOWS) {
 		const isWoW64 = !!process.env.hasOwnProperty('PROCESSOR_ARCHITEW6432');
-		_DEFAULT_TERMINAL_WINDOWS = `${process.env.windir ? process.env.windir : 'C:'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
+		_DEFAULT_TERMINAL_WINDOWS = `${process.env.windir ? process.env.windir : 'C:\\Windows'}\\${isWoW64 ? 'Sysnative' : 'System32'}\\cmd.exe`;
 	}
 	return _DEFAULT_TERMINAL_WINDOWS;
 }
 
 abstract class TerminalLauncher implements ITerminalLauncher {
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return this.runInTerminal0(args.title, args.cwd, args.args, args.env, config);
+		return this.runInTerminal0(args.title, args.cwd, args.args, args.env || {}, config);
 	}
 	runInTerminal0(title: string, dir: string, args: string[], envVars: env.IProcessEnvironment, config): TPromise<void> {
 		return void 0;

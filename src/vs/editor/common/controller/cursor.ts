@@ -87,6 +87,14 @@ export class CursorModelState {
 
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
+	public static MAX_CURSOR_COUNT = 10000;
+
+	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;
+
+	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
+
 	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
@@ -185,6 +193,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
+		if (states.length > Cursor.MAX_CURSOR_COUNT) {
+			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
+			this._onDidReachMaxCursorCount.fire(void 0);
+		}
+
 		const oldState = new CursorModelState(this._model, this);
 
 		this._cursors.setStates(states);
@@ -456,11 +469,18 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		if (this._configuration.editor.readOnly) {
 			// All the remaining handlers will try to edit the model,
 			// but we cannot edit when read only...
+			this._onDidAttemptReadOnlyEdit.fire(void 0);
 			return;
 		}
 
 		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
+
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			// TODO@Alex: if the undo/redo stack contains non-null selections
+			// it would also be OK to stop tracking selections here
+			this._cursors.stopTrackingSelections();
+		}
 
 		// ensure valid state on all cursors
 		this._cursors.ensureValidState();
@@ -509,6 +529,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 
 		this._isHandling = false;
+
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			this._cursors.startTrackingSelections();
+		}
 
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);

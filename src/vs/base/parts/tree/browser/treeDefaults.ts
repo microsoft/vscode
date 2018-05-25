@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -62,7 +62,17 @@ export class KeybindingDispatcher {
 		this._arr = [];
 	}
 
-	public set(keybinding: number, callback: IKeyBindingCallback) {
+	public has(keybinding: KeyCode): boolean {
+		let target = createSimpleKeybinding(keybinding, platform.OS);
+		for (const a of this._arr) {
+			if (target.equals(a.keybinding)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
 		this._arr.push({
 			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
@@ -203,7 +213,7 @@ export class DefaultController implements _.IController {
 		// the twistie is drawn, but the <div class="content"> element in the
 		// tree item is the only thing we get back as target when the user clicks
 		// on the twistie.
-		return target && target.className === 'content' && dom.hasClass(target.parentElement, 'monaco-tree-row');
+		return target && dom.hasClass(target, 'content') && dom.hasClass(target.parentElement, 'monaco-tree-row');
 	}
 
 	public onContextMenu(tree: _.ITree, element: any, event: _.ContextMenuEvent): boolean {

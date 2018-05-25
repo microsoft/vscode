@@ -29,14 +29,16 @@ export function setup() {
 		});
 
 		it('verifies that warning becomes an error once setting changed', async function () {
+			// settings might take a while to update?
+			this.timeout(40000);
+
 			const app = this.app as Application;
 			await app.workbench.settingsEditor.addUserSetting('css.lint.emptyRules', '"error"');
 			await app.workbench.quickopen.openFile('style.css');
-			await app.workbench.editor.waitForTypeInEditor('style.css', '.foo{}');
 
 			await app.code.waitForElement(Problems.getSelectorInEditor(ProblemSeverity.ERROR));
 
-			const problems = new Problems(app.code, app.workbench);
+			const problems = new Problems(app.code);
 			await problems.showProblemsView();
 			await app.code.waitForElement(Problems.getSelectorInProblemsView(ProblemSeverity.ERROR));
 			await problems.hideProblemsView();
