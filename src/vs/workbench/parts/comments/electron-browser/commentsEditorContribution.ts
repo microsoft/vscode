@@ -54,7 +54,6 @@ export class ReviewController implements IEditorContribution {
 	private globalToDispose: IDisposable[];
 	private localToDispose: IDisposable[];
 	private editor: ICodeEditor;
-	private decorationIDs: string[];
 	private _newCommentWidget: ReviewZoneWidget;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
@@ -78,7 +77,6 @@ export class ReviewController implements IEditorContribution {
 		this.editor = editor;
 		this.globalToDispose = [];
 		this.localToDispose = [];
-		this.decorationIDs = [];
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._newCommentWidget = null;
@@ -89,10 +87,6 @@ export class ReviewController implements IEditorContribution {
 		this._reviewModel = new ReviewModel();
 
 		this._reviewModel.onDidChangeStyle(style => {
-			this.editor.changeDecorations(accessor => {
-				this.decorationIDs = accessor.deltaDecorations(this.decorationIDs, []);
-			});
-
 			if (this._newCommentWidget) {
 				this._newCommentWidget.dispose();
 				this._newCommentWidget = null;
