@@ -71,7 +71,7 @@ export function* parseDiffHunk(diffHunkPatch: string): IterableIterator<DiffHunk
 			const newLen = Number(matches[7]) | 0;
 
 			diffHunk = new DiffHunk(oriStartLine, oriLen, newStartLine, newLen, positionInHunk);
-			diffHunk.diffLines.push(new DiffLine(DiffChangeType.Context, oriStartLine, newStartLine, positionInHunk, line));
+			diffHunk.diffLines.push(new DiffLine(DiffChangeType.Control, oriStartLine, newStartLine, positionInHunk, line));
 		} else if (diffHunk !== null) {
 			let type = getDiffChangeType(line);
 
@@ -136,7 +136,7 @@ async function parseModifiedHunkComplete(originalContent, patch, a, b) {
 
 		for (let j = 0; j < diffHunk.diffLines.length; j++) {
 			let diffLine = diffHunk.diffLines[j];
-			if (diffLine.type === DiffChangeType.Delete) {
+			if (diffLine.type === DiffChangeType.Delete || diffLine.type === DiffChangeType.Control) {
 			} else if (diffLine.type === DiffChangeType.Add) {
 				right.push(diffLine.text);
 			} else {
@@ -177,6 +177,8 @@ async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 				right.push(diffLine.text);
 			} else if (diffLine.type === DiffChangeType.Delete) {
 				left.push(diffLine.text);
+			} else if (diffLine.type === DiffChangeType.Control) {
+				// nothing
 			} else {
 				left.push(diffLine.text);
 				right.push(diffLine.text);
