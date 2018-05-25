@@ -296,42 +296,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView Serializer
-
-	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
-	 */
-	interface WebviewPanelSerializer {
-		/**
-		 * Restore a webview panel from its seriailzed `state`.
-		 *
-		 * Called when a serialized webview first becomes visible.
-		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state.
-		 *
-		 * @return Thanble indicating that the webview has been fully restored.
-		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
-	}
-
-	namespace window {
-		/**
-		 * Registers a webview panel serializer.
-		 *
-		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
-		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
-		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
-		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param reviver Webview serializer.
-		 */
-		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
-	}
-
-	//#endregion
-
 	//#region Tasks
 
 	/**
