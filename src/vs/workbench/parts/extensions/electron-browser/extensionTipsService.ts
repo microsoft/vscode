@@ -34,7 +34,6 @@ import { getHashedRemotesFromUri } from 'vs/workbench/parts/stats/node/workspace
 import { IRequestService } from 'vs/platform/request/node/request';
 import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
-import { language, LANGUAGE_DEFAULT } from 'vs/base/common/platform';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -46,7 +45,6 @@ const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
-const coreLanguages = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'tr', 'zh-cn', 'zh-tw'];
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -93,7 +91,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
 
-		this.getLanguageExtensionRecommendations();
 		this.getCachedDynamicWorkspaceRecommendations();
 		this._suggestFileBasedRecommendations();
 		this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
@@ -131,90 +128,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private isEnabled(): boolean {
 		return this._galleryService.isEnabled() && !this.environmentService.extensionDevelopmentPath;
 	}
-
-	private getLanguageExtensionRecommendations() {
-		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
-			('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
-
-		if (!language
-			|| language === LANGUAGE_DEFAULT
-			|| coreLanguages.some(x => language === x || language.indexOf(x + '-') === 0)
-			|| config.ignoreRecommendations
-			|| config.showRecommendationsOnlyOnDemand
-			|| languagePackSuggestionIgnoreList.indexOf(language) > -1) {
-			return;
-		}
-
-		this.extensionsService.getInstalled(LocalExtensionType.User).then(locals => {
-			for (var i = 0; i < locals.length; i++) {
-				if (locals[i].manifest
-					&& locals[i].manifest.contributes
-					&& Array.isArray(locals[i].manifest.contributes.localizations)
-					&& locals[i].manifest.contributes.localizations.some(x => x.languageId === language)) {
-					return;
-				}
-			}
-
-			this._galleryService.query({ text: `tag:lp-${language}` }).then(pager => {
-				if (!pager || !pager.firstPage || !pager.firstPage.length) {
-					return;
-				}
-
-				this.notificationService.prompt(
-					Severity.Info,
-					localize('showLanguagePackExtensions', "The Marketplace has extensions that can help localizing VS Code to '{0}' locale", language),
-					[{
-						label: searchMarketplace,
-						run: () => {
-							/* __GDPR__
-								"languagePackSuggestion:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'ok', language });
-							this.viewletService.openViewlet('workbench.view.extensions', true)
-								.then(viewlet => viewlet as IExtensionsViewlet)
-								.then(viewlet => {
-									viewlet.search(`tag:lp-${language}`);
-									viewlet.focus();
-								});
-						}
-					},
-					{
-						label: choiceNever,
-						isSecondary: true,
-						run: () => {
-							languagePackSuggestionIgnoreList.push(language);
-							this.storageService.store(
-								'extensionsAssistant/languagePackSuggestionIgnore',
-								JSON.stringify(languagePackSuggestionIgnoreList),
-								StorageScope.GLOBAL
-							);
-							/* __GDPR__
-								"languagePackSuggestion:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'neverShowAgain', language });
-						}
-					}],
-					() => {
-						/* __GDPR__
-							"languagePackSuggestion:popup" : {
-								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-								"language": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
-							}
-						*/
-						this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction: 'cancelled', language });
-					}
-				);
-			});
-		});
-	}
-
 
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } {
 		let output: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; } = Object.create(null);
