@@ -26,7 +26,7 @@ import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 import { Severity } from 'vs/editor/editor.api';
 
@@ -83,10 +83,11 @@ export class TerminalPanel extends Panel {
 				let configHelper = this._terminalService.configHelper;
 				if (configHelper instanceof TerminalConfigHelper) {
 					if (!configHelper.configFontIsMonospace()) {
-						this._notificationService.notify({
-							severity: Severity.Error,
-							message: 'The terminal only supports Monospace fonts.',
-						});
+						const choices: IPromptChoice[] = [{
+							label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
+							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+						}];
+						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
 					}
 				}
 			}
