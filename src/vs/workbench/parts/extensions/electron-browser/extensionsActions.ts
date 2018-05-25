@@ -1721,15 +1721,13 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	constructor(
 		id: string,
 		label: string,
-		cssClass: string,
-		enabled: boolean,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 		@IFileService private fileService: IFileService,
 		@IEditorService private editorService: IEditorService,
 		@IJSONEditingService private jsonEditingService: IJSONEditingService,
 		@ITextModelService private textModelResolverService: ITextModelService
 	) {
-		super(id, label, cssClass, enabled);
+		super(id, label, null);
 	}
 
 	protected openExtensionsFile(extensionsFileResource: URI): TPromise<any> {
@@ -1889,7 +1887,7 @@ export class ConfigureWorkspaceRecommendedExtensionsAction extends AbstractConfi
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService
 	) {
-		super(id, label, null, false, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -1931,7 +1929,7 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private commandService: ICommandService
 	) {
-		super(id, label, null, false, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 		this.contextService.onDidChangeWorkspaceFolders(() => this.update(), this, this.disposables);
 		this.update();
 	}
@@ -2039,7 +2037,7 @@ export class DisabledStatusLabelAction extends Action {
 // TODO: make sure we preserve comments
 
 export class RecommendToFolderAction extends AbstractConfigureRecommendedExtensionsAction {
-	private static readonly Class = 'extension-action recommend-to-folder';
+	private static readonly Class = 'extension-action recommend';
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -2060,39 +2058,37 @@ export class RecommendToFolderAction extends AbstractConfigureRecommendedExtensi
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(
-			'extensions.install',
+			'extensions.recommend-to-folder',
 			localize('recommendToFolder', "Recommend To Folder"),
-			`${RecommendToFolderAction.Class}`,
-			false,
 			contextService,
 			fileService,
 			editorService,
 			jsonEditingService,
 			textModelResolverService
-	);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		);
+		this.class = RecommendToFolderAction.Class;
+		this.enabled = false;
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.FOLDER) {
 			this.enabled = false;
-			this.class = this.enabled ? RecommendToFolderAction.Class : `${RecommendToFolderAction.Class} hide`;
 		} else {
 			if (this.extension) {
 				this.getFolderRecommendedExtensions(this.configurationFile).then(recommendedExtensions => {
 					this.enabled = recommendedExtensions.indexOf(this.extension.id) === -1;
-					this.class = this.enabled ? RecommendToFolderAction.Class : `${RecommendToFolderAction.Class} hide`;
 				});
 			}
 		}
 	}
 
 	run(): TPromise<any> {
+		this.enabled = false;
 		return this.addRecommendedExtensionToFolder(this.configurationFile, this.extension.id)
 			.then(() => this.update());
 	}
@@ -2104,7 +2100,7 @@ export class RecommendToFolderAction extends AbstractConfigureRecommendedExtensi
 }
 
 export class RecommendToWorkspaceAction extends AbstractConfigureRecommendedExtensionsAction {
-	private static readonly Class = 'extension-action recommend-to-workspace';
+	private static readonly Class = 'extension-action recommend';
 
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -2125,39 +2121,37 @@ export class RecommendToWorkspaceAction extends AbstractConfigureRecommendedExte
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
-		@ITextModelService textModelResolverService: ITextModelService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@ITextModelService textModelResolverService: ITextModelService
 	) {
 		super(
-			'extensions.install',
+			'extensions.recommend-to-workspace',
 			localize('recommendToWorkspace', "Recommend To Workspace"),
-			`${RecommendToWorkspaceAction.Class}`,
-			false,
 			contextService,
 			fileService,
 			editorService,
 			jsonEditingService,
 			textModelResolverService
-	);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		);
+		this.class = RecommendToWorkspaceAction.Class;
+		this.enabled = false;
+		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.update()));
 		this.update();
 	}
 
 	private update(): void {
 		if (this.contextService.getWorkbenchState() !== WorkbenchState.WORKSPACE) {
 			this.enabled = false;
-			this.class = this.enabled ? RecommendToWorkspaceAction.Class : `${RecommendToWorkspaceAction.Class} hide`;
 		} else {
 			if (this.extension) {
 				this.getWorkspaceRecommendedExtensions(this.configurationFile).then(recommendedExtensions => {
 					this.enabled = recommendedExtensions.indexOf(this.extension.id) === -1;
-					this.class = this.enabled ? RecommendToWorkspaceAction.Class : `${RecommendToWorkspaceAction.Class} hide`;
 				});
 			}
 		}
 	}
 
 	run(): TPromise<any> {
+		this.enabled = false;
 		return this.addRecommendedExtensionToWorkspace(this.configurationFile, this.extension.id)
 			.then(() => this.update());
 	}
