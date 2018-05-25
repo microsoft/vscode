@@ -29,7 +29,7 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
@@ -833,7 +833,9 @@ export class TabsTitleControl extends TitleControl {
 				// Use boxShadow for the active tab border because if we also have a editor group header
 				// color, the two colors would collide and the tab border never shows up.
 				// see https://github.com/Microsoft/vscode/issues/33111
-				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
+				// In case of tabs container having a border, we need to inset -2px for the border to show up.
+				const hasTabsContainerBorder = !!this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
+				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 ${hasTabsContainerBorder ? -2 : -1}px inset`;
 			} else if (activeTabBorderColorTop) {
 				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 1px inset`;
 			} else {
