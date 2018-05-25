@@ -184,6 +184,8 @@ async function parseModifiedHunkFast(modifyDiffInfo, a, b) {
 				right.push(diffLine.text);
 			}
 		}
+
+		diffHunkIter = diffHunkReader.next();
 	}
 
 	let contentPath = await writeTmpFile(right.join('\n'), path.extname(b));
