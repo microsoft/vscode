@@ -132,10 +132,6 @@
 	bottom: 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row {
-	background-color: initial !important;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {

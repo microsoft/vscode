@@ -116,34 +116,30 @@ export class UpdateImportsOnFileRenameHandler {
 			Never = 4,
 		}
 
-		interface Item extends vscode.QuickPickItem {
+		interface Item extends vscode.MessageItem {
 			choice: Choice;
 		}
 
-		const response = await vscode.window.showQuickPick<Item>([
+		const response = await vscode.window.showInformationMessage<Item>(
+			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newDocument.fileName)), {
+				modal: true,
+			},
 			{
-				label: localize('accept.label', "Yes"),
-				description: localize('accept.description', "Update imports."),
+				title: localize('reject.title', "No"),
+				choice: Choice.Reject,
+				isCloseAffordance: true,
+			},
+			{
+				title: localize('accept.title', "Yes"),
 				choice: Choice.Accept,
 			},
 			{
-				label: localize('reject.label', "No"),
-				description: localize('reject.description', "Do not update imports."),
-				choice: Choice.Reject,
-			},
-			{
-				label: localize('always.label', "Always"),
-				description: localize('always.description', "Yes, and always automatically update imports."),
+				title: localize('always.title', "Yes, always update imports"),
 				choice: Choice.Always,
 			},
 			{
-				label: localize('never.label', "Never"),
-				description: localize('never.description', "No, and do not prompt me again."),
+				title: localize('never.title', "No, never update imports"),
 				choice: Choice.Never,
-			},
-		], {
-				placeHolder: localize('prompt', "Update import paths for moved file: '{0}'?", path.basename(newDocument.fileName)),
-				ignoreFocusOut: true,
 			});
 
 		if (!response) {

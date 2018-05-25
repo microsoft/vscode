@@ -69,7 +69,7 @@ export function getJavaScriptMode(documentRegions: LanguageModelCache<HTMLDocume
 		},
 		doValidation(document: TextDocument): Diagnostic[] {
 			updateCurrentTextDocument(document);
-			const syntaxDiagnostics = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
+			const syntaxDiagnostics: ts.Diagnostic[] = jsLanguageService.getSyntacticDiagnostics(FILE_NAME);
 			const semanticDiagnostics = jsLanguageService.getSemanticDiagnostics(FILE_NAME);
 			return syntaxDiagnostics.concat(semanticDiagnostics).map((diag: ts.Diagnostic): Diagnostic => {
 				return {

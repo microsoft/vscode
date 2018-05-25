@@ -37,7 +37,7 @@ import {
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
-	TelemetryEvent, Triggers, TaskTerminateResponse
+	TelemetryEvent, Triggers, TaskTerminateResponse, TaskSystemInfoResovler, TaskSystemInfo
 } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 interface TerminalData {
@@ -96,6 +96,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	private terminals: IStringDictionary<TerminalData>;
 	private idleTaskTerminals: LinkedMap<string, string>;
 	private sameTaskTerminals: IStringDictionary<string>;
+	private taskSystemInfoResolver: TaskSystemInfoResovler;
 
 	private readonly _onDidStateChange: Emitter<TaskEvent>;
 
@@ -104,7 +105,8 @@ export class TerminalTaskSystem implements ITaskSystem {
 		private configurationResolverService: IConfigurationResolverService,
 		private telemetryService: ITelemetryService,
 		private contextService: IWorkspaceContextService,
-		outputChannelId: string) {
+		outputChannelId: string,
+		taskSystemInfoResolver: TaskSystemInfoResovler) {
 
 		this.outputChannel = this.outputService.getChannel(outputChannelId);
 		this.activeTasks = Object.create(null);
@@ -113,6 +115,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 		this.sameTaskTerminals = Object.create(null);
 
 		this._onDidStateChange = new Emitter();
+		this.taskSystemInfoResolver = taskSystemInfoResolver;
 	}
 
 	public get onDidStateChange(): Event<TaskEvent> {
@@ -830,11 +833,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
-			if (!matcher.filePrefix) {
+			let workspaceFolder = Task.getWorkspaceFolder(task);
+			let taskSystemInfo: TaskSystemInfo;
+			if (workspaceFolder) {
+				taskSystemInfo = this.taskSystemInfoResolver(workspaceFolder);
+			}
+			let hasFilePrefix = matcher.filePrefix !== void 0;
+			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme === 'file';
+			if (!hasFilePrefix && !hasScheme) {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
+				if (hasScheme) {
+					copy.fileSystemScheme = taskSystemInfo.fileSystemScheme;
+				}
+				if (hasFilePrefix) {
+					copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
+				}
 				result.push(copy);
 			}
 		});

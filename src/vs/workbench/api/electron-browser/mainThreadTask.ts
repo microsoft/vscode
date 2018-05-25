@@ -12,6 +12,7 @@ import URI from 'vs/base/common/uri';
 import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
+import * as Platform from 'vs/base/common/platform';
 
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -21,12 +22,11 @@ import {
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
-
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
 
 export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
@@ -357,6 +357,7 @@ namespace TaskFilterDTO {
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
 
+	private _extHostContext: IExtHostContext;
 	private _proxy: ExtHostTaskShape;
 	private _activeHandles: { [handle: number]: boolean; };
 
@@ -469,6 +470,28 @@ export class MainThreadTask implements MainThreadTaskShape {
 				}
 				reject(new Error('Task to terminate not found'));
 			});
+		});
+	}
+
+	public $registerTaskSystem(key: string, info: TaskSystemInfoDTO): void {
+		let platform: Platform.Platform;
+		switch (info.platform) {
+			case 'win32':
+				platform = Platform.Platform.Windows;
+				break;
+			case 'darwin':
+				platform = Platform.Platform.Mac;
+				break;
+			case 'linux':
+				platform = Platform.Platform.Linux;
+				break;
+			default:
+				platform = Platform.platform;
+		}
+		this._taskService.registerTaskSystem(key, {
+			platform: platform,
+			fileSystemScheme: key,
+			context: this._extHostContext
 		});
 	}
 }

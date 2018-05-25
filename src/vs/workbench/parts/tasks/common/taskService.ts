@@ -12,7 +12,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { Task, ContributedTask, CustomTask, TaskSet, TaskSorter, TaskEvent } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskSummary, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSummary, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
 
 export { ITaskSummary, Task, TaskTerminateResponse };
 
@@ -66,4 +66,6 @@ export interface ITaskService {
 
 	registerTaskProvider(handle: number, taskProvider: ITaskProvider): void;
 	unregisterTaskProvider(handle: number): boolean;
+
+	registerTaskSystem(scheme: string, taskSystemInfo: TaskSystemInfo): void;
 }

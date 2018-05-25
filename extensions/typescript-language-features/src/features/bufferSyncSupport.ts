@@ -256,6 +256,24 @@ export default class BufferSyncSupport {
 		}, 200);
 	}
 
+	public getErr(resources: Uri[]): any {
+		const handledResources = resources.filter(resource => this.handles(resource));
+		if (!handledResources.length) {
+			return;
+		}
+
+		for (const resource of handledResources) {
+			const file = this.client.normalizePath(resource);
+			if (file) {
+				this.pendingDiagnostics.set(file, Date.now());
+			}
+		}
+
+		this.diagnosticDelayer.trigger(() => {
+			this.sendPendingDiagnostics();
+		}, 200);
+	}
+
 	public requestDiagnostic(resource: Uri): void {
 		if (!this._validate) {
 			return;
