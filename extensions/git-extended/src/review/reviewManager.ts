@@ -25,7 +25,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private static _instance: ReviewManager;
 	private _documentCommentProvider: vscode.Disposable;
 	private _workspaceCommentProvider: vscode.Disposable;
-	private _command: vscode.Disposable;
 	private _disposables: vscode.Disposable[];
 
 	private _comments: Comment[] = [];
@@ -37,30 +36,9 @@ export class ReviewManager implements vscode.DecorationProvider {
 	private _onDidChangeCommentThreads = new vscode.EventEmitter<vscode.CommentThreadChangedEvent>();
 
 	private _prFileChangesProvider: FileChangesProvider;
-	get prFileChangesProvider() {
-		if (!this._prFileChangesProvider) {
-			this._prFileChangesProvider = new FileChangesProvider(this._context);
-			this._disposables.push(this._prFileChangesProvider);
-		}
-
-		return this._prFileChangesProvider;
-	}
-
 	private _statusBarItem: vscode.StatusBarItem;
-	get statusBarItem() {
-		if (!this._statusBarItem) {
-			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
-		}
-
-		return this._statusBarItem;
-	}
-
 	private _prNumber: number;
 	private _pr: PullRequestModel;
-
-	get currentPullRequest(): PullRequestModel {
-		return this._pr;
-	}
 
 	private constructor(
 		private _context: vscode.ExtensionContext,
@@ -68,7 +46,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 	) {
 		this._documentCommentProvider = null;
 		this._workspaceCommentProvider = null;
-		this._command = null;
 		this._disposables = [];
 		let gitContentProvider = new GitContentProvider(_repository);
 		gitContentProvider.registerTextDocumentContentFallback(this.provideTextDocumentContent.bind(this));
@@ -95,6 +72,27 @@ export class ReviewManager implements vscode.DecorationProvider {
 
 	static get instance() {
 		return ReviewManager._instance;
+	}
+
+	get prFileChangesProvider() {
+		if (!this._prFileChangesProvider) {
+			this._prFileChangesProvider = new FileChangesProvider(this._context);
+			this._disposables.push(this._prFileChangesProvider);
+		}
+
+		return this._prFileChangesProvider;
+	}
+
+	get statusBarItem() {
+		if (!this._statusBarItem) {
+			this._statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left);
+		}
+
+		return this._statusBarItem;
+	}
+
+	get currentPullRequest(): PullRequestModel {
+		return this._pr;
 	}
 
 	private pollForStatusChange() {
@@ -316,59 +314,64 @@ export class ReviewManager implements vscode.DecorationProvider {
 	}
 
 	private async getPullRequestData(pr: PullRequestModel): Promise<void> {
-		this._comments = await pr.getComments();
-		let activeComments = this._comments.filter(comment => comment.position);
-		let outdatedComments = this._comments.filter(comment => !comment.position);
+		try {
+			this._comments = await pr.getComments();
+			let activeComments = this._comments.filter(comment => comment.position);
+			let outdatedComments = this._comments.filter(comment => !comment.position);
 
-		const data = await pr.getFiles();
-		await pr.fetchBaseCommitSha();
-		let baseSha = pr.base.sha;
-		let headSha = pr.head.sha;
-		const richContentChanges = await parseDiff(data, this._repository, baseSha);
-		this._localFileChanges = richContentChanges.map(change => {
-			let changedItem = new FileChangeTreeItem(
-				pr,
-				change.fileName,
-				change.status,
-				change.fileName,
-				change.blobUrl,
-				toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
-				toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
-				this._repository.path,
-				change.diffHunks
-			);
-			changedItem.sha = headSha;
-			changedItem.comments = activeComments.filter(comment => comment.path === changedItem.fileName);
-			return changedItem;
-		});
-
-		let commitsGroup = groupBy(outdatedComments, comment => comment.original_commit_id);
-		this._obsoleteFileChanges = [];
-		for (let commit in commitsGroup) {
-			let commentsForCommit = commitsGroup[commit];
-			let commentsForFile = groupBy(commentsForCommit, comment => comment.path);
-			for (let fileName in commentsForFile) {
-				let oldComments = commentsForFile[fileName];
-				let obsoleteFileChange = new FileChangeTreeItem(
+			const data = await pr.getFiles();
+			await pr.fetchBaseCommitSha();
+			let baseSha = pr.base.sha;
+			let headSha = pr.head.sha;
+			const richContentChanges = await parseDiff(data, this._repository, baseSha);
+			this._localFileChanges = richContentChanges.map(change => {
+				let changedItem = new FileChangeTreeItem(
 					pr,
-					fileName,
-					GitChangeType.MODIFY,
-					fileName,
-					null,
-					toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
-					toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
+					change.fileName,
+					change.status,
+					change.fileName,
+					change.blobUrl,
+					toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.DELETE ? '' : pr.prItem.head.sha, {}),
+					toGitUri(vscode.Uri.parse(change.fileName), null, null, change.status === GitChangeType.ADD ? '' : pr.prItem.base.sha, {}),
 					this._repository.path,
-					[] // @todo Peng.
+					change.diffHunks
 				);
+				changedItem.sha = headSha;
+				changedItem.comments = activeComments.filter(comment => comment.path === changedItem.fileName);
+				return changedItem;
+			});
 
-				obsoleteFileChange.sha = commit;
+			let commitsGroup = groupBy(outdatedComments, comment => comment.original_commit_id);
+			this._obsoleteFileChanges = [];
+			for (let commit in commitsGroup) {
+				let commentsForCommit = commitsGroup[commit];
+				let commentsForFile = groupBy(commentsForCommit, comment => comment.path);
+				for (let fileName in commentsForFile) {
+					let oldComments = commentsForFile[fileName];
+					let obsoleteFileChange = new FileChangeTreeItem(
+						pr,
+						fileName,
+						GitChangeType.MODIFY,
+						fileName,
+						null,
+						toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
+						toGitUri(vscode.Uri.parse(path.join(`commit~${commit.substr(0, 8)}`, fileName)), fileName, null, oldComments[0].original_commit_id, {}),
+						this._repository.path,
+						[] // @todo Peng.
+					);
 
-				obsoleteFileChange.comments = oldComments;
-				this._obsoleteFileChanges.push(obsoleteFileChange);
+					obsoleteFileChange.sha = commit;
+
+					obsoleteFileChange.comments = oldComments;
+					this._obsoleteFileChanges.push(obsoleteFileChange);
+				}
 			}
+
+			return Promise.resolve(null);
+		} catch (e) {
+			console.log(e);
 		}
 
-		return Promise.resolve(null);
 	}
 
 	private outdatedCommentsToCommentThreads(fileChange: FileChangeTreeItem, comments: Comment[], collapsibleState: vscode.CommentThreadCollapsibleState = vscode.CommentThreadCollapsibleState.Expanded): vscode.CommentThread[] {
@@ -686,10 +689,6 @@ export class ReviewManager implements vscode.DecorationProvider {
 		this._prNumber = null;
 		this._pr = null;
 		this._updateMessageShown = false;
-
-		if (this._command) {
-			this._command.dispose();
-		}
 
 		if (this._documentCommentProvider) {
 			this._documentCommentProvider.dispose();

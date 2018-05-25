@@ -34,6 +34,42 @@ export interface IAccount {
 	privateRepositoryInPlanCount?: number;
 }
 
+export interface Repo {
+	label: string;
+	ref: string;
+	repo: any;
+	sha: string;
+}
+
+// This interface is incomplete
+export interface PullRequest {
+	additions: number;
+	assignee: any;
+	assignees: any[];
+	author_association: string;
+	base: Repo;
+	body: string;
+	changed_files: number;
+	closed_at: string;
+	comments: number;
+	commits: number;
+	created_at: string;
+	head: Repo;
+	html_url: string;
+	id: number;
+	labels: any[];
+	locked: boolean;
+	maintainer_can_modify: boolean;
+	merge_commit_sha; boolean;
+	mergable: boolean;
+	number: number;
+	rebaseable: boolean;
+	state: string;
+	title: string;
+	updated_at: string;
+	user: any;
+}
+
 export class PullRequestModel {
 	public prNumber: number;
 	public title: string;
@@ -56,11 +92,11 @@ export class PullRequestModel {
 	public head: GitHubRef;
 	public base: GitHubRef;
 
-	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: any) {
+	constructor(public readonly otcokit: any, public readonly remote: Remote, public prItem: PullRequest) {
 		this.update(prItem);
 	}
 
-	update(prItem: any) {
+	update(prItem: PullRequest) {
 		this.prNumber = prItem.number;
 		this.title = prItem.title;
 		this.html_url = prItem.html_url;

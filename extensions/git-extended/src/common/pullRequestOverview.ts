@@ -6,7 +6,7 @@
 
 import * as vscode from 'vscode';
 import * as path from 'path';
-import { PullRequestModel } from '../models/pullRequestModel';
+import { PullRequestModel, PullRequest } from '../models/pullRequestModel';
 import { ReviewManager } from '../review/reviewManager';
 
 export class PullRequestOverviewPanel {
@@ -107,7 +107,7 @@ export class PullRequestOverviewPanel {
 				});
 				return;
 			case 'pr.close':
-				vscode.commands.executeCommand('pr.close', this._pullRequest).then(pr => {
+				vscode.commands.executeCommand<PullRequest>('pr.close', this._pullRequest).then(pr => {
 					if (pr) {
 						this._pullRequest.update(pr);
 						this._panel.webview.postMessage({
