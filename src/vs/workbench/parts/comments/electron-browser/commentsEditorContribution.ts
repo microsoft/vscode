@@ -13,16 +13,13 @@ import { registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { EmbeddedCodeEditorWidget } from 'vs/editor/browser/widget/embeddedCodeEditorWidget';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
-import { IModelDeltaDecoration, TrackedRangeStickiness } from 'vs/editor/common/model';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import * as modes from 'vs/editor/common/modes';
 import { peekViewEditorBackground, peekViewResultsBackground, peekViewResultsSelectionBackground } from 'vs/editor/contrib/referenceSearch/referencesWidget';
-import * as nls from 'vs/nls';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { editorForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostTypes';
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
@@ -33,14 +30,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
 export const ctxReviewPanelVisible = new RawContextKey<boolean>('reviewPanelVisible', false);
-export const overviewRulerReviewForeground = registerColor('editorOverviewRuler.reviewForeground', { dark: '#ff646480', light: '#ff646480', hc: '#ff646480' }, nls.localize('overviewRulerWordHighlightStrongForeground', 'Overview ruler marker color for write-access symbol highlights. The color must not be opaque to not hide underlying decorations.'), true);
 
 export const ID = 'editor.contrib.review';
-
-const COMMENTING_RANGE_DECORATION = ModelDecorationOptions.register({
-	stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
-	linesDecorationsClassName: 'commenting-range',
-});
 
 export class ReviewViewZone implements IViewZone {
 	public readonly afterLineNumber: number;
@@ -64,8 +55,6 @@ export class ReviewController implements IEditorContribution {
 	private localToDispose: IDisposable[];
 	private editor: ICodeEditor;
 	private decorationIDs: string[];
-	private commentingRangeDecorationMap: Map<number, string[]>;
-	private commentingRangeDecorations: string[];
 	private _newCommentWidget: ReviewZoneWidget;
 	private _commentWidgets: ReviewZoneWidget[];
 	private _reviewPanelVisible: IContextKey<boolean>;
@@ -90,8 +79,6 @@ export class ReviewController implements IEditorContribution {
 		this.globalToDispose = [];
 		this.localToDispose = [];
 		this.decorationIDs = [];
-		this.commentingRangeDecorations = [];
-		this.commentingRangeDecorationMap = new Map();
 		this._commentInfos = [];
 		this._commentWidgets = [];
 		this._newCommentWidget = null;
@@ -345,36 +332,6 @@ export class ReviewController implements IEditorContribution {
 	setComments(commentInfos: modes.CommentInfo[]): void {
 		this._commentInfos = commentInfos;
 		this._hasSetComments = true;
-
-		this.editor.changeDecorations(accessor => {
-			this.commentingRangeDecorationMap.forEach((val, index) => {
-				accessor.deltaDecorations(val, []);
-				this.commentingRangeDecorationMap.delete(index);
-			});
-
-			if (this._commentInfos.length === 0) {
-				return;
-			}
-
-			commentInfos.forEach(info => {
-				let ranges = [];
-				if (info.commentingRanges) {
-					ranges.push(...info.commentingRanges);
-				}
-
-				const commentingRangeDecorations: IModelDeltaDecoration[] = [];
-
-				ranges.forEach(range => {
-					commentingRangeDecorations.push({
-						options: COMMENTING_RANGE_DECORATION,
-						range: range
-					});
-				});
-
-				let commentingRangeDecorationIds = accessor.deltaDecorations(this.commentingRangeDecorations, commentingRangeDecorations);
-				this.commentingRangeDecorationMap.set(info.owner, commentingRangeDecorationIds);
-			});
-		});
 
 		// create viewzones
 		this._commentWidgets.forEach(zone => {
