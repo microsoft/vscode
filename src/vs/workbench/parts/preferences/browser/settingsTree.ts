@@ -37,7 +37,7 @@ export const modifiedItemForeground = registerColor('settings.modifiedItemForegr
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
 	}
 });
 
@@ -241,7 +241,8 @@ export interface ISettingItemTemplate extends IDisposableTemplate {
 	descriptionElement: HTMLElement;
 	expandIndicatorElement: HTMLElement;
 	valueElement: HTMLElement;
-	overridesElement: HTMLElement;
+	isConfiguredElement: HTMLElement;
+	otherOverridesElement: HTMLElement;
 }
 
 export interface IGroupTitleTemplate extends IDisposableTemplate {
@@ -398,7 +399,8 @@ export class SettingsRenderer implements IRenderer {
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
 		const expandIndicatorElement = DOM.append(leftElement, $('.expand-indicator'));
 
@@ -415,7 +417,8 @@ export class SettingsRenderer implements IRenderer {
 			descriptionElement,
 			expandIndicatorElement,
 			valueElement,
-			overridesElement
+			isConfiguredElement,
+			otherOverridesElement
 		};
 
 		// Prevent clicks from being handled by list
@@ -493,16 +496,15 @@ export class SettingsRenderer implements IRenderer {
 		}));
 		template.toDispose.push(resetButton);
 
-		const configuredInLabel = element.isConfigured ?
-			localize('alsoConfiguredIn', "Also modified in:") :
-			localize('configuredIn', "Modified in:");
-		let overridesElementText = element.isConfigured ? 'Modified ' : '';
+		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
 		if (element.overriddenScopeList.length) {
-			overridesElementText = overridesElementText + `(${configuredInLabel} ${element.overriddenScopeList.join(', ')})`;
-		}
+			let otherOverridesLabel = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
 
-		template.overridesElement.textContent = overridesElementText;
+			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
+		}
 	}
 
 	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {

@@ -155,10 +155,19 @@
 	line-height: initial;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
+	font-style: italic;
+	opacity: 0.8;
+	margin-right: 7px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-overrides {
 	opacity: 0.5;
-	margin-left: 7px;
 	font-style: italic;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label {
+	margin-right: 7px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
