@@ -11,6 +11,8 @@ import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
+import { ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -19,7 +21,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { attachButtonStyler } from 'vs/platform/theme/common/styler';
+import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions } from 'vs/workbench/common/editor';
@@ -190,13 +193,15 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
 		this._register(renderer.onDidClickButton(e => this.onDidClickShowAllSettings()));
 
+		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
-			{
+			<ITreeConfiguration>{
 				dataSource: this.treeDataSource,
 				renderer: renderer,
 				controller: this.instantiationService.createInstance(SettingsTreeController),
 				accessibilityProvider: this.instantiationService.createInstance(SettingsAccessibilityProvider),
-				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
+				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState),
+				styler: new DefaultTreestyler(DOM.createStyleSheet(), treeClass)
 			},
 			{
 				ariaLabel: localize('treeAriaLabel', "Settings"),
@@ -216,6 +221,23 @@ export class SettingsEditor2 extends BaseEditor {
 				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused .content::before { background-color: ${inactiveListBackground}; }`);
 			}
 		}));
+
+		this.settingsTree.getHTMLElement().classList.add(treeClass);
+
+		attachStyler(this.themeService, {
+			listActiveSelectionBackground: editorBackground,
+			listActiveSelectionForeground: foreground,
+			listFocusAndSelectionBackground: editorBackground,
+			listFocusAndSelectionForeground: foreground,
+			listFocusBackground: editorBackground,
+			listFocusForeground: foreground,
+			listHoverForeground: foreground,
+			listHoverBackground: editorBackground,
+			listInactiveSelectionBackground: editorBackground,
+			listInactiveSelectionForeground: foreground
+		}, colors => {
+			this.settingsTree.style(colors);
+		});
 
 		this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus]);
