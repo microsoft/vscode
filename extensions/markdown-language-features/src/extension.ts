@@ -17,6 +17,7 @@ import { MarkdownEngine } from './markdownEngine';
 import { getMarkdownExtensionContributions } from './markdownExtensions';
 import { ExtensionContentSecurityPolicyArbiter, PreviewSecuritySelector } from './security';
 import { loadDefaultTelemetryReporter } from './telemetryReporter';
+import { stripSlugifier } from './slugify';
 
 
 export function activate(context: vscode.ExtensionContext) {
@@ -26,7 +27,7 @@ export function activate(context: vscode.ExtensionContext) {
 	const contributions = getMarkdownExtensionContributions();
 
 	const cspArbiter = new ExtensionContentSecurityPolicyArbiter(context.globalState, context.workspaceState);
-	const engine = new MarkdownEngine(contributions);
+	const engine = new MarkdownEngine(contributions, stripSlugifier);
 	const logger = new Logger();
 
 	const selector: vscode.DocumentSelector = [
