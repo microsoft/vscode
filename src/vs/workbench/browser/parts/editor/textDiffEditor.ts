@@ -7,12 +7,11 @@
 
 import 'vs/css!./media/textdiffeditor';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { toWinJsPromise } from 'vs/base/common/async';
 import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor } from 'vs/workbench/common/editor';
@@ -39,6 +38,8 @@ import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/b
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -93,26 +94,24 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		// Support navigation within the diff editor by overriding the editor service within
 		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
 		delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, input: EditorInput, options?: EditorOptions) => {
+			const activeDiffInput = <DiffEditorInput>this.input;
 
 			// Check if target group is same as this editor ones
-			if (group === this.group) {
-				const activeDiffInput = <DiffEditorInput>this.input;
-				if (input && options && activeDiffInput) {
+			if (group === this.group && input && activeDiffInput && options instanceof TextEditorOptions) {
 
-					// Input matches modified side of the diff editor: perform the action on modified side
-					if (input.matches(activeDiffInput.modifiedInput)) {
-						return toWinJsPromise(this.setInput(this.input, options, CancellationToken.None)).then(() => this);
-					}
+				// Find out if input matches any of both sides
+				let targetEditor: ICodeEditor;
+				if (input.matches(activeDiffInput.modifiedInput)) {
+					targetEditor = this.getControl().getModifiedEditor();
+				} else if (input.matches(activeDiffInput.originalInput)) {
+					targetEditor = this.getControl().getOriginalEditor();
+				}
 
-					// Input matches original side of the diff editor: perform the action on original side
-					else if (input.matches(activeDiffInput.originalInput)) {
-						const originalEditor = this.getControl().getOriginalEditor();
-						if (options instanceof TextEditorOptions) {
-							(<TextEditorOptions>options).apply(originalEditor, ScrollType.Smooth);
+				// Apply if possible
+				if (targetEditor) {
+					options.apply(targetEditor, ScrollType.Smooth);
 
-							return TPromise.as(this);
-						}
-					}
+					return TPromise.as(this);
 				}
 			}
 
@@ -120,7 +119,10 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		});
 
 		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
+		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection(
+			[IEditorService, delegatingEditorService],
+			[ICodeEditorService, new CodeEditorService(delegatingEditorService, this.themeService)]
+		));
 
 		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
 	}
