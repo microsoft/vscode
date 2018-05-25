@@ -99,7 +99,7 @@ export class SettingsEditor2Input extends EditorInput {
 	}
 
 	getName(): string {
-		return nls.localize('settingsEditor2InputName', "Settings (Experimental)");
+		return nls.localize('settingsEditor2InputName', "Settings (Preview)");
 	}
 
 	resolve(refresh?: boolean): TPromise<DefaultSettingsEditorModel> {
