@@ -493,11 +493,13 @@ export class SettingsRenderer implements IRenderer {
 		}));
 		template.toDispose.push(resetButton);
 
-		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
+		const configuredInLabel = element.isConfigured ?
+			localize('alsoConfiguredIn', "Also modified in:") :
+			localize('configuredIn', "Modified in:");
 		let overridesElementText = element.isConfigured ? 'Modified ' : '';
 
 		if (element.overriddenScopeList.length) {
-			overridesElementText = overridesElementText + `(${alsoConfiguredInLabel} ${element.overriddenScopeList.join(', ')})`;
+			overridesElementText = overridesElementText + `(${configuredInLabel} ${element.overriddenScopeList.join(', ')})`;
 		}
 
 		template.overridesElement.textContent = overridesElementText;
