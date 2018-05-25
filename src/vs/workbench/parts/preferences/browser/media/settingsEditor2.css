@@ -12,6 +12,8 @@
 
 .settings-editor > .settings-header {
 	padding: 0px 10px 0px 0px;
+	max-width: 800px;
+	margin: auto;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
