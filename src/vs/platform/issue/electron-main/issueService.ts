@@ -51,7 +51,7 @@ export class IssueService implements IIssueService {
 		});
 
 		this._issueParentWindow = BrowserWindow.getFocusedWindow();
-		const position = this.getWindowPosition(this._issueParentWindow, 800, 900);
+		const position = this.getWindowPosition(this._issueParentWindow, 700, 800);
 		this._issueWindow = new BrowserWindow({
 			width: position.width,
 			height: position.height,
