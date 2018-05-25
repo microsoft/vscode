@@ -88,4 +88,22 @@ suite('markdown.TableOfContentsProvider', () => {
 
 		assert.strictEqual((await provider.lookup('инструкция---делай-раз-делай-два'))!.line, 0);
 	});
+
+	test('should handle special characters 3, #37079', async () => {
+		const doc = new InMemoryDocument(testFileName, `## Header 2
+### Header 3
+## Заголовок 2
+### Заголовок 3
+### Заголовок Header 3
+## Заголовок`);
+
+		const provider = new TableOfContentsProvider(createNewMarkdownEngine(), doc);
+
+		assert.strictEqual((await provider.lookup('header-2'))!.line, 0);
+		assert.strictEqual((await provider.lookup('header-3'))!.line, 1);
+		assert.strictEqual((await provider.lookup('Заголовок-2'))!.line, 2);
+		assert.strictEqual((await provider.lookup('Заголовок-3'))!.line, 3);
+		assert.strictEqual((await provider.lookup('Заголовок-header-3'))!.line, 4);
+		assert.strictEqual((await provider.lookup('Заголовок'))!.line, 5);
+	});
 });

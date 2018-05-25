@@ -23,7 +23,7 @@ export const githubSlugifier: Slugifier = new class implements Slugifier {
 			heading.trim()
 				.toLowerCase()
 				.replace(/\s+/g, '-') // Replace whitespace with -
-				.replace(/[^\w\-]+/gu, '') // Remove non-word chars
+				.replace(/[\]\[\!\'\#\$\%\&\'\(\)\*\+\,\.\/\:\;\<\=\>\?\@\\\^\_\{\|\}\~\`]/g, '') // Remove known puctuators
 				.replace(/^\-+/, '') // Remove leading -
 				.replace(/\-+$/, '') // Remove trailing -
 		);
