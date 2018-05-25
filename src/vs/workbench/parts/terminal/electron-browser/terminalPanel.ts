@@ -28,7 +28,7 @@ import { DataTransfers } from 'vs/base/browser/dnd';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { Severity } from '../../../../editor/editor.api';
+import { Severity } from 'vs/editor/editor.api';
 
 export class TerminalPanel extends Panel {
 
