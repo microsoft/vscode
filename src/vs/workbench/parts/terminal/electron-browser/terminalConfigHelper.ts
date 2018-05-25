@@ -56,6 +56,8 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		let fontFamily = this.config.fontFamily || editorConfig.fontFamily;
 		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
 		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+		console.log('i_rect.width: ' + i_rect.width);
+		console.log('w_rect.width: ' + w_rect.width);
 
 		let invalidBounds = !i_rect.width || !w_rect.width;
 		if (invalidBounds) {
@@ -81,7 +83,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
 		const style = this._charMeasureElement.style;
-		style.display = 'block';
+		style.display = 'inline-block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';

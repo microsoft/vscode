@@ -126,11 +126,11 @@ suite('Workbench - TerminalConfigHelper', () => {
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
 
-	test('TerminalConfigHelper - isMonospace Monospace', function () {
+	test('TerminalConfigHelper - isMonospace monospace', function () {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
 			integrated: {
-				fontFamily: 'Monospace'
+				fontFamily: 'monospace'
 			}
 		});
 
@@ -139,16 +139,27 @@ suite('Workbench - TerminalConfigHelper', () => {
 		assert.equal(configHelper.configFontIsMonospace(), true, 'Monospace is mono-spaced');
 	});
 
-	test('TerminalConfigHelper - isMonospace Go', function () {
+	test('TerminalConfigHelper - isMonospace sans-serif', function () {
 		const configurationService = new TestConfigurationService();
 		configurationService.setUserConfiguration('terminal', {
 			integrated: {
-				fontFamily: 'Go'
+				fontFamily: 'sans-serif'
 			}
 		});
 		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
 		configHelper.panelContainer = fixture;
-		assert.equal(configHelper.configFontIsMonospace(), false, 'Go is not mono-spaced');
+		assert.equal(configHelper.configFontIsMonospace(), false, 'sans-serif is not mono-spaced');
 	});
 
+	test('TerminalConfigHelper - isMonospace serif', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 'serif'
+			}
+		});
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), false, 'serif is not mono-spaced');
+	});
 });
