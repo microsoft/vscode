@@ -11,7 +11,7 @@ import * as nls from 'vs/nls';
 import * as objects from 'vs/base/common/objects';
 import { Action, IAction } from 'vs/base/common/actions';
 import * as types from 'vs/base/common/types';
-import { IDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
 import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor } from 'vs/workbench/common/editor';
@@ -25,7 +25,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ScrollType, IDiffEditorViewState, IDiffEditorModel } from 'vs/editor/common/editorCommon';
@@ -34,12 +33,9 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
-import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -91,40 +87,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		this.toggleIgnoreTrimWhitespaceAction = new ToggleIgnoreTrimWhitespaceAction(this._actualConfigurationService);
 		this.updateIgnoreTrimWhitespaceAction();
 
-		// Support navigation within the diff editor by overriding the editor service within
-		const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
-		delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, input: EditorInput, options?: EditorOptions) => {
-			const activeDiffInput = <DiffEditorInput>this.input;
-
-			// Check if target group is same as this editor ones
-			if (group === this.group && input && activeDiffInput && options instanceof TextEditorOptions) {
-
-				// Find out if input matches any of both sides
-				let targetEditor: ICodeEditor;
-				if (input.matches(activeDiffInput.modifiedInput)) {
-					targetEditor = this.getControl().getModifiedEditor();
-				} else if (input.matches(activeDiffInput.originalInput)) {
-					targetEditor = this.getControl().getOriginalEditor();
-				}
-
-				// Apply if possible
-				if (targetEditor) {
-					options.apply(targetEditor, ScrollType.Smooth);
-
-					return TPromise.as(this);
-				}
-			}
-
-			return TPromise.as(null);
-		});
-
-		// Create a special child of instantiator that will delegate all calls to openEditor() to the same diff editor if the input matches with the modified one
-		const diffEditorInstantiator = this.instantiationService.createChild(new ServiceCollection(
-			[IEditorService, delegatingEditorService],
-			[ICodeEditorService, new CodeEditorService(delegatingEditorService, this.themeService)]
-		));
-
-		return diffEditorInstantiator.createInstance(DiffEditorWidget, parent, configuration);
+		return this.instantiationService.createInstance(DiffEditorWidget, parent, configuration);
 	}
 
 	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
