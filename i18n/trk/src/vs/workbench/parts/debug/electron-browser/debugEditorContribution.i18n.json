@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "Satır Kesme Noktasını Kaldır",
 	"editBreakpoints": "Kesme Noktalarını Düzenle",
 	"editBreakpointOnColumn": "{0}. Sütundaki Kesme Noktasını Düzenle",
-	"editLineBrekapoint": "Satır Kesme Noktasını Düzenle",
+	"editLineBreakpoint": "Satır Kesme Noktasını Düzenle",
 	"enableDisableBreakpoints": "Kesme Noktalarını Etkinleştir/Devre Dışı Bırak",
 	"disableColumnBreakpoint": "{0}. Sütundaki Kesme Noktasını Devre Dışı Bırak",
 	"disableBreakpointOnLine": "Satır Kesme Noktasını Devre Dışı Bırak",

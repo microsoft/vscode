@@ -201,7 +201,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
-		super(editor, { isResizeable: true, frameWidth: 1, keepEditorSelection: true });
+		super(editor, { isResizable: true, frameWidth: 1, keepEditorSelection: true });
 
 		themeService.onThemeChange(this._applyTheme, this, this._disposables);
 		this._applyTheme(themeService.getTheme());
@@ -1267,14 +1267,14 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		`);
 	}
 
-	const editorGutteDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
-	if (editorGutteDeletedBackgroundColor) {
+	const editorGutterDeletedBackgroundColor = theme.getColor(editorGutterDeletedBackground);
+	if (editorGutterDeletedBackgroundColor) {
 		collector.addRule(`
 			.monaco-editor .dirty-diff-deleted:after {
-				border-left: 4px solid ${editorGutteDeletedBackgroundColor};
+				border-left: 4px solid ${editorGutterDeletedBackgroundColor};
 			}
 			.monaco-editor .dirty-diff-deleted:before {
-				background: ${editorGutteDeletedBackgroundColor};
+				background: ${editorGutterDeletedBackgroundColor};
 			}
 		`);
 	}

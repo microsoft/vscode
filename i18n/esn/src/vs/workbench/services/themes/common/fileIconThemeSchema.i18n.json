@@ -25,7 +25,7 @@
 	"schema.font-path": "Ruta de acceso de la fuente, relativa al archivo de temas de icono actual.",
 	"schema.font-format": "Formato de la fuente.",
 	"schema.font-weight": "Espesor de la fuente.",
-	"schema.font-sstyle": "Estilo de la fuente.",
+	"schema.font-style": "Estilo de la fuente.",
 	"schema.font-size": "Tamaño predeterminado de la fuente.",
 	"schema.iconDefinitions": "Descripción de todos los iconos que se pueden usar al asociar archivos a iconos.",
 	"schema.iconDefinition": "Definición de icono. La clave del objeto es el identificador de la definición.",

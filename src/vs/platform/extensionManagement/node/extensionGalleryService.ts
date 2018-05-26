@@ -118,7 +118,7 @@ const PropertyType = {
 	Engine: 'Microsoft.VisualStudio.Code.Engine'
 };
 
-interface ICriterium {
+interface ICriterion {
 	filterType: FilterType;
 	value?: string;
 }
@@ -131,7 +131,7 @@ interface IQueryState {
 	sortBy: SortBy;
 	sortOrder: SortOrder;
 	flags: Flags;
-	criteria: ICriterium[];
+	criteria: ICriterion[];
 	assetTypes: string[];
 }
 
@@ -191,8 +191,8 @@ class Query {
 	}
 
 	get searchText(): string {
-		const criterium = this.state.criteria.filter(criterium => criterium.filterType === FilterType.SearchText)[0];
-		return criterium ? criterium.value : '';
+		const criterion = this.state.criteria.filter(criterion => criterion.filterType === FilterType.SearchText)[0];
+		return criterion ? criterion.value : '';
 	}
 }
 
@@ -522,7 +522,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	loadAllDependencies(extensions: IExtensionIdentifier[]): TPromise<IGalleryExtension[]> {
-		return this.getDependenciesReccursively(extensions.map(e => e.id), []);
+		return this.getDependenciesRecursively(extensions.map(e => e.id), []);
 	}
 
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension> {
@@ -588,7 +588,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		});
 	}
 
-	private getDependenciesReccursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
+	private getDependenciesRecursively(toGet: string[], result: IGalleryExtension[]): TPromise<IGalleryExtension[]> {
 		if (!toGet || !toGet.length) {
 			return TPromise.wrap(result);
 		}
@@ -608,7 +608,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 				result = distinct(result.concat(loadedDependencies), d => d.identifier.uuid);
 				const dependencies: string[] = [];
 				dependenciesSet.forEach(d => !ExtensionGalleryService.hasExtensionByName(result, d) && dependencies.push(d));
-				return this.getDependenciesReccursively(dependencies, result);
+				return this.getDependenciesRecursively(dependencies, result);
 			});
 	}
 

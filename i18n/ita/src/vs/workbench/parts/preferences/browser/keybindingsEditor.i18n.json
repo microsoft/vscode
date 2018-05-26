@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Mostra tasti di scelta rapida utente",
 	"SearchKeybindings.AriaLabel": "Cerca tasti di scelta rapida",
 	"SearchKeybindings.Placeholder": "Cerca tasti di scelta rapida",
-	"sortByPrecedene": "Ordina per Precedenza",
+	"sortByPrecedence": "Ordina per Precedenza",
 	"header-message": "Per personalizzazioni avanzate, aprire e modificare",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Tasti di scelta rapida",

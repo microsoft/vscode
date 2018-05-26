@@ -710,7 +710,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			promise = super.setVisible(visible);
 		}
 
-		// Enable highlights if there are searchresults
+		// Enable highlights if there are search results
 		if (this.viewModel) {
 			this.viewModel.searchResult.toggleHighlights(visible);
 		}
@@ -1112,8 +1112,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			if (!query.folderQueries.length || existingFolderQueries.length) {
 				query.folderQueries = existingFolderQueries;
 			} else {
-				const nonExistantPath = query.folderQueries[0].folder.fsPath;
-				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistantPath);
+				const nonExistentPath = query.folderQueries[0].folder.fsPath;
+				const searchPathNotFoundError = nls.localize('searchPathNotFoundError', "Search path not found: {0}", nonExistentPath);
 				return TPromise.wrapError(new Error(searchPathNotFoundError));
 			}
 

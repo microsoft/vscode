@@ -449,7 +449,7 @@ export interface ITerminalInstance {
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
-	 * sequecnes.
+	 * sequences.
 	 * @param listener  The listener function.
 	 */
 	onData(listener: (data: string) => void): IDisposable;

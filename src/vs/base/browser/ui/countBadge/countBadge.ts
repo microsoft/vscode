@@ -11,13 +11,13 @@ import { format } from 'vs/base/common/strings';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 
-export interface ICountBadgeOptions extends ICountBadgetyles {
+export interface ICountBadgeOptions extends ICountBadgeStyles {
 	count?: number;
 	countFormat?: string;
 	titleFormat?: string;
 }
 
-export interface ICountBadgetyles {
+export interface ICountBadgeStyles {
 	badgeBackground?: Color;
 	badgeForeground?: Color;
 	badgeBorder?: Color;
@@ -77,7 +77,7 @@ export class CountBadge {
 		this.applyStyles();
 	}
 
-	style(styles: ICountBadgetyles): void {
+	style(styles: ICountBadgeStyles): void {
 		this.badgeBackground = styles.badgeBackground;
 		this.badgeForeground = styles.badgeForeground;
 		this.badgeBorder = styles.badgeBorder;

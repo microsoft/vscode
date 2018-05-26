@@ -25,7 +25,7 @@
 	"schema.font-path": "Der Schriftartpfad relativ zur aktuellen Symboldesigndatei.",
 	"schema.font-format": "Das Format der Schriftart.",
 	"schema.font-weight": "Die Gewichtung der Schriftart.",
-	"schema.font-sstyle": "Der Stil der Schriftart.",
+	"schema.font-style": "Der Stil der Schriftart.",
 	"schema.font-size": "Die Standardgröße der Schriftart.",
 	"schema.iconDefinitions": "Beschreibung aller Symbole, die beim Zuordnen von Dateien zu Symbolen verwendet werden können.",
 	"schema.iconDefinition": "Eine Symboldefinition. Der Objektschlüssel ist die ID der Definition.",

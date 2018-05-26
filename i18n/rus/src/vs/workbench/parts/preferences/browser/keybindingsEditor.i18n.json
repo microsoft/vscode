@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Показать пользовательские сочетания клавиш",
 	"SearchKeybindings.AriaLabel": "Поиск настраиваемых сочетаний клавиш",
 	"SearchKeybindings.Placeholder": "Поиск настраиваемых сочетаний клавиш",
-	"sortByPrecedene": "Сортировать по приоритету",
+	"sortByPrecedence": "Сортировать по приоритету",
 	"header-message": "Для использования расширенных настроек откройте и измените",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Настраиваемые сочетания клавиш",

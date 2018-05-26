@@ -214,7 +214,7 @@ export class WindowsManager implements IWindowsMainService {
 	//          and then onBeforeShutdown(). Using the quit action however will first issue onBeforeShutdown()
 	//          and then onBeforeWindowClose().
 	//
-	// Here is the behaviour on different OS dependig on action taken (Electron 1.7.x):
+	// Here is the behaviour on different OS depending on action taken (Electron 1.7.x):
 	//
 	// Legend
 	// -  quit(N): quit application with N windows opened
@@ -270,7 +270,7 @@ export class WindowsManager implements IWindowsMainService {
 
 		// 3.) All windows (except extension host) for N >= 2 to support restoreWindows: all or for auto update
 		//
-		// Carefull here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
+		// Be careful here: asking a window for its window state after it has been closed returns bogus values (width: 0, height: 0)
 		// so if we ever want to persist the UI state of the last closed window (window count === 1), it has
 		// to come from the stored lastClosedWindowState on Win/Linux at least
 		if (this.getWindowCount() > 1) {
@@ -397,9 +397,9 @@ export class WindowsManager implements IWindowsMainService {
 
 			// 1.) focus last active window if we are not instructed to open any paths
 			if (focusLastActive) {
-				const lastActiveWindw = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
-				if (lastActiveWindw.length) {
-					lastActiveWindw[0].focus();
+				const lastActiveWindow = usedWindows.filter(w => w.backupPath === this.windowsState.lastActiveWindow.backupPath);
+				if (lastActiveWindow.length) {
+					lastActiveWindow[0].focus();
 					focusLastOpened = false;
 					focusLastWindow = false;
 				}
@@ -1320,7 +1320,7 @@ export class WindowsManager implements IWindowsMainService {
 		// Mark as recently opened
 		this.historyMainService.addRecentlyOpened([result.workspace], []);
 
-		// Trigger Eevent to indicate load of workspace into window
+		// Trigger event to indicate load of workspace into window
 		this._onWindowReady.fire(win);
 
 		return result;

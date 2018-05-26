@@ -39,9 +39,9 @@ export class MainThreadStatusBar implements MainThreadStatusBarShape {
 	}
 
 	$dispose(id: number) {
-		let disposeable = this._entries[id];
-		if (disposeable) {
-			disposeable.dispose();
+		let disposable = this._entries[id];
+		if (disposable) {
+			disposable.dispose();
 		}
 
 		delete this._entries[id];

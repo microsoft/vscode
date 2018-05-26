@@ -8,5 +8,5 @@
 	],
 	"label": "Fájlkezelő",
 	"canNotResolve": "Nem sikerült feloldani a munkaterület-mappát",
-	"symbolicLlink": "Szimbolikus hivatkozás"
+	"symbolicLink": "Szimbolikus hivatkozás"
 }

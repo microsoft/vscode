@@ -437,7 +437,7 @@ class FunctionBreakpointsRenderer implements IRenderer<FunctionBreakpoint, IBase
 
 		// Mark function breakpoints as disabled if deactivated or if debug type does not support them #9099
 		const session = this.debugService.getViewModel().focusedSession;
-		dom.toggleClass(data.breakpoint, 'disalbed', (session && !session.raw.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
+		dom.toggleClass(data.breakpoint, 'disabled', (session && !session.raw.capabilities.supportsFunctionBreakpoints) || !this.debugService.getModel().areBreakpointsActivated());
 		if (session && !session.raw.capabilities.supportsFunctionBreakpoints) {
 			data.breakpoint.title = nls.localize('functionBreakpointsNotSupported', "Function breakpoints are not supported by this debug type");
 		}
@@ -565,7 +565,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (debugActive && !breakpoint.verified) {
 		return {
 			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
+			message: appendMessage(nls.localize('breakpointUnverifiedHover', "Unverified breakpoint")),
 		};
 	}
 
@@ -586,7 +586,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (debugActive && textFileService.isDirty(breakpoint.uri)) {
 		return {
 			className: 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointDirtydHover', "Unverified breakpoint. File is modified, please restart debug session.")),
+			message: appendMessage(nls.localize('breakpointDirtyHover', "Unverified breakpoint. File is modified, please restart debug session.")),
 		};
 	}
 

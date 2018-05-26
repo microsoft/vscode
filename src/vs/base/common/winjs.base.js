@@ -330,7 +330,7 @@ _winjs("WinJS/Core/_Base", ["WinJS/Core/_WinJS","WinJS/Core/_Global","WinJS/Core
         function derive(baseClass, constructor, instanceMembers, staticMembers) {
             /// <signature helpKeyword="WinJS.Class.derive">
             /// <summary locid="WinJS.Class.derive">
-            /// Creates a sub-class based on the supplied baseClass parameter, using prototypal inheritance.
+            /// Creates a sub-class based on the supplied baseClass parameter, using prototypical inheritance.
             /// </summary>
             /// <param name="baseClass" type="Function" locid="WinJS.Class.derive_p:baseClass">
             /// The class to inherit from.
@@ -809,7 +809,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
     };
 
     // Canceled state, moves to the canceling state and then tells the promise to do
-    // whatever it might need to do on cancelation.
+    // whatever it might need to do on cancellation.
     //
     state_canceled = {
         name: "canceled",
@@ -1277,7 +1277,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
         }
         promise._listeners = listeners;
     }
-    // The difference beween setCompleteValue()/setErrorValue() and complete()/error() is that setXXXValue() moves
+    // The difference between setCompleteValue()/setErrorValue() and complete()/error() is that setXXXValue() moves
     // a promise directly to the success/error state without starting another notification pass (because one
     // is already ongoing).
     function setErrorInfo(promise, errorId, isException) {
@@ -1404,7 +1404,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
                     // suppress cancel
                     return;
                 }
-                // force the exception to be thrown asyncronously to avoid any try/catch blocks
+                // force the exception to be thrown asynchronously to avoid any try/catch blocks
                 //
                 Promise._doneHandler(value);
             },
@@ -1763,7 +1763,7 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
             },
             /// <field type="WinJS.Promise" helpKeyword="WinJS.Promise.cancel" locid="WinJS.Promise.cancel">
             /// Canceled promise value, can be returned from a promise completion handler
-            /// to indicate cancelation of the promise chain.
+            /// to indicate cancellation of the promise chain.
             /// </field>
             cancel: {
                 get: function () {
@@ -2015,9 +2015,9 @@ _winjs("WinJS/Promise/_StateMachine", ["WinJS/Core/_Global","WinJS/Core/_BaseCor
 
             _cancelBlocker: function Promise__cancelBlocker(input, oncancel) {
                 //
-                // Returns a promise which on cancelation will still result in downstream cancelation while
+                // Returns a promise which on cancellation will still result in downstream cancellation while
                 //  protecting the promise 'input' from being  canceled which has the effect of allowing
-                //  'input' to be shared amoung various consumers.
+                //  'input' to be shared among various consumers.
                 //
                 if (!Promise.is(input)) {
                     return Promise.wrap(input);

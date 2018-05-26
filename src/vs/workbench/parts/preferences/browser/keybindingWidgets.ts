@@ -149,7 +149,7 @@ export class DefineKeybindingWidget extends Widget {
 	public onDidChange: Event<String> = this._onDidChange.event;
 
 	private _onShowExistingKeybindings = this._register(new Emitter<String>());
-	public readonly onShowExistingKeybidings: Event<String> = this._onShowExistingKeybindings.event;
+	public readonly onShowExistingKeybindings: Event<String> = this._onShowExistingKeybindings.event;
 
 	constructor(
 		parent: HTMLElement,

@@ -19,7 +19,7 @@
 	"configMissing": "La configuración \"{0}\" falta en \"launch.json\".",
 	"launchJsonDoesNotExist": "'launch.json' no existe.",
 	"debugRequestNotSupported": "El atributo \"{0}\" tiene un valor no admitido ({1}) en la configuración de depuración elegida.",
-	"debugRequesMissing": "El atributo '{0}' está ausente en la configuración de depuración elegida. ",
+	"debugRequestMissing": "El atributo '{0}' está ausente en la configuración de depuración elegida. ",
 	"debugTypeNotSupported": "El tipo de depuración '{0}' configurado no es compatible.",
 	"debugTypeMissing": "Falta la propiedad \"type\" en la configuración de inicio seleccionada.",
 	"debugAnyway": "Depurar de todos modos",

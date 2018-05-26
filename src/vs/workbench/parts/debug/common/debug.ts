@@ -51,7 +51,7 @@ export const DEBUG_SCHEME = 'debug';
 export const INTERNAL_CONSOLE_OPTIONS_SCHEMA = {
 	enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
 	default: 'openOnFirstSessionStart',
-	description: nls.localize('internalConsoleOptions', "Controls behavior of the internal debug console.")
+	description: nls.localize('internalConsoleOptions', "Controls behaviour of the internal debug console.")
 };
 
 // raw
@@ -676,7 +676,7 @@ export interface IDebugService {
 	renameWatchExpression(id: string, newName: string): void;
 
 	/**
-	 * Moves a watch expression to a new possition. Used for reordering watch expressions.
+	 * Moves a watch expression to a new position. Used for reordering watch expressions.
 	 */
 	moveWatchExpression(id: string, position: number): void;
 
@@ -688,7 +688,7 @@ export interface IDebugService {
 	/**
 	 * Starts debugging. If the configOrName is not passed uses the selected configuration in the debug dropdown.
 	 * Also saves all files, manages if compounds are present in the configuration
-	 * and resolveds configurations via DebugConfigurationProviders.
+	 * and resolves configurations via DebugConfigurationProviders.
 	 */
 	startDebugging(launch: ILaunch, configOrName?: IConfig | string, noDebug?: boolean): TPromise<void>;
 

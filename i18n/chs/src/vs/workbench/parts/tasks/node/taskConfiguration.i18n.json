@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "警告: 仅当在终端中执行任务时支持 shell 配置。",
 	"ConfigurationParser.noName": "错误: 声明范围内的问题匹配程序必须具有名称:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "警告: 已定义的问题匹配程序未知。受支持的类型为 string | ProblemMatcher | (string | ProblemMatcher)[]。\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "错误: 无效的 problemMatcher 引用: {0}\n",
+	"ConfigurationParser.invalidVariableReference": "错误: 无效的 problemMatcher 引用: {0}\n",
 	"ConfigurationParser.noTaskType": "错误: 任务必须提供 type 属性。将忽略该任务。\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "错误: 没有注册任务类型“{0}”。你是不是忘记安装含有相应任务提供器的扩展?",
 	"ConfigurationParser.missingRequiredProperty": "错误: 任务配置“{0}”缺失必要属性“{1}”。将忽略该任务。",

@@ -95,7 +95,7 @@ namespace schema {
 		}
 	};
 
-	export const menusContribtion: IJSONSchema = {
+	export const menusContribution: IJSONSchema = {
 		description: localize('vscode.extension.contributes.menus', "Contributes menu items to the editor"),
 		type: 'object',
 		properties: {
@@ -317,7 +317,7 @@ ExtensionsRegistry.registerExtensionPoint<schema.IUserFriendlyCommand | schema.I
 });
 
 
-ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribtion).setHandler(extensions => {
+ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyMenuItem[] }>('menus', [], schema.menusContribution).setHandler(extensions => {
 	for (let extension of extensions) {
 		const { value, collector } = extension;
 

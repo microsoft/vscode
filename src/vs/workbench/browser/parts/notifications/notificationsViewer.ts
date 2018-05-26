@@ -130,7 +130,7 @@ export interface INotificationTemplateData {
 
 interface IMessageActionHandler {
 	callback: (href: string) => void;
-	disposeables: IDisposable[];
+	disposables: IDisposable[];
 }
 
 class NotificationMessageRenderer {
@@ -160,7 +160,7 @@ class NotificationMessageRenderer {
 				anchor.href = link.href;
 
 				if (actionHandler) {
-					actionHandler.disposeables.push(addDisposableListener(anchor, 'click', () => actionHandler.callback(link.href)));
+					actionHandler.disposables.push(addDisposableListener(anchor, 'click', () => actionHandler.callback(link.href)));
 				}
 
 				messageContainer.appendChild(anchor);
@@ -291,7 +291,7 @@ export class NotificationTemplateRenderer {
 
 	private static readonly SEVERITIES: ('info' | 'warning' | 'error')[] = ['info', 'warning', 'error'];
 
-	private inputDisposeables: IDisposable[];
+	private inputDisposables: IDisposable[];
 
 	constructor(
 		private template: INotificationTemplateData,
@@ -301,7 +301,7 @@ export class NotificationTemplateRenderer {
 		@IThemeService private themeService: IThemeService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
-		this.inputDisposeables = [];
+		this.inputDisposables = [];
 
 		if (!NotificationTemplateRenderer.closeNotificationAction) {
 			NotificationTemplateRenderer.closeNotificationAction = instantiationService.createInstance(ClearNotificationAction, ClearNotificationAction.ID, ClearNotificationAction.LABEL);
@@ -311,7 +311,7 @@ export class NotificationTemplateRenderer {
 	}
 
 	public setInput(notification: INotificationViewItem): void {
-		this.inputDisposeables = dispose(this.inputDisposeables);
+		this.inputDisposables = dispose(this.inputDisposables);
 
 		this.render(notification);
 	}
@@ -340,7 +340,7 @@ export class NotificationTemplateRenderer {
 		this.renderProgress(notification);
 
 		// Label Change Events
-		this.inputDisposeables.push(notification.onDidLabelChange(event => {
+		this.inputDisposables.push(notification.onDidLabelChange(event => {
 			switch (event.kind) {
 				case NotificationViewItemLabelKind.SEVERITY:
 					this.renderSeverity(notification);
@@ -363,7 +363,7 @@ export class NotificationTemplateRenderer {
 		clearNode(this.template.message);
 		this.template.message.appendChild(NotificationMessageRenderer.render(notification.message, {
 			callback: link => this.openerService.open(URI.parse(link)).then(void 0, onUnexpectedError),
-			disposeables: this.inputDisposeables
+			disposables: this.inputDisposables
 		}));
 
 		const messageOverflows = notification.canCollapse && !notification.expanded && this.template.message.scrollWidth > this.template.message.clientWidth;
@@ -388,7 +388,7 @@ export class NotificationTemplateRenderer {
 		if (notification.actions.secondary.length > 0) {
 			const configureNotificationAction = this.instantiationService.createInstance(ConfigureNotificationAction, ConfigureNotificationAction.ID, ConfigureNotificationAction.LABEL, notification.actions.secondary);
 			actions.push(configureNotificationAction);
-			this.inputDisposeables.push(configureNotificationAction);
+			this.inputDisposables.push(configureNotificationAction);
 		}
 
 		// Expand / Collapse
@@ -434,7 +434,7 @@ export class NotificationTemplateRenderer {
 				const action = notification.actions.primary[index];
 				button.label = action.label;
 
-				this.inputDisposeables.push(button.onDidClick(e => {
+				this.inputDisposables.push(button.onDidClick(e => {
 					e.preventDefault();
 					e.stopPropagation();
 
@@ -445,10 +445,10 @@ export class NotificationTemplateRenderer {
 					notification.close();
 				}));
 
-				this.inputDisposeables.push(attachButtonStyler(button, this.themeService));
+				this.inputDisposables.push(attachButtonStyler(button, this.themeService));
 			});
 
-			this.inputDisposeables.push(buttonGroup);
+			this.inputDisposables.push(buttonGroup);
 		}
 	}
 
@@ -502,6 +502,6 @@ export class NotificationTemplateRenderer {
 	}
 
 	public dispose(): void {
-		this.inputDisposeables = dispose(this.inputDisposeables);
+		this.inputDisposables = dispose(this.inputDisposables);
 	}
 }

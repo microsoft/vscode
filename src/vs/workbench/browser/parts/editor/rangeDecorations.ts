@@ -26,7 +26,7 @@ export class RangeHighlightDecorations implements IDisposable {
 	private editorDisposables: IDisposable[] = [];
 
 	private readonly _onHighlightRemoved: Emitter<void> = new Emitter<void>();
-	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
+	public readonly onHighlightRemoved: Event<void> = this._onHighlightRemoved.event;
 
 	constructor(@IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
 	}

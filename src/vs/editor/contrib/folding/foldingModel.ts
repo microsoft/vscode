@@ -63,11 +63,11 @@ export class FoldingModel {
 		this._updateEventEmitter.fire({ model: this, collapseStateChanged: regions });
 	}
 
-	public update(newRegions: FoldingRegions, blockedLineNumers: number[] = []): void {
+	public update(newRegions: FoldingRegions, blockedLineNumbers: number[] = []): void {
 		let newEditorDecorations = [];
 
 		let isBlocked = (startLineNumber, endLineNumber) => {
-			for (let blockedLineNumber of blockedLineNumers) {
+			for (let blockedLineNumber of blockedLineNumbers) {
 				if (startLineNumber < blockedLineNumber && blockedLineNumber <= endLineNumber) { // first line is visible
 					return true;
 				}
@@ -163,14 +163,14 @@ export class FoldingModel {
 		if (!Array.isArray(state)) {
 			return;
 		}
-		let toToogle: FoldingRegion[] = [];
+		let toToggle: FoldingRegion[] = [];
 		for (let range of state) {
 			let region = this.getRegionAtLine(range.startLineNumber);
 			if (region && !region.isCollapsed) {
-				toToogle.push(region);
+				toToggle.push(region);
 			}
 		}
-		this.toggleCollapseState(toToogle);
+		this.toggleCollapseState(toToggle);
 	}
 
 	public dispose() {
@@ -237,7 +237,7 @@ export class FoldingModel {
 
 /**
  * Collapse or expand the regions at the given locations including all children.
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
@@ -265,7 +265,7 @@ export function setCollapseStateLevelsDown(foldingModel: FoldingModel, doCollaps
 
 /**
  * Collapse or expand the regions at the given locations including all parents.
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
  * @param levels The number of levels. Use 1 to only impact the regions at the location, use Number.MAX_VALUE for all levels.
  * @param lineNumbers the location of the regions to collapse or expand, or if not set, all regions in the model.
  */
@@ -281,7 +281,7 @@ export function setCollapseStateLevelsUp(foldingModel: FoldingModel, doCollapse:
 /**
  * Folds or unfolds all regions that have a given level, except if they contain one of the blocked lines.
  * @param foldLevel level. Level == 1 is the top level
- * @param doCollapse Wheter to collase or expand
+ * @param doCollapse Whether to collapse or expand
 * @param blockedLineNumbers
 */
 export function setCollapseStateAtLevel(foldingModel: FoldingModel, foldLevel: number, doCollapse: boolean, blockedLineNumbers: number[]): void {

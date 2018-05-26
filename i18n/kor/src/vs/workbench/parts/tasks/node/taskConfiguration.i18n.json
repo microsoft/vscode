@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "경고: 셸 구성은 작업을 터미널에서 실행 중일 때에만 지원됩니다.",
 	"ConfigurationParser.noName": "오류: 선언 범위 내의 문제 선택기는 이름이 있어야 합니다.\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "경고: 정의된 문제 선택기를 알 수 없습니다. 지원되는 형식은 string | ProblemMatcher |(string | ProblemMatcher)[]입니다.\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "오류: 잘못된 problemMatcher 참조:  {0}\n",
+	"ConfigurationParser.invalidVariableReference": "오류: 잘못된 problemMatcher 참조:  {0}\n",
 	"ConfigurationParser.noTaskType": "오류: 작업 구성은 유형 속성이 필요합니다. 이 구성은 무시됩니다.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "오류: 등록된 작업 형식 '{0}'이(가) 없습니다. 해당하는 작업 공급자를 제공하는 확장을 설치하지 않으셨습니까?",
 	"ConfigurationParser.missingRequiredProperty": "오류: 작업 구성 '{0}'에 필요한 속성 '{1}'이(가) 없습니다. 작업 구성이 무시됩니다.",

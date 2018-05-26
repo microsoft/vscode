@@ -183,7 +183,7 @@ declare module 'vscode' {
 
 	export interface DebugConfigurationProvider {
 		/**
-		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
 		 * Registering more than one debugAdapterExecutable for a type results in an error.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.

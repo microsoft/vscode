@@ -22,7 +22,7 @@
 	"quitCode": "Eklenti yüklenemedi. Lütfen yeniden yüklemeden önce VS Code'u sonlandırın ve tekrar başlatın.",
 	"exitCode": "Eklenti yüklenemedi. Lütfen yeniden yüklemeden önce VS Code'u sonlandırın ve tekrar başlatın.",
 	"renameError": "{0}, {1} olarak yeniden adlandırılırken bilinmeyen hata oluştu",
-	"uninstallDependeciesConfirmation": "Yalnızca '{0}' eklentisini mi yoksa bağımlılıklarını da kaldırmak ister misiniz?",
+	"uninstallDependenciesConfirmation": "Yalnızca '{0}' eklentisini mi yoksa bağımlılıklarını da kaldırmak ister misiniz?",
 	"uninstallOnly": "Sadece Eklenti",
 	"uninstallAll": "Tümünü Kaldır",
 	"uninstallConfirmation": "'{0}' eklentisini kaldırmak istediğinizden emin misiniz?",

@@ -82,7 +82,7 @@ export interface ICommand {
 
 	/**
 	 * Compute the cursor state after the edit operations were applied.
-	 * @param model The model the commad has executed on.
+	 * @param model The model the command has executed on.
 	 * @param helper A helper to get inverse edit operations and to get previously tracked selections.
 	 * @return The cursor state after the command executed.
 	 */
@@ -550,7 +550,7 @@ export interface IContentDecorationRenderOptions {
  */
 export interface IDecorationRenderOptions extends IThemeDecorationRenderOptions {
 	isWholeLine?: boolean;
-	rangeBehavior?: TrackedRangeStickiness;
+	rangebehaviour?: TrackedRangeStickiness;
 	overviewRulerLane?: OverviewRulerLane;
 
 	light?: IThemeDecorationRenderOptions;

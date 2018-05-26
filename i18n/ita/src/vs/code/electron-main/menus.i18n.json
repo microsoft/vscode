@@ -162,7 +162,7 @@
 	"mMergeAllWindows": "Unisci tutte le finestre",
 	"miToggleDevTools": "&&Attiva/Disattiva strumenti di sviluppo",
 	"miAccessibilityOptions": "&&Opzioni accessibilità",
-	"miOpenProcessExplorerer": "Apri &&Process Explorer",
+	"miOpenProcessExplorer": "Apri &&Process Explorer",
 	"miReportIssue": "&&Segnala problema",
 	"miWelcome": "&&Benvenuti",
 	"miInteractivePlayground": "Playground &&interattivo",

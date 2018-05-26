@@ -752,7 +752,7 @@ declare module DebugProtocol {
 	export interface VariablesArguments {
 		/** The Variable reference. */
 		variablesReference: number;
-		/** Optional filter to limit the child variables to either named or indexed. If ommited, both types are fetched. */
+		/** Optional filter to limit the child variables to either named or indexed. If omitted, both types are fetched. */
 		filter?: 'indexed' | 'named';
 		/** The index of the first variable to return; if omitted children start at 0. */
 		start?: number;
@@ -1269,7 +1269,7 @@ declare module DebugProtocol {
 	export interface Source {
 		/** The short name of the source. Every source returned from the debug adapter has a name. When sending a source to the debug adapter this name is optional. */
 		name?: string;
-		/** The path of the source to be shown in the UI. It is only used to locate and load the content of the source if no sourceReference is specified (or its vaule is 0). */
+		/** The path of the source to be shown in the UI. It is only used to locate and load the content of the source if no sourceReference is specified (or its value is 0). */
 		path?: string;
 		/** If sourceReference > 0 the contents of the source must be retrieved through the SourceRequest (even if a path is specified). A sourceReference is only valid for a session, so it must not be used to persist a source. */
 		sourceReference?: number;
@@ -1351,7 +1351,7 @@ declare module DebugProtocol {
 		type?: string;
 		/** Properties of a variable that can be used to determine how to render the variable in the UI. */
 		presentationHint?: VariablePresentationHint;
-		/** Optional evaluatable name of this variable which can be passed to the 'EvaluateRequest' to fetch the variable's value. */
+		/** Optional evaluable name of this variable which can be passed to the 'EvaluateRequest' to fetch the variable's value. */
 		evaluateName?: string;
 		/** If variablesReference is > 0, the variable is structured and its children can be retrieved by passing variablesReference to the VariablesRequest. */
 		variablesReference: number;
@@ -1537,7 +1537,7 @@ declare module DebugProtocol {
 	/** This enumeration defines all possible conditions when a thrown exception should result in a break.
 		never: never breaks,
 		always: always breaks,
-		unhandled: breaks when excpetion unhandled,
+		unhandled: breaks when exception unhandled,
 		userUnhandled: breaks if the exception is not handled by user code.
 	*/
 	export type ExceptionBreakMode = 'never' | 'always' | 'unhandled' | 'userUnhandled';

@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Afficher les raccourcis clavier utilisateur",
 	"SearchKeybindings.AriaLabel": "Rechercher dans les combinaisons de touches",
 	"SearchKeybindings.Placeholder": "Rechercher dans les combinaisons de touches",
-	"sortByPrecedene": "Trier par priorité",
+	"sortByPrecedence": "Trier par priorité",
 	"header-message": "Pour des personnalisations avancées, ouvrez et modifiez",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Combinaisons de touches",

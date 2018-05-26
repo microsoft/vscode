@@ -103,7 +103,7 @@ export default class ErrorTelemetry {
 			err = err.detail;
 		}
 
-		// work around behavior in workerServer.ts that breaks up Error.stack
+		// work around behaviour in workerServer.ts that breaks up Error.stack
 		let callstack = Array.isArray(err.stack) ? err.stack.join('\n') : err.stack;
 		let msg = err.message ? err.message : safeStringify(err);
 

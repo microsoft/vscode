@@ -34,7 +34,7 @@ export interface ColorDefaults {
 }
 
 /**
- * A Color Value is either a color literal, a refence to other color or a derived color
+ * A Color Value is either a color literal, a reference to other color or a derived color
  */
 export type ColorValue = Color | string | ColorIdentifier | ColorFunction;
 
@@ -47,7 +47,7 @@ export interface IColorRegistry {
 
 	/**
 	 * Register a color to the registry.
-	 * @param id The color id as used in theme descrition files
+	 * @param id The color id as used in theme description files
 	 * @param defaults The default values
 	 * @description the description
 	 */
@@ -64,12 +64,12 @@ export interface IColorRegistry {
 	resolveDefaultColor(id: ColorIdentifier, theme: ITheme): Color;
 
 	/**
-	 * JSON schema for an object to assign color values to one of the color contrbutions.
+	 * JSON schema for an object to assign color values to one of the color contributions.
 	 */
 	getColorSchema(): IJSONSchema;
 
 	/**
-	 * JSON schema to for a reference to a color contrbution.
+	 * JSON schema to for a reference to a color contribution.
 	 */
 	getColorReferenceSchema(): IJSONSchema;
 

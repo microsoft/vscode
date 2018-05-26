@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "A figyelő buildelési feladat befejeződött.",
 	"TaskRunnerSystem.childProcessError": "Nem sikerült elindítani a külső programot: {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "Az) '{0}' feladat a felhasználó kérésére lett megszakítva.",
-	"unkownProblemMatcher": "A(z) {0} problémaillesztőt nem lehet feloldani. Az illesztő figyelmen kívül lesz hagyva."
+	"unknownProblemMatcher": "A(z) {0} problémaillesztőt nem lehet feloldani. Az illesztő figyelmen kívül lesz hagyva."
 }

@@ -8,5 +8,5 @@
 	],
 	"label": "탐색기",
 	"canNotResolve": "작업 영역 폴더를 확인할 수 없습니다.",
-	"symbolicLlink": "바로 가기 링크"
+	"symbolicLink": "바로 가기 링크"
 }

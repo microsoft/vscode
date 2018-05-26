@@ -19,7 +19,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { localize } from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as ConfigurationExtensions, IConfigurationRegistry } from 'vs/platform/configuration/common/configurationRegistry';
-import { DefaultController, IControllerOptions, OpenMode, ClickBehavior, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, IControllerOptions, OpenMode, ClickBehaviour, DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -401,8 +401,8 @@ function massageControllerOptions(options: IControllerOptions): IControllerOptio
 		options.keyboardSupport = false;
 	}
 
-	if (typeof options.clickBehavior !== 'number') {
-		options.clickBehavior = ClickBehavior.ON_MOUSE_DOWN;
+	if (typeof options.clickBehaviour !== 'number') {
+		options.clickBehaviour = ClickBehaviour.ON_MOUSE_DOWN;
 	}
 
 	return options;

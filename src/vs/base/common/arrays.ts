@@ -51,7 +51,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
 /**
  * Takes a sorted array and a function p. The array is sorted in such a way that all elements where p(x) is false
  * are located before all elements where p(x) is true.
- * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
+ * @returns the least x for which p(x) is true or array.length if no element fulfills the given function.
  */
 export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
@@ -212,7 +212,7 @@ export function delta<T>(before: T[], after: T[], compare: (a: T, b: T) => numbe
  * @param array The unsorted array.
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): T[] {
 	if (n === 0) {
@@ -234,7 +234,7 @@ export function top<T>(array: T[], compare: (a: T, b: T) => number, n: number): 
  * @param compare A sort function for the elements.
  * @param n The number of elements to return.
  * @param batch The number of elements to examine before yielding to the event loop.
- * @return The first n elemnts from array when sorted with compare.
+ * @return The first n elements from array when sorted with compare.
  */
 export function topAsync<T>(array: T[], compare: (a: T, b: T) => number, n: number, batch: number): TPromise<T[]> {
 	if (n === 0) {
@@ -301,7 +301,7 @@ export function isFalsyOrEmpty(obj: any): boolean {
 
 /**
  * Removes duplicates from the given array. The optional keyFn allows to specify
- * how elements are checked for equalness by returning a unique string for each.
+ * how elements are checked for equality by returning a unique string for each.
  */
 export function distinct<T>(array: T[], keyFn?: (t: T) => string): T[] {
 	if (!keyFn) {

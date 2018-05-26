@@ -57,6 +57,6 @@ export interface IWorkspaceMigrationService {
 	/**
 	 * Migrate current workspace to given workspace
 	 */
-	migrate(toWokspaceId: IWorkspaceIdentifier): TPromise<void>;
+	migrate(toWorkspaceId: IWorkspaceIdentifier): TPromise<void>;
 
 }

@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Mostrar enlaces de teclado del usuario",
 	"SearchKeybindings.AriaLabel": "Buscar enlaces de teclado",
 	"SearchKeybindings.Placeholder": "Buscar enlaces de teclado",
-	"sortByPrecedene": "Ordenar por procedimiento",
+	"sortByPrecedence": "Ordenar por procedimiento",
 	"header-message": "Para personalizaciones avanzadas, abra y edite el archivo ",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Enlaces de teclado",

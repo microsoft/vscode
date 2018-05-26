@@ -92,7 +92,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	private _markdownRenderer: MarkdownRenderer;
 	private _computer: MarginComputer;
 	private _hoverOperation: HoverOperation<IHoverMessage[]>;
-	private _renderDisposeables: IDisposable[];
+	private _renderDisposables: IDisposable[];
 
 	constructor(editor: ICodeEditor, markdownRenderer: MarkdownRenderer) {
 		super(ModesGlyphHoverWidget.ID, editor);
@@ -112,7 +112,7 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	public dispose(): void {
-		this._renderDisposeables = dispose(this._renderDisposeables);
+		this._renderDisposables = dispose(this._renderDisposables);
 		this._hoverOperation.cancel();
 		super.dispose();
 	}
@@ -159,14 +159,14 @@ export class ModesGlyphHoverWidget extends GlyphHoverWidget {
 	}
 
 	private _renderMessages(lineNumber: number, messages: IHoverMessage[]): void {
-		dispose(this._renderDisposeables);
-		this._renderDisposeables = [];
+		dispose(this._renderDisposables);
+		this._renderDisposables = [];
 
 		const fragment = document.createDocumentFragment();
 
 		messages.forEach((msg) => {
 			const renderedContents = this._markdownRenderer.render(msg.value);
-			this._renderDisposeables.push(renderedContents);
+			this._renderDisposables.push(renderedContents);
 			fragment.appendChild($('div.hover-row', null, renderedContents.element));
 		});
 

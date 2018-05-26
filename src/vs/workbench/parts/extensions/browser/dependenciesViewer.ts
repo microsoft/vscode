@@ -160,7 +160,7 @@ export class Renderer implements IRenderer {
 export class Controller extends WorkbenchTreeController {
 
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
@@ -184,10 +184,10 @@ export class Controller extends WorkbenchTreeController {
 		return false;
 	}
 
-	public openExtension(tree: ITree, sideByside: boolean): boolean {
+	public openExtension(tree: ITree, sideBySide: boolean): boolean {
 		const element: IExtensionDependencies = tree.getFocus();
 		if (element.extension) {
-			this.extensionsWorkdbenchService.open(element.extension, sideByside);
+			this.extensionsWorkbenchService.open(element.extension, sideBySide);
 			return true;
 		}
 		return false;
@@ -198,7 +198,7 @@ class OpenExtensionAction extends Action {
 
 	private _extensionDependencies: IExtensionDependencies;
 
-	constructor(@IExtensionsWorkbenchService private extensionsWorkdbenchService: IExtensionsWorkbenchService) {
+	constructor(@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService) {
 		super('extensions.action.openDependency', '');
 	}
 
@@ -210,7 +210,7 @@ class OpenExtensionAction extends Action {
 		return this._extensionDependencies;
 	}
 
-	run(sideByside: boolean): TPromise<any> {
-		return this.extensionsWorkdbenchService.open(this._extensionDependencies.extension, sideByside);
+	run(sideBySide: boolean): TPromise<any> {
+		return this.extensionsWorkbenchService.open(this._extensionDependencies.extension, sideBySide);
 	}
 }

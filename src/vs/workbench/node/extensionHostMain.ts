@@ -87,7 +87,7 @@ export class ExtensionHostMain {
 	constructor(protocol: IMessagePassingProtocol, initData: IInitData) {
 		this._environment = initData.environment;
 
-		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmin that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
+		const allowExit = !!this._environment.extensionTestsPath; // to support other test frameworks like Jasmine that use process.exit (https://github.com/Microsoft/vscode/issues/37708)
 		patchProcess(allowExit);
 
 		// services

@@ -162,7 +162,7 @@
 	"mMergeAllWindows": "모든 창 병합",
 	"miToggleDevTools": "개발자 도구 설정/해제(&&T)",
 	"miAccessibilityOptions": "접근성 옵션(&&O)",
-	"miOpenProcessExplorerer": "프로세스 탐색기 열기(&&P)",
+	"miOpenProcessExplorer": "프로세스 탐색기 열기(&&P)",
 	"miReportIssue": "문제 보고(&&I)",
 	"miWelcome": "시작(&&W)",
 	"miInteractivePlayground": "대화형 실습(&&I)",

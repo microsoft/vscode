@@ -57,7 +57,7 @@ export class TabsTitleControl extends TitleControl {
 	private activeTab: HTMLElement;
 	private editorLabels: ResourceLabel[];
 	private scrollbar: ScrollableElement;
-	private tabDisposeables: IDisposable[];
+	private tabDisposables: IDisposable[];
 	private blockRevealActiveTab: boolean;
 	private dimension: DOM.Dimension;
 	private layoutScheduled: IDisposable;
@@ -78,7 +78,7 @@ export class TabsTitleControl extends TitleControl {
 	) {
 		super(contextMenuService, instantiationService, editorService, editorGroupService, contextKeyService, keybindingService, telemetryService, notificationService, menuService, quickOpenService, themeService);
 
-		this.tabDisposeables = [];
+		this.tabDisposables = [];
 		this.editorLabels = [];
 	}
 
@@ -490,7 +490,7 @@ export class TabsTitleControl extends TitleControl {
 	private clearTabs(): void {
 		DOM.clearNode(this.tabsContainer);
 
-		this.tabDisposeables = dispose(this.tabDisposeables);
+		this.tabDisposables = dispose(this.tabDisposables);
 		this.editorLabels = [];
 
 		DOM.addClass(this.titleContainer, 'empty');
@@ -517,7 +517,7 @@ export class TabsTitleControl extends TitleControl {
 			for (let i = 0; i < tabsCount - tabsNeeded; i++) {
 				(this.tabsContainer.lastChild as HTMLElement).remove();
 				this.editorLabels.pop();
-				this.tabDisposeables.pop().dispose();
+				this.tabDisposables.pop().dispose();
 			}
 		}
 	}
@@ -551,7 +551,7 @@ export class TabsTitleControl extends TitleControl {
 		// Eventing
 		const disposable = this.hookTabListeners(tabContainer, index);
 
-		this.tabDisposeables.push(combinedDisposable([disposable, bar, actionRunner, editorLabel]));
+		this.tabDisposables.push(combinedDisposable([disposable, bar, actionRunner, editorLabel]));
 
 		return tabContainer;
 	}
@@ -610,7 +610,7 @@ export class TabsTitleControl extends TitleControl {
 			});
 		}
 
-		// Tab is overlflowng to the left or does not fit: Scroll it into view to the left
+		// Tab is overflowing to the left or does not fit: Scroll it into view to the left
 		else if (containerScrollPosX > activeTabPosX || !activeTabFits) {
 			this.scrollbar.setScrollPosition({
 				scrollLeft: activeTabPosX

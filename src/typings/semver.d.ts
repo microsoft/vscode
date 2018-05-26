@@ -120,6 +120,6 @@ declare module SemVerModule {
 	}
 }
 
-declare module "semver" {
+declare module 'semver' {
 	export = SemVerModule;
 }

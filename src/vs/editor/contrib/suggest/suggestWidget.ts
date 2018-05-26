@@ -200,7 +200,7 @@ class SuggestionDetails {
 	private docs: HTMLElement;
 	private ariaLabel: string;
 	private disposables: IDisposable[];
-	private renderDisposeable: IDisposable;
+	private renderDisposable: IDisposable;
 	private borderWidth: number = 1;
 
 	constructor(
@@ -243,7 +243,7 @@ class SuggestionDetails {
 	}
 
 	render(item: ICompletionItem): void {
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		this.renderDisposable = dispose(this.renderDisposable);
 
 		if (!item || !canExpandCompletionItem(item)) {
 			this.type.textContent = '';
@@ -260,7 +260,7 @@ class SuggestionDetails {
 			addClass(this.docs, 'markdown-docs');
 			this.docs.innerHTML = '';
 			const renderedContents = this.markdownRenderer.render(item.suggestion.documentation);
-			this.renderDisposeable = renderedContents;
+			this.renderDisposable = renderedContents;
 			this.docs.appendChild(renderedContents.element);
 		}
 
@@ -338,7 +338,7 @@ class SuggestionDetails {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-		this.renderDisposeable = dispose(this.renderDisposeable);
+		this.renderDisposable = dispose(this.renderDisposable);
 	}
 }
 
@@ -992,7 +992,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		// Compare top of the cursor (cursorY - lineheight) with widgetTop to determine if
 		// margin-top needs to be applied on list to make it appear right above the cursor
-		// Cannot compare cursorY directly as it may be a few decimals off due to zoooming
+		// Cannot compare cursorY directly as it may be a few decimals off due to zooming
 		if (hasClass(this.element, 'docs-side')
 			&& cursorY - lineHeight > widgetY
 			&& this.details.element.offsetHeight > this.listElement.offsetHeight) {

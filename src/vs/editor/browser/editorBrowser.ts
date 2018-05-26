@@ -578,12 +578,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The edits will land on the undo-redo stack, but no "undo stop" will be pushed.
 	 * @param source The source of the call.
 	 * @param edits The edits to execute.
-	 * @param endCursoState Cursor state after the edits were applied.
+	 * @param endCursorState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursorState?: Selection[]): boolean;
 
 	/**
-	 * Execute multiple (concommitent) commands on the editor.
+	 * Execute multiple (concomitant) commands on the editor.
 	 * @param source The source of the call.
 	 * @param command The commands to execute
 	 */
@@ -674,7 +674,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addContentWidget(widget: IContentWidget): void;
 	/**
 	 * Layout/Reposition a content widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutContentWidget(widget: IContentWidget): void;
 	/**
@@ -688,7 +688,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	addOverlayWidget(widget: IOverlayWidget): void;
 	/**
 	 * Layout/Reposition an overlay widget. This is a ping to the editor to call widget.getPosition()
-	 * and update appropiately.
+	 * and update appropriately.
 	 */
 	layoutOverlayWidget(widget: IOverlayWidget): void;
 	/**
@@ -726,7 +726,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * The result position takes scrolling into account and is relative to the top left corner of the editor.
 	 * Explanation 1: the results of this method will change for the same `position` if the user scrolls the editor.
 	 * Explanation 2: the results of this method will not change if the container of the editor gets repositioned.
-	 * Warning: the results of this method are innacurate for positions that are outside the current editor viewport.
+	 * Warning: the results of this method are inaccurate for positions that are outside the current editor viewport.
 	 */
 	getScrolledVisiblePosition(position: IPosition): { top: number; left: number; height: number; };
 

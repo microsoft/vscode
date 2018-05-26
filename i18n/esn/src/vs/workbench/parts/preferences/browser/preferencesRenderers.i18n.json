@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Coloque aquí su configuración de carpeta para sobrescribir la que se especifica en la configuración de área de trabajo.",
 	"reportSettingsSearchIssue": "Notificar problema",
 	"newExtensionLabel": "Mostrar extensión \"{0}\"",
-	"editTtile": "Editar",
+	"editTitle": "Editar",
 	"replaceDefaultValue": "Reemplazar en Configuración",
 	"copyDefaultValue": "Copiar en Configuración"
 }

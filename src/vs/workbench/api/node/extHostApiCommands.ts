@@ -138,7 +138,7 @@ export class ExtHostApiCommands {
 			description: 'Execute CodeLens provider.',
 			args: [
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI },
-				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only retrun resolved lenses, will impact performance)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
+				{ name: 'itemResolveCount', description: '(optional) Number of lenses that should be resolved and returned. Will only return resolved lenses, will impact performance)', constraint: (value: any) => value === void 0 || typeof value === 'number' }
 			],
 			returns: 'A promise that resolves to an array of CodeLens-instances.'
 		});

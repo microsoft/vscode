@@ -119,7 +119,7 @@ export interface MarkedOptions {
 	breaks?: boolean;
 
 	/**
-	 * Conform to obscure parts of markdown.pl as much as possible. Don't fix any of the original markdown bugs or poor behavior.
+	 * Conform to obscure parts of markdown.pl as much as possible. Don't fix any of the original markdown bugs or poor behaviour.
 	 */
 	pedantic?: boolean;
 
@@ -129,7 +129,7 @@ export interface MarkedOptions {
 	sanitize?: boolean;
 
 	/**
-	 * Use smarter list behavior than the original markdown. May eventually be default with the old behavior moved into pedantic.
+	 * Use smarter list behaviour than the original markdown. May eventually be default with the old behaviour moved into pedantic.
 	 */
 	smartLists?: boolean;
 
@@ -149,7 +149,7 @@ export interface MarkedOptions {
 	langPrefix?: string;
 
 	/**
-	 * Use "smart" typograhic punctuation for things like quotes and dashes.
+	 * Use "smart" typographic punctuation for things like quotes and dashes.
 	 */
 	smartypants?: boolean;
 

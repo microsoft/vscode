@@ -357,7 +357,7 @@
 			var onLoad = (contentDocument, contentWindow) => {
 				if (contentDocument.body) {
 					// Workaround for https://github.com/Microsoft/vscode/issues/12865
-					// check new scrollTop and reset if neccessary
+					// check new scrollTop and reset if necessary
 					setInitialScrollPosition(contentDocument.body);
 
 					// Bubble out link clicks

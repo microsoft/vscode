@@ -14,7 +14,7 @@
 	"actionNotEnabled": "La commande '{0}' n'est pas activée dans le contexte actuel.",
 	"canNotRun": "La commande '{0}' a abouti à une erreur.",
 	"recentlyUsed": "récemment utilisées",
-	"morecCommands": "autres commandes",
+	"moreCommands": "autres commandes",
 	"cat.title": "{0} : {1}",
 	"noCommandsMatching": "Aucune commande correspondante"
 }

@@ -71,7 +71,7 @@ export class LanguageConfigurationFileHandler {
 		this._modeService = modeService;
 		this._done = [];
 
-		// Listen for hints that a language configuration is needed/usefull and then load it once
+		// Listen for hints that a language configuration is needed/useful and then load it once
 		this._modeService.onDidCreateMode((mode) => this._loadConfigurationsForMode(mode.getLanguageIdentifier()));
 		textMateService.onDidEncounterLanguage((languageId) => {
 			this._loadConfigurationsForMode(this._modeService.getLanguageIdentifier(languageId));
@@ -500,7 +500,7 @@ const schema: IJSONSchema = {
 				},
 				decreaseIndentPattern: {
 					type: ['string', 'object'],
-					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).'),
+					description: nls.localize('schema.indentationRules.decreaseIndentPattern', 'If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).'),
 					properties: {
 						pattern: {
 							type: 'string',

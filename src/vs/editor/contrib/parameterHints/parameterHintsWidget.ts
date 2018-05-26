@@ -189,7 +189,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
 	private markdownRenderer: MarkdownRenderer;
-	private renderDisposeables: IDisposable[];
+	private renderDisposables: IDisposable[];
 	private model: ParameterHintsModel;
 	private keyVisible: IContextKey<boolean>;
 	private keyMultipleSignatures: IContextKey<boolean>;
@@ -232,7 +232,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}));
 	}
 
-	private createParamaterHintDOMNodes() {
+	private createParameterHintDOMNodes() {
 		this.element = $('.editor-widget.parameter-hints-widget');
 		const wrapper = dom.append(this.element, $('.wrapper'));
 
@@ -289,7 +289,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.set(true);
@@ -304,7 +304,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		}
 
 		if (!this.element) {
-			this.createParamaterHintDOMNodes();
+			this.createParameterHintDOMNodes();
 		}
 
 		this.keyVisible.reset();
@@ -354,8 +354,8 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			this.renderParameters(code, signature, this.hints.activeParameter);
 		}
 
-		dispose(this.renderDisposeables);
-		this.renderDisposeables = [];
+		dispose(this.renderDisposables);
+		this.renderDisposables = [];
 
 		const activeParameter = signature.parameters[this.hints.activeParameter];
 
@@ -366,7 +366,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			} else {
 				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
 				dom.addClass(renderedContents.element, 'markdown-docs');
-				this.renderDisposeables.push(renderedContents);
+				this.renderDisposables.push(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.docs, $('p', null, documentation));
@@ -379,7 +379,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
 			dom.addClass(renderedContents.element, 'markdown-docs');
-			this.renderDisposeables.push(renderedContents);
+			this.renderDisposables.push(renderedContents);
 			dom.append(this.docs, renderedContents.element);
 		}
 
@@ -522,7 +522,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-		this.renderDisposeables = dispose(this.renderDisposeables);
+		this.renderDisposables = dispose(this.renderDisposables);
 
 		if (this.model) {
 			this.model.dispose();

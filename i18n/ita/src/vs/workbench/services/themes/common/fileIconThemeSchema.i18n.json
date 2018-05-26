@@ -25,7 +25,7 @@
 	"schema.font-path": "Percorso del tipo di carattere, relativo al file del tema dell'icona corrente.",
 	"schema.font-format": "Formato del tipo di carattere.",
 	"schema.font-weight": "Spessore del carattere.",
-	"schema.font-sstyle": "Stile del tipo di carattere.",
+	"schema.font-style": "Stile del tipo di carattere.",
 	"schema.font-size": "Dimensioni predefinite del tipo di carattere.",
 	"schema.iconDefinitions": "Descrizione di tutte le icone utilizzabili quando si associano file a icone.",
 	"schema.iconDefinition": "Definizione di icona. La chiave dell'oggetto è l'ID della definizione.",

@@ -19,7 +19,7 @@
 	"configMissing": "構成 '{0}' が 'launch.json' 内にありません。",
 	"launchJsonDoesNotExist": "'launch.json' は存在しません。",
 	"debugRequestNotSupported": "選択しているデバッグ構成で '{0}' 属性はサポートされない値 '{1}' を指定しています。",
-	"debugRequesMissing": "選択しているデバッグ構成に属性 '{0}' が含まれていません。",
+	"debugRequestMissing": "選択しているデバッグ構成に属性 '{0}' が含まれていません。",
 	"debugTypeNotSupported": "構成されているデバッグの種類 '{0}' はサポートされていません。",
 	"debugTypeMissing": "選択された起動構成のプロパティ 'type' がありません。",
 	"debugAnyway": "このままデバッグを続ける",

@@ -25,9 +25,9 @@ export interface IssueReporterData {
 	includeSearchedExtensions?: boolean;
 	includeSettingsSearchDetails?: boolean;
 
-	numberOfThemeExtesions?: number;
+	numberOfThemeExtensions?: number;
 	allExtensions?: ILocalExtension[];
-	enabledNonThemeExtesions?: ILocalExtension[];
+	enabledNonThemeExtensions?: ILocalExtension[];
 	extensionsDisabled?: boolean;
 	fileOnExtension?: boolean;
 	selectedExtension?: ILocalExtension;
@@ -191,19 +191,19 @@ ${this._data.workspaceInfo};
 			return 'Extensions disabled';
 		}
 
-		const themeExclusionStr = this._data.numberOfThemeExtesions ? `\n(${this._data.numberOfThemeExtesions} theme extensions excluded)` : '';
+		const themeExclusionStr = this._data.numberOfThemeExtensions ? `\n(${this._data.numberOfThemeExtensions} theme extensions excluded)` : '';
 
-		if (!this._data.enabledNonThemeExtesions) {
+		if (!this._data.enabledNonThemeExtensions) {
 			return 'Extensions: none' + themeExclusionStr;
 		}
 
 		let tableHeader = `Extension|Author (truncated)|Version
 ---|---|---`;
-		const table = this._data.enabledNonThemeExtesions.map(e => {
+		const table = this._data.enabledNonThemeExtensions.map(e => {
 			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
 		}).join('\n');
 
-		return `<details><summary>Extensions (${this._data.enabledNonThemeExtesions.length})</summary>
+		return `<details><summary>Extensions (${this._data.enabledNonThemeExtensions.length})</summary>
 
 ${tableHeader}
 ${table}

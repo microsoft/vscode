@@ -48,7 +48,7 @@
 	"JsonSchema.tasks.matchers": "Используемые сопоставители проблем. Это может быть строка, определение сопоставителя проблем или массив строк и сопоставителей проблем.",
 	"JsonSchema.customizations.customizes.type": "Тип задачи, который будет изменен",
 	"JsonSchema.tasks.customize.deprecated": "Свойство customize является устаревшим. Сведения о том, как перейти на новый подход к изменению задач, см. в заметках о выпуске для версии 1.14.",
-	"JsonSchema.tasks.showOputput.deprecated": "Свойство showOutput является устаревшим. Используйте свойство reveal в свойстве presentation вместо этого свойства. Также см. заметки о выпуске для версии 1.14.",
+	"JsonSchema.tasks.showOutput.deprecated": "Свойство showOutput является устаревшим. Используйте свойство reveal в свойстве presentation вместо этого свойства. Также см. заметки о выпуске для версии 1.14.",
 	"JsonSchema.tasks.echoCommand.deprecated": "Свойство echoCommand является устаревшим. Используйте свойство echo в свойстве presentation вместо этого свойства. Также см. заметки о выпуске для версии 1.14.",
 	"JsonSchema.tasks.suppressTaskName.deprecated": "Свойство suppressTaskName является устаревшим. Вместо использования этого свойства включите команду с аргументами в задачу. Также см. заметки о выпуске для версии 1.14.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "Свойство isBuildCommand является устаревшим. Используйте свойство group вместо этого свойства. Также см. заметки о выпуске для версии 1.14. ",

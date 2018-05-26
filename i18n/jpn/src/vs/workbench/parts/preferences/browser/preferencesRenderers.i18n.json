@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "ワークスペースの設定を上書きするには、このファイル内にフォルダーの設定を挿入します。",
 	"reportSettingsSearchIssue": "問題の報告",
 	"newExtensionLabel": "拡張機能 \"{0}\" を表示",
-	"editTtile": "編集",
+	"editTitle": "編集",
 	"replaceDefaultValue": "設定を置換",
 	"copyDefaultValue": "設定にコピー"
 }

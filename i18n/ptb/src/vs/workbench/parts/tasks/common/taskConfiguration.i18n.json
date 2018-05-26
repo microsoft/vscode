@@ -9,7 +9,7 @@
 	"ConfigurationParser.noShell": "Aviso: A configuração do shell somente é suportada quando estiver executando tarefas no terminal.",
 	"ConfigurationParser.noName": "Erro: Problem Matcher no escopo declarado deve ter um nome:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "Aviso: a correspondência de problema definido é desconhecido. Tipos suportados são string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "Erro: ProblemMatcher inválido referência: {0}\n",
+	"ConfigurationParser.invalidVariableReference": "Erro: ProblemMatcher inválido referência: {0}\n",
 	"ConfigurationParser.noTaskName": "Erro: tarefas devem fornecer uma propriedade taskName. A tarefa será ignorada.\n{0}\n",
 	"taskConfiguration.shellArgs": "Aviso: a tarefa '{0}' é um comando do shell e o nome de comando ou um dos seus argumentos tem  espaços sem escape. Para garantir a linha de comando correta por favor mesclar argumentos no comando.",
 	"taskConfiguration.noCommandOrDependsOn": "Erro: a tarefa '{0}' não especifica nem um comando nem uma propriedade dependsOn. A tarefa será ignorada. Sua definição é: \n{1}",

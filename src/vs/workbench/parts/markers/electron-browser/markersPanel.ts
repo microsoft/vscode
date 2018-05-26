@@ -139,7 +139,7 @@ export class MarkersPanel extends Panel {
 		return this.actions;
 	}
 
-	public openFileAtElement(element: any, preserveFocus: boolean, sideByside: boolean, pinned: boolean): boolean {
+	public openFileAtElement(element: any, preserveFocus: boolean, sideBySide: boolean, pinned: boolean): boolean {
 		const { resource, selection } = element instanceof Marker ? { resource: element.resource, selection: element.range } :
 			element instanceof RelatedInformation ? { resource: element.raw.resource, selection: element.raw } : { resource: null, selection: null };
 		if (resource && selection) {
@@ -151,7 +151,7 @@ export class MarkersPanel extends Panel {
 					pinned,
 					revealIfVisible: true
 				},
-			}, sideByside).done(editor => {
+			}, sideBySide).done(editor => {
 				if (editor && preserveFocus) {
 					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
 				} else {

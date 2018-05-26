@@ -296,7 +296,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private loadWithBackup(options?: ILoadOptions): TPromise<TextFileEditorModel> {
 		return this.backupFileService.loadBackupResource(this.resource).then(backup => {
 
-			// Make sure meanwhile someone else did not suceed or start loading
+			// Make sure meanwhile someone else did not succeed or start loading
 			if (this.createTextEditorModelPromise || this.textEditorModel) {
 				return this.createTextEditorModelPromise || TPromise.as(this);
 			}

@@ -31,7 +31,7 @@ export class NodeCachedDataCleaner {
 	}
 
 	private _manageCachedDataSoon(): void {
-		// Cached data is stored as user data and we run a cleanup task everytime
+		// Cached data is stored as user data and we run a cleanup task every time
 		// the editor starts. The strategy is to delete all files that are older than
 		// 3 months (1 week respectively)
 		if (!this._environmentService.nodeCachedDataDir) {

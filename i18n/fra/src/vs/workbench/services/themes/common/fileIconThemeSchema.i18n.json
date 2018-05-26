@@ -25,7 +25,7 @@
 	"schema.font-path": "Chemin de la police, par rapport au fichier de thème d'icône actuel.",
 	"schema.font-format": "Format de la police.",
 	"schema.font-weight": "Poids de la police.",
-	"schema.font-sstyle": "Style de la police.",
+	"schema.font-style": "Style de la police.",
 	"schema.font-size": "Taille par défaut de la police.",
 	"schema.iconDefinitions": "Description de toutes les icônes utilisables durant l'association de fichiers à des icônes.",
 	"schema.iconDefinition": "Définition d'icône. La clé de l'objet est l'ID de la définition.",

@@ -119,12 +119,12 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		super(null, action, [], 0, contextViewService);
 
 		let outputChannelRegistry = Registry.as<IOutputChannelRegistry>(OutputExt.OutputChannels);
-		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
-		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOtions(this.outputService.getActiveChannel().id)));
-		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.updateOtions(activeChannelId)));
+		this.toDispose.push(outputChannelRegistry.onDidRegisterChannel(() => this.updateOptions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(outputChannelRegistry.onDidRemoveChannel(() => this.updateOptions(this.outputService.getActiveChannel().id)));
+		this.toDispose.push(this.outputService.onActiveOutputChannel(activeChannelId => this.updateOptions(activeChannelId)));
 		this.toDispose.push(attachSelectBoxStyler(this.selectBox, themeService));
 
-		this.updateOtions(this.outputService.getActiveChannel().id);
+		this.updateOptions(this.outputService.getActiveChannel().id);
 	}
 
 	protected getActionContext(option: string): string {
@@ -132,7 +132,7 @@ export class SwitchOutputActionItem extends SelectActionItem {
 		return channel ? channel.id : option;
 	}
 
-	private updateOtions(selectedChannel: string): void {
+	private updateOptions(selectedChannel: string): void {
 		const groups = groupBy(this.outputService.getChannels(), (c1: IOutputChannelIdentifier, c2: IOutputChannelIdentifier) => {
 			if (!c1.file && c2.file) {
 				return -1;

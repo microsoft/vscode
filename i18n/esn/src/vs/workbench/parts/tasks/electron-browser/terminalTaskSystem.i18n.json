@@ -12,5 +12,5 @@
 	"closeTerminal": "Pulse cualquier tecla para cerrar el terminal",
 	"reuseTerminal": "Las tareas reutilizarán el terminal, presione cualquier tecla para cerrarlo.",
 	"TerminalTaskSystem": "No se puede ejecutar un comando Shell en una unidad UNC mediante cmd.exe.",
-	"unkownProblemMatcher": "No puede resolver el comprobador de problemas {0}. Será omitido."
+	"unknownProblemMatcher": "No puede resolver el comprobador de problemas {0}. Será omitido."
 }

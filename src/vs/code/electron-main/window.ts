@@ -766,12 +766,12 @@ export class CodeWindow implements ICodeWindow {
 			return state;
 		}
 
-		// Multi Montior (fullscreen): try to find the previously used display
+		// Multi Monitor (fullscreen): try to find the previously used display
 		if (state.display && state.mode === WindowMode.Fullscreen) {
 			const display = displays.filter(d => d.id === state.display)[0];
 			if (display && display.bounds && typeof display.bounds.x === 'number' && typeof display.bounds.y === 'number') {
 				const defaults = defaultWindowState(WindowMode.Fullscreen); // make sure we have good values when the user restores the window
-				defaults.x = display.bounds.x; // carefull to use displays x/y position so that the window ends up on the correct monitor
+				defaults.x = display.bounds.x; // be careful to use displays x/y position so that the window ends up on the correct monitor
 				defaults.y = display.bounds.y;
 
 				return defaults;
@@ -790,7 +790,7 @@ export class CodeWindow implements ICodeWindow {
 		) {
 			if (state.mode === WindowMode.Maximized) {
 				const defaults = defaultWindowState(WindowMode.Maximized); // when maximized, make sure we have good values when the user restores the window
-				defaults.x = state.x; // carefull to keep x/y position so that the window ends up on the correct monitor
+				defaults.x = state.x; // be careful to keep x/y position so that the window ends up on the correct monitor
 				defaults.y = state.y;
 
 				return defaults;

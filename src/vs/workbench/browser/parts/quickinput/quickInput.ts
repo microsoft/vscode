@@ -288,7 +288,7 @@ class TextInputController implements InputController<string> {
 			const onDidChange = debounceEvent(ui.inputBox.onDidChange, (last, cur) => cur, 100);
 			this.disposables.push(onDidChange(() => this.didChange()));
 			if (ui.inputBox.value) {
-				// Replicating old behavior: only fire if value is not empty.
+				// Replicating old behaviour: only fire if value is not empty.
 				this.didChange();
 			}
 		}

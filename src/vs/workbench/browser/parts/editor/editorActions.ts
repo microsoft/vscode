@@ -87,7 +87,7 @@ export class SplitEditorAction extends Action {
 					targetPosition = Position.THREE;
 				}
 
-				// Push the second group to the right/bottom to make room for the splitted input
+				// Push the second group to the right/bottom to make room for the split input
 				else if (editorToSplit.position === Position.ONE) {
 					options.preserveFocus = true;
 
@@ -157,7 +157,7 @@ export class JoinTwoGroupsAction extends Action {
 		const movingToNextGroup = fromPosition < toPosition;
 		let index = movingToNextGroup ? 0 : toGroup.count;
 
-		// Inactive and preserve focus options are used to prevent unnecessary switchings of active editor or group
+		// Inactive and preserve focus options are used to prevent unnecessary switching of active editor or group
 		fromGroupEditors.forEach(e => {
 			const inactive = e !== activeEditor;
 			this.editorGroupService.moveEditor(e, fromPosition, toPosition, { index, inactive, preserveFocus: inactive });
@@ -417,7 +417,7 @@ export class FocusPreviousGroup extends Action {
 			return TPromise.as(true);
 		}
 
-		// Nevigate to the previous group or to the last group if the first group is active
+		// Navigate to the previous group or to the last group if the first group is active
 		const newPositionIndex = (activeEditor.position + groupCount - 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 
@@ -455,7 +455,7 @@ export class FocusNextGroup extends Action {
 			return TPromise.as(true);
 		}
 
-		// Nevigate to the next group or to the first group if the last group is active
+		// Navigate to the next group or to the first group if the last group is active
 		const newPositionIndex = (activeEditor.position + 1) % groupCount;
 		this.editorGroupService.focusGroup(<Position>newPositionIndex);
 

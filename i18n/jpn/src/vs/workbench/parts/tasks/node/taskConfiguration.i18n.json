@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "警告: シェル構成がサポートされるのは、ターミナルでタスクを実行している場合のみです。",
 	"ConfigurationParser.noName": "エラー: 宣言スコープ内の問題マッチャーに次の名前がなければなりません:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "警告: 定義されている問題マッチャーが不明です。サポートされている型は string | ProblemMatcher | (string | ProblemMatcher)[] です。\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "エラー: 正しくない problemMatcher 参照 {0}\n",
+	"ConfigurationParser.invalidVariableReference": "エラー: 正しくない problemMatcher 参照 {0}\n",
 	"ConfigurationParser.noTaskType": "エラー: タスクの構成には type プロパティが必要です。この構成は無視されます。\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Error: タスク タイプ '{0}' は登録されていません。対応するタスク プロバイダーを提供する拡張機能をインストールしましたか?",
 	"ConfigurationParser.missingRequiredProperty": "エラー: タスク構成 '{0}' に必要な '{1}' プロパティがありません。構成は無視されます。 ",

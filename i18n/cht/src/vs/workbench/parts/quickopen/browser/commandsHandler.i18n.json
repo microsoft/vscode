@@ -14,7 +14,7 @@
 	"actionNotEnabled": "目前內容中未啟用命令 '{0}'。",
 	"canNotRun": "命令 '{0}' 導致錯誤。",
 	"recentlyUsed": "最近使用的",
-	"morecCommands": "其他命令",
+	"moreCommands": "其他命令",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "沒有相符的命令"
 }

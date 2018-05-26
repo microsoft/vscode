@@ -441,8 +441,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		});
 	}
 
-	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
-		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside);
+	open(extension: IExtension, sideBySide: boolean = false): TPromise<any> {
+		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideBySide);
 	}
 
 	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Extension {
@@ -484,7 +484,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
-		// Sync the local extension with gallery extension if local extension doesnot has metadata
+		// Sync the local extension with gallery extension if local extension does not has metadata
 		(local.local.metadata ? TPromise.as(local.local) : this.extensionService.updateMetadata(local.local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId }))
 			.then(localExtension => {
 				local.local = localExtension;
@@ -646,7 +646,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndEnable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<any> {
-		const message = nls.localize('enableDependeciesConfirmation', "Enabling an extension also enables its dependencies. Would you like to continue?");
+		const message = nls.localize('enableDependenciesConfirmation', "Enabling an extension also enables its dependencies. Would you like to continue?");
 		const buttons = [
 			nls.localize('enable', "Yes"),
 			nls.localize('doNotEnable', "No")
@@ -661,7 +661,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	private promptForDependenciesAndDisable(extensions: IExtension[], dependencies: IExtension[], enablementState: EnablementState): TPromise<void> {
-		const message = nls.localize('disableDependeciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
+		const message = nls.localize('disableDependenciesConfirmation', "Would you like to disable the dependencies of the extensions also?");
 		const buttons = [
 			nls.localize('yes', "Yes"),
 			nls.localize('no', "No"),

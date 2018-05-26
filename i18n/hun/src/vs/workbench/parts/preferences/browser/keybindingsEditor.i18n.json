@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Felhasználói billentyűparancsok megjelenítése",
 	"SearchKeybindings.AriaLabel": "Billentyűparancsok keresése",
 	"SearchKeybindings.Placeholder": "Billentyűparancsok keresése",
-	"sortByPrecedene": "Rendezés precedencia szerint",
+	"sortByPrecedence": "Rendezés precedencia szerint",
 	"header-message": "További, haladó testreszabáshoz nyissa meg és szerkessze a következő fájlt:",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Billentyűparancsok",

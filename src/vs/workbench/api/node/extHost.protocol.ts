@@ -127,7 +127,7 @@ export interface MainThreadDialogSaveOptions {
 	filters?: { [name: string]: string[] };
 }
 
-export interface MainThreadDiaglogsShape extends IDisposable {
+export interface MainThreadDialogsShape extends IDisposable {
 	$showOpenDialog(options: MainThreadDialogOpenOptions): Thenable<string[]>;
 	$showSaveDialog(options: MainThreadDialogSaveOptions): Thenable<string>;
 }
@@ -266,7 +266,7 @@ export interface MainThreadLanguageFeaturesShape extends IDisposable {
 	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], extensionId: string): void;
 	$registerCodeLensSupport(handle: number, selector: ISerializedDocumentFilter[], eventHandle: number): void;
 	$emitCodeLensEvent(eventHandle: number, event?: any): void;
-	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
+	$registerDeclarationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerImplementationSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerTypeDefinitionSupport(handle: number, selector: ISerializedDocumentFilter[]): void;
 	$registerHoverProvider(handle: number, selector: ISerializedDocumentFilter[]): void;
@@ -840,7 +840,7 @@ export interface ExtHostDebugServiceShape {
 	$acceptDebugSessionTerminated(id: DebugSessionUUID, type: string, name: string): void;
 	$acceptDebugSessionActiveChanged(id: DebugSessionUUID | undefined, type?: string, name?: string): void;
 	$acceptDebugSessionCustomEvent(id: DebugSessionUUID, type: string, name: string, event: any): void;
-	$acceptBreakpointsDelta(delat: IBreakpointsDeltaDto): void;
+	$acceptBreakpointsDelta(delta: IBreakpointsDeltaDto): void;
 }
 
 
@@ -877,7 +877,7 @@ export const MainContext = {
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
 	MainThreadDiagnostics: createMainId<MainThreadDiagnosticsShape>('MainThreadDiagnostics'),
-	MainThreadDialogs: createMainId<MainThreadDiaglogsShape>('MainThreadDiaglogs'),
+	MainThreadDialogs: createMainId<MainThreadDialogsShape>('MainThreadDialogs'),
 	MainThreadDocuments: createMainId<MainThreadDocumentsShape>('MainThreadDocuments'),
 	MainThreadDocumentContentProviders: createMainId<MainThreadDocumentContentProvidersShape>('MainThreadDocumentContentProviders'),
 	MainThreadTextEditors: createMainId<MainThreadTextEditorsShape>('MainThreadTextEditors'),

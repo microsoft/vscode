@@ -26,7 +26,7 @@ export interface IHoverComputer<Result> {
 	computeSync?: () => Result;
 
 	/**
-	 * This is called whenever one of the compute* methods returns a truey value
+	 * This is called whenever one of the compute* methods returns a truthy value
 	 */
 	onResult: (result: Result, isFromSynchronousComputation: boolean) => void;
 

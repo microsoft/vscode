@@ -14,7 +14,7 @@
 	"actionNotEnabled": "Ebben a kontextusban nem engedélyezett a(z) '{0}' parancs futtatása.",
 	"canNotRun": "A(z) '{0}' parancs hibát eredményezett.",
 	"recentlyUsed": "legutóbb használt",
-	"morecCommands": "további parancsok",
+	"moreCommands": "további parancsok",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Parancs nem található"
 }

@@ -14,9 +14,9 @@
 	"functionBreakpointPlaceholder": "A függvény, amin meg kell állni",
 	"functionBreakPointInputAriaLabel": "Adja meg a függvénytöréspontot",
 	"breakpointDisabledHover": "Letiltott töréspont",
-	"breakpointUnverifieddHover": "Nem megerősített töréspont",
+	"breakpointUnverifiedHover": "Nem megerősített töréspont",
 	"functionBreakpointUnsupported": "Ez a hibakereső nem támogatja a függvénytöréspontokat",
-	"breakpointDirtydHover": "Nem megerősített töréspont. A fájl módosult, indítsa újra a hibakeresési munkamenetet.",
+	"breakpointDirtyHover": "Nem megerősített töréspont. A fájl módosult, indítsa újra a hibakeresési munkamenetet.",
 	"logBreakpointUnsupported": "Ez a hibakereső nem támogatja a naplózási pontokat",
 	"conditionalBreakpointUnsupported": "Ez a hibakereső nem támogatja a feltételes töréspontokat",
 	"hitBreakpointUnsupported": "Ez a hibakereső nem támogatja az érintési feltételes töréspontokat"

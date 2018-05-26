@@ -8,7 +8,7 @@
 	],
 	"SearchKeybindings.AriaLabel": "Pesquisar keybindings",
 	"SearchKeybindings.Placeholder": "Pesquisar keybindings",
-	"sortByPrecedene": "Ordenar por precedência",
+	"sortByPrecedence": "Ordenar por precedência",
 	"header-message": "Para personalizações avançadas abrir e editar",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Keybindings",

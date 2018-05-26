@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "将文件夹设置放入此处以覆盖\"工作区设置\"。",
 	"reportSettingsSearchIssue": "使用英文报告问题",
 	"newExtensionLabel": "显示扩展“{0}”",
-	"editTtile": "编辑",
+	"editTitle": "编辑",
 	"replaceDefaultValue": "在设置中替换",
 	"copyDefaultValue": "复制到设置"
 }

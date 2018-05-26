@@ -19,7 +19,7 @@
 	"configMissing": "\"launch.json\" 中缺少配置“{0}”。",
 	"launchJsonDoesNotExist": "\"launch.json\" 不存在。",
 	"debugRequestNotSupported": "所选调试配置的属性“{0}”的值“{1}”不受支持。",
-	"debugRequesMissing": "所选的调试配置缺少属性“{0}”。",
+	"debugRequestMissing": "所选的调试配置缺少属性“{0}”。",
 	"debugTypeNotSupported": "配置的类型“{0}”不受支持。",
 	"debugTypeMissing": "所选的启动配置缺少属性 \"type\"。",
 	"debugAnyway": "仍进行调试",

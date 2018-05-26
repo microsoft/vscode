@@ -110,7 +110,7 @@ export function writeFile(path: string, data: any, options?: extfs.IWriteFileOpt
 function toQueueKey(path: string): string {
 	let queueKey = path;
 	if (platform.isWindows || platform.isMacintosh) {
-		queueKey = queueKey.toLowerCase(); // accomodate for case insensitive file systems
+		queueKey = queueKey.toLowerCase(); // accommodate for case insensitive file systems
 	}
 
 	return queueKey;

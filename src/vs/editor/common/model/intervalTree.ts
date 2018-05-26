@@ -21,8 +21,8 @@ export const ClassName = {
 };
 
 /**
- * Describes the behavior of decorations when typing/editing near their edges.
- * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
+ * Describes the behaviour of decorations when typing/editing near their edges.
+ * Note: Please do not edit the values, as they very carefully match `DecorationRangebehaviour`
  */
 const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,

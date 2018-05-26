@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nОтслеживание задач сборки завершено.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "\nЗадача \"{0}\" была завершена по запросу пользователя.",
-	"unkownProblemMatcher": "Не удается разрешить сопоставитель проблем {0}. Сопоставитель будет проигнорирован"
+	"unknownProblemMatcher": "Не удается разрешить сопоставитель проблем {0}. Сопоставитель будет проигнорирован"
 }

@@ -105,7 +105,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 	public layout(dimension: Dimension): void {
 		this.dimension = dimension;
 		if (dimension.height === 0 || dimension.width === 0) {
-			// Do not layout if not visible. Otherwise the size measurment would be computed wrongly
+			// Do not layout if not visible. Otherwise the size measurement would be computed wrongly
 			return;
 		}
 
@@ -213,7 +213,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			const defaultCompositeId = this.options.getDefaultCompositeId();
 
 			// Case: composite is not the active one or the active one is a different one
-			// Solv: we do nothing
+			// Solve: we do nothing
 			if (!this.model.activeItem || this.model.activeItem.id !== compositeId) {
 				return;
 			}
@@ -222,19 +222,19 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			this.deactivateComposite(compositeId);
 
 			// Case: composite is not the default composite and default composite is still showing
-			// Solv: we open the default composite
+			// Solve: we open the default composite
 			if (defaultCompositeId !== compositeId && this.isPinned(defaultCompositeId)) {
 				this.options.openComposite(defaultCompositeId);
 			}
 
 			// Case: we closed the last visible composite
-			// Solv: we hide the part
+			// Solve: we hide the part
 			else if (this.visibleComposites.length === 1) {
 				this.options.hidePart();
 			}
 
 			// Case: we closed the default composite
-			// Solv: we open the next visible composite from top
+			// Solve: we open the next visible composite from top
 			else {
 				this.options.openComposite(this.visibleComposites.filter(cid => cid !== compositeId)[0]);
 			}
@@ -266,7 +266,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 			items.forEach(composite => this.compositeSizeInBar.set(composite.id, size));
 		} else {
 			if (this.dimension && this.dimension.height !== 0 && this.dimension.width !== 0) {
-				// Compute sizes only if visible. Otherwise the size measurment would be computed wrongly.
+				// Compute sizes only if visible. Otherwise the size measurement would be computed wrongly.
 				const currentItemsLength = this.compositeSwitcherBar.items.length;
 				this.compositeSwitcherBar.push(items.map(composite => composite.activityAction));
 				items.map((composite, index) => this.compositeSizeInBar.set(composite.id, this.options.orientation === ActionsOrientation.VERTICAL

@@ -10,7 +10,7 @@
 	"showUserKeybindings": "Benutzer-Tastaturbelegungen anzeigen",
 	"SearchKeybindings.AriaLabel": "Tastenzuordnungen suchen",
 	"SearchKeybindings.Placeholder": "Tastenzuordnungen suchen",
-	"sortByPrecedene": "Nach Priorität sortieren",
+	"sortByPrecedence": "Nach Priorität sortieren",
 	"header-message": "Öffnen und bearbeiten Sie die folgende Datei, um erweiterte Anpassungen vorzunehmen:",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "Tastenzuordnungen",

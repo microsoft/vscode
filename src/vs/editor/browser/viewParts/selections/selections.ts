@@ -59,7 +59,7 @@ function toStyled(item: LineVisibleRanges): LineVisibleRangesWithStyle {
 }
 
 // TODO@Alex: Remove this once IE11 fixes Bug #524217
-// The problem in IE11 is that it does some sort of auto-zooming to accomodate for displays with different pixel density.
+// The problem in IE11 is that it does some sort of auto-zooming to accommodate for displays with different pixel density.
 // Unfortunately, this auto-zooming is buggy around dealing with rounded borders
 const isIEWithZoomingIssuesNearRoundedBorders = browser.isEdgeOrIE;
 

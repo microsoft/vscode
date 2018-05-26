@@ -57,7 +57,7 @@ export interface ISplitLine {
 	getViewLineMinColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineMaxColumn(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): number;
 	getViewLineData(model: ISimpleModel, modelLineNumber: number, outputLineIndex: number): ViewLineData;
-	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void;
+	getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void;
 
 	getModelColumnOfViewPosition(outputLineIndex: number, outputColumn: number): number;
 	getViewPositionOfModelPosition(deltaLineNumber: number, inputColumn: number): Position;
@@ -891,7 +891,7 @@ class VisibleIdentitySplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!needed[globalStartIndex]) {
 			result[globalStartIndex] = null;
 			return;
@@ -953,7 +953,7 @@ class InvisibleIdentitySplitLine implements ISplitLine {
 		throw new Error('Not supported');
 	}
 
-	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+	public getViewLinesData(model: ISimpleModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		throw new Error('Not supported');
 	}
 
@@ -1105,13 +1105,13 @@ export class SplitLine implements ISplitLine {
 		);
 	}
 
-	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOuputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
+	public getViewLinesData(model: ITextModel, modelLineNumber: number, fromOutputLineIndex: number, toOutputLineIndex: number, globalStartIndex: number, needed: boolean[], result: ViewLineData[]): void {
 		if (!this._isVisible) {
 			throw new Error('Not supported');
 		}
 
-		for (let outputLineIndex = fromOuputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
-			let globalIndex = globalStartIndex + outputLineIndex - fromOuputLineIndex;
+		for (let outputLineIndex = fromOutputLineIndex; outputLineIndex < toOutputLineIndex; outputLineIndex++) {
+			let globalIndex = globalStartIndex + outputLineIndex - fromOutputLineIndex;
 			if (!needed[globalIndex]) {
 				result[globalIndex] = null;
 				continue;

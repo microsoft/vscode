@@ -179,7 +179,7 @@ declare namespace Mocha {
 		only(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): ITest;
 		skip(expectation: string, callback?: (this: ITestCallbackContext, done: MochaDone) => any): void;
 		timeout(ms: number): void;
-		state: "failed" | "passed";
+		state: 'failed' | 'passed';
 	}
 
 	export module reporters {
@@ -229,6 +229,6 @@ declare namespace Mocha {
 	}
 }
 
-declare module "mocha" {
+declare module 'mocha' {
 	export = Mocha;
 }

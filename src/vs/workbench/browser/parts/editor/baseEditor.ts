@@ -42,7 +42,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * method. Calling it otherwise may result in unexpected behaviour.
 	 *
 	 * Sets the given input with the options to the part. An editor has to deal with the
 	 * situation that the same input is being set with different options.

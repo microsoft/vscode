@@ -107,8 +107,8 @@ workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(OpenWo
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(SaveWorkspaceAsAction, SaveWorkspaceAsAction.ID, SaveWorkspaceAsAction.LABEL), 'Workspaces: Save Workspace As...', workspacesCategory);
 workbenchActionsRegistry.registerWorkbenchAction(new SyncActionDescriptor(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL), 'Workspaces: Duplicate Workspace in New Window', workspacesCategory);
 // Support old command id
-CommandsRegistry.registerCommand('workbench.action.openFolderAsWorkspaceInNewWindow', serviceAccesor => {
-	serviceAccesor.get(IInstantiationService).createInstance(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL).run();
+CommandsRegistry.registerCommand('workbench.action.openFolderAsWorkspaceInNewWindow', serviceAccessor => {
+	serviceAccessor.get(IInstantiationService).createInstance(DuplicateWorkspaceInNewWindowAction, DuplicateWorkspaceInNewWindowAction.ID, DuplicateWorkspaceInNewWindowAction.LABEL).run();
 });
 
 CommandsRegistry.registerCommand(OpenWorkspaceConfigFileAction.ID, serviceAccessor => {
@@ -169,7 +169,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['default', 'short', 'medium', 'long'],
 			'enumDescriptions': [
-				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguinshing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
+				nls.localize('workbench.editor.labelFormat.default', "Show the name of the file. When tabs are enabled and two files have the same name in one group the distinguishing sections of each file's path are added. When tabs are disabled, the path relative to the workspace folder is shown if the editor is active."),
 				nls.localize('workbench.editor.labelFormat.short', "Show the name of the file followed by it's directory name."),
 				nls.localize('workbench.editor.labelFormat.medium', "Show the name of the file followed by it's path relative to the workspace folder."),
 				nls.localize('workbench.editor.labelFormat.long', "Show the name of the file followed by it's absolute path.")

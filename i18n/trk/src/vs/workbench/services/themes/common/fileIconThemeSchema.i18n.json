@@ -25,7 +25,7 @@
 	"schema.font-path": "Yazı tipi yolu, geçerli simge teması dosyasına göreli yol.",
 	"schema.font-format": "Yazı tipinin biçimi.",
 	"schema.font-weight": "Yazı tipinin kalınlığı.",
-	"schema.font-sstyle": "Yazı tipinin stili.",
+	"schema.font-style": "Yazı tipinin stili.",
 	"schema.font-size": "Yazı tipinin varsayılan boyutu.",
 	"schema.iconDefinitions": "Dosyalar simgelerle ilişkilendirirken kullanılabilecek tüm simgelerin açıklaması.",
 	"schema.iconDefinition": "Bir simge tanımı. Nesne anahtarı, tanımın ID'sidir.",

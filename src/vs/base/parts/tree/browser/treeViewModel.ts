@@ -43,7 +43,7 @@ export class HeightMap {
 			viewItem = this.heightMap[i - 1];
 
 			if (!viewItem) {
-				console.error('view item doesnt exist');
+				console.error('view item doesn\'t exist');
 				return undefined;
 			}
 
@@ -99,7 +99,7 @@ export class HeightMap {
 			viewItem = this.heightMap[i];
 
 			if (!viewItem) {
-				console.error('view item doesnt exist');
+				console.error('view item doesn\'t exist');
 				return;
 			}
 

@@ -131,7 +131,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 			// Update the keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [userKeybindingEntryIndex, 'key'], newKey, { tabSize, insertSpaces, eol })[0], model);
 		} else {
-			// Add the new keybinidng with new key
+			// Add the new keybinding with new key
 			this.applyEditsToBuffer(setProperty(model.getValue(), [-1], this.asObject(newKey, keybindingItem.command, keybindingItem.when, false), { tabSize, insertSpaces, eol })[0], model);
 		}
 		if (keybindingItem.resolvedKeybinding) {

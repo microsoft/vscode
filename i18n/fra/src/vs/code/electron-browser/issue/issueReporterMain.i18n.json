@@ -19,7 +19,7 @@
 	"performanceIssue": "Problème de performance",
 	"stepsToReproduce": "Étapes à reproduire",
 	"bugDescription": "Partagez les étapes nécessaires pour reproduire fidèlement le problème. Veuillez inclure les résultats réels et prévus. Nous prenons en charge la syntaxe GitHub Markdown. Vous pourrez éditer votre problème et ajouter des captures d'écran lorsque nous le prévisualiserons sur GitHub.",
-	"performanceIssueDesciption": "Quand ce problème de performance s'est-il produit ? Se produit-il au démarrage ou après une série d'actions spécifiques ? Nous prenons en charge la syntaxe Markdown de GitHub. Vous pourrez éditer votre problème et ajouter des captures d'écran lorsque nous le prévisualiserons sur GitHub.",
+	"performanceIssueDescription": "Quand ce problème de performance s'est-il produit ? Se produit-il au démarrage ou après une série d'actions spécifiques ? Nous prenons en charge la syntaxe Markdown de GitHub. Vous pourrez éditer votre problème et ajouter des captures d'écran lorsque nous le prévisualiserons sur GitHub.",
 	"description": "Description",
 	"featureRequestDescription": "Veuillez décrire la fonctionnalité que vous voulez voir. Nous supportons la syntaxe GitHub Markdown. Vous pourrez modifier votre problème et ajouter des captures d’écran lorsque nous la prévisualiserons sur GitHub.",
 	"expectedResults": "Résultats attendus",

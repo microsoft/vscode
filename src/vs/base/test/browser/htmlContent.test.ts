@@ -57,7 +57,7 @@ suite('HtmlContent', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: []
+				disposables: []
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<a href="#">action</a>');
@@ -76,7 +76,7 @@ suite('HtmlContent', () => {
 					assert.strictEqual(content, '0');
 					callbackCalled = true;
 				},
-				disposeables: []
+				disposables: []
 			}
 		});
 		assert.strictEqual(result.innerHTML, '<i><b><a href="#">action</a></b></i>');

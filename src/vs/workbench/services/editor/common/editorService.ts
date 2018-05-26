@@ -77,7 +77,7 @@ export interface IWorkbenchEditorService extends IEditorService {
 
 	/**
 	 * Given a list of editors to replace, will look across all groups where this editor is open (active or hidden)
-	 * and replace it with the new editor and the provied options.
+	 * and replace it with the new editor and the provided options.
 	 */
 	replaceEditors(editors: { toReplace: IResourceInputType, replaceWith: IResourceInputType }[], position?: Position): TPromise<IEditor[]>;
 	replaceEditors(editors: { toReplace: IEditorInput, replaceWith: IEditorInput, options?: IEditorOptions | ITextEditorOptions }[], position?: Position): TPromise<IEditor[]>;
@@ -222,7 +222,7 @@ export class WorkbenchEditorService implements IWorkbenchEditorService {
 	}
 
 	/**
-	 * Allow subclasses to implement their own behavior for opening editor (see below).
+	 * Allow subclasses to implement their own behaviour for opening editor (see below).
 	 */
 	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, sideBySide?: boolean): TPromise<IEditor>;
 	protected doOpenEditor(input: IEditorInput, options?: EditorOptions, position?: Position): TPromise<IEditor>;
@@ -393,10 +393,10 @@ export interface IEditorCloseHandler {
 }
 
 /**
- * Subclass of workbench editor service that delegates all calls to the provided editor service. Subclasses can choose to override the behavior
+ * Subclass of workbench editor service that delegates all calls to the provided editor service. Subclasses can choose to override the behaviour
  * of openEditor() and closeEditor() by providing a handler.
  *
- * This gives clients a chance to override the behavior of openEditor() and closeEditor().
+ * This gives clients a chance to override the behaviour of openEditor() and closeEditor().
  */
 export class DelegatingWorkbenchEditorService extends WorkbenchEditorService {
 	private editorOpenHandler: IEditorOpenHandler;

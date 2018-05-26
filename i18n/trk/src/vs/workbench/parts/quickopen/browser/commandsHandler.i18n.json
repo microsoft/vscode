@@ -14,7 +14,7 @@
 	"actionNotEnabled": "'{0}' komutu geçerli bağlamda etkin değil.",
 	"canNotRun": "'{0}' komutu hata ile sonuçlandı.",
 	"recentlyUsed": "yakınlarda kullanıldı",
-	"morecCommands": "diğer komutlar",
+	"moreCommands": "diğer komutlar",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Eşleşen komut yok"
 }

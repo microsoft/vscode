@@ -39,7 +39,7 @@ class MoveCaretAction extends EditorAction {
 class MoveCaretLeftAction extends MoveCaretAction {
 	constructor() {
 		super(true, {
-			id: 'editor.action.moveCarretLeftAction',
+			id: 'editor.action.moveCaretLeftAction',
 			label: nls.localize('caret.moveLeft', "Move Caret Left"),
 			alias: 'Move Caret Left',
 			precondition: EditorContextKeys.writable
@@ -50,7 +50,7 @@ class MoveCaretLeftAction extends MoveCaretAction {
 class MoveCaretRightAction extends MoveCaretAction {
 	constructor() {
 		super(false, {
-			id: 'editor.action.moveCarretRightAction',
+			id: 'editor.action.moveCaretRightAction',
 			label: nls.localize('caret.moveRight', "Move Caret Right"),
 			alias: 'Move Caret Right',
 			precondition: EditorContextKeys.writable

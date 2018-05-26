@@ -48,7 +48,7 @@
 	"JsonSchema.tasks.matchers": "Die zu verwendenden Problemabgleicher. Es kann sich um eine Zeichenfolge, eine Problemabgleicherdefinition oder ein Array aus Zeichenfolgen und Problemabgleichern handeln.",
 	"JsonSchema.customizations.customizes.type": "Der anzupassende Aufgabentyp",
 	"JsonSchema.tasks.customize.deprecated": "Die customize-Eigenschaft ist veraltet. Informationen zur Migration zum neuen Ansatz für die Aufgabenanpassung finden Sie in den Anmerkungen zur Version 1.14.",
-	"JsonSchema.tasks.showOputput.deprecated": "Die showOutput-Eigenschaft ist veraltet. Verwenden Sie stattdessen die reveal-Eigenschaft innerhalb der presentation-Eigenschaft. Weitere Informationen finden Sie auch in den Anmerkungen zur Version 1.14.",
+	"JsonSchema.tasks.showOutput.deprecated": "Die showOutput-Eigenschaft ist veraltet. Verwenden Sie stattdessen die reveal-Eigenschaft innerhalb der presentation-Eigenschaft. Weitere Informationen finden Sie auch in den Anmerkungen zur Version 1.14.",
 	"JsonSchema.tasks.echoCommand.deprecated": "Die echoCommand-Eigenschaft ist veraltet. Verwenden Sie stattdessen die echo-Eigenschaft innerhalb der presentation-Eigenschaft. Weitere Informationen finden Sie auch in den Anmerkungen zur Version 1.14. ",
 	"JsonSchema.tasks.suppressTaskName.deprecated": "Die suppressTaskName-Eigenschaft ist veraltet. Binden Sie den Befehl mit den zugehörigen Argumenten stattdessen in die Aufgabe ein. Weitere Informationen finden Sie auch in den Anmerkungen zur Version 1.14.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "Die isBuildCommand-Eigenschaft ist veraltet. Verwenden Sie stattdessen die group-Eigenschaft. Weitere Informationen finden Sie auch in den Anmerkungen zur Version 1.14. ",

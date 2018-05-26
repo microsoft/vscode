@@ -10,7 +10,7 @@
 	"launch.config.comment2": "Zeigen Sie auf vorhandene Attribute, um die zugehörigen Beschreibungen anzuzeigen.",
 	"launch.config.comment3": "Weitere Informationen finden Sie unter {0}",
 	"debugType": "Der Typ der Konfiguration.",
-	"debugTypeNotRecognised": "Dieser Debugging-Typ wurde nicht erkannt. Bitte installieren und aktivieren Sie die dazugehörige Debugging-Erweiterung.",
+	"debugTypeNotRecognized": "Dieser Debugging-Typ wurde nicht erkannt. Bitte installieren und aktivieren Sie die dazugehörige Debugging-Erweiterung.",
 	"node2NotSupported": "\"node2\" wird nicht mehr unterstützt, verwenden Sie stattdessen \"node\", und legen Sie das Attribut \"protocol\" auf \"inspector\" fest.",
 	"debugName": "Der Name der Konfiguration. Er wird im Dropdownmenü der Startkonfiguration angezeigt.",
 	"debugRequest": "Der Anforderungstyp der Konfiguration. Der Wert kann \"launch\" oder \"attach\" sein.",

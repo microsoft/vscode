@@ -232,14 +232,14 @@ class FileDecorationChangeEvent implements IResourceDecorationChangeEvent {
 class DecorationProviderWrapper {
 
 	readonly data = TernarySearchTree.forPaths<TPromise<void> | IDecorationData>();
-	private readonly _dispoable: IDisposable;
+	private readonly _disposable: IDisposable;
 
 	constructor(
 		private readonly _provider: IDecorationsProvider,
 		private readonly _uriEmitter: Emitter<URI | URI[]>,
 		private readonly _flushEmitter: Emitter<IResourceDecorationChangeEvent>
 	) {
-		this._dispoable = this._provider.onDidChange(uris => {
+		this._disposable = this._provider.onDidChange(uris => {
 			if (!uris) {
 				// flush event -> drop all data, can affect everything
 				this.data.clear();
@@ -258,7 +258,7 @@ class DecorationProviderWrapper {
 	}
 
 	dispose(): void {
-		this._dispoable.dispose();
+		this._disposable.dispose();
 		this.data.clear();
 	}
 

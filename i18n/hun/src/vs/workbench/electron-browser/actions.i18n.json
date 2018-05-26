@@ -18,7 +18,7 @@
 	"zoomReset": "Nagyítási szint alaphelyzetbe állítása",
 	"appPerf": "Indulási teljesítmény",
 	"reloadWindow": "Ablak újratöltése",
-	"reloadWindowWithExntesionsDisabled": "Ablak újratöltése letiltott kiegészítőkkel",
+	"reloadWindowWithExtensionsDisabled": "Ablak újratöltése letiltott kiegészítőkkel",
 	"switchWindowPlaceHolder": "Válassza ki az ablakot, amire váltani szeretne",
 	"current": "Aktuális ablak",
 	"close": "Ablak bezárása",

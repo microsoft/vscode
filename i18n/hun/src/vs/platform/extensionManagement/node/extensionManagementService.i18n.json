@@ -22,7 +22,7 @@
 	"quitCode": "A kiegészítő telepítése nem sikerült. Lépjen ki és indítsa el a VS Code-ot az újratelepítés előtt!",
 	"exitCode": "A kiegészítő telepítése nem sikerült. Lépjen ki és indítsa el a VS Code-ot az újratelepítés előtt!",
 	"renameError": "Ismeretlen hiba történt a(z) {0} {1} névre való átnevezése közben",
-	"uninstallDependeciesConfirmation": "Csak a(z) '{0}' kiegészítőt szeretné eltávolítani vagy annak függőségeit is?",
+	"uninstallDependenciesConfirmation": "Csak a(z) '{0}' kiegészítőt szeretné eltávolítani vagy annak függőségeit is?",
 	"uninstallOnly": "Csak a kiegészítőt",
 	"uninstallAll": "Az összes eltávolítása",
 	"uninstallConfirmation": "Biztosan szeretné eltávolítani a(z) '{0}' kiegészítőt?",

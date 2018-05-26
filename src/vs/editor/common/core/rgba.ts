@@ -6,7 +6,7 @@
 'use strict';
 
 /**
- * A very VM friendly rgba datastructure.
+ * A very VM friendly rgba data structure.
  * Please don't touch unless you take a look at the IR.
  */
 export class RGBA8 {

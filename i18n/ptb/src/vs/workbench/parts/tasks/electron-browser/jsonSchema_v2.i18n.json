@@ -41,7 +41,7 @@
 	"JsonSchema.tasks.matchers": "A correspondência de problemas a ser utilizada. Pode ser uma sequência de caracteres ou uma definição de correspondência de problemas ou uma matriz de sequências de caracteres e correspondência de problemas.",
 	"JsonSchema.customizations.customizes.type": "O tipo de tarefa a ser personalizada",
 	"JsonSchema.tasks.customize.deprecated": "A propriedade customize é obsoleta. Consulte as notas de versão 1.14 sobre como migrar para a nova abordagem de personalização de tarefa",
-	"JsonSchema.tasks.showOputput.deprecated": "A propriedade showOutput é obsoleta. Use a propriedade reveal dentro da propriedade presentation. Ver também as notas de versão 1.14.",
+	"JsonSchema.tasks.showOutput.deprecated": "A propriedade showOutput é obsoleta. Use a propriedade reveal dentro da propriedade presentation. Ver também as notas de versão 1.14.",
 	"JsonSchema.tasks.echoCommand.deprecated": "A propriedade echoCommand é obsoleta. Use a propriedade echo dentro da propriedade presentation. Ver também as notas de versão 1.14.",
 	"JsonSchema.tasks.suppressTaskName.deprecated": "A propriedade suppressTaskName é obsoleta. Ao invés, coloque o comando junto com seus argumentos dentro de uma tarefa. Veja também as notas de lançamento da versão 1.14.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "A propriedade isBuildCommand é obsoleta. Use a propriedade group em seu lugar. Ver também as notas de versão 1.14.",

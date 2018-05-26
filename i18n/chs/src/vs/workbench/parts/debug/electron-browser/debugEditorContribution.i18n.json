@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "删除行断点",
 	"editBreakpoints": "编辑断点",
 	"editBreakpointOnColumn": "在列 {0} 上编辑断点",
-	"editLineBrekapoint": "编辑行断点",
+	"editLineBreakpoint": "编辑行断点",
 	"enableDisableBreakpoints": "启用/禁用断点",
 	"disableColumnBreakpoint": "在列 {0} 上禁用断点",
 	"disableBreakpointOnLine": "禁用行断点",

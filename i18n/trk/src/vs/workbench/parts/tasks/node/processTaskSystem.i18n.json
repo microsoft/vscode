@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nDerleme görevlerinin izlenmesi bitti.",
 	"TaskRunnerSystem.childProcessError": "Harici program {0} {1} başlatılamadı.",
 	"TaskRunnerSystem.cancelRequested": "\n'{0}' görevi kullanıcı isteği üzerine sonlandırıldı.",
-	"unkownProblemMatcher": "{0} sorun eşleştirici çözümlenemiyor. Eşleştirici yok sayılacaktır."
+	"unknownProblemMatcher": "{0} sorun eşleştirici çözümlenemiyor. Eşleştirici yok sayılacaktır."
 }

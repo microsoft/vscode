@@ -25,7 +25,7 @@
 	"schema.font-path": "현재 아이콘 테마 파일의 상대 글꼴 경로입니다.",
 	"schema.font-format": "글꼴의 형식입니다.",
 	"schema.font-weight": "글꼴의 두께입니다.",
-	"schema.font-sstyle": "글꼴의 스타일입니다.",
+	"schema.font-style": "글꼴의 스타일입니다.",
 	"schema.font-size": "글꼴의 기본 크기입니다.",
 	"schema.iconDefinitions": "파일을 아이콘과 연결할 때 사용할 수 있는 모든 아이콘의 설명입니다.",
 	"schema.iconDefinition": "아이콘 정의입니다. 개체 키는 정의의 ID입니다.",

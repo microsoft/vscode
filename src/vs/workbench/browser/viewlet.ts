@@ -44,7 +44,7 @@ export abstract class Viewlet extends Composite implements IViewlet {
 }
 
 /**
- * A viewlet descriptor is a leightweight descriptor of a viewlet in the workbench.
+ * A viewlet descriptor is a lightweight descriptor of a viewlet in the workbench.
  */
 export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 

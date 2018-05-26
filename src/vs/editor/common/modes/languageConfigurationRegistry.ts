@@ -317,7 +317,7 @@ export class LanguageConfigurationRegistryImpl {
 	}
 
 	/**
-	 * Get nearest preceiding line which doesn't match unIndentPattern or contains all whitespace.
+	 * Get nearest preceding line which doesn't match unIndentPattern or contains all whitespace.
 	 * Result:
 	 * -1: run into the boundary of embedded languages
 	 * 0: every line above are invalid
@@ -353,12 +353,12 @@ export class LanguageConfigurationRegistryImpl {
 	 * 3. If this line doesn't match any indent rules
 	 *   a. check whether the line above it matches indentNextLinePattern
 	 *   b. If not, the indent level of this line is the result
-	 *   c. If so, it means the indent of this line is *temporary*, go upward utill we find a line whose indent is not temporary (the same workflow a -> b -> c).
+	 *   c. If so, it means the indent of this line is *temporary*, go upward until we find a line whose indent is not temporary (the same workflow a -> b -> c).
 	 * 4. Otherwise, we fail to get an inherited indent from aboves. Return null and we should not touch the indent of `lineNumber`
 	 *
 	 * This function only return the inherited indent based on above lines, it doesn't check whether current line should decrease or not.
 	 */
-	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentialIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
+	public getInheritIndentForLine(model: IVirtualModel, lineNumber: number, honorIntentionIndent: boolean = true): { indentation: string, action: IndentAction, line?: number } {
 		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -400,7 +400,7 @@ export class LanguageConfigurationRegistryImpl {
 			// it doesn't increase indent of following lines
 			// it doesn't increase just next line
 			// so current line is not affect by precedingUnIgnoredLine
-			// and then we should get a correct inheritted indentation from above lines
+			// and then we should get a correct inherited indentation from above lines
 			if (precedingUnIgnoredLine === 1) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
@@ -430,7 +430,7 @@ export class LanguageConfigurationRegistryImpl {
 				};
 			}
 
-			if (honorIntentialIndent) {
+			if (honorIntentionIndent) {
 				return {
 					indentation: strings.getLeadingWhitespace(model.getLineContent(precedingUnIgnoredLine)),
 					action: null,
@@ -555,7 +555,7 @@ export class LanguageConfigurationRegistryImpl {
 
 		let embeddedLanguage = false;
 		if (scopedLineTokens.firstCharOffset > 0 && lineTokens.getLanguageId(0) !== scopedLineTokens.languageId) {
-			// we are in the embeded language content
+			// we are in the embedded language content
 			embeddedLanguage = true; // if embeddedLanguage is true, then we don't touch the indentation of current line
 			beforeEnterText = scopedLineText.substr(0, range.startColumn - 1 - scopedLineTokens.firstCharOffset);
 		} else {

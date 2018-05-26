@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "Zeilenhaltepunkt entfernen",
 	"editBreakpoints": "Haltepunkte bearbeiten",
 	"editBreakpointOnColumn": "Haltepunkt in Spalte {0} bearbeiten",
-	"editLineBrekapoint": "Zeilenhaltepunkt bearbeiten",
+	"editLineBreakpoint": "Zeilenhaltepunkt bearbeiten",
 	"enableDisableBreakpoints": "Haltepunkte aktivieren/deaktivieren",
 	"disableColumnBreakpoint": "Haltepunkt in Spalte {0} deaktivieren",
 	"disableBreakpointOnLine": "Zeilenhaltepunkt deaktivieren",

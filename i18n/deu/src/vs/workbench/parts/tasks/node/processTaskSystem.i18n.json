@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nDie Überwachung der Buildtasks wurde beendet.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "\nDer Task \"{0}\" wurde durch eine Benutzeranforderung beendet.",
-	"unkownProblemMatcher": "Der Problemabgleicher {0} kann nicht aufgelöst werden. Der Abgleicher wird ignoriert."
+	"unknownProblemMatcher": "Der Problemabgleicher {0} kann nicht aufgelöst werden. Der Abgleicher wird ignoriert."
 }

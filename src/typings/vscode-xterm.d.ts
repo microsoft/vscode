@@ -163,47 +163,47 @@ declare module 'vscode-xterm' {
 	 */
 	export interface ITheme {
 		/** The default foreground color */
-		foreground?: string,
+		foreground?: string;
 		/** The default background color */
-		background?: string,
+		background?: string;
 		/** The cursor color */
-		cursor?: string,
+		cursor?: string;
 		/** The accent color of the cursor (used as the foreground color for a block cursor) */
-		cursorAccent?: string,
+		cursorAccent?: string;
 		/** The selection color (can be transparent) */
-		selection?: string,
+		selection?: string;
 		/** ANSI black (eg. `\x1b[30m`) */
-		black?: string,
+		black?: string;
 		/** ANSI red (eg. `\x1b[31m`) */
-		red?: string,
+		red?: string;
 		/** ANSI green (eg. `\x1b[32m`) */
-		green?: string,
+		green?: string;
 		/** ANSI yellow (eg. `\x1b[33m`) */
-		yellow?: string,
+		yellow?: string;
 		/** ANSI blue (eg. `\x1b[34m`) */
-		blue?: string,
+		blue?: string;
 		/** ANSI magenta (eg. `\x1b[35m`) */
-		magenta?: string,
+		magenta?: string;
 		/** ANSI cyan (eg. `\x1b[36m`) */
-		cyan?: string,
+		cyan?: string;
 		/** ANSI white (eg. `\x1b[37m`) */
-		white?: string,
+		white?: string;
 		/** ANSI bright black (eg. `\x1b[1;30m`) */
-		brightBlack?: string,
+		brightBlack?: string;
 		/** ANSI bright red (eg. `\x1b[1;31m`) */
-		brightRed?: string,
+		brightRed?: string;
 		/** ANSI bright green (eg. `\x1b[1;32m`) */
-		brightGreen?: string,
+		brightGreen?: string;
 		/** ANSI bright yellow (eg. `\x1b[1;33m`) */
-		brightYellow?: string,
+		brightYellow?: string;
 		/** ANSI bright blue (eg. `\x1b[1;34m`) */
-		brightBlue?: string,
+		brightBlue?: string;
 		/** ANSI bright magenta (eg. `\x1b[1;35m`) */
-		brightMagenta?: string,
+		brightMagenta?: string;
 		/** ANSI bright cyan (eg. `\x1b[1;36m`) */
-		brightCyan?: string,
+		brightCyan?: string;
 		/** ANSI bright white (eg. `\x1b[1;37m`) */
-		brightWhite?: string
+		brightWhite?: string;
 	}
 
 	/**
@@ -639,7 +639,7 @@ declare module 'vscode-xterm' {
 		/**
 		 * Perform a full reset (RIS, aka '\x1bc').
 		 */
-		reset(): void
+		reset(): void;
 
 		/**
 		 * Applies an addon to the Terminal prototype, making it available to all

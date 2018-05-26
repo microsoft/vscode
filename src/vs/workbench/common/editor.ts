@@ -341,7 +341,7 @@ export interface IEncodingSupport {
 export interface IFileEditorInput extends IEditorInput, IEncodingSupport {
 
 	/**
-	 * Sets the preferred encodingt to use for this input.
+	 * Sets the preferred encoding to use for this input.
 	 */
 	setPreferredEncoding(encoding: string): void;
 
@@ -412,7 +412,7 @@ export class SideBySideEditorInput extends EditorInput {
 			}
 		}));
 
-		// Reemit some events from the master side to the outside
+		// Re-emit some events from the master side to the outside
 		this._toUnbind.push(this.master.onDidChangeDirty(() => this._onDidChangeDirty.fire()));
 		this._toUnbind.push(this.master.onDidChangeLabel(() => this._onDidChangeLabel.fire()));
 	}

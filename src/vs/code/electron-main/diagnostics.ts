@@ -154,7 +154,7 @@ export function printDiagnostics(info: IMainProcessInfo): Promise<any> {
 							}
 						});
 					}).catch(error => {
-						console.log(`|      Error: Unable to collect workpsace stats for folder ${folder} (${error.toString()})`);
+						console.log(`|      Error: Unable to collect workspace stats for folder ${folder} (${error.toString()})`);
 					}));
 				});
 			});

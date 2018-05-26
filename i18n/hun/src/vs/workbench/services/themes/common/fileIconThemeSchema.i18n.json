@@ -25,7 +25,7 @@
 	"schema.font-path": "A betűkészlet elérési útja, relatívan az aktuális ikontémafájlhoz képest.",
 	"schema.font-format": "A betűkészlet formátuma.",
 	"schema.font-weight": "A betűkészlet betűvastagsága.",
-	"schema.font-sstyle": "A betűkészlet stílusa.",
+	"schema.font-style": "A betűkészlet stílusa.",
 	"schema.font-size": "A betűkészlet alapértelmezett mérete.",
 	"schema.iconDefinitions": "A fájlok ikonokhoz történő rendelésénél használható ikonok leírása.",
 	"schema.iconDefinition": "Egy ikondefiníció. Az objektum kulcsa a definíció azonosítója.",

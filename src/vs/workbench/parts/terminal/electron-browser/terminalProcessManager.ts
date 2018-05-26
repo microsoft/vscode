@@ -136,7 +136,7 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	public setDimensions(cols: number, rows: number): void {
 		if (this._process && this._process.connected) {
-			// The child process could aready be terminated
+			// The child process could already be terminated
 			try {
 				this._process.send({ event: 'resize', cols, rows });
 			} catch (error) {

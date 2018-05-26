@@ -10,7 +10,7 @@
 	"showUserKeybindings": "显示用户按键绑定",
 	"SearchKeybindings.AriaLabel": "搜索按键绑定",
 	"SearchKeybindings.Placeholder": "搜索按键绑定",
-	"sortByPrecedene": "按优先级排序",
+	"sortByPrecedence": "按优先级排序",
 	"header-message": "高级自定义请打开和编辑",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "按键绑定",

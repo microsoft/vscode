@@ -13,7 +13,7 @@ import product from 'vs/platform/node/product';
 
 export class GettingStarted implements IWorkbenchContribution {
 
-	private static readonly hideWelcomeSettingskey = 'workbench.hide.welcome';
+	private static readonly hideWelcomeSettingsKey = 'workbench.hide.welcome';
 
 	private welcomePageURL: string;
 	private appName: string;
@@ -60,13 +60,13 @@ export class GettingStarted implements IWorkbenchContribution {
 			return;
 		}
 
-		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingskey);
+		let firstStartup = !this.storageService.get(GettingStarted.hideWelcomeSettingsKey);
 
 		if (firstStartup && this.welcomePageURL) {
 			this.telemetryService.getTelemetryInfo().then(info => {
 				let url = this.getUrl(info);
 				this.openExternal(url);
-				this.storageService.store(GettingStarted.hideWelcomeSettingskey, true);
+				this.storageService.store(GettingStarted.hideWelcomeSettingsKey, true);
 			});
 		}
 	}

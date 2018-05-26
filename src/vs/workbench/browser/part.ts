@@ -43,7 +43,7 @@ export abstract class Part extends Component {
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * method. Calling it otherwise may result in unexpected behaviour.
 	 *
 	 * Called to create title and content area of the part.
 	 */

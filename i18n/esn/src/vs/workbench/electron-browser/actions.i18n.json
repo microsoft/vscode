@@ -18,7 +18,7 @@
 	"zoomReset": "Restablecer zoom",
 	"appPerf": "Rendimiento de inicio",
 	"reloadWindow": "Recargar ventana",
-	"reloadWindowWithExntesionsDisabled": "Recargar la ventana con las extensiones deshabilitadas",
+	"reloadWindowWithExtensionsDisabled": "Recargar la ventana con las extensiones deshabilitadas",
 	"switchWindowPlaceHolder": "Seleccionar una ventana a la que cambiar",
 	"current": "Ventana actual",
 	"close": "Cerrar ventana",

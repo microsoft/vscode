@@ -22,7 +22,7 @@
 	"quitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",
 	"exitCode": "Fehler bei der Installation der Erweiterung. Beenden und starten Sie VS Code vor der erneuten Installation neu.",
 	"renameError": "Unbekannter Fehler beim Umbenennen von {0} in {1}",
-	"uninstallDependeciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
+	"uninstallDependenciesConfirmation": "Möchten Sie nur \"{0}\" oder auch die zugehörigen Abhängigkeiten deinstallieren?",
 	"uninstallOnly": "Nur Erweiterung",
 	"uninstallAll": "Alle deinstallieren",
 	"uninstallConfirmation": "Möchten Sie \"{0}\" deinstallieren?",

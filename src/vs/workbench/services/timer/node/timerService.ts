@@ -49,7 +49,7 @@ export class TimerService implements ITimerService {
 		let arch: string;
 		let loadavg: number[];
 		let meminfo: IMemoryInfo;
-		let isVMLikelyhood: number;
+		let isVMLikelihood: number;
 
 		try {
 			totalmem = os.totalmem();
@@ -60,7 +60,7 @@ export class TimerService implements ITimerService {
 			loadavg = os.loadavg();
 			meminfo = process.getProcessMemoryInfo();
 
-			isVMLikelyhood = Math.round((virtualMachineHint.value() * 100));
+			isVMLikelihood = Math.round((virtualMachineHint.value() * 100));
 
 			const rawCpus = os.cpus();
 			if (rawCpus && rawCpus.length > 0) {
@@ -75,17 +75,17 @@ export class TimerService implements ITimerService {
 		let nlsTime = nlsStart && nlsEnd ? nlsEnd.startTime - nlsStart.startTime : 0;
 		this._startupMetrics = {
 			version: 1,
-			ellapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
+			elapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
 			timers: {
-				ellapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
-				ellapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
-				ellapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
-				ellapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
-				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
-				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
-				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
-				ellapsedTimersToTimersComputed: Date.now() - now,
-				ellapsedNlsGeneration: nlsTime
+				elapsedExtensions: perf.getDuration('willLoadExtensions', 'didLoadExtensions'),
+				elapsedExtensionsReady: perf.getEntry('mark', 'didLoadExtensions').startTime - start,
+				elapsedRequire: perf.getDuration('willLoadWorkbenchMain', 'didLoadWorkbenchMain'),
+				elapsedEditorRestore: perf.getDuration('willRestoreEditors', 'didRestoreEditors'),
+				elapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
+				elapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
+				elapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
+				elapsedTimersToTimersComputed: Date.now() - now,
+				elapsedNlsGeneration: nlsTime
 			},
 			platform,
 			release,
@@ -96,14 +96,14 @@ export class TimerService implements ITimerService {
 			cpus,
 			loadavg,
 			initialStartup,
-			isVMLikelyhood,
+			isVMLikelihood,
 			hasAccessibilitySupport: !!this.hasAccessibilitySupport,
 			emptyWorkbench: this.isEmptyWorkbench
 		};
 
 		if (initialStartup) {
-			this._startupMetrics.timers.ellapsedAppReady = perf.getDuration('main:started', 'main:appReady');
-			this._startupMetrics.timers.ellapsedWindowLoad = this.windowLoad - perf.getEntry('mark', 'main:appReady').startTime;
+			this._startupMetrics.timers.elapsedAppReady = perf.getDuration('main:started', 'main:appReady');
+			this._startupMetrics.timers.elapsedWindowLoad = this.windowLoad - perf.getEntry('mark', 'main:appReady').startTime;
 		}
 	}
 }

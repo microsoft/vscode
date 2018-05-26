@@ -16,7 +16,7 @@
 	"findInWorkspace": "작업 영역에서 찾기...",
 	"showTriggerActions": "작업 영역에서 기호로 이동...",
 	"name": "검색",
-	"showSearchViewl": "검색 표시",
+	"showSearchView": "검색 표시",
 	"view": "보기",
 	"findInFiles": "파일에서 찾기",
 	"openAnythingHandlerDescription": "파일로 이동",

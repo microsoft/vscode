@@ -48,7 +48,7 @@ export interface ICompositeBar {
 	/**
 	 * Reorder composite ordering by moving a composite to the location of another composite.
 	 */
-	move(compositeId: string, tocompositeId: string): void;
+	move(compositeId: string, toCompositeId: string): void;
 }
 
 export class ActivityAction extends Action {
@@ -127,7 +127,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+		action.onDidChangeBadge(this.handleBadgeChangeEvent, this, this._callOnDispose);
 	}
 
 	protected get activity(): IActivity {
@@ -275,7 +275,7 @@ export class ActivityActionItem extends BaseActionItem {
 		});
 	}
 
-	private handleBadgeChangeEvenet(): void {
+	private handleBadgeChangeEvent(): void {
 		const action = this.getAction();
 		if (action instanceof ActivityAction) {
 			this.updateBadge(action.getBadge(), action.getClass());

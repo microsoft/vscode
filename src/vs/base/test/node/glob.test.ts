@@ -834,7 +834,7 @@ suite('Glob', () => {
 	}
 
 	test('trailing slash', function () {
-		// Testing existing (more or less intuitive) behavior
+		// Testing existing (more or less intuitive) behaviour
 		assert.strictEqual(glob.parse('**/foo/')('bar/baz', 'baz'), false);
 		assert.strictEqual(glob.parse('**/foo/')('bar/foo', 'foo'), true);
 		assert.strictEqual(glob.parse('**/*.foo/')('bar/file.baz', 'file.baz'), false);

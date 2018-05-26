@@ -283,7 +283,7 @@ export class EditorStatus implements IStatusbarItem {
 	private state: State;
 	private element: HTMLElement;
 	private tabFocusModeElement: HTMLElement;
-	private screenRedearModeElement: HTMLElement;
+	private screenReaderModeElement: HTMLElement;
 	private indentationElement: HTMLElement;
 	private selectionElement: HTMLElement;
 	private encodingElement: HTMLElement;
@@ -320,11 +320,11 @@ export class EditorStatus implements IStatusbarItem {
 		this.tabFocusModeElement.textContent = nlsTabFocusMode;
 		hide(this.tabFocusModeElement);
 
-		this.screenRedearModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
-		this.screenRedearModeElement.textContent = nlsScreenReaderDetected;
-		this.screenRedearModeElement.title = nlsScreenReaderDetectedTitle;
-		this.screenRedearModeElement.onclick = () => this.onScreenReaderModeClick();
-		hide(this.screenRedearModeElement);
+		this.screenReaderModeElement = append(this.element, $('a.editor-status-screenreadermode.status-bar-info'));
+		this.screenReaderModeElement.textContent = nlsScreenReaderDetected;
+		this.screenReaderModeElement.title = nlsScreenReaderDetectedTitle;
+		this.screenReaderModeElement.onclick = () => this.onScreenReaderModeClick();
+		hide(this.screenReaderModeElement);
 
 		this.selectionElement = append(this.element, $('a.editor-status-selection'));
 		this.selectionElement.title = nls.localize('gotoLine', "Go to Line");
@@ -407,9 +407,9 @@ export class EditorStatus implements IStatusbarItem {
 
 		if (changed.screenReaderMode) {
 			if (this.state.screenReaderMode && this.state.screenReaderMode === true) {
-				show(this.screenRedearModeElement);
+				show(this.screenReaderModeElement);
 			} else {
-				hide(this.screenRedearModeElement);
+				hide(this.screenReaderModeElement);
 			}
 		}
 
@@ -514,7 +514,7 @@ export class EditorStatus implements IStatusbarItem {
 		}
 
 		if (showExplanation) {
-			this.screenReaderExplanation.show(this.screenRedearModeElement);
+			this.screenReaderExplanation.show(this.screenReaderModeElement);
 		} else {
 			this.screenReaderExplanation.hide();
 		}

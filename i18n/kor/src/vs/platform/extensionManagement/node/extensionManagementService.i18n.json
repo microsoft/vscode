@@ -22,7 +22,7 @@
 	"quitCode": "확장을 설치할 수 없습니다. 다시 설치하기 위해 VS Code를 종료하고 다시 시작하십시오.",
 	"exitCode": "확장을 설치할 수 없습니다. 다시 설치하기 전에 VS 코드를 종료한 후 다시 시작하십시오. ",
 	"renameError": "이름을 {0}에서 {1}(으)로 변경하는 중 알 수 없는 오류 발생",
-	"uninstallDependeciesConfirmation": "'{0}'만 제거할까요, 아니면 종속성도 제거할까요?",
+	"uninstallDependenciesConfirmation": "'{0}'만 제거할까요, 아니면 종속성도 제거할까요?",
 	"uninstallOnly": "확장만",
 	"uninstallAll": "모두 제거",
 	"uninstallConfirmation": "'{0}'을(를) 제거할까요?",

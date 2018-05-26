@@ -242,12 +242,12 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						if (extensionsToInstall.length > 1) {
 							this.onInstallExtensions(extensionsToInstall.slice(1));
 						}
-						const operataions: InstallOperation[] = extensionsToInstall.map(e => this.getOperation(e.identifier, installed));
-						return this.downloadAndInstallExtensions(extensionsToInstall, operataions)
+						const operations: InstallOperation[] = extensionsToInstall.map(e => this.getOperation(e.identifier, installed));
+						return this.downloadAndInstallExtensions(extensionsToInstall, operations)
 							.then(
-								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operataions, [])
+								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operations, [])
 									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
-								errors => this.onDidInstallExtensions(extensionsToInstall, [], operataions, errors));
+								errors => this.onDidInstallExtensions(extensionsToInstall, [], operations, errors));
 					},
 					error => this.onDidInstallExtensions([extension], [], [this.getOperation(extension.identifier, installed)], [error])));
 	}
@@ -571,7 +571,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 			return this.uninstallWithDependencies(extension, dependencies, installed);
 		}
 
-		const message = nls.localize('uninstallDependeciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
+		const message = nls.localize('uninstallDependenciesConfirmation', "Would you like to uninstall '{0}' only or its dependencies also?", extension.manifest.displayName || extension.manifest.name);
 		const buttons = [
 			nls.localize('uninstallOnly', "Extension Only"),
 			nls.localize('uninstallAll', "Uninstall All"),
@@ -732,7 +732,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private scanExtension(folderName: string, root: string, type: LocalExtensionType): TPromise<ILocalExtension> {
-		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user exension folder starting with `.`
+		if (type === LocalExtensionType.User && folderName.indexOf('.') === 0) { // Do not consider user extension folder starting with `.`
 			return TPromise.as(null);
 		}
 		const extensionPath = path.join(root, folderName);
