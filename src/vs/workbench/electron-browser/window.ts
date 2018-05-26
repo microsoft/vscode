@@ -105,15 +105,7 @@ export class ElectronWindow extends Themable {
 	private registerListeners(): void {
 
 		// React to editor input changes
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => {
-
-			// Represented File Name
-			const file = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: 'file' });
-			this.titleService.setRepresentedFilename(file ? file.fsPath : '');
-
-			// Touch Bar
-			this.updateTouchbarMenu();
-		}));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.updateTouchbarMenu()));
 
 		// prevent opening a real URL inside the shell
 		[DOM.EventType.DRAG_OVER, DOM.EventType.DROP].forEach(event => {
