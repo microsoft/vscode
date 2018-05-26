@@ -80,7 +80,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.settingsTree.refresh()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.refreshTreeAndMaintainFocus()));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -272,7 +272,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onShowConfiguredOnlyClicked(): void {
 		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
-		this.refreshTree();
+		this.refreshTreeAndMaintainFocus();
 
 		// TODO@roblou - This is slow
 		if (this.viewState.showConfiguredOnly) {
@@ -298,8 +298,7 @@ export class SettingsEditor2 extends BaseEditor {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
 		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
-			.then(() => this.refreshTree())
-			.then(() => this.settingsTree.domFocus());
+			.then(() => this.refreshTreeAndMaintainFocus());
 
 		const reportModifiedProps = {
 			key,
@@ -391,8 +390,26 @@ export class SettingsEditor2 extends BaseEditor {
 		return TPromise.as(null);
 	}
 
-	private refreshTree(): TPromise<any> {
-		return this.settingsTree.refresh();
+	private refreshTreeAndMaintainFocus(): TPromise<any> {
+		// Sort of a hack to maintain focus on the focused control across a refresh
+		const focusedRowItem = DOM.findParentWithClass(<HTMLElement>document.activeElement, 'setting-item');
+		const focusedRowId = focusedRowItem && focusedRowItem.id;
+		const selection = focusedRowId && document.activeElement.tagName.toLowerCase() === 'input' ?
+			(<HTMLInputElement>document.activeElement).selectionStart :
+			null;
+
+		return this.settingsTree.refresh().then(() => {
+			if (focusedRowId) {
+				const rowSelector = `.setting-item#${focusedRowId}`;
+				const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a`);
+				if (inputElementToFocus) {
+					inputElementToFocus.focus();
+					if (typeof selection === 'number') {
+						(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
+					}
+				}
+			}
+		});
 	}
 
 	private onSearchInputChanged(): void {
@@ -486,7 +503,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.searchResultModel.setResult(type, result);
-			return this.refreshTree();
+			return this.refreshTreeAndMaintainFocus();
 		});
 	}
 
