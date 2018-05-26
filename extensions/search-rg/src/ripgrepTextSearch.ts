@@ -5,16 +5,14 @@
 
 'use strict';
 
-import * as vscode from 'vscode';
-
-import { EventEmitter } from 'events';
-import * as path from 'path';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
-import { start } from 'repl';
 import { anchorGlob } from './ripgrepHelpers';
+
+
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
