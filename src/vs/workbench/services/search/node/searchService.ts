@@ -121,17 +121,20 @@ export class SearchService implements ISearchService {
 					// TODO@roblou this is not properly waiting for search-rg to finish registering itself
 					if (this.searchProvider.length) {
 						return TPromise.join(this.searchProvider.map(p => searchWithProvider(p)))
-							.then(complete => {
-								complete = complete.filter(c => !!c);
-								if (!complete.length) {
+							.then(completes => {
+								completes = completes.filter(c => !!c);
+								if (!completes.length) {
 									return null;
 								}
 
 								return <ISearchComplete>{
-									limitHit: complete[0] && complete[0].limitHit,
-									stats: complete[0].stats,
-									results: arrays.flatten(complete.map(c => c.results))
+									limitHit: completes[0] && completes[0].limitHit,
+									stats: completes[0].stats,
+									results: arrays.flatten(completes.map(c => c.results))
 								};
+							}, errs => {
+								errs = errs.filter(e => !!e);
+								return TPromise.wrapError(errs[0]);
 							});
 					} else {
 						return searchWithProvider(this.diskSearch);
