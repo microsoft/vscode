@@ -196,6 +196,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
 		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
+		this._register(renderer.onDidOpenSettings(() => this.openSettingsFile()));
 
 		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
