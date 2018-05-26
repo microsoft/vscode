@@ -607,7 +607,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'search.enableSearchProviders': {
 			type: 'boolean',
-			default: true,
+			default: false,
 			description: nls.localize('search.enableSearchProviders', " (Experimental) Controls whether search provider extensions should be enabled.")
 		}
 	}
