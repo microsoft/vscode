@@ -655,7 +655,6 @@ suite('ExtHostSearch', () => {
 		}
 
 		function makeTextResult(relativePath: string): vscode.TextSearchResult {
-			relativePath = relativePath.replace(/\//g, path.sep);
 			return {
 				preview: makePreview('foo'),
 				range: new Range(0, 0, 0, 3),
