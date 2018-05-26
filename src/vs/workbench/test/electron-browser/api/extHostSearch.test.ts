@@ -17,6 +17,7 @@ import * as vscode from 'vscode';
 import { dispose } from 'vs/base/common/lifecycle';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { Range } from 'vs/workbench/api/node/extHostTypes';
+import { joinPath } from 'vs/base/common/resources';
 
 let rpcProtocol: TestRPCProtocol;
 let extHostSearch: ExtHostSearch;
@@ -53,8 +54,8 @@ class MockMainThreadSearch implements MainThreadSearchShape {
 let mockExtfs: Partial<typeof extfs>;
 
 suite('ExtHostSearch', () => {
-	async function registerTestSearchProvider(provider: vscode.SearchProvider): TPromise<void> {
-		disposables.push(extHostSearch.registerSearchProvider('file', provider));
+	async function registerTestSearchProvider(provider: vscode.SearchProvider, scheme = 'file'): TPromise<void> {
+		disposables.push(extHostSearch.registerSearchProvider(scheme, provider));
 		await rpcProtocol.sync();
 	}
 
@@ -121,12 +122,8 @@ suite('ExtHostSearch', () => {
 
 	const rootFolderA = URI.file('/foo/bar1');
 	const rootFolderB = URI.file('/foo/bar2');
-	// const rootFolderC = URI.file('/foo/bar3');
-
-	function makeAbsoluteURI(root: URI, relativePath: string): URI {
-		return URI.file(
-			path.join(root.fsPath, relativePath));
-	}
+	const fancyScheme = 'fancy';
+	const fancySchemeFolderA = URI.from({ scheme: fancyScheme, path: '/project/folder1' });
 
 	suite('File:', () => {
 
@@ -162,9 +159,9 @@ suite('ExtHostSearch', () => {
 
 		test('simple results', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts')
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts')
 			];
 
 			await registerTestSearchProvider({
@@ -383,7 +380,7 @@ suite('ExtHostSearch', () => {
 			compareURIs(
 				results,
 				[
-					makeAbsoluteURI(rootFolderA, 'file1.ts')
+					joinPath(rootFolderA, 'file1.ts')
 				]);
 		});
 
@@ -443,20 +440,20 @@ suite('ExtHostSearch', () => {
 			compareURIs(
 				results,
 				[
-					makeAbsoluteURI(rootFolderA, 'folder/fileA.scss'),
-					makeAbsoluteURI(rootFolderA, 'folder/file2.css'),
+					joinPath(rootFolderA, 'folder/fileA.scss'),
+					joinPath(rootFolderA, 'folder/file2.css'),
 
-					makeAbsoluteURI(rootFolderB, 'fileB.ts'),
-					makeAbsoluteURI(rootFolderB, 'fileB.js'),
-					makeAbsoluteURI(rootFolderB, 'file3.js'),
+					joinPath(rootFolderB, 'fileB.ts'),
+					joinPath(rootFolderB, 'fileB.js'),
+					joinPath(rootFolderB, 'file3.js'),
 				]);
 		});
 
 		test('max results = 1', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts'),
 			];
 
 			let wasCanceled = false;
@@ -490,9 +487,9 @@ suite('ExtHostSearch', () => {
 
 		test('max results = 2', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts'),
 			];
 
 			let wasCanceled = false;
@@ -567,9 +564,9 @@ suite('ExtHostSearch', () => {
 
 		test('respects filePattern', async () => {
 			const reportedResults = [
-				makeAbsoluteURI(rootFolderA, 'file1.ts'),
-				makeAbsoluteURI(rootFolderA, 'file2.ts'),
-				makeAbsoluteURI(rootFolderA, 'file3.ts'),
+				joinPath(rootFolderA, 'file1.ts'),
+				joinPath(rootFolderA, 'file2.ts'),
+				joinPath(rootFolderA, 'file3.ts'),
 			];
 
 			await registerTestSearchProvider({
@@ -594,6 +591,35 @@ suite('ExtHostSearch', () => {
 			const results = await runFileSearch(query);
 			assert.equal(results.length, 1);
 			compareURIs(results, reportedResults.slice(2));
+		});
+
+		test('works with non-file schemes', async () => {
+			const reportedResults = [
+				joinPath(fancySchemeFolderA, 'file1.ts'),
+				joinPath(fancySchemeFolderA, 'file2.ts'),
+				joinPath(fancySchemeFolderA, 'file3.ts'),
+
+			];
+
+			await registerTestSearchProvider({
+				provideFileSearchResults(options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+					reportedResults.forEach(r => progress.report(path.basename(r.fsPath)));
+					return TPromise.wrap(null);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.File,
+				filePattern: '',
+				folderQueries: [
+					{
+						folder: fancySchemeFolderA
+					}
+				]
+			};
+
+			const results = await runFileSearch(query);
+			compareURIs(results, reportedResults);
 		});
 
 		// Mock fs?
@@ -653,11 +679,11 @@ suite('ExtHostSearch', () => {
 			};
 		}
 
-		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[]) {
+		function assertResults(actual: IFileMatch[], expected: vscode.TextSearchResult[], folder = rootFolderA) {
 			const actualTextSearchResults: vscode.TextSearchResult[] = [];
 			for (let fileMatch of actual) {
 				// Make relative
-				const relativePath = fileMatch.resource.fsPath.substr(rootFolderA.fsPath.length + 1);
+				const relativePath = fileMatch.resource.toString().substr(folder.toString().length + 1);
 				for (let lineMatch of fileMatch.lineMatches) {
 					for (let [offset, length] of lineMatch.offsetAndLengths) {
 						actualTextSearchResults.push({
@@ -884,7 +910,7 @@ suite('ExtHostSearch', () => {
 
 		test('multiroot sibling clause', async () => {
 			mockExtfs.readdir = (_path: string, callback: (error: Error, files: string[]) => void) => {
-				if (_path === makeAbsoluteURI(rootFolderA, 'folder').fsPath) {
+				if (_path === joinPath(rootFolderA, 'folder').fsPath) {
 					callback(null, [
 						'fileA.scss',
 						'fileA.css',
@@ -1079,6 +1105,32 @@ suite('ExtHostSearch', () => {
 			const results = await runTextSearch(getPattern('foo'), query);
 			assert.equal(results.length, 2);
 			assert.equal(cancels, 2);
+		});
+
+		test('works with non-file schemes', async () => {
+			const providedResults: vscode.TextSearchResult[] = [
+				makeTextResult('file1.ts'),
+				makeTextResult('file2.ts'),
+				makeTextResult('file3.ts')
+			];
+
+			await registerTestSearchProvider({
+				provideTextSearchResults(query: vscode.TextSearchQuery, options: vscode.TextSearchOptions, progress: vscode.Progress<vscode.TextSearchResult>, token: vscode.CancellationToken): Thenable<void> {
+					providedResults.forEach(r => progress.report(r));
+					return TPromise.wrap(null);
+				}
+			}, fancyScheme);
+
+			const query: ISearchQuery = {
+				type: QueryType.Text,
+
+				folderQueries: [
+					{ folder: fancySchemeFolderA }
+				]
+			};
+
+			const results = await runTextSearch(getPattern('foo'), query);
+			assertResults(results, providedResults, fancySchemeFolderA);
 		});
 	});
 });
