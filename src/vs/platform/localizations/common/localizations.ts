@@ -13,6 +13,7 @@ export interface ILocalization {
 	languageName?: string;
 	languageNameLocalized?: string;
 	translations: ITranslation[];
+	minimalTranslations?: { [key: string]: string };
 }
 
 export interface ITranslation {

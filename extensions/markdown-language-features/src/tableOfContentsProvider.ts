@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { MarkdownEngine } from './markdownEngine';
-import { Slug, stripSlugifier } from './slugify';
+import { Slug, githubSlugifier } from './slugify';
 
 export interface TocEntry {
 	readonly slug: Slug;
@@ -36,7 +36,7 @@ export class TableOfContentsProvider {
 
 	public async lookup(fragment: string): Promise<TocEntry | undefined> {
 		const toc = await this.getToc();
-		const slug = stripSlugifier.fromHeading(fragment);
+		const slug = githubSlugifier.fromHeading(fragment);
 		return toc.find(entry => entry.slug.equals(slug));
 	}
 
@@ -48,7 +48,7 @@ export class TableOfContentsProvider {
 			const lineNumber = heading.map[0];
 			const line = document.lineAt(lineNumber);
 			toc.push({
-				slug: stripSlugifier.fromHeading(line.text),
+				slug: githubSlugifier.fromHeading(line.text),
 				text: TableOfContentsProvider.getHeaderText(line.text),
 				level: TableOfContentsProvider.getHeaderLevel(heading.markup),
 				line: lineNumber,

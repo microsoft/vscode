@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
@@ -12,19 +13,19 @@ import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 const $ = DOM.$;
 
@@ -37,7 +38,7 @@ export const modifiedItemForeground = registerColor('settings.modifiedItemForegr
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-title { color: ${modifiedItemForegroundColor}; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
 	}
 });
 
@@ -47,8 +48,7 @@ export interface ITreeItem {
 
 export enum TreeItemType {
 	setting,
-	groupTitle,
-	buttonRow
+	groupTitle
 }
 
 export interface ISettingElement extends ITreeItem {
@@ -73,14 +73,19 @@ export interface IGroupElement extends ITreeItem {
 	index: number;
 }
 
-const ALL_SETTINGS_BUTTON_ID = 'all_settings_button_row';
-export interface IButtonElement extends ITreeItem {
-	type: TreeItemType.buttonRow;
-	parent: DefaultSettingsEditorModel;
-}
-
-export type TreeElement = ISettingElement | IGroupElement | IButtonElement;
+export type TreeElement = ISettingElement | IGroupElement;
 export type TreeElementOrRoot = TreeElement | DefaultSettingsEditorModel | SearchResultModel;
+
+function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
+	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
+	const inspected = configurationService.inspect(key, inspectOverrides);
+	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
+		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+			'workspaceFolder';
+	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+
+	return { isConfigured, inspected, targetSelector };
+}
 
 export class SettingsDataSource implements IDataSource {
 	constructor(
@@ -98,9 +103,8 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	getSettingElement(setting: ISetting, group: ISettingsGroup): ISettingElement {
-		const targetSelector = this.viewState.settingsTarget === ConfigurationTarget.USER ? 'user' : 'workspace';
-		const inspected = this.configurationService.inspect(setting.key);
-		const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+		const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
 		const overriddenScopeList = [];
 		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
@@ -169,16 +173,8 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	private getRootChildren(root: DefaultSettingsEditorModel): TreeElement[] {
-		const groupItems: TreeElement[] = root.settingsGroups
+		return root.settingsGroups
 			.map((g, i) => this.getGroupElement(g, i));
-
-		groupItems.splice(1, 0, <IButtonElement>{
-			id: ALL_SETTINGS_BUTTON_ID,
-			type: TreeItemType.buttonRow,
-			parent: root
-		});
-
-		return groupItems;
 	}
 
 	private getGroupChildren(group: ISettingsGroup): ISettingElement[] {
@@ -224,7 +220,6 @@ export function settingKeyToDisplayFormat(key: string): { category: string, labe
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	showConfiguredOnly?: boolean;
-	showAllSettings?: boolean;
 }
 
 export interface IDisposableTemplate {
@@ -241,7 +236,8 @@ export interface ISettingItemTemplate extends IDisposableTemplate {
 	descriptionElement: HTMLElement;
 	expandIndicatorElement: HTMLElement;
 	valueElement: HTMLElement;
-	overridesElement: HTMLElement;
+	isConfiguredElement: HTMLElement;
+	otherOverridesElement: HTMLElement;
 }
 
 export interface IGroupTitleTemplate extends IDisposableTemplate {
@@ -250,16 +246,8 @@ export interface IGroupTitleTemplate extends IDisposableTemplate {
 	labelElement: HTMLElement;
 }
 
-export interface IButtonRowTemplate extends IDisposableTemplate {
-	parent: HTMLElement;
-
-	button: Button;
-	entry?: IButtonElement;
-}
-
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
 const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
-const BUTTON_ROW_ELEMENT_TEMPLATE = 'settings.buttonRow.template';
 
 export interface ISettingChangeEvent {
 	key: string;
@@ -270,9 +258,6 @@ export class SettingsRenderer implements IRenderer {
 
 	private static readonly SETTING_ROW_HEIGHT = 75;
 
-	private readonly _onDidClickButton: Emitter<string> = new Emitter<string>();
-	public readonly onDidClickButton: Event<string> = this._onDidClickButton.event;
-
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
 
@@ -282,7 +267,6 @@ export class SettingsRenderer implements IRenderer {
 	private measureContainer: HTMLElement;
 
 	constructor(
-		private viewState: ISettingsEditorViewState,
 		_measureContainer: HTMLElement,
 		@IThemeService private themeService: IThemeService,
 		@IContextViewService private contextViewService: IContextViewService
@@ -304,10 +288,6 @@ export class SettingsRenderer implements IRenderer {
 			}
 		}
 
-		if (element.type === TreeItemType.buttonRow) {
-			return 60;
-		}
-
 		return 0;
 	}
 
@@ -327,10 +307,6 @@ export class SettingsRenderer implements IRenderer {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
-		if (element.type === TreeItemType.buttonRow) {
-			return BUTTON_ROW_ELEMENT_TEMPLATE;
-		}
-
 		if (element.type === TreeItemType.setting) {
 			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
@@ -341,10 +317,6 @@ export class SettingsRenderer implements IRenderer {
 	renderTemplate(tree: ITree, templateId: string, container: HTMLElement) {
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			return this.renderGroupTitleTemplate(container);
-		}
-
-		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
-			return this.renderButtonRowTemplate(container);
 		}
 
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
@@ -369,26 +341,6 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
-	private renderButtonRowTemplate(container: HTMLElement): IButtonRowTemplate {
-		DOM.addClass(container, 'all-settings');
-
-		const buttonElement = DOM.append(container, $('.all-settings-button'));
-
-		const button = new Button(buttonElement);
-		const toDispose: IDisposable[] = [button];
-
-		const template: IButtonRowTemplate = {
-			parent: container,
-			toDispose,
-
-			button
-		};
-		template.toDispose.push(attachButtonStyler(button, this.themeService));
-		template.toDispose.push(button.onDidClick(e => this._onDidClickButton.fire(template.entry && template.entry.id)));
-
-		return template;
-	}
-
 	private renderSettingTemplate(container: HTMLElement): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 
@@ -398,7 +350,8 @@ export class SettingsRenderer implements IRenderer {
 		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
-		const overridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
 		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
 		const expandIndicatorElement = DOM.append(leftElement, $('.expand-indicator'));
 
@@ -415,7 +368,8 @@ export class SettingsRenderer implements IRenderer {
 			descriptionElement,
 			expandIndicatorElement,
 			valueElement,
-			overridesElement
+			isConfiguredElement,
+			otherOverridesElement
 		};
 
 		// Prevent clicks from being handled by list
@@ -432,10 +386,6 @@ export class SettingsRenderer implements IRenderer {
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			(<IGroupTitleTemplate>template).labelElement.textContent = (<IGroupElement>element).group.title;
 			return;
-		}
-
-		if (templateId === BUTTON_ROW_ELEMENT_TEMPLATE) {
-			return this.renderButtonRowElement(<IButtonElement>element, template);
 		}
 	}
 
@@ -479,13 +429,16 @@ export class SettingsRenderer implements IRenderer {
 		this.renderValue(element, isSelected, template);
 
 		const resetButton = new Button(template.valueElement);
-		resetButton.element.title = localize('resetButtonTitle', "Reset");
+		const resetText = localize('resetButtonTitle', "reset");
+		resetButton.label = resetText;
+		resetButton.element.title = resetText;
 		resetButton.element.classList.add('setting-reset-button');
 		resetButton.element.tabIndex = isSelected ? 0 : -1;
 
 		attachButtonStyler(resetButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString()
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: editorActiveLinkForeground
 		});
 
 		template.toDispose.push(resetButton.onDidClick(e => {
@@ -493,14 +446,15 @@ export class SettingsRenderer implements IRenderer {
 		}));
 		template.toDispose.push(resetButton);
 
-		const alsoConfiguredInLabel = localize('alsoConfiguredIn', "Also modified in:");
-		let overridesElementText = element.isConfigured ? 'Modified ' : '';
+		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
 		if (element.overriddenScopeList.length) {
-			overridesElementText = overridesElementText + `(${alsoConfiguredInLabel} ${element.overriddenScopeList.join(', ')})`;
-		}
+			let otherOverridesLabel = element.isConfigured ?
+				localize('alsoConfiguredIn', "Also modified in") :
+				localize('configuredIn', "Modified in");
 
-		template.overridesElement.textContent = overridesElementText;
+			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
+		}
 	}
 
 	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
@@ -568,30 +522,40 @@ export class SettingsRenderer implements IRenderer {
 		}));
 	}
 
-	private renderButtonRowElement(element: IButtonElement, template: IButtonRowTemplate): void {
-		template.button.label = this.viewState.showAllSettings ?
-			localize('showFewerSettings', "Show Fewer Settings") :
-			localize('showAllSettings', "Show All Settings");
-	}
-
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
 }
 
 export class SettingsTreeFilter implements IFilter {
-	constructor(private viewState: ISettingsEditorViewState) { }
+	constructor(
+		private viewState: ISettingsEditorViewState,
+		@IConfigurationService private configurationService: IConfigurationService
+	) { }
 
 	isVisible(tree: ITree, element: TreeElement): boolean {
 		if (this.viewState.showConfiguredOnly && element.type === TreeItemType.setting) {
 			return element.isConfigured;
 		}
 
-		if (!this.viewState.showAllSettings && element.type === TreeItemType.groupTitle) {
-			return element.index === 0;
+		if (element.type === TreeItemType.groupTitle && this.viewState.showConfiguredOnly) {
+			return this.groupHasConfiguredSetting(element.group);
 		}
 
 		return true;
+	}
+
+	private groupHasConfiguredSetting(group: ISettingsGroup): boolean {
+		for (let section of group.sections) {
+			for (let setting of section.settings) {
+				const { isConfigured } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+				if (isConfigured) {
+					return true;
+				}
+			}
+		}
+
+		return false;
 	}
 }
 
@@ -615,10 +579,6 @@ export class SettingsAccessibilityProvider implements IAccessibilityProvider {
 
 		if (element.type === TreeItemType.groupTitle) {
 			return localize('groupRowAriaLabel', "{0}, group", element.group.title);
-		}
-
-		if (element.type === TreeItemType.buttonRow) {
-			return localize('buttonRowAriaLabel', "{0}, button", element.id);
 		}
 
 		return '';

@@ -4,14 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 .settings-editor {
-	padding: 11px 0px 0px 27px;
+	padding-top: 11px;
 	margin: auto;
 }
 
 /* header styling */
-
 .settings-editor > .settings-header {
-	padding: 0px 10px 0px 0px;
+	padding-left: 15px;
+	padding-right: 5px;
+	max-width: 800px;
+	box-sizing: border-box;
+	margin: auto;
 }
 
 .settings-editor > .settings-header > .settings-preview-header {
@@ -22,12 +25,17 @@
 	opacity: .7;
 }
 
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button,
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button:hover,
-.settings-editor > .settings-header > .settings-preview-header .open-settings-button:active {
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button,
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:hover,
+.settings-editor > .settings-header > .settings-advanced-customization .open-settings-button:active {
 	padding: 0;
 	text-decoration: underline;
 	display: inline;
+}
+
+.settings-editor > .settings-header > .settings-advanced-customization {
+	opacity: .7;
+	margin-top: 10px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -59,7 +67,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 7px;
+	margin-top: 2px;
 	height: 30px;
 	display: flex;
 }
@@ -87,6 +95,7 @@
 	white-space: nowrap;
 	margin-right: 10px;
 	margin-left: 2px;
+	opacity: 0.7;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
@@ -122,16 +131,6 @@
 	min-height: 75px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree-row .content::before {
-	content: ' ';
-	display: inline-block;
-	position: absolute;
-	width: 5px;
-	left: -9px;
-	top: 2px;
-	bottom: 10px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
 .settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
@@ -146,35 +145,35 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
 	min-width: 180px;
-	margin: 21px 10px 0px;
+	margin: 21px 10px 0px 5px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
 	line-height: initial;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
+	font-style: italic;
+	opacity: 0.8;
+	margin-right: 7px;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-overrides {
 	opacity: 0.5;
-	margin-left: 7px;
 	font-style: italic;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label {
+	margin-right: 7px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-label,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	font-weight: bold;
-	font-size: 14px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-category {
 	opacity: 0.7;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-key {
-	margin-left: 10px;
-	font-family: Monaco, Menlo, Consolas, "Droid Sans Mono", "Inconsolata", "Courier New", monospace, "Droid Sans Fallback";
-	font-size: 90%;
-	opacity: 0.8;
-	display: none;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
@@ -196,14 +195,6 @@
 	height: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .setting-item-description {
-	cursor: pointer;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	display: flex;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:hover,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:active {
@@ -222,28 +213,16 @@
 	height: 26px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-value-checkbox {
-	position: relative;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-value-checkbox::after {
-	content: ' ';
-	display: block;
-	height: 3px;
-	width: 18px;
-	position: absolute;
-	top: 15px;
-	left: -3px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
-	display: inline-block;
-	background: url("clean.svg") center center no-repeat;
-	width: 16px;
-	height: 16px;
-	margin: auto;
-	margin-left: 3px;
+	text-align: left;
+	display: block;
 	visibility: hidden;
+
+	padding-top: 0px; /* So focus outline doesn't overlap the control above */
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {
+	visibility: visible;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
@@ -256,14 +235,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expandable .expand-indicator {
-	visibility: visible;
-}
-
-.vs-dark .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
-	background: url("clean-dark.svg") center center no-repeat;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {
 	visibility: visible;
 }
 
@@ -292,13 +263,10 @@
 	overflow: visible;
 }
 
-.settings-editor .settings-body {
-	margin-left: -15px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
 	padding: 5px 0px;
+	font-size: 13px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

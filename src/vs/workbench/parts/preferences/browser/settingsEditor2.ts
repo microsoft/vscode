@@ -20,7 +20,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { editorBackground, foreground } from 'vs/platform/theme/common/colorRegistry';
+import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
@@ -46,6 +46,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
+	private savedExpandedGroups: any[];
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
@@ -114,17 +115,7 @@ export class SettingsEditor2 extends BaseEditor {
 		previewAlert.textContent = localize('previewWarning', "Preview");
 
 		const previewTextLabel = DOM.append(previewHeader, $('span.settings-preview-label'));
-		previewTextLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor. You can also ");
-		const openSettingsButton = this._register(new Button(previewHeader, { title: true, buttonBackground: null, buttonHoverBackground: null }));
-		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: 'foreground'
-		}));
-		openSettingsButton.label = localize('openSettingsLabel', "open the original editor.");
-		openSettingsButton.element.classList.add('open-settings-button');
-
-		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
+		previewTextLabel.textContent = localize('previewLabel', "This is a preview of our new settings editor");
 
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
@@ -138,6 +129,20 @@ export class SettingsEditor2 extends BaseEditor {
 				this.settingsTree.domFocus();
 			}
 		}));
+
+		const advancedCustomization = DOM.append(this.headerContainer, $('.settings-advanced-customization'));
+		const advancedCustomizationLabel = DOM.append(advancedCustomization, $('span.settings-advanced-customization-label'));
+		advancedCustomizationLabel.textContent = localize('advancedCustomizationLabel', "For advanced customizations open and edit") + ' ';
+		const openSettingsButton = this._register(new Button(advancedCustomization, { title: true, buttonBackground: null, buttonHoverBackground: null }));
+		this._register(attachButtonStyler(openSettingsButton, this.themeService, {
+			buttonBackground: Color.transparent.toString(),
+			buttonHoverBackground: Color.transparent.toString(),
+			buttonForeground: foreground
+		}));
+		openSettingsButton.label = localize('openSettingsLabel', "settings.json");
+		openSettingsButton.element.classList.add('open-settings-button');
+
+		this._register(openSettingsButton.onDidClick(() => this.openSettingsFile()));
 
 		const headerControlsContainer = DOM.append(this.headerContainer, $('.settings-header-controls'));
 		const targetWidgetContainer = DOM.append(headerControlsContainer, $('.settings-target-container'));
@@ -186,9 +191,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
 		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
-		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.viewState, this.settingsTreeContainer);
+		const renderer = this.instantiationService.createInstance(SettingsRenderer, this.settingsTreeContainer);
 		this._register(renderer.onDidChangeSetting(e => this.onDidChangeSetting(e.key, e.value)));
-		this._register(renderer.onDidClickButton(e => this.onDidClickShowAllSettings()));
 
 		const treeClass = 'settings-editor-tree';
 		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
@@ -208,14 +212,14 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-			const activeListBackground = theme.getColor('list.activeSelectionBackground');
-			if (activeListBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree.focused .monaco-tree-row.focused .content::before { background-color: ${activeListBackground}; }`);
+			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
+			if (activeBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
-			const inactiveListBackground = theme.getColor('list.inactiveSelectionBackground');
-			if (inactiveListBackground) {
-				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused .content::before { background-color: ${inactiveListBackground}; }`);
+			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
+			if (inactiveBorderColor) {
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
 		}));
 
@@ -265,6 +269,25 @@ export class SettingsEditor2 extends BaseEditor {
 	private onShowConfiguredOnlyClicked(): void {
 		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.refreshTree();
+
+		// TODO@roblou - This is slow
+		if (this.viewState.showConfiguredOnly) {
+			this.savedExpandedGroups = this.settingsTree.getExpandedElements();
+			const nav = this.settingsTree.getNavigator();
+			let element;
+			while (element = nav.next()) {
+				this.settingsTree.expand(element);
+			}
+		} else if (this.savedExpandedGroups) {
+			const nav = this.settingsTree.getNavigator();
+			let element;
+			while (element = nav.next()) {
+				this.settingsTree.collapse(element);
+			}
+
+			this.settingsTree.expandAll(this.savedExpandedGroups);
+			this.savedExpandedGroups = null;
+		}
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -290,11 +313,6 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.pendingSettingModifiedReport = { key, value };
 		this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
-	}
-
-	private onDidClickShowAllSettings(): void {
-		this.viewState.showAllSettings = !this.viewState.showAllSettings;
-		this.refreshTree();
 	}
 
 	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {

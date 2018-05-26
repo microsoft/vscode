@@ -18,6 +18,7 @@ import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQ
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
+import { joinPath } from 'vs/base/common/resources';
 
 type OneOrMore<T> = T | T[];
 
@@ -151,7 +152,7 @@ class TextSearchResultsCollector {
 		}
 
 		if (!this._currentFileMatch) {
-			const resource = URI.file(path.join(this.folderQueries[folderIdx].folder.fsPath, data.path));
+			const resource = joinPath(this.folderQueries[folderIdx].folder, data.path);
 			this._currentFileMatch = {
 				resource,
 				lineMatches: []
@@ -271,7 +272,7 @@ class BatchedCollector<T> {
 }
 
 interface IDirectoryEntry {
-	base: string;
+	base: URI;
 	relativePath: string;
 	basename: string;
 }
@@ -282,8 +283,8 @@ interface IDirectoryTree {
 }
 
 interface IInternalFileMatch {
-	base?: string;
-	relativePath: string; // Not necessarily relative... extraFiles put an absolute path here. Rename.
+	base: URI;
+	relativePath?: string; // Not present for extraFiles or absolute path matches
 	basename: string;
 	size?: number;
 }
@@ -433,9 +434,9 @@ class TextSearchEngine {
 			const testingPs = [];
 			const progress = {
 				report: (result: vscode.TextSearchResult) => {
-					const siblingFn = () => {
+					const siblingFn = folderQuery.folder.scheme === 'file' && (() => {
 						return this.readdir(path.dirname(path.join(folderQuery.folder.fsPath, result.path)));
-					};
+					});
 
 					testingPs.push(
 						queryTester.includedInQuery(result.path, path.basename(result.path), siblingFn)
@@ -558,7 +559,7 @@ class FileSearchEngine {
 				// Report result from file pattern if matching
 				if (exists) {
 					onResult({
-						relativePath: this.filePattern,
+						base: URI.file(this.filePattern),
 						basename: path.basename(this.filePattern),
 						size
 					});
@@ -572,15 +573,15 @@ class FileSearchEngine {
 				// For each extra file
 				if (this.config.extraFileResources) {
 					this.config.extraFileResources
-						.map(uri => uri.toString())
-						.forEach(extraFilePath => {
-							const basename = path.basename(extraFilePath);
-							if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+						.forEach(extraFile => {
+							const extraFileStr = extraFile.toString(); // ?
+							const basename = path.basename(extraFileStr);
+							if (this.globalExcludePattern && this.globalExcludePattern(extraFileStr, basename)) {
 								return; // excluded
 							}
 
 							// File: Check for match on file pattern and include pattern
-							this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
+							this.matchFile(onResult, { base: extraFile, basename });
 						});
 				}
 
@@ -604,7 +605,6 @@ class FileSearchEngine {
 		let cancellation = new CancellationTokenSource();
 		return new PPromise((resolve, reject, onResult) => {
 			const options = this.getSearchOptionsForFolder(fq);
-			const folderStr = fq.folder.fsPath;
 			let filePatternSeen = false;
 			const tree = this.initDirectoryTree();
 
@@ -616,20 +616,19 @@ class FileSearchEngine {
 					return;
 				}
 
-				// This is slow...
 				if (noSiblingsClauses) {
 					if (relativePath === this.filePattern) {
 						filePatternSeen = true;
 					}
 
 					const basename = path.basename(relativePath);
-					this.matchFile(onResult, { base: folderStr, relativePath, basename });
+					this.matchFile(onResult, { base: fq.folder, relativePath, basename });
 
 					return;
 				}
 
 				// TODO: Optimize siblings clauses with ripgrep here.
-				this.addDirectoryEntries(tree, folderStr, relativePath, onResult);
+				this.addDirectoryEntries(tree, fq.folder, relativePath, onResult);
 			};
 
 			new TPromise(resolve => process.nextTick(resolve))
@@ -646,10 +645,10 @@ class FileSearchEngine {
 					if (noSiblingsClauses && this.isLimitHit) {
 						if (!filePatternSeen) {
 							// If the limit was hit, check whether filePattern is an exact relative match because it must be included
-							return this.checkFilePatternRelativeMatch(folderStr).then(({ exists, size }) => {
+							return this.checkFilePatternRelativeMatch(fq.folder).then(({ exists, size }) => {
 								if (exists) {
 									onResult({
-										base: folderStr,
+										base: fq.folder,
 										relativePath: this.filePattern,
 										basename: path.basename(this.filePattern),
 									});
@@ -658,7 +657,7 @@ class FileSearchEngine {
 						}
 					}
 
-					this.matchDirectoryTree(tree, folderStr, queryTester, onResult);
+					this.matchDirectoryTree(tree, queryTester, onResult);
 					return null;
 				}).then(
 					() => {
@@ -694,7 +693,7 @@ class FileSearchEngine {
 		return tree;
 	}
 
-	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: string, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
+	private addDirectoryEntries({ pathToEntries }: IDirectoryTree, base: URI, relativeFile: string, onResult: (result: IInternalFileMatch) => void) {
 		// Support relative paths to files from a root resource (ignores excludes)
 		if (relativeFile === this.filePattern) {
 			const basename = path.basename(this.filePattern);
@@ -719,7 +718,7 @@ class FileSearchEngine {
 		add(relativeFile);
 	}
 
-	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, rootFolder: string, queryTester: QueryGlobTester, onResult: (result: IInternalFileMatch) => void) {
+	private matchDirectoryTree({ rootEntries, pathToEntries }: IDirectoryTree, queryTester: QueryGlobTester, onResult: (result: IInternalFileMatch) => void) {
 		const self = this;
 		const filePattern = this.filePattern;
 		function matchDirectory(entries: IDirectoryEntry[]) {
@@ -794,12 +793,12 @@ class FileSearchEngine {
 			});
 	}
 
-	private checkFilePatternRelativeMatch(basePath: string): TPromise<{ exists: boolean, size?: number }> {
-		if (!this.filePattern || path.isAbsolute(this.filePattern)) {
+	private checkFilePatternRelativeMatch(base: URI): TPromise<{ exists: boolean, size?: number }> {
+		if (!this.filePattern || path.isAbsolute(this.filePattern) || base.scheme !== 'file') {
 			return TPromise.wrap({ exists: false });
 		}
 
-		const absolutePath = path.join(basePath, this.filePattern);
+		const absolutePath = path.join(base.fsPath, this.filePattern);
 		return this._pfs.stat(absolutePath).then(stat => {
 			return {
 				exists: !stat.isDirectory(),
@@ -894,7 +893,7 @@ class FileSearchManager {
 
 	private rawMatchToSearchItem(match: IInternalFileMatch): IFileMatch {
 		return {
-			resource: URI.file(match.base ? path.join(match.base, match.relativePath) : match.relativePath)
+			resource: joinPath(match.base, match.relativePath)
 		};
 	}
 
