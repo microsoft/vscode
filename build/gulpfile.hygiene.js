@@ -82,8 +82,7 @@ const indentationFilter = [
 	'!build/**/*.sh',
 	'!build/tfs/**/*.js',
 	'!**/Dockerfile',
-	'!extensions/markdown-language-features/media/*.js',
-	'!extensions/git-extended/media/*.js'
+	'!extensions/markdown-language-features/media/*.js'
 ];
 
 const copyrightFilter = [
@@ -311,7 +310,7 @@ function createGitIndexVinyls(paths) {
 				return e(err);
 			}
 
-			cp.exec(`git show :${relativePath}`, { maxBuffer: 5000 * 1024, encoding: 'buffer' }, (err, out) => {
+			cp.exec(`git show :${relativePath}`, { maxBuffer: 2000 * 1024, encoding: 'buffer' }, (err, out) => {
 				if (err) {
 					return e(err);
 				}
