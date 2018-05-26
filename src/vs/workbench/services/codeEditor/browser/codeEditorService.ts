@@ -43,10 +43,11 @@ export class CodeEditorService extends CodeEditorServiceImpl {
 		// side as separate editor.
 		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		if (
-			input.resource &&	// we need a resource to compare with
-			input.options &&	// we need options to apply
-			!sideBySide &&		// we need the current active group to be the taret
+			!sideBySide &&							// we need the current active group to be the taret
 			isDiffEditor(activeTextEditorWidget) && // we only support this for active text diff editors
+			input.options &&						// we need options to apply
+			input.resource &&						// we need a request resource to compare with
+			activeTextEditorWidget.getModel() &&	// we need a target model to compare with
 			source === activeTextEditorWidget.getModifiedEditor() && // we need the source of this request to be the modified side of the diff editor
 			input.resource.toString() === activeTextEditorWidget.getModel().modified.uri.toString() // we need the input resources to match with modified side
 		) {
