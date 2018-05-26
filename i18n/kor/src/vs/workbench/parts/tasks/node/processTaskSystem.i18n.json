@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\n빌드 감시 작업이 완료되었습니다.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "\n사용자 요청에 따라 '{0}' 작업이 종료되었습니다.",
-	"unkownProblemMatcher": "문제 선택기 {0}을(를) 확인할 수 없습니다. 이 선택기는 무시됩니다."
+	"unknownProblemMatcher": "문제 선택기 {0}을(를) 확인할 수 없습니다. 이 선택기는 무시됩니다."
 }

@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Placer les paramètres de votre dossier ici pour remplacer ceux des paramètres de l’espace de travail.",
 	"reportSettingsSearchIssue": "Signaler un problème",
 	"newExtensionLabel": "Afficher l’Extension \"{0}\"",
-	"editTtile": "Modifier",
+	"editTitle": "Modifier",
 	"replaceDefaultValue": "Remplacer dans les paramètres",
 	"copyDefaultValue": "Copier dans Paramètres"
 }

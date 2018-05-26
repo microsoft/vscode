@@ -275,7 +275,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private doLoadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
 		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IContent> } = Object.create(null);
-		const bulkContentFetchromise = this.fileService.resolveFile(this.folderConfigurationPath)
+		const bulkContentFetchPromise = this.fileService.resolveFile(this.folderConfigurationPath)
 			.then(stat => {
 				if (stat.isDirectory && stat.children) {
 					stat.children
@@ -284,7 +284,7 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				}
 			}).then(null, err => [] /* never fail this call */);
 
-		return bulkContentFetchromise.then(() => TPromise.join(workspaceFilePathToConfiguration).then(result => collections.values(result)));
+		return bulkContentFetchPromise.then(() => TPromise.join(workspaceFilePathToConfiguration).then(result => collections.values(result)));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {

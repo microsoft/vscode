@@ -67,7 +67,7 @@ export abstract class Composite extends Component implements IComposite {
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * method. Calling it otherwise may result in unexpected behaviour.
 	 *
 	 * Called to create this composite on the provided builder. This method is only
 	 * called once during the lifetime of the workbench.
@@ -101,7 +101,7 @@ export abstract class Composite extends Component implements IComposite {
 
 	/**
 	 * Note: Clients should not call this method, the workbench calls this
-	 * method. Calling it otherwise may result in unexpected behavior.
+	 * method. Calling it otherwise may result in unexpected behaviour.
 	 *
 	 * Called to indicate that the composite has become visible or hidden. This method
 	 * is called more than once during workbench lifecycle depending on the user interaction.
@@ -214,7 +214,7 @@ export abstract class Composite extends Component implements IComposite {
 }
 
 /**
- * A composite descriptor is a leightweight descriptor of a composite in the workbench.
+ * A composite descriptor is a lightweight descriptor of a composite in the workbench.
  */
 export abstract class CompositeDescriptor<T extends Composite> {
 	public id: string;

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module "vscode-textmate" {
+declare module 'vscode-textmate' {
 	/**
 	 * A single theme setting.
 	 */

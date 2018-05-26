@@ -439,7 +439,7 @@ export class CommandsHandler extends QuickOpenHandler {
 			}
 		});
 
-		// Sort by MRU order and fallback to name otherwie
+		// Sort by MRU order and fallback to name otherwise
 		entries = entries.sort((elementA, elementB) => {
 			const counterA = this.commandsHistory.peek(elementA.getCommandId());
 			const counterB = this.commandsHistory.peek(elementB.getCommandId());
@@ -469,7 +469,7 @@ export class CommandsHandler extends QuickOpenHandler {
 				const entry = entries[i];
 				if (!this.commandsHistory.peek(entry.getCommandId())) {
 					entry.setShowBorder(true);
-					entry.setGroupLabel(nls.localize('morecCommands', "other commands"));
+					entry.setGroupLabel(nls.localize('moreCommands', "other commands"));
 					break;
 				}
 			}

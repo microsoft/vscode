@@ -319,25 +319,25 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 
 				const lowPrefix = snippet.prefix.toLowerCase();
 				let overwriteBefore = 0;
-				let accetSnippet = true;
+				let acceptSnippet = true;
 
 				if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
 					// cheap match on the (none-empty) current word
 					overwriteBefore = lowWordUntil.length;
-					accetSnippet = true;
+					acceptSnippet = true;
 
 				} else if (lowLineUntil.length > 0 && lowLineUntil.match(/[^\s]$/)) {
 					// compute overlap between snippet and (none-empty) line on text
 					overwriteBefore = overlap(lowLineUntil, snippet.prefix.toLowerCase());
-					accetSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
+					acceptSnippet = overwriteBefore > 0 && !model.getWordAtPosition(new Position(position.lineNumber, position.column - overwriteBefore));
 				}
 
-				if (accetSnippet) {
+				if (acceptSnippet) {
 					suggestions.push(new SnippetSuggestion(snippet, overwriteBefore));
 				}
 			}
 
-			// dismbiguate suggestions with same labels
+			// disambiguate suggestions with same labels
 			suggestions.sort(SnippetSuggestion.compareByLabel);
 
 			for (let i = 0; i < suggestions.length; i++) {

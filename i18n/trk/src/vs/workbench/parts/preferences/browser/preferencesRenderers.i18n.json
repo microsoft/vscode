@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Çalışma alanı ayarlarındakilerin üzerine yazmak için klasör ayarlarınızı buraya yerleştirin.",
 	"reportSettingsSearchIssue": "Sorun Bildir",
 	"newExtensionLabel": "\"{0}\" Eklentisini Göster",
-	"editTtile": "Düzenle",
+	"editTitle": "Düzenle",
 	"replaceDefaultValue": "Ayarlarda Değiştir",
 	"copyDefaultValue": "Ayarlara Kopyala"
 }

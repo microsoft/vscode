@@ -19,7 +19,7 @@ import Severity from 'vs/base/common/severity';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { DefaultController, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultController, ClickBehaviour } from 'vs/base/parts/tree/browser/treeDefaults';
 import * as DOM from 'vs/base/browser/dom';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -231,7 +231,7 @@ export class QuickOpenWidget implements IModelProvider {
 
 				this.tree = createTree(div.getHTMLElement(), {
 					dataSource: new DataSource(this),
-					controller: new QuickOpenController({ clickBehavior: ClickBehavior.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
+					controller: new QuickOpenController({ clickBehaviour: ClickBehaviour.ON_MOUSE_UP, keyboardSupport: this.options.keyboardSupport }),
 					renderer: (this.renderer = new Renderer(this, this.styles)),
 					filter: new Filter(this),
 					accessibilityProvider: new AccessibilityProvider(this)

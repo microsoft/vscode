@@ -10,7 +10,7 @@
 	"showUserKeybindings": "ユーザーのキーバインドを表示",
 	"SearchKeybindings.AriaLabel": "キー バインドの検索",
 	"SearchKeybindings.Placeholder": "キー バインドの検索",
-	"sortByPrecedene": "優先順位で並べ替え",
+	"sortByPrecedence": "優先順位で並べ替え",
 	"header-message": "高度なカスタマイズを行うには、次を開いて編集:",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "キー バインド",

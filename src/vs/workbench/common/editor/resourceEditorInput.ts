@@ -14,7 +14,7 @@ import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorMo
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
- * A read-only text editor input whos contents are made of the provided resource that points to an existing
+ * A read-only text editor input whose contents are made of the provided resource that points to an existing
  * code editor model.
  */
 export class ResourceEditorInput extends EditorInput {

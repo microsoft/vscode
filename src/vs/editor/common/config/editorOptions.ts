@@ -175,7 +175,7 @@ export interface IEditorOptions {
 	/**
 	 * Control the rendering of line numbers.
 	 * If it is a function, it will be invoked when rendering a line number and the return value will be rendered.
-	 * Otherwise, if it is a truey, line numbers will be rendered normally (equivalent of using an identity function).
+	 * Otherwise, if it is a truthy, line numbers will be rendered normally (equivalent of using an identity function).
 	 * Otherwise, line numbers will not be rendered.
 	 * Defaults to true.
 	 */
@@ -223,15 +223,15 @@ export interface IEditorOptions {
 	 */
 	readOnly?: boolean;
 	/**
-	 * Control the behavior and rendering of the scrollbars.
+	 * Control the behaviour and rendering of the scrollbars.
 	 */
 	scrollbar?: IEditorScrollbarOptions;
 	/**
-	 * Control the behavior and rendering of the minimap.
+	 * Control the behaviour and rendering of the minimap.
 	 */
 	minimap?: IEditorMinimapOptions;
 	/**
-	 * Control the behavior of the find widget.
+	 * Control the behaviour of the find widget.
 	 */
 	find?: IEditorFindOptions;
 	/**
@@ -506,7 +506,7 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
-	 * Control the behavior and rendering of the code action lightbulb.
+	 * Control the behaviour and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
 	/**
@@ -1624,7 +1624,7 @@ export class EditorOptionsValidator {
 		};
 	}
 
-	private static _santizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
+	private static _sanitizeFindOpts(opts: IEditorFindOptions, defaults: InternalEditorFindOptions): InternalEditorFindOptions {
 		if (typeof opts !== 'object') {
 			return defaults;
 		}
@@ -1750,7 +1750,7 @@ export class EditorOptionsValidator {
 		if (typeof opts.acceptSuggestionOnEnter === 'boolean') {
 			opts.acceptSuggestionOnEnter = opts.acceptSuggestionOnEnter ? 'on' : 'off';
 		}
-		const find = this._santizeFindOpts(opts.find, defaults.find);
+		const find = this._sanitizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
 			hover: _boolean(opts.hover, defaults.hover),

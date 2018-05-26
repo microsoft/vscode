@@ -470,12 +470,12 @@ interface ILimitedTaskFactory {
  */
 export class Limiter<T> {
 	private runningPromises: number;
-	private maxDegreeOfParalellism: number;
+	private maxDegreeOfParallelism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
 	private readonly _onFinished: Emitter<void>;
 
-	constructor(maxDegreeOfParalellism: number) {
-		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
+	constructor(maxDegreeOfParallelism: number) {
+		this.maxDegreeOfParallelism = maxDegreeOfParallelism;
 		this.outstandingPromises = [];
 		this.runningPromises = 0;
 		this._onFinished = new Emitter<void>();
@@ -504,7 +504,7 @@ export class Limiter<T> {
 	}
 
 	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParallelism) {
 			const iLimitedTask = this.outstandingPromises.shift();
 			this.runningPromises++;
 

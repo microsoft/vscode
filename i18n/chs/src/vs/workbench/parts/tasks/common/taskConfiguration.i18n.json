@@ -9,7 +9,7 @@
 	"ConfigurationParser.noShell": "警告: 仅当在终端中执行任务时支持 shell 配置。",
 	"ConfigurationParser.noName": "错误: 声明范围内的问题匹配程序必须具有名称:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "警告: 已定义的问题匹配程序未知。受支持的类型为 string | ProblemMatcher | (string | ProblemMatcher)[]。\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "错误: 无效的 problemMatcher 引用: {0}\n",
+	"ConfigurationParser.invalidVariableReference": "错误: 无效的 problemMatcher 引用: {0}\n",
 	"ConfigurationParser.noTaskName": "错误: 任务必须提供 taskName 属性。将忽略该任务。\n{0}\n",
 	"taskConfiguration.shellArgs": "警告: 任务“{0}”是 shell 命令，该命令的名称或其中一个参数具有非转义空格。若要确保命令行引用正确，请将参数合并到该命令。",
 	"taskConfiguration.noCommandOrDependsOn": "错误：任务“{0}”既不指定命令，也不指定 dependsOn 属性。将忽略该任务。其定义为:\n{1}",

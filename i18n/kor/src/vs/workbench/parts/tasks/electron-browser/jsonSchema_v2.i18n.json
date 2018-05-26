@@ -48,7 +48,7 @@
 	"JsonSchema.tasks.matchers": "사용할 문제 선택기입니다. 문자열, 문제 선택기 정의 또는 문자열 및 문제 선택기 배열일 수 있습니다.",
 	"JsonSchema.customizations.customizes.type": "사용자 지정할 작업 유형",
 	"JsonSchema.tasks.customize.deprecated": "사용자 지정 속성은 사용되지 않습니다. 새로운 작업 사용자 지정 방식으로 마이그레이션을 위해 1.14 릴리스 노트를 참고하세요.",
-	"JsonSchema.tasks.showOputput.deprecated": "showOutput 속성은 사용되지 않습니다. 대신 presentation 속성 내 reveal 속성을 사용하세요. 1.14 릴리스 노트도 참고하세요.",
+	"JsonSchema.tasks.showOutput.deprecated": "showOutput 속성은 사용되지 않습니다. 대신 presentation 속성 내 reveal 속성을 사용하세요. 1.14 릴리스 노트도 참고하세요.",
 	"JsonSchema.tasks.echoCommand.deprecated": "echoCommand 속성은 사용되지 않습니다. 대신 presentation 속성 내 echo 속성을 사용하세요. 1.14 릴리스 노트도 참고하세요.",
 	"JsonSchema.tasks.suppressTaskName.deprecated": "suppressTaskName 속성은 사용되지 않습니다. 대신 명령을 인수와 함께 작업에 인라인으로 삽입하세요. 1.14 릴리스 노트를 참고하세요.",
 	"JsonSchema.tasks.isBuildCommand.deprecated": "isBuildCommand 속성은 사용되지 않습니다. 대신 group 속성을 사용하세요. 1.14 릴리스 노트도 참고하세요.",

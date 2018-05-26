@@ -230,7 +230,7 @@ class EditorModelManager extends Disposable {
 		super.dispose();
 	}
 
-	public esureSyncedResources(resources: URI[]): void {
+	public ensureSyncedResources(resources: URI[]): void {
 		for (let i = 0; i < resources.length; i++) {
 			let resource = resources[i];
 			let resourceStr = resource.toString();
@@ -374,7 +374,7 @@ export class EditorWorkerClient extends Disposable {
 
 	protected _withSyncedResources(resources: URI[]): TPromise<EditorSimpleWorkerImpl> {
 		return this._getProxy().then((proxy) => {
-			this._getOrCreateModelManager(proxy).esureSyncedResources(resources);
+			this._getOrCreateModelManager(proxy).ensureSyncedResources(resources);
 			return proxy;
 		});
 	}

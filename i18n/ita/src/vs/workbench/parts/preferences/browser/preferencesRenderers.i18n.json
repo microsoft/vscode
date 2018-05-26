@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Inserire le impostazioni cartella qui per sovrascrivere quelle dell'area di lavoro.",
 	"reportSettingsSearchIssue": "Segnala problema",
 	"newExtensionLabel": "Mostra l'estensione \"{0}\"",
-	"editTtile": "Modifica",
+	"editTitle": "Modifica",
 	"replaceDefaultValue": "Sostituisci nelle impostazioni",
 	"copyDefaultValue": "Copia nelle impostazioni"
 }

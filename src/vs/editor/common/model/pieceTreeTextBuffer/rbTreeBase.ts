@@ -29,7 +29,7 @@ export class TreeNode {
 
 	public next(): TreeNode {
 		if (this.right !== SENTINEL) {
-			return leftest(this.right);
+			return leftTest(this.right);
 		}
 
 		let node: TreeNode = this;
@@ -51,7 +51,7 @@ export class TreeNode {
 
 	public prev(): TreeNode {
 		if (this.left !== SENTINEL) {
-			return righttest(this.left);
+			return rightTest(this.left);
 		}
 
 		let node: TreeNode = this;
@@ -89,14 +89,14 @@ export const enum NodeColor {
 	Red = 1,
 }
 
-export function leftest(node: TreeNode): TreeNode {
+export function leftTest(node: TreeNode): TreeNode {
 	while (node.left !== SENTINEL) {
 		node = node.left;
 	}
 	return node;
 }
 
-export function righttest(node: TreeNode): TreeNode {
+export function rightTest(node: TreeNode): TreeNode {
 	while (node.right !== SENTINEL) {
 		node = node.right;
 	}
@@ -181,7 +181,7 @@ export function rbDelete(tree: PieceTreeBase, z: TreeNode) {
 		y = z;
 		x = y.left;
 	} else {
-		y = leftest(z.right);
+		y = leftTest(z.right);
 		x = y.right;
 	}
 

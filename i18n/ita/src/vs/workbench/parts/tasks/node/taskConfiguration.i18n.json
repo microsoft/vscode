@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "Avviso: la configurazione della shell è supportata solo quando si eseguono attività nel terminale.",
 	"ConfigurationParser.noName": "Errore: è necessario specificare un nome per il matcher problemi nell'ambito di dichiarazione:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "Avviso: il matcher problemi definito è sconosciuto. I tipi supportati sono string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "Errore: il riferimento a problemMatcher non è valido: {0}\n",
+	"ConfigurationParser.invalidVariableReference": "Errore: il riferimento a problemMatcher non è valido: {0}\n",
 	"ConfigurationParser.noTaskType": "Errore: la configurazione di tasks deve contenere una proprietà di tipo. La configurazione verrà ignorata.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Errore: non ci sono attività registrate di tipo '{0}'. Non è stata installata un'estensione che fornisce un provider di task corrispondente?",
 	"ConfigurationParser.missingRequiredProperty": "Errore: nella configurazione di attività '{0}' manca la proprietà obbligatoria '{1}'. La configurazione dell'attività verrà ignorata.",

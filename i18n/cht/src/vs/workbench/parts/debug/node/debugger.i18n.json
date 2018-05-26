@@ -10,7 +10,7 @@
 	"launch.config.comment2": "暫留以檢視現有屬性的描述。",
 	"launch.config.comment3": "如需詳細資訊，請瀏覽: {0}",
 	"debugType": "組態的類型。",
-	"debugTypeNotRecognised": "無法辨識此偵錯類型.請確認已有安裝並啟用相對應的偵錯擴充功能.",
+	"debugTypeNotRecognized": "無法辨識此偵錯類型.請確認已有安裝並啟用相對應的偵錯擴充功能.",
 	"node2NotSupported": "\"node2\" 已不再支援，請改用 \"node\"，並將 \"protocol\" 屬性設為 \"inspector\"。",
 	"debugName": "組態的名稱; 出現在啟動組態下拉式功能表中。",
 	"debugRequest": "要求組態的類型。可以是 [啟動] 或 [附加]。",

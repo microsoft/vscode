@@ -38,14 +38,14 @@ const webviewDeveloperCategory = localize('developer', "Developer");
 
 const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 
-const showNextFindWdigetCommand = new ShowWebViewEditorFindWidgetCommand({
+const showNextFindWidgetCommand = new ShowWebViewEditorFindWidgetCommand({
 	id: ShowWebViewEditorFindWidgetCommand.ID,
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS,
 	kbOpts: {
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_F
 	}
 });
-KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindWdigetCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindWidgetCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 
 const showNextFindTermCommand = new ShowWebViewEditorFindTermCommand({

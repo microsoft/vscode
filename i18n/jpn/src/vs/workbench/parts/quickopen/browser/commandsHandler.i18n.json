@@ -14,7 +14,7 @@
 	"actionNotEnabled": "コマンド '{0}' は現在のコンテキストでは無効です。",
 	"canNotRun": "コマンド '{0}' でエラーが発生しました。",
 	"recentlyUsed": "最近使用したもの",
-	"morecCommands": "その他のコマンド",
+	"moreCommands": "その他のコマンド",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "一致するコマンドはありません"
 }

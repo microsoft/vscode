@@ -303,7 +303,7 @@ export class WebviewElement {
 			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
 			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
 
-			// Offical API
+			// Official API
 			'vscode-editor-font-family': fontFamily,
 			'vscode-editor-font-weight': fontWeight,
 			'vscode-editor-font-size': fontSize,

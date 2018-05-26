@@ -19,7 +19,7 @@
 	"configMissing": "Il manque la configuration '{0}' dans 'launch.json'.",
 	"launchJsonDoesNotExist": "'launch.json' n’existe pas.",
 	"debugRequestNotSupported": "L’attribut '{0}' a une valeur '{1}' non prise en charge dans la configuration de débogage sélectionnée.",
-	"debugRequesMissing": "L’attribut '{0}' est introuvable dans la configuration de débogage choisie.",
+	"debugRequestMissing": "L’attribut '{0}' est introuvable dans la configuration de débogage choisie.",
 	"debugTypeNotSupported": "Le type de débogage '{0}' configuré n'est pas pris en charge.",
 	"debugTypeMissing": "Propriété 'type' manquante pour la configuration de lancement choisie.",
 	"debugAnyway": "Déboguer quand même",

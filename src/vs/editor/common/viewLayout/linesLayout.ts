@@ -400,7 +400,7 @@ export class LinesLayout {
 	 * Get exactly the whitespace that is layouted at `verticalOffset`.
 	 *
 	 * @param verticalOffset The vertical offset.
-	 * @return Precisely the whitespace that is layouted at `verticaloffset` or null.
+	 * @return Precisely the whitespace that is layouted at `verticalOffset` or null.
 	 */
 	public getWhitespaceAtVerticalOffset(verticalOffset: number): IViewWhitespaceViewportData {
 		verticalOffset = verticalOffset | 0;

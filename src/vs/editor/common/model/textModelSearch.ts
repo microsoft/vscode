@@ -446,7 +446,7 @@ export class TextModelSearch {
 	}
 }
 
-function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+function leftIsWordBoundary(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
 	if (matchStartIndex === 0) {
 		// Match starts at start of string
 		return true;
@@ -474,7 +474,7 @@ function leftIsWordBounday(wordSeparators: WordCharacterClassifier, text: string
 	return false;
 }
 
-function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
+function rightIsWordBoundary(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
 	if (matchStartIndex + matchLength === textLength) {
 		// Match ends at end of string
 		return true;
@@ -504,8 +504,8 @@ function rightIsWordBounday(wordSeparators: WordCharacterClassifier, text: strin
 
 export function isValidMatch(wordSeparators: WordCharacterClassifier, text: string, textLength: number, matchStartIndex: number, matchLength: number): boolean {
 	return (
-		leftIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
-		&& rightIsWordBounday(wordSeparators, text, textLength, matchStartIndex, matchLength)
+		leftIsWordBoundary(wordSeparators, text, textLength, matchStartIndex, matchLength)
+		&& rightIsWordBoundary(wordSeparators, text, textLength, matchStartIndex, matchLength)
 	);
 }
 

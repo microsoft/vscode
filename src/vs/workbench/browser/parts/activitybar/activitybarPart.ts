@@ -83,7 +83,7 @@ export class ActivitybarPart extends Part {
 			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
 			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(ToggleViewletAction, this.viewletService.getViewlet(compositeId)),
-			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivitBar', "Hide Activity Bar"))],
+			getContextMenuActions: () => [this.instantiationService.createInstance(ToggleActivityBarVisibilityAction, ToggleActivityBarVisibilityAction.ID, nls.localize('hideActivityBar', "Hide Activity Bar"))],
 			getDefaultCompositeId: () => this.viewletService.getDefaultViewletId(),
 			hidePart: () => this.partService.setSideBarHidden(true),
 			compositeSize: 50,
@@ -94,7 +94,7 @@ export class ActivitybarPart extends Part {
 		this.placeholderComposites = previousState ? JSON.parse(previousState) : this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
 
 		this.registerListeners();
-		this.updateCompositebar();
+		this.updateCompositeBar();
 		this.updatePlaceholderComposites();
 
 		extensionService.onDidRegisterExtensions(() => this.onDidRegisterExtensions());
@@ -103,14 +103,14 @@ export class ActivitybarPart extends Part {
 	private onDidRegisterExtensions(): void {
 		this.extensionsRegistrationCompleted = true;
 		this.removeNotExistingPlaceholderComposites();
-		this.updateCompositebar();
+		this.updateCompositeBar();
 	}
 
 	private registerListeners(): void {
 
-		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.updateCompositebar()));
-		this.toUnbind.push(ViewsRegistry.onViewsRegistered(() => this.updateCompositebar()));
-		this.toUnbind.push(ViewsRegistry.onViewsDeregistered(() => this.updateCompositebar()));
+		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.updateCompositeBar()));
+		this.toUnbind.push(ViewsRegistry.onViewsRegistered(() => this.updateCompositeBar()));
+		this.toUnbind.push(ViewsRegistry.onViewsDeregistered(() => this.updateCompositeBar()));
 
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
@@ -223,7 +223,7 @@ export class ActivitybarPart extends Part {
 		return compositeActions;
 	}
 
-	private updateCompositebar(): void {
+	private updateCompositeBar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
 			const hasPlaceholder = this.placeholderComposites.some(c => c.id === viewlet.id);

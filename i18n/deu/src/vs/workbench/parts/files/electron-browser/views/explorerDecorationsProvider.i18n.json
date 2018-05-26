@@ -8,5 +8,5 @@
 	],
 	"label": "Explorer",
 	"canNotResolve": "Arbeitsbereichsordner kann nicht aufgelöst werden.",
-	"symbolicLlink": "Symbolischer Link"
+	"symbolicLink": "Symbolischer Link"
 }

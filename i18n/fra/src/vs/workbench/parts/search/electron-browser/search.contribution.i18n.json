@@ -16,7 +16,7 @@
 	"findInWorkspace": "Trouver dans l’espace de travail...",
 	"showTriggerActions": "Atteindre le symbole dans l'espace de travail...",
 	"name": "Rechercher",
-	"showSearchViewl": "Afficher la zone de recherche",
+	"showSearchView": "Afficher la zone de recherche",
 	"view": "Affichage",
 	"findInFiles": "Chercher dans les fichiers",
 	"openAnythingHandlerDescription": "Accéder au fichier",

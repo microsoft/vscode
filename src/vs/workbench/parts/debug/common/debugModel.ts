@@ -38,7 +38,7 @@ export abstract class AbstractReplElement implements IReplElement {
 	}
 
 	public getId(): string {
-		return `replelement:${this.id}`;
+		return `replElement:${this.id}`;
 	}
 
 	// Used by the copy all action in repl
@@ -200,7 +200,7 @@ export class ExpressionContainer implements IExpressionContainer {
 		}, (e: Error) => [new Variable(this.session, this, 0, null, e.message, '', 0, 0, { kind: 'virtual' }, null, false)]);
 	}
 
-	// The adapter explicitly sents the children count of an expression only if there are lots of children which should be chunked.
+	// The adapter explicitly sends the children count of an expression only if there are lots of children which should be chunked.
 	private get getChildrenInChunks(): boolean {
 		return !!this.indexedVariables;
 	}

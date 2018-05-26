@@ -12,5 +12,5 @@
 	"closeTerminal": "按任意键关闭终端。",
 	"reuseTerminal": "终端将被任务重用，按任意键关闭。",
 	"TerminalTaskSystem": "无法使用 cmd.exe 在 UNC 驱动器上执行 Shell 命令。",
-	"unkownProblemMatcher": "无法解析问题匹配程序 {0}。此匹配程序将被忽略"
+	"unknownProblemMatcher": "无法解析问题匹配程序 {0}。此匹配程序将被忽略"
 }

@@ -10,7 +10,7 @@
 	"showUserKeybindings": "顯示使用者按鍵繫結",
 	"SearchKeybindings.AriaLabel": "搜尋按鍵繫結關係",
 	"SearchKeybindings.Placeholder": "搜尋按鍵繫結關係",
-	"sortByPrecedene": "依優先順序排序",
+	"sortByPrecedence": "依優先順序排序",
 	"header-message": "開啟及編輯進階自訂項目時使用",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "按鍵繫結關係",

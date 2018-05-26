@@ -12,5 +12,5 @@
 	"closeTerminal": "A folytatáshoz nyomjon meg egy billentyűt.",
 	"reuseTerminal": "A terminál újra lesz hasznosítva a feladatok által. Nyomjon meg egy billentyűt a bezáráshoz.",
 	"TerminalTaskSystem": "Rendszerparancsok nem hajthatók végre UNC-meghajtókon a cmd.exe használata esetén.",
-	"unkownProblemMatcher": "A(z) {0} problémaillesztő nem található. Az illesztő figyelmen kívül lesz hagyva."
+	"unknownProblemMatcher": "A(z) {0} problémaillesztő nem található. Az illesztő figyelmen kívül lesz hagyva."
 }

@@ -14,7 +14,7 @@
 	"actionNotEnabled": "Il comando '{0}' non è abilitato nel contesto corrente.",
 	"canNotRun": "Il comando '{0}' ha restituito un errore.",
 	"recentlyUsed": "usate di recente",
-	"morecCommands": "altri comandi",
+	"moreCommands": "altri comandi",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Non ci sono comandi corrispondenti"
 }

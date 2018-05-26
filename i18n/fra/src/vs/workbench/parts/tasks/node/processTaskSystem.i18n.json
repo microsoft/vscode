@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nFin du suivi des tâches de génération.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "\nThe task '{0}' was terminated per user request.",
-	"unkownProblemMatcher": "Impossible de résoudre le détecteur de problèmes {0}. Le détecteur est ignoré"
+	"unknownProblemMatcher": "Impossible de résoudre le détecteur de problèmes {0}. Le détecteur est ignoré"
 }

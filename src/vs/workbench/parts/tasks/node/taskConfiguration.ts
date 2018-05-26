@@ -282,7 +282,7 @@ export interface ConfigurationProperties {
 	dependsOn?: string | string[];
 
 	/**
-	 * Controls the behavior of the used terminal
+	 * Controls the behaviour of the used terminal
 	 */
 	presentation?: PresentationOptions;
 
@@ -370,7 +370,7 @@ export interface BaseTaskRunnerConfiguration {
 	 */
 	group?: string | GroupKind;
 	/**
-	 * Controls the behavior of the used terminal
+	 * Controls the behaviour of the used terminal
 	 */
 	presentation?: PresentationOptions;
 
@@ -1066,7 +1066,7 @@ namespace ProblemMatcherConverter {
 					return localProblemMatcher;
 				}
 			}
-			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVaraibleReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
+			context.problemReporter.error(nls.localize('ConfigurationParser.invalidVariableReference', 'Error: Invalid problemMatcher reference: {0}\n', value));
 			return undefined;
 		} else {
 			let json = <ProblemMatcherConfig.ProblemMatcher>value;

@@ -833,7 +833,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			});
 		}
 
-		// There is a remote root, resolve the roots sequantally
+		// There is a remote root, resolve the roots sequentially
 		let statsToExpand: ExplorerItem[] = [];
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;

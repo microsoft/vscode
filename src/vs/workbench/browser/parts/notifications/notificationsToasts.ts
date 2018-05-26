@@ -29,7 +29,7 @@ interface INotificationToast {
 	list: NotificationsList;
 	container: HTMLElement;
 	toast: HTMLElement;
-	disposeables: IDisposable[];
+	disposables: IDisposable[];
 }
 
 enum ToastVisibility {
@@ -94,7 +94,7 @@ export class NotificationsToasts extends Themable {
 
 	private addToast(item: INotificationViewItem): void {
 		if (this.isNotificationsCenterVisible) {
-			return; // do not show toasts while notification center is visibles
+			return; // do not show toasts while notification center is visible
 		}
 
 		// Lazily create toasts containers
@@ -108,7 +108,7 @@ export class NotificationsToasts extends Themable {
 		// Make Visible
 		addClass(this.notificationsToastsContainer, 'visible');
 
-		const itemDisposeables: IDisposable[] = [];
+		const itemDisposables: IDisposable[] = [];
 
 		// Container
 		const notificationToastContainer = document.createElement('div');
@@ -131,12 +131,12 @@ export class NotificationsToasts extends Themable {
 			ariaLabel: localize('notificationsToast', "Notification Toast"),
 			verticalScrollMode: ScrollbarVisibility.Hidden
 		});
-		itemDisposeables.push(notificationList);
+		itemDisposables.push(notificationList);
 
-		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, disposeables: itemDisposeables };
+		const toast: INotificationToast = { item, list: notificationList, container: notificationToastContainer, toast: notificationToast, disposables: itemDisposables };
 		this.mapNotificationToToast.set(item, toast);
 
-		itemDisposeables.push(toDisposable(() => {
+		itemDisposables.push(toDisposable(() => {
 			if (this.isVisible(toast)) {
 				this.notificationsToastsContainer.removeChild(toast.container);
 			}
@@ -157,12 +157,12 @@ export class NotificationsToasts extends Themable {
 		this.layoutContainer(maxDimensions.height);
 
 		// Update when item height changes due to expansion
-		itemDisposeables.push(item.onDidExpansionChange(() => {
+		itemDisposables.push(item.onDidExpansionChange(() => {
 			notificationList.updateNotificationsList(0, 1, [item]);
 		}));
 
 		// Update when item height potentially changes due to label changes
-		itemDisposeables.push(item.onDidLabelChange(e => {
+		itemDisposables.push(item.onDidLabelChange(e => {
 			if (e.kind === NotificationViewItemLabelKind.ACTIONS || e.kind === NotificationViewItemLabelKind.MESSAGE) {
 				notificationList.updateNotificationsList(0, 1, [item]);
 			}
@@ -178,8 +178,8 @@ export class NotificationsToasts extends Themable {
 
 			// Track mouse over item
 			let isMouseOverToast = false;
-			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
-			itemDisposeables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
+			itemDisposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OVER, () => isMouseOverToast = true));
+			itemDisposables.push(addDisposableListener(notificationToastContainer, EventType.MOUSE_OUT, () => isMouseOverToast = false));
 
 			// Install Timers
 			let timeoutHandle: number;
@@ -196,7 +196,7 @@ export class NotificationsToasts extends Themable {
 
 			hideAfterTimeout();
 
-			itemDisposeables.push(toDisposable(() => clearTimeout(timeoutHandle)));
+			itemDisposables.push(toDisposable(() => clearTimeout(timeoutHandle)));
 		}
 
 		// Theming
@@ -208,7 +208,7 @@ export class NotificationsToasts extends Themable {
 		// Animate In if we are in a running session (otherwise just show directly)
 		if (this.lifecycleService.phase >= LifecyclePhase.Running) {
 			addClass(notificationToast, 'notification-fade-in');
-			itemDisposeables.push(addDisposableListener(notificationToast, 'transitionend', () => {
+			itemDisposables.push(addDisposableListener(notificationToast, 'transitionend', () => {
 				removeClass(notificationToast, 'notification-fade-in');
 				addClass(notificationToast, 'notification-fade-in-done');
 			}));
@@ -227,7 +227,7 @@ export class NotificationsToasts extends Themable {
 			}
 
 			// Listeners
-			dispose(notificationToast.disposeables);
+			dispose(notificationToast.disposables);
 
 			// Remove from Map
 			this.mapNotificationToToast.delete(item);
@@ -257,7 +257,7 @@ export class NotificationsToasts extends Themable {
 	}
 
 	private removeToasts(): void {
-		this.mapNotificationToToast.forEach(toast => dispose(toast.disposeables));
+		this.mapNotificationToToast.forEach(toast => dispose(toast.disposables));
 		this.mapNotificationToToast.clear();
 
 		this.doHide();
@@ -357,7 +357,7 @@ export class NotificationsToasts extends Themable {
 		if (this.isNotificationsCenterVisible !== isCenterVisible) {
 			this.isNotificationsCenterVisible = isCenterVisible;
 
-			// Hide all toasts when the notificationcenter gets visible
+			// Hide all toasts when the notification center gets visible
 			if (this.isNotificationsCenterVisible) {
 				this.removeToasts();
 			}
@@ -420,7 +420,7 @@ export class NotificationsToasts extends Themable {
 
 		if (this.workbenchDimensions) {
 
-			// Make sure notifications are not exceding available width
+			// Make sure notifications are not exceeding available width
 			availableWidth = this.workbenchDimensions.width;
 			availableWidth -= (2 * 8); // adjust for paddings left and right
 

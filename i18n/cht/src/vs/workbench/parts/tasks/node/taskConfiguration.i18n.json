@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "警告: 只有在終端機中執行工作時才支援殼層組態。",
 	"ConfigurationParser.noName": "錯誤: 宣告範圍中的問題比對器必須有名稱:\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "警告: 定義的問題比對器未知。支援的類型為 string | ProblemMatcher | (string | ProblemMatcher)[]。\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "錯誤: problemMatcher 參考無效: {0}\n",
+	"ConfigurationParser.invalidVariableReference": "錯誤: problemMatcher 參考無效: {0}\n",
 	"ConfigurationParser.noTaskType": "錯誤: 工作組態必須具有型別屬性。將會忽略該組態。\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "錯誤: 沒有已註冊工作類型 '{0}'。您是否忘記安裝提供相應工作提供者的延伸模組?",
 	"ConfigurationParser.missingRequiredProperty": "錯誤: 工作組態 '{0}' 缺少要求的屬性 '{1}'。會略過工作組態。",

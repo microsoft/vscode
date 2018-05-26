@@ -336,7 +336,7 @@ export class DebugService implements debug.IDebugService {
 			}
 		}));
 
-		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidTerminateDebugee(event => {
+		this.toDisposeOnSessionEnd.get(session.getId()).push(raw.onDidTerminateDebuggee(event => {
 			aria.status(nls.localize('debuggingStopped', "Debugging stopped."));
 			if (session && session.getId() === event.sessionId) {
 				if (event.body && event.body.restart && session) {
@@ -374,7 +374,7 @@ export class DebugService implements debug.IDebugService {
 				return;
 			}
 
-			// Make sure to append output in the correct order by properly waiting on preivous promises #33822
+			// Make sure to append output in the correct order by properly waiting on previous promises #33822
 			const waitFor = outputPromises.slice();
 			const source = event.body.source ? {
 				lineNumber: event.body.line,
@@ -836,7 +836,7 @@ export class DebugService implements debug.IDebugService {
 					let message: string;
 					if (config.request !== 'attach' && config.request !== 'launch') {
 						message = config.request ? nls.localize('debugRequestNotSupported', "Attribute '{0}' has an unsupported value '{1}' in the chosen debug configuration.", 'request', config.request)
-							: nls.localize('debugRequesMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
+							: nls.localize('debugRequestMissing', "Attribute '{0}' is missing from the chosen debug configuration.", 'request');
 
 					} else {
 						message = resolvedConfig.type ? nls.localize('debugTypeNotSupported', "Configured debug type '{0}' is not supported.", resolvedConfig.type) :

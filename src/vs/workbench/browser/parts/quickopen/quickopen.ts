@@ -20,7 +20,7 @@ export const defaultQuickOpenContextKey = 'inFilesPicker';
 export const defaultQuickOpenContext = ContextKeyExpr.and(inQuickOpenContext, ContextKeyExpr.has(defaultQuickOpenContextKey));
 
 export const QUICKOPEN_ACTION_ID = 'workbench.action.quickOpen';
-export const QUICKOPEN_ACION_LABEL = nls.localize('quickOpen', "Go to File...");
+export const QUICKOPEN_ACTION_LABEL = nls.localize('quickOpen', "Go to File...");
 
 CommandsRegistry.registerCommand(QUICKOPEN_ACTION_ID, function (accessor: ServicesAccessor, prefix: string = null) {
 	const quickOpenService = accessor.get(IQuickOpenService);

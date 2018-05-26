@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "줄 중단점 제거",
 	"editBreakpoints": "중단점 편집",
 	"editBreakpointOnColumn": "{0} 열에서 중단점 편집",
-	"editLineBrekapoint": "줄 중단점 편집",
+	"editLineBreakpoint": "줄 중단점 편집",
 	"enableDisableBreakpoints": "중단점 사용/사용 안 함",
 	"disableColumnBreakpoint": "{0} 열에서 중단점 사용 안 함",
 	"disableBreakpointOnLine": "줄 중단점 사용 안 함",

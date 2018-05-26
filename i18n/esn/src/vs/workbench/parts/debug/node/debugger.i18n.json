@@ -10,7 +10,7 @@
 	"launch.config.comment2": "Mantenga el puntero para ver las descripciones de los existentes atributos ",
 	"launch.config.comment3": "Para más información, visite: {0}",
 	"debugType": "Tipo de configuración.",
-	"debugTypeNotRecognised": "Este tipo de depuración no se reconoce. Compruebe que tiene instalada la correspondiente extensión de depuración y que está habilitada.",
+	"debugTypeNotRecognized": "Este tipo de depuración no se reconoce. Compruebe que tiene instalada la correspondiente extensión de depuración y que está habilitada.",
 	"node2NotSupported": "\"node2\" ya no se admite; use \"node\" en su lugar y establezca el atributo \"protocol\" en \"inspector\".",
 	"debugName": "Nombre de la configuración. Aparece en el menú desplegable de la configuración de inicio.",
 	"debugRequest": "Tipo de solicitud de la configuración. Puede ser \"launch\" o \"attach\".",

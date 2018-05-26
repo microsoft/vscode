@@ -35,7 +35,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	compute(editorModel: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions>;
 }
 
 export class FoldingController implements IEditorContribution {

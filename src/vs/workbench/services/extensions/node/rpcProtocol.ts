@@ -98,7 +98,7 @@ export class RPCProtocol implements IRPCProtocol {
 	private _lastMessageId: number;
 	private readonly _invokedHandlers: { [req: string]: TPromise<any>; };
 	private readonly _pendingRPCReplies: { [msgId: string]: LazyPromise; };
-	private readonly _multiplexor: RPCMultiplexer;
+	private readonly _multiplexer: RPCMultiplexer;
 
 	constructor(protocol: IMessagePassingProtocol, transformer: IURITransformer = null) {
 		this._uriTransformer = transformer;
@@ -108,7 +108,7 @@ export class RPCProtocol implements IRPCProtocol {
 		this._lastMessageId = 0;
 		this._invokedHandlers = Object.create(null);
 		this._pendingRPCReplies = {};
-		this._multiplexor = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
+		this._multiplexer = new RPCMultiplexer(protocol, (msg) => this._receiveOneMessage(msg));
 	}
 
 	public dispose(): void {
@@ -200,10 +200,10 @@ export class RPCProtocol implements IRPCProtocol {
 			if (this._uriTransformer) {
 				r = transformOutgoingURIs(r, this._uriTransformer);
 			}
-			this._multiplexor.send(MessageFactory.replyOK(callId, r));
+			this._multiplexer.send(MessageFactory.replyOK(callId, r));
 		}, (err) => {
 			delete this._invokedHandlers[callId];
-			this._multiplexor.send(MessageFactory.replyErr(callId, err));
+			this._multiplexer.send(MessageFactory.replyErr(callId, err));
 		});
 	}
 
@@ -272,14 +272,14 @@ export class RPCProtocol implements IRPCProtocol {
 
 		const callId = String(++this._lastMessageId);
 		const result = new LazyPromise(() => {
-			this._multiplexor.send(MessageFactory.cancel(callId));
+			this._multiplexer.send(MessageFactory.cancel(callId));
 		});
 
 		this._pendingRPCReplies[callId] = result;
 		if (this._uriTransformer) {
 			args = transformOutgoingURIs(args, this._uriTransformer);
 		}
-		this._multiplexor.send(MessageFactory.request(callId, proxyId, methodName, args));
+		this._multiplexer.send(MessageFactory.request(callId, proxyId, methodName, args));
 		return result;
 	}
 }

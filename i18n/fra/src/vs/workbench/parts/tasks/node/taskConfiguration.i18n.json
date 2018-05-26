@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "Avertissement : La configuration de l'interpréteur de commandes n'est prise en charge que durant l'exécution des tâches dans le terminal.",
 	"ConfigurationParser.noName": "Erreur : le détecteur de problèmes de correspondance dans la portée de déclaration doit avoir un nom :\n{0}\n",
 	"ConfigurationParser.unknownMatcherKind": "Avertissement : le détecteur de problèmes de correspondance défini est inconnu. Les types pris en charge sont string | ProblemMatcher | (string | ProblemMatcher)[].\n{0}\n",
-	"ConfigurationParser.invalidVaraibleReference": "Erreur : référence à problemMatcher non valide : {0}\n",
+	"ConfigurationParser.invalidVariableReference": "Erreur : référence à problemMatcher non valide : {0}\n",
 	"ConfigurationParser.noTaskType": "Erreur : la configuration des tâches doit avoir une propriété de type. La configuration est ignorée.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Erreur : aucun type de tâche '{0}' enregistré. Avez-vous oublié d'installer une extension incluant le fournisseur de tâches correspondant ?",
 	"ConfigurationParser.missingRequiredProperty": "Erreur : la configuration de la tâche '{0}' a besoin de la propriété '{1}'. La configuration de la tâche sera ignorée.",

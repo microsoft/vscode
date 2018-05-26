@@ -17,7 +17,7 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
 export class IndentRangeProvider implements RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+	compute(editorModel: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions> {
 		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;

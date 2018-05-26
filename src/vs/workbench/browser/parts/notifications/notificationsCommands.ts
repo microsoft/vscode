@@ -80,7 +80,7 @@ export function registerNotificationCommands(center: INotificationsCenterControl
 		return void 0;
 	}
 
-	// Show Notifications Cneter
+	// Show Notifications Center
 	CommandsRegistry.registerCommand(SHOW_NOTIFICATIONS_CENTER, () => {
 		center.show();
 	});

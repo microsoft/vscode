@@ -133,7 +133,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return asWinJsPromise(token => DebugAdapter.substituteVariables(folder, config, this._variableResolver));
 	}
 
-	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
+	public $startDASession(handle: number, debugType: string, adapterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
 		const mythis = this;
 
 		let da: StreamDebugAdapter = null;
@@ -166,7 +166,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 					mythis._debugServiceProxy.$acceptDAMessage(handle, message);
 				}
 
-			}(debugType, adpaterExecutable, this._extensionService.getAllExtensionDescriptions());
+			}(debugType, adapterExecutable, this._extensionService.getAllExtensionDescriptions());
 		}
 
 		this._debugAdapters.set(handle, da);

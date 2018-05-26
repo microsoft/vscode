@@ -10,7 +10,7 @@
 	"showUserKeybindings": "사용자 키 바인딩 표시",
 	"SearchKeybindings.AriaLabel": "키 바인딩 검색",
 	"SearchKeybindings.Placeholder": "키 바인딩 검색",
-	"sortByPrecedene": "우선 순위별 정렬",
+	"sortByPrecedence": "우선 순위별 정렬",
 	"header-message": "고급 사용자 지정의 경우 다음 파일을 열고 편집하세요.",
 	"keybindings-file-name": "keybindings.json",
 	"keybindingsLabel": "키 바인딩",

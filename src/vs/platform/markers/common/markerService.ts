@@ -70,7 +70,7 @@ class MarkerStats implements MarkerStatistics {
 			const key = resource.toString();
 			const oldStats = this._data[key];
 			if (oldStats) {
-				this._substract(oldStats);
+				this._subtract(oldStats);
 			}
 			const newStats = this._resourceStats(resource);
 			this._add(newStats);
@@ -101,7 +101,7 @@ class MarkerStats implements MarkerStatistics {
 		return result;
 	}
 
-	private _substract(op: MarkerStatistics) {
+	private _subtract(op: MarkerStatistics) {
 		this.errors -= op.errors;
 		this.warnings -= op.warnings;
 		this.infos -= op.infos;
@@ -191,7 +191,7 @@ export class MarkerService implements IMarkerService {
 			return undefined;
 		}
 
-		// santize data
+		// sanitize data
 		code = code || null;
 		startLineNumber = startLineNumber > 0 ? startLineNumber : 1;
 		startColumn = startColumn > 0 ? startColumn : 1;
@@ -222,7 +222,7 @@ export class MarkerService implements IMarkerService {
 		if (map) {
 			delete this._byOwner[owner];
 			for (const resource in map) {
-				// remeber what we remove
+				// remember what we remove
 				const [first] = MapMap.get(this._byResource, resource, owner);
 				if (first) {
 					changes.push(first.resource);

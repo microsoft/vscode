@@ -16,7 +16,7 @@
 	"removeLineBreakpoint": "Remover ponto de interrupção de linha",
 	"editBreakpoints": "Editar pontos de interrupção",
 	"editBreakpointOnColumn": "Editar o ponto de interrupção na coluna {0}",
-	"editLineBrekapoint": "Editar o ponto de interrupção de linha",
+	"editLineBreakpoint": "Editar o ponto de interrupção de linha",
 	"enableDisableBreakpoints": "Habilitar/Desabilitar pontos de interrupção",
 	"disableColumnBreakpoint": "Desabilitar ponto de interrupção na coluna {0}",
 	"disableBreakpointOnLine": "Desabilitar ponto de interrupção de linha",

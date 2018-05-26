@@ -100,7 +100,7 @@ export class ChokidarWatcherService implements IWatcherService {
 	}
 
 	// for test purposes
-	public get wacherCount() {
+	public get watcherCount() {
 		return this._watcherCount;
 	}
 
@@ -120,7 +120,7 @@ export class ChokidarWatcherService implements IWatcherService {
 			disableGlobbing: true // fix https://github.com/Microsoft/vscode/issues/4586
 		};
 
-		// if there's only one request, use the built-in ignore-filterering
+		// if there's only one request, use the built-in ignore-filtering
 		if (requests.length === 1) {
 			watcherOpts.ignored = requests[0].ignored;
 		}
@@ -304,7 +304,7 @@ function isIgnored(path: string, requests: ExtendedWatcherRequest[]): boolean {
 
 /**
  * Normalizes a set of root paths by grouping by the most parent root path.
- * equests with Sub paths are skipped if they have the same ignored set as the parent.
+ * Requests with Sub paths are skipped if they have the same ignored set as the parent.
  */
 export function normalizeRoots(requests: IWatcherRequest[]): { [basePath: string]: IWatcherRequest[] } {
 	requests = requests.sort((r1, r2) => r1.basePath.localeCompare(r2.basePath));

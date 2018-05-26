@@ -16,7 +16,7 @@ import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instant
 export abstract class Panel extends Composite implements IPanel { }
 
 /**
- * A panel descriptor is a leightweight descriptor of a panel in the workbench.
+ * A panel descriptor is a lightweight descriptor of a panel in the workbench.
  */
 export class PanelDescriptor extends CompositeDescriptor<Panel> {
 

@@ -25,7 +25,7 @@
 	"schema.font-path": "相对于当前图标主题文件的字体路径。",
 	"schema.font-format": "字体的格式。",
 	"schema.font-weight": "字体的粗细。",
-	"schema.font-sstyle": "字体的样式。",
+	"schema.font-style": "字体的样式。",
 	"schema.font-size": "字体的默认大小。",
 	"schema.iconDefinitions": "将文件关联到图标时可以使用的所有图标的说明。",
 	"schema.iconDefinition": "图标定义。对象键是定义的 ID。",

@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "行のブレークポイントの削除",
 	"editBreakpoints": "ブレークポイントの編集",
 	"editBreakpointOnColumn": "列 {0} のブレークポイントの編集",
-	"editLineBrekapoint": "行のブレークポイントの編集",
+	"editLineBreakpoint": "行のブレークポイントの編集",
 	"enableDisableBreakpoints": "ブレークポイントの有効化/無効化",
 	"disableColumnBreakpoint": "列 {0} のブレークポイントの無効化",
 	"disableBreakpointOnLine": "行のブレークポイントの無効化",

@@ -19,7 +19,7 @@
 	"configMissing": "'{0}' 구성이 'launch.json'에 없습니다.",
 	"launchJsonDoesNotExist": "'launch.json'이 없습니다.",
 	"debugRequestNotSupported": "'{0}' 특성에는 선택한 디버그 구성에서 지원되지 않는 값 '{1}'이(가) 있습니다.",
-	"debugRequesMissing": "선택한 디버그 구성에 특성 '{0}'이(가) 없습니다.",
+	"debugRequestMissing": "선택한 디버그 구성에 특성 '{0}'이(가) 없습니다.",
 	"debugTypeNotSupported": "구성된 디버그 형식 '{0}'은(는) 지원되지 않습니다.",
 	"debugTypeMissing": "선택한 시작 구성에 대한 'type' 속성이 없습니다.",
 	"debugAnyway": "디버그",

@@ -361,7 +361,7 @@ export class ExplorerItem {
 		}
 
 		if (this.children) {
-			// Ignore separtor to more easily deduct the next name to search
+			// Ignore separator to more easily deduct the next name to search
 			while (index < path.length && path[index] === paths.sep) {
 				index++;
 			}

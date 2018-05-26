@@ -27,7 +27,7 @@ import { FileOperationError, FileOperationResult, IFileService, FileKind } from 
 import { DuplicateFileAction, AddFilesAction, IEditableData, IFileViewletState, FileCopiedContext } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { IDataSource, ITree, IAccessibilityProvider, IRenderer, ContextMenuEvent, ISorter, IFilter, IDragAndDropData, IDragOverReaction, DRAG_OVER_ACCEPT_BUBBLE_DOWN, DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY, DRAG_OVER_ACCEPT_BUBBLE_UP, DRAG_OVER_ACCEPT_BUBBLE_UP_COPY, DRAG_OVER_REJECT } from 'vs/base/parts/tree/browser/tree';
 import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base/parts/tree/browser/treeDnd';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehaviour } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ExplorerItem, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -403,7 +403,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		@IClipboardService private clipboardService: IClipboardService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
+		super({ clickBehaviour: ClickBehaviour.ON_MOUSE_UP /* do not change to not break DND */ }, configurationService);
 
 		this.fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
 		this.toDispose = [];

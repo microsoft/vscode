@@ -493,7 +493,7 @@ export namespace Color {
 
 			/**
 			 * Formats the color as #RRGGBBAA
-			 * If 'compact' is set, colors without transparancy will be printed as #RRGGBB
+			 * If 'compact' is set, colors without transparency will be printed as #RRGGBB
 			 */
 			export function formatHexA(color: Color, compact = false): string {
 				if (compact && color.rgba.a === 1) {

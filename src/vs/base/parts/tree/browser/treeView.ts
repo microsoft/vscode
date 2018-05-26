@@ -1447,7 +1447,7 @@ export class TreeView extends HeightMap {
 		var item: Model.Item = viewItem.model;
 		var reaction: _.IDragOverReaction;
 
-		// check the bubble up behavior
+		// check the bubble up behaviour
 		do {
 			element = item ? item.getElement() : this.model.getInput();
 			reaction = this.context.dnd.onDragOver(this.context.tree, this.currentDragAndDropData, element, event);

@@ -171,7 +171,7 @@ suite.skip('Chockidar watching', () => {
 		service.setRoots([request]);
 		await wait(300);
 
-		assert.equal(service.wacherCount, 1);
+		assert.equal(service.watcherCount, 1);
 
 		// create a file
 		let testFilePath = path.join(testDir, 'file.txt');
@@ -207,7 +207,7 @@ suite.skip('Chockidar watching', () => {
 		service.setRoots([request]);
 		await wait(300);
 
-		assert.equal(service.wacherCount, 1);
+		assert.equal(service.watcherCount, 1);
 
 		// create various ignored files
 		let file1 = path.join(bFolder, 'file1.txt'); // hidden
@@ -258,7 +258,7 @@ suite.skip('Chockidar watching', () => {
 		service.setRoots([request1, request2]);
 		await wait(300);
 
-		assert.equal(service.wacherCount, 2);
+		assert.equal(service.watcherCount, 2);
 
 		// create some files
 		let folderPath1 = path.join(aFolder, 'folder1');
@@ -281,7 +281,7 @@ suite.skip('Chockidar watching', () => {
 		service.setRoots([request3]);
 		await wait(300);
 
-		assert.equal(service.wacherCount, 1);
+		assert.equal(service.watcherCount, 1);
 
 		// delete all
 		await pfs.del(folderPath1);
@@ -297,7 +297,7 @@ suite.skip('Chockidar watching', () => {
 		service.setRoots([request1, request2]);
 		await wait(300);
 
-		assert.equal(service.wacherCount, 1);
+		assert.equal(service.watcherCount, 1);
 
 		// create files
 		let filePath1 = path.join(bFolder, 'file1.xml'); // visible by both

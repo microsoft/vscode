@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Platzieren Sie Ihre Ordnereinstellungen hier, um die Einstellungen in den Arbeitsbereichseinstellungen zu überschreiben.",
 	"reportSettingsSearchIssue": "Problem melden",
 	"newExtensionLabel": "Erweiterung \"{0}\" anzeigen",
-	"editTtile": "Bearbeiten",
+	"editTitle": "Bearbeiten",
 	"replaceDefaultValue": "In Einstellungen ersetzen",
 	"copyDefaultValue": "In Einstellungen kopieren"
 }

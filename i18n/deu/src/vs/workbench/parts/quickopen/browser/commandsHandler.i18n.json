@@ -14,7 +14,7 @@
 	"actionNotEnabled": "Der Befehl \"{0}\" ist im aktuellen Kontext nicht aktiviert.",
 	"canNotRun": "Der Befehl \"{0}\" hat zu einem Fehler geführt.",
 	"recentlyUsed": "zuletzt verwendet",
-	"morecCommands": "andere Befehle",
+	"moreCommands": "andere Befehle",
 	"cat.title": "{0}: {1}",
 	"noCommandsMatching": "Keine übereinstimmenden Befehle."
 }

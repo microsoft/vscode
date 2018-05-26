@@ -15,7 +15,7 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 export interface IContentActionHandler {
 	callback: (content: string, event?: IMouseEvent) => void;
-	disposeables: IDisposable[];
+	disposables: IDisposable[];
 }
 
 export interface RenderOptions {
@@ -143,7 +143,7 @@ export function renderMarkdown(markdown: IMarkdownString, options: RenderOptions
 	}
 
 	if (options.actionHandler) {
-		options.actionHandler.disposeables.push(DOM.addStandardDisposableListener(element, 'click', event => {
+		options.actionHandler.disposables.push(DOM.addStandardDisposableListener(element, 'click', event => {
 			let target = event.target;
 			if (target.tagName !== 'A') {
 				target = target.parentElement;
@@ -233,7 +233,7 @@ function _renderFormattedText(element: Node, treeNode: IFormatParseTree, actionH
 	else if (treeNode.type === FormatType.Action && actionHandler) {
 		const a = document.createElement('a');
 		a.href = '#';
-		actionHandler.disposeables.push(DOM.addStandardDisposableListener(a, 'click', (event) => {
+		actionHandler.disposables.push(DOM.addStandardDisposableListener(a, 'click', (event) => {
 			actionHandler.callback(String(treeNode.index), event);
 		}));
 

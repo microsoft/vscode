@@ -8,5 +8,5 @@
 	],
 	"label": "Explorador",
 	"canNotResolve": "No se puede resolver la carpeta de trabajo",
-	"symbolicLlink": "Vínculo simbólico"
+	"symbolicLink": "Vínculo simbólico"
 }

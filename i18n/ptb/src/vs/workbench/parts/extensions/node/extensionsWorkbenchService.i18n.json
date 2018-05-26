@@ -12,7 +12,7 @@
 	"uninstallingExtension": "Desinstalando extensão...",
 	"enable": "Sim",
 	"doNotEnable": "Não",
-	"disableDependeciesConfirmation": "Gostaria de desabilitar somente '{0}', ou as suas dependências também?",
+	"disableDependenciesConfirmation": "Gostaria de desabilitar somente '{0}', ou as suas dependências também?",
 	"disableOnly": "Apenas",
 	"disableAll": "Todos",
 	"cancel": "Cancelar",

@@ -127,7 +127,7 @@ export class SidebarPart extends CompositePart<Viewlet> {
 	}
 
 	public getLastActiveViewletId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	public hideActiveViewlet(): TPromise<void> {

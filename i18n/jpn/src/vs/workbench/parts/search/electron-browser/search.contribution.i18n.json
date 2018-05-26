@@ -16,7 +16,7 @@
 	"findInWorkspace": "ワークスペース内を検索...",
 	"showTriggerActions": "ワークスペース内のシンボルへ移動...",
 	"name": "検索",
-	"showSearchViewl": "検索の表示",
+	"showSearchView": "検索の表示",
 	"view": "表示",
 	"findInFiles": "フォルダーを指定して検索",
 	"openAnythingHandlerDescription": "ファイルに移動する",

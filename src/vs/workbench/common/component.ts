@@ -12,7 +12,7 @@ import { Themable } from 'vs/workbench/common/theme';
 
 /**
  * Base class of any core/ui component in the workbench. Examples include services, extensions, parts, viewlets and quick open.
- * Provides some convinience methods to participate in the workbench lifecycle (dispose, shutdown) and
+ * Provides some convenience methods to participate in the workbench lifecycle (dispose, shutdown) and
  * loading and saving settings through memento.
  */
 export interface IWorkbenchComponent extends IDisposable {

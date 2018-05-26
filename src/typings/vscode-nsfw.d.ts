@@ -32,7 +32,7 @@ declare module 'vscode-nsfw' {
 			DELETED: number;
 			MODIFIED: number;
 			RENAMED: number;
-		}
+		};
 	}
 
 	var nsfw: NsfwFunction;

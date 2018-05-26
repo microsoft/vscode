@@ -25,7 +25,7 @@ export interface ICancelableEvent {
 	stopPropagation(): void;
 }
 
-export enum ClickBehavior {
+export enum ClickBehaviour {
 
 	/**
 	 * Handle the click when the mouse button is pressed but not released yet.
@@ -44,7 +44,7 @@ export enum OpenMode {
 }
 
 export interface IControllerOptions {
-	clickBehavior?: ClickBehavior;
+	clickBehaviour?: ClickBehaviour;
 	openMode?: OpenMode;
 	keyboardSupport?: boolean;
 }
@@ -98,7 +98,7 @@ export class DefaultController implements _.IController {
 
 	private options: IControllerOptions;
 
-	constructor(options: IControllerOptions = { clickBehavior: ClickBehavior.ON_MOUSE_DOWN, keyboardSupport: true, openMode: OpenMode.SINGLE_CLICK }) {
+	constructor(options: IControllerOptions = { clickBehaviour: ClickBehaviour.ON_MOUSE_DOWN, keyboardSupport: true, openMode: OpenMode.SINGLE_CLICK }) {
 		this.options = options;
 
 		this.downKeyBindingDispatcher = new KeybindingDispatcher();
@@ -128,7 +128,7 @@ export class DefaultController implements _.IController {
 	}
 
 	public onMouseDown(tree: _.ITree, element: any, event: mouse.IMouseEvent, origin: string = 'mouse'): boolean {
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
+		if (this.options.clickBehaviour === ClickBehaviour.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			if (event.target) {
 				if (event.target.tagName && event.target.tagName.toLowerCase() === 'input') {
 					return false; // Ignore event if target is a form input field (avoids browser specific issues)
@@ -160,7 +160,7 @@ export class DefaultController implements _.IController {
 			return false; // Ignore event if target is a form input field (avoids browser specific issues)
 		}
 
-		if (this.options.clickBehavior === ClickBehavior.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
+		if (this.options.clickBehaviour === ClickBehaviour.ON_MOUSE_DOWN && (event.leftButton || event.middleButton)) {
 			return false; // Already handled by onMouseDown
 		}
 

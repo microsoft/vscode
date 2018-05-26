@@ -1574,7 +1574,7 @@ class TaskService implements ITaskService {
 				} else {
 					ignoredWorkspaceFolders.push(workspaceFolder);
 					this._outputChannel.append(nls.localize(
-						'taskService.ignoreingFolder',
+						'taskService.ignoringFolder',
 						'Ignoring task configurations for workspace folder {0}. Multi folder workspace task support requires that all folders use task version 2.0.0\n',
 						workspaceFolder.uri.fsPath));
 				}
@@ -1920,7 +1920,7 @@ class TaskService implements ITaskService {
 			this.showQuickPick(tasks ? tasks : this.tasks(),
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
 				true).
@@ -2047,7 +2047,7 @@ class TaskService implements ITaskService {
 		}
 		if (this.inTerminal()) {
 			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: null
@@ -2085,7 +2085,7 @@ class TaskService implements ITaskService {
 		}
 		if (this.inTerminal()) {
 			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null

@@ -24,7 +24,7 @@ export enum Scope {
 }
 
 /**
- * A memento provides access to a datastructure that is persisted and restored as part of the workbench lifecycle.
+ * A memento provides access to a data structure that is persisted and restored as part of the workbench lifecycle.
  */
 export class Memento {
 

@@ -8,5 +8,5 @@
 	],
 	"label": "Explorateur",
 	"canNotResolve": "Impossible de résoudre le dossier de l'espace de travail",
-	"symbolicLlink": "Lien symbolique"
+	"symbolicLink": "Lien symbolique"
 }

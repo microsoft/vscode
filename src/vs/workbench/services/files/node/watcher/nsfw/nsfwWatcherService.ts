@@ -20,14 +20,14 @@ nsfwActionToRawChangeType[nsfw.actions.CREATED] = FileChangeType.ADDED;
 nsfwActionToRawChangeType[nsfw.actions.MODIFIED] = FileChangeType.UPDATED;
 nsfwActionToRawChangeType[nsfw.actions.DELETED] = FileChangeType.DELETED;
 
-interface IWatcherObjet {
+interface IWatcherObject {
 	start(): any;
 	stop(): any;
 }
 
 interface IPathWatcher {
-	ready: TPromise<IWatcherObjet>;
-	watcher?: IWatcherObjet;
+	ready: TPromise<IWatcherObject>;
+	watcher?: IWatcherObject;
 	ignored: string[];
 }
 
@@ -55,9 +55,9 @@ export class NsfwWatcherService implements IWatcherService {
 		let undeliveredFileEvents: watcher.IRawFileChange[] = [];
 		const fileEventDelayer = new ThrottledDelayer(NsfwWatcherService.FS_EVENT_DELAY);
 
-		let readyPromiseCallback: TValueCallback<IWatcherObjet>;
+		let readyPromiseCallback: TValueCallback<IWatcherObject>;
 		this._pathWatchers[request.basePath] = {
-			ready: new TPromise<IWatcherObjet>(c => readyPromiseCallback = c),
+			ready: new TPromise<IWatcherObject>(c => readyPromiseCallback = c),
 			ignored: request.ignored
 		};
 

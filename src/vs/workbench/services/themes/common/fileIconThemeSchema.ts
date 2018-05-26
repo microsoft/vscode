@@ -138,7 +138,7 @@ const schema: IJSONSchema = {
 					},
 					style: {
 						type: 'string',
-						description: nls.localize('schema.font-sstyle', 'The style of the font.')
+						description: nls.localize('schema.font-style', 'The style of the font.')
 					},
 					size: {
 						type: 'string',

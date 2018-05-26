@@ -17,7 +17,7 @@
 	"removeLineBreakpoint": "Sorra vonatkozó töréspont eltávolítása",
 	"editBreakpoints": "Töréspontok szerkesztése",
 	"editBreakpointOnColumn": "{0}. oszlopban található töréspont szerkesztése",
-	"editLineBrekapoint": "Sorra vonatkozó töréspont szerkesztése",
+	"editLineBreakpoint": "Sorra vonatkozó töréspont szerkesztése",
 	"enableDisableBreakpoints": "Töréspontok engedélyezése/letiltása",
 	"disableColumnBreakpoint": "{0}. oszlopban található töréspont letiltása",
 	"disableBreakpointOnLine": "Sorszintű töréspont letiltása",

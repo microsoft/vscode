@@ -457,9 +457,9 @@ class ExtHostTreeView<T> extends Disposable {
 			let node = this.nodes.get(parentElement);
 			if (node.children) {
 				for (const child of node.children) {
-					const childEleement = this.elements.get(child.item.handle);
-					if (childEleement) {
-						this.clear(childEleement);
+					const childElement = this.elements.get(child.item.handle);
+					if (childElement) {
+						this.clear(childElement);
 					}
 				}
 			}
@@ -473,9 +473,9 @@ class ExtHostTreeView<T> extends Disposable {
 		let node = this.nodes.get(element);
 		if (node.children) {
 			for (const child of node.children) {
-				const childEleement = this.elements.get(child.item.handle);
-				if (childEleement) {
-					this.clear(childEleement);
+				const childElement = this.elements.get(child.item.handle);
+				if (childElement) {
+					this.clear(childElement);
 				}
 			}
 		}

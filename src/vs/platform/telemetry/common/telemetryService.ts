@@ -92,7 +92,7 @@ export class TelemetryService implements ITelemetryService {
 	}
 
 	publicLog(eventName: string, data?: ITelemetryData, anonymizeFilePaths?: boolean): TPromise<any> {
-		// don't send events when the user is optout
+		// don't send events when the user is opted out
 		if (!this._userOptIn) {
 			return TPromise.as(undefined);
 		}
@@ -141,7 +141,7 @@ export class TelemetryService implements ITelemetryService {
 				if (!result) {
 					break;
 				}
-				// Anoynimize user file paths that do not need to be retained or cleaned up.
+				// Anonymize user file paths that do not need to be retained or cleaned up.
 				if (!nodeModulesRegex.test(result[0]) && cleanUpIndexes.every(([x, y]) => result.index < x || result.index >= y)) {
 					updatedStack = updatedStack.slice(0, result.index) + result[0].replace(/./g, 'a') + updatedStack.slice(fileRegex.lastIndex);
 				}

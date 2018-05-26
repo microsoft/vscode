@@ -18,7 +18,7 @@
 	"zoomReset": "重置缩放",
 	"appPerf": "启动性能",
 	"reloadWindow": "重新加载窗口",
-	"reloadWindowWithExntesionsDisabled": "禁用扩展后重新加载窗口",
+	"reloadWindowWithExtensionsDisabled": "禁用扩展后重新加载窗口",
 	"switchWindowPlaceHolder": "选择切换的窗口",
 	"current": "当前窗口",
 	"close": "关闭窗口",

@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "\nTarefas de compilação de monitoramento terminaram.",
 	"TaskRunnerSystem.childProcessError": "Falha ao iniciar o programa externo {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "\nA tarefa '{0}' foi finalizada por solicitação do usuário.",
-	"unkownProblemMatcher": "Problema matcher {0} não pode ser resolvido. O matcher será ignorado"
+	"unknownProblemMatcher": "Problema matcher {0} não pode ser resolvido. O matcher será ignorado"
 }

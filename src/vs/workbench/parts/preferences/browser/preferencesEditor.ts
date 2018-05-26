@@ -809,7 +809,7 @@ class SideBySidePreferencesWidget extends Widget {
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
-		this.dolayout(this.sash.getVerticalSashLeft());
+		this.doLayout(this.sash.getVerticalSashLeft());
 		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
 		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
@@ -836,7 +836,7 @@ class SideBySidePreferencesWidget extends Widget {
 
 	public layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
-		this.sash.setDimenesion(this.dimension);
+		this.sash.setDimension(this.dimension);
 	}
 
 	public focus(): void {
@@ -892,10 +892,10 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private createSash(parentElement: HTMLElement): void {
 		this.sash = this._register(new VSash(parentElement, 220));
-		this._register(this.sash.onPositionChange(position => this.dolayout(position)));
+		this._register(this.sash.onPositionChange(position => this.doLayout(position)));
 	}
 
-	private dolayout(splitPoint: number): void {
+	private doLayout(splitPoint: number): void {
 		if (!this.editablePreferencesEditor || !this.dimension) {
 			return;
 		}

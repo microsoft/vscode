@@ -6,11 +6,11 @@
 
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { MainContext, MainThreadDiaglogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
+import { MainContext, MainThreadDialogsShape, IMainContext } from 'vs/workbench/api/node/extHost.protocol';
 
 export class ExtHostDialogs {
 
-	private readonly _proxy: MainThreadDiaglogsShape;
+	private readonly _proxy: MainThreadDialogsShape;
 
 	constructor(mainContext: IMainContext) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadDialogs);

@@ -95,9 +95,9 @@ export class ConfigurationService extends Disposable implements IConfigurationSe
 		const { added, updated, removed } = compare(this._configuration.user, this.userConfiguration.configurationModel);
 		changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldConfiguartion = this._configuration;
+			const oldConfiguration = this._configuration;
 			this.reset();
-			changedKeys = changedKeys.filter(key => !equals(oldConfiguartion.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
+			changedKeys = changedKeys.filter(key => !equals(oldConfiguration.getValue(key, {}, null), this._configuration.getValue(key, {}, null)));
 			if (changedKeys.length) {
 				this.trigger(changedKeys, ConfigurationTarget.USER);
 			}

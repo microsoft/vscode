@@ -8,7 +8,7 @@
 	z-index: 9;
 }
 
-/* colors not externalized: using transparancy on background */
+/* colors not externalized: using transparency on background */
 .monaco-diff-editor.vs			.diffOverview { background: rgba(0, 0, 0, 0.03); }
 .monaco-diff-editor.vs-dark		.diffOverview { background: rgba(255, 255, 255, 0.01); }
 

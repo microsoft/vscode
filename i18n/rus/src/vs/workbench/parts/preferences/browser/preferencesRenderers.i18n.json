@@ -11,7 +11,7 @@
 	"emptyFolderSettingsHeader": "Укажите параметры папок здесь, чтобы перезаписать параметры рабочих областей.",
 	"reportSettingsSearchIssue": "Сообщить об ошибке",
 	"newExtensionLabel": "Показать расширение «{0}»",
-	"editTtile": "Изменить",
+	"editTitle": "Изменить",
 	"replaceDefaultValue": "Заменить в параметрах",
 	"copyDefaultValue": "Копировать в параметры"
 }

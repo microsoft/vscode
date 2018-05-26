@@ -43,7 +43,7 @@ import { TrackedRangeStickiness, IModelDeltaDecoration } from 'vs/editor/common/
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Location } from 'vs/editor/common/modes';
-import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { ClickBehaviour } from 'vs/base/parts/tree/browser/treeDefaults';
 
 class DecorationsManager implements IDisposable {
 
@@ -323,7 +323,7 @@ class FileReferencesTemplate {
 		const len = element.children.length;
 		this.badge.setCount(len);
 		if (element.failure) {
-			this.badge.setTitleFormat(nls.localize('referencesFailre', "Failed to resolve file."));
+			this.badge.setTitleFormat(nls.localize('referencesFailure', "Failed to resolve file."));
 		} else if (len > 1) {
 			this.badge.setTitleFormat(nls.localize('referencesCount', "{0} references", len));
 		} else {
@@ -442,7 +442,7 @@ class VSash {
 			getVerticalSashHeight: () => this._height
 		});
 
-		// compute the current widget clientX postion since
+		// compute the current widget clientX position since
 		// the sash works with clientX when dragging
 		let clientX: number;
 		this._disposables.push(this._sash.onDidStart((e: ISashEvent) => {
@@ -536,7 +536,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		private _instantiationService: IInstantiationService,
 		private _environmentService: IEnvironmentService
 	) {
-		super(editor, { showFrame: false, showArrow: true, isResizeable: true, isAccessible: true });
+		super(editor, { showFrame: false, showArrow: true, isResizable: true, isAccessible: true });
 
 		this._applyTheme(themeService.getTheme());
 		this._callOnDispose.push(themeService.onThemeChange(this._applyTheme.bind(this)));
@@ -631,7 +631,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
+			let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehaviour: ClickBehaviour.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
 			let config = <tree.ITreeConfiguration>{

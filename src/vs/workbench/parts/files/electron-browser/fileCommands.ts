@@ -512,7 +512,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		const resources = getMultiSelectedResources(resource, accessor.get(IListService), editorService);
 
 		if (resources.length === 1) {
-			// If only one resource is selected explictly call save since the behavior is a bit different than save all #41841
+			// If only one resource is selected explicitly call save since the behaviour is a bit different than save all #41841
 			return save(resources[0], false, editorService, accessor.get(IFileService), accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));
 		}
 		return saveAll(resources, editorService, accessor.get(IUntitledEditorService), accessor.get(ITextFileService), accessor.get(IEditorGroupService));

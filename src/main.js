@@ -179,7 +179,7 @@ function resolveJSFlags() {
 	}
 }
 
-// Language tags are case insensitve however an amd loader is case sensitive
+// Language tags are case insensitive however an amd loader is case sensitive
 // To make this work on case preserving & insensitive FS we do the following:
 // the language bundles have lower case language tags and we always lower case
 // the locale we receive from the user or OS.
@@ -418,7 +418,7 @@ app.setPath('userData', userData);
 // Update cwd based on environment and platform
 try {
 	if (process.platform === 'win32') {
-		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment letiable
+		process.env['VSCODE_CWD'] = process.cwd(); // remember as environment variable
 		process.chdir(path.dirname(app.getPath('exe'))); // always set application folder as cwd
 	} else if (process.env['VSCODE_CWD']) {
 		process.chdir(process.env['VSCODE_CWD']);
@@ -495,7 +495,7 @@ app.once('ready', function () {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 			};
-			// We recevied a valid nlsConfig from a user defined locale
+			// We received a valid nlsConfig from a user defined locale
 			if (nlsConfig) {
 				boot(nlsConfig);
 			} else {
@@ -506,7 +506,7 @@ app.once('ready', function () {
 				if (!appLocale) {
 					boot({ locale: 'en', availableLanguages: {} });
 				} else {
-					// See above the comment about the loader and case sensitiviness
+					// See above the comment about the loader and case sensitiveness
 					appLocale = appLocale.toLowerCase();
 					getNLSConfiguration(appLocale).then((nlsConfig) => {
 						if (!nlsConfig) {

@@ -8,5 +8,5 @@
 	],
 	"label": "エクスプローラー",
 	"canNotResolve": "ワークスペース フォルダーを解決できません",
-	"symbolicLlink": "シンボリック リンク"
+	"symbolicLink": "シンボリック リンク"
 }

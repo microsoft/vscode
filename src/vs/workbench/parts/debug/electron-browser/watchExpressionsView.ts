@@ -25,7 +25,7 @@ import { CopyValueAction } from 'vs/workbench/parts/debug/electron-browser/elect
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { equalsIgnoreCase } from 'vs/base/common/strings';
 import { IMouseEvent, DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { DefaultDragAndDrop, OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultDragAndDrop, OpenMode, ClickBehaviour } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IVariableTemplateData, renderVariable, renderRenameBox, renderExpressionValue, BaseDebugController, twistiePixels, renderViewTree } from 'vs/workbench/parts/debug/browser/baseDebugView';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -67,7 +67,7 @@ export class WatchExpressionsView extends TreeViewsViewletPanel {
 			dataSource: new WatchExpressionsDataSource(this.debugService),
 			renderer: this.instantiationService.createInstance(WatchExpressionsRenderer),
 			accessibilityProvider: new WatchExpressionsAccessibilityProvider(),
-			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext, { clickBehavior: ClickBehavior.ON_MOUSE_UP /* do not change to not break DND */, openMode: OpenMode.SINGLE_CLICK }),
+			controller: this.instantiationService.createInstance(WatchExpressionsController, actionProvider, MenuId.DebugWatchContext, { clickBehaviour: ClickBehaviour.ON_MOUSE_UP /* do not change to not break DND */, openMode: OpenMode.SINGLE_CLICK }),
 			dnd: new WatchExpressionsDragAndDrop(this.debugService)
 		}, {
 				ariaLabel: nls.localize({ comment: ['Debug is a noun in this context, not a verb.'], key: 'watchAriaTreeLabel' }, "Debug Watch Expressions"),

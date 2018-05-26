@@ -10,7 +10,7 @@
 	"launch.config.comment2": "Húzza fölé az egeret a létező attribútumok leírásának megtekintéséhez!",
 	"launch.config.comment3": "További információért látogassa meg a következőt: {0}",
 	"debugType": "A konfiguráció típusa.",
-	"debugTypeNotRecognised": "Ez a hibakeresési típus nem ismert. Bizonyosodjon meg róla, hogy telepítve és engedélyezve van a megfelelő hibakeresési kiegészítő.",
+	"debugTypeNotRecognized": "Ez a hibakeresési típus nem ismert. Bizonyosodjon meg róla, hogy telepítve és engedélyezve van a megfelelő hibakeresési kiegészítő.",
 	"node2NotSupported": "A \"node2\" már nem támogatott. Használja helyette a \"node\"-ot, és állítsa a \"protocol\" attribútum értékét \"inspector\"-ra.",
 	"debugName": "A konfiguráció neve. Az indítási konfiguráció lenyíló menüjében jelenik meg.",
 	"debugRequest": "A konfiguráció kérési típusa. Lehet \"launch\" vagy \"attach\".",

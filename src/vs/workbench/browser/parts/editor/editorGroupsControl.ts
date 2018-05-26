@@ -1480,7 +1480,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 					// [ ! ]|[ ]: Moves only to the right/bottom but not outside of dimension to the right/bottom
 					case Position.ONE: {
-						newPos = Math.max(-1 /* 1px border accomodation */, Math.min(diffPos, this.totalSize - this.silosSize[Position.ONE]));
+						newPos = Math.max(-1 /* 1px border accommodation */, Math.min(diffPos, this.totalSize - this.silosSize[Position.ONE]));
 						break;
 					}
 
@@ -1488,19 +1488,19 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 						// [ ]|[ ! ]: Moves only to the left/top but not outside of dimension to the left/top
 						if (visibleEditorCount === 2) {
-							newPos = Math.min(this.silosSize[Position.ONE], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + diffPos));
+							newPos = Math.min(this.silosSize[Position.ONE], Math.max(-1 /* 1px border accommodation */, this.silosSize[Position.ONE] + diffPos));
 						}
 
 						// [ ]|[ ! ]|[ ]: Moves to left/top and right/bottom but not outside of dimensions on both sides
 						else {
-							newPos = Math.min(this.totalSize - this.silosSize[Position.TWO], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + diffPos));
+							newPos = Math.min(this.totalSize - this.silosSize[Position.TWO], Math.max(-1 /* 1px border accommodation */, this.silosSize[Position.ONE] + diffPos));
 						}
 						break;
 					}
 
 					// [ ]|[ ]|[ ! ]: Moves to the right/bottom but not outside of dimension on the left/top side
 					case Position.THREE: {
-						newPos = Math.min(this.silosSize[Position.ONE] + this.silosSize[Position.TWO], Math.max(-1 /* 1px border accomodation */, this.silosSize[Position.ONE] + this.silosSize[Position.TWO] + diffPos));
+						newPos = Math.min(this.silosSize[Position.ONE] + this.silosSize[Position.TWO], Math.max(-1 /* 1px border accommodation */, this.silosSize[Position.ONE] + this.silosSize[Position.TWO] + diffPos));
 						break;
 					}
 				}
@@ -2037,7 +2037,7 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 		// Apply to visible editors
 		let totalSize = 0;
 
-		// Set preferred dimensions based on ratio to previous dimenions
+		// Set preferred dimensions based on ratio to previous dimensions
 		let wasInitialRatioRestored = false;
 		const oldTotalSize = this.layoutVertically ? oldDimension.width : oldDimension.height;
 		POSITIONS.forEach(position => {
@@ -2198,9 +2198,9 @@ export class EditorGroupsControl extends Themable implements IEditorGroupsContro
 
 			if (position !== Position.ONE) {
 				if (this.layoutVertically) {
-					editorWidth--; // accomodate for 1px left-border in containers TWO, THREE when laying out vertically
+					editorWidth--; // accommodate for 1px left-border in containers TWO, THREE when laying out vertically
 				} else {
-					editorHeight--; // accomodate for 1px top-border in containers TWO, THREE when laying out horizontally
+					editorHeight--; // accommodate for 1px top-border in containers TWO, THREE when laying out horizontally
 				}
 			}
 

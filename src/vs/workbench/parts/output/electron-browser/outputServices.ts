@@ -588,7 +588,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		} catch (e) {
 			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
 			this.logService.error(e);
-			return this.instantiationService.createInstance(BufferredOutputChannel, { id, label: channelData ? channelData.label : '' });
+			return this.instantiationService.createInstance(BufferedOutputChannel, { id, label: channelData ? channelData.label : '' });
 		}
 	}
 
@@ -661,7 +661,7 @@ export class LogContentProvider {
 	}
 }
 // Remove this channel when https://github.com/Microsoft/vscode/issues/47883 is fixed
-class BufferredOutputChannel extends Disposable implements OutputChannel {
+class BufferedOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;
 	readonly label: string;
@@ -676,7 +676,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	private modelUpdater: RunOnceScheduler;
 	private model: ITextModel;
-	private readonly bufferredContent: BufferedContent;
+	private readonly bufferedContent: BufferedContent;
 	private lastReadId: number = void 0;
 
 	constructor(
@@ -692,12 +692,12 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 		this.modelUpdater = new RunOnceScheduler(() => this.updateModel(), 300);
 		this._register(toDisposable(() => this.modelUpdater.cancel()));
 
-		this.bufferredContent = new BufferedContent();
-		this._register(toDisposable(() => this.bufferredContent.clear()));
+		this.bufferedContent = new BufferedContent();
+		this._register(toDisposable(() => this.bufferedContent.clear()));
 	}
 
 	append(output: string) {
-		this.bufferredContent.append(output);
+		this.bufferedContent.append(output);
 		if (!this.modelUpdater.isScheduled()) {
 			this.modelUpdater.schedule();
 		}
@@ -710,12 +710,12 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 		if (this.model) {
 			this.model.setValue('');
 		}
-		this.bufferredContent.clear();
+		this.bufferedContent.clear();
 		this.lastReadId = void 0;
 	}
 
 	loadModel(): TPromise<ITextModel> {
-		const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
+		const { value, id } = this.bufferedContent.getDelta(this.lastReadId);
 		if (this.model) {
 			this.model.setValue(value);
 		} else {
@@ -737,7 +737,7 @@ class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	private updateModel(): void {
 		if (this.model) {
-			const { value, id } = this.bufferredContent.getDelta(this.lastReadId);
+			const { value, id } = this.bufferedContent.getDelta(this.lastReadId);
 			this.lastReadId = id;
 			const lastLine = this.model.getLineCount();
 			const lastLineMaxColumn = this.model.getLineMaxColumn(lastLine);

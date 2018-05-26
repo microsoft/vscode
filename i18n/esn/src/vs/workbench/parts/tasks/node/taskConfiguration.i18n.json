@@ -12,7 +12,7 @@
 	"ConfigurationParser.noShell": "Advertencia: La configuración del shell solo se admite al ejecutar tareas en el terminal.",
 	"ConfigurationParser.noName": "Error: El buscador de coincidencias de problemas del ámbito de declaración debe tener un nombre: {0}",
 	"ConfigurationParser.unknownMatcherKind": "Advertencia: El buscador de coincidencias de problemas definido se desconoce. Los tipos admitidos son string | ProblemMatcher | (string | ProblemMatcher). {0}",
-	"ConfigurationParser.invalidVaraibleReference": "Error: Referencia a problemMatcher no válida: {0}",
+	"ConfigurationParser.invalidVariableReference": "Error: Referencia a problemMatcher no válida: {0}",
 	"ConfigurationParser.noTaskType": "Error: Las tareas deben tener una propiedad type. La configuración se omitirá.\n{0}\n",
 	"ConfigurationParser.noTypeDefinition": "Error: No hay ningún tipo de tarea \"{0}\" registrado. ¿Omitió la instalación de una extensión que proporciona un proveedor de tareas correspondiente?",
 	"ConfigurationParser.missingRequiredProperty": "Error: la configuración de la tarea '{0}' no contiene la propiedad requerida '{1}'. Se omitirá la configuración de la tarea.",

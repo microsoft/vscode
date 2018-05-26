@@ -22,7 +22,7 @@
 	"quitCode": "No se puede instalar la extensión. Por favor, salga e inicie VS Code antes de reinstalarlo. ",
 	"exitCode": "No se puede instalar la extensión. Por favor, salga e inicie VS Code antes de reinstalarlo. ",
 	"renameError": "Error desconocido al cambiar el nombre de {0} a {1}",
-	"uninstallDependeciesConfirmation": "¿Quiere desinstalar solo '{0}' o también sus dependencias?",
+	"uninstallDependenciesConfirmation": "¿Quiere desinstalar solo '{0}' o también sus dependencias?",
 	"uninstallOnly": "Sólo extensión",
 	"uninstallAll": "Desinstalar todo",
 	"uninstallConfirmation": "¿Seguro que quiere desinstalar '{0}'?",

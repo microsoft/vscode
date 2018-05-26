@@ -8,5 +8,5 @@
 	],
 	"label": "Esplora risorse",
 	"canNotResolve": "Non è possibile risolvere la cartella dell'area di lavoro",
-	"symbolicLlink": "Collegamento simbolico"
+	"symbolicLink": "Collegamento simbolico"
 }

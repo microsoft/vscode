@@ -18,7 +18,7 @@
 	"zoomReset": "Сбросить масштаб",
 	"appPerf": "Производительность запуска",
 	"reloadWindow": "Перезагрузить окно",
-	"reloadWindowWithExntesionsDisabled": "Перезагрузить окно с отключенными расширениями",
+	"reloadWindowWithExtensionsDisabled": "Перезагрузить окно с отключенными расширениями",
 	"switchWindowPlaceHolder": "Выберите окно, в которое нужно переключиться",
 	"current": "Текущее окно",
 	"close": "Закрыть окно",

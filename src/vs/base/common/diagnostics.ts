@@ -74,13 +74,13 @@ export function register(what: string, fn: Function): (...args: any[]) => void {
 			const dataIdx = idx + 1;
 
 			// store arguments
-			const allargs = data[dataIdx] || [];
-			allargs.push(arguments);
-			fifo(allargs, 50);
+			const allArgs = data[dataIdx] || [];
+			allArgs.push(arguments);
+			fifo(allArgs, 50);
 
 			// store data
 			data[idx] = fn;
-			data[dataIdx] = allargs;
+			data[dataIdx] = allArgs;
 		}
 	};
 

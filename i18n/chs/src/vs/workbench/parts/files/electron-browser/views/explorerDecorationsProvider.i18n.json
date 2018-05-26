@@ -8,5 +8,5 @@
 	],
 	"label": "资源管理器",
 	"canNotResolve": "无法解析工作区文件夹",
-	"symbolicLlink": "符号链接"
+	"symbolicLink": "符号链接"
 }

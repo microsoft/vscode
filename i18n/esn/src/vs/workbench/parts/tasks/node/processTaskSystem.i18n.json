@@ -10,5 +10,5 @@
 	"TaskRunnerSystem.watchingBuildTaskFinished": "La inspección de las tareas de compilación ha finalizado.",
 	"TaskRunnerSystem.childProcessError": "Failed to launch external program {0} {1}.",
 	"TaskRunnerSystem.cancelRequested": "La tarea '{0}' se finalizó por solicitud del usuario.",
-	"unkownProblemMatcher": "No puede resolver el comprobador de problemas {0}. Será omitido"
+	"unknownProblemMatcher": "No puede resolver el comprobador de problemas {0}. Será omitido"
 }

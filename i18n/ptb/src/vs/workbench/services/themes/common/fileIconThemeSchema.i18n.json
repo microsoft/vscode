@@ -25,7 +25,7 @@
 	"schema.font-path": "O caminho do fonte, relativo ao arquivo de tema de ícone atual.",
 	"schema.font-format": "O formato da fonte.",
 	"schema.font-weight": "O peso da fonte.",
-	"schema.font-sstyle": "O estilo da fonte.",
+	"schema.font-style": "O estilo da fonte.",
 	"schema.font-size": "O tamanho padrão da fonte.",
 	"schema.iconDefinitions": "Descrição de todos os ícones que podem ser usados quando associar arquivos de ícones.",
 	"schema.iconDefinition": "Uma definição de ícone. A chave do objeto é o ID da definição.",

@@ -34,7 +34,7 @@ export class MarkdownRenderer {
 	) {
 	}
 
-	private getOptions(disposeables: IDisposable[]): RenderOptions {
+	private getOptions(disposables: IDisposable[]): RenderOptions {
 		return {
 			codeBlockRenderer: (languageAlias, value): TPromise<string> => {
 				// In markdown,
@@ -55,24 +55,24 @@ export class MarkdownRenderer {
 				callback: (content) => {
 					this._openerService.open(URI.parse(content)).then(void 0, onUnexpectedError);
 				},
-				disposeables
+				disposables
 			}
 		};
 	}
 
 	render(markdown: IMarkdownString): IMarkdownRenderResult {
-		let disposeables: IDisposable[] = [];
+		let disposables: IDisposable[] = [];
 
 		let element: HTMLElement;
 		if (!markdown) {
 			element = document.createElement('span');
 		} else {
-			element = renderMarkdown(markdown, this.getOptions(disposeables));
+			element = renderMarkdown(markdown, this.getOptions(disposables));
 		}
 
 		return {
 			element,
-			dispose: () => dispose(disposeables)
+			dispose: () => dispose(disposables)
 		};
 	}
 }

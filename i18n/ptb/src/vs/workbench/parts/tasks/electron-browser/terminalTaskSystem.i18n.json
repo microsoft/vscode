@@ -11,5 +11,5 @@
 	"TerminalTaskSystem.terminalName": "Tarefa - {0}",
 	"closeTerminal": "Pressione qualquer tecla para fechar o terminal.",
 	"reuseTerminal": "Terminal será reutilizado pelas tarefas, pressione qualquer tecla para fechar.",
-	"unkownProblemMatcher": "Problem matcher {0} não pode ser resolvido. O matcher será ignorado"
+	"unknownProblemMatcher": "Problem matcher {0} não pode ser resolvido. O matcher será ignorado"
 }

@@ -25,7 +25,7 @@
 	"schema.font-path": "現在のアイコン テーマ ファイルへのフォントの相対パス。",
 	"schema.font-format": "フォントの書式。",
 	"schema.font-weight": "フォントの太さ。",
-	"schema.font-sstyle": "フォント スタイル。",
+	"schema.font-style": "フォント スタイル。",
 	"schema.font-size": "フォントの既定サイズ。",
 	"schema.iconDefinitions": "ファイルをアイコンに関連付けるときに使用できるすべてのアイコンの説明です。",
 	"schema.iconDefinition": "アイコンの定義です。オブジェクト キーは定義の ID です。",

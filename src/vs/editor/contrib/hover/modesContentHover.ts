@@ -305,7 +305,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		let isEmptyHoverContent = true;
 
 		let containColorPicker = false;
-		let markdownDisposeable: IDisposable;
+		let markdownDisposable: IDisposable;
 		messages.forEach((msg) => {
 			if (!msg.range) {
 				return;
@@ -319,7 +319,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					.filter(contents => !isEmptyMarkdownString(contents))
 					.forEach(contents => {
 						const renderedContents = this._markdownRenderer.render(contents);
-						markdownDisposeable = renderedContents;
+						markdownDisposable = renderedContents;
 						fragment.appendChild($('div.hover-row', null, renderedContents.element));
 						isEmptyHoverContent = false;
 					});
@@ -334,7 +334,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 				let range = new Range(msg.range.startLineNumber, msg.range.startColumn, msg.range.endLineNumber, msg.range.endColumn);
 				let colorInfo = { range: msg.range, color: msg.color };
 
-				// create blank olor picker model and widget first to ensure it's positioned correctly.
+				// create blank color picker model and widget first to ensure it's positioned correctly.
 				const model = new ColorPickerModel(color, [], 0);
 				const widget = new ColorPickerWidget(fragment, model, this._editor.getConfiguration().pixelRatio, this._themeService);
 
@@ -395,7 +395,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 					this.updateContents(fragment);
 					this._colorPicker.layout();
 
-					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposeable]);
+					this.renderDisposable = combinedDisposable([colorListener, colorChangeListener, widget, markdownDisposable]);
 				});
 			}
 		});

@@ -33,8 +33,8 @@ import { localize } from 'vs/nls';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
-const ActivePanleContextId = 'activePanel';
-export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId, '');
+const ActivePanelContextId = 'activePanel';
+export const ActivePanelContext = new RawContextKey<string>(ActivePanelContextId, '');
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -218,7 +218,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	}
 
 	public getLastActivePanelId(): string {
-		return this.getLastActiveCompositetId();
+		return this.getLastActiveCompositeId();
 	}
 
 	public hideActivePanel(): TPromise<void> {

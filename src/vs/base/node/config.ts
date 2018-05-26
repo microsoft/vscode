@@ -40,7 +40,7 @@ export interface IConfigOptions<T> {
  * Supports:
  * - comments in JSON files and errors
  * - symlinks for the config file itself
- * - delayed processing of changes to accomodate for lots of changes
+ * - delayed processing of changes to accommodate for lots of changes
  * - configurable defaults
  */
 export class ConfigWatcher<T> implements IConfigWatcher<T>, IDisposable {

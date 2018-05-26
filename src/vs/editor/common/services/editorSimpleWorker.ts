@@ -518,7 +518,7 @@ export abstract class BaseEditorSimpleWorker {
 
 		if (this._foreignModuleFactory) {
 			this._foreignModule = this._foreignModuleFactory(ctx, createData);
-			// static foreing module
+			// static foreign module
 			let methods: string[] = [];
 			for (let prop in this._foreignModule) {
 				if (typeof this._foreignModule[prop] === 'function') {

@@ -25,7 +25,7 @@
 	"schema.font-path": "字型路徑，相對於目前的圖示佈景主題檔案。",
 	"schema.font-format": "字型格式。",
 	"schema.font-weight": "字型粗細。",
-	"schema.font-sstyle": "字型樣式。",
+	"schema.font-style": "字型樣式。",
 	"schema.font-size": "字型預設大小。",
 	"schema.iconDefinitions": "建立檔案與圖示關聯時可使用的所有圖示描述。",
 	"schema.iconDefinition": "圖示定義。物件索引鍵為定義識別碼。",

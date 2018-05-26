@@ -395,28 +395,28 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	// Given all recommendations, trims and returns recommendations in the relevant order after filtering out installed extensions
-	private getTrimmedRecommendations(installedExtensions: string[], value: string, fileBasedRecommendations: string[], otherRecommendations: string[], workpsaceRecommendations: string[], ) {
+	private getTrimmedRecommendations(installedExtensions: string[], value: string, fileBasedRecommendations: string[], otherRecommendations: string[], workspaceRecommendations: string[], ) {
 		const totalCount = 8;
-		workpsaceRecommendations = workpsaceRecommendations
+		workspaceRecommendations = workspaceRecommendations
 			.filter(name => {
 				return installedExtensions.indexOf(name) === -1
 					&& name.toLowerCase().indexOf(value) > -1;
 			});
 		fileBasedRecommendations = fileBasedRecommendations.filter(x => {
 			return installedExtensions.indexOf(x) === -1
-				&& workpsaceRecommendations.indexOf(x) === -1
+				&& workspaceRecommendations.indexOf(x) === -1
 				&& x.toLowerCase().indexOf(value) > -1;
 		});
 		otherRecommendations = otherRecommendations.filter(x => {
 			return installedExtensions.indexOf(x) === -1
 				&& fileBasedRecommendations.indexOf(x) === -1
-				&& workpsaceRecommendations.indexOf(x) === -1
+				&& workspaceRecommendations.indexOf(x) === -1
 				&& x.toLowerCase().indexOf(value) > -1;
 		});
 
 		let otherCount = Math.min(2, otherRecommendations.length);
-		let fileBasedCount = Math.min(fileBasedRecommendations.length, totalCount - workpsaceRecommendations.length - otherCount);
-		let names = workpsaceRecommendations;
+		let fileBasedCount = Math.min(fileBasedRecommendations.length, totalCount - workspaceRecommendations.length - otherCount);
+		let names = workspaceRecommendations;
 		names.push(...fileBasedRecommendations.splice(0, fileBasedCount));
 		names.push(...otherRecommendations.splice(0, otherCount));
 

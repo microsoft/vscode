@@ -88,7 +88,7 @@ export class SideBySideEditor extends BaseEditor {
 
 	public layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
-		this.sash.setDimenesion(this.dimension);
+		this.sash.setDimension(this.dimension);
 	}
 
 	public getControl(): IEditorControl {
@@ -146,7 +146,7 @@ export class SideBySideEditor extends BaseEditor {
 	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
-		this.dolayout(this.sash.getVerticalSashLeft());
+		this.doLayout(this.sash.getVerticalSashLeft());
 		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput, options)]).then(() => this.focus());
 	}
 
@@ -170,10 +170,10 @@ export class SideBySideEditor extends BaseEditor {
 
 	private createSash(parentElement: HTMLElement): void {
 		this.sash = this._register(new VSash(parentElement, 220));
-		this._register(this.sash.onPositionChange(position => this.dolayout(position)));
+		this._register(this.sash.onPositionChange(position => this.doLayout(position)));
 	}
 
-	private dolayout(splitPoint: number): void {
+	private doLayout(splitPoint: number): void {
 		if (!this.detailsEditor || !this.masterEditor || !this.dimension) {
 			return;
 		}

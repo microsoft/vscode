@@ -50,8 +50,8 @@ export class RawDebugSession implements debug.IRawSession {
 	private readonly _onDidInitialize: Emitter<DebugProtocol.InitializedEvent>;
 	private readonly _onDidStop: Emitter<DebugProtocol.StoppedEvent>;
 	private readonly _onDidContinued: Emitter<DebugProtocol.ContinuedEvent>;
-	private readonly _onDidTerminateDebugee: Emitter<SessionTerminatedEvent>;
-	private readonly _onDidExitDebugee: Emitter<DebugProtocol.ExitedEvent>;
+	private readonly _onDidTerminateDebuggee: Emitter<SessionTerminatedEvent>;
+	private readonly _onDidExitDebuggee: Emitter<DebugProtocol.ExitedEvent>;
 	private readonly _onDidExitAdapter: Emitter<{ sessionId: string }>;
 	private readonly _onDidThread: Emitter<DebugProtocol.ThreadEvent>;
 	private readonly _onDidOutput: Emitter<DebugProtocol.OutputEvent>;
@@ -77,8 +77,8 @@ export class RawDebugSession implements debug.IRawSession {
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
 		this._onDidContinued = new Emitter<DebugProtocol.ContinuedEvent>();
-		this._onDidTerminateDebugee = new Emitter<SessionTerminatedEvent>();
-		this._onDidExitDebugee = new Emitter<DebugProtocol.ExitedEvent>();
+		this._onDidTerminateDebuggee = new Emitter<SessionTerminatedEvent>();
+		this._onDidExitDebuggee = new Emitter<DebugProtocol.ExitedEvent>();
 		this._onDidExitAdapter = new Emitter<{ sessionId: string }>();
 		this._onDidThread = new Emitter<DebugProtocol.ThreadEvent>();
 		this._onDidOutput = new Emitter<DebugProtocol.OutputEvent>();
@@ -103,12 +103,12 @@ export class RawDebugSession implements debug.IRawSession {
 		return this._onDidContinued.event;
 	}
 
-	public get onDidTerminateDebugee(): Event<SessionTerminatedEvent> {
-		return this._onDidTerminateDebugee.event;
+	public get onDidTerminateDebuggee(): Event<SessionTerminatedEvent> {
+		return this._onDidTerminateDebuggee.event;
 	}
 
-	public get onDidExitDebugee(): Event<DebugProtocol.ExitedEvent> {
-		return this._onDidExitDebugee.event;
+	public get onDidExitDebuggee(): Event<DebugProtocol.ExitedEvent> {
+		return this._onDidExitDebuggee.event;
 	}
 
 	public get onDidExitAdapter(): Event<{ sessionId: string }> {
@@ -236,8 +236,8 @@ export class RawDebugSession implements debug.IRawSession {
 			this.readyForBreakpoints = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
-			const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
-			this._capabilities = objects.mixin(this._capabilities, capabilites);
+			const capabilities = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
+			this._capabilities = objects.mixin(this._capabilities, capabilities);
 		} else if (event.event === 'stopped') {
 			this.emittedStopped = true;
 			this._onDidStop.fire(<DebugProtocol.StoppedEvent>event);
@@ -251,9 +251,9 @@ export class RawDebugSession implements debug.IRawSession {
 		} else if (event.event === 'breakpoint') {
 			this._onDidBreakpoint.fire(<DebugProtocol.BreakpointEvent>event);
 		} else if (event.event === 'terminated') {
-			this._onDidTerminateDebugee.fire(<SessionTerminatedEvent>event);
+			this._onDidTerminateDebuggee.fire(<SessionTerminatedEvent>event);
 		} else if (event.event === 'exit') {
-			this._onDidExitDebugee.fire(<SessionExitedEvent>event);
+			this._onDidExitDebuggee.fire(<SessionExitedEvent>event);
 		} else {
 			this._onDidCustomEvent.fire(event);
 		}

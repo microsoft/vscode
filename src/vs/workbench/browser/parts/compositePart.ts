@@ -103,7 +103,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 				this.activeComposite.focus();
 			}
 
-			// Fullfill promise with composite that is being opened
+			// Fullfil promise with composite that is being opened
 			return TPromise.as(this.activeComposite);
 		}
 
@@ -144,7 +144,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					composite.focus();
 				}
 
-				// Fullfill promise with composite that is being opened
+				// Fullfil promise with composite that is being opened
 				return TPromise.as(composite);
 			}
 
@@ -154,7 +154,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 					composite.focus();
 				}
 
-				// Fullfill promise with composite that is being opened
+				// Fullfil promise with composite that is being opened
 				return composite;
 			});
 		}).then(composite => {
@@ -368,7 +368,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		return this.activeComposite;
 	}
 
-	protected getLastActiveCompositetId(): string {
+	protected getLastActiveCompositeId(): string {
 		return this.lastActiveCompositeId;
 	}
 
@@ -494,7 +494,7 @@ export abstract class CompositePart<T extends Composite> extends Part {
 		// Pass to super
 		const sizes = super.layout(dimension);
 
-		// Pass Contentsize to composite
+		// Pass content size to composite
 		this.contentAreaSize = sizes[1];
 		if (this.activeComposite) {
 			this.activeComposite.layout(this.contentAreaSize);

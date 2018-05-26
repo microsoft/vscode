@@ -41,14 +41,14 @@ export class NotificationsAlerts {
 		}
 	}
 
-	private ariaAlert(notifiation: INotificationViewItem): void {
+	private ariaAlert(notification: INotificationViewItem): void {
 		let alertText: string;
-		if (notifiation.severity === Severity.Error) {
-			alertText = localize('alertErrorMessage', "Error: {0}", notifiation.message.value);
-		} else if (notifiation.severity === Severity.Warning) {
-			alertText = localize('alertWarningMessage', "Warning: {0}", notifiation.message.value);
+		if (notification.severity === Severity.Error) {
+			alertText = localize('alertErrorMessage', "Error: {0}", notification.message.value);
+		} else if (notification.severity === Severity.Warning) {
+			alertText = localize('alertWarningMessage', "Warning: {0}", notification.message.value);
 		} else {
-			alertText = localize('alertInfoMessage', "Info: {0}", notifiation.message.value);
+			alertText = localize('alertInfoMessage', "Info: {0}", notification.message.value);
 		}
 
 		alert(alertText);
