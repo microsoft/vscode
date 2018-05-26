@@ -30,7 +30,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupView, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorOpeningEvent, IEditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
@@ -63,7 +63,7 @@ export class EditorService extends Disposable implements IEditorService {
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -79,9 +79,21 @@ export class EditorService extends Disposable implements IEditorService {
 	}
 
 	private registerListeners(): void {
-		this.editorGroupService.whenRestored.then(() => this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView)));
+		this.editorGroupService.whenRestored.then(() => this.onEditorsRestored());
 		this.editorGroupService.onDidActiveGroupChange(group => this.handleActiveEditorChange(group));
 		this.editorGroupService.onDidAddGroup(group => this.registerGroupListeners(group as IEditorGroupView));
+	}
+
+	private onEditorsRestored(): void {
+
+		// Register listeners to each opened group
+		this.editorGroupService.groups.forEach(group => this.registerGroupListeners(group as IEditorGroupView));
+
+		// Fire initial set of editor events if there is an active editor
+		if (this.activeEditor) {
+			this.doEmitActiveEditorChangeEvent();
+			this._onDidVisibleEditorsChange.fire();
+		}
 	}
 
 	private handleActiveEditorChange(group: IEditorGroup): void {
@@ -97,8 +109,14 @@ export class EditorService extends Disposable implements IEditorService {
 			return; // ignore if the editor actually did not change
 		}
 
-		this.lastActiveGroupId = group.id;
-		this.lastActiveEditor = group.activeEditor;
+		this.doEmitActiveEditorChangeEvent();
+	}
+
+	private doEmitActiveEditorChangeEvent(): void {
+		const activeGroup = this.editorGroupService.activeGroup;
+
+		this.lastActiveGroupId = activeGroup.id;
+		this.lastActiveEditor = activeGroup.activeEditor;
 
 		this._onDidActiveEditorChange.fire();
 	}
@@ -580,7 +598,7 @@ export class DelegatingWorkbenchEditorService extends EditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,

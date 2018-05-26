@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { IEditorOpeningEvent, IEditorPartService, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorOpeningEvent, IEditorServiceImpl, IEditorGroupView, IEditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -494,7 +494,7 @@ export class TestStorageService implements IStorageService {
 	}
 }
 
-export class TestEditorGroupsService implements IEditorGroupsService {
+export class TestEditorGroupsService implements IEditorGroupsServiceImpl {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	constructor(public groups: TestEditorGroup[] = []) { }
@@ -669,7 +669,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	layout(width: number, height: number): void { }
 }
 
-export class TestEditorService implements IEditorPartService {
+export class TestEditorService implements IEditorServiceImpl {
 
 	_serviceBrand: ServiceIdentifier<any>;
 

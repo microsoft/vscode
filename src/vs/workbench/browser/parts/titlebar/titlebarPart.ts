@@ -76,7 +76,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
 		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
-		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.updateFromActiveEditor()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
@@ -98,7 +98,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private updateFromActiveEditor(): void {
+	private onActiveEditorChange(): void {
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);

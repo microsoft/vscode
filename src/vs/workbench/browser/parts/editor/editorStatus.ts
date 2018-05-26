@@ -57,7 +57,6 @@ import { Schemas } from 'vs/base/common/network';
 import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
 import { Themable } from 'vs/workbench/common/theme';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class SideBySideEditorEncodingSupport implements IEncodingSupport {
 	constructor(private master: IEncodingSupport, private details: IEncodingSupport) { }
@@ -296,7 +295,6 @@ export class EditorStatus implements IStatusbarItem {
 
 	constructor(
 		@IEditorService private editorService: IEditorService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -370,8 +368,6 @@ export class EditorStatus implements IStatusbarItem {
 			this.textFileService.models.onModelEncodingChanged(e => this.onResourceEncodingChange(e.resource)),
 			TabFocus.onDidChangeTabFocus(e => this.onTabFocusModeChange()),
 		);
-
-		this.editorGroupService.whenRestored.then(() => this.updateStatusBar());
 
 		return combinedDisposable(this.toDispose);
 	}

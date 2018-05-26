@@ -183,11 +183,6 @@ export interface IEditorGroupsService {
 	readonly orientation: GroupOrientation;
 
 	/**
-	 * A promise that resolves when groups have been restored.
-	 */
-	readonly whenRestored: TPromise<void>;
-
-	/**
 	 * Get all groups that are currently visible in the editor area optionally
 	 * sorted by being most recent active or grid order. Will sort by creation
 	 * time by default (oldest group first).

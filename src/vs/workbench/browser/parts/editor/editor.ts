@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { GroupIdentifier, IWorkbenchEditorConfiguration, IWorkbenchEditorPartConfiguration, EditorOptions, TextEditorOptions, IEditorInput, IEditorIdentifier, IEditorCloseEvent } from 'vs/workbench/common/editor';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup, GroupDirection, IAddGroupOptions, IMergeGroupOptions, GroupsOrder, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Dimension } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
@@ -136,7 +136,7 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
  * A sub-interface of IEditorService to hide some workbench-core specific
  * events from clients.
  */
-export interface IEditorPartService extends IEditorService {
+export interface IEditorServiceImpl extends IEditorService {
 
 	/**
 	 * Emitted when an editor is closed.
@@ -147,4 +147,16 @@ export interface IEditorPartService extends IEditorService {
 	 * Emitted when an editor failed to open.
 	 */
 	readonly onDidOpenEditorFail: Event<IEditorIdentifier>;
+}
+
+/**
+ * A sub-interface of IEditorGroupsService to hide some workbench-core specific
+ * methods from clients.
+ */
+export interface IEditorGroupsServiceImpl extends IEditorGroupsService {
+
+	/**
+	 * A promise that resolves when groups have been restored.
+	 */
+	readonly whenRestored: TPromise<void>;
 }

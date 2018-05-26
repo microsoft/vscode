@@ -598,8 +598,6 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		};
 
-		this.editorGroupService.whenRestored.then(() => updateEditorContextKeys());
-
 		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
 		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
@@ -643,7 +641,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Editorpart
 		perf.mark('willRestoreEditors');
-		restorePromises.push(this.editorGroupService.whenRestored.then(() => {
+		restorePromises.push(this.editorPart.whenRestored.then(() => {
 			return this.resolveEditorsToOpen().then(inputs => {
 				if (inputs.length) {
 					return this.editorService.openEditors(inputs);
