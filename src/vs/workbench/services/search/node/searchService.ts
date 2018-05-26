@@ -122,14 +122,14 @@ export class SearchService implements ISearchService {
 					if (this.searchProvider.length) {
 						return TPromise.join(this.searchProvider.map(p => searchWithProvider(p)))
 							.then(complete => {
-								const first: ISearchComplete = complete[0];
-								if (!first) {
+								complete = complete.filter(c => !!c);
+								if (!complete.length) {
 									return null;
 								}
 
 								return <ISearchComplete>{
-									limitHit: first && first.limitHit,
-									stats: first.stats,
+									limitHit: complete[0] && complete[0].limitHit,
+									stats: complete[0].stats,
 									results: arrays.flatten(complete.map(c => c.results))
 								};
 							});
