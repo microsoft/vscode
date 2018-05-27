@@ -205,7 +205,13 @@ export class TextMateService implements ITextMateService {
 						return this._scopeRegistry.getFilePath(scopeName);
 					},
 					getInjections: (scopeName: string) => {
-						return this._injections[scopeName];
+						const scopeParts = scopeName.split('.');
+						let injections: string[] = [];
+						for (let i = 1; i <= scopeParts.length; i++) {
+							const subScopeName = scopeParts.slice(0, i).join('.');
+							injections = [...injections, ...this._injections[subScopeName]];
+						}
+						return injections;
 					}
 				});
 				this._updateTheme(grammarRegistry);
