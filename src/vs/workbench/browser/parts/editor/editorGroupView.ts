@@ -778,16 +778,6 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return TPromise.as(void 0);
 		}
 
-		// Use the last non-inactive editor as new active editor
-		let newActiveEditor: EditorInput;
-		editors.forEach(({ editor, options }) => {
-			if (options && options.inactive) {
-				return;
-			}
-
-			newActiveEditor = editor;
-		});
-
 		// Do not modify original array
 		editors = editors.slice(0);
 
@@ -804,13 +794,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				adjustedEditorOptions.index = startingIndex + index;
 
 				return this.openEditor(editor, adjustedEditorOptions);
-			})).then(() => {
-
-				// Ensure to restore active editor
-				if (newActiveEditor) {
-					this.openEditor(newActiveEditor);
-				}
-			});
+			})).then(() => void 0);
 		});
 	}
 
