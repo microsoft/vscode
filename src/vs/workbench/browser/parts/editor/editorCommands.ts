@@ -267,7 +267,11 @@ function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, con
 		return context;
 	}
 
-	return resourceOrContext;
+	if (typeof resourceOrContext.groupId === 'number') {
+		return resourceOrContext;
+	}
+
+	return void 0;
 }
 
 function registerOpenEditorAtIndexCommands(): void {

@@ -76,7 +76,6 @@ export class DiffNavigator {
 		if (this._options.alwaysRevealFirst) {
 			this._disposables.push(this._editor.getModifiedEditor().onDidChangeModel((e) => {
 				this.revealFirst = true;
-				console.log('diff model changed. revealFirst', this.revealFirst);
 			}));
 		}
 
@@ -95,16 +94,12 @@ export class DiffNavigator {
 		this._init();
 
 		this._compute(this._editor.getLineChanges());
-		console.log('_onDiffUpdated, revealFirst', this.revealFirst);
 		if (this.revealFirst) {
 			// Only reveal first on first non-null changes
 			if (this._editor.getLineChanges() !== null) {
 				this.revealFirst = false;
 				this.nextIdx = -1;
 				this.next(ScrollType.Immediate);
-				console.log('having line changes, going to next');
-			} else {
-				console.log('not having any line changes!');
 			}
 		}
 	}
@@ -174,10 +169,8 @@ export class DiffNavigator {
 
 	private _move(fwd: boolean, scrollType: ScrollType): void {
 		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
-		console.log('_move');
 
 		if (!this.canNavigate()) {
-			console.log('!this.canNavigate()');
 			return;
 		}
 
@@ -200,7 +193,6 @@ export class DiffNavigator {
 		this.ignoreSelectionChange = true;
 		try {
 			let pos = info.range.getStartPosition();
-			console.log('setting new position: ', pos);
 			this._editor.setPosition(pos);
 			this._editor.revealPositionInCenter(pos, scrollType);
 		} finally {
