@@ -194,16 +194,14 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 }
 
 function registerEditorGroupsLayoutCommand(): void {
-	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, applyEditorGroupLayout);
-}
+	CommandsRegistry.registerCommand(LAYOUT_EDITOR_GROUPS_COMMAND_ID, (accessor: ServicesAccessor, args: EditorGroupLayout) => {
+		if (!args || typeof args !== 'object') {
+			return;
+		}
 
-function applyEditorGroupLayout(accessor: ServicesAccessor, args: EditorGroupLayout): void {
-	if (!args || typeof args !== 'object') {
-		return;
-	}
-
-	const editorGroupService = accessor.get(IEditorGroupsService);
-	editorGroupService.applyLayout(args);
+		const editorGroupService = accessor.get(IEditorGroupsService);
+		editorGroupService.applyLayout(args);
+	});
 }
 
 export function mergeAllGroups(editorGroupService: IEditorGroupsService, target = editorGroupService.groups[0]): void {
@@ -260,18 +258,6 @@ function registerDiffEditorCommands(): void {
 			}
 		}
 	});
-}
-
-function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext {
-	if (URI.isUri(resourceOrContext)) {
-		return context;
-	}
-
-	if (typeof resourceOrContext.groupId === 'number') {
-		return resourceOrContext;
-	}
-
-	return void 0;
 }
 
 function registerOpenEditorAtIndexCommands(): void {
@@ -596,6 +582,18 @@ function registerCloseEditorCommands() {
 			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
 		}
 	});
+}
+
+function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext): IEditorCommandsContext {
+	if (URI.isUri(resourceOrContext)) {
+		return context;
+	}
+
+	if (resourceOrContext && typeof resourceOrContext.groupId === 'number') {
+		return resourceOrContext;
+	}
+
+	return void 0;
 }
 
 function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {

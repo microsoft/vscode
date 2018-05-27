@@ -152,4 +152,8 @@ export class LongRunningOperation {
 			this.currentOperationDisposables = dispose(this.currentOperationDisposables);
 		}
 	}
+
+	dispose(): void {
+		this.currentOperationDisposables = dispose(this.currentOperationDisposables);
+	}
 }

@@ -46,7 +46,7 @@ export class EditorControl extends Disposable {
 	) {
 		super();
 
-		this.editorOperation = new LongRunningOperation(progressService);
+		this.editorOperation = this._register(new LongRunningOperation(progressService));
 	}
 
 	get activeControl(): BaseEditor {
