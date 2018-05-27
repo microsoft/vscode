@@ -241,7 +241,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 								inactive: !group.isActive(input),
 								viewState: this.getViewStateFor(oldResource, group)
 							}
-						}, group).then(undefined, errors.onUnexpectedError);
+						}, group);
 					}
 				}
 			});
