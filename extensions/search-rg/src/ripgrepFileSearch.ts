@@ -4,14 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as cp from 'child_process';
-import * as path from 'path';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { normalizeNFC, normalizeNFD } from './normalization';
-import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 import { anchorGlob } from './ripgrepHelpers';
+import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 
 const isMac = process.platform === 'darwin';
 
@@ -19,12 +18,16 @@ const isMac = process.platform === 'darwin';
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepFileSearchEngine {
-	private isDone = false;
 	private rgProc: cp.ChildProcess;
 	private killRgProcFn: (code?: number) => void;
 
 	constructor(private outputChannel: vscode.OutputChannel) {
 		this.killRgProcFn = () => this.rgProc && this.rgProc.kill();
+		process.once('exit', this.killRgProcFn);
+	}
+
+	private dispose() {
+		process.removeListener('exit', this.killRgProcFn);
 	}
 
 	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
@@ -38,7 +41,7 @@ export class RipgrepFileSearchEngine {
 		return new Promise((resolve, reject) => {
 			let isDone = false;
 			const cancel = () => {
-				this.isDone = true;
+				isDone = true;
 				this.rgProc.kill();
 			};
 			token.onCancellationRequested(cancel);
@@ -53,7 +56,7 @@ export class RipgrepFileSearchEngine {
 			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
-			process.once('exit', this.killRgProcFn);
+
 			this.rgProc.on('error', e => {
 				console.log(e);
 				reject(e);
@@ -90,7 +93,6 @@ export class RipgrepFileSearchEngine {
 				});
 
 				if (last) {
-					process.removeListener('exit', this.killRgProcFn);
 					if (isDone) {
 						resolve();
 					} else {
@@ -104,7 +106,12 @@ export class RipgrepFileSearchEngine {
 					}
 				}
 			});
-		});
+		}).then(
+			() => this.dispose(),
+			err => {
+				this.dispose();
+				return Promise.reject(err);
+			});
 	}
 
 	private collectStdout(cmd: cp.ChildProcess, cb: (err: Error, stdout?: string, last?: boolean) => void): void {

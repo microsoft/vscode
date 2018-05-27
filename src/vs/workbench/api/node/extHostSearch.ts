@@ -401,12 +401,14 @@ class TextSearchEngine {
 					return;
 				}
 
-				this.resultCount++;
-				this.collector.add(match, folderIdx);
-
 				if (this.resultCount >= this.config.maxResults) {
 					this.isLimitHit = true;
 					this.cancel();
+				}
+
+				if (!this.isLimitHit) {
+					this.resultCount++;
+					this.collector.add(match, folderIdx);
 				}
 			};
 
@@ -492,7 +494,8 @@ class TextSearchEngine {
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
-			encoding: this.config.fileEncoding
+			encoding: this.config.fileEncoding,
+			maxFileSize: this.config.maxFileSize
 		};
 	}
 }
@@ -589,7 +592,7 @@ class FileSearchEngine {
 				PPromise.join(folderQueries.map(fq => {
 					return this.searchInFolder(fq).then(null, null, onResult);
 				})).then(() => {
-					resolve({ isLimitHit: false });
+					resolve({ isLimitHit: this.isLimitHit });
 				}, (errs: Error[]) => {
 					const errMsg = errs
 						.map(err => toErrorMessage(err))

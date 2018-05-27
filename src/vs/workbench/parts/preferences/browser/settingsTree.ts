@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
@@ -11,6 +12,7 @@ import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
@@ -119,7 +121,7 @@ export class SettingsDataSource implements IDataSource {
 		return <ISettingElement>{
 			type: TreeItemType.setting,
 			parent: group,
-			id: `${group.id}_${setting.key}`,
+			id: `${group.id}_${setting.key.replace(/\./g, '_')}`,
 			setting,
 
 			displayLabel: displayKeyFormat.label,
@@ -294,7 +296,7 @@ export class SettingsRenderer implements IRenderer {
 	private measureSettingElementHeight(tree: ITree, element: ISettingElement): number {
 		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
-		const template = this.renderSettingTemplate(measureHelper);
+		const template = this.renderSettingTemplate(tree, measureHelper);
 		this.renderSettingElement(tree, element, template, true);
 
 		const height = measureHelper.offsetHeight;
@@ -320,7 +322,7 @@ export class SettingsRenderer implements IRenderer {
 		}
 
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
-			return this.renderSettingTemplate(container);
+			return this.renderSettingTemplate(tree, container);
 		}
 
 		return null;
@@ -341,7 +343,7 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
-	private renderSettingTemplate(container: HTMLElement): ISettingItemTemplate {
+	private renderSettingTemplate(tree: ITree, container: HTMLElement): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 
 		const leftElement = DOM.append(container, $('.setting-item-left'));
@@ -374,6 +376,13 @@ export class SettingsRenderer implements IRenderer {
 
 		// Prevent clicks from being handled by list
 		toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Escape) {
+				tree.domFocus();
+				e.browserEvent.stopPropagation();
+			}
+		}));
 
 		return template;
 	}
