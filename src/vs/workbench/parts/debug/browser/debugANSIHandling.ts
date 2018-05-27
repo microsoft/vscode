@@ -20,6 +20,8 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 
 	while (currentPos < textLength) {
 
+		let sequenceFound: boolean = false;
+
 		// Potentially an ANSI escape sequence.
 		// See http://ascii-table.com/ansi-escape-sequences.php & https://en.wikipedia.org/wiki/ANSI_escape_code
 		if (text.charCodeAt(currentPos) === 27 && text.charAt(currentPos + 1) === '[') {
@@ -28,7 +30,6 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 			currentPos += 2; // Ignore 'Esc[' as it's in every sequence.
 
 			let ansiSequence: string = '';
-			let sequenceFound: boolean = false;
 
 			while (currentPos < textLength) {
 				const char: string = text.charAt(currentPos);
@@ -81,18 +82,13 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 					// Unsupported sequence so simply hide it.
 				}
 
+			} else {
+				currentPos = startPos;
 			}
 
-			if (sequenceFound === false) {
-				/*
-					* Reached end of text without ending the escape sequence,
-					* or given sequence is currently unsupported. In either
-					* case, treat sequence as regular text.
-					*/
-				currentPos = startPos + 1;
-			}
+		}
 
-		} else {
+		if (sequenceFound === false) {
 			buffer += text.charAt(currentPos);
 			currentPos++;
 		}
