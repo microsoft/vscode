@@ -22,7 +22,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
-import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
+import { getTerminalLauncher, hasChildprocesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -123,6 +123,14 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 			return terminalLauncher.runInTerminal(args, config);
 		}
 		return void 0;
+	}
+
+	public $isTerminalBusy(processId: number): TPromise<boolean> {
+		return asWinJsPromise(token => hasChildprocesses(processId));
+	}
+
+	public $prepareCommandForTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any> {
+		return asWinJsPromise(token => prepareCommand(args, config));
 	}
 
 	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): TPromise<IConfig> {
