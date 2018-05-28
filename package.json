@@ -34,7 +34,7 @@
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.4.23",
     "jschardet": "1.6.0",
-    "keytar": "^4.0.5",
+    "keytar": "4.2.1",
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
