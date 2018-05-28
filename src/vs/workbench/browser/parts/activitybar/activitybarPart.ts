@@ -303,7 +303,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	public shutdown(): void {
-		const state = this.viewletService.getViewlets().filter(viewlet => this.compositeBar.isPinned(viewlet.id)).map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
+		const state = this.viewletService.getViewlets().map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 		super.shutdown();
 	}
