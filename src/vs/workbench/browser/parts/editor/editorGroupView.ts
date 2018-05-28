@@ -882,7 +882,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		}
 
 		// Check for dirty and veto
-		return this.handleDirty([editor], true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty([editor]).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -981,69 +981,61 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._group.closeEditor(editor);
 	}
 
-	private handleDirty(editors: EditorInput[], ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
+	private handleDirty(editors: EditorInput[]): TPromise<boolean /* veto */> {
 		if (!editors.length) {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(editors.shift(), ignoreIfOpenedInOtherGroup).then(veto => {
+		return this.doHandleDirty(editors.shift()).then(veto => {
 			if (veto) {
 				return veto;
 			}
 
-			return this.handleDirty(editors, ignoreIfOpenedInOtherGroup);
+			return this.handleDirty(editors);
 		});
 	}
 
-	private doHandleDirty(editor: EditorInput, ignoreIfOpenedInOtherGroup?: boolean): TPromise<boolean /* veto */> {
-
-		// Return quickly if editor is not dirty
-		if (!editor.isDirty()) {
-			return TPromise.as(false); // no veto
+	private doHandleDirty(editor: EditorInput): TPromise<boolean /* veto */> {
+		if (
+			!editor.isDirty() || // editor must be dirty
+			this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */)) ||  // editor is opened in other group
+			editor instanceof SideBySideEditorInput && this.isOpened(editor.master) // side by side editor master is still opened
+		) {
+			return TPromise.as(false);
 		}
 
-		// Return if editor is opened in other group and we are OK with it
-		if (ignoreIfOpenedInOtherGroup) {
-			const containedInOtherGroup = this.accessor.groups.some(groupView => groupView !== this && groupView.group.contains(editor, true /* support side by side */));
-			if (containedInOtherGroup) {
-				return TPromise.as(false); // no veto
+		// Switch to editor that we want to handle and confirm to save/revert
+		return this.openEditor(editor).then(() => editor.confirmSave().then(res => {
+
+			// It could be that the editor saved meanwhile, so we check again
+			// to see if anything needs to happen before closing for good.
+			// This can happen for example if autoSave: onFocusChange is configured
+			// so that the save happens when the dialog opens.
+			if (!editor.isDirty()) {
+				return res === ConfirmResult.CANCEL ? true : false;
 			}
-		}
 
-		// Switch to editor that we want to handle
-		return this.openEditor(editor).then(() => {
-			return editor.confirmSave().then(res => {
+			// Otherwise, handle accordingly
+			switch (res) {
+				case ConfirmResult.SAVE:
+					return editor.save().then(ok => !ok);
 
-				// It could be that the editor saved meanwhile, so we check again
-				// to see if anything needs to happen before closing for good.
-				// This can happen for example if autoSave: onFocusChange is configured
-				// so that the save happens when the dialog opens.
-				if (!editor.isDirty()) {
-					return res === ConfirmResult.CANCEL ? true : false;
-				}
+				case ConfirmResult.DONT_SAVE:
 
-				// Otherwise, handle accordingly
-				switch (res) {
-					case ConfirmResult.SAVE:
-						return editor.save().then(ok => !ok);
+					// first try a normal revert where the contents of the editor are restored
+					return editor.revert().then(ok => !ok, error => {
 
-					case ConfirmResult.DONT_SAVE:
+						// if that fails, since we are about to close the editor, we accept that
+						// the editor cannot be reverted and instead do a soft revert that just
+						// enables us to close the editor. With this, a user can always close a
+						// dirty editor even when reverting fails.
+						return editor.revert({ soft: true }).then(ok => !ok);
+					});
 
-						// first try a normal revert where the contents of the editor are restored
-						return editor.revert().then(ok => !ok, error => {
-
-							// if that fails, since we are about to close the editor, we accept that
-							// the editor cannot be reverted and instead do a soft revert that just
-							// enables us to close the editor. With this, a user can always close a
-							// dirty editor even when reverting fails.
-							return editor.revert({ soft: true }).then(ok => !ok);
-						});
-
-					case ConfirmResult.CANCEL:
-						return true; // veto
-				}
-			});
-		});
+				case ConfirmResult.CANCEL:
+					return true; // veto
+			}
+		}));
 	}
 
 	//#endregion
@@ -1058,7 +1050,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		const editors = this.getEditorsToClose(args);
 
 		// Check for dirty and veto
-		return this.handleDirty(editors.slice(0), true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editors.slice(0)).then(veto => {
 			if (veto) {
 				return;
 			}
@@ -1139,7 +1131,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Check for dirty and veto
 		const editors = this._group.getEditors(true);
-		return this.handleDirty(editors.slice(0), true /* ignore if opened in other group */).then(veto => {
+		return this.handleDirty(editors.slice(0)).then(veto => {
 			if (veto) {
 				return;
 			}
