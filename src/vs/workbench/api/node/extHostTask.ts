@@ -23,6 +23,10 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, TaskPresentationOptionsDTO, ProcessExecutionOptionsDTO, ProcessExecutionDTO,
 	ShellExecutionOptionsDTO, ShellExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from '../shared/tasks';
+import { ExtHostVariableResolverService } from 'vs/workbench/api/node/extHostDebugService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
+import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
+import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 export { TaskExecutionDTO };
 
@@ -729,6 +733,8 @@ export class ExtHostTask implements ExtHostTaskShape {
 
 	private _proxy: MainThreadTaskShape;
 	private _workspaceService: ExtHostWorkspace;
+	private _editorService: ExtHostDocumentsAndEditors;
+	private _configurationService: ExtHostConfiguration;
 	private _handleCounter: number;
 	private _handlers: Map<number, HandlerData>;
 	private _taskExecutions: Map<string, TaskExecutionImpl>;
@@ -739,9 +745,11 @@ export class ExtHostTask implements ExtHostTaskShape {
 	private readonly _onDidTaskProcessStarted: Emitter<vscode.TaskProcessStartEvent> = new Emitter<vscode.TaskProcessStartEvent>();
 	private readonly _onDidTaskProcessEnded: Emitter<vscode.TaskProcessEndEvent> = new Emitter<vscode.TaskProcessEndEvent>();
 
-	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace) {
+	constructor(mainContext: IMainContext, workspaceService: ExtHostWorkspace, editorService: ExtHostDocumentsAndEditors, configurationService: ExtHostConfiguration) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadTask);
 		this._workspaceService = workspaceService;
+		this._editorService = editorService;
+		this._configurationService = configurationService;
 		this._handleCounter = 0;
 		this._handlers = new Map<number, HandlerData>();
 		this._taskExecutions = new Map<string, TaskExecutionImpl>();
@@ -870,6 +878,24 @@ export class ExtHostTask implements ExtHostTaskShape {
 				extension: handler.extension
 			};
 		});
+	}
+
+	public $resolveVariables(uri: URI, variables: string[]): any {
+		let result = Object.create(null);
+		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
+		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
+		let ws: IWorkspaceFolder = {
+			uri: workspaceFolder.uri,
+			name: workspaceFolder.name,
+			index: workspaceFolder.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		};
+		for (let variable of variables) {
+			result.push(variable, resolver.resolve(ws, variable));
+		}
+		return result;
 	}
 
 	private nextHandle(): number {

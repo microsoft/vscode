@@ -36,7 +36,11 @@ export class NotificationsAlerts {
 
 			// Always log errors to console with full details
 			if (e.item.severity === Severity.Error) {
-				console.error(toErrorMessage(e.item.message.value, true));
+				if (e.item.message.original instanceof Error) {
+					console.error(e.item.message.original);
+				} else {
+					console.error(toErrorMessage(e.item.message.value, true));
+				}
 			}
 		}
 	}

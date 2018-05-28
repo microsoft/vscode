@@ -4804,7 +4804,7 @@ declare module 'vscode' {
 
 	/**
 	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registered via #workspace.registerTaskProvider.
+	 * A task provider is registered via #tasks.registerTaskProvider.
 	 */
 	export interface TaskProvider {
 		/**
@@ -4828,6 +4828,158 @@ declare module 'vscode' {
 		 * @return The resolved task
 		 */
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
+	}
+
+	/**
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
+
+		/**
+		 * Terminates the task execution.
+		 */
+		terminate(): void;
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
+	/**
+	 * Namespace for tasks functionality.
+	 */
+	export namespace tasks {
+
+		/**
+		 * Register a task provider.
+		 *
+		 * @param type The task kind type this provider is registered for.
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+		/**
+		 * Fetches all tasks available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
+		 */
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
 	}
 
 	/**
@@ -6593,6 +6745,8 @@ declare module 'vscode' {
 		 * @param type The task kind type this provider is registered for.
 		 * @param provider A task provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 *
+		 * @deprecated Use the corresponding function on the `tasks` namespace instead
 		 */
 		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
 

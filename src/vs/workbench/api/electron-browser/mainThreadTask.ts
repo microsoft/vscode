@@ -491,7 +491,16 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
 			fileSystemScheme: key,
-			context: this._extHostContext
+			context: this._extHostContext,
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
+				let vars: string[] = [];
+				variables.forEach(item => vars.push(item));
+				return this._proxy.$resolveVariables(workspaceFolder.uri, vars).then(values => {
+					let result = new Map<string, string>();
+					Object.keys(values).forEach(key => result.set(key, values[key]));
+					return result;
+				});
+			}
 		});
 	}
 }

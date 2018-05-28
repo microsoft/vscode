@@ -106,6 +106,7 @@ export interface TaskSystemInfo {
 	fileSystemScheme: string;
 	platform: Platform;
 	context: any;
+	resolveVariables(workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>>;
 }
 
 export interface TaskSystemInfoResovler {
