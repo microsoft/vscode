@@ -148,7 +148,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 						break;
 					}
 					case GroupChangeKind.EDITOR_CLOSE: {
-						const previousIndex = this.getIndex(group, undefined) + e.editorIndex + 1;
+						const previousIndex = this.getIndex(group, undefined) + e.editorIndex;
 						this.list.splice(previousIndex, 1);
 						this.updateSize();
 						break;
