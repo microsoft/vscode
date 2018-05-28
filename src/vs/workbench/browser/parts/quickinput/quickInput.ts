@@ -35,7 +35,8 @@ import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Action } from 'vs/base/common/actions';
+import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 const $ = dom.$;
 
@@ -743,21 +744,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 }
 
-export class QuickPickManyToggleAction extends Action {
-
-	public static readonly ID = 'workbench.action.quickPickManyToggle';
-	public static readonly LABEL = localize('quickPickManyToggle', "Toggle Selection in Quick Pick");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService
-	) {
-		super(id, label);
+export const QuickPickManyToggle: ICommandAndKeybindingRule = {
+	id: 'workbench.action.quickPickManyToggle',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: inQuickOpenContext,
+	primary: undefined,
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.toggle();
 	}
-
-	public run(event?: any): TPromise<any> {
-		this.quickInputService.toggle();
-		return TPromise.as(true);
-	}
-}
+};
