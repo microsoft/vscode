@@ -394,9 +394,6 @@ export function createApiFactory(
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(undefined, options, token);
 			},
-			multiStepInput<T>(handler: (input: vscode.QuickInput, token: vscode.CancellationToken) => Thenable<T>, token?: vscode.CancellationToken): Thenable<T> {
-				return extHostQuickOpen.multiStepInput(handler, token);
-			},
 			showOpenDialog(options) {
 				return extHostDialogs.showOpenDialog(options);
 			},
