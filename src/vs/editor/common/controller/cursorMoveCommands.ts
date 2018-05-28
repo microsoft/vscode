@@ -16,16 +16,12 @@ export class CursorMoveCommands {
 
 	public static addCursorDown(context: CursorContext, cursors: CursorState[], useLogicalLine: boolean): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		if (useLogicalLine) {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+			if (useLogicalLine) {
 				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateDown(context.config, context.model, cursor.modelState));
-			}
-		} else {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+			} else {
 				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateDown(context.config, context.viewModel, cursor.viewState));
 			}
 		}
@@ -34,16 +30,12 @@ export class CursorMoveCommands {
 
 	public static addCursorUp(context: CursorContext, cursors: CursorState[], useLogicalLine: boolean): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		if (useLogicalLine) {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+		for (let i = 0, len = cursors.length; i < len; i++) {
+			const cursor = cursors[i];
+			result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+			if (useLogicalLine) {
 				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateUp(context.config, context.model, cursor.modelState));
-			}
-		} else {
-			for (let i = 0, len = cursors.length; i < len; i++) {
-				const cursor = cursors[i];
-				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
+			} else {
 				result[resultLen++] = CursorState.fromViewState(MoveOperations.translateUp(context.config, context.viewModel, cursor.viewState));
 			}
 		}
