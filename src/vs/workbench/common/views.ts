@@ -14,23 +14,34 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { values } from 'vs/base/common/map';
 
 export class ViewLocation {
 
+	private static readonly _onDidRegister: Emitter<ViewLocation> = new Emitter<ViewLocation>();
+	static readonly onDidRegister: Event<ViewLocation> = ViewLocation._onDidRegister.event;
+
 	private static locations: Map<string, ViewLocation> = new Map<string, ViewLocation>();
 	static register(id: string): ViewLocation {
-		const viewLocation = new ViewLocation(id);
-		ViewLocation.locations.set(id, viewLocation);
-		return viewLocation;
+		if (!ViewLocation.locations.has(id)) {
+			const viewLocation = new ViewLocation(id);
+			ViewLocation.locations.set(id, viewLocation);
+			ViewLocation._onDidRegister.fire(viewLocation);
+		}
+		return ViewLocation.get(id);
 	}
 	static get(value: string): ViewLocation {
 		return ViewLocation.locations.get(value);
+	}
+	static get all(): ViewLocation[] {
+		return values(ViewLocation.locations);
 	}
 
 	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
 	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
 	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
 	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm.views.contributed');
+	static readonly TEST: ViewLocation = ViewLocation.register('workbench.view.extension.test');
 
 	private constructor(private _id: string) { }
 	get id(): string { return this._id; }
