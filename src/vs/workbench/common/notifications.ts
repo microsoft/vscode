@@ -336,6 +336,7 @@ export interface IMessageLink {
 
 export interface INotificationMessage {
 	raw: string;
+	original: NotificationMessage;
 	value: string;
 	links: IMessageLink[];
 }
@@ -417,7 +418,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		});
 
 
-		return { raw, value: message, links };
+		return { raw, value: message, links, original: input };
 	}
 
 	private constructor(private _severity: Severity, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {
