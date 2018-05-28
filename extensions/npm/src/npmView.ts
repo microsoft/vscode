@@ -11,7 +11,10 @@ import {
 	WorkspaceFolder, commands, debug, window, workspace, Selection, TaskGroup
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
-import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
+import {
+	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
+	isWorkspaceFolder, getPackageManager, getTaskName, createTask
+} from './tasks';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -133,6 +136,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
+		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
 	private scriptIsValid(scripts: any, task: Task): boolean {
@@ -258,6 +262,19 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return scriptOffset;
 
 	}
+
+	private async runInstall(selection: PackageJSON) {
+		let uri: Uri | undefined = undefined;
+		if (selection instanceof PackageJSON) {
+			uri = selection.resourceUri;
+		}
+		if (!uri) {
+			return;
+		}
+		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, []);
+		workspace.executeTask(task);
+	}
+
 	private async openScript(selection: PackageJSON | NpmScript) {
 		let uri: Uri | undefined = undefined;
 		if (selection instanceof PackageJSON) {

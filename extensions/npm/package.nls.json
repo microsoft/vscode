@@ -14,5 +14,6 @@
 	"command.refresh": "Refresh",
 	"command.run": "Run",
 	"command.debug": "Debug",
-	"command.openScript": "Open"
+	"command.openScript": "Open",
+	"command.runInstall": "Run Install"
 }

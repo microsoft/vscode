@@ -64,6 +64,10 @@
         "title": "%command.openScript%"
       },
       {
+        "command": "npm.runInstall",
+        "title": "%command.runInstall%"
+      },
+      {
         "command": "npm.refresh",
         "title": "%command.refresh%",
         "icon": {
@@ -84,9 +88,13 @@
         {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == packageJSON",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
+          "command": "npm.runInstall",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation@2"
+        },        {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@1"
