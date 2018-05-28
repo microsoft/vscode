@@ -369,7 +369,6 @@ export interface IEnvConfig {
 	postDebugTask?: string;
 	debugServer?: number;
 	noDebug?: boolean;
-	logLevel?: string;
 }
 
 export interface IConfig extends IEnvConfig {
