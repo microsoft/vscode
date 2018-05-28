@@ -341,6 +341,22 @@ export class GridView implements IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.root.orthogonalSize : this.root.size;
 	}
 
+	get minimumWidth(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.minimumSize : this.root.minimumOrthogonalSize;
+	}
+
+	get minimumHeight(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.minimumOrthogonalSize : this.root.minimumSize;
+	}
+
+	get maximumWidth(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.maximumSize : this.root.maximumOrthogonalSize;
+	}
+
+	get maximumHeight(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.root.maximumOrthogonalSize : this.root.maximumSize;
+	}
+
 	constructor(container: HTMLElement) {
 		this.element = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
