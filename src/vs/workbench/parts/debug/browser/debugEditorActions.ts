@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
@@ -212,11 +212,11 @@ class ShowDebugHoverAction extends EditorAction {
 }
 
 class GoToBreakpointAction extends EditorAction {
-	constructor(private isNext, opts) {
+	constructor(private isNext: boolean, opts: IActionOptions) {
 		super(opts);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void | TPromise<void, any> {
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): TPromise<any> {
 		const debugService = accessor.get(IDebugService);
 		const editorService = accessor.get(IEditorService);
 		const currentUri = editor.getModel().uri;
@@ -244,8 +244,9 @@ class GoToBreakpointAction extends EditorAction {
 		}
 
 		if (moveBreakpoint) {
-			openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+			return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
 		}
+
 		return TPromise.as(null);
 	}
 }
