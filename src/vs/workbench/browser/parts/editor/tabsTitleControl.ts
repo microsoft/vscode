@@ -837,7 +837,7 @@ export class TabsTitleControl extends TitleControl {
 				const hasTabsContainerBorder = !!this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
 				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 ${hasTabsContainerBorder ? -2 : -1}px inset`;
 			} else if (activeTabBorderColorTop) {
-				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 1px inset`;
+				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 2px inset`;
 			} else {
 				tabContainer.style.boxShadow = null;
 			}
