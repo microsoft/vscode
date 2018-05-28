@@ -598,6 +598,7 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		};
 
+		this.editorPart.whenRestored.then(() => updateEditorContextKeys());
 		this._register(this.editorService.onDidActiveEditorChange(() => updateEditorContextKeys()));
 		this._register(this.editorService.onDidVisibleEditorsChange(() => updateEditorContextKeys()));
 		this._register(this.editorGroupService.onDidAddGroup(() => updateEditorContextKeys()));
