@@ -25,6 +25,11 @@ export async function activate(context: vscode.ExtensionContext): Promise<void> 
 				treeDataProvider.refresh();
 			}
 		}
+		if (e.affectsConfiguration('npm.scriptExplorerAction')) {
+			if (treeDataProvider) {
+				treeDataProvider.refresh();
+			}
+		}
 	});
 	context.subscriptions.push(addJSONProviders(httpRequest.xhr));
 }

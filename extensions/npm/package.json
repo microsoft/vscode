@@ -98,19 +98,20 @@
         },
         {
           "command": "npm.runScript",
-					"when": "view == npm && viewItem == script",
-					"group": "inline"
+          "when": "view == npm && viewItem == script",
+          "group": "inline"
         },
         {
           "command": "npm.runScript",
-					"when": "view == npm && viewItem == debugScript",
-					"group": "inline"
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
         },
         {
           "command": "npm.debugScript",
-					"when": "view == npm && viewItem == debugScript",
-					"group": "inline"
-        },        {
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
+        },
+        {
           "command": "npm.debugScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@3"
@@ -164,6 +165,16 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.scriptExplorerAction": {
+          "type": "string",
+          "enum": [
+            "open",
+            "run"
+          ],
+          "description": "%config.npm.scriptExplorerAction%",
+          "scope": "window",
+          "default": "open"
         }
       }
     },
