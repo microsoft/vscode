@@ -784,6 +784,7 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
+	$resolveVariables(workspaceFolder: URI, variables: string[]): TPromise<any>;
 }
 
 export interface IBreakpointDto {

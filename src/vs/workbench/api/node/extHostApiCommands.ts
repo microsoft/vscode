@@ -18,22 +18,19 @@ import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
-import { ExtHostTask } from './extHostTask';
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand } from './apiCommands';
 
 export class ExtHostApiCommands {
 
-	static register(commands: ExtHostCommands, workspace: ExtHostTask) {
-		return new ExtHostApiCommands(commands, workspace).registerCommands();
+	static register(commands: ExtHostCommands) {
+		return new ExtHostApiCommands(commands).registerCommands();
 	}
 
 	private _commands: ExtHostCommands;
-	private _tasks: ExtHostTask;
 	private _disposables: IDisposable[] = [];
 
-	private constructor(commands: ExtHostCommands, task: ExtHostTask) {
+	private constructor(commands: ExtHostCommands) {
 		this._commands = commands;
-		this._tasks = task;
 	}
 
 	registerCommands() {
@@ -175,11 +172,6 @@ export class ExtHostApiCommands {
 				{ name: 'uri', description: 'Uri of a text document', constraint: URI }
 			],
 			returns: 'A promise that resolves to an array of DocumentLink-instances.'
-		});
-		this._register('vscode.executeTaskProvider', this._executeTaskProvider, {
-			description: 'Execute task provider',
-			args: [],
-			returns: 'An array of task handles'
 		});
 		this._register('vscode.executeDocumentColorProvider', this._executeDocumentColorProvider, {
 			description: 'Execute document color provider.',
@@ -493,10 +485,6 @@ export class ExtHostApiCommands {
 	private _executeDocumentLinkProvider(resource: URI): Thenable<vscode.DocumentLink[]> {
 		return this._commands.executeCommand<modes.ILink[]>('_executeLinkProvider', resource)
 			.then(tryMapWith(typeConverters.DocumentLink.to));
-	}
-
-	private _executeTaskProvider(): Thenable<vscode.Task[]> {
-		return this._tasks.fetchTasks();
 	}
 }
 

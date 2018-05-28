@@ -21,7 +21,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as TPath from 'vs/base/common/paths';
 
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ProblemMatcher, ProblemMatcherRegistry /*, ProblemPattern, getResource */ } from 'vs/workbench/parts/tasks/common/problemMatcher';
 
@@ -33,7 +33,7 @@ import { IOutputService, IOutputChannel } from 'vs/workbench/parts/output/common
 import { StartStopProblemCollector, WatchingProblemCollector, ProblemCollectorEventKind } from 'vs/workbench/parts/tasks/common/problemCollectors';
 import {
 	Task, CustomTask, ContributedTask, RevealKind, CommandOptions, ShellConfiguration, RuntimeType, PanelKind,
-	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString
+	TaskEvent, TaskEventKind, ShellQuotingOptions, ShellQuoting, CommandString, CommandConfiguration
 } from 'vs/workbench/parts/tasks/common/tasks';
 import {
 	ITaskSystem, ITaskSummary, ITaskExecuteResult, TaskExecuteKind, TaskError, TaskErrors, ITaskResolver,
@@ -49,6 +49,24 @@ interface ActiveTerminalData {
 	terminal: ITerminalInstance;
 	task: Task;
 	promise: TPromise<ITaskSummary>;
+}
+
+class VariableResolver {
+
+	constructor(public workspaceFolder: IWorkspaceFolder, public taskSystemInfo: TaskSystemInfo | undefined, private _values: Map<string, string>, private _service: IConfigurationResolverService | undefined) {
+	}
+	resolve(value: string): string {
+		return value.replace(/\$\{(.*?)\}/g, (match: string, variable: string) => {
+			let result = this._values.get(match);
+			if (result) {
+				return result;
+			}
+			if (this._service) {
+				return this._service.resolve(this.workspaceFolder, match);
+			}
+			return match;
+		});
+	}
 }
 
 export class TerminalTaskSystem implements ITaskSystem {
@@ -276,13 +294,36 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private executeCommand(task: CustomTask | ContributedTask, trigger: string): TPromise<ITaskSummary> {
+		let variables = new Set<string>();
+		this.collectTaskVariables(variables, task);
+		let workspaceFolder = Task.getWorkspaceFolder(task);
+		let taskSystemInfo: TaskSystemInfo;
+		if (workspaceFolder) {
+			taskSystemInfo = this.taskSystemInfoResolver(workspaceFolder);
+		}
+		let resolvedVariables: TPromise<Map<string, string>>;
+		if (taskSystemInfo) {
+			resolvedVariables = taskSystemInfo.resolveVariables(workspaceFolder, variables);
+		} else {
+			let result = new Map<string, string>();
+			variables.forEach(variable => {
+				result.set(variable, this.configurationResolverService.resolve(workspaceFolder, variable));
+			});
+			resolvedVariables = TPromise.as(result);
+		}
+		return resolvedVariables.then((variables) => {
+			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, undefined, variables, this.configurationResolverService));
+		});
+	}
+
+	private executeInTerminal(task: CustomTask | ContributedTask, trigger: string, resolver: VariableResolver): TPromise<ITaskSummary> {
 		let terminal: ITerminalInstance = undefined;
 		let executedCommand: string = undefined;
 		let error: TaskError = undefined;
 		let promise: TPromise<ITaskSummary> = undefined;
 		if (task.isBackground) {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				const problemMatchers = this.resolveMatchers(task, task.problemMatchers);
+				const problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let watchingProblemMatcher = new WatchingProblemCollector(problemMatchers, this.markerService, this.modelService);
 				let toUnbind: IDisposable[] = [];
 				let eventCounter: number = 0;
@@ -304,7 +345,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				}));
 				watchingProblemMatcher.aboutToStart();
 				let delayer: Async.Delayer<any> = undefined;
-				[terminal, executedCommand, error] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
 				if (error || !terminal) {
 					return;
 				}
@@ -365,7 +406,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			});
 		} else {
 			promise = new TPromise<ITaskSummary>((resolve, reject) => {
-				[terminal, executedCommand, error] = this.createTerminal(task);
+				[terminal, executedCommand, error] = this.createTerminal(task, resolver);
 				if (error || !terminal) {
 					return;
 				}
@@ -378,7 +419,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 				});
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Start, task));
 				this._onDidStateChange.fire(TaskEvent.create(TaskEventKind.Active, task));
-				let problemMatchers = this.resolveMatchers(task, task.problemMatchers);
+				let problemMatchers = this.resolveMatchers(resolver, task.problemMatchers);
 				let startStopProblemMatcher = new StartStopProblemCollector(problemMatchers, this.markerService, this.modelService);
 				const registeredLinkMatchers = this.registerLinkMatchers(terminal, problemMatchers);
 				const onData = terminal.onLineData((line) => {
@@ -471,9 +512,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 		});
 	}
 
-	private createTerminal(task: CustomTask | ContributedTask): [ITerminalInstance, string, TaskError | undefined] {
-		let options = this.resolveOptions(task, task.command.options);
-		let { command, args } = this.resolveCommandAndArgs(task);
+	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
+		let options = this.resolveOptions(resolver, task.command.options);
+		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
 		let workspaceFolder = Task.getWorkspaceFolder(task);
 		let needsFolderQualification = workspaceFolder && this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE;
@@ -493,10 +534,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
 			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = this.resolveVariable(task, shellOptions.executable);
+				shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
 				shellSpecified = true;
 				if (shellOptions.args) {
-					shellLaunchConfig.args = this.resolveVariables(task, shellOptions.args.slice());
+					shellLaunchConfig.args = this.resolveVariables(resolver, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
@@ -750,11 +791,81 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return TerminalTaskSystem.shellQuotes[shellBasename] || TerminalTaskSystem.osShellQuotes[process.platform];
 	}
 
-	private resolveCommandAndArgs(task: CustomTask | ContributedTask): { command: CommandString, args: CommandString[] } {
+	private collectTaskVariables(variables: Set<string>, task: CustomTask | ContributedTask): void {
+		if (task.command) {
+			this.collectCommandVariables(variables, task.command);
+		}
+		this.collectMatcherVariables(variables, task.problemMatchers);
+	}
+
+	private collectCommandVariables(variables: Set<string>, command: CommandConfiguration): void {
+		this.collectVariables(variables, command.name);
+		if (command.args) {
+			command.args.forEach(arg => this.collectVariables(variables, arg));
+		}
+		variables.add('${workspaceFolder}');
+		if (command.options) {
+			let options = command.options;
+			if (options.cwd) {
+				this.collectVariables(variables, options.cwd);
+			}
+			if (options.env) {
+				Object.keys(options.env).forEach((key) => {
+					let value: any = options.env[key];
+					if (Types.isString(value)) {
+						this.collectVariables(variables, value);
+					}
+				});
+			}
+			if (options.shell) {
+				if (options.shell.executable) {
+					this.collectVariables(variables, options.shell.executable);
+				}
+				if (options.shell.args) {
+					options.shell.args.forEach(arg => this.collectVariables(variables, arg));
+				}
+			}
+		}
+	}
+
+	private collectMatcherVariables(variables: Set<string>, values: (string | ProblemMatcher)[]): void {
+		if (values === void 0 || values === null || values.length === 0) {
+			return;
+		}
+		values.forEach((value) => {
+			let matcher: ProblemMatcher;
+			if (Types.isString(value)) {
+				if (value[0] === '$') {
+					matcher = ProblemMatcherRegistry.get(value.substring(1));
+				} else {
+					matcher = ProblemMatcherRegistry.get(value);
+				}
+			} else {
+				matcher = value;
+			}
+			if (matcher && matcher.filePrefix) {
+				this.collectVariables(variables, matcher.filePrefix);
+			}
+		});
+	}
+
+	private collectVariables(variables: Set<string>, value: string | CommandString): void {
+		let string: string = Types.isString(value) ? value : value.value;
+		let r = /\$\{(.*?)\}/g;
+		let matches: RegExpExecArray;
+		do {
+			matches = r.exec(string);
+			if (matches) {
+				variables.add(matches[0]);
+			}
+		} while (matches);
+	}
+
+	private resolveCommandAndArgs(resolver: VariableResolver, commandConfig: CommandConfiguration): { command: CommandString, args: CommandString[] } {
 		// First we need to use the command args:
-		let args: CommandString[] = task.command.args ? task.command.args.slice() : [];
-		args = this.resolveVariables(task, args);
-		let command: CommandString = this.resolveVariable(task, task.command.name);
+		let args: CommandString[] = commandConfig.args ? commandConfig.args.slice() : [];
+		args = this.resolveVariables(resolver, args);
+		let command: CommandString = this.resolveVariable(resolver, commandConfig.name);
 		return { command, args };
 	}
 
@@ -814,13 +925,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return path.join(cwd, command);
 	}
 
-	private resolveVariables(task: CustomTask | ContributedTask, value: string[]): string[];
-	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[];
-	private resolveVariables(task: CustomTask | ContributedTask, value: CommandString[]): CommandString[] {
-		return value.map(s => this.resolveVariable(task, s));
+	private resolveVariables(resolver: VariableResolver, value: string[]): string[];
+	private resolveVariables(resolver: VariableResolver, value: CommandString[]): CommandString[];
+	private resolveVariables(resolver: VariableResolver, value: CommandString[]): CommandString[] {
+		return value.map(s => this.resolveVariable(resolver, s));
 	}
 
-	private resolveMatchers(task: CustomTask | ContributedTask, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
+	private resolveMatchers(resolver: VariableResolver, values: (string | ProblemMatcher)[]): ProblemMatcher[] {
 		if (values === void 0 || values === null || values.length === 0) {
 			return [];
 		}
@@ -840,13 +951,9 @@ export class TerminalTaskSystem implements ITaskSystem {
 				this.outputChannel.append(nls.localize('unkownProblemMatcher', 'Problem matcher {0} can\'t be resolved. The matcher will be ignored'));
 				return;
 			}
-			let workspaceFolder = Task.getWorkspaceFolder(task);
-			let taskSystemInfo: TaskSystemInfo;
-			if (workspaceFolder) {
-				taskSystemInfo = this.taskSystemInfoResolver(workspaceFolder);
-			}
+			let taskSystemInfo: TaskSystemInfo = resolver.taskSystemInfo;
 			let hasFilePrefix = matcher.filePrefix !== void 0;
-			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme === 'file';
+			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme !== 'file';
 			if (!hasFilePrefix && !hasScheme) {
 				result.push(matcher);
 			} else {
@@ -855,7 +962,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 					copy.fileSystemScheme = taskSystemInfo.fileSystemScheme;
 				}
 				if (hasFilePrefix) {
-					copy.filePrefix = this.resolveVariable(task, copy.filePrefix);
+					copy.filePrefix = this.resolveVariable(resolver, copy.filePrefix);
 				}
 				result.push(copy);
 			}
@@ -863,33 +970,33 @@ export class TerminalTaskSystem implements ITaskSystem {
 		return result;
 	}
 
-	private resolveVariable(task: CustomTask | ContributedTask, value: string): string;
-	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString;
-	private resolveVariable(task: CustomTask | ContributedTask, value: CommandString): CommandString {
+	private resolveVariable(resolver: VariableResolver, value: string): string;
+	private resolveVariable(resolver: VariableResolver, value: CommandString): CommandString;
+	private resolveVariable(resolver: VariableResolver, value: CommandString): CommandString {
 		// TODO@Dirk Task.getWorkspaceFolder should return a WorkspaceFolder that is defined in workspace.ts
 		if (Types.isString(value)) {
-			return this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value);
+			return resolver.resolve(value);
 		} else {
 			return {
-				value: this.configurationResolverService.resolve(<any>Task.getWorkspaceFolder(task), value.value),
+				value: resolver.resolve(value.value),
 				quoting: value.quoting
 			};
 		}
 	}
 
-	private resolveOptions(task: CustomTask | ContributedTask, options: CommandOptions): CommandOptions {
+	private resolveOptions(resolver: VariableResolver, options: CommandOptions): CommandOptions {
 		if (options === void 0 || options === null) {
-			return { cwd: this.resolveVariable(task, '${workspaceFolder}') };
+			return { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
 		}
 		let result: CommandOptions = Types.isString(options.cwd)
-			? { cwd: this.resolveVariable(task, options.cwd) }
-			: { cwd: this.resolveVariable(task, '${workspaceFolder}') };
+			? { cwd: this.resolveVariable(resolver, options.cwd) }
+			: { cwd: this.resolveVariable(resolver, '${workspaceFolder}') };
 		if (options.env) {
 			result.env = Object.create(null);
 			Object.keys(options.env).forEach((key) => {
 				let value: any = options.env[key];
 				if (Types.isString(value)) {
-					result.env[key] = this.resolveVariable(task, value);
+					result.env[key] = this.resolveVariable(resolver, value);
 				} else {
 					result.env[key] = value.toString();
 				}
