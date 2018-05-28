@@ -13,6 +13,7 @@
 	background-repeat: no-repeat;
 	background-position: 50% 50%;
 	background-size: 15%;
+	opacity: 0.5; /* dimmed to indicate inactive state */
 }
 
 .monaco-workbench > .part.editor > .content.empty .editor-group-container.empty  {
@@ -20,13 +21,11 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
-	outline-width: 1px;
-	outline-style: solid;
-	outline-offset: -2px;
+	opacity: 1; /* indicate active group through undimmed state */
 }
 
-.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty.active {
-	outline-width: 0; /* no outline when editor part is empty */
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active:focus {
+	outline: none; /* do not use outline for focus indication, rely on dimmed state via opacity */
 }
 
 /* Title */
@@ -46,15 +45,10 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar {
 	display: none;
-	opacity: 0.5;
 }
 
 .monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty > .editor-group-container-toolbar {
 	display: block;
-}
-
-.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active > .editor-group-container-toolbar {
-	opacity: 1;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .action-label {
