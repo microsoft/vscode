@@ -686,19 +686,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
-			let horizontalViews = 0;
-			let verticalViews = 0;
-
-			// TODO@grid this needs better support from the GridWidget to be correct for more complex layouts
-			this.groupViews.forEach(groupView => {
-				if (this.gridWidget.getOrientation(groupView) === Orientation.HORIZONTAL) {
-					horizontalViews++;
-				} else {
-					verticalViews++;
-				}
-			});
-
-			this._preferredSize = new Dimension(Math.max(horizontalViews, 1) * EDITOR_MIN_DIMENSIONS.width, Math.max(verticalViews, 1) * EDITOR_MIN_DIMENSIONS.height);
+			this._preferredSize = new Dimension(this.gridWidget.minimumWidth, this.gridWidget.minimumHeight);
 		}
 
 		return this._preferredSize;

@@ -90,6 +90,22 @@ class BranchNode implements ISplitView, IDisposable {
 		return this.children.length === 0 ? Number.POSITIVE_INFINITY : this.children.reduce((r, c) => r + c.maximumSize, 0);
 	}
 
+	get minimumWidth(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumOrthogonalSize : this.minimumSize;
+	}
+
+	get minimumHeight(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumSize : this.minimumOrthogonalSize;
+	}
+
+	get maximumWidth(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumOrthogonalSize : this.maximumSize;
+	}
+
+	get maximumHeight(): number {
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
+	}
+
 	private _onDidChange: Emitter<number | undefined>;
 	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
 	private childrenChangeDisposable: IDisposable = EmptyDisposable;
@@ -334,27 +350,27 @@ export class GridView implements IDisposable {
 	}
 
 	get width(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.size : this.root.orthogonalSize;
+		return this.root.width;
 	}
 
 	get height(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.orthogonalSize : this.root.size;
+		return this.root.height;
 	}
 
 	get minimumWidth(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.minimumSize : this.root.minimumOrthogonalSize;
+		return this.root.minimumWidth;
 	}
 
 	get minimumHeight(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.minimumOrthogonalSize : this.root.minimumSize;
+		return this.root.minimumHeight;
 	}
 
 	get maximumWidth(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.maximumSize : this.root.maximumOrthogonalSize;
+		return this.root.maximumHeight;
 	}
 
 	get maximumHeight(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.root.maximumOrthogonalSize : this.root.maximumSize;
+		return this.root.maximumHeight;
 	}
 
 	constructor(container: HTMLElement) {
