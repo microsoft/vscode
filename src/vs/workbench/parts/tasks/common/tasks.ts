@@ -431,6 +431,8 @@ export interface CustomTask extends CommonTask, ConfigurationProperties {
 
 	identifier: string;
 
+	hasDefinedMatchers: boolean;
+
 	/**
 	 * The command configuration
 	 */

@@ -188,7 +188,8 @@ class CustomTaskBuilder {
 			command: this.commandBuilder.result,
 			isBackground: false,
 			promptOnClose: true,
-			problemMatchers: []
+			problemMatchers: [],
+			hasDefinedMatchers: false
 		};
 	}
 
