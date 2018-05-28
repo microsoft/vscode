@@ -561,30 +561,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Multi-step input
-
-	export namespace window {
-
-		/**
-		 * Collect multiple inputs from the user. The provided handler will be called with a
-		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
-		 *
-		 * @param handler The callback that will collect the inputs.
-		 */
-		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
-	}
-
-	/**
-	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
-	 * should use the instance of this interface passed to it to collect all inputs.
-	 */
-	export interface QuickInput {
-		showQuickPick: typeof window.showQuickPick;
-		showInputBox: typeof window.showInputBox;
-	}
-
-	//#endregion
-
 	//#region mjbvz: Unused diagnostics
 	/**
 	 * Additional metadata about the type of diagnostic.
