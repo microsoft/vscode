@@ -254,6 +254,10 @@ export enum InstallOperation {
 	Update
 }
 
+export interface ITranslation {
+	contents: { [key: string]: {} };
+}
+
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
@@ -263,7 +267,7 @@ export interface IExtensionGalleryService {
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
-	getCoreTranslations(extension: IGalleryExtension, languageId: string): TPromise<{}>;
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;

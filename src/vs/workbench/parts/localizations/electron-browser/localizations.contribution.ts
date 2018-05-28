@@ -156,11 +156,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					this.galleryService.getCoreTranslations(extensionToFetchTranslationsFrom, locale)
-						.then(coreTranslation => {
+					this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)
+						.then(translation => {
 							const translations = {
 								...minimumTranslatedStrings,
-								...(coreTranslation ? coreTranslation['vs/platform/node/minimalTranslations'] : {})
+								...(translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {})
 							};
 							const logUserReaction = (userReaction: string) => {
 								/* __GDPR__
