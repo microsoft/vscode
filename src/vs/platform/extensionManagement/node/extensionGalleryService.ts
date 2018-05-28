@@ -527,7 +527,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 	}
 
 	getCoreTranslations(extension: IGalleryExtension, languageId: string): TPromise<{}> {
-		const asset = extension.assets.coreTranslations[languageId];
+		const asset = extension.assets.coreTranslations[languageId.toUpperCase()];
 		if (asset) {
 			return this.getAsset(asset)
 				.then(asText)
