@@ -593,7 +593,7 @@ function getCommandsContext(resourceOrContext: URI | IEditorCommandsContext, con
 		return resourceOrContext;
 	}
 
-	return context;
+	return context && 'groupId' in context ? context : void 0;
 }
 
 function resolveCommandsContext(editorGroupService: IEditorGroupsService, context?: IEditorCommandsContext): { group: IEditorGroup, editor: IEditorInput, control: IEditor } {
