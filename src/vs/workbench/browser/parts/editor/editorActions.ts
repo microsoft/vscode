@@ -528,7 +528,7 @@ export class RevertAndCloseEditorAction extends Action {
 export class CloseLeftEditorsInGroupAction extends Action {
 
 	public static readonly ID = 'workbench.action.closeEditorsToTheLeft';
-	public static readonly LABEL = nls.localize('closeEditorsToTheLeft', "Close Editors to the Left");
+	public static readonly LABEL = nls.localize('closeEditorsToTheLeft', "Close Editors to the Left in Group");
 
 	constructor(
 		id: string,
