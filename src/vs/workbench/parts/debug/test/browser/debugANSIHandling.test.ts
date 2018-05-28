@@ -23,8 +23,6 @@ suite('Debug - ANSI Handling', () => {
 		linkDetector = instantiationService.createInstance(LinkDetector);
 	});
 
-	// todo: function here
-
 	test('appendStylizedStringToContainer', () => {
 		const root: HTMLSpanElement = document.createElement('span');
 		let child: Node;
