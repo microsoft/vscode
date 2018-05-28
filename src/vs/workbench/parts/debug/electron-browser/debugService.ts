@@ -54,7 +54,6 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import product from 'vs/platform/node/product';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { deepClone, equals } from 'vs/base/common/objects';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -107,7 +106,6 @@ export class DebugService implements debug.IDebugService {
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
@@ -777,9 +775,6 @@ export class DebugService implements debug.IDebugService {
 
 				if (noDebug) {
 					config.noDebug = true;
-				}
-				if (!config.logLevel) {
-					config.logLevel = LogLevel[this.logService.getLevel()].toLowerCase();
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>

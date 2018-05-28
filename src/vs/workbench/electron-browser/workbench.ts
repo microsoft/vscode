@@ -95,7 +95,7 @@ import URI from 'vs/base/common/uri';
 import { IListService, ListService } from 'vs/platform/list/browser/listService';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
 import { IViewsService } from 'vs/workbench/common/views';
-import { CustomViewsService } from 'vs/workbench/browser/parts/views/customView';
+import { ViewsService } from 'vs/workbench/browser/parts/views/views';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { NotificationService } from 'vs/workbench/services/notification/common/notificationService';
 import { NotificationsCenter } from 'vs/workbench/browser/parts/notifications/notificationsCenter';
@@ -362,7 +362,7 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IPanelService, this.panelPart);
 
 		// Custom views service
-		const customViewsService = this.instantiationService.createInstance(CustomViewsService);
+		const customViewsService = this.instantiationService.createInstance(ViewsService);
 		serviceCollection.set(IViewsService, customViewsService);
 
 		// Activity service (activitybar part)
@@ -668,9 +668,11 @@ export class Workbench extends Disposable implements IPartService {
 			}
 
 			perf.mark('willRestoreViewlet');
-			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore).then(() => {
-				perf.mark('didRestoreViewlet');
-			}));
+			restorePromises.push(this.viewletService.openViewlet(viewletIdToRestore)
+				.then(viewlet => viewlet || this.viewletService.openViewlet(this.viewletService.getDefaultViewletId()))
+				.then(() => {
+					perf.mark('didRestoreViewlet');
+				}));
 		}
 
 		// Restore Panel
@@ -1332,7 +1334,8 @@ export class Workbench extends Disposable implements IPartService {
 		else if (!hidden && !this.sidebarPart.getActiveViewlet()) {
 			const viewletToOpen = this.sidebarPart.getLastActiveViewletId();
 			if (viewletToOpen) {
-				promise = this.sidebarPart.openViewlet(viewletToOpen, true);
+				promise = this.viewletService.openViewlet(viewletToOpen, true)
+					.then(viewlet => viewlet || this.viewletService.openViewlet(this.viewletService.getDefaultViewletId(), true));
 			}
 		}
 

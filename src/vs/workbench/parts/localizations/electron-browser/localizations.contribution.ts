@@ -73,15 +73,17 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.storageService.getBoolean(donotAskUpdateKey) && e.local && e.operation === InstallOperation.Install && e.local.manifest.contributes && e.local.manifest.contributes.localizations && e.local.manifest.contributes.localizations.length) {
 			const locale = e.local.manifest.contributes.localizations[0].languageId;
 			if (platform.language !== locale) {
+				const updateAndRestart = platform.locale !== locale;
 				this.notificationService.prompt(
 					Severity.Info,
-					localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId),
+					updateAndRestart ? localize('updateLocale', "Would you like to change VS Code's UI language to {0} and restart?", e.local.manifest.contributes.localizations[0].languageName || e.local.manifest.contributes.localizations[0].languageId)
+						: localize('activateLanguagePack', "Would you like to restart VS Code to activate the language pack that was just installed?"),
 					[{
 						label: localize('yes', "Yes"),
 						run: () => {
 							const file = URI.file(join(this.environmentService.appSettingsHome, 'locale.json'));
-							this.jsonEditingService.write(file, { key: 'locale', value: locale }, true)
-								.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
+							const updatePromise = updateAndRestart ? this.jsonEditingService.write(file, { key: 'locale', value: locale }, true) : TPromise.as(null);
+							updatePromise.then(() => this.windowsService.relaunch({}), e => this.notificationService.error(e));
 						}
 					}, {
 						label: localize('no', "No"),
@@ -96,31 +98,39 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		}
 	}
 
+	private migrateToMarketplaceLanguagePack(language: string): void {
+		this.isLanguageInstalled(language)
+			.then(installed => {
+				if (!installed) {
+					this.getLanguagePackExtension(language)
+						.then(extension => {
+							if (extension) {
+								this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
+									[
+										{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
+										{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=872941') }
+									]);
+							}
+						});
+				}
+			});
+	}
+
 	private checkAndInstall(): void {
 		const language = platform.language;
 		const locale = platform.locale;
-		if (language !== 'en' && language !== 'en_us') {
-			this.isLanguageInstalled(language)
-				.then(installed => {
-					if (!installed) {
-						this.getLanguagePackExtension(language)
-							.then(extension => {
-								if (extension) {
-									this.notificationService.prompt(Severity.Warning, localize('install language pack', "In the near future, VS Code will only support language packs in the form of Marketplace extensions. Please install the '{0}' extension in order to continue to use the currently configured language. ", extension.displayName || extension.displayName),
-										[
-											{ label: localize('install', "Install"), run: () => this.installExtension(extension) },
-											{ label: localize('more information', "More Information..."), run: () => window.open('https://go.microsoft.com/fwlink/?linkid=872941') }
-										]);
-								}
-							});
-					}
-				});
+		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
+
+		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-
-		const languagePackSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
-			('extensionsAssistant/languagePackSuggestionIgnore', StorageScope.GLOBAL, '[]'));
-
+		if (language !== 'en' && language !== 'en_us') {
+			this.migrateToMarketplaceLanguagePack(language);
+			return;
+		}
+		if (locale === 'en' || locale === 'en_us') {
+			return;
+		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
 			return;
 		}
@@ -146,86 +156,78 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					this.galleryService.getManifest(extensionToFetchTranslationsFrom).then(x => {
-						if (!x.contributes || !x.contributes.localizations) {
-							return;
-						}
-						const locContribution = x.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
-						if (!locContribution) {
-							return;
-						}
+					this.galleryService.getCoreTranslations(extensionToFetchTranslationsFrom, locale)
+						.then(coreTranslation => {
+							const translations = {
+								...minimumTranslatedStrings,
+								...(coreTranslation ? coreTranslation['vs/platform/node/minimalTranslations'] : {})
+							};
+							const logUserReaction = (userReaction: string) => {
+								/* __GDPR__
+									"languagePackSuggestion:popup" : {
+										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+										"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+									}
+								*/
+								this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language });
+							};
 
-						const translations = {
-							...minimumTranslatedStrings,
-							...(locContribution.minimalTranslations || {})
-						};
-
-						const logUserReaction = (userReaction: string) => {
-							/* __GDPR__
-								"languagePackSuggestion:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-									"language": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-							*/
-							this.telemetryService.publicLog('languagePackSuggestion:popup', { userReaction, language });
-						};
-
-						const searchAction = {
-							label: translations['searchMarketplace'],
-							run: () => {
-								logUserReaction('search');
-								this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
-									.then(viewlet => viewlet as IExtensionsViewlet)
-									.then(viewlet => {
-										viewlet.search(`tag:lp-${locale}`);
-										viewlet.focus();
-									});
-							}
-						};
-
-						const installAction = {
-							label: translations['install'],
-							run: () => {
-								logUserReaction('install');
-								this.installExtension(extensionToInstall);
-							}
-						};
-
-						const installAndRestartAction = {
-							label: translations['installAndRestart'],
-							run: () => {
-								logUserReaction('installAndRestart');
-								this.installExtension(extensionToInstall).then(() => this.windowsService.relaunch({}));
-							}
-						};
-
-						const mainActions = extensionToInstall ? [installAndRestartAction, installAction] : [searchAction];
-						const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
-							.replace('{0}', locContribution.languageNameLocalized || locContribution.languageName || locale);
-
-						this.notificationService.prompt(
-							Severity.Info,
-							promptMessage,
-							[...mainActions,
-							{
-								label: localize('neverAgain', "Don't Show Again"),
-								isSecondary: true,
+							const searchAction = {
+								label: translations['searchMarketplace'],
 								run: () => {
-									languagePackSuggestionIgnoreList.push(language);
-									this.storageService.store(
-										'extensionsAssistant/languagePackSuggestionIgnore',
-										JSON.stringify(languagePackSuggestionIgnoreList),
-										StorageScope.GLOBAL
-									);
-									logUserReaction('neverShowAgain');
+									logUserReaction('search');
+									this.viewletService.openViewlet(EXTENSIONS_VIEWLET_ID, true)
+										.then(viewlet => viewlet as IExtensionsViewlet)
+										.then(viewlet => {
+											viewlet.search(`tag:lp-${locale}`);
+											viewlet.focus();
+										});
 								}
-							}],
-							() => {
-								logUserReaction('cancelled');
-							}
-						);
+							};
 
-					});
+							const installAction = {
+								label: translations['install'],
+								run: () => {
+									logUserReaction('install');
+									this.installExtension(extensionToInstall);
+								}
+							};
+
+							const installAndRestartAction = {
+								label: translations['installAndRestart'],
+								run: () => {
+									logUserReaction('installAndRestart');
+									this.installExtension(extensionToInstall).then(() => this.windowsService.relaunch({}));
+								}
+							};
+
+							const mainActions = extensionToInstall ? [installAndRestartAction, installAction] : [searchAction];
+							const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
+								.replace('{0}', locale);
+
+							this.notificationService.prompt(
+								Severity.Info,
+								promptMessage,
+								[...mainActions,
+								{
+									label: localize('neverAgain', "Don't Show Again"),
+									isSecondary: true,
+									run: () => {
+										languagePackSuggestionIgnoreList.push(language);
+										this.storageService.store(
+											'extensionsAssistant/languagePackSuggestionIgnore',
+											JSON.stringify(languagePackSuggestionIgnoreList),
+											StorageScope.GLOBAL
+										);
+										logUserReaction('neverShowAgain');
+									}
+								}],
+								() => {
+									logUserReaction('cancelled');
+								}
+							);
+
+						});
 				});
 			});
 

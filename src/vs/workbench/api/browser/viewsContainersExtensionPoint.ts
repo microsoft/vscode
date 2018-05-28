@@ -80,12 +80,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private registerTestViewContainer(): void {
-		const id = 'test';
 		const title = localize('test', "Test");
-		const cssClass = `extensionViewlet-${id}`;
+		const cssClass = `extensionViewlet-test`;
 		const icon = require.toUrl('./media/test.svg');
 
-		this.registerCustomViewlet({ id, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
+		this.registerCustomViewlet({ id: ViewLocation.TEST.id, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
 
 	private handleAndRegisterCustomViewContainers() {
@@ -139,13 +138,13 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			// TODO@extensionLocation
 			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
-			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
 
 	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-		const id = `workbench.view.extension.${descriptor.id}`;
+		const id = descriptor.id;
 
 		if (!viewletRegistry.getViewlet(id)) {
 

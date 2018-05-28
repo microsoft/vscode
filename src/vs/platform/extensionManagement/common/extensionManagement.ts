@@ -149,6 +149,7 @@ export interface IGalleryExtensionAssets {
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
 	repository: IGalleryExtensionAsset;
+	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
 }
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
@@ -262,6 +263,7 @@ export interface IExtensionGalleryService {
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
+	getCoreTranslations(extension: IGalleryExtension, languageId: string): TPromise<{}>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;

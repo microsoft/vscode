@@ -847,7 +847,7 @@ class TaskService implements ITaskService {
 		}
 		if (CustomTask.is(task)) {
 			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			return configProperties.problemMatcher === void 0;
+			return configProperties.problemMatcher === void 0 && !task.hasDefinedMatchers;
 		}
 		return false;
 	}

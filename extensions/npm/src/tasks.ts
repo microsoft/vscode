@@ -205,7 +205,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);

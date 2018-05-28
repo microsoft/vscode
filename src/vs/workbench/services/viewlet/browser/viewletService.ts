@@ -62,7 +62,7 @@ export class ViewletService implements IViewletService {
 	}
 
 	public setViewletEnablement(id: string, enabled: boolean): void {
-		const descriptor = this.getBuiltInViewlets().filter(desc => desc.id === id).pop();
+		const descriptor = this.getAllViewlets().filter(desc => desc.id === id).pop();
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;
 			this._onDidViewletEnable.fire({ id, enabled });
@@ -74,7 +74,12 @@ export class ViewletService implements IViewletService {
 			return this.sidebarPart.openViewlet(id, focus);
 		}
 		return this.extensionService.whenInstalledExtensionsRegistered()
-			.then(() => this.sidebarPart.openViewlet(id, focus));
+			.then(() => {
+				if (this.getViewlet(id)) {
+					return this.sidebarPart.openViewlet(id, focus);
+				}
+				return null;
+			});
 	}
 
 	public getActiveViewlet(): IViewlet {
@@ -82,11 +87,11 @@ export class ViewletService implements IViewletService {
 	}
 
 	public getViewlets(): ViewletDescriptor[] {
-		return this.getBuiltInViewlets()
+		return this.getAllViewlets()
 			.filter(v => v.enabled);
 	}
 
-	private getBuiltInViewlets(): ViewletDescriptor[] {
+	private getAllViewlets(): ViewletDescriptor[] {
 		return this.viewletRegistry.getViewlets()
 			.sort((v1, v2) => v1.order - v2.order);
 	}

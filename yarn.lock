@@ -3280,7 +3280,7 @@ jsprim@^1.2.2:
     json-schema "0.2.3"
     verror "1.10.0"
 
-keytar@^4.2.1:
+keytar@4.2.1:
   version "4.2.1"
   resolved "https://registry.yarnpkg.com/keytar/-/keytar-4.2.1.tgz#8a06a6577fdf6373e0aa6b112277e63dec77fd12"
   dependencies:

@@ -520,7 +520,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 	}
 }
 
-export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return TPromise.as(null);
 	}

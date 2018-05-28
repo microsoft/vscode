@@ -340,7 +340,7 @@ export interface IEditorOptions {
 	 */
 	wordWrapMinified?: boolean;
 	/**
-	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
+	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
@@ -635,9 +635,13 @@ export enum WrappingIndent {
 	 */
 	Same = 1,
 	/**
-	 * Indent => wrapped lines get +1 indentation as the parent.
+	 * Indent => wrapped lines get +1 indentation toward the parent.
 	 */
-	Indent = 2
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
 }
 
 /**
@@ -1477,10 +1481,12 @@ function _wrappingIndentFromString(wrappingIndent: string, defaultValue: Wrappin
 	if (typeof wrappingIndent !== 'string') {
 		return defaultValue;
 	}
-	if (wrappingIndent === 'indent') {
-		return WrappingIndent.Indent;
-	} else if (wrappingIndent === 'same') {
+	if (wrappingIndent === 'same') {
 		return WrappingIndent.Same;
+	} else if (wrappingIndent === 'indent') {
+		return WrappingIndent.Indent;
+	} else if (wrappingIndent === 'deepIndent') {
+		return WrappingIndent.DeepIndent;
 	} else {
 		return WrappingIndent.None;
 	}

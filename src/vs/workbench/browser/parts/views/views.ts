@@ -33,8 +33,13 @@ import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ViewDescriptorCollection } from './contributableViews';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class CustomViewsService extends Disposable implements IViewsService {
+export class ViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
 
@@ -42,9 +47,16 @@ export class CustomViewsService extends Disposable implements IViewsService {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IViewletService private viewletService: IViewletService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super();
+
+		ViewLocation.all.forEach(viewLocation => this.onDidRegisterViewLocation(viewLocation));
+		this._register(ViewLocation.onDidRegister(viewLocation => this.onDidRegisterViewLocation(viewLocation)));
+		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== ViewLocation.TEST.id))));
+
 		this.createViewers(ViewsRegistry.getAllViews());
 		this._register(ViewsRegistry.onViewsRegistered(viewDescriptors => this.createViewers(viewDescriptors)));
 		this._register(ViewsRegistry.onViewsDeregistered(viewDescriptors => this.removeViewers(viewDescriptors)));
@@ -70,6 +82,18 @@ export class CustomViewsService extends Disposable implements IViewsService {
 			}
 		}
 		return TPromise.as(null);
+	}
+
+	private onDidRegisterViewLocation(viewLocation: ViewLocation): void {
+		const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewLocation));
+		this._register(viewDescriptorCollection.onDidChange(() => this.updateViewletEnablement(viewLocation, viewDescriptorCollection)));
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateViewletEnablement(viewLocation, viewDescriptorCollection));
+	}
+
+	private updateViewletEnablement(viewLocation: ViewLocation, viewDescriptorCollection: ViewDescriptorCollection): void {
+		const enabled = viewDescriptorCollection.viewDescriptors.length > 0;
+		this.viewletService.setViewletEnablement(viewLocation.id, enabled);
+		this.storageService.store(`viewservice.${viewLocation.id}.enablement`, enabled, StorageScope.GLOBAL);
 	}
 
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {

@@ -1337,6 +1337,7 @@ namespace CustomTask {
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
+			hasDefinedMatchers: false,
 			command: undefined
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
@@ -1375,6 +1376,10 @@ namespace CustomTask {
 		if (CommandConfiguration.hasCommand(task.command) || task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
 		}
+		if (task.problemMatchers === void 0 && globals.problemMatcher !== void 0) {
+			task.problemMatchers = Objects.deepClone(globals.problemMatcher);
+			task.hasDefinedMatchers = true;
+		}
 		// promptOnClose is inferred from isBackground if available
 		if (task.promptOnClose === void 0 && task.isBackground === void 0 && globals.promptOnClose !== void 0) {
 			task.promptOnClose = globals.promptOnClose;
@@ -1405,7 +1410,8 @@ namespace CustomTask {
 			type: 'custom',
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
-			identifier: configuredProps.identifier || contributedTask.identifier
+			identifier: configuredProps.identifier || contributedTask.identifier,
+			hasDefinedMatchers: false
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1429,6 +1435,10 @@ namespace CustomTask {
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation, contributedConfigProps.presentation);
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
+
+		if (contributedTask.hasDefinedMatchers === true) {
+			result.hasDefinedMatchers = true;
+		}
 
 		return result;
 	}
@@ -1545,6 +1555,7 @@ namespace TaskParser {
 
 interface Globals {
 	command?: Tasks.CommandConfiguration;
+	problemMatcher?: ProblemMatcher[];
 	promptOnClose?: boolean;
 	suppressTaskName?: boolean;
 }
@@ -1580,6 +1591,9 @@ namespace Globals {
 		}
 		if (config.promptOnClose !== void 0) {
 			result.promptOnClose = !!config.promptOnClose;
+		}
+		if (config.problemMatcher) {
+			result.problemMatcher = ProblemMatcherConverter.from(config.problemMatcher, context);
 		}
 		return result;
 	}
@@ -1830,7 +1844,8 @@ class ConfigurationParser {
 					suppressTaskName: true
 				},
 				isBackground: isBackground,
-				problemMatchers: matchers
+				problemMatchers: matchers,
+				hasDefinedMatchers: false,
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {
