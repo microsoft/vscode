@@ -88,6 +88,8 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
 
+	private previousUIState: IEditorPartUIState;
+
 	constructor(
 		id: string,
 		private restorePreviousState: boolean,
@@ -748,6 +750,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		const uiState = this.doGetPreviousState();
 		if (uiState && uiState.serializedGrid) {
 			try {
+				this.previousUIState = uiState;
 
 				// MRU
 				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
@@ -909,11 +912,11 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 	}
 
 	// TODO@grid this should be removed once the gridwidget is stable
-	private gridError(error: Error, state?: IEditorPartUIState): void {
+	private gridError(error: Error): void {
 		console.error(error);
 
-		if (state) {
-			console.error('Serialized Grid State: ', state);
+		if (this.previousUIState) {
+			console.error('Serialized Grid State: ', this.previousUIState);
 		}
 
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
