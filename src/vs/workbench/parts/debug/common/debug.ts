@@ -311,7 +311,7 @@ export interface IViewModel extends ITreeElement {
 
 export interface IModel extends ITreeElement {
 	getSessions(): ReadonlyArray<ISession>;
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
