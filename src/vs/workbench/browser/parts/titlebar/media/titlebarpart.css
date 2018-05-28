@@ -75,7 +75,7 @@
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container {
-	display: block;
+	display: flex;
 	flex-grow: 0;
 	flex-shrink: 0;
 	margin-left: auto;
@@ -93,6 +93,33 @@
 	height: 100%;
 	shape-rendering: crispEdges;
 	text-align: center;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
+	background-size: 11px;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close {
+	background-image: url('chrome-close.svg');
+	order: 3;
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-unmaximize {
+	background-image: url('chrome-restore.svg');
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-maximize {
+	background-image: url('chrome-maximize.svg');
+	order: 2;
+
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-minimize {
+	background-image: url('chrome-minimize.svg');
+	order: 1;
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {

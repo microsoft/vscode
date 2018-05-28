@@ -228,7 +228,6 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
-		const SVGNS = 'http://www.w3.org/2000/svg';
 		this.titleContainer = $(parent);
 
 		if (!isMacintosh) {
@@ -263,54 +262,33 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		});
 
-		const $svg = (name: string, props: { [name: string]: any }) => {
-			const el = document.createElementNS(SVGNS, name);
-			Object.keys(props).forEach((prop) => {
-				el.setAttribute(prop, props[prop]);
-			});
-			return el;
-		};
-
 		if (!isMacintosh) {
-			// The svgs and styles for the titlebar come from the electron-titlebar-windows package
 			let windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
 
-			$(windowControls).div({ class: 'window-icon' }, (builder) => {
-				const svg = $svg('svg', { x: 0, y: 0, viewBox: '0 0 10 1' });
-				svg.appendChild($svg('rect', { fill: 'currentColor', width: 10, height: 1 }));
-				builder.getHTMLElement().appendChild(svg);
-			}).on(EventType.CLICK, () => {
+			$(windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			$(windowControls).div({ class: 'window-icon' }, (builder) => {
-				const svgf = $svg('svg', { class: 'window-maximize', x: 0, y: 0, viewBox: '0 0 10 10' });
-				svgf.appendChild($svg('path', { fill: 'currentColor', d: 'M 0 0 L 0 10 L 10 10 L 10 0 L 0 0 z M 1 1 L 9 1 L 9 9 L 1 9 L 1 1 z' }));
-				builder.getHTMLElement().appendChild(svgf);
+			this.windowService.isMaximized().then((maximized) => {
+				let builder;
+				if (maximized) {
+					builder = $(windowControls).div({ class: 'window-icon window-unmaximize' });
+				} else {
+					builder = $(windowControls).div({ class: 'window-icon window-maximize' });
+				}
 
-				const svgm = $svg('svg', { class: 'window-unmaximize', x: 0, y: 0, viewBox: '0 0 10 10' });
-				const mask = $svg('mask', { id: 'Mask' });
-				mask.appendChild($svg('rect', { fill: '#fff', width: 10, height: 10 }));
-				mask.appendChild($svg('path', { fill: '#000', d: 'M 3 1 L 9 1 L 9 7 L 8 7 L 8 2 L 3 2 L 3 1 z' }));
-				mask.appendChild($svg('path', { fill: '#000', d: 'M 1 3 L 7 3 L 7 9 L 1 9 L 1 3 z' }));
-				svgm.appendChild(mask);
-				svgm.appendChild($svg('path', { fill: 'currentColor', d: 'M 2 0 L 10 0 L 10 8 L 8 8 L 8 10 L 0 10 L 0 2 L 2 2 L 2 0 z', mask: 'url(#Mask)' }));
-				builder.getHTMLElement().appendChild(svgm);
-			}).on(EventType.CLICK, () => {
-				this.windowService.isMaximized().then((maximized) => {
-					if (maximized) {
-						return this.windowService.unmaximizeWindow();
-					} else {
-						return this.windowService.maximizeWindow();
-					}
-				}).then(null, errors.onUnexpectedError);
+				builder.on(EventType.CLICK, (e, builder) => {
+					this.windowService.isMaximized().then((maximized) => {
+						if (maximized) {
+							return this.windowService.unmaximizeWindow();
+						} else {
+							return this.windowService.maximizeWindow();
+						}
+					}).then(null, errors.onUnexpectedError);
+				});
 			});
 
-			$(windowControls).div({ class: 'window-icon window-close' }, (builder) => {
-				const svg = $svg('svg', { x: '0', y: '0', viewBox: '0 0 10 10' });
-				svg.appendChild($svg('polygon', { fill: 'currentColor', points: '10,1 9,0 5,4 1,0 0,1 4,5 0,9 1,10 5,6 9,10 10,9 6,5' }));
-				builder.getHTMLElement().appendChild(svg);
-			}).on(EventType.CLICK, () => {
+			$(windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -337,8 +315,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
-		($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
+		if (maximized) {
+			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-maximize');
+			element.classList.remove('window-maximize');
+			element.classList.add('window-unmaximize');
+		} else {
+			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize');
+			element.classList.remove('window-unmaximize');
+			element.classList.add('window-maximize');
+		}
+
+		// ($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
+		// ($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
 		// $(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
 		// $(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
 	}
