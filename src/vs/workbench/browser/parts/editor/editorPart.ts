@@ -737,22 +737,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 		// Grid Widget (with previous UI state)
 		if (this.restorePreviousState) {
-			try {
-				this.doCreateGridControlWithPreviousState(container);
-			} catch (error) { // TODO@grid remove this safe guard once the grid is stable
-				if (this.gridWidget) {
-					this.gridWidget.dispose();
-					this.gridWidget = void 0;
-				}
-
-				clearNode(container);
-				this.groupViews.forEach(group => group.dispose());
-				this.groupViews.clear();
-				this._activeGroup = void 0;
-				this.mostRecentActiveGroups = [];
-
-				this.gridError(error);
-			}
+			this.doCreateGridControlWithPreviousState(container);
 		}
 
 		// Grid Widget (no previous UI state or failed to restore)
@@ -774,24 +759,39 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 	private doCreateGridControlWithPreviousState(container: HTMLElement): void {
 		const uiState = this.doGetPreviousState();
 		if (uiState && uiState.serializedGrid) {
+			try {
 
-			// MRU
-			this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
+				// MRU
+				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
-			// Grid Widget
-			this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
-				fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
-					const groupView = this.doCreateGroupView(serializedEditorGroup);
-					if (groupView.id === uiState.activeGroup) {
-						this.doSetGroupActive(groupView);
+				// Grid Widget
+				this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
+					fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
+						const groupView = this.doCreateGroupView(serializedEditorGroup);
+						if (groupView.id === uiState.activeGroup) {
+							this.doSetGroupActive(groupView);
+						}
+
+						return groupView;
 					}
+				}));
 
-					return groupView;
+				// Ensure last active group has focus
+				this._activeGroup.focus();
+			} catch (error) {
+				if (this.gridWidget) {
+					this.gridWidget.dispose();
+					this.gridWidget = void 0;
 				}
-			}));
 
-			// Ensure last active group has focus
-			this._activeGroup.focus();
+				clearNode(container);
+				this.groupViews.forEach(group => group.dispose());
+				this.groupViews.clear();
+				this._activeGroup = void 0;
+				this.mostRecentActiveGroups = [];
+
+				this.gridError(error); // TODO@grid remove this safe guard once the grid is stable
+			}
 		}
 	}
 
@@ -921,8 +921,12 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 	}
 
 	// TODO@grid this should be removed once the gridwidget is stable
-	private gridError(error: Error): void {
+	private gridError(error: Error, state?: IEditorPartUIState): void {
 		console.error(error);
+
+		if (state) {
+			console.error('Serialized Grid State: ', state);
+		}
 
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
 			this.notificationService.prompt(Severity.Error, `Grid Issue: ${error}. Please report this error stack with reproducible steps.`, [{ label: 'Open DevTools', run: () => this.windowService.openDevTools() }]);
