@@ -11,20 +11,16 @@ import { MoveOperations } from 'vs/editor/common/controller/cursorMoveOperations
 import { WordOperations } from 'vs/editor/common/controller/cursorWordOperations';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { Selection } from 'vs/editor/common/core/selection';
-import { ITextModel } from 'vs/editor/common/model';
 
 export class CursorMoveCommands {
 
-	public static addCursorDown(context: CursorContext, cursors: CursorState[], model: ITextModel = null): CursorState[] {
+	public static addCursorDown(context: CursorContext, cursors: CursorState[], useLogicalLine: boolean): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		if (model) {
+		if (useLogicalLine) {
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
-				let lineContent = model.getLineContent(cursor.modelState.selection.startLineNumber + 1);
-				let additionalLine = model.findNextMatch(lineContent, cursor.modelState.position, false, true, null, false).range;
 				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-				result[resultLen++] = CursorState.fromModelSelection(new Selection(additionalLine.startLineNumber, cursor.viewState.selection.startColumn, additionalLine.endLineNumber, cursor.viewState.selection.endColumn));
+				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateDown(context.config, context.model, cursor.modelState));
 			}
 		} else {
 			for (let i = 0, len = cursors.length; i < len; i++) {
@@ -36,21 +32,13 @@ export class CursorMoveCommands {
 		return result;
 	}
 
-	public static addCursorSelect(context: CursorContext, selections: Selection[]): CursorState[] {
-		let result: CursorState[] = [];
-		result = CursorState.fromModelSelections(selections);
-		return result;
-	}
-
-	public static addCursorUp(context: CursorContext, cursors: CursorState[], model: ITextModel = null): CursorState[] {
+	public static addCursorUp(context: CursorContext, cursors: CursorState[], useLogicalLine: boolean): CursorState[] {
 		let result: CursorState[] = [], resultLen = 0;
-		if (model) {
+		if (useLogicalLine) {
 			for (let i = 0, len = cursors.length; i < len; i++) {
 				const cursor = cursors[i];
-				let lineContent = model.getLineContent(cursor.modelState.selection.startLineNumber - 1);
-				let additionalLine = model.findPreviousMatch(lineContent, cursor.modelState.position, false, true, null, false).range;
 				result[resultLen++] = new CursorState(cursor.modelState, cursor.viewState);
-				result[resultLen++] = CursorState.fromModelSelection(new Selection(additionalLine.startLineNumber, cursor.viewState.selection.startColumn, additionalLine.endLineNumber, cursor.viewState.selection.endColumn));
+				result[resultLen++] = CursorState.fromModelState(MoveOperations.translateUp(context.config, context.model, cursor.modelState));
 			}
 		} else {
 			for (let i = 0, len = cursors.length; i < len; i++) {
