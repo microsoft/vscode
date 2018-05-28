@@ -15,7 +15,7 @@ import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorService } from 'vs/platform/editor/common/editor';
-import { Selection } from 'vs/editor/common/core/selection';
+import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -221,23 +221,8 @@ class GoToBreakpointAction extends EditorAction {
 		const editorService = accessor.get(IEditorService);
 		const currentUri = editor.getModel().uri;
 		const currentLine = editor.getPosition().lineNumber;
-		const allEnabledBreakpoints =
-			debugService.getModel().getBreakpoints()
-				.filter(bp => bp.enabled)
-				.sort((a, b) => {
-					if (this.isNext) {
-						if (a.uri === b.uri) {
-							return a.lineNumber - b.lineNumber;
-						}
-						return a.uri.path.localeCompare(b.uri.path);
-					}
-					else {
-						if (a.uri === b.uri) {
-							return b.lineNumber - a.lineNumber;
-						}
-						return b.uri.path.localeCompare(a.uri.path);
-					}
-				});
+		//Breakpoints returned from `getBreakpoints` are already sorted.
+		const allEnabledBreakpoints = debugService.getModel().getBreakpoints({ enabledOnly: true });
 
 		//Try to find breakpoint in current file
 		let moveBreakpoint =
@@ -259,16 +244,7 @@ class GoToBreakpointAction extends EditorAction {
 		}
 
 		if (moveBreakpoint) {
-			const selection = new Selection(moveBreakpoint.lineNumber, moveBreakpoint.column || 0, moveBreakpoint.lineNumber, moveBreakpoint.column || 0);
-			editorService.openEditor({
-				resource: moveBreakpoint.uri,
-				options: {
-					pinned: false,
-					revealIfOpened: true,
-					revealInCenterIfOutsideViewport: true,
-					selection: selection
-				}
-			});
+			openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
 		}
 		return TPromise.as(null);
 	}
