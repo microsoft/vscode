@@ -45,6 +45,7 @@ const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
 const choiceNever = localize('neverShowAgain', "Don't Show Again");
 const searchMarketplace = localize('searchMarketplace', "Search Marketplace");
+const processedFileExtensions: string[] = [];
 
 interface IDynamicWorkspaceRecommendations {
 	remoteSet: string[];
@@ -357,6 +358,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return;
 		}
 
+		let fileExtension = paths.extname(uri.fsPath);
+		if (fileExtension) {
+			if (processedFileExtensions.indexOf(fileExtension) > -1) {
+				return;
+			}
+			processedFileExtensions.push(fileExtension);
+		}
+
 		// re-schedule this bit of the operation to be off
 		// the critical path - in case glob-match is slow
 		setImmediate(() => {
@@ -472,7 +481,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const fileExtensionSuggestionIgnoreList = <string[]>JSON.parse(this.storageService.get
 					('extensionsAssistant/fileExtensionsSuggestionIgnore', StorageScope.GLOBAL, '[]'));
 				const mimeTypes = result[1];
-				let fileExtension = paths.extname(uri.fsPath);
+
 				if (fileExtension) {
 					fileExtension = fileExtension.substr(1); // Strip the dot
 				}
