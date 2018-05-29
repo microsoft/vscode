@@ -12,7 +12,6 @@ export const minimumTranslatedStrings = {
 	showLanguagePackExtensions: localize('showLanguagePackExtensions', "The Marketplace has extensions that can localize VS Code in the {0} language"),
 	searchMarketplace: localize('searchMarketplace', "Search Marketplace"),
 	installAndRestartMessage: localize('installAndRestartMessage', "Install language pack to localize VS Code in {0} language. Restart VS Code after installing for the language to take effect."),
-	installAndRestart: localize('installAndRestart', "Install and Restart"),
-	install: localize('install', 'Install')
+	installAndRestart: localize('installAndRestart', "Install and Restart")
 };
 

@@ -185,14 +185,6 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								}
 							};
 
-							const installAction = {
-								label: translations['install'],
-								run: () => {
-									logUserReaction('install');
-									this.installExtension(extensionToInstall);
-								}
-							};
-
 							const installAndRestartAction = {
 								label: translations['installAndRestart'],
 								run: () => {
@@ -201,14 +193,13 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								}
 							};
 
-							const mainActions = extensionToInstall ? [installAndRestartAction, installAction] : [searchAction];
 							const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
 								.replace('{0}', locale);
 
 							this.notificationService.prompt(
 								Severity.Info,
 								promptMessage,
-								[...mainActions,
+								[extensionToInstall ? installAndRestartAction : searchAction,
 								{
 									label: localize('neverAgain', "Don't Show Again"),
 									isSecondary: true,
