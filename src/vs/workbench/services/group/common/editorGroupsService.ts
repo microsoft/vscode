@@ -22,9 +22,9 @@ export enum GroupDirection {
 }
 
 export function preferredSideBySideGroupDirection(configurationService: IConfigurationService): GroupDirection.DOWN | GroupDirection.RIGHT {
-	const openSideBySideDirection = configurationService.getValue<'horizontal' | 'vertical'>('workbench.editor.openSideBySideDirection');
+	const openSideBySideDirection = configurationService.getValue<'right' | 'down'>('workbench.editor.openSideBySideDirection');
 
-	if (openSideBySideDirection === 'vertical') {
+	if (openSideBySideDirection === 'down') {
 		return GroupDirection.DOWN;
 	}
 

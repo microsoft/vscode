@@ -947,7 +947,7 @@ export interface IWorkbenchEditorPartConfiguration {
 	enablePreviewFromQuickOpen?: boolean;
 	closeOnFileDelete?: boolean;
 	openPositioning?: 'left' | 'right' | 'first' | 'last';
-	openSideBySideDirection?: 'horizontal' | 'vertical';
+	openSideBySideDirection?: 'right' | 'down';
 	closeEmptyGroups?: boolean;
 	revealIfOpen?: boolean;
 	swipeToNavigate?: boolean;
