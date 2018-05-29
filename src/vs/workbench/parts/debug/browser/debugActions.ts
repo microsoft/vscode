@@ -124,7 +124,7 @@ export class StartAction extends AbstractDebugAction {
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IHistoryService private historyService: IHistoryService
+		@IHistoryService protected historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action start', debugService, keybindingService);
 
@@ -178,6 +178,32 @@ export class StartAction extends AbstractDebugAction {
 	// Disabled if the launch drop down shows the launch config that is already running.
 	protected isEnabled(state: State): boolean {
 		return StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name);
+	}
+}
+
+export class StartWithStopOnEntryAction extends StartAction {
+	static readonly ID = 'workbench.action.debug.startWithStopOnEntry';
+	static LABEL = nls.localize('startWithStopOnEntry', "Start With Stop On Entry");
+
+	public run(): TPromise<any> {
+		const configurationManager = this.debugService.getConfigurationManager();
+		let launch = configurationManager.selectedConfiguration.launch;
+		let name = configurationManager.selectedConfiguration.name;
+		if (!launch) {
+			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
+			launch = configurationManager.getLaunch(rootUri);
+			if (!launch || launch.getConfigurationNames().length === 0) {
+				const launches = configurationManager.getLaunches();
+				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : launch);
+			}
+
+			configurationManager.selectConfiguration(launch);
+		}
+		let config: any = launch.getConfiguration(name);
+		if (config) {
+			config.stopOnEntry = true;
+		}
+		return this.debugService.startDebugging(launch, config, this.isNoDebug());
 	}
 }
 
