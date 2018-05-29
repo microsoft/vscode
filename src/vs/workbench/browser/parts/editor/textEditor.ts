@@ -51,7 +51,7 @@ export abstract class BaseTextEditor extends BaseEditor {
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService storageService: IStorageService,
+		@IStorageService private storageService: IStorageService,
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -59,9 +59,13 @@ export abstract class BaseTextEditor extends BaseEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(this.getMemento(storageService, Scope.WORKSPACE), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(this.getEditorViewStateStorage(), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
+	}
+
+	protected getEditorViewStateStorage(): object {
+		return this.getMemento(this.storageService, Scope.WORKSPACE);
 	}
 
 	protected get instantiationService(): IInstantiationService {

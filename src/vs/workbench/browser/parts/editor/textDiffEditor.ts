@@ -73,6 +73,10 @@ export class TextDiffEditor extends BaseTextEditor {
 		}));
 	}
 
+	protected getEditorViewStateStorage(): object {
+		return Object.create(null); // do not persist in storage as diff editors are never persisted
+	}
+
 	public getTitle(): string {
 		if (this.input) {
 			return this.input.getName();

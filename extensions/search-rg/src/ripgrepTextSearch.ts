@@ -5,15 +5,14 @@
 
 'use strict';
 
-import * as vscode from 'vscode';
-
-import { EventEmitter } from 'events';
-import * as path from 'path';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
-import { start } from 'repl';
+import { anchorGlob } from './ripgrepHelpers';
+
+
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -55,17 +54,20 @@ export class RipgrepTextSearchEngine {
 			const escapedArgs = rgArgs
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
-			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}\n`);
+			this.outputChannel.appendLine(`rg ${escapedArgs}\n - cwd: ${cwd}`);
 
 			this.rgProc = cp.spawn(rgDiskPath, rgArgs, { cwd });
 			process.once('exit', this.killRgProcFn);
 			this.rgProc.on('error', e => {
-				console.log(e);
+				console.error(e);
+				this.outputChannel.append('Error: ' + (e && e.message));
 				reject(e);
 			});
 
+			let gotResult = false;
 			this.ripgrepParser = new RipgrepParser(MAX_TEXT_RESULTS, cwd);
 			this.ripgrepParser.on('result', (match: vscode.TextSearchResult) => {
+				gotResult = true;
 				progress.report(match);
 			});
 
@@ -83,11 +85,14 @@ export class RipgrepTextSearchEngine {
 			let stderr = '';
 			this.rgProc.stderr.on('data', data => {
 				const message = data.toString();
-				// onMessage({ message });
+				this.outputChannel.append(message);
 				stderr += message;
 			});
 
 			this.rgProc.on('close', code => {
+				this.outputChannel.appendLine(gotData ? 'Got data from stdout' : 'No data from stdout');
+				this.outputChannel.appendLine(gotResult ? 'Got result from parser' : 'No result from parser');
+				this.outputChannel.appendLine('');
 				process.removeListener('exit', this.killRgProcFn);
 				if (this.isDone) {
 					resolve();
@@ -136,12 +141,13 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 export class RipgrepParser extends EventEmitter {
 	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
 	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
+	private static readonly ESC_CODE = '\u001b'.charCodeAt(0);
 
-	private static readonly MATCH_START_CHAR = '\u001b';
+	// public for test
 	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
 	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
-	private currentFile: vscode.Uri;
+	private currentFile: string;
 	private remainder: string;
 	private isDone: boolean;
 	private stringDecoder: NodeStringDecoder;
@@ -195,19 +201,11 @@ export class RipgrepParser extends EventEmitter {
 				// Line is a result - add to collected results for the current file path
 				this.handleMatchLine(outputLine, lineNum, matchText);
 			} else if (r = outputLine.match(RipgrepParser.FILE_REGEX)) {
-				this.currentFile = this.getFileUri(r[1]);
+				this.currentFile = r[1];
 			} else {
 				// Line is empty (or malformed)
 			}
 		}
-	}
-
-	private getFileUri(relativeOrAbsolutePath: string): vscode.Uri {
-		const absPath = path.isAbsolute(relativeOrAbsolutePath) ?
-			relativeOrAbsolutePath :
-			path.join(this.rootFolder, relativeOrAbsolutePath);
-
-		return vscode.Uri.file(absPath);
 	}
 
 	private handleMatchLine(outputLine: string, lineNum: number, lineText: string): void {
@@ -238,37 +236,44 @@ export class RipgrepParser extends EventEmitter {
 		const lineMatches: vscode.Range[] = [];
 
 		for (let i = 0; i < lineText.length - (RipgrepParser.MATCH_END_MARKER.length - 1);) {
-			if (lineText.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
-				// Match start
-				const chunk = lineText.slice(lastMatchEndPos, i);
-				realTextParts.push(chunk);
-				i += RipgrepParser.MATCH_START_MARKER.length;
-				matchTextStartPos = i;
-				matchTextStartRealIdx = textRealIdx;
-			} else if (lineText.substr(i, RipgrepParser.MATCH_END_MARKER.length) === RipgrepParser.MATCH_END_MARKER) {
-				// Match end
-				const chunk = lineText.slice(matchTextStartPos, i);
-				realTextParts.push(chunk);
-				if (!hitLimit) {
-					const startCol = matchTextStartRealIdx;
-					const endCol = textRealIdx;
+			if (lineText.charCodeAt(i) === RipgrepParser.ESC_CODE) {
+				if (lineText.substr(i, RipgrepParser.MATCH_START_MARKER.length) === RipgrepParser.MATCH_START_MARKER) {
+					// Match start
+					const chunk = lineText.slice(lastMatchEndPos, i);
+					realTextParts.push(chunk);
+					i += RipgrepParser.MATCH_START_MARKER.length;
+					matchTextStartPos = i;
+					matchTextStartRealIdx = textRealIdx;
+				} else if (lineText.substr(i, RipgrepParser.MATCH_END_MARKER.length) === RipgrepParser.MATCH_END_MARKER) {
+					// Match end
+					const chunk = lineText.slice(matchTextStartPos, i);
+					realTextParts.push(chunk);
+					if (!hitLimit) {
+						const startCol = matchTextStartRealIdx;
+						const endCol = textRealIdx;
 
-					// actually have to finish parsing the line, and use the real ones
-					lineMatches.push(new vscode.Range(lineNum, startCol, lineNum, endCol));
-				}
+						// actually have to finish parsing the line, and use the real ones
+						lineMatches.push(new vscode.Range(lineNum, startCol, lineNum, endCol));
+					}
 
-				matchTextStartPos = -1;
-				matchTextStartRealIdx = -1;
-				i += RipgrepParser.MATCH_END_MARKER.length;
-				lastMatchEndPos = i;
-				this.numResults++;
+					matchTextStartPos = -1;
+					matchTextStartRealIdx = -1;
+					i += RipgrepParser.MATCH_END_MARKER.length;
+					lastMatchEndPos = i;
+					this.numResults++;
 
-				// Check hit maxResults limit
-				if (this.numResults >= this.maxResults) {
-					// Finish the line, then report the result below
-					hitLimit = true;
+					// Check hit maxResults limit
+					if (this.numResults >= this.maxResults) {
+						// Finish the line, then report the result below
+						hitLimit = true;
+					}
+				} else {
+					// ESC char in file
+					i++;
+					textRealIdx++;
 				}
 			} else {
+				// Some other char
 				i++;
 				textRealIdx++;
 			}
@@ -283,7 +288,7 @@ export class RipgrepParser extends EventEmitter {
 		lineMatches
 			.map(range => {
 				return <vscode.TextSearchResult>{
-					uri: this.currentFile,
+					path: this.currentFile,
 					range,
 					preview: {
 						text: preview,
@@ -308,11 +313,12 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	// TODO@roblou
 	options.includes
+		.map(anchorGlob)
 		.forEach(globArg => args.push('-g', globArg));
 
 	options.excludes
+		.map(anchorGlob)
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
 
 	if (options.maxFileSize) {

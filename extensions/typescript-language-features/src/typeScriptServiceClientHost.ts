@@ -8,7 +8,7 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { workspace, Memento, Diagnostic, Range, Disposable, Uri, DiagnosticSeverity } from 'vscode';
+import { workspace, Memento, Diagnostic, Range, Disposable, Uri, DiagnosticSeverity, DiagnosticTag } from 'vscode';
 
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
@@ -77,6 +77,13 @@ export default class TypeScriptServiceClientHost {
 
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
+
+		this.client.onProjectUpdatedInBackground(files => {
+			const resources = files.openFiles.map(Uri.file);
+			for (const language of this.languagePerId.values()) {
+				language.getErr(resources);
+			}
+		}, null, this.disposables);
 
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
@@ -255,6 +262,9 @@ export default class TypeScriptServiceClientHost {
 		converted.source = diagnostic.source || source;
 		if (diagnostic.code) {
 			converted.code = diagnostic.code;
+		}
+		if (diagnostic.reportsUnnecessary) {
+			converted.customTags = [DiagnosticTag.Unnecessary];
 		}
 		(converted as Diagnostic & { reportUnnecessary: any }).reportUnnecessary = diagnostic.reportsUnnecessary;
 		return converted as Diagnostic & { reportUnnecessary: any };

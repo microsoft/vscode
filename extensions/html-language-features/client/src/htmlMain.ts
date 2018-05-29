@@ -187,7 +187,7 @@ export function activate(context: ExtensionContext) {
 			}
 			return void 0;
 		}
-		return languages.registerFoldingRangeProvider(documentSelector, {
+		return languages.registerFoldingRangeProvider('html', {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
 				const param: FoldingRangeRequestParam = {
 					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)

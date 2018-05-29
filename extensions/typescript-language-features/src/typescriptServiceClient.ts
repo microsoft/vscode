@@ -184,9 +184,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private callbacks: CallbackMap;
 
 	private readonly _onTsServerStarted = new EventEmitter<API>();
-	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
-	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
-	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
 
 	public readonly telemetryReporter: TelemetryReporter;
@@ -307,17 +304,17 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return this._onTsServerStarted.event;
 	}
 
-	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
-		return this._onProjectLanguageServiceStateChanged.event;
-	}
+	private readonly _onProjectUpdatedInBackground = new EventEmitter<Proto.ProjectsUpdatedInBackgroundEventBody>();
+	public readonly onProjectUpdatedInBackground = this._onProjectUpdatedInBackground.event;
 
-	get onDidBeginInstallTypings(): Event<Proto.BeginInstallTypesEventBody> {
-		return this._onDidBeginInstallTypings.event;
-	}
+	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
 
-	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
-		return this._onDidEndInstallTypings.event;
-	}
+	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	public readonly onDidBeginInstallTypings = this._onDidBeginInstallTypings.event;
+
+	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	public readonly onDidEndInstallTypings = this._onDidEndInstallTypings.event;
 
 	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
 		return this._onTypesInstallerInitializationFailed.event;
@@ -875,6 +872,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				}
 				break;
 
+			case 'projectsUpdatedInBackground':
+				if (event.body) {
+					this._onProjectUpdatedInBackground.fire((event as Proto.ProjectsUpdatedInBackgroundEvent).body);
+				}
+				break;
+
 			case 'beginInstallTypes':
 				if (event.body) {
 					this._onDidBeginInstallTypings.fire((event as Proto.BeginInstallTypesEvent).body);
@@ -1015,6 +1018,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				args.push('--locale', tsLocale);
 			}
 		}
+
+		if (this.apiVersion.has291Features()) {
+			args.push('--noGetErrOnBackgroundUpdate');
+		}
+
 		return args;
 	}
 

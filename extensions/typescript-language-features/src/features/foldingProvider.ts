@@ -34,12 +34,25 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingRangePro
 			return;
 		}
 
-		return response.body.map(span => this.convertOutliningSpan(span, document));
+		return response.body
+			.map(span => this.convertOutliningSpan(span, document))
+			.filter(foldingRange => !!foldingRange) as vscode.FoldingRange[];
 	}
 
-	private convertOutliningSpan(span: Proto.OutliningSpan, document: vscode.TextDocument): vscode.FoldingRange {
+	private convertOutliningSpan(
+		span: Proto.OutliningSpan,
+		document: vscode.TextDocument
+	): vscode.FoldingRange | undefined {
 		const range = typeConverters.Range.fromTextSpan(span.textSpan);
 		const kind = TypeScriptFoldingProvider.getFoldingRangeKind(span);
+
+		// Workaround for #49904
+		if (span.kind === 'comment') {
+			const line = document.lineAt(range.start.line).text;
+			if (line.match(/\/\/\s*#endregion/gi)) {
+				return undefined;
+			}
+		}
 
 		const start = range.start.line;
 		// workaround for #47240
@@ -51,8 +64,7 @@ export default class TypeScriptFoldingProvider implements vscode.FoldingRangePro
 	}
 
 	private static getFoldingRangeKind(span: Proto.OutliningSpan): vscode.FoldingRangeKind | undefined {
-		// TODO: remove cast once we get a new TS insiders
-		switch ((span as Proto.OutliningSpan & { kind: any }).kind) {
+		switch (span.kind) {
 			case 'comment': return vscode.FoldingRangeKind.Comment;
 			case 'region': return vscode.FoldingRangeKind.Region;
 			case 'imports': return vscode.FoldingRangeKind.Imports;

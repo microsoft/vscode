@@ -39,7 +39,7 @@ import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -921,7 +921,7 @@ class CopyFileAction extends BaseFileAction {
 	public run(): TPromise<any> {
 
 		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeFiles(this.elements.map(e => e.resource));
+		this.clipboardService.writeResources(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
@@ -1058,11 +1058,23 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 	return candidate;
 }
 
-function incrementFileName(name: string, isFolder: boolean): string {
+export function incrementFileName(name: string, isFolder: boolean): string {
+	const separators = '[\\.\\-_]';
 
 	// file.1.txt=>file.2.txt
-	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			return g1 + strings.pad(parseInt(g2) + 1, g2.length) + g3;
+		});
+	}
+
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			return strings.pad(parseInt(g1) + 1, g1.length) + g2 + g3;
+		});
 	}
 
 	// file.txt=>file.1.txt
@@ -1073,7 +1085,12 @@ function incrementFileName(name: string, isFolder: boolean): string {
 
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)/, (match: string, ...groups: any[]) => { return strings.pad(parseInt(groups[0]) + 1, groups[0].length); });
 	}
 
 	// file/folder=>file.1/folder.1
@@ -1363,7 +1380,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@INotificationService private notificationService: INotificationService,
 	) {
@@ -1373,7 +1390,7 @@ export class ShowOpenedFileInNewWindow extends Action {
 	public run(): TPromise<any> {
 		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			this.windowService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
@@ -1636,7 +1653,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(resources.distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
+	return TPromise.join(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));

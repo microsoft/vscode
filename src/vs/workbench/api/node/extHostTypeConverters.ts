@@ -20,7 +20,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -88,6 +88,16 @@ export namespace Position {
 	}
 }
 
+export namespace DiagnosticTag {
+	export function from(value: vscode.DiagnosticTag): MarkerTag {
+		switch (value) {
+			case types.DiagnosticTag.Unnecessary:
+				return MarkerTag.Unnecessary;
+		}
+		return undefined;
+	}
+}
+
 export namespace Diagnostic {
 	export function from(value: vscode.Diagnostic): IMarkerData {
 		return {
@@ -96,7 +106,8 @@ export namespace Diagnostic {
 			source: value.source,
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
-			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from)
+			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
+			customTags: Array.isArray(value.customTags) ? value.customTags.map(DiagnosticTag.from) : undefined,
 		};
 	}
 }
@@ -364,27 +375,27 @@ export namespace SymbolInformation {
 }
 
 export namespace HierarchicalSymbolInformation {
-	export function from(info: vscode.HierarchicalSymbolInformation): modes.SymbolInformation {
+	export function from(info: vscode.Hierarchy<vscode.SymbolInformation2>): modes.SymbolInformation {
 		let result: modes.SymbolInformation = {
-			name: info.name,
-			detail: info.detail,
-			location: location.from(info.location),
-			definingRange: Range.from(info.range),
-			kind: SymbolKind.from(info.kind)
+			name: info.parent.name,
+			detail: info.parent.detail,
+			location: location.from(info.parent.location),
+			definingRange: Range.from(info.parent.range),
+			kind: SymbolKind.from(info.parent.kind)
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
 		}
 		return result;
 	}
-	export function to(info: modes.SymbolInformation): types.HierarchicalSymbolInformation {
-		let result = new types.HierarchicalSymbolInformation(
+	export function to(info: modes.SymbolInformation): types.Hierarchy<vscode.SymbolInformation2> {
+		let result = new types.Hierarchy<vscode.SymbolInformation2>(new types.SymbolInformation2(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
+			Range.to(info.definingRange),
 			location.to(info.location),
-			Range.to(info.definingRange)
-		);
+		));
 		if (info.children) {
 			result.children = info.children.map(to);
 		}

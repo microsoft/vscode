@@ -386,7 +386,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.prompt(
 			severity.Info,
-			nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
+			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,

@@ -160,9 +160,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.user, user);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateUserConfiguration(user);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -171,9 +169,7 @@ export class Configuration extends BaseConfiguration {
 		const { added, updated, removed } = compare(this.workspace, workspaceConfiguration);
 		let changedKeys = [...added, ...updated, ...removed];
 		if (changedKeys.length) {
-			const oldValues = changedKeys.map(key => this.getValue(key));
 			super.updateWorkspaceConfiguration(workspaceConfiguration);
-			changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key)));
 		}
 		return new ConfigurationChangeEvent().change(changedKeys);
 	}
@@ -184,9 +180,7 @@ export class Configuration extends BaseConfiguration {
 			const { added, updated, removed } = compare(currentFolderConfiguration, folderConfiguration);
 			let changedKeys = [...added, ...updated, ...removed];
 			if (changedKeys.length) {
-				const oldValues = changedKeys.map(key => this.getValue(key, { resource }));
 				super.updateFolderConfiguration(resource, folderConfiguration);
-				changedKeys = changedKeys.filter((key, index) => !equals(oldValues[index], this.getValue(key, { resource })));
 			}
 			return new ConfigurationChangeEvent().change(changedKeys, resource);
 		} else {

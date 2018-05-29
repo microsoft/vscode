@@ -205,6 +205,7 @@ export function serve(hook: any): TPromise<Server> {
 	});
 }
 
+export function connect(options: { host: string, port: number }, clientId: string): TPromise<Client>;
 export function connect(port: number, clientId: string): TPromise<Client>;
 export function connect(namedPipe: string, clientId: string): TPromise<Client>;
 export function connect(hook: any, clientId: string): TPromise<Client> {

@@ -5,7 +5,7 @@
 
 import 'vs/css!./media/views';
 import * as errors from 'vs/base/common/errors';
-import { IDisposable, Disposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
@@ -33,8 +33,13 @@ import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 import { Emitter, Event } from 'vs/base/common/event';
+import { ViewDescriptorCollection } from './contributableViews';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
-export class CustomViewsService extends Disposable implements IViewsService {
+export class ViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
 
@@ -42,9 +47,16 @@ export class CustomViewsService extends Disposable implements IViewsService {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IViewletService private viewletService: IViewletService
+		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IViewletService private viewletService: IViewletService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super();
+
+		ViewLocation.all.forEach(viewLocation => this.onDidRegisterViewLocation(viewLocation));
+		this._register(ViewLocation.onDidRegister(viewLocation => this.onDidRegisterViewLocation(viewLocation)));
+		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== ViewLocation.TEST.id))));
+
 		this.createViewers(ViewsRegistry.getAllViews());
 		this._register(ViewsRegistry.onViewsRegistered(viewDescriptors => this.createViewers(viewDescriptors)));
 		this._register(ViewsRegistry.onViewsDeregistered(viewDescriptors => this.removeViewers(viewDescriptors)));
@@ -63,12 +75,25 @@ export class CustomViewsService extends Disposable implements IViewsService {
 				return this.viewletService.openViewlet(viewletDescriptor.id)
 					.then((viewlet: IViewsViewlet) => {
 						if (viewlet && viewlet.openView) {
-							viewlet.openView(id, focus);
+							return viewlet.openView(id, focus);
 						}
+						return null;
 					});
 			}
 		}
 		return TPromise.as(null);
+	}
+
+	private onDidRegisterViewLocation(viewLocation: ViewLocation): void {
+		const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewLocation));
+		this._register(viewDescriptorCollection.onDidChange(() => this.updateViewletEnablement(viewLocation, viewDescriptorCollection)));
+		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateViewletEnablement(viewLocation, viewDescriptorCollection));
+	}
+
+	private updateViewletEnablement(viewLocation: ViewLocation, viewDescriptorCollection: ViewDescriptorCollection): void {
+		const enabled = viewDescriptorCollection.viewDescriptors.length > 0;
+		this.viewletService.setViewletEnablement(viewLocation.id, enabled);
+		this.storageService.store(`viewservice.${viewLocation.id}.enablement`, enabled, StorageScope.GLOBAL);
 	}
 
 	private createViewers(viewDescriptors: IViewDescriptor[]): void {
@@ -111,7 +136,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	private elementsToRefresh: ITreeItem[] = [];
 
 	private _dataProvider: ITreeViewDataProvider;
-	private dataProviderDisposables: IDisposable[] = [];
 
 	private _onDidExpandItem: Emitter<ITreeItem> = this._register(new Emitter<ITreeItem>());
 	readonly onDidExpandItem: Event<ITreeItem> = this._onDidExpandItem.event;
@@ -141,11 +165,8 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	set dataProvider(dataProvider: ITreeViewDataProvider) {
-		dispose(this.dataProviderDisposables);
 		if (dataProvider) {
 			this._dataProvider = new class implements ITreeViewDataProvider {
-				onDidChange = dataProvider.onDidChange;
-				onDispose = dataProvider.onDispose;
 				getChildren(node?: ITreeItem): TPromise<ITreeItem[]> {
 					if (node && node.children) {
 						return TPromise.as(node.children);
@@ -157,8 +178,6 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 					});
 				}
 			};
-			this._register(dataProvider.onDidChange(elements => this.refresh(elements), this, this.dataProviderDisposables));
-			this._register(dataProvider.onDispose(() => this.dataProvider = null, this, this.dataProviderDisposables));
 		} else {
 			this._dataProvider = null;
 		}
@@ -286,17 +305,21 @@ class CustomTreeViewer extends Disposable implements ITreeViewer {
 	reveal(item: ITreeItem, parentChain: ITreeItem[], options?: { select?: boolean }): TPromise<void> {
 		if (this.tree && this.isVisible) {
 			options = options ? options : { select: true };
-			const select = isUndefinedOrNull(options.select) ? true : options.select;
-			var result = TPromise.as(null);
-			parentChain.forEach((e) => {
-				result = result.then(() => this.tree.expand(e));
-			});
-			return result.then(() => this.tree.reveal(item))
-				.then(() => {
-					if (select) {
-						this.tree.setSelection([item], { source: 'api' });
-					}
+			const root: Root = this.tree.getInput();
+			const promise = root.children ? TPromise.as(null) : this.refresh(); // Refresh if root is not populated
+			return promise.then(() => {
+				const select = isUndefinedOrNull(options.select) ? true : options.select;
+				var result = TPromise.as(null);
+				parentChain.forEach((e) => {
+					result = result.then(() => this.tree.expand(e));
 				});
+				return result.then(() => this.tree.reveal(item))
+					.then(() => {
+						if (select) {
+							this.tree.setSelection([item], { source: 'api' });
+						}
+					});
+			});
 		}
 		return TPromise.as(null);
 	}
