@@ -467,7 +467,7 @@ export class Workbench implements IPartService {
 			}
 
 			const filesToCreate = this.toInputs(config.filesToCreate, true);
-			const filesToOpen = this.toInputs(config.filesToOpen, false);
+			const filesToOpen = this.toInputs(config.filesToOpen, false, !config.preview);
 
 			// Otherwise: Open/Create files
 			return TPromise.as([...filesToOpen, ...filesToCreate]);
@@ -491,7 +491,7 @@ export class Workbench implements IPartService {
 		return TPromise.as([]);
 	}
 
-	private toInputs(paths: IPath[], isNew: boolean): (IResourceInput | IUntitledResourceInput)[] {
+	private toInputs(paths: IPath[], isNew: boolean, pinned = true): (IResourceInput | IUntitledResourceInput)[] {
 		if (!paths || !paths.length) {
 			return [];
 		}
@@ -500,9 +500,9 @@ export class Workbench implements IPartService {
 			const resource = URI.file(p.filePath);
 			let input: IResourceInput | IUntitledResourceInput;
 			if (isNew) {
-				input = { filePath: resource.fsPath, options: { pinned: true } } as IUntitledResourceInput;
+				input = { filePath: resource.fsPath, options: { pinned } } as IUntitledResourceInput;
 			} else {
-				input = { resource, options: { pinned: true } } as IResourceInput;
+				input = { resource, options: { pinned } } as IResourceInput;
 			}
 
 			if (!isNew && p.lineNumber) {

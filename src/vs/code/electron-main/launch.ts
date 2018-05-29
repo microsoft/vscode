@@ -219,7 +219,8 @@ export class LaunchService implements ILaunchService {
 				preferNewWindow: !args['reuse-window'] && !args.wait,
 				forceReuseWindow: args['reuse-window'],
 				diffMode: args.diff,
-				addMode: args.add
+				addMode: args.add,
+				preview: args.preview
 			});
 		}
 

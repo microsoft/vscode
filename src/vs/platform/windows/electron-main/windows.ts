@@ -129,6 +129,7 @@ export interface IOpenConfiguration {
 	forceEmpty?: boolean;
 	diffMode?: boolean;
 	addMode?: boolean;
+	preview?: boolean;
 	forceOpenWorkspaceAsFile?: boolean;
 	initialStartup?: boolean;
 }
