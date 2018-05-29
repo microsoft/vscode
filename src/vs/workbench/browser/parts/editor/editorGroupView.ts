@@ -765,7 +765,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Recover by closing the active editor (if the input is still the active one)
 		if (this.activeEditor === editor) {
 			const focusNext = !options || !options.preserveFocus;
-			this.doCloseActiveEditor(focusNext, true /* from error */);
+			this.doCloseEditor(editor, focusNext, true /* from error */);
 		}
 	}
 
@@ -892,11 +892,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		});
 	}
 
-	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this): void {
+	private doCloseEditor(editor: EditorInput, focusNext = this.accessor.activeGroup === this, fromError?: boolean): void {
 
 		// Closing the active editor of the group is a bit more work
 		if (this._group.isActive(editor)) {
-			this.doCloseActiveEditor(focusNext);
+			this.doCloseActiveEditor(focusNext, fromError);
 		}
 
 		// Closing inactive editor is just a model update
