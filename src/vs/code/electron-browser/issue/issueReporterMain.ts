@@ -325,6 +325,7 @@ export class IssueReporter extends Disposable {
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i);
 			showInfo.addEventListener('click', (e) => {
+				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				const containingElement = label.parentElement.parentElement;
 				const info = containingElement.lastElementChild;
