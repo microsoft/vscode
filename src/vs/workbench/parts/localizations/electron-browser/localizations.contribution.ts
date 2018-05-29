@@ -156,8 +156,10 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 						return;
 					}
 
-					this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)
-						.then(translation => {
+					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
+						.then(([manifest, translation]) => {
+							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
+							const languageDisplayName = loc && loc.languageName ? loc.languageName : locale;
 							const translations = {
 								...minimumTranslatedStrings,
 								...(translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {})
@@ -194,7 +196,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 							};
 
 							const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
-								.replace('{0}', locale);
+								.replace('{0}', languageDisplayName);
 
 							this.notificationService.prompt(
 								Severity.Info,
