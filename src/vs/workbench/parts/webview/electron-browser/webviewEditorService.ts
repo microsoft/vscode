@@ -117,7 +117,7 @@ export class WebviewEditorService implements IWebviewEditorService {
 		extensionLocation: URI
 	): WebviewEditorInput {
 		const webviewInput = this._instantiationService.createInstance(WebviewEditorInput, viewType, title, options, state, {}, extensionLocation, {
-			canRevive: (webview) => {
+			canRevive: (_webview) => {
 				return true;
 			},
 			reviveWebview: async (webview: WebviewEditorInput): TPromise<void> => {
