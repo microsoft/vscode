@@ -54,6 +54,7 @@
 
 .monaco-action-bar .action-label {
 	font-size: 11px;
+	margin-right: 4px;  
 }
 
 .monaco-action-bar .action-label.octicon {
@@ -103,7 +104,6 @@
 	flex: 1;
 	max-width: 170px;
 	min-width: 60px;
-	margin: 0 4px; /* match spacing for action icons */
 	display: flex;
 	align-items: center;
 	justify-content: center;
