@@ -27,6 +27,7 @@ import { INewFindReplaceState, FindOptionOverride } from 'vs/editor/contrib/find
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 
 export class InsertCursorAbove extends EditorAction {
+
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorAbove',
@@ -45,6 +46,7 @@ export class InsertCursorAbove extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const useLogicalLine = (args && args.logicalLine === true);
 		const cursors = editor._getCursors();
 		const context = cursors.context;
 
@@ -56,13 +58,14 @@ export class InsertCursorAbove extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorUp(context, cursors.getAll())
+			CursorMoveCommands.addCursorUp(context, cursors.getAll(), useLogicalLine)
 		);
 		cursors.reveal(true, RevealTarget.TopMost, ScrollType.Smooth);
 	}
 }
 
 export class InsertCursorBelow extends EditorAction {
+
 	constructor() {
 		super({
 			id: 'editor.action.insertCursorBelow',
@@ -81,6 +84,7 @@ export class InsertCursorBelow extends EditorAction {
 	}
 
 	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+		const useLogicalLine = (args && args.logicalLine === true);
 		const cursors = editor._getCursors();
 		const context = cursors.context;
 
@@ -92,7 +96,7 @@ export class InsertCursorBelow extends EditorAction {
 		cursors.setStates(
 			args.source,
 			CursorChangeReason.Explicit,
-			CursorMoveCommands.addCursorDown(context, cursors.getAll())
+			CursorMoveCommands.addCursorDown(context, cursors.getAll(), useLogicalLine)
 		);
 		cursors.reveal(true, RevealTarget.BottomMost, ScrollType.Smooth);
 	}
