@@ -895,6 +895,16 @@
           "description": "%config.autofetch%",
           "default": false
         },
+        "git.createBranchNameConvention.regexp": {
+          "type": "string",
+          "description": "%config.createBranchNameConvention.regexp%",
+          "default": ""
+        },
+        "git.createBranchWhitespaceChar": {
+          "type": "string",
+          "description": "%config.createBranchWhitespaceChar%",
+          "default": "-"
+        },
         "git.confirmSync": {
           "type": "boolean",
           "description": "%config.confirmSync%",

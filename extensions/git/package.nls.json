@@ -54,6 +54,8 @@
 	"config.autoRepositoryDetection": "Whether repositories should be automatically detected",
 	"config.autorefresh": "Whether auto refreshing is enabled",
 	"config.autofetch": "Whether auto fetching is enabled",
+	"config.createBranchNameConvention.regexp": "The regex that is used to match create branch against convention.",
+	"config.createBranchWhitespaceChar": "The char to replace whitespace in branch name when creating branch.",
 	"config.enableLongCommitWarning": "Whether long commit messages should be warned about",
 	"config.confirmSync": "Confirm before synchronizing git repositories",
 	"config.countBadge": "Controls the git badge counter. `all` counts all changes. `tracked` counts only the tracked changes. `off` turns it off.",
