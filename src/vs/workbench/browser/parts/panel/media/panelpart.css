@@ -46,7 +46,7 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 30px;
+	line-height: 28px; /* matches panel titles in settings */
 	height: 35px;
 }
 
@@ -56,8 +56,8 @@
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar .action-item {
 	text-transform: uppercase;
-	padding-left: 16px;
-	padding-right: 16px;
+	padding-left: 6px;
+	padding-right: 10px;
 	font-size: 11px;
 	padding-bottom: 3px; /* puts the bottom border down */
 	padding-top: 2px;
@@ -89,7 +89,7 @@
 .monaco-workbench .panel .monaco-action-bar .action-item .monaco-select-box {
 	cursor: pointer;
 	min-width: 110px;
-	margin: 0 4px; /* match spacing for action icons */
+	margin-right: 10px;
 }
 
 .monaco-workbench .hide-panel-action {
