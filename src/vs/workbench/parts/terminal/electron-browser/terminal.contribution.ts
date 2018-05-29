@@ -186,7 +186,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['auto', 'canvas', 'dom'],
 			default: 'auto',
-			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered, the options are \"canvas\" for the standard canvas renderer, \"dom\" for the fallback DOM-based renderer or \"auto\" which lets VS Code guess which will be best. This setting needs VS Code to reload in order to take effect for new terminals.")
+			description: nls.localize('terminal.integrated.rendererType', "Controls how the terminal is rendered, the options are \"canvas\" for the standard (fast) canvas renderer, \"dom\" for the fallback DOM-based renderer or \"auto\" which lets VS Code guess which will be best. This setting needs VS Code to reload in order to take effect.")
 		},
 		'terminal.integrated.rightClickBehavior': {
 			'type': 'string',
