@@ -151,11 +151,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
-		if (webview.isDisposed()) {
+		if (webview.isDisposed() || !webview.state) {
 			return false;
 		}
 
-		return (this._revivers.has(webview.viewType) || webview.reviver !== null);
+		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {
