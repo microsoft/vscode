@@ -5937,9 +5937,9 @@ declare module 'vscode' {
 		 * Only a single serializer may be registered at a time for a given `viewType`.
 		 *
 		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param reviver Webview serializer.
+		 * @param serializer Webview serializer.
 		 */
-		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
+		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
 
 		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
