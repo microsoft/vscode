@@ -21,6 +21,8 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 
 interface CustomMenu {
 	title: string;
@@ -45,14 +47,16 @@ export class MenubarPart extends Part {
 		[index: string]: IMenu;
 	};
 
-	private customMenus: {
-		[title: string]: CustomMenu;
-	} = {};
+	private focusedMenu: {
+		index: number;
+		holder: Builder;
+		widget: Menu;
+	};
+
+	private customMenus: CustomMenu[];
 
 	private actionRunner: IActionRunner;
 	private container: Builder;
-	private displayedMenu: Builder;
-	private displayedMenuWidget: Menu;
 	private isFocused: boolean;
 
 	constructor(
@@ -69,14 +73,14 @@ export class MenubarPart extends Part {
 		this.topLevelMenus = {
 			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
 			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
-			'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
-			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
-			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
-			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
-			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
-			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
+			// 'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
+			// 'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
+			// 'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
+			// 'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
+			// 'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
+			// 'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
 			'Preferences': this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService),
-			'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
+			// 'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
 		};
 
 		if (isMacintosh) {
@@ -85,8 +89,8 @@ export class MenubarPart extends Part {
 
 		this.actionRunner = new ActionRunner();
 		this.actionRunner.onDidBeforeRun(() => {
-			if (this.displayedMenu) {
-				this.displayedMenu.hide();
+			if (this.focusedMenu && this.focusedMenu.holder) {
+				this.focusedMenu.holder.hide();
 			}
 		});
 
@@ -104,20 +108,26 @@ export class MenubarPart extends Part {
 	}
 
 	private setupCustomMenubar(): void {
+		this.customMenus = [];
+		let idx = 0;
+
 		for (let menuTitle of Object.keys(this.topLevelMenus)) {
 			const menu: IMenu = this.topLevelMenus[menuTitle];
+
+			let menuIndex = idx++;
 
 			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
 			$(titleElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
 
-			this.customMenus[menuTitle] = {
+
+			this.customMenus.push({
 				title: menuTitle,
 				titleElement: titleElement
-			};
+			});
 
 			// Update cached actions array for CustomMenus
 			const updateActions = () => {
-				this.customMenus[menuTitle].actions = [];
+				this.customMenus[menuIndex].actions = [];
 				let groups = menu.getActions();
 				for (let group of groups) {
 					const [, actions] = group;
@@ -126,11 +136,11 @@ export class MenubarPart extends Part {
 						action.label = action.label.replace(/\(&&\w\)|&&/g, '');
 					});
 
-					this.customMenus[menuTitle].actions.push(...actions);
-					this.customMenus[menuTitle].actions.push(new Separator());
+					this.customMenus[menuIndex].actions.push(...actions);
+					this.customMenus[menuIndex].actions.push(new Separator());
 				}
 
-				this.customMenus[menuTitle].actions.pop();
+				this.customMenus[menuIndex].actions.pop();
 			};
 
 			menu.onDidChange(updateActions);
@@ -140,28 +150,73 @@ export class MenubarPart extends Part {
 			// 	this.showMenu(menuTitle);
 			// });
 
-
-			this.customMenus[menuTitle].titleElement.on(EventType.CLICK, () => {
-				this.toggleCustomMenu(menuTitle);
+			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
+				this.toggleCustomMenu(menuIndex);
 				this.isFocused = !this.isFocused;
 			});
 
-			this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseenter = () => {
-				if (this.isFocused && !this.isCurrentMenu(menuTitle)) {
-					this.toggleCustomMenu(menuTitle);
+			this.customMenus[menuIndex].titleElement.getHTMLElement().onmouseenter = () => {
+				if (this.isFocused && !this.isCurrentMenu(menuIndex)) {
+					this.toggleCustomMenu(menuIndex);
 				}
 			};
 
-			this.customMenus[menuTitle].titleElement.getHTMLElement().onmouseleave = () => {
+			this.customMenus[menuIndex].titleElement.getHTMLElement().onmouseleave = () => {
 				if (!this.isFocused) {
 					this.cleanupCustomMenu();
 				}
 			};
 
-			this.customMenus[menuTitle].titleElement.getHTMLElement().onblur = () => {
+			this.customMenus[menuIndex].titleElement.getHTMLElement().onblur = () => {
 				this.cleanupCustomMenu();
 			};
 		}
+
+		$(this.container).on(EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			let eventHandled = true;
+
+			if (event.equals(KeyCode.LeftArrow)) {
+				this.focusPrevious();
+			} else if (event.equals(KeyCode.RightArrow)) {
+				this.focusNext();
+			} else {
+				eventHandled = false;
+			}
+
+			if (eventHandled) {
+				event.preventDefault();
+				event.stopPropagation();
+			}
+		});
+	}
+
+	private focusPrevious(): void {
+		if (!this.focusedMenu) {
+			return;
+		}
+
+		let newFocusedIndex = (this.focusedMenu.index - 1 + this.customMenus.length) % this.customMenus.length;
+
+		if (newFocusedIndex === this.focusedMenu.index) {
+			return;
+		}
+
+		this.toggleCustomMenu(newFocusedIndex);
+	}
+
+	private focusNext(): void {
+		if (!this.focusedMenu) {
+			return;
+		}
+
+		let newFocusedIndex = (this.focusedMenu.index + 1) % this.customMenus.length;
+
+		if (newFocusedIndex === this.focusedMenu.index) {
+			return;
+		}
+
+		this.toggleCustomMenu(newFocusedIndex);
 	}
 
 	private getMenubarMenus(): IMenubarData {
@@ -197,33 +252,35 @@ export class MenubarPart extends Part {
 		return ret;
 	}
 
-	private isCurrentMenu(menuTitle: string): boolean {
-		if (!this.displayedMenu) {
+	private isCurrentMenu(menuIndex: number): boolean {
+		if (!this.focusedMenu) {
 			return false;
 		}
 
-		return this.displayedMenu.getHTMLElement().parentNode === this.customMenus[menuTitle].titleElement.getHTMLElement();
+		return this.focusedMenu.index === menuIndex;
 	}
 
 	private cleanupCustomMenu(): void {
-		if (this.displayedMenu) {
-			$(this.displayedMenu.getHTMLElement().parentElement).removeClass('open');
-			this.displayedMenu.dispose();
+		if (this.focusedMenu) {
+
+			if (this.focusedMenu.holder) {
+				$(this.focusedMenu.holder.getHTMLElement().parentElement).removeClass('open');
+				this.focusedMenu.holder.dispose();
+			}
+
+			if (this.focusedMenu.widget) {
+				this.focusedMenu.widget.dispose();
+			}
 		}
 
-		if (this.displayedMenuWidget) {
-			this.displayedMenuWidget.dispose();
-		}
-
-		this.displayedMenu = null;
-		this.displayedMenuWidget = null;
+		this.focusedMenu = null;
 	}
 
-	private toggleCustomMenu(title: string): void {
-		const customMenu = this.customMenus[title];
+	private toggleCustomMenu(menuIndex: number): void {
+		const customMenu = this.customMenus[menuIndex];
 
-		if (this.displayedMenu) {
-			let hiding: boolean = this.isCurrentMenu(title);
+		if (this.focusedMenu) {
+			let hiding: boolean = this.isCurrentMenu(menuIndex);
 
 			// Need to cleanup currently displayed menu
 			this.cleanupCustomMenu();
@@ -234,12 +291,12 @@ export class MenubarPart extends Part {
 			}
 		}
 
-		this.displayedMenu = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
+		let menuHolder = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
 
-		$(this.displayedMenu.getHTMLElement().parentElement).addClass('open');
+		$(menuHolder.getHTMLElement().parentElement).addClass('open');
 
-		this.displayedMenu.addClass('menubar-menu-items-holder-open');
-		this.displayedMenu.style({
+		menuHolder.addClass('menubar-menu-items-holder-open');
+		menuHolder.style({
 			'background-color': this.getColor(ACTIVITY_BAR_BACKGROUND),
 			'color': this.getColor(ACTIVITY_BAR_FOREGROUND)
 		});
@@ -248,31 +305,27 @@ export class MenubarPart extends Part {
 			getKeyBinding: (action) => { return this.keybindingService.lookupKeybinding(action.id); }
 		};
 
-		this.displayedMenuWidget = new Menu(this.displayedMenu.getHTMLElement(), customMenu.actions, menuOptions);
+		let menuWidget = new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions);
 
-		this.displayedMenuWidget.onDidCancel(() => {
+		menuWidget.onDidCancel(() => {
 			this.cleanupCustomMenu();
 			this.isFocused = false;
 		});
 
-		this.displayedMenuWidget.onDidBlur(() => {
+		menuWidget.onDidBlur(() => {
 			setTimeout(() => {
 				this.cleanupCustomMenu();
 				this.isFocused = false;
 			}, 100);
 		});
 
-		this.displayedMenuWidget.focus();
+		menuWidget.focus();
 
-		// let boundingRect = this.menus[title].element.getHTMLElement().getBoundingClientRect();
-		// console.log(this.menus[title].actions);
-
-		// this.contextMenuService.showContextMenu({
-		// 	getAnchor: () => ({ x: boundingRect.left, y: boundingRect.bottom }),
-		// 	getActions: () => TPromise.as(
-		// 		this.menus[title].actions
-		// 	)
-		// });
+		this.focusedMenu = {
+			index: menuIndex,
+			holder: menuHolder,
+			widget: menuWidget
+		};
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {
