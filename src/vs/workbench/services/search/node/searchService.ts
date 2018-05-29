@@ -133,6 +133,10 @@ export class SearchService implements ISearchService {
 									results: arrays.flatten(completes.map(c => c.results))
 								};
 							}, errs => {
+								if (!Array.isArray(errs)) {
+									errs = [errs];
+								}
+
 								errs = errs.filter(e => !!e);
 								return TPromise.wrapError(errs[0]);
 							});
