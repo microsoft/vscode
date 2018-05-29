@@ -134,11 +134,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			let state;
-			try {
-				state = JSON.parse(webview.state.state);
-			} catch {
-				state = {};
+			let state = undefined;
+			if (webview.state.state) {
+				try {
+					state = JSON.parse(webview.state.state);
+				} catch {
+					// noop
+				}
 			}
 
 			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, webview.position, webview.options)
