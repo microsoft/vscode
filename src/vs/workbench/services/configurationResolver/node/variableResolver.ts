@@ -6,7 +6,7 @@
 import * as paths from 'vs/base/common/paths';
 import * as types from 'vs/base/common/types';
 import { IStringDictionary } from 'vs/base/common/collections';
-import { relative } from 'path';
+import { dirname, join, relative } from 'path';
 import { IProcessEnvironment, isWindows } from 'vs/base/common/platform';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { localize } from 'vs/nls';
@@ -65,10 +65,14 @@ export class VariableResolver {
 		return value.replace(VariableResolver.VARIABLE_REGEXP, (match: string, variable: string) => {
 
 			let argument: string;
+			let secondaryArgument: string;
 			const parts = variable.split(':');
 			if (parts && parts.length > 1) {
 				variable = parts[0];
 				argument = parts[1];
+				if (parts.length > 2) {
+					secondaryArgument = parts[2];
+				}
 			}
 
 			switch (variable) {
@@ -119,6 +123,7 @@ export class VariableResolver {
 						case 'workspaceRootFolderName':
 						case 'workspaceFolderBasename':
 						case 'relativeFile':
+						case 'relativePath':
 							if (argument) {
 								const folder = this.accessor.getFolderUri(argument);
 								if (folder) {
@@ -142,6 +147,7 @@ export class VariableResolver {
 					switch (variable) {
 						case 'file':
 						case 'relativeFile':
+						case 'relativePath':
 						case 'fileDirname':
 						case 'fileExtname':
 						case 'fileBasename':
@@ -188,6 +194,17 @@ export class VariableResolver {
 								return paths.normalize(relative(folderUri.fsPath, filePath));
 							}
 							return filePath;
+
+						case 'relativePath':
+							const directory = dirname(filePath);
+							if (folderUri) {
+								if (secondaryArgument) {
+									const fromPath = paths.normalize(secondaryArgument);
+									return paths.normalize(relative(join(folderUri.fsPath, fromPath), directory));
+								}
+								return paths.normalize(relative(folderUri.fsPath, directory));
+							}
+							return directory;
 
 						case 'fileDirname':
 							return paths.dirname(filePath);
