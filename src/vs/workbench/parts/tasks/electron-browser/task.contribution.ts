@@ -538,7 +538,7 @@ class TaskService implements ITaskService {
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
-			this.runTerminateCommand();
+			this.runTerminateCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
@@ -1920,7 +1920,7 @@ class TaskService implements ITaskService {
 			this.showQuickPick(tasks ? tasks : this.tasks(),
 				nls.localize('TaskService.pickRunTask', 'Select the task to run'),
 				{
-					label: nls.localize('TaslService.noEntryToRun', 'No task to run found. Configure Tasks...'),
+					label: nls.localize('TaskService.noEntryToRun', 'No task to run found. Configure Tasks...'),
 					task: null
 				},
 				true).
@@ -2041,71 +2041,83 @@ class TaskService implements ITaskService {
 		this.progressService.withProgress(options, () => promise);
 	}
 
-	private runTerminateCommand(): void {
+	private runTerminateCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
+
+		const handleTerminateResponse = (response: TaskTerminateResponse) => {
+			if (!response.success) {
+				if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
+					this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
+				} else {
+					this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
+				}
+			}
+		};
+
+		this.getActiveTasks().then((activeTasks) => {
+			if (Types.isString(arg)) {
+				for (const task of activeTasks) {
+					if (Task.matches(task, arg)) {
+						this.terminate(task).then(handleTerminateResponse);
+						return;
+					}
+				}
+			}
+			// if we are in the old task system (0.1.0), terminate the running task if no arg was passed
+			if (!this.inTerminal() && activeTasks.length === 1 && !Types.isString(arg)) {
+				this.terminate(activeTasks[0]).then(handleTerminateResponse);
+				return;
+			}
+			this.showQuickPick(activeTasks,
+				nls.localize('TaskService.taskToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
 					task: null
 				},
 				false, true
-			).then(task => {
+			).then((task) => {
 				if (task === void 0 || task === null) {
 					return;
 				}
-				this.terminate(task);
+				this.terminate(task).then(handleTerminateResponse);
 			});
-		} else {
-			this.isActive().then((active) => {
-				if (active) {
-					this.terminateAll().then((responses) => {
-						// the output runner has only one task
-						let response = responses[0];
-						if (response.success) {
-							return;
-						}
-						if (response.code && response.code === TerminateResponseCode.ProcessNotFound) {
-							this.notificationService.error(nls.localize('TerminateAction.noProcess', 'The launched process doesn\'t exist anymore. If the task spawned background tasks exiting VS Code might result in orphaned processes.'));
-						} else {
-							this.notificationService.error(nls.localize('TerminateAction.failed', 'Failed to terminate running task'));
-						}
-					});
-				}
-			});
-		}
+		});
 	}
 
 	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
-				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
+		this.getActiveTasks().then((activeTasks) => {
+			if (Types.isString(arg)) {
+				for (const task of activeTasks) {
+					if (Task.matches(task, arg)) {
+						this.restart(task);
+						return;
+					}
+				}
+			}
+			// if we are in the old task system (0.1.0), restart the running task if no arg was passed
+			if (!this.inTerminal() && activeTasks.length === 1 && !Types.isString(arg)) {
+				this.restart(activeTasks[0]);
+				return;
+			}
+			this.showQuickPick(activeTasks,
+				nls.localize('TaskService.taskToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
 					task: null
 				},
 				false, true
-			).then(task => {
+			).then((task) => {
 				if (task === void 0 || task === null) {
 					return;
 				}
 				this.restart(task);
 			});
-		} else {
-			this.getActiveTasks().then((activeTasks) => {
-				if (activeTasks.length === 0) {
-					return;
-				}
-				let task = activeTasks[0];
-				this.restart(task);
-			});
-		}
+		});
 	}
 
 	private runConfigureTasks(): void {
