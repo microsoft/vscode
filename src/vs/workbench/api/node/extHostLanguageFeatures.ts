@@ -66,6 +66,8 @@ class OutlineAdapter {
 		for (let i = 0; i < info.length; i++) {
 			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
 			element.parent.containerName = info[i].containerName;
+			element.parent.location = info[i].location; // todo@joh make this proper
+
 			while (true) {
 				if (parentStack.length === 0) {
 					parentStack.push(element);
