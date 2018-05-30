@@ -991,7 +991,7 @@ registerThemingParticipant((theme, collector) => {
 				position: absolute;
 				top: 0;
 				left: 0;
-				z-index: 100;
+				z-index: 5;
 				pointer-events: none;
 				background: ${groupBorderColor}
 			}
