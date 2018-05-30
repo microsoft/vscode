@@ -8,9 +8,11 @@ import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
 
 export function activate(): void {
-	const outputChannel = vscode.window.createOutputChannel('search-rg');
-	const provider = new RipgrepSearchProvider(outputChannel);
-	vscode.workspace.registerSearchProvider('file', provider);
+	if (vscode.workspace.getConfiguration('searchrg').get('enable')) {
+		const outputChannel = vscode.window.createOutputChannel('search-rg');
+		const provider = new RipgrepSearchProvider(outputChannel);
+		vscode.workspace.registerSearchProvider('file', provider);
+	}
 }
 
 class RipgrepSearchProvider implements vscode.SearchProvider {

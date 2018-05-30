@@ -18,7 +18,7 @@
 			"name": "Attach to Extension Host",
 			"protocol": "inspector",
 			"port": 5870,
-			// "restart": true,
+			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]

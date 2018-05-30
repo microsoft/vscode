@@ -142,11 +142,13 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			this._webviews.set(handle, webview);
 			webview._events = this.createWebviewEventDelegate(handle);
 
-			let state;
-			try {
-				state = JSON.parse(webview.state.state);
-			} catch {
-				state = {};
+			let state = undefined;
+			if (webview.state.state) {
+				try {
+					state = JSON.parse(webview.state.state);
+				} catch {
+					// noop
+				}
 			}
 
 			return this._proxy.$deserializeWebviewPanel(handle, webview.state.viewType, webview.getTitle(), state, editorGroupToViewColumn(this._editorGroupService, webview.group), webview.options)
@@ -157,11 +159,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	canRevive(webview: WebviewEditorInput): boolean {
-		if (webview.isDisposed()) {
+		if (webview.isDisposed() || !webview.state) {
 			return false;
 		}
 
-		return (this._revivers.has(webview.viewType) || webview.reviver !== null);
+		return this._revivers.has(webview.state.viewType) || !!webview.reviver;
 	}
 
 	private _onWillShutdown(): TPromise<boolean> {

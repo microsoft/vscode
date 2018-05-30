@@ -190,7 +190,6 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
-	enableSearchProviders: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

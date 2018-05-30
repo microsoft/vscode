@@ -65,6 +65,7 @@ class OutlineAdapter {
 		let parentStack: Hierarchy<SymbolInformation2>[] = [];
 		for (let i = 0; i < info.length; i++) {
 			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
+			element.parent.containerName = info[i].containerName;
 			while (true) {
 				if (parentStack.length === 0) {
 					parentStack.push(element);
@@ -72,7 +73,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (parent.parent.range.contains(element.parent.range)) {
+				if (parent.parent.range.contains(element.parent.range) && !parent.parent.range.isEqual(element.parent.range)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;

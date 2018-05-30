@@ -56,6 +56,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
+	private searchInProgress: TPromise<void>;
 
 	private pendingSettingModifiedReport: { key: string, value: any };
 
@@ -425,14 +426,18 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private triggerSearch(query: string): TPromise<void> {
 		if (query) {
-			return TPromise.join([
+			return this.searchInProgress = TPromise.join([
 				this.localSearchDelayer.trigger(() => this.localFilterPreferences(query)),
 				this.remoteSearchThrottle.trigger(() => this.remoteSearchPreferences(query), 500)
-			]) as TPromise;
+			]).then(() => {
+				this.searchInProgress = null;
+			});
 		} else {
-			// When clearing the input, update immediately to clear it
 			this.localSearchDelayer.cancel();
 			this.remoteSearchThrottle.cancel();
+			if (this.searchInProgress && this.searchInProgress.cancel) {
+				this.searchInProgress.cancel();
+			}
 
 			this.searchResultModel = null;
 			this.settingsTree.setInput(this.defaultSettingsEditorModel);
@@ -496,15 +501,25 @@ export class SettingsEditor2 extends BaseEditor {
 	private filterOrSearchPreferences(query: string, type: SearchResultIdx, searchProvider: ISearchProvider): TPromise<void> {
 		const filterPs: TPromise<ISearchResult>[] = [this._filterOrSearchPreferencesModel(query, this.defaultSettingsEditorModel, searchProvider)];
 
-		return TPromise.join(filterPs).then(results => {
-			const [result] = results;
-			if (!this.searchResultModel) {
-				this.searchResultModel = new SearchResultModel();
-				this.settingsTree.setInput(this.searchResultModel);
-			}
+		let isCanceled = false;
+		return new TPromise(resolve => {
+			return TPromise.join(filterPs).then(results => {
+				if (isCanceled) {
+					// Handle cancellation like this because cancellation is lost inside the search provider due to async/await
+					return null;
+				}
 
-			this.searchResultModel.setResult(type, result);
-			return this.refreshTreeAndMaintainFocus();
+				const [result] = results;
+				if (!this.searchResultModel) {
+					this.searchResultModel = new SearchResultModel();
+					this.settingsTree.setInput(this.searchResultModel);
+				}
+
+				this.searchResultModel.setResult(type, result);
+				resolve(this.refreshTreeAndMaintainFocus());
+			});
+		}, () => {
+			isCanceled = true;
 		});
 	}
 
