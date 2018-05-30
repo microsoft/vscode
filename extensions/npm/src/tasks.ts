@@ -58,7 +58,7 @@ function getPrePostScripts(scripts: any): Set<string> {
 		const script = keys[i];
 		const prepost = ['pre' + script, 'post' + script];
 		prepost.forEach(each => {
-			if (scripts[each] !== undefined) {
+			if (scripts[each]) {
 				prePostScripts.add(each);
 			}
 		});
@@ -142,15 +142,16 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	}
 
 	let exclude = workspace.getConfiguration('npm', folder.uri).get<string | string[]>('exclude');
+	let packageJsonFolder = path.dirname(packageJsonUri.fsPath);
 
 	if (exclude) {
 		if (Array.isArray(exclude)) {
 			for (let pattern of exclude) {
-				if (testForExclusionPattern(packageJsonUri.fsPath, pattern)) {
+				if (testForExclusionPattern(packageJsonFolder, pattern)) {
 					return true;
 				}
 			}
-		} else if (testForExclusionPattern(packageJsonUri.fsPath, exclude)) {
+		} else if (testForExclusionPattern(packageJsonFolder, exclude)) {
 			return true;
 		}
 	}
