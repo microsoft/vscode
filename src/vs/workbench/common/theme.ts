@@ -117,6 +117,12 @@ export const TAB_UNFOCUSED_INACTIVE_FOREGROUND = registerColor('tab.unfocusedIna
 
 // < --- Editors --- >
 
+registerColor('editorGroup.background', {
+	dark: null,
+	light: null,
+	hc: null
+}, nls.localize('editorGroupBackground', "Deprecated background color of an editor group."), false, nls.localize('deprecatedEditorGroupBackground', "Deprecated: Background color of an editor group is no longer being supported with the introduction of the grid editor lyout. You can use editorGroup.emptyBackground to set the background color of empty editor groups."));
+
 export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBackground', {
 	dark: null,
 	light: null,
