@@ -29,7 +29,7 @@ import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import {
 	CloseEditorsInOtherGroupsAction, CloseAllEditorsAction, MoveGroupLeftAction, MoveGroupRightAction, SplitEditorAction, JoinTwoGroupsAction, OpenToSideFromQuickOpenAction, RevertAndCloseEditorAction,
-	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, EvenGroupWidthsAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
+	NavigateBetweenGroupsAction, FocusActiveGroupAction, FocusFirstGroupAction, ResetGroupSizesAction, MaximizeGroupAction, MinimizeOtherGroupsAction, FocusPreviousGroup, FocusNextGroup,
 	toEditorQuickOpenEntry, CloseLeftEditorsInGroupAction, OpenNextEditor, OpenPreviousEditor, NavigateBackwardsAction, NavigateForwardAction, NavigateLastAction, ReopenClosedEditorAction,
 	OpenPreviousRecentlyUsedEditorInGroupAction, OpenPreviousEditorFromHistoryAction, ShowAllEditorsAction, ClearEditorHistoryAction, MoveEditorRightInGroupAction, OpenNextEditorInGroup,
 	OpenPreviousEditorInGroup, OpenNextRecentlyUsedEditorAction, OpenPreviousRecentlyUsedEditorAction, OpenNextRecentlyUsedEditorInGroupAction, MoveEditorToPreviousGroupAction,
@@ -326,7 +326,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorDownAction,
 registry.registerWorkbenchAction(new SyncActionDescriptor(JoinTwoGroupsAction, JoinTwoGroupsAction.ID, JoinTwoGroupsAction.LABEL), 'View: Join Editors of Two Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(JoinAllGroupsAction, JoinAllGroupsAction.ID, JoinAllGroupsAction.LABEL), 'View: Join Editors of All Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsAction, NavigateBetweenGroupsAction.ID, NavigateBetweenGroupsAction.LABEL), 'View: Navigate Between Editor Groups', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EvenGroupWidthsAction, EvenGroupWidthsAction.ID, EvenGroupWidthsAction.LABEL), 'View: Even Editor Group Widths', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ResetGroupSizesAction, ResetGroupSizesAction.ID, ResetGroupSizesAction.LABEL), 'View: Reset Editor Group Sizes', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorLeftInGroupAction, MoveEditorLeftInGroupAction.ID, MoveEditorLeftInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow) } }), 'View: Move Editor Left', category);

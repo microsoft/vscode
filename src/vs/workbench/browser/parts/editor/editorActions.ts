@@ -767,10 +767,10 @@ export class MinimizeOtherGroupsAction extends Action {
 	}
 }
 
-export class EvenGroupWidthsAction extends Action {
+export class ResetGroupSizesAction extends Action {
 
 	public static readonly ID = 'workbench.action.evenEditorWidths';
-	public static readonly LABEL = nls.localize('evenEditorGroups', "Even Editor Group Widths");
+	public static readonly LABEL = nls.localize('evenEditorGroups', "Reset Editor Group Sizes");
 
 	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
 		super(id, label);
