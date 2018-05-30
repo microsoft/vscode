@@ -143,7 +143,7 @@ export class SplitEditorDownAction extends ExecuteCommandAction {
 export class JoinTwoGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.joinTwoGroups';
-	public static readonly LABEL = nls.localize('joinTwoGroups', "Join Editors of Two Groups");
+	public static readonly LABEL = nls.localize('joinTwoGroups', "Join Editor Group with Next Group");
 
 	constructor(
 		id: string,
@@ -161,12 +161,7 @@ export class JoinTwoGroupsAction extends Action {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroup =
-			this.editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup) ||
-			this.editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup) ||
-			this.editorGroupService.findGroup({ direction: GroupDirection.UP }, sourceGroup) ||
-			this.editorGroupService.findGroup({ direction: GroupDirection.LEFT }, sourceGroup);
-
+		const targetGroup = this.editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup) || this.editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
 		if (targetGroup && sourceGroup !== targetGroup) {
 			this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
 		}
@@ -178,7 +173,7 @@ export class JoinTwoGroupsAction extends Action {
 export class JoinAllGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.joinAllGroups';
-	public static readonly LABEL = nls.localize('joinAllGroups', "Join Editors of All Groups");
+	public static readonly LABEL = nls.localize('joinAllGroups', "Join All Editor Groups");
 
 	constructor(
 		id: string,
