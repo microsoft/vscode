@@ -420,7 +420,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const actions: IAction[] = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
