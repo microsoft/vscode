@@ -623,7 +623,7 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 
 export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 
-	public static readonly ID = 'workbench.action.closeAllEditorGroups';
+	public static readonly ID = 'workbench.action.closeAllGroups';
 	public static readonly LABEL = nls.localize('closeAllGroups', "Close All Editor Groups");
 
 	constructor(
@@ -1539,8 +1539,8 @@ export class BaseCreateEditorGroupAction extends Action {
 
 export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
 
-	public static readonly ID = 'workbench.action.newEditorGroupLeft';
-	public static readonly LABEL = nls.localize('newEditorGroupLeft', "New Editor Group to the Left");
+	public static readonly ID = 'workbench.action.newGroupLeft';
+	public static readonly LABEL = nls.localize('newEditorLeft', "New Editor Group to the Left");
 
 	constructor(
 		id: string,
@@ -1553,8 +1553,8 @@ export class NewEditorGroupLeftAction extends BaseCreateEditorGroupAction {
 
 export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
 
-	public static readonly ID = 'workbench.action.newEditorGroupRight';
-	public static readonly LABEL = nls.localize('newEditorGroupRight', "New Editor Group to the Right");
+	public static readonly ID = 'workbench.action.newGroupRight';
+	public static readonly LABEL = nls.localize('newEditorRight', "New Editor Group to the Right");
 
 	constructor(
 		id: string,
@@ -1567,8 +1567,8 @@ export class NewEditorGroupRightAction extends BaseCreateEditorGroupAction {
 
 export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
 
-	public static readonly ID = 'workbench.action.newEditorGroupAbove';
-	public static readonly LABEL = nls.localize('newEditorGroupAbove', "New Editor Group Above");
+	public static readonly ID = 'workbench.action.newGroupAbove';
+	public static readonly LABEL = nls.localize('newEditorAbove', "New Editor Group Above");
 
 	constructor(
 		id: string,
@@ -1581,8 +1581,8 @@ export class NewEditorGroupAboveAction extends BaseCreateEditorGroupAction {
 
 export class NewEditorGroupBelowAction extends BaseCreateEditorGroupAction {
 
-	public static readonly ID = 'workbench.action.newEditorGroupBelow';
-	public static readonly LABEL = nls.localize('newEditorGroupBelow', "New Editor Group Below");
+	public static readonly ID = 'workbench.action.newGroupBelow';
+	public static readonly LABEL = nls.localize('newEditorBelow', "New Editor Group Below");
 
 	constructor(
 		id: string,
