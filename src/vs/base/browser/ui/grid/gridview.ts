@@ -466,12 +466,20 @@ export class GridView implements IDisposable {
 
 		const sibling = parent.children[0];
 		parent.removeChild(0);
+
+		const sizes = grandParent.children.map(c => c.size);
 		grandParent.removeChild(parentIndex, sizing);
 
 		if (sibling instanceof BranchNode) {
+			sizes.splice(parentIndex, 1, ...sibling.children.map(c => c.size));
+
 			for (let i = 0; i < sibling.children.length; i++) {
 				const child = sibling.children[i];
 				grandParent.addChild(child, child.size, parentIndex + i);
+			}
+
+			for (let i = 0; i < sizes.length; i++) {
+				grandParent.resizeChild(i, sizes[i]);
 			}
 		} else {
 			const newSibling = new LeafNode(sibling.view, orthogonal(sibling.orientation), sibling.size);
