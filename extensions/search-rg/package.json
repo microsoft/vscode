@@ -27,5 +27,16 @@
     "*"
   ],
   "main": "./out/extension",
-  "contributes": {}
+  "contributes": {
+    "configuration": {
+      "title": "Search (ripgrep)",
+      "properties": {
+        "searchrg.enable": {
+          "type": "boolean",
+          "default": false,
+          "scope": "window"
+        }
+      }
+    }
+  }
 }
