@@ -7,9 +7,9 @@ import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
 import { getNode, parseDocument, validate } from './util';
 
-let balanceStack: Array<vscode.Selection[]> = [];
-let beforeEmmetSelection: vscode.Selection[];
+let balanceOutStack: Array<vscode.Selection[]> = [];
 let lastOut = false;
+let lastBalancedSelections: vscode.Selection[] = [];
 
 export function balanceOut() {
 	balance(true);
@@ -29,28 +29,35 @@ function balance(out: boolean) {
 		return;
 	}
 
-	if(out) {
-		if(balanceStack.length === 0) {
-			beforeEmmetSelection = editor.selections;
-		}
+	let getRangeFunction = out ? getRangeToBalanceOut : getRangeToBalanceIn;
+	let newSelections: vscode.Selection[] = [];
+	editor.selections.forEach(selection => {
+		let range = getRangeFunction(editor.document, selection, rootNode);
+		newSelections.push(range);
+	});
 
-		let newSelections: vscode.Selection[] = [];
-		editor.selections.forEach(selection => {
-			let range = getRangeToBalanceOut(editor.document, selection, rootNode);
-			newSelections.push(range);
-		});
-
-		editor.selections = newSelections;
-		balanceStack.push(newSelections);
-		lastOut = true;
-	} else {
-		if(lastOut) {
-			balanceStack.pop();
-			lastOut = false;
-		}
-		let oldSelections = balanceStack.pop() || beforeEmmetSelection;
-		editor.selections = oldSelections;
+	if (areSameSelections(newSelections, editor.selections)) {
+		return;
 	}
+
+	if (areSameSelections(lastBalancedSelections, editor.selections)) {
+		if (out) {
+			if (!balanceOutStack.length) {
+				balanceOutStack.push(editor.selections);
+			}
+			balanceOutStack.push(newSelections);
+		} else {
+			if (lastOut) {
+				balanceOutStack.pop();
+			}
+			newSelections = balanceOutStack.pop() || newSelections;
+		}
+	} else {
+		balanceOutStack = out ? [editor.selections, newSelections] : [];
+	}
+
+	lastOut = out;
+	lastBalancedSelections = editor.selections = newSelections;
 }
 
 function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
@@ -72,4 +79,42 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 		return outerSelection;
 	}
 	return selection;
+}
+
+function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
+	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start, true);
+	if (!nodeToBalance) {
+		return selection;
+	}
+
+	if (selection.start.isEqual(nodeToBalance.start)
+		&& selection.end.isEqual(nodeToBalance.end)
+		&& nodeToBalance.close) {
+		return new vscode.Selection(nodeToBalance.open.end, nodeToBalance.close.start);
+	}
+
+	if (!nodeToBalance.firstChild) {
+		return selection;
+	}
+
+	if (selection.start.isEqual(nodeToBalance.firstChild.start)
+		&& selection.end.isEqual(nodeToBalance.firstChild.end)
+		&& nodeToBalance.firstChild.close) {
+		return new vscode.Selection(nodeToBalance.firstChild.open.end, nodeToBalance.firstChild.close.start);
+	}
+
+	return new vscode.Selection(nodeToBalance.firstChild.start, nodeToBalance.firstChild.end);
+
+}
+
+function areSameSelections(a: vscode.Selection[], b: vscode.Selection[]): boolean {
+	if (a.length !== b.length) {
+		return false;
+	}
+	for (let i = 0; i < a.length; i++) {
+		if (!a[i].isEqual(b[i])) {
+			return false;
+		}
+	}
+	return true;
 }
