@@ -203,6 +203,16 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
+		// Workaround for Windows taskbar top. Otherwise, Electron may spawn the window with the titlebar underneath the taskbar.
+		const workAreaY = screen.getPrimaryDisplay().workArea.y;
+		if (isWindows && !isFullscreenOrMaximized && workAreaY > this._win.getPosition()[1]) {
+			try {
+				this._win.setPosition(this.windowState.x, workAreaY, false);
+			} catch (err) {
+				this.logService.warn(`Unexpected error fixing window position on Windows: ${err}\n${err.stack}`);
+			}
+		}
+
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
