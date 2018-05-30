@@ -24,10 +24,6 @@
 	opacity: 1; /* indicate active group through undimmed state */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.empty.active:focus {
-	outline: none; /* do not use outline for focus indication, rely on dimmed state via opacity */
-}
-
 /* Title */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {

@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BORDER } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
@@ -1349,4 +1349,27 @@ registerThemingParticipant((theme, collector, environment) => {
 			background-image: url('${join(environment.appRoot, letterpress)}')
 		}
 	`);
+
+	// Active Empty Group Border
+	const activeEmptyGroupBorder = theme.getColor(EDITOR_GROUP_ACTIVE_EMPTY_BORDER);
+	if (activeEmptyGroupBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active {
+				outline-width: 1px;
+				outline-color: ${activeEmptyGroupBorder};
+				outline-offset: -2px;
+				outline-style: solid;
+			}
+
+			.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty.active:focus {
+				outline: none; /* never show outline for empty group if it is the last */
+			}
+		`);
+	} else {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content .editor-group-container.empty.active:focus {
+				outline: none; /* disable focus outline unless active empty group border is defined */
+			}
+		`);
+	}
 });

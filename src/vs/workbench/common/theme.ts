@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
-import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, editorBackground, contrastBorder, transparent, editorWidgetBackground, textLinkForeground, lighten, darken, focusBorder } from 'vs/platform/theme/common/colorRegistry';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { IThemeService, ITheme } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
@@ -128,6 +128,12 @@ export const EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND = registerColor('editorGroup.a
 	light: EDITOR_GROUP_EMPTY_BACKGROUND,
 	hc: EDITOR_GROUP_EMPTY_BACKGROUND
 }, nls.localize('editorGroupActiveEmptyBackground', "Background color of an empty editor group that is active. Editor groups are the containers of editors."));
+
+export const EDITOR_GROUP_ACTIVE_EMPTY_BORDER = registerColor('editorGroup.activeEmptyBorder', {
+	dark: null,
+	light: null,
+	hc: focusBorder
+}, nls.localize('editorGroupActiveEmptyBorder', "Border color of an empty editor group that is active. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
 	dark: '#252526',
