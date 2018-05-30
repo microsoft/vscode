@@ -208,6 +208,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
 			}
 		}));
+
+		// Close editor group via middle mouse click
+		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
+			if (e.target === this.element && e.button === 1 /* Middle Button */) {
+				EventHelper.stop(e);
+
+				this.accessor.removeGroup(this);
+			}
+		}));
 	}
 
 	private createContainerToolbar(): void {
