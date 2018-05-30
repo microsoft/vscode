@@ -99,6 +99,7 @@ class RequestOracle {
 		}
 
 		if (!codeEditor || !codeEditor.getModel()) {
+			this._lastState = undefined;
 			this._callback(undefined, undefined);
 			return;
 		}
