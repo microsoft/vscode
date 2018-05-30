@@ -23,7 +23,7 @@ import { OpenFolderAction, OpenFileFolderAction, OpenFileAction } from 'vs/workb
 import { ShowAllCommandsAction } from 'vs/workbench/parts/quickopen/browser/commandsHandler';
 import { Parts, IPartService, IDimension } from 'vs/workbench/services/part/common/partService';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { FindInFilesActionId } from 'vs/workbench/parts/search/common/constants';
+import { FindInFilesAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { ToggleTerminalAction } from 'vs/workbench/parts/terminal/electron-browser/terminalActions';
 import { escape } from 'vs/base/common/strings';
 import { QUICKOPEN_ACTION_ID } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -73,7 +73,7 @@ const toggleTerminal: WatermarkEntry = {
 
 const findInFiles: WatermarkEntry = {
 	text: nls.localize('watermark.findInFiles', "Find in Files"),
-	ids: [FindInFilesActionId]
+	ids: [FindInFilesAction.ID]
 };
 const startDebugging: WatermarkEntry = {
 	text: nls.localize('watermark.startDebugging', "Start Debugging"),
