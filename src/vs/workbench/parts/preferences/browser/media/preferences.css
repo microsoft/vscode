@@ -312,6 +312,10 @@
 	cursor: pointer;
 }
 
+.hc-black .monaco-editor .floating-click-widget {
+	background-color: rgb(14, 99, 156);
+}
+
 .title-actions .action-item .icon.collapseAll,
 .editor-actions .action-item .icon.collapseAll {
 	background: url('collapseAll.svg') center center no-repeat;
