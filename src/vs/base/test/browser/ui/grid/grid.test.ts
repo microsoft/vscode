@@ -264,6 +264,30 @@ suite('Grid', function () {
 		assert.deepEqual(view2.size, [200, 600]);
 		assert.deepEqual(view4.size, [200, 600]);
 	});
+
+	test('sizing should be correct after branch demotion #50675', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Distribute, view3, Direction.Right);
+		assert.deepEqual(view1.size, [800, 200]);
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(view3.size, [400, 200]);
+		assert.deepEqual(view4.size, [400, 200]);
+
+		grid.removeView(view3, Sizing.Distribute);
+		assert.deepEqual(view1.size, [800, 200]);
+		assert.deepEqual(view2.size, [800, 200]);
+		assert.deepEqual(view4.size, [800, 200]);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {
