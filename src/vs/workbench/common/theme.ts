@@ -129,11 +129,11 @@ export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBac
 	hc: null
 }, nls.localize('editorGroupEmptyBackground', "Background color of an empty editor group. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_ACTIVE_EMPTY_BORDER = registerColor('editorGroup.activeEmptyBorder', {
+export const EDITOR_GROUP_FOCUSED_EMPTY_BORDER = registerColor('editorGroup.focusedEmptyBorder', {
 	dark: null,
 	light: null,
 	hc: focusBorder
-}, nls.localize('editorGroupActiveEmptyBorder', "Border color of an empty editor group that is active. Editor groups are the containers of editors."));
+}, nls.localize('editorGroupFocusedEmptyBorder', "Border color of an empty editor group that is focused. Editor groups are the containers of editors."));
 
 export const EDITOR_GROUP_HEADER_TABS_BACKGROUND = registerColor('editorGroupHeader.tabsBackground', {
 	dark: '#252526',

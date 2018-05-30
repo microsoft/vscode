@@ -18,7 +18,7 @@ import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
-import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_ACTIVE_EMPTY_BORDER } from 'vs/workbench/common/theme';
+import { Themable, EDITOR_GROUP_HEADER_TABS_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND, EDITOR_GROUP_EMPTY_BACKGROUND, EDITOR_GROUP_FOCUSED_EMPTY_BORDER } from 'vs/workbench/common/theme';
 import { IMoveEditorOptions, ICopyEditorOptions, ICloseEditorsFilter, IGroupChangeEvent, GroupChangeKind, EditorsOrder, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { TabsTitleControl } from 'vs/workbench/browser/parts/editor/tabsTitleControl';
 import { EditorControl } from 'vs/workbench/browser/parts/editor/editorControl';
@@ -1350,13 +1350,13 @@ registerThemingParticipant((theme, collector, environment) => {
 		}
 	`);
 
-	// Active Empty Group Border
-	const activeEmptyGroupBorder = theme.getColor(EDITOR_GROUP_ACTIVE_EMPTY_BORDER);
-	if (activeEmptyGroupBorder) {
+	// Focused Empty Group Border
+	const focusedEmptyGroupBorder = theme.getColor(EDITOR_GROUP_FOCUSED_EMPTY_BORDER);
+	if (focusedEmptyGroupBorder) {
 		collector.addRule(`
-			.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active {
+			.monaco-workbench > .part.editor > .content:not(.empty) .editor-group-container.empty.active:focus {
 				outline-width: 1px;
-				outline-color: ${activeEmptyGroupBorder};
+				outline-color: ${focusedEmptyGroupBorder};
 				outline-offset: -2px;
 				outline-style: solid;
 			}
