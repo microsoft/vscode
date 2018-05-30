@@ -136,7 +136,6 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 						location,
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
-						collapsed: true,
 						treeView: true
 					};
 
