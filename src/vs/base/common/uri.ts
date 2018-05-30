@@ -468,7 +468,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		}
 	}
 	if (query) {
-		parts.push('?', encoder(query));
+		parts.push('?', encoder(query).replace(/%3D/g, '=').replace(/%26/g, '&'));
 	}
 	if (fragment) {
 		parts.push('#', encoder(fragment));
