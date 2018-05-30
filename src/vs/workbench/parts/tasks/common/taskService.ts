@@ -40,6 +40,8 @@ export interface TaskFilter {
 export interface ITaskService {
 	_serviceBrand: any;
 	onDidStateChange: Event<TaskEvent>;
+	supportsMultipleTaskExecutions: boolean;
+
 	configureAction(): Action;
 	build(): TPromise<ITaskSummary>;
 	runTest(): TPromise<ITaskSummary>;
