@@ -129,12 +129,6 @@ export const EDITOR_GROUP_EMPTY_BACKGROUND = registerColor('editorGroup.emptyBac
 	hc: null
 }, nls.localize('editorGroupEmptyBackground', "Background color of an empty editor group. Editor groups are the containers of editors."));
 
-export const EDITOR_GROUP_ACTIVE_EMPTY_BACKGROUND = registerColor('editorGroup.activeEmptyBackground', {
-	dark: EDITOR_GROUP_EMPTY_BACKGROUND,
-	light: EDITOR_GROUP_EMPTY_BACKGROUND,
-	hc: EDITOR_GROUP_EMPTY_BACKGROUND
-}, nls.localize('editorGroupActiveEmptyBackground', "Background color of an empty editor group that is active. Editor groups are the containers of editors."));
-
 export const EDITOR_GROUP_ACTIVE_EMPTY_BORDER = registerColor('editorGroup.activeEmptyBorder', {
 	dark: null,
 	light: null,
