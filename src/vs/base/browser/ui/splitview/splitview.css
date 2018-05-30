@@ -18,6 +18,7 @@
 
 .monaco-split-view2 > .split-view-container > .split-view-view {
 	overflow: hidden;
+	white-space: initial;
 }
 
 .monaco-split-view2.vertical > .split-view-container > .split-view-view {
