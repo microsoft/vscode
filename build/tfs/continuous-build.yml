@@ -13,8 +13,8 @@ phases:
     inputs:
       customRegistry: useFeed
       customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  - task: npmAuthenticate@0
-    displayName: NPM Authenticate
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - powershell: |
       yarn gulp electron
     displayName: Download Electron
@@ -70,8 +70,8 @@ phases:
     inputs:
       customRegistry: useFeed
       customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  - task: npmAuthenticate@0
-    displayName: NPM Authenticate
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - script: |
       yarn gulp electron-x64
     displayName: Download Electron
@@ -105,8 +105,8 @@ phases:
     inputs:
       customRegistry: useFeed
       customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  - task: npmAuthenticate@0
-    displayName: NPM Authenticate
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - script: |
       yarn gulp electron-x64
     displayName: Download Electron
