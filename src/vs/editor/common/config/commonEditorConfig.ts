@@ -260,7 +260,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.scrollBeyondLastColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
-			'description': nls.localize('scrollBeyondLastColumn', "Controls if the editor will scroll beyond the last column")
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
 		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
