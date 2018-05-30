@@ -119,13 +119,17 @@ class RequestOracle {
 		this._callback(codeEditor, undefined);
 
 		let handle: number;
-		let listener = codeEditor.onDidChangeModelContent(event => {
+		let contentListener = codeEditor.onDidChangeModelContent(event => {
 			handle = setTimeout(() => this._callback(codeEditor, event), 150);
+		});
+		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
+			this._callback(codeEditor, undefined);
 		});
 		this._sessionDisposable = {
 			dispose() {
-				listener.dispose();
+				contentListener.dispose();
 				clearTimeout(handle);
+				modeListener.dispose();
 			}
 		};
 	}
