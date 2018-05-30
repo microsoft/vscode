@@ -375,7 +375,6 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
-		dom.removeClass(this._domNode, 'message');
 
 		let textModel = editor.getModel();
 		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
@@ -383,12 +382,18 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return;
 		}
 
+		let newSize = TreeElement.size(model);
+		if (newSize > 7500) {
+			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
+			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
+		}
+
+		dom.removeClass(this._domNode, 'message');
 		let oldModel = <OutlineModel>this._tree.getInput();
 
 		if (event && oldModel) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
 			// wait a little (and hope that the next change isn't as drastic).
-			let newSize = TreeElement.size(model);
 			let newLength = textModel.getValueLength();
 			let newRatio = newSize / newLength;
 			let oldSize = TreeElement.size(oldModel);
