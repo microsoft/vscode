@@ -29,8 +29,42 @@ export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is Gr
 	return !!(node as any).children;
 }
 
+function getNode<T extends IView>(node: GridNode<T>, location: number[]): GridNode<T> {
+	if (location.length === 0) {
+		return node;
+	}
+
+	if (!isGridBranchNode(node)) {
+		throw new Error('Invalid location');
+	}
+
+	const [rest, index] = tail2(location);
+	return getNode(node.children[index], rest);
+}
+
+function getViews<T extends IView>(node: GridNode<T>): T[] {
+	const result: T[] = [];
+
+	function collectViews(node: GridNode<T>): void {
+		if (isGridBranchNode(node)) {
+			for (const child of node.children) {
+				collectViews(child);
+			}
+		} else {
+			result.push(node.view);
+		}
+	}
+
+	collectViews(node);
+	return result;
+}
+
 function getLocationOrientation(rootOrientation: Orientation, location: number[]): Orientation {
 	return location.length % 2 === 0 ? orthogonal(rootOrientation) : rootOrientation;
+}
+
+function getDirectionOrientation(direction: Direction): Orientation {
+	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
 }
 
 function getSize(dimensions: { width: number; height: number; }, orientation: Orientation) {
@@ -39,11 +73,9 @@ function getSize(dimensions: { width: number; height: number; }, orientation: Or
 
 export function getRelativeLocation(rootOrientation: Orientation, location: number[], direction: Direction): number[] {
 	const orientation = getLocationOrientation(rootOrientation, location);
+	const directionOrientation = getDirectionOrientation(direction);
 
-	const sameDimension = (orientation === Orientation.HORIZONTAL && (direction === Direction.Left || direction === Direction.Right))
-		|| (orientation === Orientation.VERTICAL && (direction === Direction.Up || direction === Direction.Down));
-
-	if (sameDimension) {
+	if (orientation === directionOrientation) {
 		let [rest, index] = tail(location);
 
 		if (direction === Direction.Right || direction === Direction.Down) {
@@ -93,10 +125,6 @@ export enum Direction {
 	Right
 }
 
-function directionOrientation(direction: Direction): Orientation {
-	return direction === Direction.Up || direction === Direction.Down ? Orientation.VERTICAL : Orientation.HORIZONTAL;
-}
-
 export enum Sizing {
 	Distribute = 'distribute',
 	Split = 'split'
@@ -140,7 +168,7 @@ export class Grid<T extends IView> implements IDisposable {
 			throw new Error('Can\'t add same view twice');
 		}
 
-		const orientation = directionOrientation(direction);
+		const orientation = getDirectionOrientation(direction);
 
 		if (this.views.size === 1 && this.orientation !== orientation) {
 			this.orientation = orientation;
@@ -214,6 +242,65 @@ export class Grid<T extends IView> implements IDisposable {
 		const location = this.getViewLocation(view);
 
 		this.doResetViewSize(location);
+	}
+
+	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
+		const location = this.getViewLocation(view);
+		const locationOrientation = getLocationOrientation(this.orientation, location);
+		const directionOrientation = getDirectionOrientation(direction);
+		const diff = direction === Direction.Up || direction === Direction.Left ? -1 : 1;
+		const root = this.getViews();
+		const [parentLocation, index] = tail2(location);
+
+		if (locationOrientation === directionOrientation) {
+			const parent = getNode(root, parentLocation);
+
+			if (!isGridBranchNode(parent)) {
+				throw new Error('Invalid location');
+			}
+
+			let neighborIndex = index + diff;
+
+			if (!wrap && (neighborIndex === -1 || neighborIndex >= parent.children.length)) {
+				return [];
+			}
+
+			neighborIndex = neighborIndex % parent.children.length;
+			const neighbor = parent.children[neighborIndex];
+
+			return getViews(neighbor);
+
+		} else {
+			if (parentLocation.length === 0) {
+				return [];
+			}
+
+			const [grandParentLocation, parentIndex] = tail2(parentLocation);
+			const grandParent = getNode(root, grandParentLocation);
+
+			if (!isGridBranchNode(grandParent)) {
+				throw new Error('Invalid location');
+			}
+
+			let uncleIndex = parentIndex + diff;
+
+			if (!wrap && (uncleIndex === -1 || uncleIndex >= grandParent.children.length)) {
+				return [];
+			}
+
+			uncleIndex = uncleIndex % grandParent.children.length;
+
+			const uncle = grandParent.children[uncleIndex];
+
+			if (!isGridBranchNode(uncle)) {
+				return [uncle.view];
+			}
+
+			const uncleLocation = [...grandParentLocation, uncleIndex];
+			const range = this.gridview.getViewRange(location);
+			const cousinIndexes = this.gridview.getChildrenInRange(uncleLocation, range);
+			return cousinIndexes.reduce((r, i) => [...r, ...getViews(uncle.children[i])], [] as T[]);
+		}
 	}
 
 	private getViewLocation(view: T): number[] {

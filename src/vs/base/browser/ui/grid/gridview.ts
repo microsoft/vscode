@@ -11,7 +11,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
-import { tail2 as tail } from 'vs/base/common/arrays';
+import { tail2 as tail, range } from 'vs/base/common/arrays';
 
 export { Sizing } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -52,6 +52,12 @@ export type GridNode = GridLeafNode | GridBranchNode;
 
 export function isGridBranchNode(node: GridNode): node is GridBranchNode {
 	return !!(node as any).children;
+}
+
+export type Range = { start: number, end: number };
+
+function intersects(one: Range, other: Range): boolean {
+	return !(one.start >= other.end || other.start >= one.end);
 }
 
 class BranchNode implements ISplitView, IDisposable {
@@ -190,6 +196,30 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.resizeView(index, size);
+	}
+
+	getViewSizeRange(index: number): Range {
+		const start = range(index).reduce((r, i) => r + this.splitview.getViewSize(i), 0);
+		const end = start + this.splitview.getViewSize(index);
+		return { start, end };
+	}
+
+	getChildrenInRange(range: Range): number[] {
+		const result = [];
+		let start = 0, end = 0;
+
+		for (let i = 0; i < this.children.length; i++) {
+			start = end;
+			end = start + this.splitview.getViewSize(i);
+
+			if (intersects({ start, end }, range)) {
+				result.push(i);
+			} else if (result.length > 0) {
+				break;
+			}
+		}
+
+		return result;
 	}
 
 	distributeViewSizes(): void {
@@ -556,6 +586,27 @@ export class GridView implements IDisposable {
 	getViewSize(location: number[]): { width: number; height: number; } {
 		const [, node] = this.getNode(location);
 		return { width: node.width, height: node.height };
+	}
+
+	getViewRange(location: number[]): Range {
+		const [rest, index] = tail(location);
+		const [, parent] = this.getNode(rest);
+
+		if (!(parent instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		return parent.getViewSizeRange(index);
+	}
+
+	getChildrenInRange(location: number[], range: Range): number[] {
+		const [, node] = this.getNode(location);
+
+		if (!(node instanceof BranchNode)) {
+			throw new Error('Invalid location');
+		}
+
+		return node.getChildrenInRange(range);
 	}
 
 	getViews(): GridBranchNode {
