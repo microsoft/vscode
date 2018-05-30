@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-// import * as http from 'http';
+import * as http from 'http';
 import * as path from 'path';
 import * as fs from 'fs';
 import * as stripJsonComments from 'strip-json-comments';
@@ -43,74 +43,74 @@ export function setup() {
 			await app.workbench.debug.setBreakpointOnLine(6);
 		});
 
-		// let port: number;
-		// it('start debugging', async function () {
-		// 	const app = this.app as Application;
+		let port: number;
+		it('start debugging', async function () {
+			const app = this.app as Application;
 
-		// 	// TODO@isidor
-		// 	await new Promise(c => setTimeout(c, 100));
+			// TODO@isidor
+			await new Promise(c => setTimeout(c, 100));
 
-		// 	port = await app.workbench.debug.startDebugging();
+			port = await app.workbench.debug.startDebugging();
 
-		// 	await new Promise((c, e) => {
-		// 		const request = http.get(`http://localhost:${port}`);
-		// 		request.on('error', e);
-		// 		app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
-		// 	});
-		// });
+			await new Promise((c, e) => {
+				const request = http.get(`http://localhost:${port}`);
+				request.on('error', e);
+				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
+			});
+		});
 
-		// it('focus stack frames and variables', async function () {
-		// 	const app = this.app as Application;
+		it('focus stack frames and variables', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.debug.waitForVariableCount(4);
+			await app.workbench.debug.waitForVariableCount(4);
 
-		// 	await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
-		// 	await app.workbench.debug.waitForVariableCount(5);
+			await app.workbench.debug.focusStackFrame('layer.js', 'looking for layer.js');
+			await app.workbench.debug.waitForVariableCount(5);
 
-		// 	await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
-		// 	await app.workbench.debug.waitForVariableCount(3);
+			await app.workbench.debug.focusStackFrame('route.js', 'looking for route.js');
+			await app.workbench.debug.waitForVariableCount(3);
 
-		// 	await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
-		// 	await app.workbench.debug.waitForVariableCount(4);
-		// });
+			await app.workbench.debug.focusStackFrame('index.js', 'looking for index.js');
+			await app.workbench.debug.waitForVariableCount(4);
+		});
 
-		// it('stepOver, stepIn, stepOut', async function () {
-		// 	const app = this.app as Application;
+		it('stepOver, stepIn, stepOut', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.debug.stepIn();
+			await app.workbench.debug.stepIn();
 
-		// 	const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
-		// 	await app.workbench.debug.stepOver();
+			const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
+			await app.workbench.debug.stepOver();
 
-		// 	await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
-		// 	await app.workbench.debug.stepOut();
+			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
+			await app.workbench.debug.stepOut();
 
-		// 	await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
-		// });
+			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
+		});
 
-		// it('continue', async function () {
-		// 	const app = this.app as Application;
+		it('continue', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.debug.continue();
+			await app.workbench.debug.continue();
 
-		// 	await new Promise((c, e) => {
-		// 		const request = http.get(`http://localhost:${port}`);
-		// 		request.on('error', e);
-		// 		app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
-		// 	});
+			await new Promise((c, e) => {
+				const request = http.get(`http://localhost:${port}`);
+				request.on('error', e);
+				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
+			});
 
-		// });
+		});
 
-		// it('debug console', async function () {
-		// 	const app = this.app as Application;
+		it('debug console', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
-		// });
+			await app.workbench.debug.waitForReplCommand('2 + 2', r => r === '4');
+		});
 
-		// it('stop debugging', async function () {
-		// 	const app = this.app as Application;
+		it('stop debugging', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.debug.stopDebugging();
-		// });
+			await app.workbench.debug.stopDebugging();
+		});
 	});
 }

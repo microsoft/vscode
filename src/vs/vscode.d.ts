@@ -6057,6 +6057,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when an element in the [TreeView](#TreeView) is expanded or collapsed
+	 */
+	export interface TreeViewExpansionEvent<T> {
+
+		/**
+		 * Element that is expanded or collapsed.
+		 */
+		element: T;
+
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -6064,12 +6076,12 @@ declare module 'vscode' {
 		/**
 		 * Event that is fired when an element is expanded
 		 */
-		readonly onDidExpandElement: Event<T>;
+		readonly onDidExpandElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Event that is fired when an element is collapsed
 		 */
-		readonly onDidCollapseElement: Event<T>;
+		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Currently selected elements.

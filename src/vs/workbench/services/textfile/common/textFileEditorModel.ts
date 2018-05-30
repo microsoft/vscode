@@ -32,6 +32,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isLinux } from 'vs/base/common/platform';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -780,7 +781,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private isSettingsFile(): boolean {
 
 		// Check for global settings file
-		if (this.resource.fsPath === this.environmentService.appSettingsPath) {
+		if (path.isEqual(this.resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
 			return true;
 		}
 

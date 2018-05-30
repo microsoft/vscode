@@ -10,7 +10,7 @@ import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant } from './util';
+import { grep, isDescendant, pathEquals } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -1737,7 +1737,7 @@ export class CommandCenter {
 			}
 
 			// Could it be a submodule?
-			if (resource.fsPath === repository.root) {
+			if (pathEquals(resource.fsPath, repository.root)) {
 				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 
