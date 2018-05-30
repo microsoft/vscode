@@ -681,12 +681,39 @@ export class BaseMoveGroupAction extends Action {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroup = this.editorGroupService.findGroup({ direction: this.direction }, sourceGroup);
+		const targetGroup = this.findTargetGroup(sourceGroup);
 		if (targetGroup) {
 			this.editorGroupService.moveGroup(sourceGroup, targetGroup, this.direction);
 		}
 
 		return TPromise.as(true);
+	}
+
+	private findTargetGroup(sourceGroup: IEditorGroup): IEditorGroup {
+		const targetNeighbours: GroupDirection[] = [this.direction];
+
+		// Allow the target group to be in alternative locations to support more
+		// scenarios of moving the group to the taret location.
+		// Helps for https://github.com/Microsoft/vscode/issues/50741
+		switch (this.direction) {
+			case GroupDirection.LEFT:
+			case GroupDirection.RIGHT:
+				targetNeighbours.push(GroupDirection.UP, GroupDirection.DOWN);
+				break;
+			case GroupDirection.UP:
+			case GroupDirection.DOWN:
+				targetNeighbours.push(GroupDirection.LEFT, GroupDirection.RIGHT);
+				break;
+		}
+
+		for (let i = 0; i < targetNeighbours.length; i++) {
+			const targetNeighbour = this.editorGroupService.findGroup({ direction: targetNeighbours[i] }, sourceGroup);
+			if (targetNeighbour) {
+				return targetNeighbour;
+			}
+		}
+
+		return void 0;
 	}
 }
 
