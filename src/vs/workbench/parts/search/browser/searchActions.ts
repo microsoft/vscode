@@ -316,6 +316,7 @@ export abstract class FindOrReplaceInFilesAction extends Action {
 
 export class FindInFilesAction extends FindOrReplaceInFilesAction {
 
+	public static readonly ID = 'workbench.action.findInFiles';
 	public static readonly LABEL = nls.localize('findInFiles', "Find in Files");
 
 	constructor(id: string, label: string,
