@@ -180,14 +180,22 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	private computeMaxPanelWidth(): number {
-		const minSidebarSize = this.partService.isVisible(Parts.SIDEBAR_PART) ? (this.partService.getSideBarPosition() === Position.LEFT ? this.partLayoutInfo.sidebar.minWidth : this.sidebarWidth) : 0;
-		const preferredEditorPartSize = this.parts.editor.preferredSize;
-		return Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - preferredEditorPartSize.width - minSidebarSize - this.activitybarWidth);
+		let minSidebarWidth: number;
+		if (this.partService.isVisible(Parts.SIDEBAR_PART)) {
+			if (this.partService.getSideBarPosition() === Position.LEFT) {
+				minSidebarWidth = this.partLayoutInfo.sidebar.minWidth;
+			} else {
+				minSidebarWidth = this.sidebarWidth;
+			}
+		} else {
+			minSidebarWidth = 0;
+		}
+
+		return Math.max(this.partLayoutInfo.panel.minWidth, this.workbenchSize.width - this.parts.editor.preferredSize.width - minSidebarWidth - this.activitybarWidth);
 	}
 
 	private computeMaxPanelHeight(): number {
-		const preferredEditorPartSize = this.parts.editor.preferredSize;
-		return Math.max(this.partLayoutInfo.panel.minHeight, this.sidebarHeight - preferredEditorPartSize.height);
+		return Math.max(this.partLayoutInfo.panel.minHeight, this.sidebarHeight /* simplification for: window.height - status.height - title-height */ - this.parts.editor.preferredSize.height);
 	}
 
 	private get sidebarWidth(): number {
@@ -199,9 +207,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	private set sidebarWidth(value: number) {
-		const preferredEditorPartSize = this.parts.editor.preferredSize;
 		const panelMinWidth = this.partService.getPanelPosition() === Position.RIGHT && this.partService.isVisible(Parts.PANEL_PART) ? this.partLayoutInfo.panel.minWidth : 0;
-		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - preferredEditorPartSize.width - panelMinWidth;
+		const maxSidebarWidth = this.workbenchSize.width - this.activitybarWidth - this.parts.editor.preferredSize.width - panelMinWidth;
 
 		this._sidebarWidth = Math.max(this.partLayoutInfo.sidebar.minWidth, Math.min(maxSidebarWidth, value));
 	}
@@ -479,31 +486,45 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		editorSize.width = this.workbenchSize.width - sidebarSize.width - activityBarSize.width - (panelPosition === Position.RIGHT ? panelDimension.width : 0);
 		editorSize.height = sidebarSize.height - (panelPosition === Position.BOTTOM ? panelDimension.height : 0);
 
-		// Assert Sidebar and Editor Size to not overflow
+		// Adjust for Editor Part preferred width
 		const preferredEditorPartSize = this.parts.editor.preferredSize;
 		if (editorSize.width < preferredEditorPartSize.width) {
-			let diff = preferredEditorPartSize.width - editorSize.width;
-			editorSize.width = preferredEditorPartSize.width;
-			if (panelPosition === Position.BOTTOM) {
-				panelDimension.width = preferredEditorPartSize.width;
-			} else if (panelDimension.width >= diff && (!options || options.source !== Parts.PANEL_PART)) {
-				const oldWidth = panelDimension.width;
-				panelDimension.width = Math.max(this.partLayoutInfo.panel.minWidth, panelDimension.width - diff);
-				diff = diff - (oldWidth - panelDimension.width);
+			const missingPreferredEditorWidth = preferredEditorPartSize.width - editorSize.width;
+			let outstandingMissingPreferredEditorWidth = missingPreferredEditorWidth;
+
+			// Take from Panel if Panel Position on the Right and Visible
+			if (!isPanelHidden && panelPosition === Position.RIGHT && (!options || options.source !== Parts.PANEL_PART)) {
+				const oldPanelWidth = panelDimension.width;
+				panelDimension.width = Math.max(this.partLayoutInfo.panel.minWidth, panelDimension.width - outstandingMissingPreferredEditorWidth);
+				outstandingMissingPreferredEditorWidth -= oldPanelWidth - panelDimension.width;
 			}
 
-			if (sidebarSize.width >= diff) {
-				sidebarSize.width -= diff;
-				sidebarSize.width = Math.max(this.partLayoutInfo.sidebar.minWidth, sidebarSize.width);
+			// Take from Sidebar if Visible
+			if (!isSidebarHidden && outstandingMissingPreferredEditorWidth > 0) {
+				const oldSidebarWidth = sidebarSize.width;
+				sidebarSize.width = Math.max(this.partLayoutInfo.sidebar.minWidth, sidebarSize.width - outstandingMissingPreferredEditorWidth);
+				outstandingMissingPreferredEditorWidth -= oldSidebarWidth - sidebarSize.width;
+			}
+
+			editorSize.width += missingPreferredEditorWidth - outstandingMissingPreferredEditorWidth;
+			if (!isPanelHidden && panelPosition === Position.BOTTOM) {
+				panelDimension.width = editorSize.width; // ensure panel width is always following editor width
 			}
 		}
 
-		if (editorSize.height < preferredEditorPartSize.height && panelPosition === Position.BOTTOM) {
-			let diff = preferredEditorPartSize.height - editorSize.height;
-			editorSize.height = preferredEditorPartSize.height;
+		// Adjust for Editor Part preferred height
+		if (editorSize.height < preferredEditorPartSize.height) {
+			const missingPreferredEditorHeight = preferredEditorPartSize.height - editorSize.height;
+			let outstandingMissingPreferredEditorHeight = missingPreferredEditorHeight;
 
-			panelDimension.height -= diff;
-			panelDimension.height = Math.max(this.partLayoutInfo.panel.minHeight, panelDimension.height);
+			// Take from Panel if Panel Position on the Bottom and Visible
+			if (!isPanelHidden && panelPosition === Position.BOTTOM) {
+				const oldPanelHeight = panelDimension.height;
+				panelDimension.height = Math.max(this.partLayoutInfo.panel.minHeight, panelDimension.height - outstandingMissingPreferredEditorHeight);
+				outstandingMissingPreferredEditorHeight -= oldPanelHeight - panelDimension.height;
+			}
+
+			editorSize.height += missingPreferredEditorHeight - outstandingMissingPreferredEditorHeight;
 		}
 
 		if (!isSidebarHidden) {
