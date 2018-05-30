@@ -527,4 +527,32 @@ suite('SerializableGrid', function () {
 		assert.deepEqual(view1Copy.size, [400, 600]);
 		assert.deepEqual(view2Copy.size, [400, 600]);
 	});
+
+	test('deserialize simple view layout #50609', function () {
+		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new SerializableGrid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Split, view1, Direction.Right);
+
+		const view3 = new TestSerializableView('view3', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Split, view2, Direction.Down);
+
+		grid.removeView(view1, Sizing.Split);
+
+		const json = grid.serialize();
+		grid.dispose();
+
+		const deserializer = new TestViewDeserializer();
+		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+
+		const view2Copy = deserializer.getView('view2');
+		const view3Copy = deserializer.getView('view3');
+
+		grid2.layout(800, 600);
+
+		assert.deepEqual(view2Copy.size, [800, 300]);
+		assert.deepEqual(view3Copy.size, [800, 300]);
+	});
 });

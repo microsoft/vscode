@@ -293,7 +293,7 @@ class LeafNode implements ISplitView, IDisposable {
 
 type Node = BranchNode | LeafNode;
 
-function flipNode(node: Node, size: number, orthogonalSize: number): Node {
+function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
 		const result = new BranchNode(orthogonal(node.orientation), size, orthogonalSize);
 
@@ -314,39 +314,50 @@ function flipNode(node: Node, size: number, orthogonalSize: number): Node {
 			result.addChild(flipNode(child, orthogonalSize, newSize), newSize, 0);
 		}
 
-		return result;
+		return result as T;
 	} else {
-		return new LeafNode(node.view, orthogonal(node.orientation), orthogonalSize);
+		return new LeafNode((node as LeafNode).view, orthogonal(node.orientation), orthogonalSize) as T;
 	}
 }
 
 export class GridView implements IDisposable {
 
 	private element: HTMLElement;
-	private root: BranchNode;
+
+	private _root: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
+	private get root(): BranchNode {
+		return this._root;
+	}
+
+	private set root(root: BranchNode) {
+		const oldRoot = this._root;
+
+		if (oldRoot) {
+			this.element.removeChild(oldRoot.element);
+			oldRoot.dispose();
+		}
+
+		this._root = root;
+		this.element.appendChild(root.element);
+		this.onDidSashResetRelay.input = root.onDidSashReset;
+	}
+
 	get orientation(): Orientation {
-		return this.root.orientation;
+		return this._root.orientation;
 	}
 
 	set orientation(orientation: Orientation) {
-		if (this.root.orientation === orientation) {
+		if (this._root.orientation === orientation) {
 			return;
 		}
 
-		const oldRoot = this.root;
-		this.element.removeChild(oldRoot.element);
-
-		this.root = flipNode(oldRoot, oldRoot.orthogonalSize, oldRoot.size) as BranchNode;
-		this.element.appendChild(this.root.element);
-		this.onDidSashResetRelay.input = this.root.onDidSashReset;
-
-		this.root.layout(oldRoot.size);
-		this.root.orthogonalLayout(oldRoot.orthogonalSize);
-
-		oldRoot.dispose();
+		const { size, orthogonalSize } = this._root;
+		this.root = flipNode(this._root, orthogonalSize, size);
+		this.root.layout(size);
+		this.root.orthogonalLayout(orthogonalSize);
 	}
 
 	get width(): number {
@@ -376,8 +387,6 @@ export class GridView implements IDisposable {
 	constructor(container: HTMLElement) {
 		this.element = append(container, $('.monaco-grid-view'));
 		this.root = new BranchNode(Orientation.VERTICAL);
-		this.element.appendChild(this.root.element);
-		this.onDidSashResetRelay.input = this.root.onDidSashReset;
 	}
 
 	layout(width: number, height: number): void {
@@ -435,7 +444,20 @@ export class GridView implements IDisposable {
 			throw new Error('Invalid grid state');
 		}
 
-		if (parent.children.length > 1 || pathToParent.length === 0) {
+		if (parent.children.length > 1) {
+			return node.view;
+		}
+
+		if (pathToParent.length === 0) { // parent is root
+			const sibling = parent.children[0];
+
+			if (sibling instanceof LeafNode) {
+				return node.view;
+			}
+
+			// we must promote sibling to be the new root
+			parent.removeChild(0);
+			this.root = sibling;
 			return node.view;
 		}
 
