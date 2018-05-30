@@ -9,7 +9,7 @@ import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import 'vs/css!./media/menubarpart';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
-import { IMenuService, MenuId, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -21,8 +21,10 @@ import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/c
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import URI from 'vs/base/common/uri';
 
 interface CustomMenu {
 	title: string;
@@ -46,6 +48,23 @@ export class MenubarPart extends Part {
 		'Help': IMenu;
 		[index: string]: IMenu;
 	};
+
+	private topLevelTitles = {
+		'File': '&&File',
+		'Edit': '&&Edit',
+		'Recent': '&&Recent',
+		'Selection': '&&Selection',
+		'View': '&&View',
+		'Go': '&&Go',
+		'Debug': '&&Debug',
+		'Tasks': '&&Tasks',
+		'Preferences': '&&Preferences',
+		'Help': '&&Help'
+	};
+
+	private mnemonics: {
+		[index: number]: number;
+	} = {};
 
 	private focusedMenu: {
 		index: number;
@@ -107,6 +126,21 @@ export class MenubarPart extends Part {
 		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
 	}
 
+	private registerMnemonic(menuIndex: number, keyCode: KeyCode): void {
+		KeybindingsRegistry.registerCommandAndKeybindingRule({
+			id: 'menubar.mnemonics.' + menuIndex,
+			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+			when: void 0,
+			primary: null,
+			win: { primary: KeyMod.Alt | keyCode },
+			handler: (accessor, resource: URI | object) => {
+				if (!this.focusedMenu) {
+					this.toggleCustomMenu(menuIndex);
+				}
+			}
+		});
+	}
+
 	private setupCustomMenubar(): void {
 		this.customMenus = [];
 		let idx = 0;
@@ -117,8 +151,14 @@ export class MenubarPart extends Part {
 			let menuIndex = idx++;
 
 			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
-			$(titleElement).div({ class: 'menubar-menu-title' }).text(menuTitle);
 
+			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '<u>$1</u>');
+			$(titleElement).div({ class: 'menubar-menu-title' }).innerHtml(displayTitle);
+
+			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
+			if (mnemonic) {
+				this.registerMnemonic(menuIndex, KeyCodeUtils.fromString(mnemonic));
+			}
 
 			this.customMenus.push({
 				title: menuTitle,
@@ -132,9 +172,9 @@ export class MenubarPart extends Part {
 				for (let group of groups) {
 					const [, actions] = group;
 
-					actions.map((action: MenuItemAction) => {
-						action.label = action.label.replace(/\(&&\w\)|&&/g, '');
-					});
+					// actions.map((action: MenuItemAction) => {
+					// 	action.label = action.label.replace(/\(&&\w\)|&&/g, '');
+					// });
 
 					this.customMenus[menuIndex].actions.push(...actions);
 					this.customMenus[menuIndex].actions.push(new Separator());
@@ -180,6 +220,8 @@ export class MenubarPart extends Part {
 				this.focusPrevious();
 			} else if (event.equals(KeyCode.RightArrow)) {
 				this.focusNext();
+			} else if (event.altKey && event.keyCode && this.mnemonics[event.keyCode] !== undefined && !this.focusedMenu) {
+				this.toggleCustomMenu(this.mnemonics[event.keyCode]);
 			} else {
 				eventHandled = false;
 			}
@@ -276,6 +318,10 @@ export class MenubarPart extends Part {
 		this.focusedMenu = null;
 	}
 
+	public focusCustomMenu(menuTitle: string): void {
+		this.toggleCustomMenu(0);
+	}
+
 	private toggleCustomMenu(menuIndex: number): void {
 		const customMenu = this.customMenus[menuIndex];
 
@@ -302,7 +348,8 @@ export class MenubarPart extends Part {
 		});
 
 		let menuOptions: IMenuOptions = {
-			getKeyBinding: (action) => { return this.keybindingService.lookupKeybinding(action.id); }
+			getKeyBinding: (action) => { return this.keybindingService.lookupKeybinding(action.id); },
+			actionRunner: this.actionRunner
 		};
 
 		let menuWidget = new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions);
