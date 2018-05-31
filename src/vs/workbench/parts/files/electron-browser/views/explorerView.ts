@@ -43,6 +43,7 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { equalsIgnoreCase } from 'vs/base/common/strings';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -868,11 +869,15 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private getResolvedDirectories(stat: ExplorerItem, resolvedDirectories: URI[]): void {
 		if (stat.isDirectoryResolved) {
 			if (!stat.isRoot) {
-
+				const areEqual = (first: string, second: string) => isLinux ? first === second : equalsIgnoreCase(first, second);
 				// Drop those path which are parents of the current one
 				for (let i = resolvedDirectories.length - 1; i >= 0; i--) {
-					const resource = resolvedDirectories[i];
-					if (resources.isEqualOrParent(stat.resource, resource, !isLinux /* ignorecase */)) {
+					const resourceStr = resolvedDirectories[i].toString();
+					let statToCompare = stat;
+					while (statToCompare && !areEqual(statToCompare.resource.toString(), resourceStr)) {
+						statToCompare = statToCompare.parent;
+					}
+					if (statToCompare) {
 						resolvedDirectories.splice(i);
 					}
 				}

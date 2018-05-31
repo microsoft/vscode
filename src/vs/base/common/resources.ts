@@ -6,7 +6,6 @@
 
 import * as paths from 'vs/base/common/paths';
 import uri from 'vs/base/common/uri';
-import { equalsIgnoreCase } from 'vs/base/common/strings';
 
 export function basenameOrAuthority(resource: uri): string {
 	return paths.basename(resource.path) || resource.authority;
@@ -34,11 +33,11 @@ export function isEqual(first: uri, second: uri, ignoreCase?: boolean): boolean 
 		return false;
 	}
 
-	if (ignoreCase) {
-		return equalsIgnoreCase(first.toString(), second.toString());
+	if (first.scheme === second.scheme && first.authority === second.authority) {
+		return paths.isEqual(first.path, second.path, ignoreCase);
 	}
 
-	return first.toString() === second.toString();
+	return false;
 }
 
 export function dirname(resource: uri): uri {
