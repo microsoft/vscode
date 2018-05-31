@@ -288,6 +288,103 @@ suite('Grid', function () {
 		assert.deepEqual(view2.size, [800, 200]);
 		assert.deepEqual(view4.size, [800, 200]);
 	});
+
+	test('getNeighborViews should work on single view layout', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left), []);
+
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left, true), [view1]);
+	});
+
+	test('getNeighborViews should work on simple layout', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left), []);
+
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up, true), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down, true), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left, true), [view1]);
+
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Up), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Down), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Left), []);
+
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Up, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Right, true), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Down, true), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Left, true), [view2]);
+
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Up), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Down), []);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Left), []);
+
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Up, true), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Right, true), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Down, true), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Left, true), [view3]);
+	});
+
+	test('getNeighborViews should work on a complex layout', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Down);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view5, Sizing.Distribute, view4, Direction.Down);
+
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down), [view2, view4, view5]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left), []);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Up), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Right), [view4, view5]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Down), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view2, Direction.Left), []);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Up), [view1]);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Down), [view5]);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Left), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view5, Direction.Up), [view4]);
+		assert.deepEqual(grid.getNeighborViews(view5, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view5, Direction.Down), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view5, Direction.Left), [view2]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Up), [view2, view4, view5]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Down), []);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Left), []);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {
