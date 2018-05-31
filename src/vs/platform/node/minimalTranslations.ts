@@ -11,7 +11,7 @@ import { localize } from 'vs/nls';
 export const minimumTranslatedStrings = {
 	showLanguagePackExtensions: localize('showLanguagePackExtensions', "VS Code is available in {0}. Search for language packs in the Marketplace to get started."),
 	searchMarketplace: localize('searchMarketplace', "Search Marketplace"),
-	installAndRestartMessage: localize('installAndRestartMessage', "VS Code is available in {0}. Install the language pack to get started. A restart is required."),
+	installAndRestartMessage: localize('installAndRestartMessage', "VS Code is available in {0}. Please install the language pack to change the display language."),
 	installAndRestart: localize('installAndRestart', "Install and Restart")
 };
 
