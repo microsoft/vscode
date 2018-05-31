@@ -8,7 +8,7 @@ import { Node, HtmlNode, Rule, Property, Stylesheet } from 'EmmetNode';
 import { getEmmetHelper, getNode, getInnerRange, getMappingForIncludedLanguages, parseDocument, validate, getEmmetConfiguration, isStyleSheet, getEmmetMode, parsePartialStylesheet, isStyleAttribute, getEmbeddedCssNodeIfAny } from './util';
 
 const trimRegex = /[\u00a0]*[\d|#|\-|\*|\u2022]+\.?/;
-const hexColorRegex = /^#\d+$/;
+const hexColorRegex = /^#[\d,a-f,A-F]{0,6}$/;
 const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 const inlineElements = ['a', 'abbr', 'acronym', 'applet', 'b', 'basefont', 'bdo',
 	'big', 'br', 'button', 'cite', 'code', 'del', 'dfn', 'em', 'font', 'i',
@@ -401,6 +401,9 @@ export function isValidLocationForEmmetAbbreviation(document: vscode.TextDocumen
 				&& position.isAfterOrEqual(propertyNode.separatorToken.end)
 				&& abbreviation.indexOf(':') === -1) {
 				return hexColorRegex.test(abbreviation) || abbreviation === '!';
+			}
+			if (hexColorRegex.test(abbreviation) || abbreviation === '!') {
+				return false;
 			}
 		}
 
