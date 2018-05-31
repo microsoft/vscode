@@ -3,10 +3,17 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as cp from 'child_process';
 import { Application } from '../../application';
 
 export function setup() {
 	describe('Search', () => {
+		after(function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout .', { cwd: app.workspacePath });
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
+		});
+
 		it('searches for body & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
