@@ -133,7 +133,7 @@ export class CodeWindow implements ICodeWindow {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
-			y: this.windowState.y,
+			y: this.windowState.y || screen.getPrimaryDisplay().workArea.y,
 			backgroundColor,
 			minWidth: CodeWindow.MIN_WIDTH,
 			minHeight: CodeWindow.MIN_HEIGHT,
@@ -200,16 +200,6 @@ export class CodeWindow implements ICodeWindow {
 				}
 			} catch (err) {
 				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
-			}
-		}
-
-		// Workaround for Windows taskbar top. Otherwise, Electron may spawn the window with the titlebar underneath the taskbar.
-		const workAreaY = screen.getPrimaryDisplay().workArea.y;
-		if (isWindows && !isFullscreenOrMaximized && workAreaY > this._win.getPosition()[1]) {
-			try {
-				this._win.setPosition(this.windowState.x, workAreaY, false);
-			} catch (err) {
-				this.logService.warn(`Unexpected error fixing window position on Windows: ${err}\n${err.stack}`);
 			}
 		}
 
