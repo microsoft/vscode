@@ -1200,6 +1200,7 @@ export abstract class BaseNavigationAction extends Action {
 		const nextGroup = this.editorGroupService.findGroup({ direction });
 		if (nextGroup) {
 			nextGroup.focus();
+
 			return TPromise.as(true);
 		}
 

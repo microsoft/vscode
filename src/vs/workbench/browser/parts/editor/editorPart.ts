@@ -228,15 +228,12 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
 		const sourceGroupView = this.assertGroupView(source);
-		const groups = this.getGroups(GroupsOrder.GRID_APPEARANCE);
-		const index = groups.indexOf(sourceGroupView);
 
-		const neighbourGroupView = groups[direction === GroupDirection.RIGHT || direction === GroupDirection.DOWN ? index + 1 : index - 1];
-		if (neighbourGroupView && this.gridWidget.getOrientation(neighbourGroupView) === this.gridWidget.getOrientation(sourceGroupView)) {
-			return neighbourGroupView; // TODO@ben finding neighbour needs gridwidget support
-		}
+		// Find neighbours and sort by our MRU list
+		const neighbours = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction));
+		neighbours.sort(((n1, n2) => this.mostRecentActiveGroups.indexOf(n1.id) - this.mostRecentActiveGroups.indexOf(n2.id)));
 
-		return void 0;
+		return neighbours[0];
 	}
 
 	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
