@@ -427,7 +427,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(inputBox);
 
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
-		const count = new CountBadge(this.countContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
+		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
