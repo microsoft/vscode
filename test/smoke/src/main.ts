@@ -189,7 +189,7 @@ async function setupRepository(): Promise<void> {
 		}
 
 		console.log('*** Running yarn...');
-		cp.execSync('yarn --verbose', { cwd: workspacePath, stdio: 'inherit' });
+		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 

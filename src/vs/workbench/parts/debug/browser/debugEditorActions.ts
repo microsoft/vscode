@@ -227,20 +227,20 @@ class GoToBreakpointAction extends EditorAction {
 		//Try to find breakpoint in current file
 		let moveBreakpoint =
 			this.isNext
-				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine)[0]
-				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine)[0];
+				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
+				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
 
 		//Try to find breakpoints in following files
 		if (!moveBreakpoint) {
 			moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString())[0]
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString())[0];
+					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
+					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
 		}
 
-		//Move to first possible breakpoint
-		if (!moveBreakpoint) {
-			moveBreakpoint = allEnabledBreakpoints[0];
+		//Move to first or last possible breakpoint
+		if (!moveBreakpoint && allEnabledBreakpoints.length) {
+			moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
 		}
 
 		if (moveBreakpoint) {

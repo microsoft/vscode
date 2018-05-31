@@ -427,7 +427,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(inputBox);
 
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
-		const count = new CountBadge(this.countContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
+		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
@@ -625,10 +625,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const d = token.onCancellationRequested(() => this.close());
 		this.controller.result.then(() => d.dispose(), () => d.dispose());
 
-		const delay = TPromise.timeout(800);
-		delay.then(() => this.progressBar.infinite(), () => { /* ignore */ });
-
 		const wasController = this.controller;
+
+		const delay = TPromise.timeout(800);
+		delay.then(() => {
+			if (this.controller === wasController) {
+				this.progressBar.infinite();
+			}
+		}, () => { /* ignore */ });
+
 		this.controller.ready.then(() => {
 			delay.cancel();
 			if (this.controller !== wasController) {
