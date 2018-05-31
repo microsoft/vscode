@@ -1815,7 +1815,7 @@ class TaskService implements ITaskService {
 	}
 
 	private canSkipPicker(): boolean {
-		return this.configurationService.getValue<any>().tasks.skipPicker;
+		return this.configurationService.getValue<any>().task.skipPicker;
 	}
 
 	private showQuickPick(tasks: TPromise<Task[]> | Task[], placeHolder: string, defaultEntry?: TaskQuickPickEntry, group: boolean = false, sort: boolean = false): TPromise<Task> {
@@ -2367,12 +2367,12 @@ registerSingleton(ITaskService, TaskService);
 // Register configuration
 const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration);
 configurationRegistry.registerConfiguration({
-	id: 'tasks',
+	id: 'task',
 	order: 25,
 	title: nls.localize('tasksConfigurationTitle', "Tasks"),
 	type: 'object',
 	properties: {
-		'tasks.skipPicker': {
+		'task.skipPicker': {
 			'type': 'boolean',
 			'description': nls.localize('skipTaskPicker', "Controls whether the quick panel is skipped in conditions when there is only one (build, test, etc...) task to pick from."),
 			'default': false
