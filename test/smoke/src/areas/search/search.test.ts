@@ -41,19 +41,19 @@ export function setup() {
 			await app.workbench.search.waitForResultText('17 results in 5 files');
 		});
 
-		// it('replaces first search result with a replace term', async function () {
-		// 	const app = this.app as Application;
+		it('replaces first search result with a replace term', async function () {
+			const app = this.app as Application;
 
-		// 	await app.workbench.search.searchFor('body');
-		// 	await app.workbench.search.expandReplace();
-		// 	await app.workbench.search.setReplaceText('ydob');
-		// 	await app.workbench.search.replaceFileMatch(1);
+			await app.workbench.search.searchFor('body');
+			await app.workbench.search.expandReplace();
+			await app.workbench.search.setReplaceText('ydob');
+			await app.workbench.search.replaceFileMatch(1);
 
-		// 	await app.workbench.search.waitForResultText('10 results in 4 files');
+			await app.workbench.search.waitForResultText('17 results in 5 files');
 
-		// 	await app.workbench.search.searchFor('ydob');
-		// 	await app.workbench.search.setReplaceText('body');
-		// 	await app.workbench.search.replaceFileMatch(1);
-		// });
+			await app.workbench.search.searchFor('ydob');
+			await app.workbench.search.setReplaceText('body');
+			await app.workbench.search.replaceFileMatch(1);
+		});
 	});
 }
