@@ -133,18 +133,24 @@ function getBoxBoundary(box: Box, direction: Direction): Boundary {
 }
 
 function findAdjacentBoxLeafNodes<T extends IView>(boxNode: BoxNode<T>, direction: Direction, boundary: Boundary): BoxLeafNode<T>[] {
-	if (!isBoxBranchNode(boxNode)) {
-		const { offset, range } = getBoxBoundary(boxNode.box, direction);
+	const result: BoxLeafNode<T>[] = [];
 
-		if (offset === boundary.offset && intersects(range, boundary.range)) {
-			return [boxNode];
+	function _(boxNode: BoxNode<T>, direction: Direction, boundary: Boundary): void {
+		if (isBoxBranchNode(boxNode)) {
+			for (const child of boxNode.children) {
+				_(child, direction, boundary);
+			}
 		} else {
-			return [];
+			const { offset, range } = getBoxBoundary(boxNode.box, direction);
+
+			if (offset === boundary.offset && intersects(range, boundary.range)) {
+				result.push(boxNode);
+			}
 		}
 	}
 
-	return boxNode.children
-		.reduce((r, child) => [...r, ...findAdjacentBoxLeafNodes(child, direction, boundary)], []);
+	_(boxNode, direction, boundary);
+	return result;
 }
 
 function getLocationOrientation(rootOrientation: Orientation, location: number[]): Orientation {
