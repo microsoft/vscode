@@ -34,10 +34,6 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 
-// TODO@grid enable minimized/maximized groups in one dimension
-// - doCreateGroupView(): needs listener if the view gets minimized, the previous active group should become active
-// - doSetGroupActive():  needs a listener if the group is minimized, it should now restore to be maximized
-
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
 	activeGroup: GroupIdentifier;
@@ -237,7 +233,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 		const neighbourGroupView = groups[direction === GroupDirection.RIGHT || direction === GroupDirection.DOWN ? index + 1 : index - 1];
 		if (neighbourGroupView && this.gridWidget.getOrientation(neighbourGroupView) === this.gridWidget.getOrientation(sourceGroupView)) {
-			return neighbourGroupView; // TODO@grid finding neighbour needs gridwidget support
+			return neighbourGroupView; // TODO@ben finding neighbour needs gridwidget support
 		}
 
 		return void 0;
@@ -781,7 +777,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 				this._activeGroup = void 0;
 				this.mostRecentActiveGroups = [];
 
-				this.gridError(error); // TODO@grid remove this safe guard once the grid is stable
+				this.gridError(error); // TODO@ben remove this safe guard once the grid is stable
 			}
 		}
 	}
@@ -911,7 +907,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		return this.groupViews.size === 1 && this._activeGroup.isEmpty();
 	}
 
-	// TODO@grid this should be removed once the gridwidget is stable
+	// TODO@ben this should be removed once the gridwidget is stable
 	private gridError(error: Error): void {
 		console.error(error);
 
@@ -977,7 +973,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 	//#endregion
 }
 
-// Group borders (TODO@grid this should be a color the GridView exposes)
+// Group borders (TODO@ben this should be a color the GridView exposes)
 registerThemingParticipant((theme, collector) => {
 	const groupBorderColor = theme.getColor(EDITOR_GROUP_BORDER) || theme.getColor(contrastBorder);
 	if (groupBorderColor) {

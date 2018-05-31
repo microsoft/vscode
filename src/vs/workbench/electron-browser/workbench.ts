@@ -1247,7 +1247,7 @@ export class Workbench extends Disposable implements IPartService {
 		return this.centeredEditorLayoutActive;
 	}
 
-	// TODO@grid support centered editor layout using empty groups or not? functionality missing:
+	// TODO@ben support centered editor layout using empty groups or not? functionality missing:
 	// - resize sashes left and right in sync
 	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
 	// - should we just allow to enter layout even if groups > 1? what does it then mean to be
