@@ -28,7 +28,6 @@
 	"welcomePage.installExtensionPacksDescription": "Installer un support pour {0} et {1}",
 	"welcomePage.moreExtensions": "plus",
 	"welcomePage.installKeymapDescription": "Paramètres et combinaisons de touches",
-	"welcomePage.installKeymapExtension": "Installer les paramètres et les raccourcis clavier de {0} et {1}",
 	"welcomePage.others": "autres",
 	"welcomePage.colorTheme": "Thème de couleur",
 	"welcomePage.colorThemeDescription": "Personnalisez l'apparence de l'éditeur et de votre code",

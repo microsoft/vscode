@@ -9,7 +9,6 @@
 	"callstackSection": "Çağrı Yığını Bölümü",
 	"debugStopped": "{0} Üzerinde Duraklatıldı",
 	"callStackAriaLabel": "Hata Ayıklama Çağrı Yığını",
-	"process": "İşlem",
 	"paused": "Duraklatıldı",
 	"running": "Çalışıyor",
 	"thread": "İş Parçacığı",

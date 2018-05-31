@@ -17,13 +17,5 @@
 	"issueTitleLabel": "Название",
 	"issueTitleRequired": "Введите название.",
 	"titleLengthValidation": "Название слишком длинное.",
-	"systemInfo": "Информация о системе",
-	"sendData": "Отправить мои данные",
-	"processes": "Запущенные процессы",
-	"workspaceStats": "Статистика моей рабочей области",
-	"extensions": "Мои расширения",
-	"searchedExtensions": "Расширения, для которых выполнялся поиск",
-	"settingsSearchDetails": "Сведения о параметрах поиска",
-	"details": "Укажите сведения.",
-	"loadingData": "Загрузка данных..."
+	"details": "Укажите сведения."
 }

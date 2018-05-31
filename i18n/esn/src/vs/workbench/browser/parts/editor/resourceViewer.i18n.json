@@ -15,7 +15,6 @@
 	"resourceOpenExternalButton": "¿Abrir la imagen mediante un programa externo?",
 	"nativeFileTooLargeError": "El archivo no se muestra en el editor porque es demasiado grande ({0}). ",
 	"nativeBinaryError": "El archivo no se muestra en el editor porque es binario o utiliza una codificación de texto no soportada. ",
-	"openAsText": "¿Desea abrirlo de todas formas?",
 	"zoom.action.fit.label": "Imagen completa",
 	"imgMeta": "{0} x {1} {2}"
 }

@@ -21,7 +21,6 @@
 	"schema.languageId": "O ID da definição do ícone para a associação.",
 	"schema.fonts": "Fontes que são usadas nas definições de ícone.",
 	"schema.id": "O ID da fonte.",
-	"schema.src": "A localização da fonte.",
 	"schema.font-path": "O caminho do fonte, relativo ao arquivo de tema de ícone atual.",
 	"schema.font-format": "O formato da fonte.",
 	"schema.font-weight": "O peso da fonte.",

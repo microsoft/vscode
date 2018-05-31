@@ -11,7 +11,6 @@
 	"open": "Ouvrir les paramètres",
 	"saveAndRetry": "Enregistrer et Réessayer",
 	"errorUnknownKey": "Impossible d’écrire dans {0} car {1} n’est pas une configuration recommandée.",
-	"errorInvalidWorkspaceConfigurationApplication": "Impossible d’écrire {0} dans paramètres de l’espace de travail. Ce paramètre peut être écrit uniquement dans les paramètres de l’utilisateur.",
 	"errorInvalidFolderConfiguration": "Impossible d’écrire dans les paramètres de dossier parce que {0} ne supporte pas la portée de ressource de dossier.",
 	"errorInvalidUserTarget": "Impossible d’écrire dans les paramètres utilisateur parce que {0} ne supporte pas de portée globale.",
 	"errorInvalidWorkspaceTarget": "Impossible d’écrire dans les paramètres de l’espace de travail car {0} ne supporte pas de portée d’espace de travail dans un espace de travail multi dossiers.",

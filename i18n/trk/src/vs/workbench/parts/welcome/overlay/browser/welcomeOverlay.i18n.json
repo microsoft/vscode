@@ -13,7 +13,6 @@
 	"welcomeOverlay.extensions": "Eklentileri yönet",
 	"welcomeOverlay.problems": "Hataları ve uyarıları görüntüle",
 	"welcomeOverlay.commandPalette": "Tüm komutları bul ve çalıştır",
-	"welcomeOverlay.notifications": "Bildirimleri göster",
 	"welcomeOverlay": "Kullanıcı Arayüzüne Genel Bakış",
 	"hideWelcomeOverlay": "Arayüz Genel Bakışını Gizle",
 	"help": "Yardım"

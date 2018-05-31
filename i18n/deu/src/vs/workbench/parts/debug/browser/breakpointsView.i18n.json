@@ -9,7 +9,6 @@
 	"logPoint": "Protokollpunkt",
 	"breakpoint": "Haltepunkt",
 	"editBreakpoint": "{0} bearbeiten …",
-	"removeBreakpoint": "{0} entfernen",
 	"functionBreakpointsNotSupported": "Funktionshaltepunkte werden von diesem Debugtyp nicht unterstützt.",
 	"functionBreakpointPlaceholder": "Funktion mit Haltepunkt",
 	"functionBreakPointInputAriaLabel": "Geben Sie den Funktionshaltepunkt ein.",

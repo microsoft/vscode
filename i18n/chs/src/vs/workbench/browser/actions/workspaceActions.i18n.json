@@ -15,5 +15,5 @@
 	"saveWorkspace": "保存工作区",
 	"openWorkspaceAction": "打开工作区...",
 	"openWorkspaceConfigFile": "打开工作区配置文件",
-	"openFolderAsWorkspaceInNewWindow": "在新窗口中将文件夹作为工作区打开"
+	"duplicateWorkspaceInNewWindow": "复制此工作区并在新窗口打开"
 }
