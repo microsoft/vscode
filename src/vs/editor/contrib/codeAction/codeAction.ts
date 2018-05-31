@@ -5,26 +5,34 @@
 
 import { isFalsyOrEmpty, mergeSort, flatten } from 'vs/base/common/arrays';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedExternalError, isPromiseCanceledError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
-import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
+import { CodeAction, CodeActionProviderRegistry, CodeActionContext, CodeActionTrigger as CodeActionTriggerKind } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { CodeActionFilter, CodeActionKind } from './codeActionTrigger';
+import { CodeActionFilter, CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { Selection } from 'vs/editor/common/core/selection';
 
-export function getCodeActions(model: ITextModel, range: Range, filter?: CodeActionFilter): TPromise<CodeAction[]> {
-	const codeActionContext = { only: filter && filter.kind ? filter.kind.value : undefined };
+export function getCodeActions(model: ITextModel, rangeOrSelection: Range | Selection, trigger?: CodeActionTrigger): TPromise<CodeAction[]> {
+	const codeActionContext: CodeActionContext = {
+		only: trigger && trigger.filter && trigger.filter.kind ? trigger.filter.kind.value : undefined,
+		trigger: trigger && trigger.type === 'manual' ? CodeActionTriggerKind.Manual : CodeActionTriggerKind.Automatic
+	};
 
 	const promises = CodeActionProviderRegistry.all(model).map(support => {
-		return asWinJsPromise(token => support.provideCodeActions(model, range, codeActionContext, token)).then(providedCodeActions => {
+		return asWinJsPromise(token => support.provideCodeActions(model, rangeOrSelection, codeActionContext, token)).then(providedCodeActions => {
 			if (!Array.isArray(providedCodeActions)) {
 				return [];
 			}
-			return providedCodeActions.filter(action => isValidAction(filter, action));
+			return providedCodeActions.filter(action => isValidAction(trigger && trigger.filter, action));
 		}, (err): CodeAction[] => {
+			if (isPromiseCanceledError(err)) {
+				throw err;
+			}
+
 			onUnexpectedExternalError(err);
 			return [];
 		});
@@ -80,5 +88,5 @@ registerLanguageCommand('_executeCodeActionProvider', function (accessor, args) 
 		throw illegalArgument();
 	}
 
-	return getCodeActions(model, model.validateRange(range));
+	return getCodeActions(model, model.validateRange(range), undefined);
 });

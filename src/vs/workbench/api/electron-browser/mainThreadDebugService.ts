@@ -6,17 +6,20 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
 	IExtHostContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, ISourceBreakpointDto, IFunctionBreakpointDto
-} from '../node/extHost.protocol';
+} from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import severity from 'vs/base/common/severity';
-import { AbstractDebugAdapter, convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
 import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
+import { AbstractTerminalLauncher } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -27,17 +30,19 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
+	private _terminalLauncher: ITerminalLauncher;
 
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService
+		@IDebugService private debugService: IDebugService,
+		@ITerminalService private terminalService: ITerminalService,
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
-		this._toDispose.push(debugService.onDidNewProcess(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
-		this._toDispose.push(debugService.onDidEndProcess(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
-		this._toDispose.push(debugService.getViewModel().onDidFocusProcess(proc => {
+		this._toDispose.push(debugService.onDidNewSession(proc => this._proxy.$acceptDebugSessionStarted(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.onDidEndSession(proc => this._proxy.$acceptDebugSessionTerminated(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false))));
+		this._toDispose.push(debugService.getViewModel().onDidFocusSession(proc => {
 			if (proc) {
 				this._proxy.$acceptDebugSessionActiveChanged(<DebugSessionUUID>proc.getId(), proc.configuration.type, proc.getName(false));
 			} else {
@@ -47,7 +52,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 		this._toDispose.push(debugService.onDidCustomEvent(event => {
 			if (event && event.sessionId) {
-				const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === event.sessionId).pop();
+				const process = this.debugService.getModel().getSessions().filter(p => p.getId() === event.sessionId).pop();
 				if (process) {
 					this._proxy.$acceptDebugSessionCustomEvent(event.sessionId, process.configuration.type, process.configuration.name, event);
 				}
@@ -60,9 +65,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
 	}
 
-	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
+	createDebugAdapter(debugType: string, adapterInfo, debugPort: number): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo, debugPort);
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
@@ -72,7 +77,10 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return this._proxy.$runInTerminal(args, config);
+		if (!this._terminalLauncher) {
+			this._terminalLauncher = new ExtensionTerminalLauncher(this.terminalService, this._proxy);
+		}
+		return this._terminalLauncher.runInTerminal(args, config);
 	}
 
 	public dispose(): void {
@@ -217,9 +225,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	public $customDebugAdapterRequest(sessionId: DebugSessionUUID, request: string, args: any): TPromise<any> {
-		const process = this.debugService.getModel().getProcesses().filter(p => p.getId() === sessionId).pop();
+		const process = this.debugService.getModel().getSessions().filter(p => p.getId() === sessionId).pop();
 		if (process) {
-			return process.session.custom(request, args).then(response => {
+			return process.raw.custom(request, args).then(response => {
 				if (response && response.success) {
 					return response.body;
 				} else {
@@ -261,7 +269,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null, private _debugPort: number) {
 		super();
 	}
 
@@ -274,7 +282,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): TPromise<void> {
-		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable);
+		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable, this._debugPort);
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {
@@ -292,5 +300,27 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public stopSession(): TPromise<void> {
 		return this._proxy.$stopDASession(this._handle);
+	}
+}
+
+export class ExtensionTerminalLauncher extends AbstractTerminalLauncher {
+
+	constructor(
+		@ITerminalService terminalService: ITerminalService,
+		private _proxy: ExtHostDebugServiceShape
+	) {
+		super(terminalService);
+	}
+
+	protected runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+		return this._proxy.$runInTerminal(args, config);
+	}
+
+	protected isBusy(processId: number): TPromise<boolean> {
+		return this._proxy.$isTerminalBusy(processId);
+	}
+
+	protected prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any> {
+		return this._proxy.$prepareCommandForTerminal(args, config);
 	}
 }

@@ -35,17 +35,17 @@ export interface IClipboardService {
 	writeFindText(text: string): void;
 
 	/**
-	 * Writes files to the system clipboard.
+	 * Writes resources to the system clipboard.
 	 */
-	writeFiles(files: URI[]): void;
+	writeResources(resources: URI[]): void;
 
 	/**
-	 * Reads files from the system clipboard.
+	 * Reads resources from the system clipboard.
 	 */
-	readFiles(): URI[];
+	readResources(): URI[];
 
 	/**
-	 * Find out if files are copied to the clipboard.
+	 * Find out if resources are copied to the clipboard.
 	 */
-	hasFiles(): boolean;
+	hasResources(): boolean;
 }

@@ -673,6 +673,10 @@ export class SnippetString {
 	}
 }
 
+export enum DiagnosticTag {
+	Unnecessary = 1,
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -747,6 +751,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
+	customTags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -876,36 +881,31 @@ export class SymbolInformation {
 	}
 }
 
-export class HierarchicalSymbolInformation {
-	name: string;
-	location: Location;
-	kind: SymbolKind;
-	range: Range;
-	children: HierarchicalSymbolInformation[];
+export class SymbolInformation2 extends SymbolInformation {
 
-	constructor(name: string, kind: SymbolKind, location: Location, range: Range) {
-		this.name = name;
-		this.kind = kind;
-		this.location = location;
+	detail: string;
+	range: Range;
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
+		super(name, kind, undefined, location);
+		this.detail = detail;
 		this.range = range;
+	}
+}
+
+export class Hierarchy<T> {
+	parent: T;
+	children: Hierarchy<T>[];
+
+	constructor(parent: T) {
+		this.parent = parent;
 		this.children = [];
 	}
+}
 
-	static toFlatSymbolInformation(info: HierarchicalSymbolInformation): SymbolInformation[] {
-		let result: SymbolInformation[] = [];
-		HierarchicalSymbolInformation._toFlatSymbolInformation(info, undefined, result);
-		return result;
-	}
-
-	private static _toFlatSymbolInformation(info: HierarchicalSymbolInformation, containerName: string, bucket: SymbolInformation[]): void {
-		bucket.push(new SymbolInformation(info.name, info.kind, containerName, new Location(info.location.uri, info.range)));
-		if (Array.isArray(info.children)) {
-			for (const child of info.children) {
-				HierarchicalSymbolInformation._toFlatSymbolInformation(child, info.name, bucket);
-			}
-		}
-	}
-
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
 }
 
 export class CodeAction {
@@ -1881,10 +1881,19 @@ export class FileSystemError extends Error {
 	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
 		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
 	}
+	static Unavailable(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+	}
 
 	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
 		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
 		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		// workaround when extending builtin objects and when compiling to ES5, see:
+		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		if (typeof (<any>Object).setPrototypeOf === 'function') {
+			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
+		}
 
 		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
 			// nice stack traces
@@ -1912,28 +1921,10 @@ export class FoldingRange {
 	}
 }
 
-export class FoldingRangeKind {
-	/**
-	 * Kind for folding range representing a comment. The value of the kind is 'comment'.
-	 */
-	static readonly Comment = new FoldingRangeKind('comment');
-	/**
-	 * Kind for folding range representing a import. The value of the kind is 'imports'.
-	 */
-	static readonly Imports = new FoldingRangeKind('imports');
-	/**
-	 * Kind for folding range representing regions (for example marked by `#region`, `#endregion`).
-	 * The value of the kind is 'region'.
-	 */
-	static readonly Region = new FoldingRangeKind('region');
-
-	/**
-	 * Creates a new [FoldingRangeKind](#FoldingRangeKind).
-	 *
-	 * @param value of the kind.
-	 */
-	public constructor(public value: string) {
-	}
+export enum FoldingRangeKind {
+	Comment = 1,
+	Imports = 2,
+	Region = 3
 }
 
 //#endregion

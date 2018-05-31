@@ -14,6 +14,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import URI from 'vs/base/common/uri';
 
 let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
@@ -60,13 +61,13 @@ export class FileIconThemeStore {
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onIconThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
+				this.onIconThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
 			this.onDidChangeEmitter.fire(this.knownIconThemes);
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onIconThemes(extensionLocation: URI, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -94,10 +95,11 @@ export class FileIconThemeStore {
 				));
 				return;
 			}
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, iconTheme.path));
+			// TODO@extensionLocation
+			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionLocation.fsPath, iconTheme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionLocation.fsPath)) !== 0) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
 			}
 
 			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, normalizedAbsolutePath, extensionData);

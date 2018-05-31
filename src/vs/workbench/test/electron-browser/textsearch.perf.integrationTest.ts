@@ -24,7 +24,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -42,7 +42,7 @@ declare var __dirname: string;
 // git clone --separate-git-dir=testGit --no-checkout --single-branch https://chromium.googlesource.com/chromium/src testWorkspace
 // cd testWorkspace; git checkout 39a7f93d67f7
 // Run from repository root folder with (test.bat on Windows): ./scripts/test-int-mocha.sh --grep TextSearch.performance --timeout 500000 --testWorkspace <path>
-suite('TextSearch performance (integration)', () => {
+suite.skip('TextSearch performance (integration)', () => {
 
 	test('Measure', () => {
 		if (process.env['VSCODE_PID']) {
@@ -58,7 +58,7 @@ suite('TextSearch performance (integration)', () => {
 		}
 
 		const telemetryService = new TestTelemetryService();
-		const configurationService = new SimpleConfigurationService();
+		const configurationService = new TestConfigurationService();
 		const instantiationService = new InstantiationService(new ServiceCollection(
 			[ITelemetryService, telemetryService],
 			[IConfigurationService, configurationService],

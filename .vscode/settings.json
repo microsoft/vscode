@@ -39,5 +39,8 @@
 	],
 	"typescript.tsdk": "node_modules/typescript/lib",
 	"npm.exclude": "**/extensions/**",
-	"emmet.excludeLanguages": []
+	"emmet.excludeLanguages": [],
+	"typescript.preferences.importModuleSpecifier": "non-relative",
+	"typescript.preferences.quoteStyle": "single"
+
 }

@@ -71,14 +71,22 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 			return [];
 		}
 
-		// Only show the JSdoc completion when the everything before the cursor is whitespace
-		// or could be the opening of a comment
-		const line = document.lineAt(position.line).text;
-		const prefix = line.slice(0, position.character);
-		if (prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/) === null) {
+		if (!this.isValidCursorPosition(document, position)) {
 			return [];
 		}
 
+		if (!await this.isCommentableLocation(file, position, token)) {
+			return [];
+		}
+
+		return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
+	}
+
+	private async isCommentableLocation(
+		file: string,
+		position: Position,
+		token: CancellationToken
+	): Promise<boolean> {
 		const args: Proto.FileRequestArgs = {
 			file
 		};
@@ -86,8 +94,9 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 			this.client.execute('navtree', args, token),
 			new Promise<Proto.NavTreeResponse>((resolve) => setTimeout(resolve, 250))
 		]);
+
 		if (!response || !response.body) {
-			return [];
+			return false;
 		}
 
 		const body = response.body;
@@ -104,11 +113,15 @@ export default class JsDocCompletionProvider implements CompletionItemProvider {
 			return tree.childItems ? tree.childItems.some(matchesPosition) : false;
 		}
 
-		if (!matchesPosition(body)) {
-			return [];
-		}
+		return matchesPosition(body);
+	}
 
-		return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
+	private isValidCursorPosition(document: TextDocument, position: Position): boolean {
+		// Only show the JSdoc completion when the everything before the cursor is whitespace
+		// or could be the opening of a comment
+		const line = document.lineAt(position.line).text;
+		const prefix = line.slice(0, position.character);
+		return prefix.match(/^\s*$|\/\*\*\s*$|^\s*\/\*\*+\s*$/) !== null;
 	}
 
 	public resolveCompletionItem(item: CompletionItem, _token: CancellationToken) {
@@ -176,26 +189,8 @@ class TryCompleteJsDocCommand implements Command {
 			if (res.body.newText === '/** */') {
 				return undefined;
 			}
-			return TryCompleteJsDocCommand.templateToSnippet(res.body.newText);
+			return templateToSnippet(res.body.newText);
 		}, () => undefined);
-	}
-
-	private static templateToSnippet(template: string): SnippetString {
-		// TODO: use append placeholder
-		let snippetIndex = 1;
-		template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
-		template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
-		template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
-			let out = '* @param ';
-			if (type === ' {any}' || type === ' {*}') {
-				out += `{\$\{${snippetIndex++}:*\}} `;
-			} else if (type) {
-				out += type + ' ';
-			}
-			out += post + ` \${${snippetIndex++}}`;
-			return out;
-		});
-		return new SnippetString(template);
 	}
 
 	/**
@@ -205,4 +200,24 @@ class TryCompleteJsDocCommand implements Command {
 		const snippet = new SnippetString(`/**\n * $0\n */`);
 		return editor.insertSnippet(snippet, position, { undoStopBefore: false, undoStopAfter: true });
 	}
+}
+
+
+export function templateToSnippet(template: string): SnippetString {
+	// TODO: use append placeholder
+	let snippetIndex = 1;
+	template = template.replace(/\$/g, '\\$');
+	template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
+	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
+	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {
+		let out = '* @param ';
+		if (type === ' {any}' || type === ' {*}') {
+			out += `{\$\{${snippetIndex++}:*\}} `;
+		} else if (type) {
+			out += type + ' ';
+		}
+		out += post + ` \${${snippetIndex++}}`;
+		return out;
+	});
+	return new SnippetString(template);
 }

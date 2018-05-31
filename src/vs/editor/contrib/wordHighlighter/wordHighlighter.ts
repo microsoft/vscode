@@ -239,7 +239,7 @@ class WordHighlighter {
 			return;
 		}
 
-		var editorSelection = this.editor.getSelection();
+		let editorSelection = this.editor.getSelection();
 
 		// ignore multiline selection
 		if (editorSelection.startLineNumber !== editorSelection.endLineNumber) {
@@ -247,11 +247,11 @@ class WordHighlighter {
 			return;
 		}
 
-		var lineNumber = editorSelection.startLineNumber;
-		var startColumn = editorSelection.startColumn;
-		var endColumn = editorSelection.endColumn;
+		let lineNumber = editorSelection.startLineNumber;
+		let startColumn = editorSelection.startColumn;
+		let endColumn = editorSelection.endColumn;
 
-		var word = this.model.getWordAtPosition({
+		let word = this.model.getWordAtPosition({
 			lineNumber: lineNumber,
 			column: startColumn
 		});
@@ -267,14 +267,14 @@ class WordHighlighter {
 		// - 250ms later after the last cursor move event, render the occurrences
 		// - no flickering!
 
-		var currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
+		let currentWordRange = new Range(lineNumber, word.startColumn, lineNumber, word.endColumn);
 
-		var workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
+		let workerRequestIsValid = this._lastWordRange && this._lastWordRange.equalsRange(currentWordRange);
 
 		// Even if we are on a different word, if that word is in the decorations ranges, the request is still valid
 		// (Same symbol)
-		for (var i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
-			var range = this.model.getDecorationRange(this._decorationIds[i]);
+		for (let i = 0, len = this._decorationIds.length; !workerRequestIsValid && i < len; i++) {
+			let range = this.model.getDecorationRange(this._decorationIds[i]);
 			if (range && range.startLineNumber === lineNumber) {
 				if (range.startColumn <= startColumn && range.endColumn >= endColumn) {
 					workerRequestIsValid = true;
@@ -307,7 +307,7 @@ class WordHighlighter {
 			// Stop all previous actions and start fresh
 			this._stopAll();
 
-			var myRequestId = ++this.workerRequestTokenId;
+			let myRequestId = ++this.workerRequestTokenId;
 			this.workerRequestCompleted = false;
 
 			this.workerRequest = getOccurrencesAtPosition(this.model, this.editor.getPosition());
@@ -325,8 +325,8 @@ class WordHighlighter {
 	}
 
 	private _beginRenderDecorations(): void {
-		var currentTime = (new Date()).getTime();
-		var minimumRenderTime = this.lastCursorPositionChangeTime + 250;
+		let currentTime = (new Date()).getTime();
+		let minimumRenderTime = this.lastCursorPositionChangeTime + 250;
 
 		if (currentTime >= minimumRenderTime) {
 			// Synchronous
@@ -342,9 +342,9 @@ class WordHighlighter {
 
 	private renderDecorations(): void {
 		this.renderDecorationsTimer = -1;
-		var decorations: IModelDeltaDecoration[] = [];
-		for (var i = 0, len = this.workerRequestValue.length; i < len; i++) {
-			var info = this.workerRequestValue[i];
+		let decorations: IModelDeltaDecoration[] = [];
+		for (let i = 0, len = this.workerRequestValue.length; i < len; i++) {
+			let info = this.workerRequestValue[i];
 			decorations.push({
 				range: info.range,
 				options: WordHighlighter._getDecorationOptions(info.kind)

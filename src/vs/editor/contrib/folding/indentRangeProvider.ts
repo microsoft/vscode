@@ -79,13 +79,13 @@ export class RangesCollector {
 			}
 			const tabSize = model.getOptions().tabSize;
 			// reverse and create arrays of the exact length
-			let startIndexes = new Uint32Array(entries);
-			let endIndexes = new Uint32Array(entries);
+			let startIndexes = new Uint32Array(this._foldingRangesLimit);
+			let endIndexes = new Uint32Array(this._foldingRangesLimit);
 			for (let i = this._length - 1, k = 0; i >= 0; i--) {
 				let startIndex = this._startIndexes[i];
 				let lineContent = model.getLineContent(startIndex);
 				let indent = TextModel.computeIndentLevel(lineContent, tabSize);
-				if (indent < maxIndent) {
+				if (indent < maxIndent || (indent === maxIndent && entries++ < this._foldingRangesLimit)) {
 					startIndexes[k] = startIndex;
 					endIndexes[k] = this._endIndexes[i];
 					k++;

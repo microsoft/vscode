@@ -55,7 +55,7 @@ export interface IViewItem {
 	active: boolean;
 }
 
-class ViewDescriptorCollection {
+export class ViewDescriptorCollection {
 
 	private contextKeys = new CounterSet<string>();
 	private items: IViewItem[] = [];

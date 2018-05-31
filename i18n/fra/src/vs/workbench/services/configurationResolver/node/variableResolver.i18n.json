@@ -10,6 +10,7 @@
 	"configNotFound": "'{0}' ne peut pas être résolu car le paramètre '{1}' est introuvable.",
 	"configNoString": "'{0}' ne peut pas être résolu car '{1}' est une valeur structurée.",
 	"missingConfigName": "'{0}' ne peut pas être résolu car aucun nom de paramètre n'est donné.",
+	"noValueForCommand": "Impossible de résoudre '{0}', car la commande n'a pas de valeur.",
 	"canNotFindFolder": "'{0}' ne peut pas être résolu. Aucun dossier '{1}'.",
 	"canNotResolveWorkspaceFolderMultiRoot": "'{0}' ne peut pas être résolu dans un espace de travail de dossiers multiples. Gérer la portée cette variable en utilisant ':' et un nom de dossier d’espace de travail.",
 	"canNotResolveWorkspaceFolder": "'{0}' ne peut pas être résolu. Veuillez ouvrir un dossier.",

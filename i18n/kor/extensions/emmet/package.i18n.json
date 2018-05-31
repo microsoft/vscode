@@ -35,6 +35,7 @@
 	"emmetExtensionsPath": "Emmet 프로필 및 코드 조각이 포함된 폴더의 경로입니다.'",
 	"emmetShowExpandedAbbreviation": "확장된 emmet 약어를 제안으로 표시합니다.\n\"inMarkupAndStylesheetFilesOnly\" 옵션이 html, haml, jade, slim, xml, xsl, css, scss, sass, less 및 stylus에 적용됩니다.\n\"always\" 옵션이 마크업/css에 관계없이 파일의 모든 부분에 적용됩니다.",
 	"emmetShowAbbreviationSuggestions": "가능한 emmet 약어를 제안으로 표시합니다. 스타일시트에는 적용되지 않고 emmet.showExpandedAbbreviation이 \"never\"로 설정되어 있을 때도 적용되지 않습니다.",
+	"emmetIncludeLanguages": "기본 지원되지 않는 언어에서 Emmet 약어를 사용하도록 설정합니다. 언어와 emmet 지원 언어 사이에 매핑을 추가합니다.\n예: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "emmet 조각에 사용되는 변수",
 	"emmetTriggerExpansionOnTab": "사용하도록 설정하면 emmet 약어는 Tab 키를 눌렀을 때 확장됩니다.",
 	"emmetPreferences": "Emmet의 일부 작업 및 해결 프로그램의 동작을 수정하는 데 사용되는 기본 설정입니다.",
@@ -59,5 +60,6 @@
 	"emmetPreferencesCssMozProperties": "`-`로 시작하는 Emmet 약어에서 사용될 때 'moz' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'moz' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
 	"emmetPreferencesCssOProperties": "`-`로 시작하는 emmet 약어에서 사용할 때 'o' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'o' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
 	"emmetPreferencesCssMsProperties": "`-`로 시작하는 emmet 약어에서 사용할 때 'ms' 공급업체 접두사를 가져오는 쉼표로 구분된 CSS 속성입니다. 항상 'ms' 접두사를 사용하지 않으려면 빈 문자열로 설정합니다.",
-	"emmetPreferencesCssFuzzySearchMinScore": "유사 일치 약어가 획득해야 하는 최소 점수(0에서 1 사이)입니다. 값이 낮을수록 가양성 일치 항목이 늘 수 있고, 값이 높을수록 가능한 일치 항목이 줄 수 있습니다."
+	"emmetPreferencesCssFuzzySearchMinScore": "유사 일치 약어가 획득해야 하는 최소 점수(0에서 1 사이)입니다. 값이 낮을수록 가양성 일치 항목이 늘 수 있고, 값이 높을수록 가능한 일치 항목이 줄 수 있습니다.",
+	"emmetOptimizeStylesheetParsing": "False로 설정할 경우 전체 파일이 구문 분석되어 현재 위치가 Emmet 약어 확장에 유효한지 확인합니다. True로 설정할 경우 css/scss/less 파일에서 현재 위치 주변의 콘텐츠만 구문 분석합니다."
 }

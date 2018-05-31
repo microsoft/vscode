@@ -288,6 +288,9 @@ export class PackageJSONContribution implements IJSONContribution {
 					if (latest) {
 						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
 					}
+					if (obj.homepage) {
+						result.push(obj.homepage);
+					}
 					return result;
 				}
 			} catch (e) {

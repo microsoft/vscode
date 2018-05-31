@@ -9,6 +9,7 @@ import * as path from 'path';
 import * as fs from 'fs';
 import * as minimatch from 'minimatch';
 import * as nls from 'vscode-nls';
+import { JSONVisitor, visit, ParseErrorCode } from 'jsonc-parser/lib/main';
 
 const localize = nls.loadMessageBundle();
 
@@ -18,6 +19,12 @@ export interface NpmTaskDefinition extends TaskDefinition {
 }
 
 type AutoDetect = 'on' | 'off';
+
+let cachedTasks: Task[] | undefined = undefined;
+
+export function invalidateScriptsCache() {
+	cachedTasks = undefined;
+}
 
 const buildNames: string[] = ['build', 'compile', 'watch'];
 function isBuildTask(name: string): boolean {
@@ -39,8 +46,24 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function isNotPreOrPostScript(script: string): boolean {
-	return !(script.startsWith('pre') || script.startsWith('post'));
+function getPrePostScripts(scripts: any): Set<string> {
+	const prePostScripts: Set<string> = new Set([
+		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
+		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
+		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
+		'pretest', 'postest', 'prepublishOnly'
+	]);
+	let keys = Object.keys(scripts);
+	for (let i = 0; i < keys.length; i++) {
+		const script = keys[i];
+		const prepost = ['pre' + script, 'post' + script];
+		prepost.forEach(each => {
+			if (scripts[each]) {
+				prePostScripts.add(each);
+			}
+		});
+	}
+	return prePostScripts;
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -49,20 +72,6 @@ export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
 
 export function getPackageManager(folder: WorkspaceFolder): string {
 	return workspace.getConfiguration('npm', folder.uri).get<string>('packageManager', 'npm');
-}
-
-export function explorerIsEnabled(): boolean {
-	let folders = workspace.workspaceFolders;
-	if (!folders) {
-		return false;
-	}
-	for (let i = 0; i < folders.length; i++) {
-		let folder = folders[i];
-		if (workspace.getConfiguration('npm', folder.uri).get<boolean>('enableScriptExplorer') === true) {
-			return true;
-		}
-	}
-	return false;
 }
 
 export async function hasNpmScripts(): Promise<boolean> {
@@ -87,7 +96,8 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-export async function provideNpmScripts(): Promise<Task[]> {
+async function detectNpmScripts(): Promise<Task[]> {
+
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];
 
@@ -115,6 +125,13 @@ export async function provideNpmScripts(): Promise<Task[]> {
 	}
 }
 
+export async function provideNpmScripts(): Promise<Task[]> {
+	if (!cachedTasks) {
+		cachedTasks = await detectNpmScripts();
+	}
+	return cachedTasks;
+}
+
 function isAutoDetectionEnabled(folder: WorkspaceFolder): boolean {
 	return workspace.getConfiguration('npm', folder.uri).get<AutoDetect>('autoDetect') === 'on';
 }
@@ -125,19 +142,25 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	}
 
 	let exclude = workspace.getConfiguration('npm', folder.uri).get<string | string[]>('exclude');
+	let packageJsonFolder = path.dirname(packageJsonUri.fsPath);
 
 	if (exclude) {
 		if (Array.isArray(exclude)) {
 			for (let pattern of exclude) {
-				if (testForExclusionPattern(packageJsonUri.fsPath, pattern)) {
+				if (testForExclusionPattern(packageJsonFolder, pattern)) {
 					return true;
 				}
 			}
-		} else if (testForExclusionPattern(packageJsonUri.fsPath, exclude)) {
+		} else if (testForExclusionPattern(packageJsonFolder, exclude)) {
 			return true;
 		}
 	}
 	return false;
+}
+
+function isDebugScript(script: string): boolean {
+	let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+	return match !== null;
 }
 
 async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> {
@@ -153,13 +176,21 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	}
 
 	const result: Task[] = [];
-	Object.keys(scripts).filter(isNotPreOrPostScript).forEach(each => {
+
+	const prePostScripts = getPrePostScripts(scripts);
+	Object.keys(scripts).forEach(each => {
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
 		} else if (isTestTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Test;
+		}
+		if (prePostScripts.has(each)) {
+			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
+		}
+		if (isDebugScript(scripts![each])) {
+			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
 	});
@@ -175,7 +206,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -235,23 +266,58 @@ async function readFile(file: string): Promise<string> {
 	});
 }
 
-export async function getScripts(packageJsonUri: Uri): Promise<any> {
+export type StringMap = { [s: string]: string; };
+
+async function findAllScripts(buffer: string): Promise<StringMap> {
+	var scripts: StringMap = {};
+	let script: string | undefined = undefined;
+	let inScripts = false;
+
+	let visitor: JSONVisitor = {
+		onError(_error: ParseErrorCode, _offset: number, _length: number) {
+			// TODO: inform user about the parse error
+		},
+		onObjectEnd() {
+			if (inScripts) {
+				inScripts = false;
+			}
+		},
+		onLiteralValue(value: any, _offset: number, _length: number) {
+			if (script) {
+				scripts[script] = value;
+				script = undefined;
+			}
+		},
+		onObjectProperty(property: string, _offset: number, _length: number) {
+			if (property === 'scripts') {
+				inScripts = true;
+			}
+			else if (inScripts) {
+				script = property;
+			}
+		}
+	};
+	visit(buffer, visitor);
+	return scripts;
+}
+
+export async function getScripts(packageJsonUri: Uri): Promise<StringMap | undefined> {
 
 	if (packageJsonUri.scheme !== 'file') {
-		return null;
+		return undefined;
 	}
 
 	let packageJson = packageJsonUri.fsPath;
 	if (!await exists(packageJson)) {
-		return null;
+		return undefined;
 	}
 
 	try {
 		var contents = await readFile(packageJson);
-		var json = JSON.parse(contents);
-		return json.scripts;
+		var json = findAllScripts(contents);//JSON.parse(contents);
+		return json;
 	} catch (e) {
-		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri);
+		let localizedParseError = localize('npm.parseError', 'Npm task detection: failed to parse the file {0}', packageJsonUri.fsPath);
 		throw new Error(localizedParseError);
 	}
 }

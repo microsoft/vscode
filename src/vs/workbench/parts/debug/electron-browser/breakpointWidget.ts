@@ -34,20 +34,21 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
+import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 
 const $ = dom.$;
-const IPrivateBreakopintWidgetService = createDecorator<IPrivateBreakopintWidgetService>('privateBreakopintWidgetService');
-export interface IPrivateBreakopintWidgetService {
+const IPrivateBreakpointWidgetService = createDecorator<IPrivateBreakpointWidgetService>('privateBreakopintWidgetService');
+export interface IPrivateBreakpointWidgetService {
 	_serviceBrand: any;
 	close(success: boolean): void;
 }
 const DECORATION_KEY = 'breakpointwidgetdecoration';
 
-export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWidgetService {
+export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWidgetService {
 	public _serviceBrand: any;
 
 	private selectContainer: HTMLElement;
-	private input: SimpleDebugEditor;
+	private input: CodeEditorWidget;
 	private toDispose: lifecycle.IDisposable[];
 	private conditionInput = '';
 	private hitCountInput = '';
@@ -67,7 +68,8 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 
 		this.toDispose = [];
 		const uri = this.editor.getModel().uri;
-		this.breakpoint = this.debugService.getModel().getBreakpoints().filter(bp => bp.lineNumber === this.lineNumber && bp.uri.toString() === uri.toString()).pop();
+		const breakpoints = this.debugService.getModel().getBreakpoints({ lineNumber: this.lineNumber, uri });
+		this.breakpoint = breakpoints.length ? breakpoints[0] : undefined;
 
 		if (this.context === undefined) {
 			if (this.breakpoint && !this.breakpoint.condition && !this.breakpoint.hitCondition && this.breakpoint.logMessage) {
@@ -199,10 +201,11 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakopintWi
 		this.toDispose.push(scopedContextKeyService);
 
 		const scopedInstatiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, scopedContextKeyService], [IPrivateBreakopintWidgetService, this]));
+			[IContextKeyService, scopedContextKeyService], [IPrivateBreakpointWidgetService, this]));
 
 		const options = SimpleDebugEditor.getEditorOptions();
-		this.input = scopedInstatiationService.createInstance(SimpleDebugEditor, container, options);
+		const codeEditorWidgetOptions = SimpleDebugEditor.getCodeEditorWidgetOptions();
+		this.input = scopedInstatiationService.createInstance(CodeEditorWidget, container, options, codeEditorWidgetOptions);
 		CONTEXT_IN_BREAKPOINT_WIDGET.bindTo(scopedContextKeyService).set(true);
 		const model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:breakpointinput`), true);
 		this.input.setModel(model);
@@ -303,7 +306,7 @@ class AcceptBreakpointWidgetInputAction extends EditorCommand {
 	}
 
 	public runEditorCommand(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		accessor.get(IPrivateBreakopintWidgetService).close(true);
+		accessor.get(IPrivateBreakpointWidgetService).close(true);
 	}
 }
 
@@ -328,7 +331,7 @@ class CloseBreakpointWidgetCommand extends EditorCommand {
 			return debugContribution.closeBreakpointWidget();
 		}
 
-		accessor.get(IPrivateBreakopintWidgetService).close(false);
+		accessor.get(IPrivateBreakpointWidgetService).close(false);
 	}
 }
 

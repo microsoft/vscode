@@ -12,7 +12,7 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { DEBUG_SCHEME, IDebugService, IProcess } from 'vs/workbench/parts/debug/common/debug';
+import { DEBUG_SCHEME, IDebugService, ISession } from 'vs/workbench/parts/debug/common/debug';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 /**
@@ -41,24 +41,24 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 
 	public provideTextContent(resource: uri): TPromise<ITextModel> {
 
-		let process: IProcess;
+		let session: ISession;
 		let sourceRef: number;
 
 		if (resource.query) {
 			const data = Source.getEncodedDebugData(resource);
-			process = this.debugService.getModel().getProcesses().filter(p => p.getId() === data.processId).pop();
+			session = this.debugService.getModel().getSessions().filter(p => p.getId() === data.sessionId).pop();
 			sourceRef = data.sourceReference;
 		}
 
-		if (!process) {
-			// fallback: use focused process
-			process = this.debugService.getViewModel().focusedProcess;
+		if (!session) {
+			// fallback: use focused session
+			session = this.debugService.getViewModel().focusedSession;
 		}
 
-		if (!process) {
+		if (!session) {
 			return TPromise.wrapError<ITextModel>(new Error(localize('unable', "Unable to resolve the resource without a debug session")));
 		}
-		const source = process.getSourceForUri(resource);
+		const source = session.getSourceForUri(resource);
 		let rawSource: DebugProtocol.Source;
 		if (source) {
 			rawSource = source.raw;
@@ -81,7 +81,7 @@ export class DebugContentProvider implements IWorkbenchContribution, ITextModelC
 			return model;
 		};
 
-		return process.session.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
+		return session.raw.source({ sourceReference: sourceRef, source: rawSource }).then(response => {
 			if (!response) {
 				return createErrModel(localize('canNotResolveSource', "Could not resolve resource {0}, no response from debug extension.", resource.toString()));
 			}

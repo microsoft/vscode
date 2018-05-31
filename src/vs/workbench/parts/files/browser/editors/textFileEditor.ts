@@ -18,7 +18,7 @@ import { EditorOptions, TextEditorOptions, IEditorCloseEvent } from 'vs/workbenc
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
+import { FileOperationError, FileOperationResult, FileChangesEvent, IFileService, FALLBACK_MAX_MEMORY_SIZE_MB, MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -171,7 +171,7 @@ export class TextFileEditor extends BaseTextEditor {
 				}
 
 				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_EXCEED_MEMORY_LIMIT) {
-					let memoryLimit = Math.max(2048, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || 4096);
+					let memoryLimit = Math.max(MIN_MAX_MEMORY_SIZE_MB, +this.configurationService.getValue<number>(null, 'files.maxMemoryForLargeFilesMB') || FALLBACK_MAX_MEMORY_SIZE_MB);
 
 					return TPromise.wrapError<void>(errors.create(toErrorMessage(error), {
 						actions: [

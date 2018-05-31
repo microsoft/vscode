@@ -10,7 +10,7 @@ import * as nls from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
 import { IStringDictionary } from 'vs/base/common/collections';
-import * as Platform from 'vs/base/common/platform';
+import { Platform } from 'vs/base/common/platform';
 import * as Types from 'vs/base/common/types';
 import * as UUID from 'vs/base/common/uuid';
 
@@ -182,14 +182,20 @@ export interface LegacyCommandProperties {
 	isShellCommand?: boolean | ShellConfiguration;
 }
 
-export type CommandString = string | { value: string, quoting: 'escape' | 'strong' | 'weak' };
+export type CommandString = string | string[] | { value: string | string[], quoting: 'escape' | 'strong' | 'weak' };
 
 export namespace CommandString {
 	export function value(value: CommandString): string {
 		if (Types.isString(value)) {
 			return value;
+		} else if (Types.isStringArray(value)) {
+			return value.join(' ');
 		} else {
-			return value.value;
+			if (Types.isString(value.value)) {
+				return value.value;
+			} else {
+				return value.value.join(' ');
+			}
 		}
 	}
 }
@@ -608,6 +614,7 @@ interface ParseContext {
 	uuidMap: UUIDMap;
 	engine: Tasks.ExecutionEngine;
 	schemaVersion: Tasks.JsonSchemaVersion;
+	platform: Platform;
 }
 
 
@@ -787,14 +794,20 @@ namespace CommandConfiguration {
 			}
 			if (Types.isString(value)) {
 				return value;
+			} else if (Types.isStringArray(value)) {
+				return value.join(' ');
+			} else {
+				let quoting = Tasks.ShellQuoting.from(value.quoting);
+				let result = Types.isString(value.value) ? value.value : Types.isStringArray(value.value) ? value.value.join(' ') : undefined;
+				if (result) {
+					return {
+						value: result,
+						quoting: quoting
+					};
+				} else {
+					return undefined;
+				}
 			}
-			if (Types.isString(value.value)) {
-				return {
-					value: value.value,
-					quoting: Tasks.ShellQuoting.from(value.quoting)
-				};
-			}
-			return undefined;
 		}
 	}
 
@@ -817,11 +830,11 @@ namespace CommandConfiguration {
 		let result: Tasks.CommandConfiguration = fromBase(config, context);
 
 		let osConfig: Tasks.CommandConfiguration = undefined;
-		if (config.windows && Platform.platform === Platform.Platform.Windows) {
+		if (config.windows && context.platform === Platform.Windows) {
 			osConfig = fromBase(config.windows, context);
-		} else if (config.osx && Platform.platform === Platform.Platform.Mac) {
+		} else if (config.osx && context.platform === Platform.Mac) {
 			osConfig = fromBase(config.osx, context);
-		} else if (config.linux && Platform.platform === Platform.Platform.Linux) {
+		} else if (config.linux && context.platform === Platform.Linux) {
 			osConfig = fromBase(config.linux, context);
 		}
 		if (osConfig) {
@@ -1324,6 +1337,7 @@ namespace CustomTask {
 			_label: taskName,
 			name: taskName,
 			identifier: taskName,
+			hasDefinedMatchers: false,
 			command: undefined
 		};
 		let configuration = ConfigurationProperties.from(external, context, false);
@@ -1362,6 +1376,10 @@ namespace CustomTask {
 		if (CommandConfiguration.hasCommand(task.command) || task.dependsOn === void 0) {
 			task.command = CommandConfiguration.fillGlobals(task.command, globals.command, task.name);
 		}
+		if (task.problemMatchers === void 0 && globals.problemMatcher !== void 0) {
+			task.problemMatchers = Objects.deepClone(globals.problemMatcher);
+			task.hasDefinedMatchers = true;
+		}
 		// promptOnClose is inferred from isBackground if available
 		if (task.promptOnClose === void 0 && task.isBackground === void 0 && globals.promptOnClose !== void 0) {
 			task.promptOnClose = globals.promptOnClose;
@@ -1392,7 +1410,8 @@ namespace CustomTask {
 			type: 'custom',
 			command: contributedTask.command,
 			name: configuredProps.name || contributedTask.name,
-			identifier: configuredProps.identifier || contributedTask.identifier
+			identifier: configuredProps.identifier || contributedTask.identifier,
+			hasDefinedMatchers: false
 		};
 		let resultConfigProps: Tasks.ConfigurationProperties = result;
 
@@ -1416,6 +1435,10 @@ namespace CustomTask {
 		result.command.presentation = CommandConfiguration.PresentationOptions.fillProperties(
 			result.command.presentation, contributedConfigProps.presentation);
 		result.command.options = CommandOptions.fillProperties(result.command.options, contributedConfigProps.options);
+
+		if (contributedTask.hasDefinedMatchers === true) {
+			result.hasDefinedMatchers = true;
+		}
 
 		return result;
 	}
@@ -1532,6 +1555,7 @@ namespace TaskParser {
 
 interface Globals {
 	command?: Tasks.CommandConfiguration;
+	problemMatcher?: ProblemMatcher[];
 	promptOnClose?: boolean;
 	suppressTaskName?: boolean;
 }
@@ -1541,11 +1565,11 @@ namespace Globals {
 	export function from(config: ExternalTaskRunnerConfiguration, context: ParseContext): Globals {
 		let result = fromBase(config, context);
 		let osGlobals: Globals = undefined;
-		if (config.windows && Platform.platform === Platform.Platform.Windows) {
+		if (config.windows && context.platform === Platform.Windows) {
 			osGlobals = fromBase(config.windows, context);
-		} else if (config.osx && Platform.platform === Platform.Platform.Mac) {
+		} else if (config.osx && context.platform === Platform.Mac) {
 			osGlobals = fromBase(config.osx, context);
-		} else if (config.linux && Platform.platform === Platform.Platform.Linux) {
+		} else if (config.linux && context.platform === Platform.Linux) {
 			osGlobals = fromBase(config.linux, context);
 		}
 		if (osGlobals) {
@@ -1567,6 +1591,9 @@ namespace Globals {
 		}
 		if (config.promptOnClose !== void 0) {
 			result.promptOnClose = !!config.promptOnClose;
+		}
+		if (config.problemMatcher) {
+			result.problemMatcher = ProblemMatcherConverter.from(config.problemMatcher, context);
 		}
 		return result;
 	}
@@ -1730,9 +1757,11 @@ class ConfigurationParser {
 	private workspaceFolder: IWorkspaceFolder;
 	private problemReporter: IProblemReporter;
 	private uuidMap: UUIDMap;
+	private platform: Platform;
 
-	constructor(workspaceFolder: IWorkspaceFolder, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
+	constructor(workspaceFolder: IWorkspaceFolder, platform: Platform, problemReporter: IProblemReporter, uuidMap: UUIDMap) {
 		this.workspaceFolder = workspaceFolder;
+		this.platform = platform;
 		this.problemReporter = problemReporter;
 		this.uuidMap = uuidMap;
 	}
@@ -1746,7 +1775,8 @@ class ConfigurationParser {
 			uuidMap: this.uuidMap,
 			namedProblemMatchers: undefined,
 			engine,
-			schemaVersion
+			schemaVersion,
+			platform: this.platform
 		};
 		let taskParseResult = this.createTaskRunnerConfiguration(fileConfig, context);
 		return {
@@ -1765,13 +1795,13 @@ class ConfigurationParser {
 		context.namedProblemMatchers = ProblemMatcherConverter.namedFrom(fileConfig.declares, context);
 		let globalTasks: Tasks.CustomTask[];
 		let externalGlobalTasks: (ConfiguringTask | CustomTask)[];
-		if (fileConfig.windows && Platform.platform === Platform.Platform.Windows) {
+		if (fileConfig.windows && context.platform === Platform.Windows) {
 			globalTasks = TaskParser.from(fileConfig.windows.tasks, globals, context).custom;
 			externalGlobalTasks = fileConfig.windows.tasks;
-		} else if (fileConfig.osx && Platform.platform === Platform.Platform.Mac) {
+		} else if (fileConfig.osx && context.platform === Platform.Mac) {
 			globalTasks = TaskParser.from(fileConfig.osx.tasks, globals, context).custom;
 			externalGlobalTasks = fileConfig.osx.tasks;
-		} else if (fileConfig.linux && Platform.platform === Platform.Platform.Linux) {
+		} else if (fileConfig.linux && context.platform === Platform.Linux) {
 			globalTasks = TaskParser.from(fileConfig.linux.tasks, globals, context).custom;
 			externalGlobalTasks = fileConfig.linux.tasks;
 		}
@@ -1814,7 +1844,8 @@ class ConfigurationParser {
 					suppressTaskName: true
 				},
 				isBackground: isBackground,
-				problemMatchers: matchers
+				problemMatchers: matchers,
+				hasDefinedMatchers: false,
 			};
 			let value = GroupKind.from(fileConfig.group);
 			if (value) {
@@ -1834,7 +1865,7 @@ class ConfigurationParser {
 }
 
 let uuidMaps: Map<string, UUIDMap> = new Map();
-export function parse(workspaceFolder: IWorkspaceFolder, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
+export function parse(workspaceFolder: IWorkspaceFolder, platform: Platform, configuration: ExternalTaskRunnerConfiguration, logger: IProblemReporter): ParseResult {
 	let uuidMap = uuidMaps.get(workspaceFolder.uri.toString());
 	if (!uuidMap) {
 		uuidMap = new UUIDMap();
@@ -1842,7 +1873,7 @@ export function parse(workspaceFolder: IWorkspaceFolder, configuration: External
 	}
 	try {
 		uuidMap.start();
-		return (new ConfigurationParser(workspaceFolder, logger, uuidMap)).run(configuration);
+		return (new ConfigurationParser(workspaceFolder, platform, logger, uuidMap)).run(configuration);
 	} finally {
 		uuidMap.finish();
 	}

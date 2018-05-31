@@ -10,7 +10,7 @@ import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IExtHostContext } from '../node/extHost.protocol';
@@ -119,6 +119,12 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 			}
 		}));
 
+		this._toDispose.push(fileService.onAfterOperation(e => {
+			if (e.operation === FileOperation.MOVE) {
+				this._proxy.$onDidRename(e.resource, e.target.resource);
+			}
+		}));
+
 		this._modelToDisposeMap = Object.create(null);
 	}
 
@@ -220,11 +226,18 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		return this._fileService.resolveFile(asFileUri).then(stats => {
 			// don't create a new file ontop of an existing file
 			return TPromise.wrapError<boolean>(new Error('file already exists on disk'));
-		}, err => this._doCreateUntitled(asFileUri).then(resource => !!resource));
+		}, err => {
+			return this._doCreateUntitled(uri).then(resource => !!resource);
+		});
 	}
 
 	private _doCreateUntitled(resource?: URI, modeId?: string, initialValue?: string): TPromise<URI> {
-		return this._untitledEditorService.loadOrCreate({ resource, modeId, initialValue }).then(model => {
+		return this._untitledEditorService.loadOrCreate({
+			resource,
+			modeId,
+			initialValue,
+			useResourcePath: Boolean(resource && resource.path)
+		}).then(model => {
 			const resource = model.getResource();
 
 			if (!this._modelIsSynced[resource.toString()]) {

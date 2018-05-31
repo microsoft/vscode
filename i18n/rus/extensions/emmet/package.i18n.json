@@ -35,6 +35,7 @@
 	"emmetExtensionsPath": "Путь к папке, содержащей профили Emmet и фрагменты кода.",
 	"emmetShowExpandedAbbreviation": "Отображает развернутые сокращения Emmet в виде предложений.\nПараметр \"inMarkupAndStylesheetFilesOnly\" применяется к html, haml, jade, slim, xml, xsl, css, scss, sass, less и stylus .\nПараметр \"always\" применяется ко всем частям файла независимо от разметки и стилей.",
 	"emmetShowAbbreviationSuggestions": "Отображает возможные сокращения Emmet в виде предложений. Не применяется в таблицах стилей или если параметр emmet.showExpandedAbbreviation имеет значение \"never\".",
+	"emmetIncludeLanguages": "Включает сокращения Emmet в языках, которые не поддерживаются по умолчанию. Здесь можно указать связь между не поддерживаемым и поддерживаемым языками.\nПример: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Переменные, которые будут использоваться во фрагментах Emmet",
 	"emmetTriggerExpansionOnTab": "Если этот параметр установлен, сокращения Emmet разворачиваются при нажатии клавиши TAB.",
 	"emmetPreferences": "Настройки, которые используются для изменения поведения некоторых действий и сопоставителей Emmet.",

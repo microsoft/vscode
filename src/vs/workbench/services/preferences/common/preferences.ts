@@ -41,6 +41,10 @@ export interface ISetting {
 	descriptionRanges: IRange[];
 	overrides?: ISetting[];
 	overrideOf?: ISetting;
+
+	// TODO@roblou maybe need new type and new EditorModel for GUI editor instead of ISetting which is used for text settings editor
+	type?: string | string[];
+	enum?: string[];
 }
 
 export interface IExtensionSetting extends ISetting {
@@ -138,6 +142,7 @@ export interface IPreferencesService {
 
 	openRawDefaultSettings(): TPromise<void>;
 	openSettings(): TPromise<IEditor>;
+	openSettings2(): TPromise<IEditor>;
 	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
 	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;

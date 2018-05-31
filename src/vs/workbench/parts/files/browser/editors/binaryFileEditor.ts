@@ -15,6 +15,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import URI from 'vs/base/common/uri';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 
 /**
  * An implementation of editor for binary files like images.
@@ -26,6 +27,7 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
+		@IFileService fileService: IFileService,
 		@IWindowsService private windowsService: IWindowsService,
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
 	) {
@@ -36,7 +38,8 @@ export class BinaryFileEditor extends BaseBinaryResourceEditor {
 				openExternal: resource => this.openExternal(resource)
 			},
 			telemetryService,
-			themeService
+			themeService,
+			fileService
 		);
 	}
 

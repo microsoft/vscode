@@ -14,7 +14,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Position } from 'vs/platform/editor/common/editor';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -117,7 +117,7 @@ const extensionPacks: ExtensionSuggestion[] = [
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
-	{ name: localize('welcomePage.docker', "Docker"), id: 'PeterJausovec.vscode-docker' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'peterjausovec.vscode-docker' },
 ];
 
 const keymapExtensions: ExtensionSuggestion[] = [
@@ -221,7 +221,6 @@ class WelcomePage {
 		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -317,7 +316,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowsService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});

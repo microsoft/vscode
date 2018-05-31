@@ -234,6 +234,8 @@ class SuggestionDetails {
 		chain<IConfigurationChangedEvent>(this.editor.onDidChangeConfiguration.bind(this.editor))
 			.filter(e => e.fontInfo)
 			.on(this.configureFont, this, this.disposables);
+
+		markdownRenderer.onDidRenderCodeBlock(() => this.scrollbar.scanDomNode(), this, this.disposables);
 	}
 
 	get element() {
@@ -463,20 +465,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		this.setState(State.Hidden);
 
 		this.onThemeChange(themeService.getTheme());
-
-		// TODO@Alex: this is useful, but spammy
-		// var isVisible = false;
-		// this.onDidVisibilityChange((newIsVisible) => {
-		// 	if (isVisible === newIsVisible) {
-		// 		return;
-		// 	}
-		// 	isVisible = newIsVisible;
-		// 	if (isVisible) {
-		// 		alert(nls.localize('suggestWidgetAriaVisible', "Suggestions opened"));
-		// 	} else {
-		// 		alert(nls.localize('suggestWidgetAriaInvisible', "Suggestions closed"));
-		// 	}
-		// });
 	}
 
 	private onCursorSelectionChanged(): void {
@@ -493,7 +481,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		}
 
 		this.editorBlurTimeout = TPromise.timeout(150).then(() => {
-			if (!this.editor.isFocused()) {
+			if (!this.editor.hasTextFocus()) {
 				this.setState(State.Hidden);
 			}
 		});
@@ -650,7 +638,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				this.show();
 				break;
 			case State.Open:
-				hide(this.messageElement, this.details.element);
+				hide(this.messageElement);
 				show(this.listElement);
 				this.show();
 				break;
@@ -689,7 +677,10 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			this.loadingTimeout = null;
 		}
 
-		this.completionModel = completionModel;
+		if (this.completionModel !== completionModel) {
+			this.completionModel = completionModel;
+			this.focusedItem = null;
+		}
 
 		if (isFrozen && this.state !== State.Empty && this.state !== State.Hidden) {
 			this.setState(State.Frozen);
@@ -724,7 +715,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 			*/
 			this.telemetryService.publicLog('suggestWidget', { ...stats, ...this.editor.getTelemetryData() });
 
-			this.focusedItem = null;
 			this.list.splice(0, this.list.length, this.completionModel.items);
 
 			if (isFrozen) {

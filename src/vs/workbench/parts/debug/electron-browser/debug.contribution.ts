@@ -188,10 +188,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
 			default: false
 		},
-		'debug.hideActionBar': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
-			default: false
+		'debug.toolBarLocation': {
+			enum: ['floating', 'docked', 'hidden'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either \"floating\" in all views, \"docked\" in the debug view, or \"hidden\""),
+			default: 'floating'
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],
@@ -201,7 +201,7 @@ configurationRegistry.registerConfiguration({
 		},
 		'debug.internalConsoleOptions': INTERNAL_CONSOLE_OPTIONS_SCHEMA,
 		'debug.openDebug': {
-			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart'],
+			enum: ['neverOpen', 'openOnSessionStart', 'openOnFirstSessionStart', 'openOnDebugBreak'],
 			default: 'openOnFirstSessionStart',
 			description: nls.localize('openDebug', "Controls whether debug view should be open on debugging session start.")
 		},

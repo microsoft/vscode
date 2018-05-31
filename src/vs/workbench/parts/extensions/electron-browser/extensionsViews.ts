@@ -335,13 +335,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				return TPromise.join([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
-
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 						/* __GDPR__
 							"extensionAllRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionAllRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id].reasonId
+								};
+							})
+						});
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
@@ -373,13 +382,23 @@ export class ExtensionsListView extends ViewsViewletPanel {
 						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 
 						/* __GDPR__
 							"extensionRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id].reasonId
+								};
+							})
+						});
 
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));

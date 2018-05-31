@@ -4,12 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { EditorAction, EditorExtensionsRegistry, IEditorContributionCtor } from 'vs/editor/browser/editorExtensions';
-import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ICommandService } from 'vs/platform/commands/common/commands';
+import { ICodeEditorWidgetOptions } from 'vs/editor/browser/widget/codeEditorWidget';
 
 // Allowed Editor Contributions:
 import { MenuPreventer } from 'vs/workbench/parts/codeEditor/electron-browser/menuPreventer';
@@ -18,36 +13,21 @@ import { ContextMenuController } from 'vs/editor/contrib/contextmenu/contextmenu
 import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
 import { TabCompletionController } from 'vs/workbench/parts/snippets/electron-browser/tabCompletion';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
 
-export class SimpleDebugEditor extends CodeEditorWidget {
-	constructor(
-		domElement: HTMLElement,
-		options: IEditorOptions,
-		@IInstantiationService instantiationService: IInstantiationService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@ICommandService commandService: ICommandService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@INotificationService notificationService: INotificationService,
-	) {
-		super(domElement, options, true, instantiationService, codeEditorService, commandService, contextKeyService, themeService, notificationService);
-	}
+export class SimpleDebugEditor {
 
-	protected _getContributions(): IEditorContributionCtor[] {
-		return [
-			MenuPreventer,
-			SelectionClipboard,
-			ContextMenuController,
-			SuggestController,
-			SnippetController2,
-			TabCompletionController,
-		];
-	}
-
-	protected _getActions(): EditorAction[] {
-		return EditorExtensionsRegistry.getEditorActions();
+	public static getCodeEditorWidgetOptions(): ICodeEditorWidgetOptions {
+		return {
+			isSimpleWidget: true,
+			contributions: [
+				MenuPreventer,
+				SelectionClipboard,
+				ContextMenuController,
+				SuggestController,
+				SnippetController2,
+				TabCompletionController,
+			]
+		};
 	}
 
 	public static getEditorOptions(): IEditorOptions {

@@ -314,11 +314,11 @@ export class NotificationViewItemProgress implements INotificationViewItemProgre
 	}
 
 	public worked(value: number): void {
-		if (this._state.worked === value) {
-			return;
+		if (typeof this._state.worked === 'number') {
+			this._state.worked += value;
+		} else {
+			this._state.worked = value;
 		}
-
-		this._state.worked = value;
 
 		this._state.infinite = void 0;
 		this._state.done = void 0;
@@ -340,6 +340,7 @@ export interface IMessageLink {
 
 export interface INotificationMessage {
 	raw: string;
+	original: NotificationMessage;
 	value: string;
 	links: IMessageLink[];
 }
@@ -421,7 +422,7 @@ export class NotificationViewItem implements INotificationViewItem {
 		});
 
 
-		return { raw, value: message, links };
+		return { raw, value: message, links, original: input };
 	}
 
 	private constructor(private _severity: Severity, private _message: INotificationMessage, private _source: string, actions?: INotificationActions) {

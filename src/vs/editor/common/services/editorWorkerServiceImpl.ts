@@ -37,7 +37,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	if (!model) {
 		return false;
 	}
-	if (model.isTooLargeForTokenization()) {
+	if (model.isTooLargeForSyncing()) {
 		return false;
 	}
 	return true;
@@ -265,7 +265,7 @@ class EditorModelManager extends Disposable {
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForTokenization()) {
+		if (model.isTooLargeForSyncing()) {
 			return;
 		}
 

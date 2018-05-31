@@ -5,10 +5,10 @@
 
 import * as fs from 'fs';
 import * as path from 'path';
-import { Commands } from '../workbench/workbench';
 import { Editor } from '../editor/editor';
 import { Editors } from '../editor/editors';
 import { Code } from '../../vscode/code';
+import { QuickOpen } from '../quickopen/quickopen';
 
 export enum ActivityBarPosition {
 	LEFT = 0,
@@ -19,10 +19,10 @@ const SEARCH_INPUT = '.settings-search-input input';
 
 export class SettingsEditor {
 
-	constructor(private code: Code, private userDataPath: string, private commands: Commands, private editors: Editors, private editor: Editor) { }
+	constructor(private code: Code, private userDataPath: string, private editors: Editors, private editor: Editor, private quickopen: QuickOpen) { }
 
 	async addUserSetting(setting: string, value: string): Promise<void> {
-		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.openSettings();
 		await this.code.waitAndClick(SEARCH_INPUT);
 		await this.code.waitForActiveElement(SEARCH_INPUT);
 
@@ -37,7 +37,11 @@ export class SettingsEditor {
 		const settingsPath = path.join(this.userDataPath, 'User', 'settings.json');
 		await new Promise((c, e) => fs.writeFile(settingsPath, '{}', 'utf8', err => err ? e(err) : c()));
 
-		await this.commands.runCommand('workbench.action.openGlobalSettings');
+		await this.openSettings();
 		await this.editor.waitForEditorContents('settings.json', c => c === '{}', '.editable-preferences-editor-container');
+	}
+
+	private async openSettings(): Promise<void> {
+		await this.quickopen.runCommand('Preferences: Open User Settings');
 	}
 }

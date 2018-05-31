@@ -28,7 +28,6 @@ import { ITitleService } from 'vs/workbench/services/title/common/titleService';
 import { IWorkbenchThemeService, VS_HC_THEME, VS_DARK_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import * as browser from 'vs/base/browser/browser';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Position, IResourceInput, IUntitledResourceInput, IEditor } from 'vs/platform/editor/common/editor';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
@@ -85,7 +84,6 @@ export class ElectronWindow extends Themable {
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService,
 		@IExtensionService private extensionService: IExtensionService,
-		@IViewletService private viewletService: IViewletService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -305,11 +303,6 @@ export class ElectronWindow extends Themable {
 
 			return null;
 		};
-
-		// Send over all extension viewlets when extensions are ready
-		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
-			ipc.send('vscode:extensionViewlets', JSON.stringify(this.viewletService.getViewlets().filter(v => !!v.extensionId).map(v => { return { id: v.id, label: v.name }; })));
-		});
 
 		// Emit event when vscode has loaded
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {

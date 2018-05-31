@@ -115,7 +115,7 @@ export class CursorConfiguration {
 		this.tabSize = modelOptions.tabSize;
 		this.insertSpaces = modelOptions.insertSpaces;
 		this.oneIndent = oneIndent;
-		this.pageSize = Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2;
+		this.pageSize = Math.max(1, Math.floor(c.layoutInfo.height / c.fontInfo.lineHeight) - 2);
 		this.lineHeight = c.lineHeight;
 		this.useTabStops = c.useTabStops;
 		this.wordSeparators = c.wordSeparators;

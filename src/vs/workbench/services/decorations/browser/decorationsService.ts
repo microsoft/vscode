@@ -287,13 +287,13 @@ class DecorationProviderWrapper {
 
 		if (includeChildren) {
 			// (resolved) children
-			const childTree = this.data.findSuperstr(key);
-			if (childTree) {
-				childTree.forEach(value => {
-					if (value && !isThenable<void>(value)) {
-						callback(value, true);
+			const iter = this.data.findSuperstr(key);
+			if (iter) {
+				for (let item = iter.next(); !item.done; item = iter.next()) {
+					if (item.value && !isThenable<void>(item.value)) {
+						callback(item.value, true);
 					}
-				});
+				}
 			}
 		}
 	}

@@ -12,5 +12,6 @@
 	"terminal.integrated.copySelection.noSelection": "В терминале отсутствует выделенный текст для копирования",
 	"terminal.integrated.exitedWithCode": "Процесс терминала завершен с кодом выхода: {0}",
 	"terminal.integrated.waitOnExit": "Нажмите любую клавишу, чтобы закрыть терминал.",
-	"terminal.integrated.launchFailed": "Не удалось запустить команду процесса терминала \"{0}{1}\" (код выхода: {2})"
+	"terminal.integrated.launchFailed": "Не удалось запустить команду процесса терминала \"{0}{1}\" (код выхода: {2})",
+	"terminal.integrated.launchFailedExtHost": "Не удалось запустить процесс терминала (код выхода: {0})"
 }

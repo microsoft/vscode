@@ -12,7 +12,7 @@ import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
 import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { toResource, IEditorCommandsContext } from 'vs/workbench/common/editor';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -77,8 +77,9 @@ export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'removeRootFolder';
 export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
 export const openWindowCommand = (accessor: ServicesAccessor, paths: string[], forceNewWindow: boolean) => {
-	const windowsService = accessor.get(IWindowsService);
-	windowsService.openWindow(paths, { forceNewWindow });
+	const windowService = accessor.get(IWindowService);
+
+	windowService.openWindow(paths, { forceNewWindow });
 };
 
 function save(resource: URI, isSaveAs: boolean, editorService: IWorkbenchEditorService, fileService: IFileService, untitledEditorService: IUntitledEditorService,
@@ -399,7 +400,7 @@ function revealResourcesInOS(resources: URI[], windowsService: IWindowsService, 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: REVEAL_IN_OS_COMMAND_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: EditorContextKeys.editorTextFocus.toNegated(),
+	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_R,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_R
@@ -433,7 +434,7 @@ function resourcesToClipboard(resources: URI[], clipboardService: IClipboardServ
 }
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-	when: EditorContextKeys.editorTextFocus.toNegated(),
+	when: EditorContextKeys.focus.toNegated(),
 	primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.KEY_C,
 	win: {
 		primary: KeyMod.Shift | KeyMod.Alt | KeyCode.KEY_C

@@ -301,6 +301,11 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Enable that scrolling can go beyond the last column by a number of columns.
+	 * Defaults to 5.
+	 */
+	scrollBeyondLastColumn?: number;
+	/**
 	 * Enable that the editor animates scrolling to a position.
 	 * Defaults to false.
 	 */
@@ -335,7 +340,7 @@ export interface IEditorOptions {
 	 */
 	wordWrapMinified?: boolean;
 	/**
-	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
+	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
@@ -630,9 +635,13 @@ export enum WrappingIndent {
 	 */
 	Same = 1,
 	/**
-	 * Indent => wrapped lines get +1 indentation as the parent.
+	 * Indent => wrapped lines get +1 indentation toward the parent.
 	 */
-	Indent = 2
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
 }
 
 /**
@@ -825,6 +834,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
+	readonly scrollBeyondLastColumn: number;
 	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
@@ -1105,6 +1115,7 @@ export class InternalEditorOptions {
 			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.scrollBeyondLastColumn === b.scrollBeyondLastColumn
 			&& a.smoothScrolling === b.smoothScrolling
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
@@ -1470,10 +1481,12 @@ function _wrappingIndentFromString(wrappingIndent: string, defaultValue: Wrappin
 	if (typeof wrappingIndent !== 'string') {
 		return defaultValue;
 	}
-	if (wrappingIndent === 'indent') {
-		return WrappingIndent.Indent;
-	} else if (wrappingIndent === 'same') {
+	if (wrappingIndent === 'same') {
 		return WrappingIndent.Same;
+	} else if (wrappingIndent === 'indent') {
+		return WrappingIndent.Indent;
+	} else if (wrappingIndent === 'deepIndent') {
+		return WrappingIndent.DeepIndent;
 	} else {
 		return WrappingIndent.None;
 	}
@@ -1718,6 +1731,7 @@ export class EditorOptionsValidator {
 			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			scrollBeyondLastColumn: _clampedInt(opts.scrollBeyondLastColumn, defaults.scrollBeyondLastColumn, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
@@ -1830,6 +1844,7 @@ export class InternalEditorOptionsFactory {
 				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
+				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -2203,9 +2218,9 @@ export class EditorLayoutProvider {
 	}
 }
 
-const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace';
-const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace';
-const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\'';
+const DEFAULT_WINDOWS_FONT_FAMILY = 'Consolas, \'Courier New\', monospace, \'Segoe UI Emoji\'';
+const DEFAULT_MAC_FONT_FAMILY = 'Menlo, Monaco, \'Courier New\', monospace, \'Apple Color Emoji\'';
+const DEFAULT_LINUX_FONT_FAMILY = '\'Droid Sans Mono\', \'monospace\', monospace, \'Droid Sans Fallback\', \'Noto Color Emoji\'';
 
 /**
  * @internal
@@ -2280,6 +2295,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
+		scrollBeyondLastColumn: 5,
 		smoothScrolling: false,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',

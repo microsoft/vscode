@@ -90,6 +90,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
+	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	}
+
 	public dispose(): void {
 		super.dispose();
 	}
@@ -254,6 +257,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.scrollBeyondLastColumn': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
+		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
@@ -345,9 +353,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
-			'enum': ['none', 'same', 'indent'],
+			'enum': ['none', 'same', 'indent', 'deepIndent'],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
@@ -699,5 +707,25 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
+
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+	if (cachedEditorConfigurationKeys === null) {
+		cachedEditorConfigurationKeys = Object.create(null);
+		Object.keys(editorConfiguration.properties).forEach((prop) => {
+			cachedEditorConfigurationKeys[prop] = true;
+		});
+	}
+	return cachedEditorConfigurationKeys;
+}
+
+export function isEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`editor.${key}`] || false);
+}
+export function isDiffEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
+}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

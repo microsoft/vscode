@@ -21,7 +21,7 @@ export function SingleProxyRPCProtocol(thing: any): IRPCProtocol {
 	};
 }
 
-declare var Proxy; // TODO@TypeScript
+declare var Proxy: any; // TODO@TypeScript
 
 export class TestRPCProtocol implements IRPCProtocol {
 
@@ -76,7 +76,7 @@ export class TestRPCProtocol implements IRPCProtocol {
 
 	private _createProxy<T>(proxyId: string): T {
 		let handler = {
-			get: (target, name: string) => {
+			get: (target: any, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._remoteCall(proxyId, name, myArgs);

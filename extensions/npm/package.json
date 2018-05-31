@@ -30,8 +30,7 @@
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
     "onLanguage:json",
-    "onView:npm",
-    "workspaceContains:package.json"
+    "onView:npm"
   ],
   "contributes": {
     "views": {
@@ -39,22 +38,34 @@
         {
           "id": "npm",
           "name": "%view.name%",
-          "when": "showExplorer"
+          "when": "config.npm.enableScriptExplorer"
         }
       ]
     },
     "commands": [
       {
         "command": "npm.runScript",
-        "title": "%command.run%"
+        "title": "%command.run%",
+        "icon": {
+          "light": "resources/light/continue.svg",
+          "dark": "resources/dark/continue.svg"
+        }
       },
       {
         "command": "npm.debugScript",
-        "title": "%command.debug%"
+        "title": "%command.debug%",
+        "icon": {
+          "light": "resources/light/debug.svg",
+          "dark": "resources/dark/debug.svg"
+        }
       },
       {
         "command": "npm.openScript",
         "title": "%command.openScript%"
+      },
+      {
+        "command": "npm.runInstall",
+        "title": "%command.runInstall%"
       },
       {
         "command": "npm.refresh",
@@ -77,9 +88,13 @@
         {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == packageJSON",
-          "group": "navigation"
+          "group": "navigation@1"
         },
         {
+          "command": "npm.runInstall",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation@2"
+        },        {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@1"
@@ -88,6 +103,21 @@
           "command": "npm.runScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@2"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "inline"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
         },
         {
           "command": "npm.debugScript",
@@ -143,6 +173,16 @@
           "default": false,
           "scope": "resource",
           "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.scriptExplorerAction": {
+          "type": "string",
+          "enum": [
+            "open",
+            "run"
+          ],
+          "description": "%config.npm.scriptExplorerAction%",
+          "scope": "window",
+          "default": "open"
         }
       }
     },

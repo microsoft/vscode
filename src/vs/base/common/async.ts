@@ -53,6 +53,10 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
+export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
+	return new TPromise((resolve, reject) => importPromise.then(resolve, reject)); // workaround for https://github.com/Microsoft/vscode/issues/48205
+}
+
 /**
  * Hook a cancellation token to a WinJS Promise
  */
@@ -67,6 +71,24 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 		});
 	}
 	return always(promise, () => subscription.dispose());
+}
+
+export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
+	let dispose: () => void;
+	let promise = new TPromise((resolve, reject) => {
+		dispose = function () {
+			resolve(cancelValue);
+		};
+		input.then(resolve, reject);
+	});
+	let res = {
+		promise,
+		dispose
+	};
+	if (Array.isArray(bucket)) {
+		bucket.push(res);
+	}
+	return res;
 }
 
 export interface ITask<T> {
@@ -169,7 +191,7 @@ export class SimpleThrottler {
  * A helper to delay execution of a task that is being requested often.
  *
  * Following the throttler, now imagine the mail man wants to optimize the number of
- * trips proactively. The trip itself can be long, so the he decides not to make the trip
+ * trips proactively. The trip itself can be long, so he decides not to make the trip
  * as soon as a letter is submitted. Instead he waits a while, in case more
  * letters are submitted. After said waiting period, if no letters were submitted, he
  * decides to make the trip. Imagine that N more letters were submitted after the first
@@ -254,7 +276,7 @@ export class Delayer<T> {
  * A helper to delay execution of a task that is being requested often, while
  * preventing accumulation of consecutive executions, while the task runs.
  *
- * Simply combine the two mail man strategies from the Throttler and Delayer
+ * Simply combine the two mail men's strategies from the Throttler and Delayer
  * helpers, for an analogy.
  */
 export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {

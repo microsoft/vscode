@@ -11,6 +11,7 @@ import { localize } from 'vs/nls';
 import { ParsedArgs } from '../common/environment';
 import { isWindows } from 'vs/base/common/platform';
 import product from 'vs/platform/node/product';
+import { MIN_MAX_MEMORY_SIZE_MB } from 'vs/platform/files/common/files';
 
 const options: minimist.Opts = {
 	string: [
@@ -62,7 +63,8 @@ const options: minimist.Opts = {
 		'skip-add-to-recently-opened',
 		'status',
 		'file-write',
-		'file-chmod'
+		'file-chmod',
+		'driver-verbose'
 	],
 	alias: {
 		add: 'a',
@@ -87,6 +89,10 @@ const options: minimist.Opts = {
 function validate(args: ParsedArgs): ParsedArgs {
 	if (args.goto) {
 		args._.forEach(arg => assert(/^(\w:)?[^:]+(:\d*){0,2}$/.test(arg), localize('gotoValidation', "Arguments in `--goto` mode should be in the format of `FILE(:LINE(:CHARACTER))`.")));
+	}
+
+	if (args['max-memory']) {
+		assert(args['max-memory'] >= MIN_MAX_MEMORY_SIZE_MB, `The max-memory argument cannot be specified lower than ${MIN_MAX_MEMORY_SIZE_MB} MB.`);
 	}
 
 	return args;

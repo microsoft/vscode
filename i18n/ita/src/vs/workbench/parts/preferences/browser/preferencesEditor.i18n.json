@@ -15,6 +15,8 @@
 	"nlpResult": "Risultati linguaggio naturale",
 	"filterResult": "Risultati filtrati",
 	"defaultSettings": "Impostazioni predefinite",
+	"defaultUserSettings": "Impostazioni predefinite utente",
+	"defaultWorkspaceSettings": "Impostazioni area di lavoro predefinite",
 	"defaultFolderSettings": "Impostazioni cartella predefinite",
 	"defaultEditorReadonly": "Modificare nell'editor a destra per ignorare le impostazioni predefinite.",
 	"preferencesAriaLabel": "Preferenze predefinite. Editor di testo di sola lettura."

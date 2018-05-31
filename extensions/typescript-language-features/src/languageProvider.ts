@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter } from 'vscode';
+import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter, DiagnosticSeverity } from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -11,7 +11,7 @@ import TypeScriptServiceClient from './typescriptServiceClient';
 import BufferSyncSupport from './features/bufferSyncSupport';
 
 import TypingsStatus from './utils/typingsStatus';
-import FormattingConfigurationManager from './features/formattingConfigurationManager';
+import FileConfigurationManager from './features/fileConfigurationManager';
 import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
 import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
@@ -19,7 +19,9 @@ import { LanguageDescription } from './utils/languageDescription';
 import * as fileSchemes from './utils/fileSchemes';
 import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
-import { disposeAll } from './utils/dipose';
+import { disposeAll } from './utils/dispose';
+import TelemetryReporter from './utils/telemetry';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -28,7 +30,7 @@ const foldingSetting = 'typescript.experimental.syntaxFolding';
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
-	private readonly formattingOptionsManager: FormattingConfigurationManager;
+	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
 
@@ -39,21 +41,23 @@ export default class LanguageProvider {
 	private readonly versionDependentDisposables: Disposable[] = [];
 
 	private foldingProviderRegistration: Disposable | undefined = void 0;
+	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
 		private readonly description: LanguageDescription,
 		private readonly commandManager: CommandManager,
-		typingsStatus: TypingsStatus
+		private readonly telemetryReporter: TelemetryReporter,
+		typingsStatus: TypingsStatus,
 	) {
-		this.formattingOptionsManager = new FormattingConfigurationManager(client);
+		this.fileConfigurationManager = new FileConfigurationManager(client);
 		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
 			delete: (resource) => {
 				this.diagnosticsManager.delete(resource);
 			}
 		}, this._validate);
 
-		this.diagnosticsManager = new DiagnosticsManager(description.id);
+		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -61,6 +65,15 @@ export default class LanguageProvider {
 		client.onReady(async () => {
 			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
+		});
+
+		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
+			try {
+				const doc = await workspace.openTextDocument(uri);
+				return this.handles(uri, doc);
+			} catch {
+				return false;
+			}
 		});
 	}
 
@@ -70,7 +83,8 @@ export default class LanguageProvider {
 
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
-		this.formattingOptionsManager.dispose();
+		this.fileConfigurationManager.dispose();
+		this.renameHandler.dispose();
 	}
 
 	@memoize
@@ -92,14 +106,15 @@ export default class LanguageProvider {
 		const selector = this.documentSelector;
 		const config = workspace.getConfiguration(this.id);
 
+		const TypeScriptCompletionItemProvider = (await import('./features/completionItemProvider')).default;
 		this.disposables.push(languages.registerCompletionItemProvider(selector,
-			new (await import('./features/completionItemProvider')).default(client, typingsStatus, commandManager),
-			'.', '"', '\'', '/', '@'));
+			new TypeScriptCompletionItemProvider(client, typingsStatus, this.fileConfigurationManager, commandManager),
+			...TypeScriptCompletionItemProvider.triggerCharacters));
 
 		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
 		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
-		const formattingProvider = new TypeScriptFormattingProvider(client, this.formattingOptionsManager);
+		const formattingProvider = new TypeScriptFormattingProvider(client, this.fileConfigurationManager);
 		formattingProvider.updateConfiguration(config);
 		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
 
@@ -116,11 +131,14 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
 		this.disposables.push(languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
-		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
-		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.formattingOptionsManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport)));
 
-		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.formattingOptionsManager, commandManager);
+
+		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
+		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
+
+		const TypescriptSignatureHelpProvider = (await import('./features/signatureHelpProvider')).default;
+		this.disposables.push(languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
+		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
 		await this.initFoldingProvider();
@@ -167,7 +185,7 @@ export default class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration(this.id);
+		const config = workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
@@ -225,8 +243,12 @@ export default class LanguageProvider {
 		this.diagnosticsManager.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
-		this.formattingOptionsManager.reset();
+		this.fileConfigurationManager.reset();
 		this.registerVersionDependentProviders();
+	}
+
+	public getErr(resources: Uri[]) {
+		this.bufferSyncSupport.getErr(resources);
 	}
 
 	private async registerVersionDependentProviders(): Promise<void> {
@@ -246,7 +268,7 @@ export default class LanguageProvider {
 		}
 
 		if (this.client.apiVersion.has280Features()) {
-			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager);
+			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
 			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
@@ -255,8 +277,18 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, syntaxDiagnostics: Diagnostic[]): void {
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, syntaxDiagnostics);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
+		const config = workspace.getConfiguration(this.id, file);
+		const reportUnnecessary = config.get<boolean>('showUnused', true);
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+			if (!reportUnnecessary) {
+				diag.customTags = undefined;
+				if (diag.reportUnnecessary && diag.severity === DiagnosticSeverity.Hint) {
+					return false;
+				}
+			}
+			return true;
+		}));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

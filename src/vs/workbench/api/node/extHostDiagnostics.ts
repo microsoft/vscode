@@ -116,7 +116,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 					orderLoop: for (let i = 0; i < 4; i++) {
 						for (let diagnostic of diagnostics) {
 							if (diagnostic.severity === order[i]) {
-								const len = marker.push(converter.fromDiagnostic(diagnostic));
+								const len = marker.push(converter.Diagnostic.from(diagnostic));
 								if (len === DiagnosticCollection._maxDiagnosticsPerFile) {
 									break orderLoop;
 								}
@@ -134,7 +134,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 						endColumn: marker[marker.length - 1].endColumn
 					});
 				} else {
-					marker = diagnostics.map(converter.fromDiagnostic);
+					marker = diagnostics.map(converter.Diagnostic.from);
 				}
 			}
 
@@ -147,6 +147,7 @@ export class DiagnosticCollection implements vscode.DiagnosticCollection {
 
 	delete(uri: vscode.Uri): void {
 		this._checkDisposed();
+		this._onDidChangeDiagnostics.fire([uri]);
 		this._data.delete(uri.toString());
 		this._proxy.$changeMany(this.name, [[uri, undefined]]);
 	}

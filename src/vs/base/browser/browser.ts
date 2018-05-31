@@ -157,8 +157,19 @@ export const isSafari = (userAgent.indexOf('Chrome') === -1) && (userAgent.index
 export const isIPad = (userAgent.indexOf('iPad') >= 0);
 export const isEdgeWebView = isEdge && (userAgent.indexOf('WebView/') >= 0);
 
-export const isChromev56 = (
-	userAgent.indexOf('Chrome/56.') >= 0
-	// Edge likes to impersonate Chrome sometimes
-	&& userAgent.indexOf('Edge/') === -1
-);
+export function hasClipboardSupport() {
+	if (isIE) {
+		return false;
+	}
+
+	if (isEdge) {
+		let index = userAgent.indexOf('Edge/');
+		let version = parseInt(userAgent.substring(index + 5, userAgent.indexOf('.', index)), 10);
+
+		if (!version || (version >= 12 && version <= 16)) {
+			return false;
+		}
+	}
+
+	return true;
+}

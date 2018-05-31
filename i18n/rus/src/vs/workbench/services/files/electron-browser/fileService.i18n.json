@@ -14,6 +14,7 @@
 	"fileInvalidPath": "Недопустимый ресурс файла ({0})",
 	"fileIsDirectoryError": "Файл является каталогом",
 	"fileNotModifiedError": "undefined",
+	"fileTooLargeForHeapError": "Чтобы открыть файл такого размера, необходимо перезапустить VS Code, увеличив допустимый объем используемой памяти",
 	"fileTooLargeError": "Не удается открыть файл, так как он имеет слишком большой размер",
 	"fileNotFoundError": "Файл не найден ({0})",
 	"fileBinaryError": "Похоже, файл является двоичным, и его нельзя открыть как текстовый.",

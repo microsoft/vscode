@@ -21,6 +21,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IEditorOpeningEvent } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isEqual } from 'vs/base/common/paths';
+import { isLinux } from 'vs/base/common/platform';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -79,7 +81,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		}
 
 		// Global User Settings File
-		if (resource.fsPath === this.environmentService.appSettingsPath) {
+		if (isEqual(resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
 			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.position));
 		}
 

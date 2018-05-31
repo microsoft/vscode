@@ -107,12 +107,11 @@
 	"colorDecorators": "Contrôle si l'éditeur doit afficher les éléments décoratifs de couleurs inline et le sélecteur de couleurs.",
 	"codeActions": "Active l'ampoule d'action de code",
 	"codeActionsOnSave.organizeImports": "Exécuter organiser les importations lors de l'enregistrement ?",
-	"codeActionsOnSave": "Types d'actions de code à exécuter lors de l'enregistrement.",
+	"codeActionsOnSave": "Types d'action de code à exécuter à l'enregistrement.",
 	"codeActionsOnSaveTimeout": "Délai d'attente pour les actions de code exécutées lors de l'enregistrement.",
 	"selectionClipboard": "Contrôle si le presse-papiers primaire Linux doit être pris en charge.",
 	"sideBySide": "Contrôle si l'éditeur de différences affiche les différences en mode côte à côte ou inline",
 	"ignoreTrimWhitespace": "Contrôle si l'éditeur de différences affiche les changements liés aux espaces blancs de début ou de fin comme des différences",
-	"largeFileSize": "Contrôles le seuil de la taille de fichier en octets au-delà de laquelle les règles d’optimisation spéciale sont appliquées",
-	"largeFileLineCount": "Contrôle le seuil de taille de fichier en terme de nombre de lignes au-delà de laquelle les règles d’optimisation spéciale sont appliquées",
+	"largeFileOptimizations": "Traitement spécial des fichiers volumineux pour désactiver certaines fonctionnalités utilisant beaucoup de mémoire.",
 	"renderIndicators": "Contrôle si l'éditeur de différences affiche les indicateurs +/- pour les modifications ajoutées/supprimées"
 }
