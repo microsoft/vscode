@@ -206,6 +206,7 @@ class TryCompleteJsDocCommand implements Command {
 export function templateToSnippet(template: string): SnippetString {
 	// TODO: use append placeholder
 	let snippetIndex = 1;
+	template = template.replace(/\$/g, '\\$');
 	template = template.replace(/^\s*(?=(\/|[ ]\*))/gm, '');
 	template = template.replace(/^(\/\*\*\s*\*[ ]*)$/m, (x) => x + `\$0`);
 	template = template.replace(/\* @param([ ]\{\S+\})?\s+(\S+)\s*$/gm, (_param, type, post) => {

@@ -528,6 +528,10 @@ class TaskService implements ITaskService {
 		return this._onDidStateChange.event;
 	}
 
+	public get supportsMultipleTaskExecutions(): boolean {
+		return this.inTerminal();
+	}
+
 	private registerCommands(): void {
 		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
 			this.runTaskCommand(accessor, arg);

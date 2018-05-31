@@ -172,7 +172,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	}
 
 	openRawUserSettings(): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.userSettingsResource }) as TPromise<any>;
+		return this.editorService.openEditor({ resource: this.userSettingsResource });
 	}
 
 	openSettings(): TPromise<IEditor> {

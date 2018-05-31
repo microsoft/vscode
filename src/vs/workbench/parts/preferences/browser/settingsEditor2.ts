@@ -32,6 +32,7 @@ import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/wor
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = DOM.$;
 
@@ -72,7 +73,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
-		@ILogService private logService: ILogService
+		@ILogService private logService: ILogService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedModifyLogging = new Delayer<void>(1000);
@@ -185,7 +187,10 @@ export class SettingsEditor2 extends BaseEditor {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
 		this.createList(bodyContainer);
-		this.createFeedbackButton(bodyContainer);
+
+		if (this.environmentService.appQuality !== 'stable') {
+			this.createFeedbackButton(bodyContainer);
+		}
 	}
 
 	private createList(parent: HTMLElement): void {

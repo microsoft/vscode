@@ -188,15 +188,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
 			default: false
 		},
-		'debug.hideActionBar': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
-			default: false
-		},
-		'debug.toolbar': {
-			enum: ['float', 'dock', 'hide'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolbar' }, "Controls the debug toolbar. Should it be floating, docked in the debug view or hidden."),
-			default: 'float'
+		'debug.toolBarLocation': {
+			enum: ['floating', 'docked', 'hidden'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either \"floating\" in all views, \"docked\" in the debug view, or \"hidden\""),
+			default: 'floating'
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],

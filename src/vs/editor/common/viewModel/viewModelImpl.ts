@@ -322,6 +322,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
+				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
 			this._endEmit();

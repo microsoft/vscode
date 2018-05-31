@@ -510,12 +510,12 @@
     "commands": [
       {
         "command": "typescript.reloadProjects",
-        "title": "%typescript.reloadProjects.title%",
+        "title": "%reloadProjects.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.reloadProjects",
-        "title": "%javascript.reloadProjects.title%",
+        "title": "%reloadProjects.title%",
         "category": "JavaScript"
       },
       {
@@ -525,12 +525,12 @@
       },
       {
         "command": "typescript.goToProjectConfig",
-        "title": "%typescript.goToProjectConfig.title%",
+        "title": "%goToProjectConfig.title%",
         "category": "TypeScript"
       },
       {
         "command": "javascript.goToProjectConfig",
-        "title": "%javascript.goToProjectConfig.title%",
+        "title": "%goToProjectConfig.title%",
         "category": "JavaScript"
       },
       {

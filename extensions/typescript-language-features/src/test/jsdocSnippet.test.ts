@@ -70,7 +70,7 @@ suite('typescript.jsDocSnippet', () => {
 			[
 				'/**',
 				' * $0',
-				' * @param $arg ${1}',
+				' * @param \\$arg ${1}',
 				' */'
 			].join('\n'));
 	});
