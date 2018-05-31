@@ -111,6 +111,16 @@ function getViewLocation(value: string): ViewLocation {
 	}
 }
 
+function showCollapsed(location: ViewLocation): boolean {
+	switch (location) {
+		case ViewLocation.Explorer:
+		case ViewLocation.SCM:
+		case ViewLocation.Debug:
+			return true;
+	}
+	return false;
+}
+
 ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], schema.viewsContribution)
 	.setHandler((extensions) => {
 		for (let extension of extensions) {
@@ -136,6 +146,7 @@ ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: schema.IUserFriendlyV
 						location,
 						when: ContextKeyExpr.deserialize(item.when),
 						canToggleVisibility: true,
+						collapsed: showCollapsed(location),
 						treeView: true
 					};
 
