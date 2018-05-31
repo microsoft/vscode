@@ -32,6 +32,7 @@
 	"infoBorder": "Couleur de bordure de la ligne ondulée marquant les informations dans l'éditeur.",
 	"hintForeground": "Couleur de premier plan de la ligne ondulée d'indication dans l'éditeur.",
 	"hintBorder": "Couleur de bordure de la ligne ondulée d'indication dans l'éditeur.",
+	"unnecessaryForeground": "Couleur de premier plan du code inutile dans l'éditeur.",
 	"overviewRulerRangeHighlight": "Couleur du marqueur de la règle d'aperçu pour des plages mises en surbrillance. La couleur doit ne pas être opaque pour ne pas masquer les décorations du dessous.",
 	"overviewRuleError": "Couleur du marqueur de la règle d'aperçu pour les erreurs.",
 	"overviewRuleWarning": "Couleur du marqueur de la règle d'aperçu pour les avertissements.",

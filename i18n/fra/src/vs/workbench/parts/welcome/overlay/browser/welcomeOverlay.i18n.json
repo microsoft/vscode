@@ -13,7 +13,6 @@
 	"welcomeOverlay.extensions": "Gérer les extensions",
 	"welcomeOverlay.problems": "Afficher les erreurs et avertissements",
 	"welcomeOverlay.commandPalette": "Rechercher et exécuter toutes les commandes",
-	"welcomeOverlay.notifications": "Afficher les notifications",
 	"welcomeOverlay": "Vue d'ensemble de l'interface utilisateur",
 	"hideWelcomeOverlay": "Masquer la vue d'ensemble de l'interface",
 	"help": "Aide"

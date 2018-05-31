@@ -32,7 +32,6 @@
 	"customizeParseErrors": "現在のタスクの構成にはエラーがあります。タスクをカスタマイズする前にエラーを修正してください。",
 	"moreThanOneBuildTask": "tasks.json で複数のビルド タスクが定義されています。最初のタスクのみを実行します。\\n",
 	"TaskSystem.activeSame.background": "タスク '{0}' は既にバックグラウンド モードでアクティブです。",
-	"TaskSystem.activeSame.noBackground": "タスク '{0}' は既にアクティブです。",
 	"terminateTask": "タスクの終了",
 	"restartTask": "タスクの再開",
 	"TaskSystem.active": "既に実行中のタスクがあります。まずこのタスクを終了してから、別のタスクを実行してください。",

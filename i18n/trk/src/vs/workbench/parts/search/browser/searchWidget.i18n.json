@@ -13,6 +13,6 @@
 	"search.placeHolder": "Ara",
 	"label.Replace": "Değiştir: Değiştirme terimini girin ve önizlemek için Enter'a, iptal etmek için Escape tuşuna basın",
 	"search.replace.placeHolder": "Değiştir",
-	"regexp.validationFailure": "İfade her öğe ile eşleşiyor",
+	"regexp.validationFailure": "İfade her öge ile eşleşiyor",
 	"regexp.backreferenceValidationFailure": "Geribaşvurular desteklenmiyor"
 }

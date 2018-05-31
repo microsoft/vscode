@@ -35,6 +35,7 @@
 	"hotExit": "Oturumlar arasında kaydedilmemiş dosyaların hatırlanıp hatırlanmayacağını denetler, düzenleyiciden çıkarken kaydetmek için izin istenmesi atlanacaktır.",
 	"useExperimentalFileWatcher": "Yeni deneysel dosya izleyicisini kullanın.",
 	"defaultLanguage": "Yeni dosyalara atanan varsayılan dil modu.",
+	"maxMemoryForLargeFilesMB": "Büyük dosyaları açmaya çalışırken, yeniden başlatma sonrası VS Code için mevcut olacak bellek miktarını denetler. Komut satırında belirtilen --max-memory=YENİBOYUT ile aynı etkiyi gösterir.",
 	"editorConfigurationTitle": "Düzenleyici",
 	"formatOnSave": "Dosyayı kaydederken biçimlendir. Bir biçimlendirici mevcut olmalıdır, dosya otomatik olarak kaydedilmemelidir, ve düzenleyici kapanmıyor olmalıdır.",
 	"formatOnSaveTimeout": "Dosyayı kaydederken biçimlendirme zaman aşımı. formatOnSave komutlarında kullanılacak milisaniye cinsinden zaman limiti. Belirtilen zaman aşımından daha uzun süren komutlar iptal edilecektir.",

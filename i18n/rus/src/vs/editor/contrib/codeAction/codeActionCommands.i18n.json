@@ -10,7 +10,6 @@
 	"quickFix": "Показать исправления",
 	"quickfix.trigger.label": "Быстрое исправление...",
 	"editor.action.quickFix.noneMessage": "Доступные действия кода отсутствуют",
-	"refactor.label": "Рефакторинг...",
 	"editor.action.refactor.noneMessage": "Доступные операции рефакторинга отсутствуют",
 	"source.label": "Исходное действие...",
 	"editor.action.source.noneMessage": "Доступные исходные действия отсутствуют",

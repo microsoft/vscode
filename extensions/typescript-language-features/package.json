@@ -471,16 +471,16 @@
           "description": "%typescript.preferences.importModuleSpecifier%",
           "scope": "resource"
         },
-        "javascript.showUnused.enabled": {
+        "javascript.showUnused": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.showUnused.enabled%",
+          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
-        "typescript.showUnused.enabled": {
+        "typescript.showUnused": {
           "type": "boolean",
           "default": true,
-          "description": "%typescript.showUnused.enabled%",
+          "description": "%typescript.showUnused%",
           "scope": "resource"
         },
         "typescript.updateImportsOnFileMove.enabled": {

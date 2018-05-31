@@ -310,6 +310,28 @@ nav#
 		});
 	});
 
+	test('# shouldnt expand to hex color when in selector (CSS)', () => {
+		const testContent = `
+.foo {
+	#
+}
+		`;
+
+		return withRandomFileEditor(testContent, 'css', (editor, doc) => {
+			editor.selection = new Selection(2, 2, 2, 2);
+			return expandEmmetAbbreviation(null).then(() => {
+				assert.equal(editor.document.getText(), testContent);
+				const cancelSrc = new CancellationTokenSource();
+				const completionPromise = completionProvider.provideCompletionItems(editor.document, new Position(2, 2), cancelSrc.token, { triggerKind: CompletionTriggerKind.Invoke });
+				if (completionPromise) {
+					assert.equal(1, 2, `Invalid completion of hex color at property name`);
+				}
+				return Promise.resolve();
+			});
+		});
+	});
+
+
 	test('Expand abbreviation in completion list (CSS)', () => {
 		const abbreviation = 'pos:f';
 		const expandedText = 'position: fixed;';

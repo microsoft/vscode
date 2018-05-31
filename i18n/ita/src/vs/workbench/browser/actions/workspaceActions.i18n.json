@@ -14,6 +14,5 @@
 	"save": "&&Salva",
 	"saveWorkspace": "Salva area di lavoro",
 	"openWorkspaceAction": "Apri area di lavoro...",
-	"openWorkspaceConfigFile": "Apri file di configurazione dell'area di lavoro",
-	"openFolderAsWorkspaceInNewWindow": "Apre la cartella come area di lavoro in una nuova finestra"
+	"openWorkspaceConfigFile": "Apri file di configurazione dell'area di lavoro"
 }

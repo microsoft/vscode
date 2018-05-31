@@ -347,7 +347,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 							recommendations: names.map(id => {
 								return {
 									id,
-									recommendationReason: recommendationsWithReason[id].reasonId
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
 								};
 							})
 						});
@@ -395,7 +395,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 							recommendations: names.map(id => {
 								return {
 									id,
-									recommendationReason: recommendationsWithReason[id].reasonId
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
 								};
 							})
 						});

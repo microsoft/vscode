@@ -114,6 +114,9 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 	}
 
 	private static shouldInclueEntry(item: Proto.NavigationTree | Proto.NavigationBarItem): boolean {
+		if (item.kind === PConst.Kind.alias) {
+			return false;
+		}
 		return !!(item.text && item.text !== '<function>' && item.text !== '<class>');
 	}
 }

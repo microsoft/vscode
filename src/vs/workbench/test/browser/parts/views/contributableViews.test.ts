@@ -8,7 +8,7 @@ import { ContributableViewsModel } from 'vs/workbench/browser/parts/views/contri
 import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
-import { SimpleConfigurationService } from 'vs/editor/standalone/browser/simpleServices';
+import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { move } from 'vs/base/common/arrays';
 
@@ -35,7 +35,7 @@ suite('ContributableViewsModel', () => {
 	let contextKeyService: IContextKeyService;
 
 	setup(() => {
-		const configurationService = new SimpleConfigurationService();
+		const configurationService = new TestConfigurationService();
 		contextKeyService = new ContextKeyService(configurationService);
 	});
 
