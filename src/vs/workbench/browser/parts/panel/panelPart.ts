@@ -129,12 +129,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
 	}
 
-	private _onDidPanelOpen(viewlet: IPanel): void {
-		this.activePanelContextKey.set(viewlet.getId());
+	private _onDidPanelOpen(panel: IPanel): void {
+		this.activePanelContextKey.set(panel.getId());
 	}
 
-	private _onDidPanelClose(viewlet: IPanel): void {
-		const id = viewlet.getId();
+	private _onDidPanelClose(panel: IPanel): void {
+		const id = panel.getId();
 
 		if (this.activePanelContextKey.get() === id) {
 			this.activePanelContextKey.reset();
