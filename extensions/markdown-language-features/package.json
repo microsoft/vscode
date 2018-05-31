@@ -278,7 +278,7 @@
 		],
 		"markdown.previewStyles": [
 			"./media/markdown.css",
-			"./media/tomorrow.css"
+			"./media/highlight.css"
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"

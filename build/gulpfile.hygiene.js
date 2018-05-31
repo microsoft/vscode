@@ -104,7 +104,7 @@ const copyrightFilter = [
 	'!build/**/*.init',
 	'!resources/linux/snap/snapcraft.yaml',
 	'!resources/win32/bin/code.js',
-	'!extensions/markdown-language-features/media/tomorrow.css',
+	'!extensions/markdown-language-features/media/highlight.css',
 	'!extensions/html-language-features/server/src/modes/typescript/*',
 	'!extensions/*/server/bin/*'
 ];
