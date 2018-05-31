@@ -156,10 +156,12 @@ export class DiagnosticsManager {
 	}
 
 	private getSuggestionDiagnostics(file: vscode.Uri) {
-		if (!this._enableSuggestions) {
-			return [];
-		}
-
-		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file);
+		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file).filter(x => {
+			if (!this._enableSuggestions) {
+				// Still show unused
+				return x.customTags && x.customTags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
+			}
+			return true;
+		});
 	}
 }
