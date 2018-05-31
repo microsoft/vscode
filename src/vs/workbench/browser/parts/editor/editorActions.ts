@@ -204,11 +204,7 @@ export class NavigateBetweenGroupsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		let nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT });
-		if (!nextGroup) {
-			nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.FIRST });
-		}
-
+		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
 		nextGroup.focus();
 
 		return TPromise.as(true);
@@ -247,7 +243,7 @@ export abstract class BaseFocusGroupAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const group = this.editorGroupService.findGroup(this.scope);
+		const group = this.editorGroupService.findGroup(this.scope, this.editorGroupService.activeGroup, true);
 		if (group) {
 			group.focus();
 		}
@@ -885,7 +881,7 @@ export class OpenNextEditor extends BaseNavigateEditorAction {
 		}
 
 		// Otherwise try in next group
-		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT });
+		const nextGroup = this.editorGroupService.findGroup({ location: GroupLocation.NEXT }, this.editorGroupService.activeGroup, true);
 		if (nextGroup) {
 			const previousGroupEditors = nextGroup.getEditors(EditorsOrder.SEQUENTIAL);
 			return { editor: previousGroupEditors[0], groupId: nextGroup.id };
@@ -920,7 +916,7 @@ export class OpenPreviousEditor extends BaseNavigateEditorAction {
 		}
 
 		// Otherwise try in previous group
-		const previousGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS });
+		const previousGroup = this.editorGroupService.findGroup({ location: GroupLocation.PREVIOUS }, this.editorGroupService.activeGroup, true);
 		if (previousGroup) {
 			const previousGroupEditors = previousGroup.getEditors(EditorsOrder.SEQUENTIAL);
 			return { editor: previousGroupEditors[previousGroupEditors.length - 1], groupId: previousGroup.id };

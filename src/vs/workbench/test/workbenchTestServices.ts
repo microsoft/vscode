@@ -533,7 +533,7 @@ export class TestEditorGroupsService implements IEditorGroupsServiceImpl {
 		return 'Group 1';
 	}
 
-	findGroup(scope: IFindGroupScope, source?: number | IEditorGroup): IEditorGroup {
+	findGroup(scope: IFindGroupScope, source?: number | IEditorGroup, wrap?: boolean): IEditorGroup {
 		return null;
 	}
 

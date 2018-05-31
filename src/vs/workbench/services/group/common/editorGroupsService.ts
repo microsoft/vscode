@@ -237,8 +237,9 @@ export interface IEditorGroupsService {
 	 *
 	 * @param scope the scope of the group to search in
 	 * @param source optional source to search from
+	 * @param wrap optionally wrap around if reaching the edge of groups
 	 */
-	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier): IEditorGroup;
+	findGroup(scope: IFindGroupScope, source?: IEditorGroup | GroupIdentifier, wrap?: boolean): IEditorGroup;
 
 	/**
 	 * Add a new group to the editor area. A new group is added by splitting a provided one in

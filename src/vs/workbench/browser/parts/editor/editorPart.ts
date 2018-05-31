@@ -215,28 +215,28 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		return this.groupViews.get(identifier);
 	}
 
-	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup): IEditorGroupView {
+	findGroup(scope: IFindGroupScope, source: IEditorGroupView | GroupIdentifier = this.activeGroup, wrap?: boolean): IEditorGroupView {
 
 		// by direction
 		if (typeof scope.direction === 'number') {
-			return this.doFindGroupByDirection(scope.direction, source);
+			return this.doFindGroupByDirection(scope.direction, source, wrap);
 		}
 
 		// by location
-		return this.doFindGroupByLocation(scope.location, source);
+		return this.doFindGroupByLocation(scope.location, source, wrap);
 	}
 
-	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	private doFindGroupByDirection(direction: GroupDirection, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView {
 		const sourceGroupView = this.assertGroupView(source);
 
 		// Find neighbours and sort by our MRU list
-		const neighbours = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction));
+		const neighbours = this.gridWidget.getNeighborViews(sourceGroupView, this.toGridViewDirection(direction), wrap);
 		neighbours.sort(((n1, n2) => this.mostRecentActiveGroups.indexOf(n1.id) - this.mostRecentActiveGroups.indexOf(n2.id)));
 
 		return neighbours[0];
 	}
 
-	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier): IEditorGroupView {
+	private doFindGroupByLocation(location: GroupLocation, source: IEditorGroupView | GroupIdentifier, wrap?: boolean): IEditorGroupView {
 		const sourceGroupView = this.assertGroupView(source);
 		const groups = this.getGroups(GroupsOrder.CREATION_TIME);
 		const index = groups.indexOf(sourceGroupView);
@@ -247,9 +247,19 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 			case GroupLocation.LAST:
 				return groups[groups.length - 1];
 			case GroupLocation.NEXT:
-				return groups[index + 1];
+				let nextGroup = groups[index + 1];
+				if (!nextGroup && wrap) {
+					nextGroup = this.doFindGroupByLocation(GroupLocation.FIRST, source);
+				}
+
+				return nextGroup;
 			case GroupLocation.PREVIOUS:
-				return groups[index - 1];
+				let previousGroup = groups[index - 1];
+				if (!previousGroup && wrap) {
+					previousGroup = this.doFindGroupByLocation(GroupLocation.LAST, source);
+				}
+
+				return previousGroup;
 		}
 	}
 
