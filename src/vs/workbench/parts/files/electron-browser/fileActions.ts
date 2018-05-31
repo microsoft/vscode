@@ -51,6 +51,7 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Constants } from 'vs/editor/common/core/uint';
+import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -1264,6 +1265,20 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 
 	protected includeUntitled(): boolean {
 		return true;
+	}
+}
+
+export class CloseGroupAction extends Action {
+
+	public static readonly ID = 'workbench.files.action.closeGroup';
+	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
+
+	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+		super(id, label, 'action-close-all-files');
+	}
+
+	public run(context?: any): TPromise<any> {
+		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
 
