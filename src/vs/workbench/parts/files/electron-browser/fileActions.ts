@@ -1241,7 +1241,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	}
 
 	protected doRun(context: any): TPromise<any> {
-		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID);
+		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 
 	protected includeUntitled(): boolean {
