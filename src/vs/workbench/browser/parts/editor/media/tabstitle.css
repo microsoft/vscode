@@ -149,6 +149,13 @@
 	background-image: url('close-dirty-inverse.svg');
 }
 
+/* Active Tab Pixel Perfect Box Shadow */
+
+.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .tabs-container > .tab.active {
+	border-left: none !important;
+	border-right: none !important;
+}
+
 /* Editor Actions */
 
 .monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title .editor-actions {
