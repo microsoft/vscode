@@ -53,6 +53,7 @@ import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { Constants } from 'vs/editor/common/core/uint';
 
 export interface IEditableData {
 	action: IAction;
@@ -1060,7 +1061,7 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 
 export function incrementFileName(name: string, isFolder: boolean): string {
 	const separators = '[\\.\\-_]';
-	const maxNumber = 9007199254740991;
+	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
 	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
