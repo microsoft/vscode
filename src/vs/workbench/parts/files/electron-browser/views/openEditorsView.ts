@@ -6,7 +6,7 @@
 import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { RunOnceScheduler } from 'vs/base/common/async';
-import { IAction } from 'vs/base/common/actions';
+import { IAction, ActionRunner } from 'vs/base/common/actions';
 import * as dom from 'vs/base/browser/dom';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -459,6 +459,7 @@ interface IOpenEditorTemplateData {
 	container: HTMLElement;
 	root: EditorLabel;
 	actionBar: ActionBar;
+	actionRunner: OpenEditorActionRunner;
 	openEditor: OpenEditor;
 	toDispose: IDisposable[];
 }
@@ -469,6 +470,14 @@ interface IEditorGroupTemplateData {
 	actionBar: ActionBar;
 	editorGroup: IEditorGroup;
 	toDispose: IDisposable[];
+}
+
+class OpenEditorActionRunner extends ActionRunner {
+	public editor: OpenEditor;
+
+	run(action: IAction, context?: any): TPromise<void> {
+		return super.run(action, { groupId: this.editor.groupId, editorIndex: this.editor.editorIndex });
+	}
 }
 
 class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
@@ -577,7 +586,8 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 	renderTemplate(container: HTMLElement): IOpenEditorTemplateData {
 		const editorTemplate: IOpenEditorTemplateData = Object.create(null);
 		editorTemplate.container = container;
-		editorTemplate.actionBar = new ActionBar(container);
+		editorTemplate.actionRunner = new OpenEditorActionRunner();
+		editorTemplate.actionBar = new ActionBar(container, { actionRunner: editorTemplate.actionRunner });
 		container.draggable = true;
 
 		const closeEditorAction = this.instantiationService.createInstance(CloseEditorAction, CloseEditorAction.ID, CloseEditorAction.LABEL);
@@ -633,18 +643,19 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 
 	renderElement(editor: OpenEditor, index: number, templateData: IOpenEditorTemplateData): void {
 		templateData.openEditor = editor;
+		templateData.actionRunner.editor = editor;
 		editor.isDirty() ? dom.addClass(templateData.container, 'dirty') : dom.removeClass(templateData.container, 'dirty');
 		templateData.root.setEditor(editor.editor, {
 			italic: editor.isPreview(),
 			extraClasses: ['open-editor'],
 			fileDecorations: this.configurationService.getValue<IFilesConfiguration>().explorer.decorations
 		});
-		templateData.actionBar.context = { groupId: editor.groupId, editorIndex: editor.editorIndex };
 	}
 
 	disposeTemplate(templateData: IOpenEditorTemplateData): void {
 		templateData.actionBar.dispose();
 		templateData.root.dispose();
+		templateData.actionRunner.dispose();
 		dispose(templateData.toDispose);
 	}
 }
