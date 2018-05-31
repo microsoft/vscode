@@ -10,18 +10,33 @@
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.empty  {
-	background-repeat: no-repeat;
-	background-position: 50% 50%;
-	background-size: 15%;
 	opacity: 0.5; /* dimmed to indicate inactive state */
-}
-
-.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty  {
-	background-size: 260px 260px; /* larger for empty editor part */
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
 	opacity: 1; /* indicate active group through undimmed state */
+}
+
+/* Letterpress */
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-letterpress  {
+	display: none; /* only visible when empty */
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container.empty > .editor-group-letterpress  {
+	display: block;
+	margin: auto;
+	width: 100%;
+	height: calc(100% - 70px); /* centered below toolbar */
+	max-width: 260px;
+	background-repeat: no-repeat;
+	background-position: 50% 50%;
+	background-size: 70% 70%;
+}
+
+.monaco-workbench > .part.editor > .content.empty .editor-group-container.empty > .editor-group-letterpress  {
+	background-size: 100% 100%; /* larger for empty editor part */
+	height: 100%; /* no toolbar in this case */
 }
 
 /* Title */

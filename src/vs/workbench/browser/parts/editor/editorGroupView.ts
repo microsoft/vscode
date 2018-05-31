@@ -160,6 +160,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Container context menu
 		this.createContainerContextMenu();
 
+		// Letterpress container
+		const letterpressContainer = document.createElement('div');
+		addClass(letterpressContainer, 'editor-group-letterpress');
+		this.element.appendChild(letterpressContainer);
+
 		// Progress bar
 		this.progressBar = this._register(new ProgressBar(this.element));
 		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
@@ -200,18 +205,18 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	private registerContainerListeners(): void {
 
-		// Open new file via doubleclick on container
+		// Open new file via doubleclick on empty container
 		this._register(addDisposableListener(this.element, EventType.DBLCLICK, e => {
-			if (e.target === this.element) {
+			if (this.isEmpty()) {
 				EventHelper.stop(e);
 
 				this.openEditor(this.untitledEditorService.createOrGet(), EditorOptions.create({ pinned: true }));
 			}
 		}));
 
-		// Close editor group via middle mouse click
+		// Close empty editor group via middle mouse click
 		this._register(addDisposableListener(this.element, EventType.MOUSE_UP, e => {
-			if (e.target === this.element && e.button === 1 /* Middle Button */) {
+			if (this.isEmpty() && e.button === 1 /* Middle Button */) {
 				EventHelper.stop(e);
 
 				this.accessor.removeGroup(this);
@@ -1345,7 +1350,7 @@ registerThemingParticipant((theme, collector, environment) => {
 	// Letterpress
 	const letterpress = `resources/letterpress${theme.type === 'dark' ? '-dark' : theme.type === 'hc' ? '-hc' : ''}.svg`;
 	collector.addRule(`
-		.monaco-workbench > .part.editor > .content .editor-group-container.empty {
+		.monaco-workbench > .part.editor > .content .editor-group-container.empty .editor-group-letterpress {
 			background-image: url('${join(environment.appRoot, letterpress)}')
 		}
 	`);
