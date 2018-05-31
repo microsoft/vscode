@@ -351,7 +351,7 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently active terminals or an empty array.
+		 * The currently opened terminals or an empty array.
 		 *
 		 * @readonly
 		 */
