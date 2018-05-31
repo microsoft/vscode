@@ -26,6 +26,7 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 
 export const CLOSE_SAVED_EDITORS_COMMAND_ID = 'workbench.action.closeUnmodifiedEditors';
 export const CLOSE_EDITORS_IN_GROUP_COMMAND_ID = 'workbench.action.closeEditorsInGroup';
+export const CLOSE_EDITORS_AND_GROUP_COMMAND_ID = 'workbench.action.closeEditorsAndGroup';
 export const CLOSE_EDITORS_TO_THE_RIGHT_COMMAND_ID = 'workbench.action.closeEditorsToTheRight';
 export const CLOSE_EDITOR_COMMAND_ID = 'workbench.action.closeActiveEditor';
 export const CLOSE_EDITOR_GROUP_COMMAND_ID = 'workbench.action.closeGroup';
@@ -581,6 +582,21 @@ function registerCloseEditorCommands() {
 
 			return quickOpenService.show(NAVIGATE_IN_ACTIVE_GROUP_PREFIX);
 		}
+	});
+
+	CommandsRegistry.registerCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, (accessor: ServicesAccessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
+		const editorGroupService = accessor.get(IEditorGroupsService);
+
+		const { group } = resolveCommandsContext(editorGroupService, getCommandsContext(resourceOrContext, context));
+		if (group) {
+			return group.closeAllEditors().then(() => {
+				if (group.count === 0 && editorGroupService.getGroup(group.id) /* could be gone by now */) {
+					editorGroupService.removeGroup(group); // only remove group if it is now empty
+				}
+			});
+		}
+
+		return void 0;
 	});
 }
 
