@@ -62,6 +62,7 @@ interface BoxBranchNode<T extends IView> {
 	readonly box: Box;
 }
 
+// TODO@Joao: should GridNodes already contain Box information? that would save us some memory here
 type BoxNode<T extends IView> = BoxLeafNode<T> | BoxBranchNode<T>;
 
 function isBoxBranchNode<T extends IView>(node: BoxNode<T>): node is BoxBranchNode<T> {
