@@ -279,7 +279,7 @@ export default class LanguageProvider {
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = workspace.getConfiguration(this.id, file);
-		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
+		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
 				diag.customTags = undefined;
