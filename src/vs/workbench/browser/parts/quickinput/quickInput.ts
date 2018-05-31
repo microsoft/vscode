@@ -632,10 +632,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const d = token.onCancellationRequested(() => this.close());
 		this.controller.result.then(() => d.dispose(), () => d.dispose());
 
-		const delay = TPromise.timeout(800);
-		delay.then(() => this.progressBar.infinite(), () => { /* ignore */ });
-
 		const wasController = this.controller;
+
+		const delay = TPromise.timeout(800);
+		delay.then(() => {
+			if (this.controller === wasController) {
+				this.progressBar.infinite();
+			}
+		}, () => { /* ignore */ });
+
 		this.controller.ready.then(() => {
 			delay.cancel();
 			if (this.controller !== wasController) {
