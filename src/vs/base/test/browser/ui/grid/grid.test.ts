@@ -385,6 +385,26 @@ suite('Grid', function () {
 		assert.deepEqual(grid.getNeighborViews(view3, Direction.Down), []);
 		assert.deepEqual(grid.getNeighborViews(view3, Direction.Left), []);
 	});
+
+	test('getNeighborViews should work on another simple layout', function () {
+		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		const grid = new Grid(container, view1);
+		grid.layout(800, 600);
+
+		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view2, Sizing.Distribute, view1, Direction.Right);
+
+		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view3, Sizing.Distribute, view2, Direction.Down);
+
+		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
+		grid.addView(view4, Sizing.Distribute, view2, Direction.Right);
+
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Up), []);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Right), []);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Down), [view3]);
+		assert.deepEqual(grid.getNeighborViews(view4, Direction.Left), [view2]);
+	});
 });
 
 class TestSerializableView extends TestView implements ISerializableView {

@@ -38,7 +38,7 @@ function getNode<T extends IView>(node: GridNode<T>, location: number[]): GridNo
 		throw new Error('Invalid location');
 	}
 
-	const [rest, index] = tail2(location);
+	const [index, ...rest] = location;
 	return getNode(node.children[index], rest);
 }
 
