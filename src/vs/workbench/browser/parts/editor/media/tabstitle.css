@@ -44,6 +44,7 @@
 	height: 35px;
 	box-sizing: border-box;
 	border: 1px solid transparent;
+	border-right: none;
 	padding-left: 10px;
 }
 
