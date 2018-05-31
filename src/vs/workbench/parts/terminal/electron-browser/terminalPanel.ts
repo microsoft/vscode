@@ -87,7 +87,7 @@ export class TerminalPanel extends Panel {
 							label: nls.localize('terminal.useMonospace', "Use 'monospace' font"),
 							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
 						}];
-						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts. The font you are using is not supported."), choices);
+						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts (the font you are using is not supported."), choices);
 					}
 				}
 			}
