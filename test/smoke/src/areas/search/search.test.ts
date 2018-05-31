@@ -19,7 +19,7 @@ export function setup() {
 			await app.workbench.search.openSearchViewlet();
 			await app.workbench.search.searchFor('body');
 
-			await app.workbench.search.waitForResultText('14 results in 5 files');
+			await app.workbench.search.waitForResultText('21 results in 6 files');
 		});
 
 		it('searches only for *.js files & checks for correct result number', async function () {
@@ -38,7 +38,7 @@ export function setup() {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.removeFileMatch(1);
-			await app.workbench.search.waitForResultText('10 results in 4 files');
+			await app.workbench.search.waitForResultText('17 results in 5 files');
 		});
 
 		// it('replaces first search result with a replace term', async function () {
