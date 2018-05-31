@@ -164,16 +164,31 @@ export class ProgressBar {
 	}
 
 	/**
-	 * Tells the progress bar that an amount of work has been completed.
+	 * Tells the progress bar that an increment of work has been completed.
 	 */
 	public worked(value: number): ProgressBar {
-		assert.ok(!isNaN(this.totalWork), 'Total work not set');
-
 		value = Number(value);
 		assert.ok(!isNaN(value), 'Value is not a number');
 		value = Math.max(1, value);
 
-		this.workedVal += value;
+		return this.doSetWorked(this.workedVal + value);
+	}
+
+	/**
+	 * Tells the progress bar the total amount of work that has been completed.
+	 */
+	public setWorked(value: number): ProgressBar {
+		value = Number(value);
+		assert.ok(!isNaN(value), 'Value is not a number');
+		value = Math.max(1, value);
+
+		return this.doSetWorked(value);
+	}
+
+	private doSetWorked(value: number): ProgressBar {
+		assert.ok(!isNaN(this.totalWork), 'Total work not set');
+
+		this.workedVal = value;
 		this.workedVal = Math.min(this.totalWork, this.workedVal);
 
 		if (this.element.hasClass(css_infinite)) {
