@@ -84,7 +84,7 @@ export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: 
 	if (groups.length === 0) {
 		return;
 	}
-	const getAlternativeActions = AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
+	const getAlternativeActions = (!options || !options.ignoreAlternativeActions) && AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
 
 	for (let tuple of groups) {
 		let [group, actions] = tuple;

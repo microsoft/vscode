@@ -171,7 +171,7 @@ export abstract class TitleControl extends Themable {
 				this.updateEditorActionsToolbar();
 			}));
 
-			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary }, this.contextMenuService);
+			fillInActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true, ignoreAlternativeActions: true }, { primary, secondary }, this.contextMenuService);
 		}
 
 		return { primary, secondary };

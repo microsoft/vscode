@@ -117,7 +117,7 @@ export class Menus implements IDisposable {
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
-			fillInActions(titleMenu, null, { primary: this.titleActions, secondary: this.titleSecondaryActions }, this.contextMenuService);
+			fillInActions(titleMenu, { ignoreAlternativeActions: true }, { primary: this.titleActions, secondary: this.titleSecondaryActions }, this.contextMenuService);
 			this._onDidChangeTitle.fire();
 		};
 

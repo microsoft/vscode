@@ -425,7 +425,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActions(menu, { shouldForwardArgs: true, ignoreAlternativeActions: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
@@ -537,7 +537,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActions(menu, { shouldForwardArgs: true, ignoreAlternativeActions: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
