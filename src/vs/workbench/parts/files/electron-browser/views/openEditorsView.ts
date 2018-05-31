@@ -386,6 +386,9 @@ export class OpenEditorsView extends ViewsViewletPanel {
 			this.list.setFocus([index]);
 			this.list.setSelection([index]);
 			this.list.reveal(index);
+		} else {
+			this.list.setFocus([]);
+			this.list.setSelection([]);
 		}
 	}
 
