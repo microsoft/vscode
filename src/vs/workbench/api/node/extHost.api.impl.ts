@@ -419,9 +419,6 @@ export function createApiFactory(
 			createWebviewPanel(viewType: string, title: string, showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions): vscode.WebviewPanel {
 				return extHostWebviews.createWebview(viewType, title, showOptions, options, extension.extensionLocation);
 			},
-			registerWebviewPanelSerializer(viewType: string, serializer: vscode.WebviewPanelSerializer) {
-				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
-			},
 			createTerminal(nameOrOptions: vscode.TerminalOptions | string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
 				if (typeof nameOrOptions === 'object') {
 					return extHostTerminalService.createTerminalFromOptions(<vscode.TerminalOptions>nameOrOptions);
@@ -440,6 +437,9 @@ export function createApiFactory(
 			}),
 			registerDecorationProvider: proposedApiFunction(extension, (provider: vscode.DecorationProvider) => {
 				return extHostDecorations.registerDecorationProvider(provider, extension.id);
+			}),
+			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
+				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			}),
 			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
 				return extHostUrls.registerProtocolHandler(extension.id, handler);
