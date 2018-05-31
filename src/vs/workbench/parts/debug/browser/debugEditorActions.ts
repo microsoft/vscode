@@ -238,9 +238,9 @@ class GoToBreakpointAction extends EditorAction {
 					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
 		}
 
-		//Move to first possible breakpoint
-		if (!moveBreakpoint) {
-			moveBreakpoint = allEnabledBreakpoints[0];
+		//Move to first or last possible breakpoint
+		if (!moveBreakpoint && allEnabledBreakpoints.length) {
+			moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
 		}
 
 		if (moveBreakpoint) {
