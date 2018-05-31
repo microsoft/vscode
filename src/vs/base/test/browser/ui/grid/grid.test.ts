@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, isGridBranchNode, GridNode, Sizing } from 'vs/base/browser/ui/grid/grid';
+import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
 
 suite('Grid', function () {
@@ -366,7 +366,7 @@ suite('Grid', function () {
 
 		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up), []);
 		assert.deepEqual(grid.getNeighborViews(view1, Direction.Right), []);
-		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down), [view2, view4, view5]);
+		assert.deepEqual(grid.getNeighborViews(view1, Direction.Down), [view2, view4]);
 		assert.deepEqual(grid.getNeighborViews(view1, Direction.Left), []);
 		assert.deepEqual(grid.getNeighborViews(view2, Direction.Up), [view1]);
 		assert.deepEqual(grid.getNeighborViews(view2, Direction.Right), [view4, view5]);
@@ -380,7 +380,7 @@ suite('Grid', function () {
 		assert.deepEqual(grid.getNeighborViews(view5, Direction.Right), []);
 		assert.deepEqual(grid.getNeighborViews(view5, Direction.Down), [view3]);
 		assert.deepEqual(grid.getNeighborViews(view5, Direction.Left), [view2]);
-		assert.deepEqual(grid.getNeighborViews(view3, Direction.Up), [view2, view4, view5]);
+		assert.deepEqual(grid.getNeighborViews(view3, Direction.Up), [view2, view5]);
 		assert.deepEqual(grid.getNeighborViews(view3, Direction.Right), []);
 		assert.deepEqual(grid.getNeighborViews(view3, Direction.Down), []);
 		assert.deepEqual(grid.getNeighborViews(view3, Direction.Left), []);

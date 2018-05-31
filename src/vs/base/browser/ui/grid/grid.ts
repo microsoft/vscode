@@ -8,10 +8,26 @@
 import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { tail2 as tail, tail2 } from 'vs/base/common/arrays';
+import { tail2 as tail } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
 
 export { Orientation } from './gridview';
+
+export enum Direction {
+	Up,
+	Down,
+	Left,
+	Right
+}
+
+function oppositeDirection(direction: Direction): Direction {
+	switch (direction) {
+		case Direction.Up: return Direction.Down;
+		case Direction.Down: return Direction.Up;
+		case Direction.Left: return Direction.Right;
+		case Direction.Right: return Direction.Left;
+	}
+}
 
 export interface GridLeafNode<T extends IView> {
 	readonly view: T;
@@ -29,34 +45,106 @@ export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is Gr
 	return !!(node as any).children;
 }
 
-function getNode<T extends IView>(node: GridNode<T>, location: number[]): GridNode<T> {
+interface Box {
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+}
+
+interface BoxLeafNode<T extends IView> {
+	readonly node: GridLeafNode<T>;
+	readonly box: Box;
+}
+
+interface BoxBranchNode<T extends IView> {
+	readonly children: BoxNode<T>[];
+	readonly box: Box;
+}
+
+type BoxNode<T extends IView> = BoxLeafNode<T> | BoxBranchNode<T>;
+
+function isBoxBranchNode<T extends IView>(node: BoxNode<T>): node is BoxBranchNode<T> {
+	return !!(node as any).children;
+}
+
+function toBoxNode<T extends IView>(node: GridNode<T>, orientation: Orientation, box: Box): BoxNode<T> {
+	if (!isGridBranchNode(node)) {
+		return { node, box };
+	}
+
+	const children: BoxNode<T>[] = [];
+	let offset = 0;
+
+	for (let i = 0; i < node.children.length; i++) {
+		const child = node.children[i];
+		const childOrientation = orthogonal(orientation);
+		const childBox: Box = orientation === Orientation.HORIZONTAL
+			? { top: box.top, left: box.left + offset, width: child.size, height: box.height }
+			: { top: box.top + offset, left: box.left, width: box.width, height: child.size };
+
+		children.push(toBoxNode(child, childOrientation, childBox));
+		offset += child.size;
+	}
+
+	return { children, box };
+}
+
+function getBoxNode<T extends IView>(node: BoxNode<T>, location: number[]): BoxNode<T> {
 	if (location.length === 0) {
 		return node;
 	}
 
-	if (!isGridBranchNode(node)) {
+	if (!isBoxBranchNode(node)) {
 		throw new Error('Invalid location');
 	}
 
 	const [index, ...rest] = location;
-	return getNode(node.children[index], rest);
+	return getBoxNode(node.children[index], rest);
 }
 
-function getAllViews<T extends IView>(node: GridNode<T>): T[] {
-	const result: T[] = [];
+interface Range {
+	readonly start: number;
+	readonly end: number;
+}
 
-	function collectViews(node: GridNode<T>): void {
-		if (isGridBranchNode(node)) {
-			for (const child of node.children) {
-				collectViews(child);
-			}
+function intersects(one: Range, other: Range): boolean {
+	return !(one.start >= other.end || other.start >= one.end);
+}
+
+interface Boundary {
+	readonly offset: number;
+	readonly range: Range;
+}
+
+function getBoxBoundary(box: Box, direction: Direction): Boundary {
+	const orientation = getDirectionOrientation(direction);
+	const offset = direction === Direction.Up ? box.top :
+		direction === Direction.Right ? box.left + box.width :
+			direction === Direction.Down ? box.top + box.height :
+				box.left;
+
+	const range = {
+		start: orientation === Orientation.HORIZONTAL ? box.top : box.left,
+		end: orientation === Orientation.HORIZONTAL ? box.top + box.height : box.left + box.width
+	};
+
+	return { offset, range };
+}
+
+function findAdjacentBoxLeafNodes<T extends IView>(boxNode: BoxNode<T>, direction: Direction, boundary: Boundary): BoxLeafNode<T>[] {
+	if (!isBoxBranchNode(boxNode)) {
+		const { offset, range } = getBoxBoundary(boxNode.box, direction);
+
+		if (offset === boundary.offset && intersects(range, boundary.range)) {
+			return [boxNode];
 		} else {
-			result.push(node.view);
+			return [];
 		}
 	}
 
-	collectViews(node);
-	return result;
+	return boxNode.children
+		.reduce((r, child) => [...r, ...findAdjacentBoxLeafNodes(child, direction, boundary)], []);
 }
 
 function getLocationOrientation(rootOrientation: Orientation, location: number[]): Orientation {
@@ -118,13 +206,6 @@ function getGridLocation(element: HTMLElement): number[] {
 	return [...getGridLocation(ancestor), index];
 }
 
-export enum Direction {
-	Up,
-	Down,
-	Left,
-	Right
-}
-
 export enum Sizing {
 	Distribute = 'distribute',
 	Split = 'split'
@@ -180,7 +261,7 @@ export class Grid<T extends IView> implements IDisposable {
 		let viewSize: number | GridViewSizing;
 
 		if (size === Sizing.Split) {
-			const [, index] = tail2(referenceLocation);
+			const [, index] = tail(referenceLocation);
 			viewSize = GridViewSizing.Split(index);
 		} else if (size === Sizing.Distribute) {
 			viewSize = GridViewSizing.Distribute;
@@ -246,57 +327,25 @@ export class Grid<T extends IView> implements IDisposable {
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
 		const location = this.getViewLocation(view);
-		const result = this._getNeighborViews(location, direction);
-
-		if (result.length > 0 || !wrap) {
-			return result;
-		}
-
-		const directionOrientation = getDirectionOrientation(direction);
-		const ancestorLocation = location.slice(0, directionOrientation === this.orientation ? 0 : 1);
 		const root = this.getViews();
-		const ancestorParent = getNode(root, ancestorLocation);
+		const boxRoot = toBoxNode(root, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
+		const boxNode = getBoxNode(boxRoot, location);
+		let boundary = getBoxBoundary(boxNode.box, direction);
 
-		if (!isGridBranchNode(ancestorParent)) {
-			return [ancestorParent.view];
+		if (wrap) {
+			if (direction === Direction.Up && boxNode.box.top === 0) {
+				boundary = { offset: boxRoot.box.top + boxRoot.box.height, range: boundary.range };
+			} else if (direction === Direction.Right && boxNode.box.left + boxNode.box.width === boxRoot.box.width) {
+				boundary = { offset: 0, range: boundary.range };
+			} else if (direction === Direction.Down && boxNode.box.top + boxNode.box.height === boxRoot.box.height) {
+				boundary = { offset: 0, range: boundary.range };
+			} else if (direction === Direction.Left && boxNode.box.left === 0) {
+				boundary = { offset: boxRoot.box.left + boxRoot.box.width, range: boundary.range };
+			}
 		}
 
-		if (direction === Direction.Up || direction === Direction.Left) {
-			return getAllViews(ancestorParent.children[ancestorParent.children.length - 1]);
-		} else {
-			return getAllViews(ancestorParent.children[0]);
-		}
-	}
-
-	_getNeighborViews(location: number[], direction: Direction): T[] {
-		if (location.length === 0) {
-			return [];
-		}
-
-		const locationOrientation = getLocationOrientation(this.orientation, location);
-		const directionOrientation = getDirectionOrientation(direction);
-		const [parentLocation, index] = tail2(location);
-
-		if (locationOrientation !== directionOrientation) {
-			return this._getNeighborViews(parentLocation, direction);
-		}
-
-		const root = this.getViews();
-		const parent = getNode(root, parentLocation);
-
-		if (!isGridBranchNode(parent)) {
-			throw new Error('Invalid location');
-		}
-
-		const diff = direction === Direction.Up || direction === Direction.Left ? -1 : 1;
-		let neighborIndex = index + diff;
-
-		if (neighborIndex === -1 || neighborIndex >= parent.children.length) {
-			return this._getNeighborViews(parentLocation, direction);
-		}
-
-		const neighbor = parent.children[neighborIndex];
-		return getAllViews(neighbor);
+		return findAdjacentBoxLeafNodes(boxRoot, oppositeDirection(direction), boundary)
+			.map(boxNode => boxNode.node.view);
 	}
 
 	private getViewLocation(view: T): number[] {
@@ -313,13 +362,13 @@ export class Grid<T extends IView> implements IDisposable {
 		if (this.sashResetSizing === Sizing.Split) {
 			const orientation = getLocationOrientation(this.orientation, location);
 			const firstViewSize = getSize(this.gridview.getViewSize(location), orientation);
-			const [parentLocation, index] = tail2(location);
+			const [parentLocation, index] = tail(location);
 			const secondViewSize = getSize(this.gridview.getViewSize([...parentLocation, index + 1]), orientation);
 			const totalSize = firstViewSize + secondViewSize;
 			this.gridview.resizeView(location, Math.floor(totalSize / 2));
 
 		} else {
-			const [parentLocation,] = tail2(location);
+			const [parentLocation,] = tail(location);
 			this.gridview.distributeViewSizes(parentLocation);
 		}
 	}
