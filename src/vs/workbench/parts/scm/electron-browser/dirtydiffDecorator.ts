@@ -42,7 +42,7 @@ import { IActionBarOptions, ActionsOrientation, IActionItem } from 'vs/base/brow
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { basename } from 'vs/base/common/paths';
 import { MenuId, IMenuService, IMenu, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { fillInActions, MenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { MenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IChange, IEditorModel, ScrollType, IEditorContribution } from 'vs/editor/common/editorCommon';
 import { OverviewRulerLane, ITextModel, IModelDecorationOptions } from 'vs/editor/common/model';
 import { sortedDiff, firstIndex } from 'vs/base/common/arrays';
@@ -272,7 +272,7 @@ class DirtyDiffWidget extends PeekViewWidget {
 		this._actionbarWidget.push([previous, next], { label: false, icon: true });
 
 		const actions: IAction[] = [];
-		fillInActions(this.menu, { shouldForwardArgs: true, ignoreAlternativeActions: true }, actions, this.contextMenuService);
+		fillInActionBarActions(this.menu, { shouldForwardArgs: true }, actions);
 		this._actionbarWidget.push(actions, { label: false, icon: true });
 	}
 

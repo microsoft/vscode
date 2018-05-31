@@ -12,7 +12,7 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewsService, ITreeViewer } from 'vs/workbench/common/views';
 import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -103,7 +103,6 @@ export class Menus implements IDisposable {
 		id: string,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IMenuService private menuService: IMenuService,
-		@IContextMenuService private contextMenuService: IContextMenuService
 	) {
 		if (this.titleDisposable) {
 			this.titleDisposable.dispose();
@@ -117,7 +116,7 @@ export class Menus implements IDisposable {
 		const updateActions = () => {
 			this.titleActions = [];
 			this.titleSecondaryActions = [];
-			fillInActions(titleMenu, { ignoreAlternativeActions: true }, { primary: this.titleActions, secondary: this.titleSecondaryActions }, this.contextMenuService);
+			fillInActionBarActions(titleMenu, undefined, { primary: this.titleActions, secondary: this.titleSecondaryActions });
 			this._onDidChangeTitle.fire();
 		};
 

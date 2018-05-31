@@ -30,7 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
@@ -311,7 +311,7 @@ class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -381,7 +381,6 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		private actionItemProvider: IActionItemProvider,
 		private themeService: IThemeService,
 		private contextKeyService: IContextKeyService,
-		private contextMenuService: IContextMenuService,
 		private menuService: IMenuService
 	) { }
 
@@ -425,7 +424,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true, ignoreAlternativeActions: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
@@ -489,7 +488,6 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private themeService: IThemeService,
 		private instantiationService: IInstantiationService,
 		private contextKeyService: IContextKeyService,
-		private contextMenuService: IContextMenuService,
 		private menuService: IMenuService
 	) { }
 
@@ -537,7 +535,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true, ignoreAlternativeActions: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
@@ -872,8 +870,8 @@ export class RepositoryPanel extends ViewletPanel {
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
 		const renderers = [
-			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.contextKeyService, this.contextMenuService, this.menuService),
-			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.contextKeyService, this.contextMenuService, this.menuService)
+			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.contextKeyService, this.menuService),
+			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.contextKeyService, this.menuService)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {

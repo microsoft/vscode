@@ -68,8 +68,6 @@ export class MenuId {
 export interface IMenuActionOptions {
 	arg?: any;
 	shouldForwardArgs?: boolean;
-	// Some menu action clients (ActionBar) handle alternative actions on their own so the alternative actions should be ignored
-	ignoreAlternativeActions?: boolean;
 }
 
 export interface IMenu extends IDisposable {

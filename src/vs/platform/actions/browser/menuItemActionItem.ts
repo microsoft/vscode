@@ -79,13 +79,20 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	}
 }
 
-export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup?: (group: string) => boolean): void {
 	const groups = menu.getActions(options);
-	if (groups.length === 0) {
-		return;
-	}
-	const getAlternativeActions = (!options || !options.ignoreAlternativeActions) && AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
+	const getAlternativeActions = AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
 
+	fillInActions(groups, target, getAlternativeActions, isPrimaryGroup);
+}
+
+export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
+	const groups = menu.getActions(options);
+	// Action bars handle alternative actions on their own so the alternative actions should be ignored
+	fillInActions(groups, target, false, isPrimaryGroup);
+}
+
+function fillInActions(groups: [string, MenuItemAction[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (getAlternativeActions) {
