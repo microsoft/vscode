@@ -44,6 +44,12 @@
   ],
   "main": "./out/extension",
   "contributes": {
+    "jsonValidation": [
+      {
+        "fileMatch": "package.json",
+        "url": "./schemas/package.schema.json"
+      }
+    ],
     "configuration": {
       "type": "object",
       "title": "%configuration.typescript%",
