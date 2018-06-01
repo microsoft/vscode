@@ -1123,12 +1123,11 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private doCloseEditors(editors: EditorInput[]): void {
-		const activeEditor = this.activeEditor;
 
 		// Close all inactive editors first
 		let closeActiveEditor = false;
 		editors.forEach(editor => {
-			if (editor !== activeEditor) {
+			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			} else {
 				closeActiveEditor = true;
@@ -1174,11 +1173,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	}
 
 	private doCloseAllEditors(): void {
-		const activeEditor = this.activeEditor;
 
 		// Close all inactive editors first
 		this.editors.forEach(editor => {
-			if (editor !== activeEditor) {
+			if (!this.isActive(editor)) {
 				this.doCloseInactiveEditor(editor);
 			}
 		});

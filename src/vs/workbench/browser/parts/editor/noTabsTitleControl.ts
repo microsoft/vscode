@@ -17,7 +17,7 @@ import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
 	private editorLabel: ResourceLabel;
-	private lastRenderedEditor: IEditorInput;
+	private lastRenderedActiveEditor: IEditorInput;
 
 	protected create(parent: HTMLElement): void {
 		this.titleContainer = parent;
@@ -135,20 +135,24 @@ export class NoTabsTitleControl extends TitleControl {
 	}
 
 	private ifActiveEditorChanged(fn: () => void): void {
-		if (this.lastRenderedEditor !== this.group.activeEditor) {
-			fn(); // only run if active editor changed
+		if (
+			!this.lastRenderedActiveEditor && this.group.activeEditor || 	// active editor changed from null => editor
+			this.lastRenderedActiveEditor && !this.group.activeEditor || 	// active editor changed from editor => null
+			!this.group.isActive(this.lastRenderedActiveEditor)				// active editor changed from editorA => editorB
+		) {
+			fn();
 		}
 	}
 
 	private ifEditorIsActive(editor: IEditorInput, fn: () => void): void {
-		if (editor === this.group.activeEditor) {
+		if (this.group.isActive(editor)) {
 			fn();  // only run if editor is current active
 		}
 	}
 
 	private redraw(): void {
 		const editor = this.group.activeEditor;
-		this.lastRenderedEditor = editor;
+		this.lastRenderedActiveEditor = editor;
 
 		// Clear if there is no editor
 		if (!editor) {

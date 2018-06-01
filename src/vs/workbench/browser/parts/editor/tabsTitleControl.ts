@@ -820,7 +820,7 @@ export class TabsTitleControl extends TitleControl {
 	private redrawEditorActive(isGroupActive: boolean, editor: IEditorInput, tabContainer: HTMLElement, tabLabelWidget: ResourceLabel): void {
 
 		// Tab is active
-		if (this.group.activeEditor === editor) {
+		if (this.group.isActive(editor)) {
 
 			// Container
 			addClass(tabContainer, 'active');
