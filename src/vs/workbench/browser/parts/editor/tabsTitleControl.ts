@@ -328,27 +328,12 @@ export class TabsTitleControl extends TitleControl {
 				tabContainer.setAttribute('aria-selected', 'true');
 				tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_ACTIVE_FOREGROUND : TAB_UNFOCUSED_ACTIVE_FOREGROUND);
-
-				// Use boxShadow for the active tab border because if we also have a editor group header
-				// color, the two colors would collide and the tab border never shows up.
-				// see https://github.com/Microsoft/vscode/issues/33111
-				const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-				const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
-				if (activeTabBorderColor) {
-					tabContainer.style.boxShadow = `${activeTabBorderColor} 0 -1px inset`;
-				} else if (activeTabBorderColorTop) {
-					tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 1px inset`;
-				} else {
-					tabContainer.style.boxShadow = null;
-				}
-
 				this.activeTab = tabContainer;
 			} else {
 				DOM.removeClass(tabContainer, 'active');
 				tabContainer.setAttribute('aria-selected', 'false');
 				tabContainer.style.backgroundColor = this.getColor(TAB_INACTIVE_BACKGROUND);
 				tabLabel.element.style.color = this.getColor(isGroupActive ? TAB_INACTIVE_FOREGROUND : TAB_UNFOCUSED_INACTIVE_FOREGROUND);
-				tabContainer.style.boxShadow = null;
 			}
 
 			// Dirty State
@@ -956,6 +941,71 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 		collector.addRule(`
 			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab:hover  {
 				box-shadow: ${tabUnfocusedHoverBorder} 0 -1px inset !important;
+			}
+		`);
+	}
+
+	// Active Border
+	const tabActiveBorder = theme.getColor(TAB_ACTIVE_BORDER);
+	if (tabActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active::after {
+				content: "";
+				position: absolute;
+				bottom: 0;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-bottom-color: ${tabActiveBorder};
+			}
+		`);
+	}
+
+	const tabUnfocusedActiveBorder = theme.getColor(TAB_UNFOCUSED_ACTIVE_BORDER);
+	if (tabUnfocusedActiveBorder) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.active::after {
+				content: "";
+				position: absolute;
+				bottom: 0;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-bottom-color: ${tabUnfocusedActiveBorder};
+			}
+		`);
+	}
+
+	const tabActiveBorderTop = theme.getColor(TAB_ACTIVE_BORDER_TOP);
+	if (tabActiveBorderTop) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.active .tabs-container > .tab.active::before {
+				content: "";
+				position: absolute;
+				top: -1px;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-top-color: ${tabActiveBorderTop};
+			}
+		`);
+	}
+
+	const tabUnfocusedActiveBorderTop = theme.getColor(TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+	if (tabUnfocusedActiveBorderTop) {
+		collector.addRule(`
+			.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title.inactive .tabs-container > .tab.active::before {
+				content: "";
+				position: absolute;
+				top: -1px;
+				left: -1px;
+				z-index: 2;
+				width: 100%;
+				border: 1px solid transparent;
+				border-top-color: ${tabUnfocusedActiveBorderTop};
 			}
 		`);
 	}
