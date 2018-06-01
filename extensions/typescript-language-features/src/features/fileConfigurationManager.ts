@@ -161,7 +161,7 @@ export default class FileConfigurationManager {
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
 			disableSuggestions: disableSuggestionsPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file'
-		} as any; // TODO: waiting for offical TS d.ts with allowTextChangesInNewFiles
+		};
 	}
 }
 
