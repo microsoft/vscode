@@ -159,14 +159,9 @@ export default class FileConfigurationManager {
 		return {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			disableSuggestions: disableSuggestionsPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file'
 		};
 	}
-}
-
-function disableSuggestionsPreference(config: WorkspaceConfiguration) {
-	return !config.get<boolean>('suggestionActions.enabled');
 }
 
 function getQuoteStylePreference(config: WorkspaceConfiguration) {
