@@ -372,7 +372,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		/* __GDPR__
 			"galleryService:query" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"text": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.telemetryService.publicLog('galleryService:query', { type, text });

@@ -98,6 +98,7 @@ class SelectRefactorCommand implements Command {
 export default class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
 	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
+	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -177,6 +178,8 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 			return TypeScriptRefactorProvider.extractFunctionKind;
 		} else if (refactor.name.startsWith('constant_')) {
 			return TypeScriptRefactorProvider.extractConstantKind;
+		} else if (refactor.name.startsWith('Move')) {
+			return TypeScriptRefactorProvider.moveKind;
 		}
 		return vscode.CodeActionKind.Refactor;
 	}

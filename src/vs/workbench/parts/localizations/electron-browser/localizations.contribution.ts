@@ -159,7 +159,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
-							const languageDisplayName = loc && loc.languageName ? loc.languageName : locale;
+							const languageDisplayName = loc ? (loc.languageNameLocalized || loc.languageName || locale) : locale;
 							const translations = {
 								...minimumTranslatedStrings,
 								...(translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {})

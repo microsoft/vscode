@@ -30,6 +30,8 @@
 	"debuggers": "Hata Ayıklayıcılar ({0})",
 	"debugger name": "Adı",
 	"debugger type": "Tür",
+	"view container id": "ID",
+	"view container location": "Yeri",
 	"views": "Görünümler ({0})",
 	"view id": "ID",
 	"view name": "Adı",

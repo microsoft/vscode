@@ -13,7 +13,6 @@
 	"welcomeOverlay.extensions": "管理延伸模組",
 	"welcomeOverlay.problems": "檢視錯誤和警告",
 	"welcomeOverlay.commandPalette": "尋找及執行所有命令",
-	"welcomeOverlay.notifications": "顯示通知",
 	"welcomeOverlay": "使用者介面概觀",
 	"hideWelcomeOverlay": "隱藏介面概觀",
 	"help": "說明"

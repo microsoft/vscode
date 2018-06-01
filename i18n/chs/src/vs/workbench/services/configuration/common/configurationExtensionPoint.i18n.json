@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "用于配置字符串。",
 	"invalid.title": "configuration.title 必须是字符串",
 	"invalid.properties": "configuration.properties 必须是对象",
+	"invalid.property": "\"configuration.property\" 必须是对象",
 	"invalid.allOf": "\"configuration.allOf\" 已被弃用且不应被使用。你可以将多个配置单元作为数组传递给 \"configuration\" 参与点。",
 	"workspaceConfig.folders.description": "将载入到工作区的文件夹列表。",
 	"workspaceConfig.path.description": "文件路径。例如 \"/root/folderA\" 或 \"./folderA\"。后者表示根据工作区文件位置进行解析的相对路径。",

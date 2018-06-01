@@ -17,7 +17,6 @@
 	"editorActiveIndentGuide": "활성 편집기 들여쓰기 안내선 색입니다.",
 	"editorLineNumbers": "편집기 줄 번호 색입니다.",
 	"editorActiveLineNumber": "편집기 활성 영역 줄번호 색상",
-	"deprecatedEditorActiveLineNumber": "Id는 사용 되지 않습니다. 대신 'editorLineNumber.activeForeground'를 사용 합니다.",
 	"editorRuler": "편집기 눈금의 색상입니다.",
 	"editorCodeLensForeground": "편집기 코드 렌즈의 전경색입니다.",
 	"editorBracketMatchBackground": "일치하는 괄호 뒤의 배경색",

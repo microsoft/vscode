@@ -14,13 +14,13 @@
 	"toggleSearchViewPositionLabel": "Keresőnézet helyzetének váltása",
 	"findInFolder": "Keresés mappában...",
 	"findInWorkspace": "Keresés a munkaterületen...",
-	"showTriggerActions": "Szimbólum megkeresése a munkaterületen...",
+	"showTriggerActions": "Ugrás szimbólumhoz a munkaterületen...",
 	"name": "Keresés",
 	"showSearchViewl": "Keresés megjelenítése",
 	"view": "Nézet",
 	"findInFiles": "Keresés a fájlokban",
-	"openAnythingHandlerDescription": "Fájl megkeresése",
-	"openSymbolDescriptionNormal": "Szimbólum megkeresése a munkaterületen",
+	"openAnythingHandlerDescription": "Ugrás fájlhoz",
+	"openSymbolDescriptionNormal": "Ugrás szimbólumhoz a munkaterületen",
 	"searchConfigurationTitle": "Keresés",
 	"exclude": "Fájlok és mappák keresésből való kizárására szolgáló globális minták. Örökli az összes globális mintát a fliex.exclude beállításból.",
 	"exclude.boolean": "A globális minta, amire illesztve lesznek a fájlok elérési útjai. A minta engedélyezéséhez vagy letiltásához állítsa igaz vagy hamis értékre.",
@@ -31,5 +31,5 @@
 	"search.followSymlinks": "Meghatározza, hogy keresés során követve legyenek-e a szimbolikus linkek.",
 	"search.smartCase": "Figyelmen kívül hagyja a kis- és nagybetűket, ha a minta csak kisbetűkből áll, ellenkező esetben kis- és nagybetűérzékenyen keres",
 	"search.globalFindClipboard": "Meghatározza, hogy a keresőmodul olvassa és módosítsa-e a megosztott keresési vágólapot macOS-en.",
-	"search.location": "Meghatározza, hogy a keresés az oldalsávon jelenik meg vagy egy panelként a panelterületen, mely utóbbi esetén több hely van vízszintesen. A következő kiadásban a panel megjelenése optimalizálva lesz a vízszintes megjelenítéshez, és a funkció nem lesz előzetes."
+	"search.location": "Meghatározza, hogy a keresés az oldalsávon jelenik meg vagy egy panelként a panelterületen, mely utóbbi esetén több vízszintes hely áll rendelkezésre."
 }

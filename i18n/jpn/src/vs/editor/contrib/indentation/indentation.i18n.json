@@ -13,5 +13,6 @@
 	"indentUsingTabs": "タブによるインデント",
 	"indentUsingSpaces": "スペースによるインデント",
 	"detectIndentation": "内容からインデントを検出",
-	"editor.reindentlines": "行の再インデント"
+	"editor.reindentlines": "行の再インデント",
+	"editor.reindentselectedlines": "選択行を再インデント"
 }

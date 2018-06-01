@@ -474,7 +474,7 @@ export class NotificationTemplateRenderer {
 			}
 
 			if (typeof state.worked === 'number') {
-				this.template.progress.worked(state.worked).show();
+				this.template.progress.setWorked(state.worked).show();
 			}
 		}
 
