@@ -161,9 +161,14 @@ export class JoinTwoGroupsAction extends Action {
 			sourceGroup = this.editorGroupService.activeGroup;
 		}
 
-		const targetGroup = this.editorGroupService.findGroup({ direction: GroupDirection.RIGHT }, sourceGroup) || this.editorGroupService.findGroup({ direction: GroupDirection.DOWN }, sourceGroup);
-		if (targetGroup && sourceGroup !== targetGroup) {
-			this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
+		const targetGroupDirections = [GroupDirection.RIGHT, GroupDirection.DOWN, GroupDirection.LEFT, GroupDirection.UP];
+		for (let i = 0; i < targetGroupDirections.length; i++) {
+			const targetGroup = this.editorGroupService.findGroup({ direction: targetGroupDirections[i] }, sourceGroup);
+			if (targetGroup && sourceGroup !== targetGroup) {
+				this.editorGroupService.mergeGroup(sourceGroup, targetGroup);
+
+				return TPromise.as(true);
+			}
 		}
 
 		return TPromise.as(true);
@@ -663,7 +668,7 @@ export class CloseEditorsInOtherGroupsAction extends Action {
 
 	public run(context?: IEditorIdentifier): TPromise<any> {
 		const groupToSkip = context ? this.editorGroupService.getGroup(context.groupId) : this.editorGroupService.activeGroup;
-		return TPromise.join(this.editorGroupService.groups.map(g => {
+		return TPromise.join(this.editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).map(g => {
 			if (g.id === groupToSkip.id) {
 				return TPromise.as(null);
 			}

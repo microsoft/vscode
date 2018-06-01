@@ -207,7 +207,7 @@ function registerEditorGroupsLayoutCommand(): void {
 
 export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
 	const target = editorGroupService.activeGroup;
-	editorGroupService.groups.forEach(group => {
+	editorGroupService.getGroups(GroupsOrder.MOST_RECENTLY_ACTIVE).forEach(group => {
 		if (group === target) {
 			return; // keep target
 		}

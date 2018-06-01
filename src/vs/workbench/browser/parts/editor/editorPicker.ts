@@ -206,7 +206,7 @@ export class AllEditorsPicker extends BaseEditorPicker {
 	protected getEditorEntries(): EditorPickerEntry[] {
 		const entries: EditorPickerEntry[] = [];
 
-		this.editorGroupService.groups.forEach(group => {
+		this.editorGroupService.getGroups(GroupsOrder.CREATION_TIME).forEach(group => {
 			group.editors.forEach(editor => {
 				entries.push(this.instantiationService.createInstance(EditorPickerEntry, editor, group));
 			});
