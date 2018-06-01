@@ -14,7 +14,7 @@ import { HtmlInput, HtmlInputOptions } from '../common/htmlInput';
 import { HtmlPreviewPart } from './htmlPreviewPart';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
-import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 
@@ -48,10 +48,13 @@ CommandsRegistry.registerCommand('_workbench.previewHtml', function (
 	let input: HtmlInput;
 
 	const editorGroupService = accessor.get(IEditorGroupsService);
-	const groups = editorGroupService.groups;
+
+	let targetGroup: IEditorGroup = editorGroupService.getGroup(viewColumnToEditorGroup(editorGroupService, position));
+	if (!targetGroup) {
+		targetGroup = editorGroupService.activeGroup;
+	}
 
 	// Find already opened HTML input if any
-	const targetGroup = groups[position] || editorGroupService.activeGroup;
 	if (targetGroup) {
 		const editors = targetGroup.editors;
 		for (let i = 0; i < editors.length; i++) {
