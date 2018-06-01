@@ -381,7 +381,8 @@ export namespace HierarchicalSymbolInformation {
 			detail: info.parent.detail,
 			location: location.from(info.parent.location),
 			definingRange: Range.from(info.parent.range),
-			kind: SymbolKind.from(info.parent.kind)
+			kind: SymbolKind.from(info.parent.kind),
+			containerName: info.parent.containerName
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
