@@ -11,11 +11,11 @@
 					"description": "Contributed TypeScript server plugins.",
 					"items": {
 						"type": "object",
-						"description": "TypeScript server plugin.typescriptServerPlugins",
+						"description": "TypeScript server plugin.",
 						"properties": {
 							"name": {
 								"type": "string",
-								"description": "The name of the plugin as listed in the package.json."
+								"description": "Name of the plugin as listed in the package.json."
 							}
 						}
 					}
