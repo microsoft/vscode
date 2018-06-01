@@ -112,6 +112,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	private ignoreOpenEditorErrors: boolean;
 	private disposedEditorsWorker: RunOnceWorker<EditorInput>;
 
+	private mapEditorToPendingConfirmation: Map<EditorInput, TPromise<boolean>> = new Map<EditorInput, TPromise<boolean>>();
+
 	constructor(
 		private accessor: IEditorGroupsAccessor,
 		from: IEditorGroupView | ISerializedEditorGroup,
@@ -1000,11 +1002,27 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			return TPromise.as(false); // no veto
 		}
 
-		return this.doHandleDirty(editors.shift()).then(veto => {
+		const editor = editors.shift();
+
+		// To prevent multiple confirmation dialogs from showing up one after the other
+		// we check if a pending confirmation is currently showing and if so, join that
+		let handleDirtyPromise = this.mapEditorToPendingConfirmation.get(editor);
+		if (!handleDirtyPromise) {
+			handleDirtyPromise = this.doHandleDirty(editor);
+			this.mapEditorToPendingConfirmation.set(editor, handleDirtyPromise);
+		}
+
+		return handleDirtyPromise.then(veto => {
+
+			// Make sure to remove from our map of cached pending confirmations
+			this.mapEditorToPendingConfirmation.delete(editor);
+
+			// Return for the first veto we got
 			if (veto) {
 				return veto;
 			}
 
+			// Otherwise continue with the remainders
 			return this.handleDirty(editors);
 		});
 	}
