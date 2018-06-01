@@ -197,6 +197,10 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
+	captureScreenshot(windowId: number): TPromise<string> {
+		return this.channel.call('captureScreenshot');
+	}
+
 	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
 		return this.channel.call('openDevTools', [windowId, options]);
 	}

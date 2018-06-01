@@ -7,6 +7,7 @@
 import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
 import { WindowState } from 'vscode';
+import { TPromise } from '../../../base/common/winjs.base';
 
 export class ExtHostWindow implements ExtHostWindowShape {
 
@@ -34,5 +35,9 @@ export class ExtHostWindow implements ExtHostWindowShape {
 
 		this._state = { ...this._state, focused };
 		this._onDidChangeWindowState.fire(this._state);
+	}
+
+	captureScreenshot(): TPromise<string | null> {
+		return this._proxy.$captureScreenshot();
 	}
 }

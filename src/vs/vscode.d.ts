@@ -5813,6 +5813,13 @@ declare module 'vscode' {
 		export function showErrorMessage<T extends MessageItem>(message: string, options: MessageOptions, ...items: T[]): Thenable<T | undefined>;
 
 		/**
+		 * Captures a screenshot of the window.
+		 *
+		 * @return A Base64 encoded string of the PNG image of the screenshot.
+		 */
+		export function captureScreenshot(): Thenable<string | null>;
+
+		/**
 		 * Shows a selection list allowing multiple selections.
 		 *
 		 * @param items An array of strings, or a promise that resolves to an array of strings.

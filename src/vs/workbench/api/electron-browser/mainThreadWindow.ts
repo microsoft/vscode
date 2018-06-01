@@ -31,6 +31,10 @@ export class MainThreadWindow implements MainThreadWindowShape {
 		return this.windowService.isFocused();
 	}
 
+	$captureScreenshot(): TPromise<string | null> {
+		return this.windowService.captureScreenshot();
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
