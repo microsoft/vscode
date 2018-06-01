@@ -411,34 +411,42 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		? encodeURIComponent2
 		: encodeNoop;
 
-	const parts: string[] = [];
+	let res = '';
 
 	let { scheme, authority, path, query, fragment } = uri;
 	if (scheme) {
-		parts.push(scheme, ':');
+		res += scheme;
+		res += ':';
 	}
 	if (authority || scheme === 'file') {
-		parts.push('//');
+		res += _slash;
+		res += _slash;
 	}
 	if (authority) {
 		let idx = authority.indexOf('@');
 		if (idx !== -1) {
+			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
 			authority = authority.substr(idx + 1);
 			idx = userinfo.indexOf(':');
 			if (idx === -1) {
-				parts.push(encoder(userinfo));
+				res += encoder(userinfo);
 			} else {
-				parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
+				// <user>:<pass>@<auth>
+				res += encoder(userinfo.substr(0, idx));
+				res += ':';
+				res += encoder(userinfo.substr(idx + 1));
 			}
-			parts.push('@');
+			res += '@';
 		}
 		authority = authority.toLowerCase();
 		idx = authority.indexOf(':');
 		if (idx === -1) {
-			parts.push(encoder(authority));
+			res += encoder(authority);
 		} else {
-			parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
+			// <auth>:<port>
+			res += encoder(authority.substr(0, idx));
+			res += authority.substr(idx);
 		}
 	}
 	if (path) {
@@ -460,19 +468,21 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 		while (true) {
 			let idx = path.indexOf(_slash, lastIdx);
 			if (idx === -1) {
-				parts.push(encoder(path.substring(lastIdx)));
+				res += encoder(path.substring(lastIdx));
 				break;
 			}
-			parts.push(encoder(path.substring(lastIdx, idx)), _slash);
+			res += encoder(path.substring(lastIdx, idx));
+			res += _slash;
 			lastIdx = idx + 1;
 		}
 	}
 	if (query) {
-		parts.push('?', encoder(query));
+		res += '?';
+		res += encoder(query);
 	}
 	if (fragment) {
-		parts.push('#', encoder(fragment));
+		res += '#';
+		res += encoder(fragment);
 	}
-
-	return parts.join(_empty);
+	return res;
 }
