@@ -64,7 +64,7 @@ export const TAB_ACTIVE_BORDER_TOP = registerColor('tab.activeBorderTop', {
 	dark: null,
 	light: null,
 	hc: null
-}, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveBorderTop', "Border to the top of an active tab. The border will not show if a bottom border is already defined (via tab.activeBorder or tab.unfocusedActiveBorder). Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_UNFOCUSED_ACTIVE_BORDER = registerColor('tab.unfocusedActiveBorder', {
 	dark: transparent(TAB_ACTIVE_BORDER, 0.5),
@@ -76,7 +76,7 @@ export const TAB_UNFOCUSED_ACTIVE_BORDER_TOP = registerColor('tab.unfocusedActiv
 	dark: transparent(TAB_ACTIVE_BORDER_TOP, 0.5),
 	light: transparent(TAB_ACTIVE_BORDER_TOP, 0.7),
 	hc: null
-}, nls.localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
+}, nls.localize('tabActiveUnfocusedBorderTop', "Border to the top of an active tab in an unfocused group. The border will not show if a bottom border is already defined (via tab.activeBorder or tab.unfocusedActiveBorder). Tabs are the containers for editors in the editor area. Multiple tabs can be opened in one editor group. There can be multiple editor groups."));
 
 export const TAB_HOVER_BORDER = registerColor('tab.hoverBorder', {
 	dark: null,
