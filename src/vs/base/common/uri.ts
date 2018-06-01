@@ -279,33 +279,7 @@ export default class URI implements UriComponents {
 	}
 
 	public toJSON(): object {
-		const res = <UriState>{
-			$mid: 1,
-			fsPath: this.fsPath,
-			external: this.toString(),
-		};
-
-		if (this.path) {
-			res.path = this.path;
-		}
-
-		if (this.scheme) {
-			res.scheme = this.scheme;
-		}
-
-		if (this.authority) {
-			res.authority = this.authority;
-		}
-
-		if (this.query) {
-			res.query = this.query;
-		}
-
-		if (this.fragment) {
-			res.fragment = this.fragment;
-		}
-
-		return res;
+		return this;
 	}
 
 	static revive(data: UriComponents | any): URI {
@@ -360,6 +334,36 @@ class _URI extends URI {
 			// we don't cache that
 			return _asFormatted(this, true);
 		}
+	}
+
+	toJSON(): object {
+		const res = <UriState>{
+			$mid: 1
+		};
+		// cached state
+		if (this._fsPath) {
+			res.fsPath = this._fsPath;
+		}
+		if (this._formatted) {
+			res.external = this._formatted;
+		}
+		// uri components
+		if (this.path) {
+			res.path = this.path;
+		}
+		if (this.scheme) {
+			res.scheme = this.scheme;
+		}
+		if (this.authority) {
+			res.authority = this.authority;
+		}
+		if (this.query) {
+			res.query = this.query;
+		}
+		if (this.fragment) {
+			res.fragment = this.fragment;
+		}
+		return res;
 	}
 }
 
