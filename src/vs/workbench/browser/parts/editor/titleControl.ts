@@ -137,6 +137,39 @@ export abstract class TitleControl extends Themable {
 		return actionItem;
 	}
 
+	protected updateEditorActionsToolbar(): void {
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		// Update Editor Actions Toolbar
+		let primaryEditorActions: IAction[] = [];
+		let secondaryEditorActions: IAction[] = [];
+
+		const editorActions = this.getEditorActions();
+
+		// Primary actions only for the active group
+		if (isGroupActive) {
+			primaryEditorActions = prepareActions(editorActions.primary);
+		}
+
+		// Secondary actions for all groups
+		secondaryEditorActions = prepareActions(editorActions.secondary);
+
+		// Only update if something actually has changed
+		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
+		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
+		if (
+			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
+			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
+			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
+			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
+		) {
+			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
+
+			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
+			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
+		}
+	}
+
 	private getEditorActions(): IToolbarActions {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
@@ -175,39 +208,6 @@ export abstract class TitleControl extends Themable {
 		}
 
 		return { primary, secondary };
-	}
-
-	protected updateEditorActionsToolbar(): void {
-		const isGroupActive = this.accessor.activeGroup === this.group;
-
-		// Update Editor Actions Toolbar
-		let primaryEditorActions: IAction[] = [];
-		let secondaryEditorActions: IAction[] = [];
-
-		const editorActions = this.getEditorActions();
-
-		// Primary actions only for the active group
-		if (isGroupActive) {
-			primaryEditorActions = prepareActions(editorActions.primary);
-		}
-
-		// Secondary actions for all groups
-		secondaryEditorActions = prepareActions(editorActions.secondary);
-
-		// Only update if something actually has changed
-		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
-		const secondaryEditorActionIds = secondaryEditorActions.map(a => a.id);
-		if (
-			!arrays.equals(primaryEditorActionIds, this.currentPrimaryEditorActionIds) ||
-			!arrays.equals(secondaryEditorActionIds, this.currentSecondaryEditorActionIds) ||
-			primaryEditorActions.some(action => action instanceof ExecuteCommandAction) || // execute command actions can have the same ID but different arguments
-			secondaryEditorActions.some(action => action instanceof ExecuteCommandAction)  // see also https://github.com/Microsoft/vscode/issues/16298
-		) {
-			this.editorActionsToolbar.setActions(primaryEditorActions, secondaryEditorActions)();
-
-			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
-			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
-		}
 	}
 
 	protected clearEditorActionsToolbar(): void {
