@@ -44,6 +44,13 @@ suite('URI - perf', function () {
 		}
 	});
 
+	perfTest('fsPath', function () {
+		for (const uri of manyFileUris) {
+			let data = uri.fsPath;
+			assert.ok(data);
+		}
+	});
+
 	perfTest('toJSON', function () {
 		for (const uri of manyFileUris) {
 			let data = uri.toJSON();

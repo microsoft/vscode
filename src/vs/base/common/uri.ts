@@ -60,7 +60,6 @@ function _referenceResolution(scheme: string, path: string): string {
 const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-const _driveLetterPath = /^\/[a-zA-Z]:/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -481,7 +480,11 @@ function _makeFsPath(uri: URI): string {
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uri.path}`;
-	} else if (_driveLetterPath.test(uri.path)) {
+	} else if (
+		uri.path.charCodeAt(0) === CharCode.Slash
+		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
+		&& uri.path.charCodeAt(2) === CharCode.Colon
+	) {
 		// windows drive letter: file:///c:/far/boo
 		value = uri.path[1].toLowerCase() + uri.path.substr(2);
 	} else {
