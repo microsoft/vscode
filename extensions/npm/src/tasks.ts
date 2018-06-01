@@ -58,7 +58,7 @@ function getPrePostScripts(scripts: any): Set<string> {
 		const script = keys[i];
 		const prepost = ['pre' + script, 'post' + script];
 		prepost.forEach(each => {
-			if (scripts[each]) {
+			if (scripts[each] !== undefined) {
 				prePostScripts.add(each);
 			}
 		});
