@@ -15,7 +15,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -322,6 +322,14 @@ export class MenubarPart extends Part {
 		this.toggleCustomMenu(0);
 	}
 
+	private _getActionItem(action: IAction): ActionItem {
+		const keybinding = this.keybindingService.lookupKeybinding(action.id);
+		if (keybinding) {
+			return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+		}
+		return null;
+	}
+
 	private toggleCustomMenu(menuIndex: number): void {
 		const customMenu = this.customMenus[menuIndex];
 
@@ -348,8 +356,8 @@ export class MenubarPart extends Part {
 		});
 
 		let menuOptions: IMenuOptions = {
-			getKeyBinding: (action) => { return this.keybindingService.lookupKeybinding(action.id); },
-			actionRunner: this.actionRunner
+			actionRunner: this.actionRunner,
+			actionItemProvider: (action) => { return this._getActionItem(action); }
 		};
 
 		let menuWidget = new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions);
