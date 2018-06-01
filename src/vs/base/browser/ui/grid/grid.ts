@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail } from 'vs/base/common/arrays';
-import { orthogonal, IView, GridView, Sizing as GridViewSizing } from './gridview';
+import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box } from './gridview';
 
 export { Orientation } from './gridview';
 
@@ -31,12 +31,12 @@ function oppositeDirection(direction: Direction): Direction {
 
 export interface GridLeafNode<T extends IView> {
 	readonly view: T;
-	readonly size: number;
+	readonly box: Box;
 }
 
 export interface GridBranchNode<T extends IView> {
 	readonly children: GridNode<T>[];
-	readonly size: number;
+	readonly box: Box;
 }
 
 export type GridNode<T extends IView> = GridLeafNode<T> | GridBranchNode<T>;
@@ -45,63 +45,17 @@ export function isGridBranchNode<T extends IView>(node: GridNode<T>): node is Gr
 	return !!(node as any).children;
 }
 
-interface Box {
-	top: number;
-	left: number;
-	width: number;
-	height: number;
-}
-
-interface BoxLeafNode<T extends IView> {
-	readonly node: GridLeafNode<T>;
-	readonly box: Box;
-}
-
-interface BoxBranchNode<T extends IView> {
-	readonly children: BoxNode<T>[];
-	readonly box: Box;
-}
-
-// TODO@Joao: should GridNodes already contain Box information? that would save us some memory here
-type BoxNode<T extends IView> = BoxLeafNode<T> | BoxBranchNode<T>;
-
-function isBoxBranchNode<T extends IView>(node: BoxNode<T>): node is BoxBranchNode<T> {
-	return !!(node as any).children;
-}
-
-function toBoxNode<T extends IView>(node: GridNode<T>, orientation: Orientation, box: Box): BoxNode<T> {
-	if (!isGridBranchNode(node)) {
-		return { node, box };
-	}
-
-	const children: BoxNode<T>[] = [];
-	let offset = 0;
-
-	for (let i = 0; i < node.children.length; i++) {
-		const child = node.children[i];
-		const childOrientation = orthogonal(orientation);
-		const childBox: Box = orientation === Orientation.HORIZONTAL
-			? { top: box.top, left: box.left + offset, width: child.size, height: box.height }
-			: { top: box.top + offset, left: box.left, width: box.width, height: child.size };
-
-		children.push(toBoxNode(child, childOrientation, childBox));
-		offset += child.size;
-	}
-
-	return { children, box };
-}
-
-function getBoxNode<T extends IView>(node: BoxNode<T>, location: number[]): BoxNode<T> {
+function getGridNode<T extends IView>(node: GridNode<T>, location: number[]): GridNode<T> {
 	if (location.length === 0) {
 		return node;
 	}
 
-	if (!isBoxBranchNode(node)) {
+	if (!isGridBranchNode(node)) {
 		throw new Error('Invalid location');
 	}
 
 	const [index, ...rest] = location;
-	return getBoxNode(node.children[index], rest);
+	return getGridNode(node.children[index], rest);
 }
 
 interface Range {
@@ -133,11 +87,11 @@ function getBoxBoundary(box: Box, direction: Direction): Boundary {
 	return { offset, range };
 }
 
-function findAdjacentBoxLeafNodes<T extends IView>(boxNode: BoxNode<T>, direction: Direction, boundary: Boundary): BoxLeafNode<T>[] {
-	const result: BoxLeafNode<T>[] = [];
+function findAdjacentBoxLeafNodes<T extends IView>(boxNode: GridNode<T>, direction: Direction, boundary: Boundary): GridLeafNode<T>[] {
+	const result: GridLeafNode<T>[] = [];
 
-	function _(boxNode: BoxNode<T>, direction: Direction, boundary: Boundary): void {
-		if (isBoxBranchNode(boxNode)) {
+	function _(boxNode: GridNode<T>, direction: Direction, boundary: Boundary): void {
+		if (isGridBranchNode(boxNode)) {
 			for (const child of boxNode.children) {
 				_(child, direction, boundary);
 			}
@@ -335,24 +289,23 @@ export class Grid<T extends IView> implements IDisposable {
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
 		const location = this.getViewLocation(view);
 		const root = this.getViews();
-		const boxRoot = toBoxNode(root, this.orientation, { top: 0, left: 0, width: this.width, height: this.height });
-		const boxNode = getBoxNode(boxRoot, location);
-		let boundary = getBoxBoundary(boxNode.box, direction);
+		const node = getGridNode(root, location);
+		let boundary = getBoxBoundary(node.box, direction);
 
 		if (wrap) {
-			if (direction === Direction.Up && boxNode.box.top === 0) {
-				boundary = { offset: boxRoot.box.top + boxRoot.box.height, range: boundary.range };
-			} else if (direction === Direction.Right && boxNode.box.left + boxNode.box.width === boxRoot.box.width) {
+			if (direction === Direction.Up && node.box.top === 0) {
+				boundary = { offset: root.box.top + root.box.height, range: boundary.range };
+			} else if (direction === Direction.Right && node.box.left + node.box.width === root.box.width) {
 				boundary = { offset: 0, range: boundary.range };
-			} else if (direction === Direction.Down && boxNode.box.top + boxNode.box.height === boxRoot.box.height) {
+			} else if (direction === Direction.Down && node.box.top + node.box.height === root.box.height) {
 				boundary = { offset: 0, range: boundary.range };
-			} else if (direction === Direction.Left && boxNode.box.left === 0) {
-				boundary = { offset: boxRoot.box.left + boxRoot.box.width, range: boundary.range };
+			} else if (direction === Direction.Left && node.box.left === 0) {
+				boundary = { offset: root.box.left + root.box.width, range: boundary.range };
 			}
 		}
 
-		return findAdjacentBoxLeafNodes(boxRoot, oppositeDirection(direction), boundary)
-			.map(boxNode => boxNode.node.view);
+		return findAdjacentBoxLeafNodes(root, oppositeDirection(direction), boundary)
+			.map(node => node.view);
 	}
 
 	private getViewLocation(view: T): number[] {
@@ -414,15 +367,17 @@ export interface ISerializedGrid {
 
 export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
-	private static serializeNode<T extends ISerializableView>(node: GridNode<T>): ISerializedNode {
-		if (isGridBranchNode(node)) {
-			return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c)), size: node.size };
-		} else {
-			return { type: 'leaf', data: node.view.toJSON(), size: node.size };
+	private static serializeNode<T extends ISerializableView>(node: GridNode<T>, orientation: Orientation): ISerializedNode {
+		const size = orientation === Orientation.VERTICAL ? node.box.width : node.box.height;
+
+		if (!isGridBranchNode(node)) {
+			return { type: 'leaf', data: node.view.toJSON(), size };
 		}
+
+		return { type: 'branch', data: node.children.map(c => SerializableGrid.serializeNode(c, orthogonal(orientation))), size };
 	}
 
-	private static deserializeNode<T extends ISerializableView>(json: ISerializedNode, deserializer: IViewDeserializer<T>): GridNode<T> {
+	private static deserializeNode<T extends ISerializableView>(json: ISerializedNode, orientation: Orientation, box: Box, deserializer: IViewDeserializer<T>): GridNode<T> {
 		if (!json || typeof json !== 'object') {
 			throw new Error('Invalid JSON');
 		}
@@ -433,25 +388,29 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		if (type === 'branch') {
 			if (!Array.isArray(data)) {
 				throw new Error('Invalid JSON: \'data\' property of branch must be an array.');
-			} else if (typeof json.size !== 'number') {
-				throw new Error('Invalid JSON: \'size\' property of branch must be a number.');
 			}
 
-			const nodes = data as ISerializedNode[];
-			const children = nodes.map(c => SerializableGrid.deserializeNode(c, deserializer));
-			const size = json.size as number;
+			const children: GridNode<T>[] = [];
+			let offset = 0;
 
-			return { children, size };
+			for (const child of data) {
+				if (typeof child.size !== 'number') {
+					throw new Error('Invalid JSON: \'size\' property of node must be a number.');
+				}
+
+				const childBox: Box = orientation === Orientation.HORIZONTAL
+					? { top: box.top, left: box.left + offset, width: child.size, height: box.height }
+					: { top: box.top + offset, left: box.left, width: box.width, height: child.size };
+
+				children.push(SerializableGrid.deserializeNode(child, orthogonal(orientation), childBox, deserializer));
+				offset += child.size;
+			}
+
+			return { children, box };
 
 		} else if (type === 'leaf') {
-			if (typeof json.size !== 'number') {
-				throw new Error('Invalid JSON: \'size\' property of leaf must be a number.');
-			}
-
 			const view = deserializer.fromJSON(data) as T;
-			const size = json.size as number;
-
-			return { view, size };
+			return { view, box };
 		}
 
 		throw new Error('Invalid JSON: \'type\' property must be either \'branch\' or \'leaf\'.');
@@ -474,16 +433,17 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid JSON: \'height\' property must be a number.');
 		}
 
-		const root = SerializableGrid.deserializeNode(json.root, deserializer) as GridBranchNode<T>;
+		const orientation = json.orientation as Orientation;
+		const width = json.width as number;
+		const height = json.height as number;
+		const box: Box = { top: 0, left: 0, width, height };
+
+		const root = SerializableGrid.deserializeNode(json.root, orientation, box, deserializer) as GridBranchNode<T>;
 		const firstLeaf = SerializableGrid.getFirstLeaf(root);
 
 		if (!firstLeaf) {
 			throw new Error('Invalid serialized state, first leaf not found');
 		}
-
-		const orientation = json.orientation as Orientation;
-		const width = json.width as number;
-		const height = json.height as number;
 
 		const result = new SerializableGrid<T>(container, firstLeaf.view);
 		result.orientation = orientation;
@@ -501,7 +461,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 
 	serialize(): ISerializedGrid {
 		return {
-			root: SerializableGrid.serializeNode(this.getViews()),
+			root: SerializableGrid.serializeNode(this.getViews(), this.orientation),
 			orientation: this.orientation,
 			width: this.width,
 			height: this.height
@@ -532,7 +492,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		const firstLeaves = node.children.map(c => SerializableGrid.getFirstLeaf(c));
 
 		for (let i = 1; i < firstLeaves.length; i++) {
-			this.addView(firstLeaves[i].view, firstLeaves[i].size, referenceView, direction);
+			const size = orientation === Orientation.VERTICAL ? firstLeaves[i].box.height : firstLeaves[i].box.width;
+			this.addView(firstLeaves[i].view, size, referenceView, direction);
 			referenceView = firstLeaves[i].view;
 		}
 
@@ -557,7 +518,8 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			const childLocation = [...location, i];
 
 			if (i < node.children.length - 1) {
-				this.gridview.resizeView(childLocation, Math.floor(child.size * scale));
+				const size = orientation === Orientation.VERTICAL ? child.box.height : child.box.width;
+				this.gridview.resizeView(childLocation, Math.floor(size * scale));
 			}
 
 			this.restoreViewsSize(childLocation, child, orthogonal(orientation), widthScale, heightScale);

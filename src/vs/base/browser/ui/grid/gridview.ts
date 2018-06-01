@@ -38,14 +38,21 @@ export function orthogonal(orientation: Orientation): Orientation {
 	return orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 }
 
+export interface Box {
+	top: number;
+	left: number;
+	width: number;
+	height: number;
+}
+
 export interface GridLeafNode {
 	readonly view: IView;
-	readonly size: number;
+	readonly box: Box;
 }
 
 export interface GridBranchNode {
 	readonly children: GridNode[];
-	readonly size: number;
+	readonly box: Box;
 }
 
 export type GridNode = GridLeafNode | GridBranchNode;
@@ -559,15 +566,29 @@ export class GridView implements IDisposable {
 	}
 
 	getViews(): GridBranchNode {
-		return this._getViews(this.root) as GridBranchNode;
+		return this._getViews(this.root, this.orientation, { top: 0, left: 0, width: this.width, height: this.height }) as GridBranchNode;
 	}
 
-	private _getViews(node: Node): GridNode {
-		if (node instanceof BranchNode) {
-			return { children: node.children.map(c => this._getViews(c)), size: node.orthogonalSize };
-		} else {
-			return { view: node.view, size: node.size };
+	private _getViews(node: Node, orientation: Orientation, box: Box): GridNode {
+		if (node instanceof LeafNode) {
+			return { view: node.view, box };
 		}
+
+		const children: GridNode[] = [];
+		let offset = 0;
+
+		for (let i = 0; i < node.children.length; i++) {
+			const child = node.children[i];
+			const childOrientation = orthogonal(orientation);
+			const childBox: Box = orientation === Orientation.HORIZONTAL
+				? { top: box.top, left: box.left + offset, width: child.width, height: box.height }
+				: { top: box.top + offset, left: box.left, width: box.width, height: child.height };
+
+			children.push(this._getViews(child, childOrientation, childBox));
+			offset += orientation === Orientation.HORIZONTAL ? child.width : child.height;
+		}
+
+		return { children, box };
 	}
 
 	private getNode(location: number[], node: Node = this.root, path: BranchNode[] = []): [BranchNode[], Node] {
