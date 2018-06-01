@@ -152,7 +152,7 @@ export class MenuItemActionItem extends ActionItem {
 
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
-	private _wantsAltCommand: boolean = false;
+	private _wantsAltCommand: boolean;
 	private _itemClassDispose: IDisposable;
 
 	constructor(
@@ -187,7 +187,8 @@ export class MenuItemActionItem extends ActionItem {
 		this._updateItemClass(this._action.item);
 
 		let mouseOver = false;
-		let alternativeKeyDown = false;
+		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
+		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
 
 		const updateAltState = () => {
 			const wantsAltCommand = mouseOver && alternativeKeyDown;
@@ -199,7 +200,7 @@ export class MenuItemActionItem extends ActionItem {
 			}
 		};
 
-		this._callOnDispose.push(AlternativeKeyEmitter.getInstance(this._contextMenuService).event(value => {
+		this._callOnDispose.push(alternativeKeyEmitter.event(value => {
 			alternativeKeyDown = value;
 			updateAltState();
 		}));
