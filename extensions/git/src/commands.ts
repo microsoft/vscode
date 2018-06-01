@@ -612,6 +612,8 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -786,6 +788,8 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -852,6 +856,8 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -1522,6 +1528,8 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
