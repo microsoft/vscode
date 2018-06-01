@@ -20,7 +20,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
 import { CLOSE_EDITOR_COMMAND_ID, NAVIGATE_ALL_EDITORS_GROUP_PREFIX, MOVE_ACTIVE_EDITOR_COMMAND_ID, NAVIGATE_IN_ACTIVE_GROUP_PREFIX, ActiveEditorMoveArguments, SPLIT_EDITOR_LEFT, SPLIT_EDITOR_RIGHT, SPLIT_EDITOR_UP, SPLIT_EDITOR_DOWN, splitEditor, LAYOUT_EDITOR_GROUPS_COMMAND_ID, mergeAllGroups } from 'vs/workbench/browser/parts/editor/editorCommands';
-import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, IEditorGroup, GroupsArrangement, EditorsOrder, GroupLocation, GroupDirection, preferredSideBySideGroupDirection, IFindGroupScope, GroupOrientation, EditorGroupLayout, GroupsOrder } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -555,9 +555,24 @@ export abstract class BaseCloseAllAction extends Action {
 		id: string,
 		label: string,
 		clazz: string,
-		private textFileService: ITextFileService
+		private textFileService: ITextFileService,
+		protected editorGroupService: IEditorGroupsService
 	) {
 		super(id, label, clazz);
+	}
+
+	protected get groupsToClose(): IEditorGroup[] {
+		const groupsToClose: IEditorGroup[] = [];
+
+		// Close editors in reverse order of their grid appearance so that the editor
+		// group that is the first (top-left) remains. This helps to keep view state
+		// for editors around that have been opened in this visually first group.
+		const groups = this.editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
+		for (let i = groups.length - 1; i >= 0; i--) {
+			groupsToClose.push(groups[i]);
+		}
+
+		return groupsToClose;
 	}
 
 	public run(): TPromise<any> {
@@ -602,13 +617,13 @@ export class CloseAllEditorsAction extends BaseCloseAllAction {
 		id: string,
 		label: string,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, 'action-close-all-files', textFileService);
+		super(id, label, 'action-close-all-files', textFileService, editorGroupService);
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors()));
+		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors()));
 	}
 }
 
@@ -621,14 +636,14 @@ export class CloseAllEditorGroupsAction extends BaseCloseAllAction {
 		id: string,
 		label: string,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, void 0, textFileService);
+		super(id, label, void 0, textFileService, editorGroupService);
 	}
 
 	protected doCloseAll(): TPromise<any> {
-		return TPromise.join(this.editorGroupService.groups.map(g => g.closeAllEditors())).then(() => {
-			this.editorGroupService.groups.forEach(group => this.editorGroupService.removeGroup(group));
+		return TPromise.join(this.groupsToClose.map(g => g.closeAllEditors())).then(() => {
+			this.groupsToClose.forEach(group => this.editorGroupService.removeGroup(group));
 		});
 	}
 }

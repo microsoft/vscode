@@ -205,7 +205,8 @@ function registerEditorGroupsLayoutCommand(): void {
 	});
 }
 
-export function mergeAllGroups(editorGroupService: IEditorGroupsService, target = editorGroupService.groups[0]): void {
+export function mergeAllGroups(editorGroupService: IEditorGroupsService): void {
+	const target = editorGroupService.activeGroup;
 	editorGroupService.groups.forEach(group => {
 		if (group === target) {
 			return; // keep target
