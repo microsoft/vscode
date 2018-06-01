@@ -268,6 +268,8 @@ export class OpenEditorsView extends ViewsViewletPanel {
 				} else {
 					this.openEditor(element, { preserveFocus: isSingleClick, pinned: isDoubleClick, sideBySide: openToSide });
 				}
+			} else {
+				this.editorGroupService.activateGroup(element);
 			}
 		}));
 
