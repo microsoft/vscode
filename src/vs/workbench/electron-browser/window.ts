@@ -35,7 +35,7 @@ import { ipcRenderer as ipc, webFrame } from 'electron';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -62,6 +62,8 @@ export class ElectronWindow extends Themable {
 
 	private static readonly AUTO_SAVE_SETTING = 'files.autoSave';
 
+	private touchBarMenu: IMenu;
+	private touchBarUpdater: RunOnceScheduler;
 	private touchBarDisposables: IDisposable[];
 	private lastInstalledTouchedBar: ICommandAction[][];
 
@@ -318,38 +320,40 @@ export class ElectronWindow extends Themable {
 				}
 			});
 		});
+
+		// Touchbar menu (if enabled)
+		this.updateTouchbarMenu();
 	}
 
 	private updateTouchbarMenu(): void {
-		if (!isMacintosh) {
-			return; // macOS only
-		}
-
-		const touchbarEnabled = this.configurationService.getValue<boolean>('keyboard.touchbar.enabled');
-		if (!touchbarEnabled) {
-			return; // disabled via setting
+		if (
+			!isMacintosh || // macOS only
+			!this.configurationService.getValue<boolean>('keyboard.touchbar.enabled') // disabled via setting
+		) {
+			return;
 		}
 
 		// Dispose old
 		this.touchBarDisposables = dispose(this.touchBarDisposables);
+		this.touchBarMenu = void 0;
 
-		// Create new
-		const touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
-		this.touchBarDisposables.push(touchBarMenu);
-
-		const touchBarUpdater = new RunOnceScheduler(() => this.doSetupTouchbar(touchBarMenu), 300);
-		this.touchBarDisposables.push(touchBarUpdater);
-		touchBarUpdater.schedule();
-
-		// Schedule update
-		this.touchBarDisposables.push(touchBarMenu.onDidChange(() => touchBarUpdater.schedule()));
+		// Create new (delayed)
+		this.touchBarUpdater = new RunOnceScheduler(() => this.doUpdateTouchbarMenu(), 300);
+		this.touchBarDisposables.push(this.touchBarUpdater);
+		this.touchBarUpdater.schedule();
 	}
 
-	private doSetupTouchbar(touchBarMenu: IMenu): void {
+	private doUpdateTouchbarMenu(): void {
+		if (!this.touchBarMenu) {
+			this.touchBarMenu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.TouchBarContext, accessor.get(IContextKeyService)));
+			this.touchBarDisposables.push(this.touchBarMenu);
+			this.touchBarDisposables.push(this.touchBarMenu.onDidChange(() => this.touchBarUpdater.schedule()));
+		}
+
 		const actions: (MenuItemAction | Separator)[] = [];
 
 		// Fill actions into groups respecting order
-		fillInContextMenuActions(touchBarMenu, void 0, actions, this.contextMenuService);
+		fillInActionBarActions(this.touchBarMenu, void 0, actions);
 
 		// Convert into command action multi array
 		const items: ICommandAction[][] = [];
