@@ -353,7 +353,11 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', query.pattern);
+		const rgRegexPattern = query.pattern.endsWith('$') ?
+			query.pattern.replace(/\$$/, '\\r?') :
+			query.pattern;
+
+		args.push('--regexp', rgRegexPattern);
 	} else {
 		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');
