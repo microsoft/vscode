@@ -9,7 +9,7 @@ import { IAction } from 'vs/base/common/actions';
 import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
-import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
+import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -20,9 +20,7 @@ import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workb
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { DiffEditorWidget } from 'vs/editor/browser/widget/diffEditorWidget';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
 export const COMMENTS_PANEL_ID = 'workbench.panel.comments';
@@ -39,7 +37,7 @@ export class CommentsPanel extends Panel {
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ICommentService private commentService: ICommentService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ICommandService private commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService
@@ -130,12 +128,12 @@ export class CommentsPanel extends Panel {
 
 		const range = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].range : element.range;
 
-		const activeInput = this.editorService.getActiveEditorInput();
-		let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
+		const activeEditor = this.editorService.activeEditor;
+		let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
 		if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
 			const threadToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].threadId : element.threadId;
 			const commentToReveal = element instanceof ResourceWithCommentThreads ? element.commentThreads[0].comment.commentId : element.comment.commentId;
-			const control = this.editorService.getActiveEditor().getControl();
+			const control = this.editorService.activeTextEditorWidget;
 			if (threadToReveal && isCodeEditor(control)) {
 				const controller = ReviewController.get(control);
 				controller.revealCommentThread(threadToReveal, commentToReveal);
@@ -161,27 +159,26 @@ export class CommentsPanel extends Panel {
 				this.commandService.executeCommand(commentToReveal.command.id, ...commentToReveal.command.arguments),
 				setCommentsForFile
 			]).then(_ => {
-				let activeInput = this.editorService.getActiveEditorInput();
-				if (activeInput && activeInput instanceof DiffEditorInput) {
-					let activeEditor = this.editorService.getActiveEditor();
-					const control = activeEditor.getControl() as DiffEditorWidget;
-					const originalEditorControl = control.getOriginalEditor();
-					const modifiedEditorControl = control.getModifiedEditor();
+				let activeWidget = this.editorService.activeTextEditorWidget;
+				if (isDiffEditor(activeWidget)) {
+					const originalEditorWidget = activeWidget.getOriginalEditor();
+					const modifiedEditorWidget = activeWidget.getModifiedEditor();
 
 					let controller;
-					if (activeInput.originalInput.getResource().toString() === element.resource.toString()) {
-						controller = ReviewController.get(originalEditorControl);
-					} else if (activeInput.modifiedInput.getResource().toString() === element.resource.toString()) {
-						controller = ReviewController.get(modifiedEditorControl);
+					if (originalEditorWidget.getModel().uri.toString() === element.resource.toString()) {
+						controller = ReviewController.get(originalEditorWidget);
+					} else if (modifiedEditorWidget.getModel().uri.toString() === element.resource.toString()) {
+						controller = ReviewController.get(modifiedEditorWidget);
 					}
 
 					if (controller) {
 						controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
 					}
 				} else {
-					let currentActiveResource = activeInput ? activeInput.getResource() : void 0;
+					let activeEditor = this.editorService.activeEditor;
+					let currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
 					if (currentActiveResource && currentActiveResource.toString() === element.resource.toString()) {
-						const control = this.editorService.getActiveEditor().getControl();
+						const control = this.editorService.activeTextEditorWidget;
 						if (threadToReveal && isCodeEditor(control)) {
 							const controller = ReviewController.get(control);
 							controller.revealCommentThread(threadToReveal, commentToReveal.commentId);
@@ -199,7 +196,7 @@ export class CommentsPanel extends Panel {
 					preserveFocus: preserveFocus,
 					selection: range
 				}
-			}, sideBySide), setCommentsForFile]).then(vals => {
+			}, SIDE_GROUP), setCommentsForFile]).then(vals => {
 				let editor = vals[0];
 				const control = editor.getControl();
 				if (threadToReveal && isCodeEditor(control)) {

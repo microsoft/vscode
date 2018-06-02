@@ -9,9 +9,8 @@ import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { keys } from '../../../base/common/map';
-import { IWorkbenchEditorService } from '../../services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../node/extHost.protocol';
 
 import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
@@ -29,15 +28,14 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private _workbenchEditorService: IWorkbenchEditorService,
+		@IEditorService private _editorService: IEditorService,
 		@ICommentService private _commentService: ICommentService,
 		@IPanelService private _panelService: IPanelService,
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) {
 		super();
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		editorGroupService.onEditorsChanged(e => {
+		this._editorService.onDidActiveEditorChange(e => {
 			const outerEditor = this.getFocusedEditor();
 			if (!outerEditor) {
 				return;
@@ -114,10 +112,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	getFocusedEditor(): ICodeEditor {
 		let editor = this._codeEditorService.getFocusedCodeEditor();
 		if (!editor) {
-			let activeEditor = this._workbenchEditorService.getActiveEditor();
-			if (activeEditor) {
-				editor = activeEditor.getControl() as ICodeEditor;
-			}
+			return this._editorService.activeTextEditorWidget as ICodeEditor;
 		}
 
 		return editor;
