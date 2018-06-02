@@ -18,7 +18,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostTerminal implements vscode.Terminal {
 	private _id: number;
-	private _disposed: boolean;
+	private _disposed: boolean = false;
 	private _queuedRequests: ApiRequest[];
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
@@ -103,7 +103,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
-		let request: ApiRequest = new ApiRequest(callback, args);
+		const request: ApiRequest = new ApiRequest(callback, args);
 		if (!this._id) {
 			this._queuedRequests.push(request);
 			return;
@@ -120,7 +120,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 
 export class ExtHostTerminalRenderer implements vscode.TerminalRenderer {
 	private _id: number;
-	// private _disposed: boolean;
+	private _disposed: boolean = false;
 	private _queuedRequests: ApiRequest[];
 
 	public get name(): string { return this._name; }
@@ -147,7 +147,7 @@ export class ExtHostTerminalRenderer implements vscode.TerminalRenderer {
 	}
 
 	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
-		let request: ApiRequest = new ApiRequest(callback, args);
+		const request: ApiRequest = new ApiRequest(callback, args);
 		if (!this._id) {
 			this._queuedRequests.push(request);
 			return;
@@ -278,7 +278,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		// Continue env initialization, merging in the env from the launch
 		// config and adding keys that are needed to create the process
 		const env = terminalEnvironment.createTerminalEnv(parentEnv, shellLaunchConfig, initialCwd, locale, cols, rows);
-		let cwd = Uri.parse(require.toUrl('../../parts/terminal/node')).fsPath;
+		const cwd = Uri.parse(require.toUrl('../../parts/terminal/node')).fsPath;
 		const options = { env, cwd, execArgv: [] };
 
 		// Fork the process and listen for messages
@@ -333,7 +333,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
-		let index = this._getTerminalIndexById(id);
+		const index = this._getTerminalIndexById(id);
 		return index !== null ? this._terminals[index] : null;
 	}
 
@@ -341,7 +341,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		let index: number = null;
 		this._terminals.some((terminal, i) => {
 			// TODO: This shouldn't be cas
-			let thisId = (<any>terminal)._id;
+			const thisId = (<any>terminal)._id;
 			if (thisId === id) {
 				index = i;
 				return true;

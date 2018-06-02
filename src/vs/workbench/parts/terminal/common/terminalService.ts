@@ -153,7 +153,7 @@ export abstract class TerminalService implements ITerminalService {
 		if (wasActiveTab && this._terminalTabs.length > 0) {
 			// TODO: Only focus the new tab if the removed tab had focus?
 			// const hasFocusOnExit = tab.activeInstance.hadFocusOnExit;
-			let newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
+			const newIndex = index < this._terminalTabs.length ? index : this._terminalTabs.length - 1;
 			this.setActiveTabByIndex(newIndex);
 			this.getActiveInstance().focus(true);
 		}
@@ -302,7 +302,7 @@ export abstract class TerminalService implements ITerminalService {
 
 	public showPanel(focus?: boolean): TPromise<void> {
 		return new TPromise<void>((complete) => {
-			let panel = this._panelService.getActivePanel();
+			const panel = this._panelService.getActivePanel();
 			if (!panel || panel.getId() !== TERMINAL_PANEL_ID) {
 				return this._panelService.openPanel(TERMINAL_PANEL_ID, focus).then(() => {
 					if (focus) {

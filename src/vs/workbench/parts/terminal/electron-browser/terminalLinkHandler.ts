@@ -172,7 +172,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		let uri = Uri.parse(url);
+		const uri = Uri.parse(url);
 		this._openerService.open(uri);
 	}
 

@@ -438,7 +438,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _measureRenderTime(): void {
-		let frameTimes: number[] = [];
+		const frameTimes: number[] = [];
 		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 

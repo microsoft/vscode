@@ -65,7 +65,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $show(terminalId: number, preserveFocus: boolean): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			this.terminalService.setActiveInstance(terminalInstance);
 			this.terminalService.showPanel(!preserveFocus);
@@ -79,28 +79,28 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $dispose(terminalId: number): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			terminalInstance.dispose();
 		}
 	}
 
 	public $write(terminalId: number, text: string): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
 			terminalInstance.write(text);
 		}
 	}
 
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			terminalInstance.sendText(text, addNewLine);
 		}
 	}
 
 	public $registerOnDataListener(terminalId: number): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			this._dataListeners[terminalId] = terminalInstance.onData(data => this._onTerminalData(terminalId, data));
 			terminalInstance.onDisposed(instance => delete this._dataListeners[terminalId]);

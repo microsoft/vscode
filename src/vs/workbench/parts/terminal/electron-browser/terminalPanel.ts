@@ -79,7 +79,7 @@ export class TerminalPanel extends Panel {
 			}
 
 			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
-				let configHelper = this._terminalService.configHelper;
+				const configHelper = this._terminalService.configHelper;
 				if (configHelper instanceof TerminalConfigHelper) {
 					if (!configHelper.configFontIsMonospace()) {
 						const choices: IPromptChoice[] = [{
@@ -226,7 +226,7 @@ export class TerminalPanel extends Panel {
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
 				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 						terminal.clearSelection();
@@ -253,7 +253,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				if (event.which === 1) {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 					}
@@ -263,7 +263,7 @@ export class TerminalPanel extends Panel {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
-				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(this._getContextMenuActions()),
@@ -292,7 +292,7 @@ export class TerminalPanel extends Panel {
 
 				// Check if files were dragged from the tree explorer
 				let path: string;
-				let resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).path;
 				} else if (e.dataTransfer.files.length > 0) {
@@ -338,15 +338,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// Borrow the editor's hover background for now
-	let hoverBackground = theme.getColor(editorHoverBackground);
+	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
 	}
-	let hoverBorder = theme.getColor(editorHoverBorder);
+	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
 	}
-	let hoverForeground = theme.getColor(editorForeground);
+	const hoverForeground = theme.getColor(editorForeground);
 	if (hoverForeground) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
 	}

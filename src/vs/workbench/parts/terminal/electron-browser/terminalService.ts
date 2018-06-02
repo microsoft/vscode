@@ -112,7 +112,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public focusFindWidget(): TPromise<void> {
 		return this.showPanel(false).then(() => {
-			let panel = this._panelService.getActivePanel() as TerminalPanel;
+			const panel = this._panelService.getActivePanel() as TerminalPanel;
 			panel.focusFindWidget();
 			this._findWidgetVisible.set(true);
 		});

@@ -194,7 +194,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Bottom) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() - 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
@@ -217,7 +217,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Top) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() + 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}

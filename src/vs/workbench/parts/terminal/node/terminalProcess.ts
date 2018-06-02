@@ -9,7 +9,7 @@ import * as pty from 'node-pty';
 
 // The pty process needs to be run in its own child process to get around maxing out CPU on Mac,
 // see https://github.com/electron/electron/issues/38
-var shellName: string;
+let shellName: string;
 if (os.platform() === 'win32') {
 	shellName = path.basename(process.env.PTYSHELL);
 } else {
@@ -17,12 +17,12 @@ if (os.platform() === 'win32') {
 	// color prompt as defined in the default ~/.bashrc file.
 	shellName = 'xterm-256color';
 }
-var shell = process.env.PTYSHELL;
-var args = getArgs();
-var cwd = process.env.PTYCWD;
-var cols = process.env.PTYCOLS;
-var rows = process.env.PTYROWS;
-var currentTitle = '';
+const shell = process.env.PTYSHELL;
+const args = getArgs();
+const cwd = process.env.PTYCWD;
+const cols = process.env.PTYCOLS;
+const rows = process.env.PTYROWS;
+let currentTitle = '';
 
 setupPlanB(Number(process.env.PTYPID));
 cleanEnv();
@@ -34,7 +34,7 @@ interface IOptions {
 	rows?: number;
 }
 
-var options: IOptions = {
+const options: IOptions = {
 	name: shellName,
 	cwd
 };
@@ -43,10 +43,10 @@ if (cols && rows) {
 	options.rows = parseInt(rows, 10);
 }
 
-var ptyProcess = pty.spawn(shell, args, options);
+const ptyProcess = pty.spawn(shell, args, options);
 
-var closeTimeout: number;
-var exitCode: number;
+let closeTimeout: number;
+let exitCode: number;
 
 // Allow any trailing data events to be sent before the exit event is sent.
 // See https://github.com/Tyriar/node-pty/issues/72
@@ -95,8 +95,8 @@ function getArgs(): string | string[] {
 	if (process.env['PTYSHELLCMDLINE']) {
 		return process.env['PTYSHELLCMDLINE'];
 	}
-	var args = [];
-	var i = 0;
+	const args = [];
+	let i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		args.push(process.env['PTYSHELLARG' + i]);
 		i++;
@@ -105,7 +105,7 @@ function getArgs(): string | string[] {
 }
 
 function cleanEnv() {
-	var keys = [
+	const keys = [
 		'AMD_ENTRYPOINT',
 		'ELECTRON_NO_ASAR',
 		'ELECTRON_RUN_AS_NODE',
@@ -123,7 +123,7 @@ function cleanEnv() {
 			delete process.env[key];
 		}
 	});
-	var i = 0;
+	let i = 0;
 	while (process.env['PTYSHELLARG' + i]) {
 		delete process.env['PTYSHELLARG' + i];
 		i++;
