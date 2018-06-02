@@ -7,20 +7,13 @@
 import URI from 'vs/base/common/uri';
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService, IResourceInput } from 'vs/platform/editor/common/editor';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ICommandService, NullCommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { OpenerService } from 'vs/platform/opener/browser/openerService';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 
 suite('OpenerService', function () {
 
-	let lastInput: IResourceInput;
-
-	const editorService = new class implements IEditorService {
-		_serviceBrand: any;
-		openEditor(input: IResourceInput): any {
-			lastInput = input;
-		}
-	};
+	const editorService = new TestCodeEditorService();
 
 	let lastCommand: { id: string, args: any[] };
 
@@ -34,14 +27,13 @@ suite('OpenerService', function () {
 	};
 
 	setup(function () {
-		lastInput = undefined;
 		lastCommand = undefined;
 	});
 
 	test('delegate to editorService, scheme:///fff', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 		openerService.open(URI.parse('another:///somepath'));
-		assert.equal(lastInput.options.selection, undefined);
+		assert.equal(editorService.lastInput.options.selection, undefined);
 	});
 
 	test('delegate to editorService, scheme:///fff#L123', function () {
@@ -49,22 +41,22 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
 		openerService.open(URI.parse('file:///somepath#L23'));
-		assert.equal(lastInput.options.selection.startLineNumber, 23);
-		assert.equal(lastInput.options.selection.startColumn, 1);
-		assert.equal(lastInput.options.selection.endLineNumber, undefined);
-		assert.equal(lastInput.options.selection.endColumn, undefined);
-		assert.equal(lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput.options.selection.startLineNumber, 23);
+		assert.equal(editorService.lastInput.options.selection.startColumn, 1);
+		assert.equal(editorService.lastInput.options.selection.endLineNumber, undefined);
+		assert.equal(editorService.lastInput.options.selection.endColumn, undefined);
+		assert.equal(editorService.lastInput.resource.fragment, '');
 
 		openerService.open(URI.parse('another:///somepath#L23'));
-		assert.equal(lastInput.options.selection.startLineNumber, 23);
-		assert.equal(lastInput.options.selection.startColumn, 1);
+		assert.equal(editorService.lastInput.options.selection.startLineNumber, 23);
+		assert.equal(editorService.lastInput.options.selection.startColumn, 1);
 
 		openerService.open(URI.parse('another:///somepath#L23,45'));
-		assert.equal(lastInput.options.selection.startLineNumber, 23);
-		assert.equal(lastInput.options.selection.startColumn, 45);
-		assert.equal(lastInput.options.selection.endLineNumber, undefined);
-		assert.equal(lastInput.options.selection.endColumn, undefined);
-		assert.equal(lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput.options.selection.startLineNumber, 23);
+		assert.equal(editorService.lastInput.options.selection.startColumn, 45);
+		assert.equal(editorService.lastInput.options.selection.endLineNumber, undefined);
+		assert.equal(editorService.lastInput.options.selection.endColumn, undefined);
+		assert.equal(editorService.lastInput.resource.fragment, '');
 	});
 
 	test('delegate to editorService, scheme:///fff#123,123', function () {
@@ -72,18 +64,18 @@ suite('OpenerService', function () {
 		const openerService = new OpenerService(editorService, NullCommandService);
 
 		openerService.open(URI.parse('file:///somepath#23'));
-		assert.equal(lastInput.options.selection.startLineNumber, 23);
-		assert.equal(lastInput.options.selection.startColumn, 1);
-		assert.equal(lastInput.options.selection.endLineNumber, undefined);
-		assert.equal(lastInput.options.selection.endColumn, undefined);
-		assert.equal(lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput.options.selection.startLineNumber, 23);
+		assert.equal(editorService.lastInput.options.selection.startColumn, 1);
+		assert.equal(editorService.lastInput.options.selection.endLineNumber, undefined);
+		assert.equal(editorService.lastInput.options.selection.endColumn, undefined);
+		assert.equal(editorService.lastInput.resource.fragment, '');
 
 		openerService.open(URI.parse('file:///somepath#23,45'));
-		assert.equal(lastInput.options.selection.startLineNumber, 23);
-		assert.equal(lastInput.options.selection.startColumn, 45);
-		assert.equal(lastInput.options.selection.endLineNumber, undefined);
-		assert.equal(lastInput.options.selection.endColumn, undefined);
-		assert.equal(lastInput.resource.fragment, '');
+		assert.equal(editorService.lastInput.options.selection.startLineNumber, 23);
+		assert.equal(editorService.lastInput.options.selection.startColumn, 45);
+		assert.equal(editorService.lastInput.options.selection.endLineNumber, undefined);
+		assert.equal(editorService.lastInput.options.selection.endColumn, undefined);
+		assert.equal(editorService.lastInput.resource.fragment, '');
 	});
 
 	test('delegate to commandsService, command:someid', function () {
@@ -93,8 +85,8 @@ suite('OpenerService', function () {
 		// unknown command
 		openerService.open(URI.parse('command:foobar'));
 		assert.equal(lastCommand, undefined);
-		assert.equal(lastInput.resource.toString(), 'command:foobar');
-		assert.equal(lastInput.options.selection, undefined);
+		assert.equal(editorService.lastInput.resource.toString(), 'command:foobar');
+		assert.equal(editorService.lastInput.options.selection, undefined);
 
 		const id = `aCommand${Math.random()}`;
 		CommandsRegistry.registerCommand(id, function () { });

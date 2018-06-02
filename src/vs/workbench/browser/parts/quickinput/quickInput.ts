@@ -33,7 +33,7 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
@@ -370,7 +370,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -535,7 +535,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 						this.inQuickOpen('quickInput', false);
 						this.ui.container.style.display = 'none';
 						if (!focusLost) {
-							this.restoreFocus();
+							this.editorGroupService.activeGroup.focus();
 						}
 					});
 				result.then(null, onUnexpectedError);
@@ -545,16 +545,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inQuickOpen('quickInput', false);
 		this.ui.container.style.display = 'none';
 		if (!focusLost) {
-			this.restoreFocus();
+			this.editorGroupService.activeGroup.focus();
 		}
 		return TPromise.as(undefined);
-	}
-
-	private restoreFocus(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
 	}
 
 	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {

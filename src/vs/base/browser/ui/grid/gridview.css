@@ -3,9 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-/** Letter press styling for empty editor */
-.monaco-workbench > .part.editor.empty {
-	background-repeat: no-repeat;
-	background-position: 50% 50%;
-	background-size: 260px 260px;
+.monaco-grid-view {
+	position: relative;
+	overflow: hidden;
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-grid-branch-node {
+	width: 100%;
+	height: 100%;
 }

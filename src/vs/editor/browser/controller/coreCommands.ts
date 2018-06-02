@@ -18,11 +18,10 @@ import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import H = editorCommon.Handler;
-import { ICodeEditorService, getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import * as types from 'vs/base/common/types';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { TypeOperations } from 'vs/editor/common/controller/cursorTypeOperations';
 import { DeleteOperations } from 'vs/editor/common/controller/cursorDeleteOperations';
 import { VerticalRevealType } from 'vs/editor/common/view/viewEvents';
@@ -1620,12 +1619,6 @@ function findFocusedEditor(accessor: ServicesAccessor): ICodeEditor {
 	return accessor.get(ICodeEditorService).getFocusedCodeEditor();
 }
 
-function getWorkbenchActiveEditor(accessor: ServicesAccessor): ICodeEditor {
-	const editorService = accessor.get(IEditorService);
-	let activeEditor = (<any>editorService).getActiveEditor && (<any>editorService).getActiveEditor();
-	return getCodeEditor(activeEditor);
-}
-
 function registerCommand(command: Command) {
 	KeybindingsRegistry.registerCommandAndKeybindingRule(command.toCommandAndKeybindingRule(CORE_WEIGHT));
 }
@@ -1662,8 +1655,8 @@ class EditorOrNativeTextInputCommand extends Command {
 			return;
 		}
 
-		// Redirecting to last active editor
-		let activeEditor = getWorkbenchActiveEditor(accessor);
+		// Redirecting to active editor
+		let activeEditor = accessor.get(ICodeEditorService).getActiveCodeEditor();
 		if (activeEditor) {
 			activeEditor.focus();
 			return this._runEditorHandler(activeEditor, args);

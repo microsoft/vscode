@@ -75,5 +75,5 @@
 
 .monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
 .monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	background: url('close-big-dark.svg') center center no-repeat;
+	background: url('close-big-inverse.svg') center center no-repeat;
 }

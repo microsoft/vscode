@@ -6,7 +6,8 @@
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IEditor, Position, IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { ITextModel } from 'vs/editor/common/model';
 import { IRange } from 'vs/editor/common/core/range';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -16,6 +17,7 @@ import { Event } from 'vs/base/common/event';
 import { IStringDictionary } from 'vs/base/common/collections';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { localize } from 'vs/nls';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface ISettingsGroup {
 	id: string;
@@ -140,12 +142,12 @@ export interface IPreferencesService {
 	resolveModel(uri: URI): TPromise<ITextModel>;
 	createPreferencesEditorModel<T>(uri: URI): TPromise<IPreferencesEditorModel<T>>;
 
-	openRawDefaultSettings(): TPromise<void>;
+	openRawDefaultSettings(): TPromise<IEditor>;
 	openSettings(): TPromise<IEditor>;
 	openSettings2(): TPromise<IEditor>;
-	openGlobalSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	openWorkspaceSettings(options?: IEditorOptions, position?: Position): TPromise<IEditor>;
-	openFolderSettings(folder: URI, options?: IEditorOptions, position?: Position): TPromise<IEditor>;
+	openGlobalSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openWorkspaceSettings(options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
+	openFolderSettings(folder: URI, options?: IEditorOptions, group?: IEditorGroup): TPromise<IEditor>;
 	switchSettings(target: ConfigurationTarget, resource: URI): TPromise<void>;
 	openGlobalKeybindingSettings(textual: boolean): TPromise<void>;
 

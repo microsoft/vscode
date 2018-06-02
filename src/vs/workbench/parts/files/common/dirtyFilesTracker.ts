@@ -6,42 +6,35 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import * as errors from 'vs/base/common/errors';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { TextFileModelChangeEvent, ITextFileService, AutoSaveMode, ModelState } from 'vs/workbench/services/textfile/common/textfiles';
 import { platform, Platform } from 'vs/base/common/platform';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IEditorStacksModel } from 'vs/workbench/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge } from 'vs/workbench/services/activity/common/activity';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import * as arrays from 'vs/base/common/arrays';
+import { IEditorService, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export class DirtyFilesTracker implements IWorkbenchContribution {
 	private isDocumentedEdited: boolean;
 	private toUnbind: IDisposable[];
 	private lastDirtyCount: number;
-	private stacks: IEditorStacksModel;
 	private badgeHandle: IDisposable;
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService
 	) {
 		this.toUnbind = [];
 		this.isDocumentedEdited = false;
-		this.stacks = editorGroupService.getStacksModel();
 
 		this.registerListeners();
 	}
@@ -88,24 +81,20 @@ export class DirtyFilesTracker implements IWorkbenchContribution {
 			const shouldOpen = model && model.isDirty() && !model.hasState(ModelState.PENDING_SAVE);
 
 			// Only if not open already
-			return shouldOpen && !this.stacks.isOpen(e.resource);
+			return shouldOpen && !this.editorService.isOpen({ resource: e.resource });
 		}).map(e => e.resource), r => r.toString()));
 	}
 
 	private doOpenDirtyResources(resources: URI[]): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activePosition = activeEditor ? activeEditor.position : Position.ONE;
+		const activeEditor = this.editorService.activeControl;
 
 		// Open
 		this.editorService.openEditors(resources.map(resource => {
 			return {
-				input: {
-					resource,
-					options: { inactive: true, pinned: true, preserveFocus: true }
-				},
-				position: activePosition
+				resource,
+				options: { inactive: true, pinned: true, preserveFocus: true }
 			};
-		})).done(null, errors.onUnexpectedError);
+		}), activeEditor ? activeEditor.group : ACTIVE_GROUP);
 	}
 
 	private onTextFilesSaved(e: TextFileModelChangeEvent[]): void {

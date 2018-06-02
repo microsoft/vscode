@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IAction, ActionRunner } from 'vs/base/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
-import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
 import { FileKind } from 'vs/platform/files/common/files';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -642,7 +642,7 @@ class Menus extends Disposable implements IDisposable {
 		const primary: IAction[] = [];
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
-		fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
 
 		menu.dispose();
 		contextKeyService.dispose();

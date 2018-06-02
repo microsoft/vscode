@@ -38,18 +38,18 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { DomScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElement';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Tree } from 'vs/base/parts/tree/browser/treeImpl';
-import { Position } from 'vs/platform/editor/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -265,7 +265,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.content = append(body, $('.content'));
 	}
 
-	setInput(input: ExtensionsInput, options: EditorOptions): TPromise<void> {
+	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
 
@@ -379,12 +379,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.navbar.push(NavbarSection.Dependencies, localize('dependencies', "Dependencies"), localize('dependenciestooltip', "Lists extensions this extension depends on"));
 
 		this.editorLoadComplete = true;
-		return super.setInput(input, options);
-	}
-
-	changePosition(position: Position): void {
-		this.navbar.update();
-		super.changePosition(position);
+		return super.setInput(input, options, token);
 	}
 
 	showFind(): void {
@@ -993,9 +988,9 @@ class ShowExtensionEditorFindCommand extends Command {
 	}
 
 	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
+		if (activeControl instanceof ExtensionEditor) {
+			return activeControl;
 		}
 		return null;
 	}
@@ -1026,9 +1021,9 @@ class ShowExtensionEditorFindTermCommand extends Command {
 	}
 
 	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor() as ExtensionEditor;
-		if (activeEditor instanceof ExtensionEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
+		if (activeControl instanceof ExtensionEditor) {
+			return activeControl;
 		}
 		return null;
 	}

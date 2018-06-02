@@ -19,13 +19,13 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import * as labels from 'vs/base/common/labels';
 import { SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
@@ -36,7 +36,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 		private _provider: IWorkspaceSymbolProvider,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(editorService);

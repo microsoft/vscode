@@ -7,7 +7,7 @@ import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShap
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Position } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from './extHostTypes';
 import URI from 'vs/base/common/uri';
@@ -248,7 +248,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, visible: boolean, position: Position): void {
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, visible: boolean, position: EditorViewColumn): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
 			const viewColumn = typeConverters.ViewColumn.to(position);
@@ -274,7 +274,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		viewType: string,
 		title: string,
 		state: any,
-		position: Position,
+		position: EditorViewColumn,
 		options: vscode.WebviewOptions & vscode.WebviewPanelOptions
 	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);

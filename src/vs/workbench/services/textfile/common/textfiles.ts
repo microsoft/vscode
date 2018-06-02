@@ -8,12 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
+import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { IRevertOptions } from 'vs/platform/editor/common/editor';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**

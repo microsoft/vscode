@@ -31,7 +31,6 @@ import { SelectionHighlighter } from 'vs/editor/contrib/multicursor/multicursor'
 import * as nls from 'vs/nls';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEditorControl, Position } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -46,18 +45,19 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { Extensions as EditorExtensions, IEditorRegistry } from 'vs/workbench/browser/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { BaseTextEditor } from 'vs/workbench/browser/parts/editor/textEditor';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorControl } from 'vs/workbench/common/editor';
 import { ResourceEditorModel } from 'vs/workbench/common/editor/resourceEditorModel';
 import { PREFERENCES_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
 import { DefaultSettingsRenderer, FolderSettingsRenderer, IPreferencesRenderer, UserSettingsRenderer, WorkspaceSettingsRenderer } from 'vs/workbench/parts/preferences/browser/preferencesRenderers';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, SETTINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS, SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_FILE, SETTINGS_EDITOR_COMMAND_FOCUS_NEXT_SETTING, SETTINGS_EDITOR_COMMAND_FOCUS_PREVIOUS_SETTING, SETTINGS_EDITOR_COMMAND_SEARCH } from 'vs/workbench/parts/preferences/common/preferences';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -80,7 +80,7 @@ export class PreferencesEditor extends BaseEditor {
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService themeService: IThemeService,
@@ -154,10 +154,9 @@ export class PreferencesEditor extends BaseEditor {
 		this.preferencesRenderers.editFocusedPreference();
 	}
 
-	public setInput(newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.defaultSettingsEditorContextKey.set(true);
-		const oldInput = <PreferencesEditorInput>this.input;
-		return super.setInput(newInput, options).then(() => this.updateInput(oldInput, newInput, options));
+		return super.setInput(newInput, options, token).then(() => this.updateInput(newInput, options, token));
 	}
 
 	public layout(dimension: DOM.Dimension): void {
@@ -201,18 +200,17 @@ export class PreferencesEditor extends BaseEditor {
 		return false;
 	}
 
-	protected setEditorVisible(visible: boolean, position: Position): void {
-		this.sideBySidePreferencesWidget.setEditorVisible(visible, position);
-		super.setEditorVisible(visible, position);
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		this.sideBySidePreferencesWidget.setEditorVisible(visible, group);
+		super.setEditorVisible(visible, group);
 	}
 
-	public changePosition(position: Position): void {
-		this.sideBySidePreferencesWidget.changePosition(position);
-		super.changePosition(position);
-	}
+	private updateInput(newInput: PreferencesEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
+		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options, token).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
+			if (token.isCancellationRequested) {
+				return void 0;
+			}
 
-	private updateInput(oldInput: PreferencesEditorInput, newInput: PreferencesEditorInput, options?: EditorOptions): TPromise<void> {
-		return this.sideBySidePreferencesWidget.setInput(<DefaultPreferencesEditorInput>newInput.details, <EditorInput>newInput.master, options).then(({ defaultPreferencesRenderer, editablePreferencesRenderer }) => {
 			this.preferencesRenderers.defaultPreferencesRenderer = defaultPreferencesRenderer;
 			this.preferencesRenderers.editablePreferencesRenderer = editablePreferencesRenderer;
 			this.onInputChanged();
@@ -251,7 +249,7 @@ export class PreferencesEditor extends BaseEditor {
 
 	private switchSettings(target: SettingsTarget): void {
 		// Focus the editor if this editor is not active editor
-		if (this.editorService.getActiveEditor() !== this) {
+		if (this.editorService.activeControl !== this) {
 			this.focus();
 		}
 		const promise = this.input && this.input.isDirty() ? this.input.save() : TPromise.as(true);
@@ -789,7 +787,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 		this.defaultPreferencesEditor = this._register(this.instantiationService.createInstance(DefaultPreferencesEditor));
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
-		this.defaultPreferencesEditor.setVisible(true);
 		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
 		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
@@ -814,13 +811,19 @@ class SideBySidePreferencesWidget extends Widget {
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
 
-	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options?: EditorOptions): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
+	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options),
-		this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options)])
+		return TPromise.join([
+			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options, token),
+			this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options, token)
+		])
 			.then(([defaultPreferencesRenderer, editablePreferencesRenderer]) => {
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
+
 				this.defaultPreferencesHeader.textContent = defaultPreferencesRenderer && this.getDefaultPreferencesHeaderText((<DefaultSettingsEditorModel>defaultPreferencesRenderer.preferencesModel).target);
 				return { defaultPreferencesRenderer, editablePreferencesRenderer };
 			});
@@ -866,15 +869,12 @@ class SideBySidePreferencesWidget extends Widget {
 		}
 	}
 
-	public setEditorVisible(visible: boolean, position: Position): void {
-		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.setVisible(visible, position);
+	public setEditorVisible(visible: boolean, group: IEditorGroup): void {
+		if (this.defaultPreferencesEditor) {
+			this.defaultPreferencesEditor.setVisible(visible, group);
 		}
-	}
-
-	public changePosition(position: Position): void {
 		if (this.editablePreferencesEditor) {
-			this.editablePreferencesEditor.changePosition(position);
+			this.editablePreferencesEditor.setVisible(visible, group);
 		}
 	}
 
@@ -886,16 +886,21 @@ class SideBySidePreferencesWidget extends Widget {
 		const editor = descriptor.instantiate(this.instantiationService);
 		this.editablePreferencesEditor = editor;
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
-		this.editablePreferencesEditor.setVisible(true);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
 
 		return editor;
 	}
 
-	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions): TPromise<IPreferencesRenderer<ISetting>> {
-		return editor.setInput(input, options)
-			.then(() => (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri));
+	private updateInput(editor: BaseEditor, input: EditorInput, editorContributionId: string, associatedPreferencesModelUri: URI, options: EditorOptions, token: CancellationToken): Thenable<IPreferencesRenderer<ISetting>> {
+		return editor.setInput(input, options, token)
+			.then(() => {
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
+
+				return (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri);
+			});
 	}
 
 	private createSash(parentElement: HTMLElement): void {
@@ -968,9 +973,10 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		@ITextResourceConfigurationService configurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
 		@ITextFileService textFileService: ITextFileService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorGroupService);
+		super(DefaultPreferencesEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 	}
 
 	private static _getContributions(): IEditorContributionCtor[] {
@@ -1017,11 +1023,23 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 		return options;
 	}
 
-	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions): TPromise<void> {
-		return super.setInput(input, options)
+	setInput(input: DefaultPreferencesEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token)
 			.then(() => this.input.resolve()
-				.then(editorModel => editorModel.load())
-				.then(editorModel => this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel)));
+				.then(editorModel => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					return editorModel.load();
+				})
+				.then(editorModel => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.getControl().setModel((<ResourceEditorModel>editorModel).textEditorModel);
+				}));
 	}
 
 	public clearInput(): void {
@@ -1227,9 +1245,9 @@ registerEditorContribution(SettingsEditorContribution);
 abstract class SettingsCommand extends Command {
 
 	protected getPreferencesEditor(accessor: ServicesAccessor): PreferencesEditor {
-		const activeEditor = accessor.get(IWorkbenchEditorService).getActiveEditor();
-		if (activeEditor instanceof PreferencesEditor) {
-			return activeEditor;
+		const activeControl = accessor.get(IEditorService).activeControl;
+		if (activeControl instanceof PreferencesEditor) {
+			return activeControl;
 		}
 		return null;
 

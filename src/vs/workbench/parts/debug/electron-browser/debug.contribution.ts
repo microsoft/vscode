@@ -37,7 +37,6 @@ import * as service from 'vs/workbench/parts/debug/electron-browser/debugService
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
@@ -51,6 +50,7 @@ import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQui
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -60,9 +60,9 @@ class OpenDebugViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
 }
 

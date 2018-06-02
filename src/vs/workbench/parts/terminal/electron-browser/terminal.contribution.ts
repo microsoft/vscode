@@ -26,7 +26,7 @@ import { TerminalService } from 'vs/workbench/parts/terminal/electron-browser/te
 import { ToggleTabFocusModeAction } from 'vs/editor/contrib/toggleTabFocusMode/toggleTabFocusMode';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusSecondGroupAction, FocusThirdGroupAction } from 'vs/workbench/browser/parts/editor/editorActions';
+import { OpenNextRecentlyUsedEditorInGroupAction, OpenPreviousRecentlyUsedEditorInGroupAction, FocusActiveGroupAction, FocusFirstGroupAction, FocusLastGroupAction, OpenFirstEditorInGroup, OpenLastEditorInGroup } from 'vs/workbench/browser/parts/editor/editorActions';
 import { EDITOR_FONT_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { registerColors } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { NavigateUpAction, NavigateDownAction, NavigateLeftAction, NavigateRightAction } from 'vs/workbench/electron-browser/actions';
@@ -217,7 +217,6 @@ configurationRegistry.registerConfiguration({
 			},
 			'default': [
 				ToggleTabFocusModeAction.ID,
-				FocusActiveGroupAction.ID,
 				QUICKOPEN_ACTION_ID,
 				QUICKOPEN_FOCUS_SECONDARY_ACTION_ID,
 				ShowAllCommandsAction.ID,
@@ -244,6 +243,13 @@ configurationRegistry.registerConfiguration({
 				'workbench.action.terminal.focusAtIndex7',
 				'workbench.action.terminal.focusAtIndex8',
 				'workbench.action.terminal.focusAtIndex9',
+				'workbench.action.focusSecondEditorGroup',
+				'workbench.action.focusThirdEditorGroup',
+				'workbench.action.focusFourthEditorGroup',
+				'workbench.action.focusFifthEditorGroup',
+				'workbench.action.focusSixthEditorGroup',
+				'workbench.action.focusSeventhEditorGroup',
+				'workbench.action.focusEighthEditorGroup',
 				TerminalPasteAction.ID,
 				RunSelectedTextInTerminalAction.ID,
 				RunActiveFileInTerminalAction.ID,
@@ -267,9 +273,11 @@ configurationRegistry.registerConfiguration({
 				debugActions.StepOverAction.ID,
 				OpenNextRecentlyUsedEditorInGroupAction.ID,
 				OpenPreviousRecentlyUsedEditorInGroupAction.ID,
+				FocusActiveGroupAction.ID,
 				FocusFirstGroupAction.ID,
-				FocusSecondGroupAction.ID,
-				FocusThirdGroupAction.ID,
+				FocusLastGroupAction.ID,
+				OpenFirstEditorInGroup.ID,
+				OpenLastEditorInGroup.ID,
 				SelectAllTerminalAction.ID,
 				FocusTerminalFindWidgetAction.ID,
 				HideTerminalFindWidgetAction.ID,

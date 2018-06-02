@@ -29,7 +29,7 @@ class ServiceAccessor {
 	}
 }
 
-suite('Workbench - EditorModel', () => {
+suite('Workbench editor model', () => {
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
 
