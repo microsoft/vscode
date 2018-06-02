@@ -16,10 +16,48 @@ import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/te
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 
-export class ExtHostTerminal implements vscode.Terminal {
-	private _id: number;
+export class BaseExtHostTerminal {
+	protected _id: number;
 	private _disposed: boolean = false;
-	private _queuedRequests: ApiRequest[];
+	private _queuedRequests: ApiRequest[] = [];
+
+	constructor(
+		protected _proxy: MainThreadTerminalServiceShape
+	) {
+	}
+
+	public dispose(): void {
+		if (!this._disposed) {
+			this._disposed = true;
+			this._queueApiRequest(this._proxy.$dispose, []);
+		}
+	}
+
+	protected _checkDisposed() {
+		if (this._disposed) {
+			throw new Error('Terminal has already been disposed');
+		}
+	}
+
+	protected _queueApiRequest(callback: (...args: any[]) => void, args: any[]): void {
+		const request: ApiRequest = new ApiRequest(callback, args);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
+	}
+
+	protected _runQueuedRequests(id: number): void {
+		this._id = id;
+		this._queuedRequests.forEach((r) => {
+			r.run(this._proxy, this._id);
+		});
+		this._queuedRequests.length = 0;
+	}
+}
+
+export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Terminal {
 	private _pidPromise: Promise<number>;
 	private _pidPromiseComplete: (value: number) => any;
 
@@ -31,14 +69,14 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	constructor(
-		private _proxy: MainThreadTerminalServiceShape,
+		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
 		id?: number
 	) {
+		super(proxy);
 		if (id) {
 			this._id = id;
 		}
-		this._queuedRequests = [];
 		this._pidPromise = new Promise<number>(c => {
 			this._pidPromiseComplete = c;
 		});
@@ -52,11 +90,7 @@ export class ExtHostTerminal implements vscode.Terminal {
 		waitOnExit?: boolean
 	): void {
 		this._proxy.$createTerminal(this._name, shellPath, shellArgs, cwd, env, waitOnExit).then((id) => {
-			this._id = id;
-			this._queuedRequests.forEach((r) => {
-				r.run(this._proxy, this._id);
-			});
-			this._queuedRequests = [];
+			this._runQueuedRequests(id);
 		});
 	}
 
@@ -83,13 +117,6 @@ export class ExtHostTerminal implements vscode.Terminal {
 		this._queueApiRequest(this._proxy.$hide, []);
 	}
 
-	public dispose(): void {
-		if (!this._disposed) {
-			this._disposed = true;
-			this._queueApiRequest(this._proxy.$dispose, []);
-		}
-	}
-
 	public _setProcessId(processId: number): void {
 		// The event may fire 2 times when the panel is restored
 		if (this._pidPromiseComplete) {
@@ -101,27 +128,9 @@ export class ExtHostTerminal implements vscode.Terminal {
 	public _fireOnData(data: string): void {
 		this._onData.fire(data);
 	}
-
-	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
-		const request: ApiRequest = new ApiRequest(callback, args);
-		if (!this._id) {
-			this._queuedRequests.push(request);
-			return;
-		}
-		request.run(this._proxy, this._id);
-	}
-
-	private _checkDisposed() {
-		if (this._disposed) {
-			throw new Error('Terminal has already been disposed');
-		}
-	}
 }
 
-export class ExtHostTerminalRenderer implements vscode.TerminalRenderer {
-	private _id: number;
-	private _disposed: boolean = false;
-	private _queuedRequests: ApiRequest[];
+export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer {
 
 	public get name(): string { return this._name; }
 
@@ -129,36 +138,18 @@ export class ExtHostTerminalRenderer implements vscode.TerminalRenderer {
 	public get onData(): Event<string> { return this._onData && this._onData.event; }
 
 	constructor(
-		private _proxy: MainThreadTerminalServiceShape,
+		proxy: MainThreadTerminalServiceShape,
 		private _name: string
 	) {
+		super(proxy);
 		this._proxy.$createTerminalRenderer(this._name).then((id) => {
-			this._id = id;
-			this._queuedRequests.forEach((r) => {
-				r.run(this._proxy, this._id);
-			});
-			this._queuedRequests = [];
+			this._runQueuedRequests(id);
 		});
 	}
 
 	public write(data: string): void {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$write, []);
-	}
-
-	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
-		const request: ApiRequest = new ApiRequest(callback, args);
-		if (!this._id) {
-			this._queuedRequests.push(request);
-			return;
-		}
-		request.run(this._proxy, this._id);
-	}
-
-	private _checkDisposed() {
-		if (this._disposed) {
-			throw new Error('Terminal has already been disposed');
-		}
 	}
 }
 
