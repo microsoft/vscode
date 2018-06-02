@@ -72,8 +72,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: Constants.SearchViewVisibleKey,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
-		openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), true)
-			.then(view => view.toggleQueryDetails());
+		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		if (searchView) {
+			searchView.toggleQueryDetails();
+		}
 	}
 });
 

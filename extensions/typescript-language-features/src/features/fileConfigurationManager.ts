@@ -148,10 +148,6 @@ export default class FileConfigurationManager {
 			return {};
 		}
 
-		const config = workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
-
 		const preferences = workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
 			document.uri);
@@ -159,14 +155,9 @@ export default class FileConfigurationManager {
 		return {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			disableSuggestions: disableSuggestionsPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file'
-		} as any; // TODO: waiting for offical TS d.ts with allowTextChangesInNewFiles
+		};
 	}
-}
-
-function disableSuggestionsPreference(config: WorkspaceConfiguration) {
-	return !config.get<boolean>('suggestionActions.enabled');
 }
 
 function getQuoteStylePreference(config: WorkspaceConfiguration) {

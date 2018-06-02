@@ -1,8 +1,10 @@
-<!--
-Do you have a question? Please ask it on https://stackoverflow.com/questions/tagged/vscode.
+---
+name: Bug report
+about: Create a report to help us improve
 
-For bug reports, please fill in the details below. For feature requests, please describe the desired feature.
--->
+---
+
+<!-- Please search existing issues to avoid creating duplicates. -->
 
 <!-- Use Help > Report Issue to prefill these. -->
 - VSCode Version:
