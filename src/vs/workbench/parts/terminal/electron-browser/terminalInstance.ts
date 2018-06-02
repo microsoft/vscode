@@ -101,11 +101,10 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 
 	public constructor(
-		private _terminalFocusContextKey: IContextKey<boolean>,
-		private _configHelper: TerminalConfigHelper,
+		private readonly _terminalFocusContextKey: IContextKey<boolean>,
+		private readonly _configHelper: TerminalConfigHelper,
 		private _container: HTMLElement,
 		private _shellLaunchConfig: IShellLaunchConfig,
-		doCreateProcess: boolean,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@INotificationService private readonly _notificationService: INotificationService,
@@ -114,7 +113,7 @@ export class TerminalInstance implements ITerminalInstance {
 		@IClipboardService private readonly _clipboardService: IClipboardService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
-		@ILogService private _logService: ILogService,
+		@ILogService private readonly _logService: ILogService,
 		@IStorageService private readonly _storageService: IStorageService,
 	) {
 		this._disposables = [];
@@ -132,7 +131,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._logService.trace(`terminalInstance#ctor (id: ${this.id})`, this._shellLaunchConfig);
 
 		this._initDimensions();
-		if (doCreateProcess) {
+		if (!this.shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
 		}
 
@@ -580,6 +579,15 @@ export class TerminalInstance implements ITerminalInstance {
 	public paste(): void {
 		this.focus();
 		document.execCommand('paste');
+	}
+
+	public write(text: string): void {
+		this._xtermReadyPromise.then(() => {
+			if (!this._xterm) {
+				return;
+			}
+			this._xterm.write(text);
+		});
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {

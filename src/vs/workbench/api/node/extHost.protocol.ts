@@ -316,9 +316,11 @@ export interface MainThreadProgressShape extends IDisposable {
 
 export interface MainThreadTerminalServiceShape extends IDisposable {
 	$createTerminal(name?: string, shellPath?: string, shellArgs?: string[], cwd?: string, env?: { [key: string]: string }, waitOnExit?: boolean): TPromise<number>;
+	$createTerminalRenderer(name: string): TPromise<number>;
 	$dispose(terminalId: number): void;
 	$hide(terminalId: number): void;
 	$sendText(terminalId: number, text: string, addNewLine: boolean): void;
+	$write(terminalId: number, text: string): void;
 	$show(terminalId: number, preserveFocus: boolean): void;
 	$registerOnDataListener(terminalId: number): void;
 

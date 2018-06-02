@@ -60,6 +60,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return TPromise.as(this.terminalService.createTerminal(shellLaunchConfig).id);
 	}
 
+	public $createTerminalRenderer(name: string): TPromise<number> {
+		return TPromise.as(this.terminalService.createTerminalRenderer(name).id);
+	}
+
 	public $show(terminalId: number, preserveFocus: boolean): void {
 		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
@@ -78,6 +82,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			terminalInstance.dispose();
+		}
+	}
+
+	public $write(terminalId: number, text: string): void {
+		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
+			terminalInstance.write(text);
 		}
 	}
 

@@ -17,9 +17,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class ExtHostTerminal implements vscode.Terminal {
-	private _name: string;
 	private _id: number;
-	private _proxy: MainThreadTerminalServiceShape;
 	private _disposed: boolean;
 	private _queuedRequests: ApiRequest[];
 	private _pidPromise: Promise<number>;
@@ -33,12 +31,10 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 
 	constructor(
-		proxy: MainThreadTerminalServiceShape,
-		name: string = '',
+		private _proxy: MainThreadTerminalServiceShape,
+		private _name: string,
 		id?: number
 	) {
-		this._proxy = proxy;
-		this._name = name;
 		if (id) {
 			this._id = id;
 		}
@@ -122,6 +118,50 @@ export class ExtHostTerminal implements vscode.Terminal {
 	}
 }
 
+export class ExtHostTerminalRenderer implements vscode.TerminalRenderer {
+	private _id: number;
+	// private _disposed: boolean;
+	private _queuedRequests: ApiRequest[];
+
+	public get name(): string { return this._name; }
+
+	private readonly _onData: Emitter<string> = new Emitter<string>();
+	public get onData(): Event<string> { return this._onData && this._onData.event; }
+
+	constructor(
+		private _proxy: MainThreadTerminalServiceShape,
+		private _name: string
+	) {
+		this._proxy.$createTerminalRenderer(this._name).then((id) => {
+			this._id = id;
+			this._queuedRequests.forEach((r) => {
+				r.run(this._proxy, this._id);
+			});
+			this._queuedRequests = [];
+		});
+	}
+
+	public write(data: string): void {
+		this._checkDisposed();
+		this._queueApiRequest(this._proxy.$write, []);
+	}
+
+	private _queueApiRequest(callback: (...args: any[]) => void, args: any[]) {
+		let request: ApiRequest = new ApiRequest(callback, args);
+		if (!this._id) {
+			this._queuedRequests.push(request);
+			return;
+		}
+		request.run(this._proxy, this._id);
+	}
+
+	private _checkDisposed() {
+		if (this._disposed) {
+			throw new Error('Terminal has already been disposed');
+		}
+	}
+}
+
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[] = [];
@@ -143,21 +183,27 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminal(name?: string, shellPath?: string, shellArgs?: string[]): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, name);
+		const terminal = new ExtHostTerminal(this._proxy, name);
 		terminal.create(shellPath, shellArgs);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
 	public createTerminalFromOptions(options: vscode.TerminalOptions): vscode.Terminal {
-		let terminal = new ExtHostTerminal(this._proxy, options.name);
+		const terminal = new ExtHostTerminal(this._proxy, options.name);
 		terminal.create(options.shellPath, options.shellArgs, options.cwd, options.env /*, options.waitOnExit*/);
 		this._terminals.push(terminal);
 		return terminal;
 	}
 
+	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
+		const terminalRenderer = new ExtHostTerminalRenderer(this._proxy, name);
+		console.log('Creating new terminal renderer');
+		return terminalRenderer;
+	}
+
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		let index = this._getTerminalIndexById(id);
+		const index = this._getTerminalIndexById(id);
 		if (index === null) {
 			return;
 		}
@@ -166,28 +212,28 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalClosed(id: number): void {
-		let index = this._getTerminalIndexById(id);
+		const index = this._getTerminalIndexById(id);
 		if (index === null) {
 			return;
 		}
-		let terminal = this._terminals.splice(index, 1)[0];
+		const terminal = this._terminals.splice(index, 1)[0];
 		this._onDidCloseTerminal.fire(terminal);
 	}
 
 	public $acceptTerminalOpened(id: number, name: string): void {
-		let index = this._getTerminalIndexById(id);
+		const index = this._getTerminalIndexById(id);
 		if (index !== null) {
 			// The terminal has already been created (via createTerminal*), only fire the event
 			this._onDidOpenTerminal.fire(this.terminals[index]);
 			return;
 		}
-		let terminal = new ExtHostTerminal(this._proxy, name, id);
+		const terminal = new ExtHostTerminal(this._proxy, name, id);
 		this._terminals.push(terminal);
 		this._onDidOpenTerminal.fire(terminal);
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
-		let terminal = this._getTerminalById(id);
+		const terminal = this._getTerminalById(id);
 		if (terminal) {
 			terminal._setProcessId(processId);
 		}

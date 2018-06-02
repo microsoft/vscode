@@ -156,6 +156,12 @@ export interface IShellLaunchConfig {
 	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
 	initialText?: string;
+
+	/**
+	 * When true the terminal will be created with no process. This is primarily used to give
+	 * extensions full control over the terminal.
+	 */
+	isRendererOnly?: boolean;
 }
 
 export interface ITerminalService {
@@ -181,6 +187,12 @@ export interface ITerminalService {
 	 * default shell selection dialog may display.
 	 */
 	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+
+	/**
+	 * Creates a terminal renderer.
+	 * @param name The name of the terminal.
+	 */
+	createTerminalRenderer(name: string): ITerminalInstance;
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -395,6 +407,12 @@ export interface ITerminalInstance {
 	 * depending on the platform. This defaults to `true`.
 	 */
 	sendText(text: string, addNewLine: boolean): void;
+
+	/**
+	 * Write text directly to the terminal, skipping the process if it exists.
+	 * @param text The text to write.
+	 */
+	write(text: string): void;
 
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;

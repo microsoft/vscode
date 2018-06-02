@@ -349,6 +349,25 @@ declare module 'vscode' {
 		onData: Event<string>;
 	}
 
+	// A TerminalRender does not own a process, it's similar to an output window
+	// but it understands ANSI
+	export interface TerminalRenderer {
+		// Extensions can set the name (what appears in the dropdown)
+		name: string;
+
+		// Setting to undefined will reset to use the maximum available
+		// dimensions: TerminalDimensions;
+
+		// Write to xterm.js
+		write(data: string): void; // out
+
+		// key press, or sendText was triggered by an extension on the terminal
+		onData: Event<string>; // in
+
+		// Fires when the panel area is resized, this DOES NOT fire when `dimensions` is set
+		// onDidChangeDimensions: Event<TerminalDimensions>;
+	}
+
 	export namespace window {
 		/**
 		 * The currently opened terminals or an empty array.
@@ -362,6 +381,8 @@ declare module 'vscode' {
 		 * [createTerminal](#window.createTerminal) API or commands.
 		 */
 		export const onDidOpenTerminal: Event<Terminal>;
+
+		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
