@@ -131,11 +131,15 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 }
 
 export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer {
-
 	public get name(): string { return this._name; }
 
 	private readonly _onData: Emitter<string> = new Emitter<string>();
-	public get onData(): Event<string> { return this._onData && this._onData.event; }
+	public get onData(): Event<string> {
+		// TODO: This needs to fire for keystrokes and sendText only for renderers
+		// Tell the main side to start sending data if it's not already
+		this._proxy.$registerOnDataListener(this._id);
+		return this._onData && this._onData.event;
+	}
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
@@ -149,7 +153,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 
 	public write(data: string): void {
 		this._checkDisposed();
-		this._queueApiRequest(this._proxy.$write, []);
+		this._queueApiRequest(this._proxy.$write, [data]);
 	}
 }
 
