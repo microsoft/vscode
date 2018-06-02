@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { WalkThroughPart, WALK_THROUGH_FOCUS } from 'vs/workbench/parts/welcome/walkThrough/electron-browser/walkThroughPart';
 import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -17,10 +17,10 @@ export const WalkThroughArrowUp: ICommandAndKeybindingRule = {
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.UpArrow,
 	handler: accessor => {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const editor = editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowUp();
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowUp();
 		}
 	}
 };
@@ -31,10 +31,10 @@ export const WalkThroughArrowDown: ICommandAndKeybindingRule = {
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.DownArrow,
 	handler: accessor => {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const editor = editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.arrowDown();
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.arrowDown();
 		}
 	}
 };
@@ -45,10 +45,10 @@ export const WalkThroughPageUp: ICommandAndKeybindingRule = {
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.PageUp,
 	handler: accessor => {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const editor = editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageUp();
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageUp();
 		}
 	}
 };
@@ -59,10 +59,10 @@ export const WalkThroughPageDown: ICommandAndKeybindingRule = {
 	when: ContextKeyExpr.and(WALK_THROUGH_FOCUS, EditorContextKeys.editorTextFocus.toNegated()),
 	primary: KeyCode.PageDown,
 	handler: accessor => {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const editor = editorService.getActiveEditor();
-		if (editor instanceof WalkThroughPart) {
-			editor.pageDown();
+		const editorService = accessor.get(IEditorService);
+		const activeControl = editorService.activeControl;
+		if (activeControl instanceof WalkThroughPart) {
+			activeControl.pageDown();
 		}
 	}
 };

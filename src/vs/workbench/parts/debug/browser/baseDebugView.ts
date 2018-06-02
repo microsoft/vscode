@@ -16,7 +16,7 @@ import { once } from 'vs/base/common/functional';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IControllerOptions } from 'vs/base/parts/tree/browser/treeDefaults';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -221,7 +221,7 @@ export class BaseDebugController extends WorkbenchTreeController {
 			this.contextMenuService.showContextMenu({
 				getAnchor: () => anchor,
 				getActions: () => this.actionProvider.getSecondaryActions(tree, element).then(actions => {
-					fillInActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
+					fillInContextMenuActions(this.contributedContextMenu, { arg: this.getContext(element) }, actions, this.contextMenuService);
 					return actions;
 				}),
 				onHide: (wasCancelled?: boolean) => {

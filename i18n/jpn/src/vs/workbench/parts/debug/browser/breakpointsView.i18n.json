@@ -8,7 +8,7 @@
 	],
 	"logPoint": "ログポイント",
 	"breakpoint": "ブレークポイント",
-	"editBreakpoint": "{0} を編集",
+	"editBreakpoint": "{0} を編集...",
 	"removeBreakpoint": "{0} を削除",
 	"functionBreakpointsNotSupported": "このデバッグの種類では関数ブレークポイントはサポートされていません",
 	"functionBreakpointPlaceholder": "中断対象の関数",

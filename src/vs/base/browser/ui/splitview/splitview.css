@@ -13,10 +13,12 @@
 .monaco-split-view2 > .split-view-container {
 	width: 100%;
 	height: 100%;
+	white-space: nowrap;
 }
 
 .monaco-split-view2 > .split-view-container > .split-view-view {
 	overflow: hidden;
+	white-space: initial;
 }
 
 .monaco-split-view2.vertical > .split-view-container > .split-view-view {

@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { join } from 'vs/base/common/paths';
 import { ISettingsEditorModel, ISearchResult } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { IKeybindingItemEntry } from 'vs/workbench/services/preferences/common/keybindingsEditorModel';
 
 export interface IWorkbenchSettingsConfiguration {

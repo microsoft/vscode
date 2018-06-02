@@ -8,7 +8,6 @@
 	],
 	"neverShowAgain": "今後は表示しない",
 	"searchMarketplace": "Marketplace を検索",
-	"showLanguagePackExtensions": "Marketplace には VS Code を {0} へローカライズするのに役立つ拡張機能が用意されています",
 	"dynamicWorkspaceRecommendation": "{0} レポジトリのユーザーに人気があるので、あなたもこの拡張機能に関心を持たれるかもしれません。",
 	"exeBasedRecommendation": "{0} がインストールされているため、この拡張機能を推奨します。",
 	"fileBasedRecommendation": "最近開いたファイルに基づいてこの拡張機能が推奨されます。",

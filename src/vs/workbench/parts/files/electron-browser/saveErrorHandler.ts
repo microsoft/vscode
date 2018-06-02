@@ -12,7 +12,6 @@ import * as paths from 'vs/base/common/paths';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService, ISaveErrorHandler, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -20,7 +19,6 @@ import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ResourceMap } from 'vs/base/common/map';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -35,6 +33,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ExecuteCommandAction } from 'vs/platform/actions/common/actions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { once } from 'vs/base/common/event';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const CONFLICT_RESOLUTION_CONTEXT = 'saveConflictResolutionContext';
 export const CONFLICT_RESOLUTION_SCHEME = 'conflictResolution';
@@ -53,9 +52,8 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	constructor(
 		@INotificationService private notificationService: INotificationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextModelService textModelService: ITextModelService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService
@@ -79,19 +77,19 @@ export class SaveErrorHandler implements ISaveErrorHandler, IWorkbenchContributi
 	private registerListeners(): void {
 		this.toUnbind.push(this.textFileService.models.onModelSaved(e => this.onFileSavedOrReverted(e.resource)));
 		this.toUnbind.push(this.textFileService.models.onModelReverted(e => this.onFileSavedOrReverted(e.resource)));
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChanged(): void {
 		let isActiveEditorSaveConflictResolution = false;
 		let activeConflictResolutionResource: URI;
 
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor && activeEditor.input instanceof DiffEditorInput && activeEditor.input.originalInput instanceof ResourceEditorInput && activeEditor.input.modifiedInput instanceof FileEditorInput) {
-			const resource = activeEditor.input.originalInput.getResource();
+		const activeInput = this.editorService.activeEditor;
+		if (activeInput instanceof DiffEditorInput && activeInput.originalInput instanceof ResourceEditorInput && activeInput.modifiedInput instanceof FileEditorInput) {
+			const resource = activeInput.originalInput.getResource();
 			if (resource && resource.scheme === CONFLICT_RESOLUTION_SCHEME) {
 				isActiveEditorSaveConflictResolution = true;
-				activeConflictResolutionResource = activeEditor.input.modifiedInput.getResource();
+				activeConflictResolutionResource = activeInput.modifiedInput.getResource();
 			}
 		}
 
@@ -232,7 +230,7 @@ class ResolveSaveConflictAction extends Action {
 
 	constructor(
 		private model: ITextFileEditorModel,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IStorageService private storageService: IStorageService,
@@ -313,13 +311,13 @@ class OverwriteReadonlyAction extends Action {
 }
 
 export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const editorService = accessor.get(IWorkbenchEditorService);
+	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 	const modelService = accessor.get(IModelService);
 
-	const editor = editorService.getActiveEditor();
-	const input = editor.input;
-	const position = editor.position;
+	const control = editorService.activeControl;
+	const editor = control.input;
+	const group = control.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -337,12 +335,12 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 			return model.save().then(() => {
 
 				// Reopen file input
-				return editorService.openEditor({ resource: model.getResource() }, position).then(() => {
+				return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 					// Clean up
-					input.dispose();
+					group.closeEditor(editor);
+					editor.dispose();
 					reference.dispose();
-					editorService.closeEditor(position, input);
 				});
 			});
 		});
@@ -350,12 +348,12 @@ export const acceptLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 };
 
 export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: URI) => {
-	const editorService = accessor.get(IWorkbenchEditorService);
+	const editorService = accessor.get(IEditorService);
 	const resolverService = accessor.get(ITextModelService);
 
-	const editor = editorService.getActiveEditor();
-	const input = editor.input;
-	const position = editor.position;
+	const control = editorService.activeControl;
+	const editor = control.input;
+	const group = control.group;
 
 	resolverService.createModelReference(resource).then(reference => {
 		const model = reference.object as ITextFileEditorModel;
@@ -366,12 +364,12 @@ export const revertLocalChangesCommand = (accessor: ServicesAccessor, resource: 
 		return model.revert().then(() => {
 
 			// Reopen file input
-			return editorService.openEditor({ resource: model.getResource() }, position).then(() => {
+			return editorService.openEditor({ resource: model.getResource() }, group).then(() => {
 
 				// Clean up
-				input.dispose();
+				group.closeEditor(editor);
+				editor.dispose();
 				reference.dispose();
-				editorService.closeEditor(position, input);
 			});
 		});
 	});

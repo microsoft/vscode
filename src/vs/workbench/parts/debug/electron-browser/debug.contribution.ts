@@ -37,7 +37,6 @@ import * as service from 'vs/workbench/parts/debug/electron-browser/debugService
 import { DebugContentProvider } from 'vs/workbench/parts/debug/browser/debugContentProvider';
 import 'vs/workbench/parts/debug/electron-browser/debugEditorContribution';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { registerCommands } from 'vs/workbench/parts/debug/browser/debugCommands';
 import { IQuickOpenRegistry, Extensions as QuickOpenExtensions, QuickOpenHandlerDescriptor } from 'vs/workbench/browser/quickopen';
 import { StatusBarColorProvider } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
@@ -51,6 +50,7 @@ import { DebugQuickOpenHandler } from 'vs/workbench/parts/debug/browser/debugQui
 import { DebugStatus } from 'vs/workbench/parts/debug/browser/debugStatus';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class OpenDebugViewletAction extends ToggleViewletAction {
 	public static readonly ID = VIEWLET_ID;
@@ -60,9 +60,9 @@ class OpenDebugViewletAction extends ToggleViewletAction {
 		id: string,
 		label: string,
 		@IViewletService viewletService: IViewletService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService
 	) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
 }
 
@@ -188,15 +188,10 @@ configurationRegistry.registerConfiguration({
 			description: nls.localize({ comment: ['This is the description for a setting'], key: 'inlineValues' }, "Show variable values inline in editor while debugging"),
 			default: false
 		},
-		'debug.hideActionBar': {
-			type: 'boolean',
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'hideActionBar' }, "Controls if the floating debug action bar should be hidden"),
-			default: false
-		},
-		'debug.toolbar': {
-			enum: ['float', 'dock', 'hide'],
-			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolbar' }, "Controls the debug toolbar. Should it be floating, docked in the debug view or hidden."),
-			default: 'float'
+		'debug.toolBarLocation': {
+			enum: ['floating', 'docked', 'hidden'],
+			description: nls.localize({ comment: ['This is the description for a setting'], key: 'toolBarLocation' }, "Controls the location of the debug toolbar. Either \"floating\" in all views, \"docked\" in the debug view, or \"hidden\""),
+			default: 'floating'
 		},
 		'debug.showInStatusBar': {
 			enum: ['never', 'always', 'onFirstSessionStart'],

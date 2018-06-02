@@ -116,6 +116,8 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 			this.topmostLineMonitor,
 			this.contributions);
 
+		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, true);
+
 		return this.registerPreview(preview);
 	}
 

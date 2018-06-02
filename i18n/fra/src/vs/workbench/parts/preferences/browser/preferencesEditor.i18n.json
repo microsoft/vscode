@@ -15,7 +15,6 @@
 	"nlpResult": "Résultats en langage naturel",
 	"filterResult": "Résultats filtrés",
 	"defaultSettings": "Paramètres par défaut",
-	"defaultUserSettings": "Paramètres utilisateur par défaut",
 	"defaultWorkspaceSettings": "Paramètres de l'espace de travail par défaut",
 	"defaultFolderSettings": "Paramètres de dossier par défaut",
 	"defaultEditorReadonly": "Modifier dans l’éditeur du côté droit pour substituer les valeurs par défaut.",

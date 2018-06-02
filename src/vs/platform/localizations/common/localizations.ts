@@ -11,7 +11,7 @@ import { Event } from 'vs/base/common/event';
 export interface ILocalization {
 	languageId: string;
 	languageName?: string;
-	languageNameLocalized?: string;
+	localizedLanguageName?: string;
 	translations: ITranslation[];
 	minimalTranslations?: { [key: string]: string };
 }
@@ -52,7 +52,7 @@ export function isValidLocalization(localization: ILocalization): boolean {
 	if (localization.languageName && typeof localization.languageName !== 'string') {
 		return false;
 	}
-	if (localization.languageNameLocalized && typeof localization.languageNameLocalized !== 'string') {
+	if (localization.localizedLanguageName && typeof localization.localizedLanguageName !== 'string') {
 		return false;
 	}
 	return true;

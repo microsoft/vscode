@@ -11,13 +11,13 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import * as errors from 'vs/base/common/errors';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position, IResourceInput, IUntitledResourceInput } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IUntitledResourceInput } from 'vs/workbench/common/editor';
 
 export class BackupRestorer implements IWorkbenchContribution {
 
@@ -25,10 +25,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 
 	constructor(
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IBackupFileService private backupFileService: IBackupFileService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorGroupService private groupService: IEditorGroupService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IFileService private fileService: IFileService
 	) {
@@ -48,7 +47,7 @@ export class BackupRestorer implements IWorkbenchContribution {
 		// Find all files and untitled with backups
 		return this.backupFileService.getWorkspaceFileBackups().then(backups => {
 
-			// Resolve backups that are opened in stacks model
+			// Resolve backups that are opened
 			return this.doResolveOpenedBackups(backups).then(unresolved => {
 
 				// Some failed to restore or were not opened at all so we open and resolve them manually
@@ -62,13 +61,11 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private doResolveOpenedBackups(backups: URI[]): TPromise<URI[]> {
-		const stacks = this.groupService.getStacksModel();
-
 		const restorePromises: TPromise<any>[] = [];
 		const unresolved: URI[] = [];
 
 		backups.forEach(backup => {
-			if (stacks.isOpen(backup)) {
+			if (this.editorService.isOpen({ resource: backup })) {
 				if (this.fileService.canHandleResource(backup)) {
 					restorePromises.push(this.textFileService.models.loadOrCreate(backup).then(null, () => unresolved.push(backup)));
 				} else if (backup.scheme === Schemas.untitled) {
@@ -83,12 +80,11 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private doOpenEditors(resources: URI[]): TPromise<void> {
-		const stacks = this.groupService.getStacksModel();
-		const hasOpenedEditors = stacks.groups.length > 0;
+		const hasOpenedEditors = this.editorService.visibleEditors.length > 0;
 		const inputs = resources.map((resource, index) => this.resolveInput(resource, index, hasOpenedEditors));
 
 		// Open all remaining backups as editors and resolve them to load their backups
-		return this.editorService.openEditors(inputs.map(input => { return { input, position: Position.ONE }; })).then(() => void 0);
+		return this.editorService.openEditors(inputs).then(() => void 0);
 	}
 
 	private resolveInput(resource: URI, index: number, hasOpenedEditors: boolean): IResourceInput | IUntitledResourceInput {

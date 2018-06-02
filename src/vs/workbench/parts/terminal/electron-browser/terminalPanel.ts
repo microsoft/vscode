@@ -26,9 +26,8 @@ import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
-import { Severity } from 'vs/editor/editor.api';
 
 export class TerminalPanel extends Panel {
 

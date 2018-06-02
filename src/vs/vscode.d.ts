@@ -576,7 +576,7 @@ declare module 'vscode' {
 	 */
 	export interface TextEditorViewColumnChangeEvent {
 		/**
-		 * The [text editor](#TextEditor) for which the options have changed.
+		 * The [text editor](#TextEditor) for which the view column has changed.
 		 */
 		textEditor: TextEditor;
 		/**
@@ -752,7 +752,7 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
-		 * The default is the [one](#ViewColumn.One), other values are adjusted to
+		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
 		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 */
@@ -1100,7 +1100,8 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the three main editors, e.g an embedded editor.
+		 * isn't one of the main editors, e.g an embedded editor, or when the editor
+		 * column is larger than three.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -1152,10 +1153,10 @@ declare module 'vscode' {
 		/**
 		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
@@ -4027,15 +4028,15 @@ declare module 'vscode' {
 		 */
 		Active = -1,
 		/**
-		 * The left most editor column.
+		 * The first editor column.
 		 */
 		One = 1,
 		/**
-		 * The center editor column.
+		 * The second editor column.
 		 */
 		Two = 2,
 		/**
-		 * The right most editor column.
+		 * The third editor column.
 		 */
 		Three = 3
 	}
@@ -5360,7 +5361,7 @@ declare module 'vscode' {
 
 		/**
 		 * Editor position of the panel. This property is only set if the webview is in
-		 * one of the three editor view columns.
+		 * one of the editor view columns.
 		 *
 		 * @deprecated
 		 */
@@ -5415,23 +5416,6 @@ declare module 'vscode' {
 		 * Webview panel whose view state changed.
 		 */
 		readonly webviewPanel: WebviewPanel;
-	}
-
-	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
-	 */
-	interface WebviewPanelSerializer {
-		/**
-		 * Restore a webview panel from its serialized `state`.
-		 *
-		 * Called when a serialized webview first becomes visible.
-		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state. This state comes from the value set inside the webview by `acquireVsCodeApi().setState`.
-		 *
-		 * @return Thenable indicating that the webview has been fully restored.
-		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
 	}
 
 	/**
@@ -5656,7 +5640,7 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [active](#ViewColumn.Active), other values
 		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
@@ -5929,19 +5913,6 @@ declare module 'vscode' {
 		export function createWebviewPanel(viewType: string, title: string, showOptions: ViewColumn | { viewColumn: ViewColumn, preserveFocus?: boolean }, options?: WebviewPanelOptions & WebviewOptions): WebviewPanel;
 
 		/**
-		 * Registers a [webview panel serializer](#WebviewPanelSerializer).
-		 *
-		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
-		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
-		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
-		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param reviver Webview serializer.
-		 */
-		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
-
-		/**
 		 * Set a message to the status bar. This is a short hand for the more powerful
 		 * status bar [items](#window.createStatusBarItem).
 		 *
@@ -6056,6 +6027,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when an element in the [TreeView](#TreeView) is expanded or collapsed
+	 */
+	export interface TreeViewExpansionEvent<T> {
+
+		/**
+		 * Element that is expanded or collapsed.
+		 */
+		element: T;
+
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -6063,12 +6046,12 @@ declare module 'vscode' {
 		/**
 		 * Event that is fired when an element is expanded
 		 */
-		readonly onDidExpandElement: Event<T>;
+		readonly onDidExpandElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Event that is fired when an element is collapsed
 		 */
-		readonly onDidCollapseElement: Event<T>;
+		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Currently selected elements.

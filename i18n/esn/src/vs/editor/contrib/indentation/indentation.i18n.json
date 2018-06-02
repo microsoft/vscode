@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Aplicar sangría con tabulaciones",
 	"indentUsingSpaces": "Aplicar sangría con espacios",
 	"detectIndentation": "Detectar sangría del contenido",
-	"editor.reindentlines": "Volver a aplicar sangría a líneas"
+	"editor.reindentlines": "Volver a aplicar sangría a líneas",
+	"editor.reindentselectedlines": "Volver a aplicar sangría a líneas seleccionadas"
 }

@@ -4,18 +4,30 @@
  *--------------------------------------------------------------------------------------------*/
 
 .preferences-editor > .preferences-header {
-	display: flex;
-	flex-wrap: wrap;
 	padding-left: 27px;
 	padding-right: 32px;
 	padding-bottom: 11px;
 	padding-top: 11px;
 }
 
-.preferences-editor > .preferences-header.vertical-layout {
-	flex-direction: column;
-	align-items: flex-end;
-	padding-bottom: 5px;
+.preferences-editor > .preferences-header > .new-settings-ad {
+	color: #6f6f6f;
+	margin-bottom: 4px;
+	font-size: 12px;
+}
+
+.vs-dark .preferences-editor > .preferences-header > .new-settings-ad {
+	color: #bbbbbb;
+}
+
+.hc-black .preferences-editor > .preferences-header > .new-settings-ad {
+	color: white;
+}
+
+.preferences-editor > .preferences-header > .new-settings-ad > .open-settings2-button {
+	padding: 0;
+	text-decoration: underline;
+	display: inline;
 }
 
 .preferences-editor > .preferences-editors-container.side-by-side-preferences-editor {

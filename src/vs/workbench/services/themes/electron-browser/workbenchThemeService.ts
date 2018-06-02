@@ -30,6 +30,7 @@ import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browse
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // implementation
 
@@ -97,7 +98,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 
 		this.container = container;
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
@@ -306,7 +309,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
+		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 

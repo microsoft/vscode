@@ -314,7 +314,11 @@ export class NotificationViewItemProgress implements INotificationViewItemProgre
 	}
 
 	public worked(value: number): void {
-		this._state.worked = value;
+		if (typeof this._state.worked === 'number') {
+			this._state.worked += value;
+		} else {
+			this._state.worked = value;
+		}
 
 		this._state.infinite = void 0;
 		this._state.done = void 0;

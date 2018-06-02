@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "'{0}'만 제거할까요, 아니면 종속성도 제거할까요?",
 	"uninstallOnly": "확장만",
 	"uninstallAll": "모두 제거",
-	"uninstallConfirmation": "'{0}'을(를) 제거할까요?",
-	"ok": "확인",
 	"singleDependentError": "확장 '{0}'을(를) 제거할 수 없습니다. 확장 '{1}'이(가) 이 확장에 종속됩니다.",
 	"twoDependentsError": "확장 '{0}'을(를) 제거할 수 없습니다. 확장 '{1}' 및 '{2}'이(가) 이 확장에 종속됩니다.",
 	"multipleDependentsError": "확장 '{0}'을(를) 제거할 수 없습니다. 확장 '{1}', '{2}' 등이 이 확장에 종속됩니다.",

@@ -15,5 +15,5 @@
 	"saveWorkspace": "儲存工作區",
 	"openWorkspaceAction": "開啟工作區...",
 	"openWorkspaceConfigFile": "開啟工作區組態檔",
-	"openFolderAsWorkspaceInNewWindow": "在新視窗中開啟資料夾作為工作區"
+	"duplicateWorkspaceInNewWindow": "新視窗中的重覆工作區"
 }

@@ -14,7 +14,8 @@ import { TerminalWidgetManager } from 'vs/workbench/parts/terminal/browser/termi
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { IEditorService, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 const pathPrefix = '(\\.\\.?|\\~)';
 const pathSeparatorClause = '\\/';

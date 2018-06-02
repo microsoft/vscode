@@ -42,10 +42,10 @@
 	"openSettings.message": "打开设置",
 	"openSettings.learnMore": "了解详细信息",
 	"ariaSearchResultsStatus": "搜索 {1} 文件中返回的 {0} 个结果",
-	"search.file.result": "{1} 文件中有 {0} 个结果",
-	"search.files.result": "{1} 文件中有 {0} 个结果",
-	"search.file.results": "{1} 文件中有 {0} 个结果",
-	"search.files.results": "{1} 文件中有 {0} 个结果",
+	"search.file.result": "{0} 个结果，包含于 {1} 个文件中",
+	"search.files.result": "{0} 个结果，包含于 {1} 个文件中",
+	"search.file.results": "{0} 个结果，包含于 {1} 个文件中",
+	"search.files.results": "{0} 个结果，包含于 {1} 个文件中",
 	"searchWithoutFolder": "尚未打开文件夹。当前仅可搜索打开的文件夹 - ",
 	"openFolder": "打开文件夹"
 }

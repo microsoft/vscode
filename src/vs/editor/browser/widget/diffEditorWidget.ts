@@ -484,10 +484,14 @@ export class DiffEditorWidget extends Disposable implements editorBrowser.IDiffE
 
 		this._cleanViewZonesAndDecorations();
 
-		this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
-		this._originalOverviewRuler.dispose();
-		this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
-		this._modifiedOverviewRuler.dispose();
+		if (this._originalOverviewRuler) {
+			this._overviewDomElement.removeChild(this._originalOverviewRuler.getDomNode());
+			this._originalOverviewRuler.dispose();
+		}
+		if (this._modifiedOverviewRuler) {
+			this._overviewDomElement.removeChild(this._modifiedOverviewRuler.getDomNode());
+			this._modifiedOverviewRuler.dispose();
+		}
 		this._overviewDomElement.removeChild(this._overviewViewportDomElement.domNode);
 		this._containerDomElement.removeChild(this._overviewDomElement);
 

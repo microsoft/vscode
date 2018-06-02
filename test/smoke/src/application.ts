@@ -63,7 +63,7 @@ export class Application {
 	async start(): Promise<any> {
 		await this._start();
 		await this.code.waitForElement('.explorer-folders-view');
-		await this.code.waitForActiveElement(`.editor-container[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
+		await this.code.waitForActiveElement(`.editor-instance[id="workbench.editor.walkThroughPart"] > div > div[tabIndex="0"]`);
 	}
 
 	async restart(options: { workspaceOrFolder?: string, extraArgs?: string[] }): Promise<any> {

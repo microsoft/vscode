@@ -24,6 +24,14 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	}
 }
 
+export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
+	if (arg instanceof TPromise) {
+		return arg;
+	}
+
+	return new TPromise((resolve, reject) => arg.then(resolve, reject));
+}
+
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
 	let source = new CancellationTokenSource();
 	return new TPromise<T>((resolve, reject, progress) => {
@@ -54,7 +62,7 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 }
 
 export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
-	return new TPromise((resolve, reject) => importPromise.then(resolve, reject)); // workaround for https://github.com/Microsoft/vscode/issues/48205
+	return toWinJsPromise(importPromise); // workaround for https://github.com/Microsoft/vscode/issues/48205
 }
 
 /**
@@ -642,12 +650,13 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
+	protected runner: (...args: any[]) => void;
+
 	private timeoutToken: number;
-	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: () => void, timeout: number) {
+	constructor(runner: (...args: any[]) => void, timeout: number) {
 		this.timeoutToken = -1;
 		this.runner = runner;
 		this.timeout = timeout;
@@ -690,8 +699,41 @@ export class RunOnceScheduler {
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
-			this.runner();
+			this.doRun();
 		}
+	}
+
+	protected doRun(): void {
+		this.runner();
+	}
+}
+
+export class RunOnceWorker<T> extends RunOnceScheduler {
+	private units: T[] = [];
+
+	constructor(runner: (units: T[]) => void, timeout: number) {
+		super(runner, timeout);
+	}
+
+	work(unit: T): void {
+		this.units.push(unit);
+
+		if (!this.isScheduled()) {
+			this.schedule();
+		}
+	}
+
+	protected doRun(): void {
+		const units = this.units;
+		this.units = [];
+
+		this.runner(units);
+	}
+
+	dispose(): void {
+		this.units = [];
+
+		super.dispose();
 	}
 }
 
@@ -705,46 +747,4 @@ export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
-}
-
-/**
- * An emitter that will ignore any events that occur during a specific code
- * execution triggered via throttle() until the promise has finished (either
- * successfully or with an error). Only after the promise has finished, the
- * last event that was fired during the operation will get emitted.
- *
- */
-export class ThrottledEmitter<T> extends Emitter<T> {
-	private suspended: boolean;
-
-	private lastEvent: T;
-	private hasLastEvent: boolean;
-
-	public throttle<C>(promise: TPromise<C>): TPromise<C> {
-		this.suspended = true;
-
-		return always(promise, () => this.resume());
-	}
-
-	public fire(event?: T): any {
-		if (this.suspended) {
-			this.lastEvent = event;
-			this.hasLastEvent = true;
-
-			return;
-		}
-
-		return super.fire(event);
-	}
-
-	private resume(): void {
-		this.suspended = false;
-
-		if (this.hasLastEvent) {
-			this.fire(this.lastEvent);
-		}
-
-		this.hasLastEvent = false;
-		this.lastEvent = void 0;
-	}
 }

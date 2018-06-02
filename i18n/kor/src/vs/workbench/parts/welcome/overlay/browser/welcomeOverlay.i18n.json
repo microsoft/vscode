@@ -13,7 +13,6 @@
 	"welcomeOverlay.extensions": "확장 관리",
 	"welcomeOverlay.problems": "오류 및 경고 보기",
 	"welcomeOverlay.commandPalette": "모든 명령 찾기 및 실행",
-	"welcomeOverlay.notifications": "알림 표시",
 	"welcomeOverlay": "사용자 인터페이스 개요",
 	"hideWelcomeOverlay": "인터페이스 개요 숨기기",
 	"help": "도움말"

@@ -116,32 +116,32 @@ export function collectWorkspaceStats(folder: string, filter: string[]): Promise
 						if (--pending === 0) {
 							return done(results);
 						}
-					}
+					} else {
+						if (stats.isDirectory()) {
+							if (filter.indexOf(file) === -1) {
+								walk(join(dir, file), filter, token, (res: string[]) => {
+									results = results.concat(res);
 
-					if (stats.isDirectory()) {
-						if (filter.indexOf(file) === -1) {
-							walk(join(dir, file), filter, token, (res: string[]) => {
-								results = results.concat(res);
-
+									if (--pending === 0) {
+										return done(results);
+									}
+								});
+							} else {
 								if (--pending === 0) {
-									return done(results);
+									done(results);
 								}
-							});
+							}
 						} else {
+							if (token.count >= MAX_FILES) {
+								token.maxReached = true;
+							}
+
+							token.count++;
+							results.push(file);
+
 							if (--pending === 0) {
 								done(results);
 							}
-						}
-					} else {
-						if (token.count >= MAX_FILES) {
-							token.maxReached = true;
-						}
-
-						token.count++;
-						results.push(file);
-
-						if (--pending === 0) {
-							done(results);
 						}
 					}
 				});

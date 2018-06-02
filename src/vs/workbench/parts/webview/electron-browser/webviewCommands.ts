@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { BaseWebviewEditor } from './baseWebviewEditor';
 
 export class ShowWebViewEditorFindWidgetCommand extends Command {
@@ -83,7 +83,7 @@ export class ReloadWebviewAction extends Action {
 	public constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private readonly workbenchEditorService: IWorkbenchEditorService
+		@IEditorService private readonly editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -96,14 +96,14 @@ export class ReloadWebviewAction extends Action {
 	}
 
 	private getVisibleWebviews() {
-		return this.workbenchEditorService.getVisibleEditors()
-			.filter(editor => editor && (editor as BaseWebviewEditor).isWebviewEditor)
-			.map(editor => editor as BaseWebviewEditor);
+		return this.editorService.visibleControls
+			.filter(control => control && (control as BaseWebviewEditor).isWebviewEditor)
+			.map(control => control as BaseWebviewEditor);
 	}
 }
 
 function getActiveWebviewEditor(accessor: ServicesAccessor): BaseWebviewEditor | null {
-	const workbenchEditorService = accessor.get(IWorkbenchEditorService);
-	const activeEditor = workbenchEditorService.getActiveEditor() as BaseWebviewEditor;
-	return activeEditor.isWebviewEditor ? activeEditor : null;
+	const editorService = accessor.get(IEditorService);
+	const activeControl = editorService.activeControl as BaseWebviewEditor;
+	return activeControl.isWebviewEditor ? activeControl : null;
 }
