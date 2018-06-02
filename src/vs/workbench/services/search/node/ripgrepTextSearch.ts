@@ -493,6 +493,8 @@ function getRgArgs(config: IRawSearch) {
 		args.push('--fixed-strings');
 	}
 
+	args.push('--no-config');
+
 	// Folder to search
 	args.push('--');
 
