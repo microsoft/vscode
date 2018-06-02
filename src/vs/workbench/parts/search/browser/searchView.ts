@@ -732,8 +732,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
-			const selectedText = this.getSearchTextFromEditor();
+			let selectedText = this.getSearchTextFromEditor();
 			if (selectedText) {
+				if (this.searchWidget.searchInput.getRegex()) {
+					selectedText = strings.escapeRegExpCharacters(selectedText);
+				}
+
 				this.searchWidget.searchInput.setValue(selectedText);
 				updatedText = true;
 			}
