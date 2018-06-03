@@ -18,7 +18,7 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/com
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS, IEditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -40,7 +40,7 @@ interface IEditorPartUIState {
 	mostRecentActiveGroups: GroupIdentifier[];
 }
 
-export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEditorGroupsAccessor {
+export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
 
 	_serviceBrand: any;
 
@@ -651,7 +651,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		const targetView = this.assertGroupView(target);
 
 		// Move/Copy editors over into target
-		let index = targetView.count;
+		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		sourceView.editors.forEach(editor => {
 			const inactive = !sourceView.isActive(editor);
 			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };

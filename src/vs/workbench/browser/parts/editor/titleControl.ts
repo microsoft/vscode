@@ -33,8 +33,7 @@ import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Dimension, addDisposableListener, EventType } from 'vs/base/browser/dom';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { listActiveSelectionBackground, listActiveSelectionForeground } from 'vs/platform/theme/common/colorRegistry';
 import { LocalSelectionTransfer, DraggedEditorGroupIdentifier, DraggedEditorIdentifier, fillResourceDataTransfers } from 'vs/workbench/browser/dnd';
 import { applyDragImage } from 'vs/base/browser/dnd';
@@ -63,7 +62,7 @@ export abstract class TitleControl extends Themable {
 	constructor(
 		parent: HTMLElement,
 		protected accessor: IEditorGroupsAccessor,
-		protected group: IEditorGroup,
+		protected group: IEditorGroupView,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,

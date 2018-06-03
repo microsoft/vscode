@@ -33,11 +33,11 @@ import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifie
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 interface IEditorInputLabel {
@@ -67,7 +67,7 @@ export class TabsTitleControl extends TitleControl {
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
-		group: IEditorGroup,
+		group: IEditorGroupView,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -602,7 +602,12 @@ export class TabsTitleControl extends TitleControl {
 
 	private isSupportedDropTransfer(e: DragEvent): boolean {
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			return false; // groups cannot be dropped on title area
+			const group = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0];
+			if (group.identifier === this.group.id) {
+				return false; // groups cannot be dropped on title area it originates from
+			}
+
+			return true;
 		}
 
 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
@@ -970,9 +975,9 @@ export class TabsTitleControl extends TitleControl {
 		this.updateDropFeedback(this.tabsContainer, false);
 		removeClass(this.tabsContainer, 'scroll');
 
-		// Local DND
-		const draggedEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) ? this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
-		if (draggedEditor) {
+		// Local Editor DND
+		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
 			// Move editor to target position and index
@@ -987,6 +992,21 @@ export class TabsTitleControl extends TitleControl {
 
 			this.group.focus();
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+		}
+
+		// Local Editor Group DND
+		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			const sourceGroup = this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0].identifier);
+
+			const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
+			if (!this.isMoveOperation(e, sourceGroup.id)) {
+				mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+			}
+
+			this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+
+			this.group.focus();
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 		}
 
 		// External DND

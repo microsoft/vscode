@@ -29,7 +29,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
 import { UntitledEditorInput } from 'vs/workbench/common/editor/untitledEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 export class TestEditorControl extends BaseEditor {
 
@@ -75,7 +75,7 @@ suite('Editor service', () => {
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: IEditorServiceImpl = testInstantiationService.createInstance(EditorService);
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
@@ -443,7 +443,7 @@ suite('Editor service', () => {
 
 		const testInstantiationService = partInstantiator.createChild(new ServiceCollection([IEditorGroupsService, part]));
 
-		const service: IEditorServiceImpl = testInstantiationService.createInstance(EditorService);
+		const service: EditorServiceImpl = testInstantiationService.createInstance(EditorService);
 
 		const input = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource'));
 		const otherInput = testInstantiationService.createInstance(TestEditorInput, URI.parse('my://resource2'));
