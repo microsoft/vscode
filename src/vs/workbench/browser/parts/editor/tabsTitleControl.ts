@@ -6,11 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/tabstitlecontrol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -393,7 +391,7 @@ export class TabsTitleControl extends TitleControl {
 		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
-		const tabActionRunner = new TabActionRunner(() => this.group.id, index);
+		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
 		const tabActionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		tabActionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
@@ -1008,25 +1006,6 @@ export class TabsTitleControl extends TitleControl {
 		super.dispose();
 
 		this.layoutScheduled = dispose(this.layoutScheduled);
-	}
-}
-
-class TabActionRunner extends ActionRunner {
-
-	constructor(
-		private groupId: () => GroupIdentifier,
-		private index: number
-	) {
-		super();
-	}
-
-	run(action: IAction, context?: any): TPromise<void> {
-		const groupId = this.groupId();
-		if (typeof groupId !== 'number') {
-			return TPromise.as(void 0);
-		}
-
-		return super.run(action, { groupId, editorIndex: this.index });
 	}
 }
 

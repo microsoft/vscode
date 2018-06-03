@@ -7,12 +7,14 @@
 
 import 'vs/css!./media/notabstitlecontrol';
 import { toResource, Verbosity, IEditorInput } from 'vs/workbench/common/editor';
-import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
+import { TitleControl, IToolbarActions } from 'vs/workbench/browser/parts/editor/titleControl';
 import { ResourceLabel } from 'vs/workbench/browser/labels';
 import { TAB_ACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { addDisposableListener, EventType, addClass, EventHelper, removeClass } from 'vs/base/browser/dom';
 import { IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IAction } from 'vs/base/common/actions';
+import { CLOSE_EDITOR_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export class NoTabsTitleControl extends TitleControl {
 	private titleContainer: HTMLElement;
@@ -204,5 +206,17 @@ export class NoTabsTitleControl extends TitleControl {
 			case 'long': return Verbosity.LONG;
 			default: return Verbosity.MEDIUM;
 		}
+	}
+
+	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[], secondaryEditorActions: IAction[] } {
+		const isGroupActive = this.accessor.activeGroup === this.group;
+
+		// Group active: show all actions
+		if (isGroupActive) {
+			return super.prepareEditorActions(editorActions);
+		}
+
+		// Group inactive: only show close action
+		return { primaryEditorActions: editorActions.primary.filter(action => action.id === CLOSE_EDITOR_COMMAND_ID), secondaryEditorActions: [] };
 	}
 }

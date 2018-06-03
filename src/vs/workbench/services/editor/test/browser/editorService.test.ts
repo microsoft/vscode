@@ -15,7 +15,7 @@ import { EditorInput, EditorOptions, IFileEditorInput, IEditorInput } from 'vs/w
 import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
-import { EditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { EditorService, DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { Dimension } from 'vs/base/browser/dom';
@@ -260,7 +260,7 @@ suite('Editor service', () => {
 		const ed = instantiationService.createInstance(MyEditor, 'my.editor');
 
 		const inp = instantiationService.createInstance(ResourceEditorInput, 'name', 'description', URI.parse('my://resource'));
-		const delegate = instantiationService.createInstance(DelegatingWorkbenchEditorService);
+		const delegate = instantiationService.createInstance(DelegatingEditorService);
 		delegate.setEditorOpenHandler((group: IEditorGroup, input: IEditorInput, options?: EditorOptions) => {
 			assert.strictEqual(input, inp);
 

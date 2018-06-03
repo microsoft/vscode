@@ -594,7 +594,7 @@ export interface IEditorOpenHandler {
  * The delegating workbench editor service can be used to override the behaviour of the openEditor()
  * method by providing a IEditorOpenHandler.
  */
-export class DelegatingWorkbenchEditorService extends EditorService {
+export class DelegatingEditorService extends EditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(

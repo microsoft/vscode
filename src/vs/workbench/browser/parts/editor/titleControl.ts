@@ -12,7 +12,7 @@ import { IAction, Action, IRunEvent } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import * as arrays from 'vs/base/common/arrays';
-import { toResource, IEditorCommandsContext, IEditorInput } from 'vs/workbench/common/editor';
+import { toResource, IEditorCommandsContext, IEditorInput, EditorCommandsContextActionRunner } from 'vs/workbench/common/editor';
 import { IActionItem, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ToolBar } from 'vs/base/browser/ui/toolbar/toolbar';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -91,15 +91,18 @@ export abstract class TitleControl extends Themable {
 	protected abstract create(parent: HTMLElement): void;
 
 	protected createEditorActionsToolBar(container: HTMLElement): void {
+		const context = { groupId: this.group.id } as IEditorCommandsContext;
+
 		this.editorActionsToolbar = this._register(new ToolBar(container, this.contextMenuService, {
 			actionItemProvider: action => this.actionItemProvider(action as Action),
 			orientation: ActionsOrientation.HORIZONTAL,
 			ariaLabel: localize('araLabelEditorActions', "Editor actions"),
-			getKeyBinding: action => this.getKeybinding(action)
+			getKeyBinding: action => this.getKeybinding(action),
+			actionRunner: this._register(new EditorCommandsContextActionRunner(context))
 		}));
 
 		// Context
-		this.editorActionsToolbar.context = { groupId: this.group.id } as IEditorCommandsContext;
+		this.editorActionsToolbar.context = context;
 
 		// Action Run Handling
 		this._register(this.editorActionsToolbar.actionRunner.onDidRun((e: IRunEvent) => {
@@ -138,21 +141,9 @@ export abstract class TitleControl extends Themable {
 	}
 
 	protected updateEditorActionsToolbar(): void {
-		const isGroupActive = this.accessor.activeGroup === this.group;
 
 		// Update Editor Actions Toolbar
-		let primaryEditorActions: IAction[] = [];
-		let secondaryEditorActions: IAction[] = [];
-
-		const editorActions = this.getEditorActions();
-
-		// Primary actions only for the active group
-		if (isGroupActive) {
-			primaryEditorActions = prepareActions(editorActions.primary);
-		}
-
-		// Secondary actions for all groups
-		secondaryEditorActions = prepareActions(editorActions.secondary);
+		const { primaryEditorActions, secondaryEditorActions } = this.prepareEditorActions(this.getEditorActions());
 
 		// Only update if something actually has changed
 		const primaryEditorActionIds = primaryEditorActions.map(a => a.id);
@@ -168,6 +159,23 @@ export abstract class TitleControl extends Themable {
 			this.currentPrimaryEditorActionIds = primaryEditorActionIds;
 			this.currentSecondaryEditorActionIds = secondaryEditorActionIds;
 		}
+	}
+
+	protected prepareEditorActions(editorActions: IToolbarActions): { primaryEditorActions: IAction[]; secondaryEditorActions: IAction[]; } {
+		let primaryEditorActions: IAction[];
+		let secondaryEditorActions: IAction[];
+
+		// Primary actions only for the active group
+		if (this.accessor.activeGroup === this.group) {
+			primaryEditorActions = prepareActions(editorActions.primary);
+		} else {
+			primaryEditorActions = [];
+		}
+
+		// Secondary actions for all groups
+		secondaryEditorActions = prepareActions(editorActions.secondary);
+
+		return { primaryEditorActions, secondaryEditorActions };
 	}
 
 	private getEditorActions(): IToolbarActions {
@@ -199,9 +207,7 @@ export abstract class TitleControl extends Themable {
 			const titleBarMenu = this.menuService.createMenu(MenuId.EditorTitle, scopedContextKeyService);
 			this.editorToolBarMenuDisposables.push(titleBarMenu);
 			this.editorToolBarMenuDisposables.push(titleBarMenu.onDidChange(() => {
-
-				// Update editor toolbar whenever contributed actions change
-				this.updateEditorActionsToolbar();
+				this.updateEditorActionsToolbar(); // Update editor toolbar whenever contributed actions change
 			}));
 
 			fillInActionBarActions(titleBarMenu, { arg: this.resourceContext.get(), shouldForwardArgs: true }, { primary, secondary });

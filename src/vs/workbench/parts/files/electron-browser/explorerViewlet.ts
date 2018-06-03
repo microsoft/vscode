@@ -31,7 +31,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorOptions } from 'vs/platform/editor/common/editor';
@@ -189,7 +189,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService);
 			delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {

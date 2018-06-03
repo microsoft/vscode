@@ -425,8 +425,10 @@ function registerCloseEditorCommands() {
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
-			if (contexts.length === 0 && editorGroupService.activeGroup) {
-				contexts.push({ groupId: editorGroupService.activeGroup.id }); // If command is triggered from the command palette use the active group
+
+			const activeGroup = editorGroupService.activeGroup;
+			if (contexts.length === 0) {
+				contexts.push({ groupId: activeGroup.id }); // active group as fallback
 			}
 
 			return TPromise.join(distinct(contexts.map(c => c.groupId)).map(groupId =>
@@ -464,15 +466,20 @@ function registerCloseEditorCommands() {
 		handler: (accessor, resourceOrContext: URI | IEditorCommandsContext, context?: IEditorCommandsContext) => {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
+
 			const activeGroup = editorGroupService.activeGroup;
-			if (contexts.length === 0 && activeGroup && activeGroup.activeEditor) {
-				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });
+			if (contexts.length === 0 && activeGroup.activeEditor) {
+				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });  // active editor as fallback
 			}
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
+
 			return TPromise.join(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
-				const editors = contexts.filter(c => c.groupId === groupId).map(c => group.getEditor(c.editorIndex));
+				const editors = contexts
+					.filter(context => context.groupId === groupId)
+					.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
+
 				return group.closeEditors(editors);
 			}));
 		}
@@ -509,19 +516,18 @@ function registerCloseEditorCommands() {
 			const editorGroupService = accessor.get(IEditorGroupsService);
 			const contexts = getMultiSelectedEditorContexts(getCommandsContext(resourceOrContext, context), accessor.get(IListService), editorGroupService);
 
-			if (contexts.length === 0) {
-				// Cover the case when run from command palette
-				const activeGroup = editorGroupService.activeGroup;
-				if (activeGroup && activeGroup.activeEditor) {
-					contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });
-				}
+			const activeGroup = editorGroupService.activeGroup;
+			if (contexts.length === 0 && activeGroup.activeEditor) {
+				contexts.push({ groupId: activeGroup.id, editorIndex: activeGroup.getIndexOfEditor(activeGroup.activeEditor) });  // active editor as fallback
 			}
 
 			const groupIds = distinct(contexts.map(context => context.groupId));
 
 			return TPromise.join(groupIds.map(groupId => {
 				const group = editorGroupService.getGroup(groupId);
-				const editors = contexts.filter(c => c.groupId === groupId).map(c => group.getEditor(c.editorIndex));
+				const editors = contexts
+					.filter(context => context.groupId === groupId)
+					.map(context => typeof context.editorIndex === 'number' ? group.getEditor(context.editorIndex) : group.activeEditor);
 				const editorsToClose = group.editors.filter(e => editors.indexOf(e) === -1);
 
 				return group.closeEditors(editorsToClose);
