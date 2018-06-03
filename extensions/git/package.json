@@ -1082,6 +1082,17 @@
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "filenames": [
+          ".gitignore"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
     "grammars": [
@@ -1099,6 +1110,11 @@
         "language": "diff",
         "scopeName": "source.diff",
         "path": "./syntaxes/diff.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
