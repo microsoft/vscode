@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Kopieren",
 	"copyPathLabel": "Pfad kopieren",
 	"copyAllLabel": "Alles kopieren",
+	"toggleSearchViewPositionLabel": "Position der Suchansicht umschalten",
 	"findInFolder": "In Ordner suchen...",
 	"findInWorkspace": "In Arbeitsbereich suchen...",
 	"showTriggerActions": "Zu Symbol im Arbeitsbereich wechseln...",

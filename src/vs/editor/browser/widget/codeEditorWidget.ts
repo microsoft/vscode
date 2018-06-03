@@ -46,7 +46,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryForeground } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 
@@ -111,13 +111,13 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 	private readonly _onDidLayoutChange: Emitter<editorOptions.EditorLayoutInfo> = this._register(new Emitter<editorOptions.EditorLayoutInfo>());
 	public readonly onDidLayoutChange: Event<editorOptions.EditorLayoutInfo> = this._onDidLayoutChange.event;
 
-	protected _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	private _editorTextFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
 	public readonly onDidFocusEditorText: Event<void> = this._editorTextFocus.onDidChangeToTrue;
 	public readonly onDidBlurEditorText: Event<void> = this._editorTextFocus.onDidChangeToFalse;
 
-	protected _editorFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
-	public readonly onDidFocusEditor: Event<void> = this._editorFocus.onDidChangeToTrue;
-	public readonly onDidBlurEditor: Event<void> = this._editorFocus.onDidChangeToFalse;
+	private _editorWidgetFocus: BooleanEventEmitter = this._register(new BooleanEventEmitter());
+	public readonly onDidFocusEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToTrue;
+	public readonly onDidBlurEditorWidget: Event<void> = this._editorWidgetFocus.onDidChangeToFalse;
 
 	private readonly _onWillType: Emitter<string> = this._register(new Emitter<string>());
 	public readonly onWillType = this._onWillType.event;
@@ -246,7 +246,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 		this._focusTracker = new CodeEditorWidgetFocusTracker(domElement);
 		this._focusTracker.onChange(() => {
-			this._editorFocus.setValue(this._focusTracker.hasFocus());
+			this._editorWidgetFocus.setValue(this._focusTracker.hasFocus());
 		});
 
 		this.contentWidgets = {};
@@ -408,7 +408,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		return this.viewModel.viewLayout.getWhitespaces();
 	}
 
-	protected _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
+	private _getVerticalOffsetForPosition(modelLineNumber: number, modelColumn: number): number {
 		let modelPosition = this.model.validatePosition({
 			lineNumber: modelLineNumber,
 			column: modelColumn
@@ -1109,7 +1109,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		this._view.focus();
 	}
 
-	public isFocused(): boolean {
+	public hasTextFocus(): boolean {
 		return this.hasView && this._view.isFocused();
 	}
 
@@ -1418,7 +1418,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		viewEventBus.onDidGainFocus = () => {
 			this._editorTextFocus.setValue(true);
 			// In IE, the focus is not synchronous, so we give it a little help
-			this._editorFocus.setValue(true);
+			this._editorWidgetFocus.setValue(true);
 		};
 
 		viewEventBus.onDidScroll = (e) => this._onDidScrollChange.fire(e);
@@ -1440,7 +1440,7 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 		}
 	}
 
-	protected _detachModel(): ITextModel {
+	private _detachModel(): ITextModel {
 		let removeDomNode: HTMLElement = null;
 
 		if (this._view) {
@@ -1563,8 +1563,8 @@ class EditorContextKeysManager extends Disposable {
 
 		this._register(this._editor.onDidChangeConfiguration(() => this._updateFromConfig()));
 		this._register(this._editor.onDidChangeCursorSelection(() => this._updateFromSelection()));
-		this._register(this._editor.onDidFocusEditor(() => this._updateFromFocus()));
-		this._register(this._editor.onDidBlurEditor(() => this._updateFromFocus()));
+		this._register(this._editor.onDidFocusEditorWidget(() => this._updateFromFocus()));
+		this._register(this._editor.onDidBlurEditorWidget(() => this._updateFromFocus()));
 		this._register(this._editor.onDidFocusEditorText(() => this._updateFromFocus()));
 		this._register(this._editor.onDidBlurEditorText(() => this._updateFromFocus()));
 
@@ -1593,8 +1593,8 @@ class EditorContextKeysManager extends Disposable {
 
 	private _updateFromFocus(): void {
 		this._editorFocus.set(this._editor.hasWidgetFocus() && !this._editor.isSimpleWidget);
-		this._editorTextFocus.set(this._editor.isFocused() && !this._editor.isSimpleWidget);
-		this._textInputFocus.set(this._editor.isFocused());
+		this._editorTextFocus.set(this._editor.hasTextFocus() && !this._editor.isSimpleWidget);
+		this._textInputFocus.set(this._editor.hasTextFocus());
 	}
 }
 
@@ -1766,7 +1766,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let errorForeground = theme.getColor(editorErrorForeground);
 	if (errorForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorErrorDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(errorForeground)}") repeat-x bottom left; }`);
 	}
 
 	let warningBorderColor = theme.getColor(editorWarningBorder);
@@ -1775,7 +1775,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let warningForeground = theme.getColor(editorWarningForeground);
 	if (warningForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorWarningDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(warningForeground)}") repeat-x bottom left; }`);
 	}
 
 	let infoBorderColor = theme.getColor(editorInfoBorder);
@@ -1784,7 +1784,7 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let infoForeground = theme.getColor(editorInfoForeground);
 	if (infoForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml;utf8,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorInfoDecoration} { background: url("data:image/svg+xml,${getSquigglySVGData(infoForeground)}") repeat-x bottom left; }`);
 	}
 
 	let hintBorderColor = theme.getColor(editorHintBorder);
@@ -1793,6 +1793,11 @@ registerThemingParticipant((theme, collector) => {
 	}
 	let hintForeground = theme.getColor(editorHintForeground);
 	if (hintForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml;utf8,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
+		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
+	}
+
+	const unnecessaryForeground = theme.getColor(editorUnnecessaryForeground);
+	if (unnecessaryForeground) {
+		collector.addRule(`.monaco-editor .${ClassName.EditorUnnecessaryDecoration} { color: ${unnecessaryForeground}; }`);
 	}
 });

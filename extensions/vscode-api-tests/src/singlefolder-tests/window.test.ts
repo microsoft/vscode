@@ -119,7 +119,21 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('issue #25801 - default column when opening a file', async () => {
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
+	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -139,7 +153,7 @@ suite('window namespace tests', () => {
 			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
 		);
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
@@ -283,6 +297,44 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+
+	test('showQuickPick, accept first', async function () {
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const first = new Promise(resolve => resolves.push(resolve));
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string)
+		});
+		assert.equal(await first, 'eins');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'zwei');
+	});
+
+	test('showQuickPick, select first two', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string),
+			canPickMany: true
+		});
+		const first = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await first, 'eins');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+	});
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();

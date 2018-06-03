@@ -25,6 +25,7 @@ import { TerminateResponseCode } from 'vs/base/common/processes';
 import * as strings from 'vs/base/common/strings';
 import { ValidationStatus, ValidationState } from 'vs/base/common/parsers';
 import * as UUID from 'vs/base/common/uuid';
+import * as Platform from 'vs/base/common/platform';
 import { LinkedMap, Touch } from 'vs/base/common/map';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 
@@ -60,7 +61,7 @@ import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } fro
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -70,7 +71,7 @@ import { Scope, IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs
 
 import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 
-import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse } from 'vs/workbench/parts/tasks/common/taskSystem';
+import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, TaskErrors, TaskTerminateResponse, TaskSystemInfo } from 'vs/workbench/parts/tasks/common/taskSystem';
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
@@ -442,12 +443,13 @@ class TaskService implements ITaskService {
 	public static OutputChannelLabel: string = nls.localize('tasks', "Tasks");
 
 	private _configHasErrors: boolean;
-	private __schemaVersion: JsonSchemaVersion;
-	private __executionEngine: ExecutionEngine;
-	private __workspaceFolders: IWorkspaceFolder[];
-	private __ignoredWorkspaceFolders: IWorkspaceFolder[];
-	private __showIgnoreMessage: boolean;
+	private _schemaVersion: JsonSchemaVersion;
+	private _executionEngine: ExecutionEngine;
+	private _workspaceFolders: IWorkspaceFolder[];
+	private _ignoredWorkspaceFolders: IWorkspaceFolder[];
+	private _showIgnoreMessage: boolean;
 	private _providers: Map<number, ITaskProvider>;
+	private _taskSystemInfos: Map<string, TaskSystemInfo>;
 
 	private _workspaceTasksPromise: TPromise<Map<string, WorkspaceFolderTaskResult>>;
 
@@ -462,7 +464,7 @@ class TaskService implements ITaskService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IOutputService private outputService: IOutputService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -486,6 +488,7 @@ class TaskService implements ITaskService {
 		this._taskSystemListener = undefined;
 		this._outputChannel = this.outputService.getChannel(TaskService.OutputChannelId);
 		this._providers = new Map<number, ITaskProvider>();
+		this._taskSystemInfos = new Map<string, TaskSystemInfo>();
 		this.configurationService.onDidChangeConfiguration(() => {
 			if (!this._taskSystem && !this._workspaceTasksPromise) {
 				return;
@@ -523,6 +526,10 @@ class TaskService implements ITaskService {
 
 	public get onDidStateChange(): Event<TaskEvent> {
 		return this._onDidStateChange.event;
+	}
+
+	public get supportsMultipleTaskExecutions(): boolean {
+		return this.inTerminal();
 	}
 
 	private registerCommands(): void {
@@ -584,62 +591,62 @@ class TaskService implements ITaskService {
 	}
 
 	private get workspaceFolders(): IWorkspaceFolder[] {
-		if (!this.__workspaceFolders) {
+		if (!this._workspaceFolders) {
 			this.updateSetup();
 		}
-		return this.__workspaceFolders;
+		return this._workspaceFolders;
 	}
 
 	private get ignoredWorkspaceFolders(): IWorkspaceFolder[] {
-		if (!this.__ignoredWorkspaceFolders) {
+		if (!this._ignoredWorkspaceFolders) {
 			this.updateSetup();
 		}
-		return this.__ignoredWorkspaceFolders;
+		return this._ignoredWorkspaceFolders;
 	}
 
 	private get executionEngine(): ExecutionEngine {
-		if (this.__executionEngine === void 0) {
+		if (this._executionEngine === void 0) {
 			this.updateSetup();
 		}
-		return this.__executionEngine;
+		return this._executionEngine;
 	}
 
 	private get schemaVersion(): JsonSchemaVersion {
-		if (this.__schemaVersion === void 0) {
+		if (this._schemaVersion === void 0) {
 			this.updateSetup();
 		}
-		return this.__schemaVersion;
+		return this._schemaVersion;
 	}
 
 	private get showIgnoreMessage(): boolean {
-		if (this.__showIgnoreMessage === void 0) {
-			this.__showIgnoreMessage = !this.storageService.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
+		if (this._showIgnoreMessage === void 0) {
+			this._showIgnoreMessage = !this.storageService.getBoolean(TaskService.IgnoreTask010DonotShowAgain_key, StorageScope.WORKSPACE, false);
 		}
-		return this.__showIgnoreMessage;
+		return this._showIgnoreMessage;
 	}
 
 	private updateSetup(setup?: [IWorkspaceFolder[], IWorkspaceFolder[], ExecutionEngine, JsonSchemaVersion]): void {
 		if (!setup) {
 			setup = this.computeWorkspaceFolderSetup();
 		}
-		this.__workspaceFolders = setup[0];
-		if (this.__ignoredWorkspaceFolders) {
-			if (this.__ignoredWorkspaceFolders.length !== setup[1].length) {
-				this.__showIgnoreMessage = undefined;
+		this._workspaceFolders = setup[0];
+		if (this._ignoredWorkspaceFolders) {
+			if (this._ignoredWorkspaceFolders.length !== setup[1].length) {
+				this._showIgnoreMessage = undefined;
 			} else {
 				let set: Set<string> = new Set();
-				this.__ignoredWorkspaceFolders.forEach(folder => set.add(folder.uri.toString()));
+				this._ignoredWorkspaceFolders.forEach(folder => set.add(folder.uri.toString()));
 				for (let folder of setup[1]) {
 					if (!set.has(folder.uri.toString())) {
-						this.__showIgnoreMessage = undefined;
+						this._showIgnoreMessage = undefined;
 						break;
 					}
 				}
 			}
 		}
-		this.__ignoredWorkspaceFolders = setup[1];
-		this.__executionEngine = setup[2];
-		this.__schemaVersion = setup[3];
+		this._ignoredWorkspaceFolders = setup[1];
+		this._executionEngine = setup[2];
+		this._schemaVersion = setup[3];
 	}
 
 	private showOutput(): void {
@@ -661,6 +668,10 @@ class TaskService implements ITaskService {
 
 	public unregisterTaskProvider(handle: number): boolean {
 		return this._providers.delete(handle);
+	}
+
+	public registerTaskSystem(key: string, info: TaskSystemInfo): void {
+		this._taskSystemInfos.set(key, info);
 	}
 
 	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
@@ -696,9 +707,17 @@ class TaskService implements ITaskService {
 			let result: Task[] = [];
 			map.forEach((tasks) => {
 				for (let task of tasks) {
-					let definition = Task.getTaskDefinition(task);
-					if (definition && definition.type === filter.type) {
+					if (ContributedTask.is(task) && task.defines.type === filter.type) {
 						result.push(task);
+					} else if (CustomTask.is(task)) {
+						if (task.type === filter.type) {
+							result.push(task);
+						} else {
+							let customizes = CustomTask.customizes(task);
+							if (customizes && customizes.type === filter.type) {
+								result.push(task);
+							}
+						}
 					}
 				}
 			});
@@ -832,7 +851,7 @@ class TaskService implements ITaskService {
 		}
 		if (CustomTask.is(task)) {
 			let configProperties: TaskConfig.ConfigurationProperties = task._source.config.element;
-			return configProperties.problemMatcher === void 0;
+			return configProperties.problemMatcher === void 0 && !task.hasDefinedMatchers;
 		}
 		return false;
 	}
@@ -1030,12 +1049,12 @@ class TaskService implements ITaskService {
 			if (openConfig) {
 				let resource = workspaceFolder.toResource('.vscode/tasks.json');
 				this.editorService.openEditor({
-					resource: resource,
+					resource,
 					options: {
 						forceOpen: true,
 						pinned: false
 					}
-				}, false);
+				});
 			}
 		});
 	}
@@ -1053,12 +1072,12 @@ class TaskService implements ITaskService {
 	public openConfig(task: CustomTask): TPromise<void> {
 		let resource = Task.getWorkspaceFolder(task).toResource(task._source.config.file);
 		return this.editorService.openEditor({
-			resource: resource,
+			resource,
 			options: {
 				forceOpen: true,
 				pinned: false
 			}
-		}, false).then(() => undefined);
+		}).then(() => undefined);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } {
@@ -1236,7 +1255,13 @@ class TaskService implements ITaskService {
 			this._taskSystem = new TerminalTaskSystem(
 				this.terminalService, this.outputService, this.markerService,
 				this.modelService, this.configurationResolverService, this.telemetryService,
-				this.contextService, TaskService.OutputChannelId
+				this.contextService, TaskService.OutputChannelId,
+				(workspaceFolder: IWorkspaceFolder) => {
+					if (!workspaceFolder) {
+						return undefined;
+					}
+					return this._taskSystemInfos.get(workspaceFolder.uri.scheme);
+				}
 			);
 		} else {
 			let system = new ProcessTaskSystem(
@@ -1464,8 +1489,9 @@ class TaskService implements ITaskService {
 					return TPromise.as({ workspaceFolder, set: undefined, configurations: undefined, hasErrors: workspaceFolderConfiguration ? workspaceFolderConfiguration.hasErrors : false });
 				}
 				return ProblemMatcherRegistry.onReady().then((): WorkspaceFolderTaskResult => {
+					let taskSystemInfo: TaskSystemInfo = this._taskSystemInfos.get(workspaceFolder.uri.scheme);
 					let problemReporter = new ProblemReporter(this._outputChannel);
-					let parseResult = TaskConfig.parse(workspaceFolder, workspaceFolderConfiguration.config, problemReporter);
+					let parseResult = TaskConfig.parse(workspaceFolder, taskSystemInfo ? taskSystemInfo.platform : Platform.platform, workspaceFolderConfiguration.config, problemReporter);
 					let hasErrors = false;
 					if (!parseResult.validationStatus.isOK()) {
 						hasErrors = true;
@@ -1861,7 +1887,7 @@ class TaskService implements ITaskService {
 				isSecondary: true,
 				run: () => {
 					this.storageService.store(TaskService.IgnoreTask010DonotShowAgain_key, true, StorageScope.WORKSPACE);
-					this.__showIgnoreMessage = false;
+					this._showIgnoreMessage = false;
 				}
 			}]
 		);
@@ -2133,12 +2159,12 @@ class TaskService implements ITaskService {
 					return;
 				}
 				this.editorService.openEditor({
-					resource: resource,
+					resource,
 					options: {
 						forceOpen: true,
 						pinned: configFileCreated // pin only if config file is created #8727
 					}
-				}, false);
+				});
 			});
 		};
 

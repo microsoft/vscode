@@ -3,11 +3,11 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as vscode from 'vscode';
-import * as path from 'path';
-import { Slug } from './tableOfContentsProvider';
 import { MarkdownIt, Token } from 'markdown-it';
+import * as path from 'path';
+import * as vscode from 'vscode';
 import { MarkdownContributions } from './markdownExtensions';
+import { Slugifier } from './slugify';
 
 const FrontMatterRegex = /^---\s*[^]*?(-{3}|\.{3})\s*/;
 
@@ -19,7 +19,8 @@ export class MarkdownEngine {
 	private currentDocument?: vscode.Uri;
 
 	public constructor(
-		private readonly extensionPreviewResourceProvider: MarkdownContributions
+		private readonly extensionPreviewResourceProvider: MarkdownContributions,
+		private readonly slugifier: Slugifier,
 	) { }
 
 	private usePlugin(factory: (md: any) => any): void {
@@ -49,7 +50,7 @@ export class MarkdownEngine {
 					return `<pre class="hljs"><code><div>${this.md!.utils.escapeHtml(str)}</div></code></pre>`;
 				}
 			}).use(mdnh, {
-				slugify: (header: string) => Slug.fromHeading(header).value
+				slugify: (header: string) => this.slugifier.fromHeading(header).value
 			});
 
 			for (const plugin of this.extensionPreviewResourceProvider.markdownItPlugins) {
@@ -145,13 +146,13 @@ export class MarkdownEngine {
 
 					if (fragment) {
 						uri = uri.with({
-							fragment: Slug.fromHeading(fragment).value
+							fragment: this.slugifier.fromHeading(fragment).value
 						});
 					}
 					return normalizeLink(uri.with({ scheme: 'vscode-resource' }).toString(true));
 				} else if (!uri.scheme && !uri.path && uri.fragment) {
 					return normalizeLink(uri.with({
-						fragment: Slug.fromHeading(uri.fragment).value
+						fragment: this.slugifier.fromHeading(uri.fragment).value
 					}).toString(true));
 				}
 			} catch (e) {

@@ -94,13 +94,6 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 		this.registerPreview(preview);
 	}
 
-	public async serializeWebviewPanel(
-		webview: vscode.WebviewPanel,
-	): Promise<any> {
-		const preview = this.previews.find(preview => preview.isWebviewOf(webview));
-		return preview ? preview.state : undefined;
-	}
-
 	private getExistingPreview(
 		resource: vscode.Uri,
 		previewSettings: PreviewSettings
@@ -122,6 +115,8 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 			this.logger,
 			this.topmostLineMonitor,
 			this.contributions);
+
+		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, true);
 
 		return this.registerPreview(preview);
 	}

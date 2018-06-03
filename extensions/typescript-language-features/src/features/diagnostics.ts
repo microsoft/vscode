@@ -5,7 +5,7 @@
 
 import *  as vscode from 'vscode';
 
-class DiagnosticSet {
+export class DiagnosticSet {
 	private _map: ObjectMap<vscode.Diagnostic[]> = Object.create(null);
 
 	public set(
@@ -40,21 +40,29 @@ export class DiagnosticsManager {
 
 	private readonly _diagnostics = new Map<DiagnosticKind, DiagnosticSet>();
 	private readonly _currentDiagnostics: vscode.DiagnosticCollection;
+	private readonly _pendingUpdates: { [key: string]: any } = Object.create(null);
 	private _validate: boolean = true;
 	private _enableSuggestions: boolean = true;
 
+	private readonly updateDelay = 50;
+
 	constructor(
-		language: string
+		owner: string
 	) {
 		for (const kind of allDiagnosticKinds) {
 			this._diagnostics.set(kind, new DiagnosticSet());
 		}
 
-		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(language);
+		this._currentDiagnostics = vscode.languages.createDiagnosticCollection(owner);
 	}
 
 	public dispose() {
 		this._currentDiagnostics.dispose();
+
+		for (const key of Object.keys(this._pendingUpdates)) {
+			clearTimeout(this._pendingUpdates[key]);
+			delete this._pendingUpdates[key];
+		}
 	}
 
 	public reInitialize(): void {
@@ -90,13 +98,24 @@ export class DiagnosticsManager {
 	public diagnosticsReceived(
 		kind: DiagnosticKind,
 		file: vscode.Uri,
-		syntaxDiagnostics: vscode.Diagnostic[]
+		diagnostics: vscode.Diagnostic[]
 	): void {
-		const diagnostics = this._diagnostics.get(kind);
-		if (diagnostics) {
-			diagnostics.set(file, syntaxDiagnostics);
-			this.updateCurrentDiagnostics(file);
+		const collection = this._diagnostics.get(kind);
+		if (!collection) {
+			return;
 		}
+
+		if (diagnostics.length === 0) {
+			const existing = collection.get(file);
+			if (existing.length === 0) {
+				// No need to update
+				return;
+			}
+		}
+
+		collection.set(file, diagnostics);
+
+		this.scheduleDiagnosticsUpdate(file);
 	}
 
 	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
@@ -107,21 +126,42 @@ export class DiagnosticsManager {
 		this._currentDiagnostics.delete(resource);
 	}
 
+	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
+		return this._currentDiagnostics.get(file) || [];
+	}
+
+	private scheduleDiagnosticsUpdate(file: vscode.Uri) {
+		const key = file.fsPath;
+		if (!this._pendingUpdates[key]) {
+			this._pendingUpdates[key] = setTimeout(() => this.updateCurrentDiagnostics(file), this.updateDelay);
+		}
+	}
+
 	private updateCurrentDiagnostics(file: vscode.Uri) {
+		if (this._pendingUpdates[file.fsPath]) {
+			clearTimeout(this._pendingUpdates[file.fsPath]);
+			delete this._pendingUpdates[file.fsPath];
+		}
+
 		if (!this._validate) {
 			return;
 		}
 
-		const allDiagnostics: vscode.Diagnostic[] = [];
-		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Syntax)!.get(file));
-		allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Semantic)!.get(file));
-		if (this._enableSuggestions) {
-			allDiagnostics.push(...this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file));
-		}
+		const allDiagnostics = [
+			...this._diagnostics.get(DiagnosticKind.Syntax)!.get(file),
+			...this._diagnostics.get(DiagnosticKind.Semantic)!.get(file),
+			...this.getSuggestionDiagnostics(file),
+		];
 		this._currentDiagnostics.set(file, allDiagnostics);
 	}
 
-	public getDiagnostics(file: vscode.Uri): vscode.Diagnostic[] {
-		return this._currentDiagnostics.get(file) || [];
+	private getSuggestionDiagnostics(file: vscode.Uri) {
+		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file).filter(x => {
+			if (!this._enableSuggestions) {
+				// Still show unused
+				return x.customTags && x.customTags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
+			}
+			return true;
+		});
 	}
 }

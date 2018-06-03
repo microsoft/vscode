@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Copiar",
 	"copyPathLabel": "Copiar ruta de acceso",
 	"copyAllLabel": "Copiar todo",
+	"toggleSearchViewPositionLabel": "Alternar la posición de vista de búsqueda",
 	"findInFolder": "Buscar en carpeta...",
 	"findInWorkspace": "Buscar en área de trabajo...",
 	"showTriggerActions": "Ir al símbolo en el área de trabajo...",

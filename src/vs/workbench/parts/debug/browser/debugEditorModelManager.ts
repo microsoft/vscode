@@ -73,15 +73,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onModelAdded(model: ITextModel): void {
-		const modelUrlStr = model.uri.toString();
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
+		const modelUriStr = model.uri.toString();
+		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
 
-		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
+		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUriStr));
 		const desiredDecorations = this.createBreakpointDecorations(model, breakpoints);
 		const breakpointDecorationIds = model.deltaDecorations([], desiredDecorations);
-		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr))];
+		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUriStr))];
 
-		this.modelDataMap.set(modelUrlStr, {
+		this.modelDataMap.set(modelUriStr, {
 			model: model,
 			toDispose: toDispose,
 			breakpointDecorations: breakpointDecorationIds.map((decorationId, index) => ({ decorationId, modelId: breakpoints[index].getId(), range: desiredDecorations[index].range })),
@@ -257,7 +257,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			({ decorationId, modelId: newBreakpoints[index].getId(), range: desiredDecorations[index].range }));
 	}
 
-	private createBreakpointDecorations(model: ITextModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
+	private createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>): { range: Range; options: IModelDecorationOptions; }[] {
 		const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 		breakpoints.forEach((breakpoint) => {
 			if (breakpoint.lineNumber <= model.getLineCount()) {

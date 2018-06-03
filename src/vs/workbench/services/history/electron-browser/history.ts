@@ -9,9 +9,9 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { IEditor } from 'vs/editor/common/editorCommon';
-import { IEditor as IBaseEditor, IEditorInput, ITextEditorOptions, IResourceInput, ITextEditorSelection, Position as GroupPosition } from 'vs/platform/editor/common/editor';
-import { Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorGroup, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory } from 'vs/workbench/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { ITextEditorOptions, IResourceInput, ITextEditorSelection } from 'vs/platform/editor/common/editor';
+import { IEditorInput, IEditor as IBaseEditor, Extensions as EditorExtensions, EditorInput, IEditorCloseEvent, IEditorInputFactoryRegistry, toResource, Extensions as EditorInputExtensions, IFileInputFactory, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { FileChangesEvent, IFileService, FileChangeType, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -22,15 +22,16 @@ import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { once, debounceEvent } from 'vs/base/common/event';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
+import { getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getExcludes, ISearchConfiguration } from 'vs/platform/search/common/search';
 import { IExpression } from 'vs/base/common/glob';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ResourceGlobMatcher } from 'vs/workbench/electron-browser/resources';
 import { Schemas } from 'vs/base/common/network';
+import { EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 /**
  * Stores the selection & view state of an editor and allows to compare it to other selection states.
@@ -85,11 +86,6 @@ interface ISerializedEditorHistoryEntry {
 	editorInputJSON?: { typeId: string; deserialized: string; };
 }
 
-interface IEditorIdentifier {
-	editor: IEditorInput;
-	position: GroupPosition;
-}
-
 interface IStackEntry {
 	input: IEditorInput | IResourceInput;
 	selection?: ITextEditorSelection;
@@ -129,8 +125,8 @@ export class HistoryService implements IHistoryService {
 	private fileInputFactory: IFileInputFactory;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: EditorServiceImpl,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -165,39 +161,39 @@ export class HistoryService implements IHistoryService {
 	}
 
 	private registerListeners(): void {
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
+		this.toUnbind.push(this.editorService.onDidOpenEditorFail(event => this.remove(event.editor)));
+		this.toUnbind.push(this.editorService.onDidCloseEditor(event => this.onEditorClosed(event)));
 		this.toUnbind.push(this.lifecycleService.onShutdown(reason => this.saveHistory()));
-		this.toUnbind.push(this.editorGroupService.onEditorOpenFail(editor => this.remove(editor)));
-		this.toUnbind.push(this.editorGroupService.getStacksModel().onEditorClosed(event => this.onEditorClosed(event)));
-		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
+		this.toUnbind.push(this.fileService.onFileChanges(event => this.onFileChanges(event)));
 		this.toUnbind.push(this.resourceFilter.onExpressionChange(() => this.handleExcludesChange()));
 	}
 
-	private onEditorsChanged(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeEditor)) {
+	private onActiveEditorChanged(): void {
+		const activeControl = this.editorService.activeControl;
+		if (this.lastActiveEditor && this.matchesEditor(this.lastActiveEditor, activeControl)) {
 			return; // return if the active editor is still the same
 		}
 
 		// Remember as last active editor (can be undefined if none opened)
-		this.lastActiveEditor = activeEditor ? { editor: activeEditor.input, position: activeEditor.position } : void 0;
+		this.lastActiveEditor = activeControl ? { editor: activeControl.input, groupId: activeControl.group.id } : void 0;
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
 		this.activeEditorListeners = [];
 
 		// Propagate to history
-		this.handleActiveEditorChange(activeEditor);
+		this.handleActiveEditorChange(activeControl);
 
 		// Apply listener for selection changes if this is a text editor
-		const control = getCodeEditor(activeEditor);
-		if (control) {
+		const activeTextEditorWidget = getCodeEditor(this.editorService.activeTextEditorWidget);
+		if (activeTextEditorWidget) {
 
 			// Debounce the event with a timeout of 0ms so that multiple calls to
 			// editor.setSelection() are folded into one. We do not want to record
 			// subsequent history navigations for such API calls.
-			this.activeEditorListeners.push(debounceEvent(control.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
-				this.handleEditorSelectionChangeEvent(activeEditor, event);
+			this.activeEditorListeners.push(debounceEvent(activeTextEditorWidget.onDidChangeCursorPosition, (last, event) => event, 0)((event => {
+				this.handleEditorSelectionChangeEvent(activeControl, event);
 			})));
 		}
 	}
@@ -207,7 +203,7 @@ export class HistoryService implements IHistoryService {
 			return false;
 		}
 
-		if (identifier.position !== editor.position) {
+		if (identifier.groupId !== editor.group.id) {
 			return false;
 		}
 
@@ -243,10 +239,8 @@ export class HistoryService implements IHistoryService {
 	public reopenLastClosedEditor(): void {
 		this.ensureHistoryLoaded();
 
-		const stacks = this.editorGroupService.getStacksModel();
-
 		let lastClosedFile = this.recentlyClosedFiles.pop();
-		while (lastClosedFile && this.isFileOpened(lastClosedFile.resource, stacks.activeGroup)) {
+		while (lastClosedFile && this.isFileOpened(lastClosedFile.resource, this.editorGroupService.activeGroup)) {
 			lastClosedFile = this.recentlyClosedFiles.pop(); // pop until we find a file that is not opened
 		}
 
@@ -448,16 +442,16 @@ export class HistoryService implements IHistoryService {
 		this.history = this.history.filter(e => !this.matches(arg1, e));
 	}
 
-	private handleEditorEventInStack(editor: IBaseEditor, event?: ICursorPositionChangedEvent): void {
-		const control = getCodeEditor(editor);
+	private handleEditorEventInStack(control: IBaseEditor, event?: ICursorPositionChangedEvent): void {
+		const codeEditor = control ? getCodeEditor(control.getControl()) : void 0;
 
 		// treat editor changes that happen as part of stack navigation specially
 		// we do not want to add a new stack entry as a matter of navigating the
 		// stack but we need to keep our currentTextEditorState up to date with
 		// the navigtion that occurs.
 		if (this.navigatingInStack) {
-			if (control && editor.input) {
-				this.currentTextEditorState = new TextEditorState(editor.input, control.getSelection());
+			if (codeEditor && control.input) {
+				this.currentTextEditorState = new TextEditorState(control.input, codeEditor.getSelection());
 			} else {
 				this.currentTextEditorState = null; // we navigated to a non text editor
 			}
@@ -467,16 +461,16 @@ export class HistoryService implements IHistoryService {
 		else {
 
 			// navigation inside text editor
-			if (control && editor.input) {
-				this.handleTextEditorEvent(editor, control, event);
+			if (codeEditor && control.input) {
+				this.handleTextEditorEvent(control, codeEditor, event);
 			}
 
 			// navigation to non-text editor
 			else {
 				this.currentTextEditorState = null; // at this time we have no active text editor view state
 
-				if (editor && editor.input) {
-					this.handleNonTextEditorEvent(editor);
+				if (control && control.input) {
+					this.handleNonTextEditorEvent(control);
 				}
 			}
 		}
@@ -621,11 +615,11 @@ export class HistoryService implements IHistoryService {
 			return false;
 		}
 
-		if (!group.contains(resource)) {
+		if (!this.editorService.isOpen({ resource }, group)) {
 			return false; // fast check
 		}
 
-		return group.getEditors().some(e => this.matchesFile(resource, e));
+		return group.editors.some(e => this.matchesFile(resource, e));
 	}
 
 	private matches(arg1: IEditorInput | IResourceInput | FileChangesEvent, inputB: IEditorInput | IResourceInput): boolean {

@@ -125,9 +125,8 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onModelChanged(): void {
-		if (this.active) {
-			this.cancel();
-		}
+		this.cancel();
+
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		const model = this.editor.getModel();

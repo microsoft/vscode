@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IInstantiationService, optional } from 'vs/platform/instantiation/common/instantiation';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -54,7 +54,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		private _defaultTreeKeyboardSupport: boolean,
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService private readonly _editorService: IEditorService,
+		@ICodeEditorService private readonly _editorService: ICodeEditorService,
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -179,7 +179,7 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		if (this._model) { // can be called while still resolving...
 			let source = this._model.nearestReference(this._editor.getModel().uri, this._widget.position);
 			let target = this._model.nextOrPreviousReference(source, fwd);
-			let editorFocus = this._editor.isFocused();
+			let editorFocus = this._editor.hasTextFocus();
 			await this._widget.setSelection(target);
 			await this._gotoReference(target);
 			if (editorFocus) {
@@ -209,13 +209,13 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 		this._ignoreModelChangeEvent = true;
 		const range = Range.lift(ref.range).collapseToStart();
 
-		return this._editorService.openEditor({
+		return this._editorService.openCodeEditor({
 			resource: ref.uri,
 			options: { selection: range }
-		}).then(openedEditor => {
+		}, this._editor).then(openedEditor => {
 			this._ignoreModelChangeEvent = false;
 
-			if (!openedEditor || openedEditor.getControl() !== this._editor) {
+			if (!openedEditor || openedEditor !== this._editor) {
 				// TODO@Alex TODO@Joh
 				// when opening the current reference we might end up
 				// in a different editor instance. that means we also have
@@ -238,10 +238,10 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 
 	public openReference(ref: Location, sideBySide: boolean): void {
 		const { uri, range } = ref;
-		this._editorService.openEditor({
+		this._editorService.openCodeEditor({
 			resource: uri,
 			options: { selection: range }
-		}, sideBySide);
+		}, this._editor, sideBySide);
 
 		// clear stage
 		if (!sideBySide) {

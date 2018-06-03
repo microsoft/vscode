@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver } from 'vs/platform/driver/common/driver';
+import { IDriver, DriverChannel, IElement, IWindowDriverChannel, WindowDriverChannelClient, IWindowDriverRegistry, WindowDriverRegistryChannel, IWindowDriver, IDriverOptions } from 'vs/platform/driver/common/driver';
 import { IWindowsMainService } from 'vs/platform/windows/electron-main/windows';
 import { serve as serveNet } from 'vs/base/parts/ipc/node/ipc.net';
 import { combinedDisposable, IDisposable } from 'vs/base/common/lifecycle';
@@ -16,6 +16,7 @@ import { SimpleKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
 import { OS } from 'vs/base/common/platform';
 import { Emitter, toPromise } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 // TODO@joao: bad layering!
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
@@ -45,13 +46,15 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 
 	constructor(
 		private windowServer: IPCServer,
+		private options: IDriverOptions,
 		@IWindowsMainService private windowsService: IWindowsMainService
 	) { }
 
-	async registerWindowDriver(windowId: number): TPromise<void> {
+	async registerWindowDriver(windowId: number): TPromise<IDriverOptions> {
 		this.registeredWindowIds.add(windowId);
 		this.reloadingWindowIds.delete(windowId);
 		this.onDidReloadingChange.fire();
+		return this.options;
 	}
 
 	async reloadWindowDriver(windowId: number): TPromise<void> {
@@ -155,11 +158,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.setValue(selector, text);
 	}
 
-	async paste(windowId: number, selector: string, text: string): TPromise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return windowDriver.paste(selector, text);
-	}
-
 	async getTitle(windowId: number): TPromise<string> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.getTitle();
@@ -185,6 +183,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.getTerminalBuffer(selector);
 	}
 
+	async writeInTerminal(windowId: number, selector: string, text: string): TPromise<void> {
+		const windowDriver = await this.getWindowDriver(windowId);
+		return windowDriver.writeInTerminal(selector, text);
+	}
+
 	private async getWindowDriver(windowId: number): TPromise<IWindowDriver> {
 		await this.whenUnfrozen(windowId);
 
@@ -203,9 +206,11 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 export async function serve(
 	windowServer: IPCServer,
 	handle: string,
+	environmentService: IEnvironmentService,
 	instantiationService: IInstantiationService
 ): TPromise<IDisposable> {
-	const driver = instantiationService.createInstance(Driver, windowServer);
+	const verbose = environmentService.driverVerbose;
+	const driver = instantiationService.createInstance(Driver, windowServer, { verbose });
 
 	const windowDriverRegistryChannel = new WindowDriverRegistryChannel(driver);
 	windowServer.registerChannel('windowDriverRegistry', windowDriverRegistryChannel);

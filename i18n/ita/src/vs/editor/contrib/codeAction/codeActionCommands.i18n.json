@@ -8,5 +8,12 @@
 	],
 	"quickFixWithKb": "Mostra correzioni ({0})",
 	"quickFix": "Mostra correzioni",
-	"organizeImports.label": "Organizza gli Imports"
+	"quickfix.trigger.label": "Correzione rapida...",
+	"editor.action.quickFix.noneMessage": "Azioni codice non disponibili",
+	"refactor.label": "Effettua refactoring...",
+	"editor.action.refactor.noneMessage": "Refactoring non disponibili",
+	"source.label": "Azione origine...",
+	"editor.action.source.noneMessage": "Azioni origine non disponibili",
+	"organizeImports.label": "Organizza gli Imports",
+	"editor.action.organize.noneMessage": "Azioni di organizzazione Imports non disponibili"
 }

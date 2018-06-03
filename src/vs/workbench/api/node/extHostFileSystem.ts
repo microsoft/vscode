@@ -49,6 +49,9 @@ class FsLinkProvider implements vscode.DocumentLinkProvider {
 			let m: RegExpMatchArray;
 			while (m = this._regex.exec(textLine.text)) {
 				const target = URI.parse(m[0]);
+				if (target.path[0] !== '/') {
+					continue;
+				}
 				const range = new Range(line, this._regex.lastIndex - m[0].length, line, this._regex.lastIndex);
 				result.push({ target, range });
 			}

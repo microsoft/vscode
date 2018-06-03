@@ -12,6 +12,8 @@
 	"sizeGB": "{0} GB",
 	"sizeTB": "{0} TB",
 	"resourceOpenExternalButton": "Aprire l'immagine utilizzando un programma esterno?",
+	"nativeBinaryError": "Il file non viene visualizzato nell'editor perché è binario o usa una codifica di testo non supportata.",
+	"openAsText": "Aprirlo comunque?",
 	"zoom.action.fit.label": "Immagine intera",
 	"imgMeta": "{0}x{1} {2}"
 }

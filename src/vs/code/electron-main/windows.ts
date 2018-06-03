@@ -716,7 +716,11 @@ export class WindowsManager implements IWindowsMainService {
 		return window;
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor, windowToUse?: ICodeWindow): ICodeWindow {
+	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, forceNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor, windowToUse?: ICodeWindow): ICodeWindow {
+		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/Microsoft/vscode/issues/49587
+		}
+
 		const browserWindow = this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
@@ -727,7 +731,7 @@ export class WindowsManager implements IWindowsMainService {
 			filesToCreate,
 			filesToDiff,
 			filesToWait,
-			forceNewWindow: openInNewWindow,
+			forceNewWindow,
 			windowToUse
 		});
 

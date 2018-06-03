@@ -20,6 +20,12 @@ export interface NpmTaskDefinition extends TaskDefinition {
 
 type AutoDetect = 'on' | 'off';
 
+let cachedTasks: Task[] | undefined = undefined;
+
+export function invalidateScriptsCache() {
+	cachedTasks = undefined;
+}
+
 const buildNames: string[] = ['build', 'compile', 'watch'];
 function isBuildTask(name: string): boolean {
 	for (let buildName of buildNames) {
@@ -40,8 +46,24 @@ function isTestTask(name: string): boolean {
 	return false;
 }
 
-function isNotPreOrPostScript(script: string): boolean {
-	return !(script.startsWith('pre') || script.startsWith('post'));
+function getPrePostScripts(scripts: any): Set<string> {
+	const prePostScripts: Set<string> = new Set([
+		'preuninstall', 'postuninstall', 'prepack', 'postpack', 'preinstall', 'postinstall',
+		'prepack', 'postpack', 'prepublish', 'postpublish', 'preversion', 'postversion',
+		'prestop', 'poststop', 'prerestart', 'postrestart', 'preshrinkwrap', 'postshrinkwrap',
+		'pretest', 'postest', 'prepublishOnly'
+	]);
+	let keys = Object.keys(scripts);
+	for (let i = 0; i < keys.length; i++) {
+		const script = keys[i];
+		const prepost = ['pre' + script, 'post' + script];
+		prepost.forEach(each => {
+			if (scripts[each] !== undefined) {
+				prePostScripts.add(each);
+			}
+		});
+	}
+	return prePostScripts;
 }
 
 export function isWorkspaceFolder(value: any): value is WorkspaceFolder {
@@ -74,7 +96,8 @@ export async function hasNpmScripts(): Promise<boolean> {
 	}
 }
 
-export async function provideNpmScripts(): Promise<Task[]> {
+async function detectNpmScripts(): Promise<Task[]> {
+
 	let emptyTasks: Task[] = [];
 	let allTasks: Task[] = [];
 
@@ -102,6 +125,13 @@ export async function provideNpmScripts(): Promise<Task[]> {
 	}
 }
 
+export async function provideNpmScripts(): Promise<Task[]> {
+	if (!cachedTasks) {
+		cachedTasks = await detectNpmScripts();
+	}
+	return cachedTasks;
+}
+
 function isAutoDetectionEnabled(folder: WorkspaceFolder): boolean {
 	return workspace.getConfiguration('npm', folder.uri).get<AutoDetect>('autoDetect') === 'on';
 }
@@ -112,19 +142,25 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	}
 
 	let exclude = workspace.getConfiguration('npm', folder.uri).get<string | string[]>('exclude');
+	let packageJsonFolder = path.dirname(packageJsonUri.fsPath);
 
 	if (exclude) {
 		if (Array.isArray(exclude)) {
 			for (let pattern of exclude) {
-				if (testForExclusionPattern(packageJsonUri.fsPath, pattern)) {
+				if (testForExclusionPattern(packageJsonFolder, pattern)) {
 					return true;
 				}
 			}
-		} else if (testForExclusionPattern(packageJsonUri.fsPath, exclude)) {
+		} else if (testForExclusionPattern(packageJsonFolder, exclude)) {
 			return true;
 		}
 	}
 	return false;
+}
+
+function isDebugScript(script: string): boolean {
+	let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+	return match !== null;
 }
 
 async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> {
@@ -140,13 +176,21 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 	}
 
 	const result: Task[] = [];
-	Object.keys(scripts).filter(isNotPreOrPostScript).forEach(each => {
+
+	const prePostScripts = getPrePostScripts(scripts);
+	Object.keys(scripts).forEach(each => {
 		const task = createTask(each, `run ${each}`, folder!, packageJsonUri);
 		const lowerCaseTaskName = each.toLowerCase();
 		if (isBuildTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Build;
 		} else if (isTestTask(lowerCaseTaskName)) {
 			task.group = TaskGroup.Test;
+		}
+		if (prePostScripts.has(each)) {
+			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
+		}
+		if (isDebugScript(scripts![each])) {
+			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
 		}
 		result.push(task);
 	});
@@ -162,7 +206,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);
@@ -239,7 +283,6 @@ async function findAllScripts(buffer: string): Promise<StringMap> {
 			}
 		},
 		onLiteralValue(value: any, _offset: number, _length: number) {
-			console.log(value);
 			if (script) {
 				scripts[script] = value;
 				script = undefined;

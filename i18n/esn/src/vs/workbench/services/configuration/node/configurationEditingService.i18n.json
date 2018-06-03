@@ -11,7 +11,6 @@
 	"open": "Abrir configuración",
 	"saveAndRetry": "Guardar y reintentar",
 	"errorUnknownKey": "No se puede escribir en {0} porque {1} no es una configuración registrada.",
-	"errorInvalidWorkspaceConfigurationApplication": "No se puede escribir {0} en configuración de área de trabajo. Esta opción puede escribirse solamente en configuración de usuario.",
 	"errorInvalidFolderConfiguration": "No se puede escribir en Configuración de carpeta porque {0} no admite el ámbito del recurso de carpeta.",
 	"errorInvalidUserTarget": "No se puede escribir en Configuración de usuario porque {0} no admite el ámbito global.",
 	"errorInvalidWorkspaceTarget": "No se puede escribir a la configuración del espacio de trabajo porque {0} no soporta a un espacio de trabajo con multi carpetas.",

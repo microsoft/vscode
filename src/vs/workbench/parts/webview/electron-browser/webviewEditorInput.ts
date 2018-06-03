@@ -6,8 +6,8 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorInput, EditorModel, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
@@ -27,13 +27,14 @@ export class WebviewEditorInput extends EditorInput {
 	private _webview: WebviewElement | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
-	private _position?: Position;
+	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
 	private _state: any;
+	private _webviewState: string | undefined;
 
 	private _revived: boolean = false;
 
-	public readonly extensionFolderPath: URI | undefined;
+	public readonly extensionLocation: URI | undefined;
 
 	constructor(
 		public readonly viewType: string,
@@ -41,7 +42,7 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionFolderPath: string | undefined,
+		extensionLocation: URI | undefined,
 		public readonly reviver: WebviewReviver | undefined,
 		@IPartService private readonly _partService: IPartService,
 	) {
@@ -50,10 +51,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-
-		if (extensionFolderPath) {
-			this.extensionFolderPath = URI.file(extensionFolderPath);
-		}
+		this.extensionLocation = extensionLocation;
 	}
 
 	public getTypeId(): string {
@@ -68,10 +66,10 @@ export class WebviewEditorInput extends EditorInput {
 			this._container = undefined;
 		}
 
-		if (this._events) {
+		if (this._events && this._events.onDispose) {
 			this._events.onDispose();
-			this._events = undefined;
 		}
+		this._events = undefined;
 
 		super.dispose();
 	}
@@ -101,8 +99,8 @@ export class WebviewEditorInput extends EditorInput {
 		return other && other === this;
 	}
 
-	public get position(): Position | undefined {
-		return this._position;
+	public get group(): GroupIdentifier | undefined {
+		return this._group;
 	}
 
 	public get html(): string {
@@ -128,6 +126,10 @@ export class WebviewEditorInput extends EditorInput {
 
 	public set state(value: any) {
 		this._state = value;
+	}
+
+	public get webviewState() {
+		return this._webviewState;
 	}
 
 	public get options(): WebviewInputOptions {
@@ -185,6 +187,10 @@ export class WebviewEditorInput extends EditorInput {
 		this._webview.onDidScroll(message => {
 			this._scrollYPercentage = message.scrollYPercentage;
 		}, null, this._webviewDisposables);
+
+		this._webview.onDidUpdateState(newState => {
+			this._webviewState = newState;
+		}, null, this._webviewDisposables);
 	}
 
 	public get scrollYPercentage() {
@@ -224,7 +230,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._currentWebviewHtml = '';
 	}
 
-	public updatePosition(position: Position): void {
-		this._position = position;
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
 	}
 }

@@ -21,6 +21,7 @@
 	"disconnectDebug": "Disconnetti",
 	"continueDebug": "Continua",
 	"pauseDebug": "Sospendi",
+	"terminateThread": "Termina thread",
 	"restartFrame": "Riavvia frame",
 	"removeBreakpoint": "Rimuovi punto di interruzione",
 	"removeAllBreakpoints": "Rimuovi tutti i punti di interruzione",
@@ -40,7 +41,6 @@
 	"debugConsoleAction": "Console di debug",
 	"unreadOutput": "Nuovo output nella console di debug",
 	"debugFocusConsole": "Console di debug stato attivo",
-	"focusProcess": "Sposta stato attivo su processo",
 	"stepBackDebug": "Torna indietro",
 	"reverseContinue": "Inverti"
 }

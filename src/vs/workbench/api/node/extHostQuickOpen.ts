@@ -29,23 +29,22 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		this._commands = commands;
 	}
 
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canSelectMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
-	showQuickPick(itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
-	showQuickPick(itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
-	showQuickPick(itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
+	showQuickPick(multiStepHandle: number | undefined, itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options: QuickPickOptions & { canPickMany: true; }, token?: CancellationToken): Thenable<QuickPickItem[] | undefined>;
+	showQuickPick(multiStepHandle: number | undefined, itemsOrItemsPromise: string[] | Thenable<string[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<string | undefined>;
+	showQuickPick(multiStepHandle: number | undefined, itemsOrItemsPromise: QuickPickItem[] | Thenable<QuickPickItem[]>, options?: QuickPickOptions, token?: CancellationToken): Thenable<QuickPickItem | undefined>;
+	showQuickPick(multiStepHandle: number | undefined, itemsOrItemsPromise: Item[] | Thenable<Item[]>, options?: QuickPickOptions, token: CancellationToken = CancellationToken.None): Thenable<Item | Item[] | undefined> {
 
 		// clear state from last invocation
 		this._onDidSelectItem = undefined;
 
 		const itemsPromise = <TPromise<Item[]>>TPromise.wrap(itemsOrItemsPromise);
 
-		const quickPickWidget = this._proxy.$show({
-			autoFocus: { autoFocusFirstEntry: true },
+		const quickPickWidget = this._proxy.$show(multiStepHandle, {
 			placeHolder: options && options.placeHolder,
 			matchOnDescription: options && options.matchOnDescription,
 			matchOnDetail: options && options.matchOnDetail,
 			ignoreFocusLost: options && options.ignoreFocusOut,
-			canSelectMany: options && options.canPickMany
+			canPickMany: options && options.canPickMany
 		});
 
 		const promise = TPromise.any(<TPromise<number | Item[]>[]>[quickPickWidget, itemsPromise]).then(values => {
@@ -116,12 +115,12 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	// ---- input
 
-	showInput(options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Thenable<string> {
+	showInput(multiStepHandle: number | undefined, options?: InputBoxOptions, token: CancellationToken = CancellationToken.None): Thenable<string> {
 
 		// global validate fn used in callback below
 		this._validateInput = options && options.validateInput;
 
-		const promise = this._proxy.$input(options, typeof this._validateInput === 'function');
+		const promise = this._proxy.$input(multiStepHandle, options, typeof this._validateInput === 'function');
 		return wireCancellationToken(token, promise, true);
 	}
 

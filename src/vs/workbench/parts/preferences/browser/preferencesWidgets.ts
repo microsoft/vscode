@@ -25,9 +25,9 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -420,7 +420,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const actions: IAction[] = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
@@ -727,9 +726,14 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : null;
-			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : null;
+		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
+			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : colors.editorBackground.toString();
+			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : colors.editorForeground.toString();
+
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			this._domNode.style.borderWidth = borderColor ? '1px' : null;
+			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			this._domNode.style.borderColor = borderColor;
 		}));
 
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/ionide/ionide-fsgrammar/commit/9aa4b1055e3173225bc0d4b4e48542c2450beb99",
+	"version": "https://github.com/ionide/ionide-fsgrammar/commit/e15bff40cf4bc42c82bcbdb2a836e4b944b3ef3e",
 	"name": "fsharp",
 	"scopeName": "source.fsharp",
 	"patterns": [
@@ -387,7 +387,7 @@
 				},
 				{
 					"name": "variable.parameter.fsharp",
-					"match": "[[:alpha:]']\\w*"
+					"match": "[[:alpha:]'_]\\w*"
 				}
 			]
 		},
@@ -414,7 +414,7 @@
 			"patterns": [
 				{
 					"name": "record.fsharp",
-					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,._ ]+)[\\s]*(\\([[:alpha:]0-9'<>^:,._ ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
+					"match": "(type)[\\s]+(private|internal|public)?[\\s]*([[:alpha:]0-9'<>^:,._]+)[\\s]*(\\([[:alpha:]0-9'<>^:,._ ]+\\))?[\\s]*((with)|(as [[:alpha:]0-9']+)|(=)|(\\(\\)))",
 					"captures": {
 						"1": {
 							"name": "keyword.other.fsharp"

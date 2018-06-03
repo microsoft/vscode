@@ -16,6 +16,7 @@ import * as typeConverters from '../utils/typeConverters';
 import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
+import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
 
@@ -135,6 +136,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 				return vscode.CompletionItemKind.File;
 			case PConst.Kind.directory:
 				return vscode.CompletionItemKind.Folder;
+			case PConst.Kind.string:
+				return vscode.CompletionItemKind.Constant;
 		}
 		return vscode.CompletionItemKind.Property;
 	}
@@ -248,6 +251,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly typingsStatus: TypingsStatus,
+		private readonly fileConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager
 	) {
 		commandManager.register(new ApplyCompletionCodeActionCommand(this.client));
@@ -282,11 +286,13 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			return [];
 		}
 
-		const args: Proto.CompletionsRequestArgs & { triggerCharacter?: string } = {
+		await this.fileConfigurationManager.ensureConfigurationForDocument(document, token);
+
+		const args: Proto.CompletionsRequestArgs = {
 			...typeConverters.Position.toFileLocationRequestArgs(file, position),
 			includeExternalModuleExports: completionConfiguration.autoImportSuggestions,
 			includeInsertTextCompletions: true,
-			triggerCharacter: context.triggerCharacter
+			triggerCharacter: context.triggerCharacter as Proto.CompletionsTriggerCharacter
 		};
 
 		let msg: Proto.CompletionEntry[] | undefined = undefined;
@@ -465,7 +471,7 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 			}
 		}
 
-		if (context.triggerCharacter === '@') {
+		if (context.triggerCharacter === '@' && !this.client.apiVersion.has290Features()) {
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const pre = line.text.slice(0, position.character);
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {

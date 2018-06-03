@@ -40,7 +40,6 @@
 	"debugConsoleAction": "Консоль отладки",
 	"unreadOutput": "Новые выходные данные в консоли отладки",
 	"debugFocusConsole": "Фокус консоли отладки",
-	"focusProcess": "Обработка фокуса",
 	"stepBackDebug": "На шаг назад",
 	"reverseContinue": "Обратно"
 }

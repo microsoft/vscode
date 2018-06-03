@@ -291,9 +291,9 @@ export interface IEditor {
 	focus(): void;
 
 	/**
-	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
+	 * Returns true if the text inside this editor is focused (i.e. cursor is blinking).
 	 */
-	isFocused(): boolean;
+	hasTextFocus(): boolean;
 
 	/**
 	 * Returns all actions associated with this editor.
@@ -459,6 +459,29 @@ export interface IEditor {
 	 * @internal
 	 */
 	changeDecorations(callback: (changeAccessor: IModelDecorationsChangeAccessor) => any): any;
+}
+
+/**
+ * A diff editor.
+ *
+ * @internal
+ */
+export interface IDiffEditor extends IEditor {
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): IDiffEditorModel;
+
+	/**
+	 * Get the `original` editor.
+	 */
+	getOriginalEditor(): IEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
+	getModifiedEditor(): IEditor;
 }
 
 /**

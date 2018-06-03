@@ -14,8 +14,9 @@
 	"config.npm.exclude": "Configurer les profils glob pour les dossiers qui doivent être exclus de la détection de script automatique.",
 	"npm.parseError": "Détection de tâche Npm : impossible d’analyser le fichier {0}",
 	"taskdef.script": "Le script npm à personnaliser.",
-	"taskdef.path": "Le chemin d’accès au dossier du fichier package.json qui fournit le script. Peut être oublié.",
+	"view.name": "Scripts npm",
 	"command.refresh": "Actualiser",
+	"command.run": "Exécuter",
 	"command.debug": "Déboguer",
 	"command.openScript": "Ouvrir"
 }

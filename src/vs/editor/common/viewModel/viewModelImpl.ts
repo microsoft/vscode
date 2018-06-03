@@ -322,6 +322,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
+				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
 			this._endEmit();
@@ -508,6 +509,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			lineData.minColumn,
 			lineData.maxColumn,
 			lineData.content,
+			lineData.continuesWithWrappedLine,
 			mightContainRTL,
 			mightContainNonBasicASCII,
 			lineData.tokens,

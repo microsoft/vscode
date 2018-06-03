@@ -106,7 +106,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration = (ext.configuration ? paths.join(extension.description.extensionFolderPath, ext.configuration) : ext.configuration);
+						// TODO@extensionLocation
+						let configuration = (ext.configuration ? paths.join(extension.description.extensionLocation.fsPath, ext.configuration) : ext.configuration);
 						allValidLanguages.push({
 							id: ext.id,
 							extensions: ext.extensions,

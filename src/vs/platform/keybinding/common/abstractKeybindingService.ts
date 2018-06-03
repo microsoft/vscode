@@ -188,7 +188,7 @@ export abstract class AbstractKeybindingService extends Disposable implements IK
 			if (!resolveResult.bubble) {
 				shouldPreventDefault = true;
 			}
-			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs || {}).done(undefined, err => {
+			this._commandService.executeCommand(resolveResult.commandId, resolveResult.commandArgs).done(undefined, err => {
 				this._notificationService.warn(err);
 			});
 			/* __GDPR__

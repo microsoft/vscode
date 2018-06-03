@@ -26,6 +26,7 @@
 	"detectIndentation": "Fájl megnyitásakor az `editor.tabSize` és az `editor.insertSpaces` értéke a fájl tartalma alapján lesz meghatározva.",
 	"roundedSelection": "Meghatározza, hogy a kijelölések sarkai le legyenek-e kerekítve.",
 	"scrollBeyondLastLine": "Meghatározza, hogy a szerkesztőablak görgethető-e az utolsó sor után.",
+	"scrollBeyondLastColumn": "Meghatározza, hogy hány extra karakterig görgethető a szerkesztőablak vízszintesen.",
 	"smoothScrolling": "Meghatározza, hogy a szerkesztőablak animálva van-e görgetve.",
 	"minimap.enabled": "Meghatározza, hogy megjelenjen-e a kódtérkép.",
 	"minimap.side": "Meghatározza, hogy melyik oldalon jelenjen meg a kódtérkép.",
@@ -41,7 +42,7 @@
 	"wordWrap.bounded": "A sorok tördelve lesznek a nézetablak szélességének és az `editor.wordWrapColumn` értékének minimumánál.",
 	"wordWrap": "Ez a beállítás meghatározza, hogy a sorok hogyan legyenek tördelve. Lehetséges értékek:\n- 'off' (nincs sortörés)\n- 'on' (sortörés a nézetablakban)\n- 'wordWrapColumn' (sortörés az `editor.wordWrapColumn` oszlopnál) vagy\n- 'bounded' (sortörés az `editor.wordWrapColumn` és a nézetablak minimumánál)",
 	"wordWrapColumn": "Meghatározza a sortöréshez használt oszlopszámot a szerkesztőablakban, ha az `editor.wordWrap` értéke 'wordWrapColumn' vagy 'bounded'.",
-	"wrappingIndent": "Meghatározza a tördelt sorok behúzását. Értéke 'none', 'same' vagy 'indent' lehet.",
+	"wrappingIndent": "Meghatározza a tördelt sorok behúzási szabályát. Értéke „none”, „same”, „indent” vagy „deepIndent” lehet.",
 	"mouseWheelScrollSensitivity": "Az egér görgetési eseményeinél keletkező `deltaX` és `deltaY` paraméterek szorzója",
 	"multiCursorModifier.ctrlCmd": "Windows és Linux alatt a `Control`, macOS alatt a `Command` billentyűt jelenti.",
 	"multiCursorModifier.alt": "Windows és Linux alatt az `Alt`, macOS alatt az `Option` billentyűt jelenti.",
@@ -112,7 +113,6 @@
 	"selectionClipboard": "Meghatározza-e, hogy támogatva van-e az elsődleges vágólap Linux alatt",
 	"sideBySide": "Meghatározza, hogy a differenciaszerkesztő ablakban egymás mellett vagy a sorban jelenjenek meg az eltérések",
 	"ignoreTrimWhitespace": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a sor elején vagy végén a szóközökben talált különbségek",
-	"largeFileSize": "Meghatározza azt a fájlméretet, ami fölött speciális optimalizálási szabályok lépnek érvénybe.",
-	"largeFileLineCount": "Meghatározza azt a sorszámot, ami fölött speciális optimalizálási szabályok lépnek érvénybe. ",
+	"largeFileOptimizations": "Nagy fájlok megnyitása esetén néhány, sok memóriát használó funkció letiltása.",
 	"renderIndicators": "Meghatározza, hogy a differenciaszerkesztő ablakban megjelenjenek-e a +/- jelzők az hozzáadott/eltávolított változásoknál"
 }

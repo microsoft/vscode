@@ -290,6 +290,7 @@ export class SimpleWorkerClient<T> extends Disposable {
 
 export interface IRequestHandler {
 	_requestHandlerBrand: any;
+	[prop: string]: any;
 }
 
 /**

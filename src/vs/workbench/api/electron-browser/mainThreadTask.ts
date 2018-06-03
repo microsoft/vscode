@@ -12,6 +12,7 @@ import URI from 'vs/base/common/uri';
 import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
+import * as Platform from 'vs/base/common/platform';
 
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -21,12 +22,11 @@ import {
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
-
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
 
 export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
@@ -42,6 +42,24 @@ namespace TaskExecutionDTO {
 		return {
 			id: value.id,
 			task: TaskDTO.to(value.task, workspace)
+		};
+	}
+}
+
+namespace TaskProcessStartedDTO {
+	export function from(value: TaskExecution, processId: number): TaskProcessStartedDTO {
+		return {
+			id: value.id,
+			processId
+		};
+	}
+}
+
+namespace TaskProcessEndedDTO {
+	export function from(value: TaskExecution, exitCode: number): TaskProcessEndedDTO {
+		return {
+			id: value.id,
+			exitCode
 		};
 	}
 }
@@ -339,6 +357,7 @@ namespace TaskFilterDTO {
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
 
+	private _extHostContext: IExtHostContext;
 	private _proxy: ExtHostTaskShape;
 	private _activeHandles: { [handle: number]: boolean; };
 
@@ -352,9 +371,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$taskStarted(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+			} else if (event.kind === TaskEventKind.ProcessStarted) {
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(Task.getTaskExecution(task), event.processId));
+			} else if (event.kind === TaskEventKind.ProcessEnded) {
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(Task.getTaskExecution(task), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$taskEnded(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			}
 		});
 	}
@@ -417,7 +440,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						task: TaskDTO.from(task)
 					};
 					resolve(result);
-				}, (error) => {
+				}, (_error) => {
 					reject(new Error('Task not found'));
 				});
 			} else {
@@ -447,6 +470,37 @@ export class MainThreadTask implements MainThreadTaskShape {
 				}
 				reject(new Error('Task to terminate not found'));
 			});
+		});
+	}
+
+	public $registerTaskSystem(key: string, info: TaskSystemInfoDTO): void {
+		let platform: Platform.Platform;
+		switch (info.platform) {
+			case 'win32':
+				platform = Platform.Platform.Windows;
+				break;
+			case 'darwin':
+				platform = Platform.Platform.Mac;
+				break;
+			case 'linux':
+				platform = Platform.Platform.Linux;
+				break;
+			default:
+				platform = Platform.platform;
+		}
+		this._taskService.registerTaskSystem(key, {
+			platform: platform,
+			fileSystemScheme: key,
+			context: this._extHostContext,
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
+				let vars: string[] = [];
+				variables.forEach(item => vars.push(item));
+				return this._proxy.$resolveVariables(workspaceFolder.uri, vars).then(values => {
+					let result = new Map<string, string>();
+					Object.keys(values).forEach(key => result.set(key, values[key]));
+					return result;
+				});
+			}
 		});
 	}
 }

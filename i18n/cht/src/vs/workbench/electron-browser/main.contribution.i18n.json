@@ -80,6 +80,7 @@
 	"titleBarStyle": "調整視窗標題列的外觀。變更需要完整重新啟動才會套用。",
 	"window.nativeTabs": "啟用 macOS Sierra 視窗索引標籤。請注意需要完全重新啟動才能套用變更，並且完成設定後原始索引標籤將會停用自訂標題列樣式。",
 	"window.smoothScrollingWorkaround": "在還原最小化的 VS Code 視窗後，若捲動功能不再流暢，請啟用此因應措施。此因應措施適用於 Microsoft Surface 等具備精確軌跡板發生的捲動延遲問題 (https://github.com/Microsoft/vscode/issues/13612)。啟用此因應措施可能會在將視窗從最小化狀態還原後，導致版面稍微閃爍，但並不會造成任何傷害。",
+	"window.clickThroughInactive": "若已啟用，按一下非使用中的視窗將會啟動該視窗並觸發其下的元素 (如果可以案的話)。若已停用，按一下非使用中視窗的任一處則只會啟動該視窗，必須再按一下才會觸發元素。",
 	"zenModeConfigurationTitle": "Zen Mode",
 	"zenMode.fullScreen": "控制開啟 Zen Mode 是否也會將 Workbench 轉換為全螢幕模式。",
 	"zenMode.centerLayout": "控制開啟 Zen Mode 是否也會置中配置。",

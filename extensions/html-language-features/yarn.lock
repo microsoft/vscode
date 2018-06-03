@@ -34,33 +34,33 @@ vscode-extension-telemetry@0.0.17:
   dependencies:
     applicationinsights "1.0.1"
 
-vscode-jsonrpc@^3.6.0:
-  version "3.6.0"
-  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.0.tgz#848d56995d5168950d84feb5d9c237ae5c6a02d4"
+vscode-jsonrpc@^3.6.2:
+  version "3.6.2"
+  resolved "https://registry.yarnpkg.com/vscode-jsonrpc/-/vscode-jsonrpc-3.6.2.tgz#3b5eef691159a15556ecc500e9a8a0dd143470c8"
 
-vscode-languageclient@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.0.0.tgz#635f5bfbcfa1385dae489b394857f1db8b459a7d"
+vscode-languageclient@^4.1.4:
+  version "4.1.4"
+  resolved "https://registry.yarnpkg.com/vscode-languageclient/-/vscode-languageclient-4.1.4.tgz#fff1a6bca4714835dca7fce35bc4ce81442fdf2c"
   dependencies:
-    vscode-languageserver-protocol "^3.6.0"
+    vscode-languageserver-protocol "^3.7.2"
 
-vscode-languageserver-protocol-foldingprovider@^2.0.0-next.2:
-  version "2.0.0-next.2"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.0-next.2.tgz#fbb9cfdf5b8c4ac451826ba6312f1f88379f35b0"
+vscode-languageserver-protocol-foldingprovider@^2.0.1:
+  version "2.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol-foldingprovider/-/vscode-languageserver-protocol-foldingprovider-2.0.1.tgz#051d0d9e58d1b79dc4681acd48f21797f5515bfd"
   dependencies:
-    vscode-languageserver-protocol "^3.6.0"
-    vscode-languageserver-types "^3.6.0"
+    vscode-languageserver-protocol "^3.7.2"
+    vscode-languageserver-types "^3.7.2"
 
-vscode-languageserver-protocol@^3.6.0:
-  version "3.6.0"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.6.0.tgz#579642cdcccf74b0cd771c33daa3239acb40d040"
+vscode-languageserver-protocol@^3.7.2:
+  version "3.7.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-protocol/-/vscode-languageserver-protocol-3.7.2.tgz#df58621c032139010888b6a9ddc969423f9ba9d6"
   dependencies:
-    vscode-jsonrpc "^3.6.0"
-    vscode-languageserver-types "^3.6.0"
+    vscode-jsonrpc "^3.6.2"
+    vscode-languageserver-types "^3.7.2"
 
-vscode-languageserver-types@^3.6.0:
-  version "3.6.1"
-  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.6.1.tgz#4bc06a48dff653495f12f94b8b1e228988a1748d"
+vscode-languageserver-types@^3.7.2:
+  version "3.7.2"
+  resolved "https://registry.yarnpkg.com/vscode-languageserver-types/-/vscode-languageserver-types-3.7.2.tgz#aad8846f8e3e27962648554de5a8417e358f34eb"
 
 vscode-nls@^3.2.2:
   version "3.2.2"

@@ -24,7 +24,8 @@ suite('ProgressBar', () => {
 		assert(bar.infinite());
 		assert(bar.total(100));
 		assert(bar.worked(50));
-		assert(bar.worked(50));
+		assert(bar.setWorked(70));
+		assert(bar.worked(30));
 		assert(bar.done());
 
 		bar.dispose();

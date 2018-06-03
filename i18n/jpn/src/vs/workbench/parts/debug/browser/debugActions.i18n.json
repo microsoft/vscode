@@ -41,7 +41,7 @@
 	"debugConsoleAction": "デバッグ コンソール",
 	"unreadOutput": "デバッグ コンソールでの新しい出力",
 	"debugFocusConsole": "デバッグ コンソールにフォーカスを移動",
-	"focusProcess": "フォーカスのプロセス",
+	"focusSession": "セッションにフォーカス",
 	"stepBackDebug": "1 つ戻る",
 	"reverseContinue": "反転"
 }

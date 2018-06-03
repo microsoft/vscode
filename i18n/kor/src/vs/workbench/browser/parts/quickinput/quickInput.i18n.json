@@ -8,5 +8,6 @@
 	],
 	"inputModeEntryDescription": "{0}(확인하려면 'Enter' 키를 누르고, 취소하려면 'Escape' 키를 누름)",
 	"inputModeEntry": "입력을 확인하려면 'Enter' 키를 누르고, 취소하려면 'Esc' 키를 누르세요.",
+	"quickInput.countSelected": "{0} 선택됨",
 	"ok": "확인"
 }

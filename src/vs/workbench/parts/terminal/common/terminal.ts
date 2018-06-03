@@ -34,6 +34,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextK
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
@@ -44,6 +45,10 @@ export const TerminalCursorStyle = {
 };
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export const DEFAULT_LETTER_SPACING = 0;
+export const MINIMUM_LETTER_SPACING = -5;
+export const DEFAULT_LINE_HEIGHT = 1.0;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -59,6 +64,7 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	macOptionIsMeta: boolean;
+	rendererType: 'auto' | 'canvas' | 'dom';
 	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
@@ -67,6 +73,7 @@ export interface ITerminalConfiguration {
 	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
+	letterSpacing: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
 	scrollback: number;
@@ -97,6 +104,7 @@ export interface ITerminalConfigHelper {
 export interface ITerminalFont {
 	fontFamily: string;
 	fontSize: number;
+	letterSpacing: number;
 	lineHeight: number;
 	charWidth?: number;
 	charHeight?: number;
@@ -486,6 +494,8 @@ export interface ITerminalCommandTracker {
 	scrollToNextCommand(): void;
 	selectToPreviousCommand(): void;
 	selectToNextCommand(): void;
+	selectToPreviousLine(): void;
+	selectToNextLine(): void;
 }
 
 export interface ITerminalProcessManager extends IDisposable {

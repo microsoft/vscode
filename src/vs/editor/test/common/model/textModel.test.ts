@@ -12,7 +12,7 @@ import { UTF8_BOM_CHARACTER } from 'vs/base/common/strings';
 import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: number, expectedInsertSpaces: boolean, expectedTabSize: number, text: string[], msg?: string): void {
-	var m = createTextModel(
+	let m = createTextModel(
 		text.join('\n'),
 		{
 			tabSize: defaultTabSize,
@@ -20,7 +20,7 @@ function testGuessIndentation(defaultInsertSpaces: boolean, defaultTabSize: numb
 			detectIndentation: true
 		}
 	);
-	var r = m.getOptions();
+	let r = m.getOptions();
 	m.dispose();
 
 	assert.equal(r.insertSpaces, expectedInsertSpaces, msg);
@@ -151,7 +151,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('getValueLengthInRange', () => {
 
-		var m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
+		let m = TextModel.createFromString('My First Line\r\nMy Second Line\r\nMy Third Line');
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 1)), ''.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 1, 1, 2)), 'M'.length);
 		assert.equal(m.getValueLengthInRange(new Range(1, 2, 1, 3)), 'y'.length);
@@ -693,7 +693,7 @@ suite('Editor Model - TextModel', () => {
 
 	test('modifyPosition', () => {
 
-		var m = TextModel.createFromString('line one\nline two');
+		let m = TextModel.createFromString('line one\nline two');
 		assert.deepEqual(m.modifyPosition(new Position(1, 1), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(0, 0), 0), new Position(1, 1));
 		assert.deepEqual(m.modifyPosition(new Position(30, 1), 0), new Position(2, 9));

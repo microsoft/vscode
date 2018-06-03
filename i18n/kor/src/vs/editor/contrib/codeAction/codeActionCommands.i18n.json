@@ -8,5 +8,9 @@
 	],
 	"quickFixWithKb": "수정 사항 표시({0})",
 	"quickFix": "수정 사항 표시",
-	"organizeImports.label": "가져오기 구성"
+	"editor.action.quickFix.noneMessage": "사용 가능한 코드 동작이 없습니다.",
+	"editor.action.refactor.noneMessage": "사용 가능한 리펙터링이 없습니다.",
+	"editor.action.source.noneMessage": "사용 가능한 소스 작업이 없습니다.",
+	"organizeImports.label": "가져오기 구성",
+	"editor.action.organize.noneMessage": "사용 가능한 가져오기 구성 작업이 없습니다."
 }

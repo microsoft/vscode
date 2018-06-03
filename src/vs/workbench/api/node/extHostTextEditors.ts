@@ -11,7 +11,6 @@ import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, WorkspaceEditDto, IEditorPropertiesChangeData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
@@ -61,19 +60,18 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		let options: ITextDocumentShowOptions;
 		if (typeof columnOrOptions === 'number') {
 			options = {
-				position: TypeConverters.fromViewColumn(columnOrOptions),
+				position: TypeConverters.ViewColumn.from(columnOrOptions),
 				preserveFocus
 			};
 		} else if (typeof columnOrOptions === 'object') {
 			options = {
-				position: TypeConverters.fromViewColumn(columnOrOptions.viewColumn),
+				position: TypeConverters.ViewColumn.from(columnOrOptions.viewColumn),
 				preserveFocus: columnOrOptions.preserveFocus,
-				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.fromRange(columnOrOptions.selection) : undefined,
+				selection: typeof columnOrOptions.selection === 'object' ? TypeConverters.Range.from(columnOrOptions.selection) : undefined,
 				pinned: typeof columnOrOptions.preview === 'boolean' ? !columnOrOptions.preview : undefined
 			};
 		} else {
 			options = {
-				position: EditorPosition.ONE,
 				preserveFocus: false
 			};
 		}
@@ -123,11 +121,11 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			textEditor._acceptOptions(data.options);
 		}
 		if (data.selections) {
-			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			textEditor._acceptSelections(selections);
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
 			textEditor._acceptVisibleRanges(visibleRanges);
 		}
 
@@ -140,7 +138,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 		}
 		if (data.selections) {
 			const kind = TextEditorSelectionChangeKind.fromValue(data.selections.source);
-			const selections = data.selections.selections.map(TypeConverters.toSelection);
+			const selections = data.selections.selections.map(TypeConverters.Selection.to);
 			this._onDidChangeTextEditorSelection.fire({
 				textEditor,
 				selections,
@@ -148,7 +146,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 			});
 		}
 		if (data.visibleRanges) {
-			const visibleRanges = data.visibleRanges.map(TypeConverters.toRange);
+			const visibleRanges = data.visibleRanges.map(TypeConverters.Range.to);
 			this._onDidChangeTextEditorVisibleRanges.fire({
 				textEditor,
 				visibleRanges
@@ -159,7 +157,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	$acceptEditorPositionData(data: ITextEditorPositionData): void {
 		for (let id in data) {
 			let textEditor = this._extHostDocumentsAndEditors.getEditor(id);
-			let viewColumn = TypeConverters.toViewColumn(data[id]);
+			let viewColumn = TypeConverters.ViewColumn.to(data[id]);
 			if (textEditor.viewColumn !== viewColumn) {
 				textEditor._acceptViewColumn(viewColumn);
 				this._onDidChangeTextEditorViewColumn.fire({ textEditor, viewColumn });

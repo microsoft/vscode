@@ -44,7 +44,6 @@
 	"workbench.action.terminal.scrollUpPage": "Desplazar hacia arriba (página)",
 	"workbench.action.terminal.scrollToTop": "Desplazar al principio",
 	"workbench.action.terminal.clear": "Borrar",
-	"workbench.action.terminal.clearSelection": "Borrar selección",
 	"workbench.action.terminal.allowWorkspaceShell": "Permitir la configuración del área de trabajo Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "No permitir la configuración del área de trabajo Shell",
 	"workbench.action.terminal.rename": "Cambiar nombre",
@@ -57,5 +56,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Desplácese al comando anterior",
 	"workbench.action.terminal.scrollToNextCommand": "Desplácese al siguiente comando",
 	"workbench.action.terminal.selectToPreviousCommand": "Seleccionar hasta el comando anterior",
-	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente"
+	"workbench.action.terminal.selectToNextCommand": "Seleccionar hasta el comando siguiente",
+	"workbench.action.terminal.selectToPreviousLine": "Seleccione la línea anterior",
+	"workbench.action.terminal.selectToNextLine": "Seleccione la línea siguiente"
 }

@@ -24,13 +24,12 @@ import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
 import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
 import { Scope } from 'vs/workbench/common/memento';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
 import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo, VIEW_ID } from 'vs/platform/search/common/search';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -41,7 +40,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchSorter, SearchAccessibilityProvider, SearchFilter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { SearchRenderer, SearchDataSource, SearchAccessibilityProvider, SearchFilter, SearchTreeController, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
 import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
 import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
@@ -117,8 +116,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IProgressService private progressService: IProgressService,
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
@@ -331,13 +329,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
+		let replaceHistory = this.viewletSettings['query.replaceHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
 			isRegex: isRegex,
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
-			history: searchHistory,
+			searchHistory: searchHistory,
+			replaceHistory: replaceHistory,
 			historyLimit: SearchView.MAX_HISTORY_ITEMS
 		});
 
@@ -552,7 +552,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				accessibilityProvider: this.instantiationService.createInstance(SearchAccessibilityProvider),
 				dnd
 			}, {
-					ariaLabel: nls.localize('treeAriaLabel', "Search Results")
+					ariaLabel: nls.localize('treeAriaLabel', "Search Results"),
+					showLoading: false
 				});
 
 			this.tree.setInput(this.viewModel.searchResult);
@@ -713,7 +714,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		// Open focused element from results in case the editor area is otherwise empty
-		if (visible && !this.editorService.getActiveEditor()) {
+		if (visible && !this.editorService.activeEditor) {
 			let focus = this.tree.getFocus();
 			if (focus) {
 				this.onFocus(focus, true);
@@ -729,8 +730,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let updatedText = false;
 		const seedSearchStringFromSelection = this.configurationService.getValue<IEditorOptions>('editor').find.seedSearchStringFromSelection;
 		if (seedSearchStringFromSelection) {
-			const selectedText = this.getSearchTextFromEditor();
+			let selectedText = this.getSearchTextFromEditor();
 			if (selectedText) {
+				if (this.searchWidget.searchInput.getRegex()) {
+					selectedText = strings.escapeRegExpCharacters(selectedText);
+				}
+
 				this.searchWidget.searchInput.setValue(selectedText);
 				updatedText = true;
 			}
@@ -885,38 +890,37 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	}
 
 	private getSearchTextFromEditor(): string {
-		if (!this.editorService.getActiveEditor()) {
+		if (!this.editorService.activeEditor) {
 			return null;
 		}
 
-		let editorControl = this.editorService.getActiveEditor().getControl();
-		if (isDiffEditor(editorControl)) {
-			if (editorControl.getOriginalEditor().isFocused()) {
-				editorControl = editorControl.getOriginalEditor();
+		let activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (isDiffEditor(activeTextEditorWidget)) {
+			if (activeTextEditorWidget.getOriginalEditor().hasTextFocus()) {
+				activeTextEditorWidget = activeTextEditorWidget.getOriginalEditor();
 			} else {
-				editorControl = editorControl.getModifiedEditor();
+				activeTextEditorWidget = activeTextEditorWidget.getModifiedEditor();
 			}
 		}
 
-		if (!isCodeEditor(editorControl)) {
+		if (!isCodeEditor(activeTextEditorWidget)) {
 			return null;
 		}
 
-		const codeEditor: ICodeEditor = <ICodeEditor>editorControl;
-		const range = codeEditor.getSelection();
+		const range = activeTextEditorWidget.getSelection();
 		if (!range) {
 			return null;
 		}
 
 		if (range.isEmpty() && !this.searchWidget.searchInput.getValue()) {
-			const wordAtPosition = codeEditor.getModel().getWordAtPosition(range.getStartPosition());
+			const wordAtPosition = activeTextEditorWidget.getModel().getWordAtPosition(range.getStartPosition());
 			if (wordAtPosition) {
 				return wordAtPosition.word;
 			}
 		}
 
 		if (!range.isEmpty() && range.startLineNumber === range.endLineNumber) {
-			let searchText = editorControl.getModel().getLineContent(range.startLineNumber);
+			let searchText = activeTextEditorWidget.getModel().getLineContent(range.startLineNumber);
 			searchText = searchText.substring(range.startColumn - 1, range.endColumn - 1);
 			return searchText;
 		}
@@ -1065,7 +1069,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const includePattern = this.inputPatternIncludes.getValue();
 
 		const options: IQueryOptions = {
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			maxResults: SearchView.MAX_TEXT_RESULTS,
 			disregardIgnoreFiles: !useExcludesAndIgnoreFiles,
 			disregardExcludeSettings: !useExcludesAndIgnoreFiles,
@@ -1430,7 +1434,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				selection,
 				revealIfVisible: true
 			}
-		}, sideBySide).then(editor => {
+		}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => {
 			if (editor && element instanceof Match && preserveFocus) {
 				this.viewModel.searchResult.rangeHighlightDecorations.highlightRange(
 					(<ICodeEditor>editor.getControl()).getModel(),
@@ -1519,13 +1523,15 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const searchHistory = this.searchWidget.getHistory();
+		const searchHistory = this.searchWidget.getSearchHistory();
+		const replaceHistory = this.searchWidget.getReplaceHistory();
 		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
 		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
 		this.viewletSettings['query.searchHistory'] = searchHistory;
+		this.viewletSettings['query.replaceHistory'] = replaceHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;

@@ -14,7 +14,6 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -25,7 +24,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
@@ -113,7 +112,6 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IOpenerService openerService: IOpenerService
 	) {
@@ -150,10 +148,10 @@ class NeverShowAgain {
 
 	private readonly key: string;
 
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: IDisposable) => {
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: INotificationHandle) => {
 
 		// Hide notification
-		notification.dispose();
+		notification.close();
 
 		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
@@ -177,7 +175,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		if (environmentService.disableUpdates) {
@@ -194,14 +191,14 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		notificationService.prompt(
+		const handle = notificationService.prompt(
 			severity.Info,
 			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					neverShowAgain.action.run();
+					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
 			}]
@@ -245,7 +242,6 @@ export class UpdateContribution implements IGlobalActivity {
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -384,14 +380,14 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		this.notificationService.prompt(
+		const handle = this.notificationService.prompt(
 			severity.Info,
-			nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
+			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,
 				run: () => {
-					neverShowAgain.action.run();
+					neverShowAgain.action.run(handle);
 					neverShowAgain.action.dispose();
 				}
 			}]

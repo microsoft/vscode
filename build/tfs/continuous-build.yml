@@ -8,21 +8,37 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
+    displayName: Yarn
+    inputs:
+      customRegistry: useFeed
+      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - powershell: |
-      $ErrorActionPreference = "Stop"
-      yarn
-      .\node_modules\.bin\gulp electron
-      npm run gulp -- hygiene
-      .\node_modules\.bin\tsc -p .\src\tsconfig.monaco.json --noEmit
-      npm run compile
-      node build/lib/builtInExtensions.js
-    name: build
+      yarn gulp electron
+    displayName: Download Electron
   - powershell: |
-      $ErrorActionPreference = "Stop"
+      yarn gulp hygiene
+    displayName: Run Hygiene Checks
+  - powershell: |
+      yarn check-monaco-editor-compilation
+    displayName: Run Monaco Editor Checks
+  - powershell: |
+      yarn compile
+    displayName: Compile Sources
+  - powershell: |
+      yarn download-builtin-extensions
+    displayName: Download Built-in Extensions
+  - powershell: |
       .\scripts\test.bat --tfs
+    displayName: Run Unit Tests
+  - powershell: |
       .\scripts\test-integration.bat
+    displayName: Run Integration Tests
+  - powershell: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
-    name: test
+    displayName: Run Smoke Tests
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
@@ -49,22 +65,31 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
+    displayName: Yarn
+    inputs:
+      customRegistry: useFeed
+      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - script: |
-      set -e
-      yarn
-      npm run gulp -- electron-x64
+      yarn gulp electron-x64
+    displayName: Download Electron
   - script: |
-      set -e
-      npm run gulp -- hygiene
-      ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-      npm run compile
-      node build/lib/builtInExtensions.js
-    name: build
+      yarn gulp hygiene
+    displayName: Run Hygiene Checks
   - script: |
-      set -e
+      yarn check-monaco-editor-compilation
+    displayName: Run Monaco Editor Checks
+  - script: |
+      yarn compile
+    displayName: Compile Sources
+  - script: |
+      yarn download-builtin-extensions
+    displayName: Download Built-in Extensions
+  - script: |
       DISPLAY=:10 ./scripts/test.sh --tfs
-      # DISPLAY=:10 ./scripts/test-integration.sh
-    name: test
+    displayName: Run Unit Tests
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -75,23 +100,37 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
+  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
+    displayName: Yarn
+    inputs:
+      customRegistry: useFeed
+      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
+  # - task: npmAuthenticate@0
+  #   displayName: NPM Authenticate
   - script: |
-      set -e
-      yarn
-      npm run gulp -- electron-x64
+      yarn gulp electron-x64
+    displayName: Download Electron
   - script: |
-      set -e
-      npm run gulp -- hygiene
-      ./node_modules/.bin/tsc -p ./src/tsconfig.monaco.json --noEmit
-      npm run compile
-      node build/lib/builtInExtensions.js
-    name: build
+      yarn gulp hygiene
+    displayName: Run Hygiene Checks
   - script: |
-      set -e
+      yarn check-monaco-editor-compilation
+    displayName: Run Monaco Editor Checks
+  - script: |
+      yarn compile
+    displayName: Compile Sources
+  - script: |
+      yarn download-builtin-extensions
+    displayName: Download Built-in Extensions
+  - script: |
       ./scripts/test.sh --tfs
+    displayName: Run Unit Tests
+  - script: |
       ./scripts/test-integration.sh
+    displayName: Run Integration Tests
+  - script: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
-    name: test
+    displayName: Run Smoke Tests
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'

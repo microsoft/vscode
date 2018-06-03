@@ -38,12 +38,13 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import { listHighlightForeground } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EditorExtensionsRegistry } from 'vs/editor/browser/editorExtensions';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { KeybindingsEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 let $ = DOM.$;
 
@@ -84,11 +85,11 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		@INotificationService private notificationService: INotificationService,
 		@IClipboardService private clipboardService: IClipboardService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(KeybindingsEditor.ID, telemetryService, themeService);
 		this.delayedFiltering = new Delayer<void>(300);
-		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render()));
+		this._register(keybindingsService.onDidUpdateKeybindings(() => this.render(false, CancellationToken.None)));
 
 		this.keybindingsEditorContextKey = CONTEXT_KEYBINDINGS_EDITOR.bindTo(this.contextKeyService);
 		this.searchFocusContextKey = CONTEXT_KEYBINDINGS_SEARCH_FOCUS.bindTo(this.contextKeyService);
@@ -108,13 +109,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this._register(focusTracker.onDidBlur(() => this.keybindingsEditorContextKey.reset()));
 	}
 
-	setInput(input: KeybindingsEditorInput, options: EditorOptions): TPromise<void> {
-		const oldInput = this.input;
-		return super.setInput(input)
+	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token)
 			.then(() => {
-				if (!input.matches(oldInput)) {
-					this.render(options && options.preserveFocus);
-				}
+				this.render(options && options.preserveFocus, token);
 			});
 	}
 
@@ -272,6 +270,8 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.overlayContainer.style.position = 'absolute';
 		this.overlayContainer.style.zIndex = '10';
 		this.defineKeybindingWidget = this._register(this.instantiationService.createInstance(DefineKeybindingWidget, this.overlayContainer));
+		this._register(this.defineKeybindingWidget.onDidChange(keybindingStr => this.defineKeybindingWidget.printExisting(this.keybindingsEditorModel.fetch(`"${keybindingStr}"`).length)));
+		this._register(this.defineKeybindingWidget.onShowExistingKeybidings(keybindingStr => this.searchWidget.setValue(`"${keybindingStr}"`)));
 		this.hideOverlayContainer();
 	}
 
@@ -356,18 +356,30 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		}));
 	}
 
-	private render(preserveFocus?: boolean): TPromise<any> {
+	private render(preserveFocus: boolean, token: CancellationToken): TPromise<any> {
 		if (this.input) {
 			return this.input.resolve()
-				.then((keybindingsModel: KeybindingsEditorModel) => this.keybindingsEditorModel = keybindingsModel)
-				.then(() => {
+				.then((keybindingsModel: KeybindingsEditorModel) => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.keybindingsEditorModel = keybindingsModel;
+
 					const editorActionsLabels: { [id: string]: string; } = EditorExtensionsRegistry.getEditorActions().reduce((editorActions, editorAction) => {
 						editorActions[editorAction.id] = editorAction.label;
 						return editorActions;
 					}, {});
+
 					return this.keybindingsEditorModel.resolve(editorActionsLabels);
 				})
-				.then(() => this.renderKeybindingsEntries(false, preserveFocus));
+				.then(() => {
+					if (token.isCancellationRequested) {
+						return void 0;
+					}
+
+					this.renderKeybindingsEntries(false, preserveFocus);
+				});
 		}
 		return TPromise.as(null);
 	}
@@ -402,7 +414,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 					this.unAssignedKeybindingItemToRevealAndFocus = null;
 				} else if (currentSelectedIndex !== -1 && currentSelectedIndex < this.listEntries.length) {
 					this.selectEntry(currentSelectedIndex);
-				} else if (this.editorService.getActiveEditor() === this && !preserveFocus) {
+				} else if (this.editorService.activeControl === this && !preserveFocus) {
 					this.focus();
 				}
 			}

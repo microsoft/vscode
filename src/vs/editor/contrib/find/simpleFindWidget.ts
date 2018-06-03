@@ -149,7 +149,7 @@ export abstract class SimpleFindWidget extends Widget {
 		this._findInput.style(inputStyles);
 	}
 
-	dipose() {
+	dispose() {
 		super.dispose();
 
 		if (this._domNode && this._domNode.parentElement) {

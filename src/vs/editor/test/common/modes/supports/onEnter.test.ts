@@ -11,15 +11,15 @@ import { OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 suite('OnEnter', () => {
 
 	test('uses brackets', () => {
-		var brackets: CharacterPair[] = [
+		let brackets: CharacterPair[] = [
 			['(', ')'],
 			['begin', 'end']
 		];
-		var support = new OnEnterSupport({
+		let support = new OnEnterSupport({
 			brackets: brackets
 		});
-		var testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
-			var actual = support.onEnter('', beforeText, afterText);
+		let testIndentAction = (beforeText: string, afterText: string, expected: IndentAction) => {
+			let actual = support.onEnter('', beforeText, afterText);
 			if (expected === IndentAction.None) {
 				assert.equal(actual, null);
 			} else {
@@ -48,7 +48,7 @@ suite('OnEnter', () => {
 	});
 
 	test('uses regExpRules', () => {
-		var support = new OnEnterSupport({
+		let support = new OnEnterSupport({
 			regExpRules: [
 				{
 					beforeText: /^\s*\/\*\*(?!\/)([^\*]|\*(?!\/))*$/,
@@ -73,8 +73,8 @@ suite('OnEnter', () => {
 				}
 			]
 		});
-		var testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
-			var actual = support.onEnter('', beforeText, afterText);
+		let testIndentAction = (beforeText: string, afterText: string, expectedIndentAction: IndentAction, expectedAppendText: string, removeText: number = 0) => {
+			let actual = support.onEnter('', beforeText, afterText);
 			if (expectedIndentAction === null) {
 				assert.equal(actual, null, 'isNull:' + beforeText);
 			} else {

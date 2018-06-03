@@ -10,6 +10,8 @@
 	"copyMatchLabel": "Kopyala",
 	"copyPathLabel": "Yolu Kopyala",
 	"copyAllLabel": "Tümünü Kopyala",
+	"clearSearchHistoryLabel": "Arama Geçmişini Temizle",
+	"toggleSearchViewPositionLabel": "Arama Görünümü Konumunu Değiştir",
 	"findInFolder": "Klasörde Bul...",
 	"findInWorkspace": "Çalışma Alanında Bul...",
 	"showTriggerActions": "Çalışma Alanında Sembole Git...",

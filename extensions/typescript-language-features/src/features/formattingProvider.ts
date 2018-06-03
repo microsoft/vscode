@@ -8,14 +8,14 @@ import { DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider, Form
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import FormattingConfigurationManager from './formattingConfigurationManager';
+import FileConfigurationManager from './fileConfigurationManager';
 
 export class TypeScriptFormattingProvider implements DocumentRangeFormattingEditProvider, OnTypeFormattingEditProvider {
 	private enabled: boolean = true;
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly formattingOptionsManager: FormattingConfigurationManager
+		private readonly formattingOptionsManager: FileConfigurationManager
 	) { }
 
 	public updateConfiguration(config: WorkspaceConfiguration): void {
@@ -32,7 +32,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 		args: Proto.FormatRequestArgs,
 		token: CancellationToken
 	): Promise<TextEdit[]> {
-		await this.formattingOptionsManager.ensureFormatOptions(document, options, token);
+		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
 		try {
 			const response = await this.client.execute('format', args, token);
 			if (response.body) {
@@ -76,7 +76,7 @@ export class TypeScriptFormattingProvider implements DocumentRangeFormattingEdit
 			return [];
 		}
 
-		await this.formattingOptionsManager.ensureFormatOptions(document, options, token);
+		await this.formattingOptionsManager.ensureConfigurationOptions(document, options, token);
 
 		const args: Proto.FormatOnKeyRequestArgs = {
 			file: filepath,

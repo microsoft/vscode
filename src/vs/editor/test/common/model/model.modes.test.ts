@@ -197,7 +197,7 @@ suite('Editor Model - Model Modes 2', () => {
 	}
 
 	function statesEqual(model: TextModel, states: string[]): void {
-		var i, len = states.length - 1;
+		let i, len = states.length - 1;
 		for (i = 0; i < len; i++) {
 			stateEqual(model._tokens._getState(i), states[i]);
 		}

@@ -203,7 +203,7 @@ class DataSource implements tree.IDataSource {
 	}
 
 	public getParent(tree: tree.ITree, element: any): TPromise<any> {
-		var result: any = null;
+		let result: any = null;
 		if (element instanceof FileReferences) {
 			result = (<FileReferences>element).parent;
 		} else if (element instanceof OneReference) {
@@ -231,14 +231,14 @@ class Controller extends WorkbenchTreeController {
 			return this._expandCollapse(tree, element);
 		}
 
-		var result = super.onTap(tree, element, event);
+		let result = super.onTap(tree, element, event);
 
 		this._onDidFocus.fire(element);
 		return result;
 	}
 
 	public onMouseDown(tree: tree.ITree, element: any, event: IMouseEvent): boolean {
-		var isDoubleClick = event.detail === 2;
+		let isDoubleClick = event.detail === 2;
 		if (event.leftButton) {
 			if (element instanceof FileReferences) {
 				if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
@@ -248,8 +248,8 @@ class Controller extends WorkbenchTreeController {
 				}
 			}
 
-			var result = super.onClick(tree, element, event);
-			var openToSide = event.ctrlKey || event.metaKey || event.altKey;
+			let result = super.onClick(tree, element, event);
+			let openToSide = event.ctrlKey || event.metaKey || event.altKey;
 			if (openToSide && (isDoubleClick || this.openOnSingleClick)) {
 				this._onDidOpenToSide.fire(element);
 			} else if (isDoubleClick) {
@@ -585,7 +585,7 @@ export class ReferenceWidget extends PeekViewWidget {
 	}
 
 	protected _fillBody(containerElement: HTMLElement): void {
-		var container = $(containerElement);
+		let container = $(containerElement);
 
 		this.setCssClass('reference-zone-widget');
 
@@ -597,7 +597,7 @@ export class ReferenceWidget extends PeekViewWidget {
 		// editor
 		container.div({ 'class': 'preview inline' }, (div: Builder) => {
 
-			var options: IEditorOptions = {
+			let options: IEditorOptions = {
 				scrollBeyondLastLine: false,
 				scrollbar: {
 					verticalScrollbarSize: 14,
@@ -631,17 +631,17 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// tree
 		container.div({ 'class': 'ref-tree inline' }, (div: Builder) => {
-			var controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
+			let controller = this._instantiationService.createInstance(Controller, { keyboardSupport: this._defaultTreeKeyboardSupport, clickBehavior: ClickBehavior.ON_MOUSE_UP /* our controller already deals with this */ });
 			this._callOnDispose.push(controller);
 
-			var config = <tree.ITreeConfiguration>{
+			let config = <tree.ITreeConfiguration>{
 				dataSource: this._instantiationService.createInstance(DataSource),
 				renderer: this._instantiationService.createInstance(Renderer),
 				controller,
 				accessibilityProvider: new AriaProvider()
 			};
 
-			var options: tree.ITreeOptions = {
+			let options: tree.ITreeOptions = {
 				twistiePixels: 20,
 				ariaLabel: nls.localize('treeAriaLabel', "References")
 			};
@@ -651,7 +651,7 @@ export class ReferenceWidget extends PeekViewWidget {
 			ctxReferenceWidgetSearchTreeFocused.bindTo(this._tree.contextKeyService);
 
 			// listen on selection and focus
-			var onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
+			let onEvent = (element: any, kind: 'show' | 'goto' | 'side') => {
 				if (element instanceof OneReference) {
 					if (kind === 'show') {
 						this._revealReference(element, false);
@@ -808,7 +808,7 @@ export class ReferenceWidget extends PeekViewWidget {
 				this._previewModelReference = ref;
 				let isSameModel = (this._preview.getModel() === model.textEditorModel);
 				this._preview.setModel(model.textEditorModel);
-				var sel = Range.lift(reference.range).collapseToStart();
+				let sel = Range.lift(reference.range).collapseToStart();
 				this._preview.setSelection(sel);
 				this._preview.revealRangeInCenter(sel, isSameModel ? editorCommon.ScrollType.Smooth : editorCommon.ScrollType.Immediate);
 			} else {

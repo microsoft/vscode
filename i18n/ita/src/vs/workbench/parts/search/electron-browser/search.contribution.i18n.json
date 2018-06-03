@@ -10,6 +10,8 @@
 	"copyMatchLabel": "Copia",
 	"copyPathLabel": "Copia percorso",
 	"copyAllLabel": "Copia tutti",
+	"clearSearchHistoryLabel": "Cancella cronologia di ricerca",
+	"toggleSearchViewPositionLabel": "Attiva/Disattiva ricerca posizione della visualizzazione",
 	"findInFolder": "Trova nella cartella...",
 	"findInWorkspace": "Trova nell'area di lavoro...",
 	"showTriggerActions": "Vai al simbolo nell'area di lavoro...",

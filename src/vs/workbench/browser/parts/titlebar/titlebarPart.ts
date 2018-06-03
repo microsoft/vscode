@@ -18,20 +18,17 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IAction, Action } from 'vs/base/common/actions';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as nls from 'vs/nls';
 import * as labels from 'vs/base/common/labels';
-import { EditorInput, toResource } from 'vs/workbench/common/editor';
+import { EditorInput, toResource, Verbosity } from 'vs/workbench/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
 import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
 
@@ -62,34 +59,24 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IWindowService private windowService: IWindowService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IThemeService themeService: IThemeService,
-		@ILifecycleService private lifecycleService: ILifecycleService
+		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
 
-		this.init();
-
 		this.registerListeners();
-	}
-
-	private init(): void {
-
-		// Initial window title when loading is done
-		this.lifecycleService.when(LifecyclePhase.Running).then(() => this.setTitle(this.getWindowTitle()));
 	}
 
 	private registerListeners(): void {
 		this.toUnbind.push(addDisposableListener(window, EventType.BLUR, () => this.onBlur()));
 		this.toUnbind.push(addDisposableListener(window, EventType.FOCUS, () => this.onFocus()));
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationChanged(e)));
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(() => this.onActiveEditorChange()));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
@@ -111,28 +98,40 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChange(): void {
 
 		// Dispose old listeners
 		dispose(this.activeEditorListeners);
 		this.activeEditorListeners = [];
 
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeInput = activeEditor ? activeEditor.input : void 0;
-
 		// Calculate New Window Title
 		this.setTitle(this.getWindowTitle());
 
 		// Apply listener for dirty and label changes
-		if (activeInput instanceof EditorInput) {
-			this.activeEditorListeners.push(activeInput.onDidChangeDirty(() => {
+		const activeEditor = this.editorService.activeEditor;
+		if (activeEditor instanceof EditorInput) {
+			this.activeEditorListeners.push(activeEditor.onDidChangeDirty(() => {
 				this.setTitle(this.getWindowTitle());
 			}));
 
-			this.activeEditorListeners.push(activeInput.onDidChangeLabel(() => {
+			this.activeEditorListeners.push(activeEditor.onDidChangeLabel(() => {
 				this.setTitle(this.getWindowTitle());
 			}));
 		}
+
+		// Represented File Name
+		this.updateRepresentedFilename();
+	}
+
+	private updateRepresentedFilename(): void {
+		const file = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: 'file' });
+		const path = file ? file.fsPath : '';
+
+		// Apply to window
+		this.windowService.setRepresentedFilename(path);
+
+		// Keep for context menu
+		this.representedFileName = path;
 	}
 
 	private getWindowTitle(): string {
@@ -184,7 +183,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	 * {separator}: conditional separator
 	 */
 	private doGetWindowTitle(): string {
-		const input = this.editorService.getActiveEditorInput();
+		const editor = this.editorService.activeEditor;
 		const workspace = this.contextService.getWorkspace();
 
 		let root: URI;
@@ -197,17 +196,17 @@ export class TitlebarPart extends Part implements ITitleService {
 		// Compute folder resource
 		// Single Root Workspace: always the root single workspace in this case
 		// Otherwise: root folder of the currently active file if any
-		let folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(input, { supportSideBySide: true }));
+		let folder = this.contextService.getWorkbenchState() === WorkbenchState.FOLDER ? workspace.folders[0] : this.contextService.getWorkspaceFolder(toResource(editor, { supportSideBySide: true }));
 
 		// Variables
-		const activeEditorShort = input ? input.getTitle(Verbosity.SHORT) : '';
-		const activeEditorMedium = input ? input.getTitle(Verbosity.MEDIUM) : activeEditorShort;
-		const activeEditorLong = input ? input.getTitle(Verbosity.LONG) : activeEditorMedium;
+		const activeEditorShort = editor ? editor.getTitle(Verbosity.SHORT) : '';
+		const activeEditorMedium = editor ? editor.getTitle(Verbosity.MEDIUM) : activeEditorShort;
+		const activeEditorLong = editor ? editor.getTitle(Verbosity.LONG) : activeEditorMedium;
 		const rootName = workspace.name;
 		const rootPath = root ? labels.getPathLabel(root, void 0, this.environmentService) : '';
 		const folderName = folder ? folder.name : '';
 		const folderPath = folder ? labels.getPathLabel(folder.uri, void 0, this.environmentService) : '';
-		const dirty = input && input.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
+		const dirty = editor && editor.isDirty() ? TitlebarPart.TITLE_DIRTY : '';
 		const appName = this.environmentService.appNameLong;
 		const separator = TitlebarPart.TITLE_SEPARATOR;
 		const titleTemplate = this.configurationService.getValue<string>('window.title');
@@ -339,15 +338,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		} else {
 			this.pendingTitle = title;
 		}
-	}
-
-	public setRepresentedFilename(path: string): void {
-
-		// Apply to window
-		this.windowService.setRepresentedFilename(path);
-
-		// Keep for context menu
-		this.representedFileName = path;
 	}
 
 	public layout(dimension: Dimension): Dimension[] {

@@ -100,7 +100,10 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		if (this.element) {
+			this.element.focus();
+			this._onDidFocus.fire();
+		}
 	}
 
 	private setActions(): void {
@@ -154,7 +157,7 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
-	get onDidSashChange(): Event<void> {
+	get onDidSashChange(): Event<number> {
 		return this.panelview.onDidSashChange;
 	}
 

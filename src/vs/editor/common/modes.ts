@@ -18,6 +18,7 @@ import { Color } from 'vs/base/common/color';
 import { IMarkerData } from 'vs/platform/markers/common/markers';
 import * as model from 'vs/editor/common/model';
 import { isObject } from 'vs/base/common/types';
+import { Selection } from 'vs/editor/common/core/selection';
 
 /**
  * Open ended enum at runtime
@@ -350,8 +351,17 @@ export interface CodeAction {
 /**
  * @internal
  */
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
+/**
+ * @internal
+ */
 export interface CodeActionContext {
 	only?: string;
+	trigger: CodeActionTrigger;
 }
 
 /**
@@ -363,7 +373,7 @@ export interface CodeActionProvider {
 	/**
 	 * Provide commands for the given document and range.
 	 */
-	provideCodeActions(model: model.ITextModel, range: Range, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
+	provideCodeActions(model: model.ITextModel, range: Range | Selection, context: CodeActionContext, token: CancellationToken): CodeAction[] | Thenable<CodeAction[]>;
 
 	/**
 	 * Optional list of of CodeActionKinds that this provider returns.
@@ -648,6 +658,10 @@ export interface SymbolInformation {
 	 */
 	name: string;
 	/**
+	 * The detail of this symbol.
+	 */
+	detail?: string;
+	/**
 	 * The name of the symbol containing this symbol.
 	 */
 	containerName?: string;
@@ -659,12 +673,21 @@ export interface SymbolInformation {
 	 * The location of this symbol.
 	 */
 	location: Location;
+	/**
+	 * The defining range of this symbol.
+	 */
+	definingRange: IRange;
+
+	children?: SymbolInformation[];
 }
 /**
  * The document symbol provider interface defines the contract between extensions and
  * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
  */
 export interface DocumentSymbolProvider {
+
+	extensionId?: string;
+
 	/**
 	 * Provide symbol information for the given document.
 	 */

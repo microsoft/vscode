@@ -10,6 +10,8 @@
 	"copyMatchLabel": "복사",
 	"copyPathLabel": "경로 복사",
 	"copyAllLabel": "모두 복사",
+	"clearSearchHistoryLabel": "검색 기록 지우기",
+	"toggleSearchViewPositionLabel": "검색 보기 위치 토글",
 	"findInFolder": "폴더에서 찾기...",
 	"findInWorkspace": "작업 영역에서 찾기...",
 	"showTriggerActions": "작업 영역에서 기호로 이동...",

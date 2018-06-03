@@ -183,7 +183,8 @@ export class MarkerService implements IMarkerService {
 			code, severity,
 			message, source,
 			startLineNumber, startColumn, endLineNumber, endColumn,
-			relatedInformation
+			relatedInformation,
+			customTags,
 		} = data;
 
 		if (!message) {
@@ -208,7 +209,8 @@ export class MarkerService implements IMarkerService {
 			startColumn,
 			endLineNumber,
 			endColumn,
-			relatedInformation
+			relatedInformation,
+			customTags,
 		};
 	}
 

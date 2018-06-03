@@ -26,6 +26,7 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	private _subscriptions: IDisposable[] = [];
 	private _isPressed: boolean;
 	private static instance: AlternativeKeyEmitter;
+	private _suppressAltKeyUp: boolean = false;
 
 	private constructor(contextMenuService: IContextMenuService) {
 		super();
@@ -33,7 +34,16 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
 			this.isPressed = e.altKey || ((isWindows || isLinux) && e.shiftKey);
 		}));
-		this._subscriptions.push(domEvent(document.body, 'keyup')(e => this.isPressed = false));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+			if (this.isPressed) {
+				if (this._suppressAltKeyUp) {
+					e.preventDefault();
+				}
+			}
+
+			this._suppressAltKeyUp = false;
+			this.isPressed = false;
+		}));
 		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => this.isPressed = false));
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => this.isPressed = false));
 		// Workaround since we do not get any events while a context menu is shown
@@ -47,6 +57,12 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	set isPressed(value: boolean) {
 		this._isPressed = value;
 		this.fire(this._isPressed);
+	}
+
+	suppressAltKeyUp() {
+		// Sometimes the native alt behavior needs to be suppresed since the alt was already used as an alternative key
+		// Example: windows behavior to toggle tha top level menu #44396
+		this._suppressAltKeyUp = true;
 	}
 
 	static getInstance(contextMenuService: IContextMenuService) {
@@ -63,13 +79,20 @@ class AlternativeKeyEmitter extends Emitter<boolean> {
 	}
 }
 
-export function fillInActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
+export function fillInContextMenuActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, contextMenuService: IContextMenuService, isPrimaryGroup?: (group: string) => boolean): void {
 	const groups = menu.getActions(options);
-	if (groups.length === 0) {
-		return;
-	}
 	const getAlternativeActions = AlternativeKeyEmitter.getInstance(contextMenuService).isPressed;
 
+	fillInActions(groups, target, getAlternativeActions, isPrimaryGroup);
+}
+
+export function fillInActionBarActions(menu: IMenu, options: IMenuActionOptions, target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, isPrimaryGroup?: (group: string) => boolean): void {
+	const groups = menu.getActions(options);
+	// Action bars handle alternative actions on their own so the alternative actions should be ignored
+	fillInActions(groups, target, false, isPrimaryGroup);
+}
+
+function fillInActions(groups: [string, MenuItemAction[]][], target: IAction[] | { primary: IAction[]; secondary: IAction[]; }, getAlternativeActions, isPrimaryGroup: (group: string) => boolean = group => group === 'navigation'): void {
 	for (let tuple of groups) {
 		let [group, actions] = tuple;
 		if (getAlternativeActions) {
@@ -129,7 +152,7 @@ export class MenuItemActionItem extends ActionItem {
 
 	static readonly ICON_PATH_TO_CSS_RULES: Map<string /* path*/, string /* CSS rule */> = new Map<string, string>();
 
-	private _wantsAltCommand: boolean = false;
+	private _wantsAltCommand: boolean;
 	private _itemClassDispose: IDisposable;
 
 	constructor(
@@ -149,6 +172,11 @@ export class MenuItemActionItem extends ActionItem {
 		event.preventDefault();
 		event.stopPropagation();
 
+		const altKey = AlternativeKeyEmitter.getInstance(this._contextMenuService);
+		if (altKey.isPressed) {
+			altKey.suppressAltKeyUp();
+		}
+
 		this.actionRunner.run(this._commandAction)
 			.done(undefined, err => this._notificationService.error(err));
 	}
@@ -157,32 +185,21 @@ export class MenuItemActionItem extends ActionItem {
 		super.render(container);
 
 		this._updateItemClass(this._action.item);
-
-		let mouseOver = false;
-		let alternativeKeyDown = false;
+		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
+		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
 
 		const updateAltState = () => {
-			const wantsAltCommand = mouseOver && alternativeKeyDown;
-			if (wantsAltCommand !== this._wantsAltCommand) {
-				this._wantsAltCommand = wantsAltCommand;
+			if (alternativeKeyDown !== this._wantsAltCommand) {
+				this._wantsAltCommand = alternativeKeyDown;
 				this._updateLabel();
 				this._updateTooltip();
 				this._updateClass();
 			}
 		};
+		updateAltState();
 
-		this._callOnDispose.push(AlternativeKeyEmitter.getInstance(this._contextMenuService).event(value => {
+		this._callOnDispose.push(alternativeKeyEmitter.event(value => {
 			alternativeKeyDown = value;
-			updateAltState();
-		}));
-
-		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
-			mouseOver = false;
-			updateAltState();
-		}));
-
-		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
-			mouseOver = true;
 			updateAltState();
 		}));
 	}
