@@ -6,10 +6,8 @@
 import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { disposeAll } from '../utils/dispose';
 import * as typeConverters from '../utils/typeConverters';
-
+import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 	public constructor(
@@ -76,46 +74,16 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 	}
 }
 
-class FoldingProviderManager {
-	private registration: vscode.Disposable | undefined = undefined;
-
-	private readonly _disposables: vscode.Disposable[] = [];
-
-	constructor(
-		private readonly selector: vscode.DocumentSelector,
-		private readonly client: ITypeScriptServiceClient
-	) {
-		this.update(client.apiVersion);
-		this.client.onTsServerStarted(() => {
-			this.update(this.client.apiVersion);
-		}, null, this._disposables);
-	}
-
-	public dispose() {
-		disposeAll(this._disposables);
-		if (this.registration) {
-			this.registration.dispose();
-			this.registration = undefined;
-		}
-	}
-
-	private update(api: API) {
-		if (api.has280Features()) {
-			if (!this.registration) {
-				this.registration = vscode.languages.registerFoldingRangeProvider(this.selector, new TypeScriptFoldingProvider(this.client));
-			}
-		} else {
-			if (this.registration) {
-				this.registration.dispose();
-				this.registration = undefined;
-			}
-		}
-	}
-}
-
 export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new FoldingProviderManager(selector, client);
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api) {
+			return api.has280Features();
+		},
+		register() {
+			return vscode.languages.registerFoldingRangeProvider(selector, new TypeScriptFoldingProvider(client));
+		}
+	});
 }
