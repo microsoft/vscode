@@ -123,13 +123,12 @@ export default class LanguageProvider {
 
 		const cachedResponse = new CachedNavTreeResponse();
 
-		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
-		this.disposables.push(vscode.languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
-		this.disposables.push(vscode.languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
-		this.disposables.push(vscode.languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
-		this.disposables.push(vscode.languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
-		this.disposables.push(vscode.languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
-
+		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
+		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
+		this.disposables.push((await import('./features/definitionProvider')).register(selector, client));
+		this.disposables.push((await import('./features/documentHighlightProvider')).register(selector, client));
+		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
+		this.disposables.push((await import('./features/documentSymbolProvider')).register(selector, client));
 
 		this.disposables.push(vscode.languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(vscode.languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));

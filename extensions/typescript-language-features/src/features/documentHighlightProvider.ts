@@ -3,23 +3,23 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentHighlightProvider, DocumentHighlight, DocumentHighlightKind, TextDocument, Position, CancellationToken } from 'vscode';
+import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-export default class TypeScriptDocumentHighlightProvider implements DocumentHighlightProvider {
+class TypeScriptDocumentHighlightProvider implements vscode.DocumentHighlightProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async provideDocumentHighlights(
-		resource: TextDocument,
-		position: Position,
-		token: CancellationToken
-	): Promise<DocumentHighlight[]> {
+		resource: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.DocumentHighlight[]> {
 		const file = this.client.normalizePath(resource.uri);
 		if (!file) {
 			return [];
@@ -41,8 +41,16 @@ export default class TypeScriptDocumentHighlightProvider implements DocumentHigh
 	}
 }
 
-function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): DocumentHighlight {
-	return new DocumentHighlight(
+function documentHighlightFromOccurance(occurrence: Proto.OccurrencesResponseItem): vscode.DocumentHighlight {
+	return new vscode.DocumentHighlight(
 		typeConverters.Range.fromTextSpan(occurrence),
-		occurrence.isWriteAccess ? DocumentHighlightKind.Write : DocumentHighlightKind.Read);
+		occurrence.isWriteAccess ? vscode.DocumentHighlightKind.Write : vscode.DocumentHighlightKind.Read);
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
+	return vscode.languages.registerDocumentHighlightProvider(selector,
+		new TypeScriptDocumentHighlightProvider(client));
 }

@@ -3,38 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { DocumentSymbolProvider, SymbolInformation, SymbolKind, TextDocument, CancellationToken, Uri, Hierarchy, SymbolInformation2 } from 'vscode';
+import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-const getSymbolKind = (kind: string): SymbolKind => {
+const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
-		case PConst.Kind.module: return SymbolKind.Module;
-		case PConst.Kind.class: return SymbolKind.Class;
-		case PConst.Kind.enum: return SymbolKind.Enum;
-		case PConst.Kind.interface: return SymbolKind.Interface;
-		case PConst.Kind.memberFunction: return SymbolKind.Method;
-		case PConst.Kind.memberVariable: return SymbolKind.Property;
-		case PConst.Kind.memberGetAccessor: return SymbolKind.Property;
-		case PConst.Kind.memberSetAccessor: return SymbolKind.Property;
-		case PConst.Kind.variable: return SymbolKind.Variable;
-		case PConst.Kind.const: return SymbolKind.Variable;
-		case PConst.Kind.localVariable: return SymbolKind.Variable;
-		case PConst.Kind.variable: return SymbolKind.Variable;
-		case PConst.Kind.function: return SymbolKind.Function;
-		case PConst.Kind.localFunction: return SymbolKind.Function;
+		case PConst.Kind.module: return vscode.SymbolKind.Module;
+		case PConst.Kind.class: return vscode.SymbolKind.Class;
+		case PConst.Kind.enum: return vscode.SymbolKind.Enum;
+		case PConst.Kind.interface: return vscode.SymbolKind.Interface;
+		case PConst.Kind.memberFunction: return vscode.SymbolKind.Method;
+		case PConst.Kind.memberVariable: return vscode.SymbolKind.Property;
+		case PConst.Kind.memberGetAccessor: return vscode.SymbolKind.Property;
+		case PConst.Kind.memberSetAccessor: return vscode.SymbolKind.Property;
+		case PConst.Kind.variable: return vscode.SymbolKind.Variable;
+		case PConst.Kind.const: return vscode.SymbolKind.Variable;
+		case PConst.Kind.localVariable: return vscode.SymbolKind.Variable;
+		case PConst.Kind.variable: return vscode.SymbolKind.Variable;
+		case PConst.Kind.function: return vscode.SymbolKind.Function;
+		case PConst.Kind.localFunction: return vscode.SymbolKind.Function;
 	}
-	return SymbolKind.Variable;
+	return vscode.SymbolKind.Variable;
 };
 
-export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolProvider {
+class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
-	public async provideDocumentSymbols(resource: TextDocument, token: CancellationToken): Promise<any> { // todo@joh `any[]` temporary hack to make typescript happy...
+	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<any> { // todo@joh `any[]` temporary hack to make typescript happy...
 		const filepath = this.client.normalizePath(resource.uri);
 		if (!filepath) {
 			return [];
@@ -50,7 +50,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 					// The root represents the file. Ignore this when showing in the UI
 					const tree = response.body;
 					if (tree.childItems) {
-						const result = new Array<Hierarchy<SymbolInformation2>>();
+						const result = new Array<vscode.Hierarchy<vscode.SymbolInformation2>>();
 						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 						return result;
 					}
@@ -58,9 +58,9 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			} else {
 				const response = await this.client.execute('navbar', args, token);
 				if (response.body) {
-					const result = new Array<SymbolInformation>();
-					const foldingMap: ObjectMap<SymbolInformation> = Object.create(null);
-					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as SymbolInformation[], item));
+					const result = new Array<vscode.SymbolInformation>();
+					const foldingMap: ObjectMap<vscode.SymbolInformation> = Object.create(null);
+					response.body.forEach(item => TypeScriptDocumentSymbolProvider.convertNavBar(resource.uri, 0, foldingMap, result as vscode.SymbolInformation[], item));
 					return result;
 				}
 			}
@@ -70,11 +70,11 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 	}
 
-	private static convertNavBar(resource: Uri, indent: number, foldingMap: ObjectMap<SymbolInformation>, bucket: SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
+	private static convertNavBar(resource: vscode.Uri, indent: number, foldingMap: ObjectMap<vscode.SymbolInformation>, bucket: vscode.SymbolInformation[], item: Proto.NavigationBarItem, containerLabel?: string): void {
 		const realIndent = indent + item.indent;
 		const key = `${realIndent}|${item.text}`;
 		if (realIndent !== 0 && !foldingMap[key] && TypeScriptDocumentSymbolProvider.shouldInclueEntry(item)) {
-			const result = new SymbolInformation(item.text,
+			const result = new vscode.SymbolInformation(item.text,
 				getSymbolKind(item.kind),
 				containerLabel ? containerLabel : '',
 				typeConverters.Location.fromTextSpan(resource, item.spans[0]));
@@ -88,8 +88,8 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 	}
 
-	private static convertNavTree(resource: Uri, bucket: Hierarchy<SymbolInformation>[], item: Proto.NavigationTree): boolean {
-		const symbolInfo = new SymbolInformation2(
+	private static convertNavTree(resource: vscode.Uri, bucket: vscode.Hierarchy<vscode.SymbolInformation>[], item: Proto.NavigationTree): boolean {
+		const symbolInfo = new vscode.SymbolInformation2(
 			item.text,
 			'', // todo@joh detail
 			getSymbolKind(item.kind),
@@ -97,7 +97,7 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
 		);
 
-		const hierarchy = new Hierarchy(symbolInfo);
+		const hierarchy = new vscode.Hierarchy(symbolInfo);
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
 
 		if (item.childItems) {
@@ -119,4 +119,13 @@ export default class TypeScriptDocumentSymbolProvider implements DocumentSymbolP
 		}
 		return !!(item.text && item.text !== '<function>' && item.text !== '<class>');
 	}
+}
+
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
+	return vscode.languages.registerDocumentSymbolProvider(selector,
+		new TypeScriptDocumentSymbolProvider(client));
 }

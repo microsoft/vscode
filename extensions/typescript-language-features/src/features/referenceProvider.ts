@@ -8,7 +8,7 @@ import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-export default class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
+class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
@@ -44,4 +44,12 @@ export default class TypeScriptReferenceSupport implements vscode.ReferenceProvi
 			return [];
 		}
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient
+) {
+	return vscode.languages.registerReferenceProvider(selector,
+		new TypeScriptReferenceSupport(client));
 }

@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, TextEditor, SnippetString, workspace } from 'vscode';
+import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, TextEditor, SnippetString, workspace, DocumentSelector, languages, Disposable } from 'vscode';
 
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Proto from '../protocol';
@@ -46,7 +46,7 @@ class JsDocCompletionItem extends CompletionItem {
 	}
 }
 
-export default class JsDocCompletionProvider implements CompletionItemProvider {
+class JsDocCompletionProvider implements CompletionItemProvider {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
@@ -220,4 +220,14 @@ export function templateToSnippet(template: string): SnippetString {
 		return out;
 	});
 	return new SnippetString(template);
+}
+
+export function register(
+	selector: DocumentSelector,
+	client: ITypeScriptServiceClient,
+	commandManager: CommandManager
+): Disposable {
+	return languages.registerCompletionItemProvider(selector,
+		new JsDocCompletionProvider(client, commandManager),
+		'*');
 }

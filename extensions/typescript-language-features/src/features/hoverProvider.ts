@@ -3,24 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { HoverProvider, Hover, TextDocument, Position, CancellationToken } from 'vscode';
+import * as vscode from 'vscode';
 
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { tagsMarkdownPreview } from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 
-export default class TypeScriptHoverProvider implements HoverProvider {
+class TypeScriptHoverProvider implements vscode.HoverProvider {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
 	public async provideHover(
-		document: TextDocument,
-		position: Position,
-		token: CancellationToken
-	): Promise<Hover | undefined> {
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.Hover | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return undefined;
@@ -30,7 +30,7 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 			const response = await this.client.execute('quickinfo', args, token);
 			if (response && response.body) {
 				const data = response.body;
-				return new Hover(
+				return new vscode.Hover(
 					TypeScriptHoverProvider.getContents(data),
 					typeConverters.Range.fromTextSpan(data));
 			}
@@ -53,4 +53,12 @@ export default class TypeScriptHoverProvider implements HoverProvider {
 		parts.push(data.documentation + (tags ? '\n\n' + tags : ''));
 		return parts;
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient
+): vscode.Disposable {
+	return vscode.languages.registerHoverProvider(selector,
+		new TypeScriptHoverProvider(client));
 }
