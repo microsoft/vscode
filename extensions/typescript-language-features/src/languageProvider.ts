@@ -104,30 +104,21 @@ export default class LanguageProvider {
 		const selector = this.documentSelector;
 		const config = vscode.workspace.getConfiguration(this.id);
 
-		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
-		const formattingProvider = new TypeScriptFormattingProvider(client, this.fileConfigurationManager);
-		formattingProvider.updateConfiguration(config);
-		this.disposables.push(vscode.languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
-
-		const formattingProviderManager = new FormattingProviderManager(this.description.id, formattingProvider, selector);
-		formattingProviderManager.updateConfiguration();
-		this.disposables.push(formattingProviderManager);
-		this.toUpdateOnConfigurationChanged.push(formattingProviderManager);
-
 		const cachedResponse = new CachedNavTreeResponse();
 
 		this.disposables.push((await import('./features/completionItemProvider')).register(selector, client, typingsStatus, this.fileConfigurationManager, commandManager));
-		this.disposables.push((await import('./features/directiveCommentCompletionProvider')).register(selector, client));
-		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
-		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
 		this.disposables.push((await import('./features/definitionProvider')).register(selector, client));
+		this.disposables.push((await import('./features/directiveCommentCompletionProvider')).register(selector, client));
 		this.disposables.push((await import('./features/documentHighlightProvider')).register(selector, client));
-		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
 		this.disposables.push((await import('./features/documentSymbolProvider')).register(selector, client));
-		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
-		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
+		this.disposables.push((await import('./features/formattingProvider')).register(selector, this.description.id, config, client, this.fileConfigurationManager));
+		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
+		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
 		this.disposables.push((await import('./features/quickFixProvider')).register(selector, client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter));
 		this.disposables.push((await import('./features/refactorProvider')).register(selector, client, this.fileConfigurationManager, commandManager));
+		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
+		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
+		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
 
 		await this.initFoldingProvider();
 		this.disposables.push(vscode.workspace.onDidChangeConfiguration(c => {
