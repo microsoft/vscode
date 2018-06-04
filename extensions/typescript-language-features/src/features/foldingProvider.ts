@@ -19,10 +19,6 @@ class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 		_context: vscode.FoldingContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.FoldingRange[] | undefined> {
-		if (!this.client.apiVersion.has280Features()) {
-			return;
-		}
-
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return;

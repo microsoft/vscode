@@ -25,10 +25,6 @@ class OrganizeImportsCommand implements Command {
 	) { }
 
 	public async execute(file: string): Promise<boolean> {
-		if (!this.client.apiVersion.has280Features()) {
-			return false;
-		}
-
 		const args: Proto.OrganizeImportsRequestArgs = {
 			scope: {
 				type: 'file',
@@ -66,10 +62,6 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		_context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		if (!this.client.apiVersion.has280Features()) {
-			return [];
-		}
-
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return [];

@@ -11,6 +11,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
+import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
 
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
@@ -106,7 +107,7 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		commandManager.register(new SelectRefactorCommand(doRefactoringCommand));
 	}
 
-	public readonly metadata: vscode.CodeActionProviderMetadata = {
+	public static readonly metadata: vscode.CodeActionProviderMetadata = {
 		providedCodeActionKinds: [vscode.CodeActionKind.Refactor]
 	};
 
@@ -116,10 +117,6 @@ class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[] | undefined> {
-		if (!this.client.apiVersion.has240Features()) {
-			return undefined;
-		}
-
 		if (!this.shouldTrigger(rangeOrSelection, context)) {
 			return undefined;
 		}
@@ -212,6 +209,14 @@ export function register(
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
 ) {
-	const refactorProvider = new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager);
-	return vscode.languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata);
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api) {
+			return api.has240Features();
+		},
+		register() {
+			return vscode.languages.registerCodeActionsProvider(selector,
+				new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager),
+				TypeScriptRefactorProvider.metadata);
+		}
+	});
 }

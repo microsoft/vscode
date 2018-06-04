@@ -6,6 +6,7 @@
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
 
 const localize = nls.loadMessageBundle();
 
@@ -43,10 +44,6 @@ class DirectiveCommentCompletionProvider implements vscode.CompletionItemProvide
 		position: vscode.Position,
 		_token: vscode.CancellationToken
 	): vscode.CompletionItem[] {
-		if (!this.client.apiVersion.has230Features()) {
-			return [];
-		}
-
 		const file = this.client.normalizePath(document.uri);
 		if (!file) {
 			return [];
@@ -78,7 +75,14 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return vscode.languages.registerCompletionItemProvider(selector,
-		new DirectiveCommentCompletionProvider(client),
-		'@');
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api) {
+			return api.has230Features();
+		},
+		register() {
+			return vscode.languages.registerCompletionItemProvider(selector,
+				new DirectiveCommentCompletionProvider(client),
+				'@');
+		}
+	});
 }
