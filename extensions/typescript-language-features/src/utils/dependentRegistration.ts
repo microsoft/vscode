@@ -36,11 +36,6 @@ class ConditionalRegistration {
 	}
 }
 
-export interface VersionDependentRegistrationDelegate {
-	isSupportedVersion(api: API): boolean;
-	register(): vscode.Disposable;
-}
-
 export class VersionDependentRegistration {
 	private readonly _registration: ConditionalRegistration;
 
