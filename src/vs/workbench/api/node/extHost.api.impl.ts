@@ -560,9 +560,6 @@ export function createApiFactory(
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
-			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerSearchProvider(scheme, provider);
 			}),
@@ -743,8 +740,6 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			RelativePattern: extHostTypes.RelativePattern,
 
-			DeprecatedFileChangeType: extHostTypes.DeprecatedFileChangeType,
-			DeprecatedFileType: extHostTypes.DeprecatedFileType,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileType: files.FileType,
 			FileSystemError: extHostTypes.FileSystemError,
