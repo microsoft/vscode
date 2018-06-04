@@ -18,7 +18,7 @@ export class MarkdownFileTopmostLineMonitor {
 		vscode.window.onDidChangeTextEditorVisibleRanges(event => {
 			if (isMarkdownFile(event.textEditor.document)) {
 				const line = getVisibleLine(event.textEditor);
-				if (line) {
+				if (typeof line === 'number') {
 					this.updateLine(event.textEditor.document.uri, line);
 				}
 			}
