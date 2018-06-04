@@ -52,7 +52,6 @@ export class CachedNavTreeResponse {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
-	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
@@ -64,18 +63,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	protected setEnabled(enabled: false): void {
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			this.onDidChangeCodeLensesEmitter.fire();
-		}
-	}
-
 	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
-		if (!this.enabled) {
-			return [];
-		}
-
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
 			return [];

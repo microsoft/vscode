@@ -3,27 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { Position, Range, CompletionItemProvider, CompletionItemKind, TextDocument, CancellationToken, CompletionItem, window, Uri, TextEditor, SnippetString, workspace, DocumentSelector, languages, Disposable } from 'vscode';
-
-import { ITypeScriptServiceClient } from '../typescriptService';
-import * as Proto from '../protocol';
-
+import { CancellationToken, CompletionItem, CompletionItemKind, CompletionItemProvider, Disposable, DocumentSelector, languages, Position, Range, SnippetString, TextDocument, TextEditor, Uri, window } from 'vscode';
 import * as nls from 'vscode-nls';
-import * as typeConverters from '../utils/typeConverters';
+import * as Proto from '../protocol';
+import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
+import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
+import * as typeConverters from '../utils/typeConverters';
+
+
 const localize = nls.loadMessageBundle();
-
-const configurationNamespace = 'jsDocCompletion';
-
-namespace Configuration {
-	export const enabled = 'enabled';
-}
 
 class JsDocCompletionItem extends CompletionItem {
 	constructor(
 		document: TextDocument,
-		position: Position,
-		shouldGetJSDocFromTSServer: boolean,
+		position: Position
 	) {
 		super('/** */', CompletionItemKind.Snippet);
 		this.detail = localize('typescript.jsDocCompletionItem.documentation', 'JSDoc comment');
@@ -41,7 +35,7 @@ class JsDocCompletionItem extends CompletionItem {
 		this.command = {
 			title: 'Try Complete JSDoc',
 			command: TryCompleteJsDocCommand.COMMAND_NAME,
-			arguments: [document.uri, start, shouldGetJSDocFromTSServer]
+			arguments: [document.uri, start]
 		};
 	}
 }
@@ -65,12 +59,6 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 			return [];
 		}
 
-		// TODO: unregister provider when disabled
-		const enableJsDocCompletions = workspace.getConfiguration(configurationNamespace, document.uri).get<boolean>(Configuration.enabled, true);
-		if (!enableJsDocCompletions) {
-			return [];
-		}
-
 		if (!this.isValidCursorPosition(document, position)) {
 			return [];
 		}
@@ -79,7 +67,7 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 			return [];
 		}
 
-		return [new JsDocCompletionItem(document, position, enableJsDocCompletions)];
+		return [new JsDocCompletionItem(document, position)];
 	}
 
 	private async isCommentableLocation(
@@ -141,7 +129,7 @@ class TryCompleteJsDocCommand implements Command {
 	 * Try to insert a jsdoc comment, using a template provide by typescript
 	 * if possible, otherwise falling back to a default comment format.
 	 */
-	public async execute(resource: Uri, start: Position, shouldGetJSDocFromTSServer: boolean): Promise<boolean> {
+	public async execute(resource: Uri, start: Position): Promise<boolean> {
 		const file = this.client.normalizePath(resource);
 		if (!file) {
 			return false;
@@ -152,14 +140,11 @@ class TryCompleteJsDocCommand implements Command {
 			return false;
 		}
 
-		if (!shouldGetJSDocFromTSServer) {
-			return this.tryInsertDefaultDoc(editor, start);
-		}
-
 		const didInsertFromTemplate = await this.tryInsertJsDocFromTemplate(editor, file, start);
 		if (didInsertFromTemplate) {
 			return true;
 		}
+
 		return this.tryInsertDefaultDoc(editor, start);
 	}
 
@@ -227,7 +212,9 @@ export function register(
 	client: ITypeScriptServiceClient,
 	commandManager: CommandManager
 ): Disposable {
-	return languages.registerCompletionItemProvider(selector,
-		new JsDocCompletionProvider(client, commandManager),
-		'*');
+	return new ConfigurationDependentRegistration('jsDocCompletion', 'enabled', () => {
+		return languages.registerCompletionItemProvider(selector,
+			new JsDocCompletionProvider(client, commandManager),
+			'*');
+	});
 }

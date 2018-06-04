@@ -8,31 +8,14 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import { ConfigurationDependentRegistration, VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
-import { disposeAll } from '../utils/dispose';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
 class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvider {
-	private readonly _disposables: vscode.Disposable[] = [];
-
-	public constructor(
-		client: ITypeScriptServiceClient,
-		private readonly language: string,
-		cachedResponse: CachedNavTreeResponse
-	) {
-		super(client, cachedResponse);
-
-		this.updateConfiguration();
-		vscode.workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null, this._disposables);
-	}
-
-	public dispose() {
-		disposeAll(this._disposables);
-	}
 
 	public resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
@@ -106,11 +89,6 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 
 		return null;
 	}
-
-	private updateConfiguration(): void {
-		const config = vscode.workspace.getConfiguration(this.language);
-		this.setEnabled(config.get('referencesCodeLens.enabled', false));
-	}
 }
 
 export function register(
@@ -119,11 +97,9 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedNavTreeResponse,
 ) {
-	return new VersionDependentRegistration(client, API.v206, () => {
-		const referenceCodeLensProvider = new TypeScriptReferencesCodeLensProvider(client, modeId, cachedResponse);
-		return vscode.Disposable.from(
-			vscode.languages.registerCodeLensProvider(selector, referenceCodeLensProvider),
-			referenceCodeLensProvider,
-		);
-	});
+	return new VersionDependentRegistration(client, API.v206, () =>
+		new ConfigurationDependentRegistration(modeId, 'referencesCodeLens.enabled', () => {
+			return vscode.languages.registerCodeLensProvider(selector,
+				new TypeScriptReferencesCodeLensProvider(client, cachedResponse));
+		}));
 }
