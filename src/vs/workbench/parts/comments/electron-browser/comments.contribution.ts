@@ -4,12 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Extensions as PanelExtensions, PanelDescriptor, PanelRegistry } from 'vs/workbench/browser/panel';
 import { Extensions as WorkbenchExtensions, IWorkbenchContribution, IWorkbenchContributionsRegistry } from 'vs/workbench/common/contributions';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { COMMENTS_PANEL_ID, COMMENTS_PANEL_TITLE, CommentsPanel } from './commentsPanel';
 import 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
+import { ICommentService, CommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 
 export class CommentPanelVisibilityUpdater implements IWorkbenchContribution {
 
@@ -35,3 +37,5 @@ Registry.as<PanelRegistry>(PanelExtensions.Panels).registerPanel(new PanelDescri
 
 // Register view location updater
 Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(CommentPanelVisibilityUpdater, LifecyclePhase.Running);
+
+registerSingleton(ICommentService, CommentService);

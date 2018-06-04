@@ -13,7 +13,7 @@ import { keys } from '../../../base/common/map';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostCommentsShape, ExtHostContext, IExtHostContext, MainContext, MainThreadCommentsShape } from '../node/extHost.protocol';
 
-import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { COMMENTS_PANEL_ID } from 'vs/workbench/parts/comments/electron-browser/commentsPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import URI from 'vs/base/common/uri';

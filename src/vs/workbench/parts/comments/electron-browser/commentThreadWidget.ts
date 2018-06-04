@@ -29,8 +29,8 @@ import URI from 'vs/base/common/uri';
 import { transparent, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode } from '../../../../base/common/keyCodes';
-import { ICommentService } from '../../../services/comments/electron-browser/commentService';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 

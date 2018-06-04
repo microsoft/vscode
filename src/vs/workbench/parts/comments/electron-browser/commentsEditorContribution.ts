@@ -25,7 +25,7 @@ import { CommentThreadCollapsibleState } from 'vs/workbench/api/node/extHostType
 import { ReviewModel } from 'vs/workbench/parts/comments/common/reviewModel';
 import { CommentGlyphWidget } from 'vs/workbench/parts/comments/electron-browser/commentGlyphWidget';
 import { ReviewZoneWidget, COMMENTEDITOR_DECORATION_KEY } from 'vs/workbench/parts/comments/electron-browser/commentThreadWidget';
-import { ICommentService } from 'vs/workbench/services/comments/electron-browser/commentService';
+import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 
