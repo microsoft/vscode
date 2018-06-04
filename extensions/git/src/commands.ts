@@ -311,7 +311,13 @@ export class CommandCenter {
 	}
 
 	private getTitle(resource: Resource): string {
-		const basename = path.basename(resource.resourceUri.fsPath);
+		let basename = path.basename(resource.resourceUri.fsPath);
+		const config = workspace.getConfiguration('window');
+		let windowTitle = config.get<string>('title');
+
+		if (windowTitle === '${activeEditorLong}') {
+			basename = resource.resourceUri.fsPath;
+		}
 
 		switch (resource.type) {
 			case Status.INDEX_MODIFIED:
