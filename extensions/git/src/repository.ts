@@ -559,6 +559,15 @@ export class Repository implements Disposable {
 			return;
 		}
 
+		const whitespacesOnly = text.length && !text.replace(/\s/g, '');
+
+		if (whitespacesOnly) {
+			return {
+				message: localize('commitMessageWhitespacesOnlyWarning', "Current commit message only contains whitespaces"),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
+
 		let start = 0, end;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
