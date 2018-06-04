@@ -196,7 +196,7 @@ export class ProgressService2 implements IProgressService2 {
 
 			const handle = this._notificationService.notify({
 				severity: Severity.Info,
-				message: options.title,
+				message,
 				source: options.source,
 				actions
 			});
@@ -225,7 +225,14 @@ export class ProgressService2 implements IProgressService2 {
 				handle = createNotification(message, increment);
 			} else {
 				if (typeof message === 'string') {
-					handle.updateMessage(message);
+					let newMessage: string;
+					if (typeof options.title === 'string') {
+						newMessage = `${options.title}: ${message}`; // always prefix with overall title if we have it (https://github.com/Microsoft/vscode/issues/50932)
+					} else {
+						newMessage = message;
+					}
+
+					handle.updateMessage(newMessage);
 				}
 
 				if (typeof increment === 'number') {
