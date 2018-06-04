@@ -12,6 +12,7 @@ import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 import { disposeAll } from '../utils/dispose';
+import API from '../utils/api';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
@@ -111,7 +112,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has220Features();
+			return api.gte(API.v220);
 		},
 		register() {
 			const provider = new TypeScriptImplementationsCodeLensProvider(client, modeId, cachedResponse);

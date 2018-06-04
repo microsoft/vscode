@@ -7,6 +7,7 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -77,7 +78,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has230Features();
+			return api.gte(API.v230);
 		},
 		register() {
 			return vscode.languages.registerCompletionItemProvider(selector,

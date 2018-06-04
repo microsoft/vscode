@@ -16,6 +16,7 @@ import BufferSyncSupport from './bufferSyncSupport';
 
 import * as nls from 'vscode-nls';
 import TelemetryReporter from '../utils/telemetry';
+import API from '../utils/api';
 const localize = nls.loadMessageBundle();
 
 class ApplyCodeActionCommand implements Command {
@@ -179,7 +180,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.CodeAction[]> {
-		if (!this.client.apiVersion.has213Features()) {
+		if (!this.client.apiVersion.gte(API.v213)) {
 			return [];
 		}
 
@@ -261,7 +262,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		diagnostic: vscode.Diagnostic,
 		tsAction: Proto.CodeFixAction,
 	): Promise<vscode.CodeAction | undefined> {
-		if (!tsAction.fixId || !this.client.apiVersion.has270Features()) {
+		if (!tsAction.fixId || !this.client.apiVersion.gte(API.v270)) {
 			return undefined;
 		}
 

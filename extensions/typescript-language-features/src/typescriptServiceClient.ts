@@ -475,7 +475,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (!this.apiVersion.has222Features()) {
+		if (!this.apiVersion.gte(API.v222)) {
 			window.showErrorMessage(
 				localize(
 					'typescript.openTsServerLog.notSupported',
@@ -534,7 +534,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (!this.apiVersion.has206Features()) {
+		if (!this.apiVersion.gte(API.v206)) {
 			return;
 		}
 
@@ -619,7 +619,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public normalizePath(resource: Uri): string | null {
-		if (this._apiVersion.has213Features()) {
+		if (this._apiVersion.gte(API.v213)) {
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
 				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
@@ -641,11 +641,11 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private get inMemoryResourcePrefix(): string {
-		return this._apiVersion.has270Features() ? '^' : '';
+		return this._apiVersion.gte(API.v270) ? '^' : '';
 	}
 
 	public asUrl(filepath: string): Uri {
-		if (this._apiVersion.has213Features()) {
+		if (this._apiVersion.gte(API.v213)) {
 			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 			) {
 				let resource = Uri.parse(filepath);
@@ -788,7 +788,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				return true;
 			}
 
-			if (this.apiVersion.has222Features() && this.cancellationPipeName) {
+			if (this.apiVersion.gte(API.v222) && this.cancellationPipeName) {
 				this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 				try {
 					fs.writeFileSync(this.cancellationPipeName + seq, '');
@@ -951,8 +951,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	): Promise<string[]> {
 		const args: string[] = [];
 
-		if (this.apiVersion.has206Features()) {
-			if (this.apiVersion.has250Features()) {
+		if (this.apiVersion.gte(API.v206)) {
+			if (this.apiVersion.gte(API.v250)) {
 				args.push('--useInferredProjectPerProjectRoot');
 			} else {
 				args.push('--useSingleInferredProject');
@@ -963,16 +963,16 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has208Features()) {
+		if (this.apiVersion.gte(API.v208)) {
 			args.push('--enableTelemetry');
 		}
 
-		if (this.apiVersion.has222Features()) {
+		if (this.apiVersion.gte(API.v222)) {
 			this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
 			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 		}
 
-		if (this.apiVersion.has222Features()) {
+		if (this.apiVersion.gte(API.v222)) {
 			if (this._configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
 				const logDir = await this.logDirectoryProvider.getNewLogDirectory();
 				if (logDir) {
@@ -990,7 +990,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has230Features()) {
+		if (this.apiVersion.gte(API.v230)) {
 			const pluginPaths = this.pluginPathsProvider.getPluginPaths();
 
 			if (this.plugins.length) {
@@ -1006,20 +1006,20 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has234Features()) {
+		if (this.apiVersion.gte(API.v234)) {
 			if (this._configuration.npmLocation) {
 				args.push('--npmLocation', `"${this._configuration.npmLocation}"`);
 			}
 		}
 
-		if (this.apiVersion.has260Features()) {
+		if (this.apiVersion.gte(API.v260)) {
 			const tsLocale = getTsLocale(this._configuration);
 			if (tsLocale) {
 				args.push('--locale', tsLocale);
 			}
 		}
 
-		if (this.apiVersion.has291Features()) {
+		if (this.apiVersion.gte(API.v291)) {
 			args.push('--noGetErrOnBackgroundUpdate');
 		}
 

@@ -10,6 +10,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import API from '../utils/api';
 
 
 interface IDiagnosticRequestor {
@@ -41,18 +42,18 @@ class SyncedBuffer {
 			fileContent: this.document.getText(),
 		};
 
-		if (this.client.apiVersion.has203Features()) {
+		if (this.client.apiVersion.gte(API.v203)) {
 			const scriptKind = mode2ScriptKind(this.document.languageId);
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
 		}
 
-		if (this.client.apiVersion.has230Features()) {
+		if (this.client.apiVersion.gte(API.v230)) {
 			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
-		if (this.client.apiVersion.has240Features()) {
+		if (this.client.apiVersion.gte(API.v240)) {
 			const tsPluginsForDocument = this.client.plugins
 				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 

@@ -10,6 +10,7 @@ import { dirname } from 'path';
 import { openOrCreateConfigFile, isImplicitProjectConfigFile } from './tsconfig';
 import * as languageModeIds from '../utils/languageModeIds';
 import TelemetryReporter from './telemetry';
+import API from './api';
 
 const localize = loadMessageBundle();
 const selector = [languageModeIds.javascript, languageModeIds.javascriptreact];
@@ -193,7 +194,7 @@ export function create(
 		return vscode.window.showInformationMessage(message);
 	}));
 
-	if (client.apiVersion.has213Features()) {
+	if (client.apiVersion.gte(API.v213)) {
 		toDispose.push(createLargeProjectMonitorFromTypeScript(item, client));
 	} else {
 		toDispose.push(...createLargeProjectMonitorForProject(item, client, isOpen, memento));

@@ -21,7 +21,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api: API) {
-			return api.has220Features();
+			return api.gte(API.v220);
 		},
 		register() {
 			return vscode.languages.registerImplementationProvider(selector,

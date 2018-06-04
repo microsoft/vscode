@@ -11,6 +11,7 @@ import { Command, CommandManager } from '../utils/commandManager';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -85,7 +86,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has280Features();
+			return api.gte(API.v280);
 		},
 		register() {
 			const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);

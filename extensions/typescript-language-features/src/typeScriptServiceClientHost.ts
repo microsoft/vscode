@@ -25,6 +25,7 @@ import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
+import API from './utils/api';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -100,7 +101,7 @@ export default class TypeScriptServiceClientHost {
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
-			if (!this.client.apiVersion.has230Features()) {
+			if (!this.client.apiVersion.gte(API.v230)) {
 				return;
 			}
 

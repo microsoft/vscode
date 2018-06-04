@@ -9,6 +9,7 @@ import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
+import API from '../utils/api';
 
 const getSymbolKind = (kind: string): vscode.SymbolKind => {
 	switch (kind) {
@@ -44,7 +45,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		};
 
 		try {
-			if (this.client.apiVersion.has206Features()) {
+			if (this.client.apiVersion.gte(API.v206)) {
 				const response = await this.client.execute('navtree', args, token);
 				if (response.body) {
 					// The root represents the file. Ignore this when showing in the UI

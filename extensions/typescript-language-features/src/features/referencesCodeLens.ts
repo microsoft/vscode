@@ -12,6 +12,7 @@ import * as typeConverters from '../utils/typeConverters';
 import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
 import { disposeAll } from '../utils/dispose';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -120,7 +121,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has206Features();
+			return api.gte(API.v206);
 		},
 		register() {
 			const referenceCodeLensProvider = new TypeScriptReferencesCodeLensProvider(client, modeId, cachedResponse);

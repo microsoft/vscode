@@ -8,6 +8,7 @@ import { workspace as Workspace, FormattingOptions, TextDocument, CancellationTo
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
+import API from '../utils/api';
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
@@ -144,7 +145,7 @@ export default class FileConfigurationManager {
 	}
 
 	private getPreferences(document: TextDocument): Proto.UserPreferences {
-		if (!this.client.apiVersion.has290Features()) {
+		if (!this.client.apiVersion.gte(API.v290)) {
 			return {};
 		}
 

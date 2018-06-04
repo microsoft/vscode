@@ -17,6 +17,7 @@ import * as nls from 'vscode-nls';
 import { applyCodeAction } from '../utils/codeAction';
 import { CommandManager, Command } from '../utils/commandManager';
 import FileConfigurationManager from './fileConfigurationManager';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -447,7 +448,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.has290Features()) {
+		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.gte(API.v290)) {
 			if (!config.quickSuggestionsForPaths) {
 				return false;
 			}
@@ -471,7 +472,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			}
 		}
 
-		if (context.triggerCharacter === '@' && !this.client.apiVersion.has290Features()) {
+		if (context.triggerCharacter === '@' && !this.client.apiVersion.gte(API.v290)) {
 			// make sure we are in something that looks like the start of a jsdoc comment
 			const pre = line.text.slice(0, position.character);
 			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
@@ -480,7 +481,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		}
 
 		if (context.triggerCharacter === '<') {
-			return this.client.apiVersion.has290Features();
+			return this.client.apiVersion.gte(API.v290);
 		}
 
 		return true;

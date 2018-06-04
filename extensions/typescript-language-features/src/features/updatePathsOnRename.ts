@@ -12,6 +12,7 @@ import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
 import BufferSyncSupport from './bufferSyncSupport';
 import FileConfigurationManager from './fileConfigurationManager';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -45,7 +46,7 @@ export class UpdateImportsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.client.apiVersion.has290Features) {
+		if (!this.client.apiVersion.gte(API.v290)) {
 			return;
 		}
 

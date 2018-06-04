@@ -12,6 +12,7 @@ import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
@@ -211,7 +212,7 @@ export function register(
 ) {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has240Features();
+			return api.gte(API.v240);
 		},
 		register() {
 			return vscode.languages.registerCodeActionsProvider(selector,

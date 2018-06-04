@@ -8,6 +8,7 @@ import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 	public constructor(
@@ -76,7 +77,7 @@ export function register(
 ): vscode.Disposable {
 	return new VersionDependentRegistration(client, {
 		isSupportedVersion(api) {
-			return api.has280Features();
+			return api.gte(API.v280);
 		},
 		register() {
 			return vscode.languages.registerFoldingRangeProvider(selector, new TypeScriptFoldingProvider(client));
