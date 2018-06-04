@@ -244,7 +244,7 @@ namespace CompletionConfiguration {
 	}
 }
 
-export default class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
+class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider {
 
 	public static readonly triggerCharacters = ['.', '"', '\'', '/', '@', '<'];
 
@@ -580,4 +580,17 @@ export default class TypeScriptCompletionItemProvider implements vscode.Completi
 		snippet.appendTabstop(0);
 		return snippet;
 	}
+}
+
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	typingsStatus: TypingsStatus,
+	fileConfigurationManager: FileConfigurationManager,
+	commandManager: CommandManager,
+) {
+	return vscode.languages.registerCompletionItemProvider(selector,
+		new TypeScriptCompletionItemProvider(client, typingsStatus, fileConfigurationManager, commandManager),
+		...TypeScriptCompletionItemProvider.triggerCharacters);
 }

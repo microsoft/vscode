@@ -104,13 +104,6 @@ export default class LanguageProvider {
 		const selector = this.documentSelector;
 		const config = vscode.workspace.getConfiguration(this.id);
 
-		const TypeScriptCompletionItemProvider = (await import('./features/completionItemProvider')).default;
-		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector,
-			new TypeScriptCompletionItemProvider(client, typingsStatus, this.fileConfigurationManager, commandManager),
-			...TypeScriptCompletionItemProvider.triggerCharacters));
-
-		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
-
 		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
 		const formattingProvider = new TypeScriptFormattingProvider(client, this.fileConfigurationManager);
 		formattingProvider.updateConfiguration(config);
@@ -123,6 +116,8 @@ export default class LanguageProvider {
 
 		const cachedResponse = new CachedNavTreeResponse();
 
+		this.disposables.push((await import('./features/completionItemProvider')).register(selector, client, typingsStatus, this.fileConfigurationManager, commandManager));
+		this.disposables.push((await import('./features/directiveCommentCompletionProvider')).register(selector, client));
 		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
 		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
 		this.disposables.push((await import('./features/definitionProvider')).register(selector, client));
