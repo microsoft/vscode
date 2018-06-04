@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 
@@ -60,11 +58,10 @@ class ApplyRefactoringCommand implements Command {
 
 		const renameLocation = response.body.renameLocation;
 		if (renameLocation) {
-			if (vscode.window.activeTextEditor && vscode.window.activeTextEditor.document.uri.fsPath === document.uri.fsPath) {
-				const pos = typeConverters.Position.fromLocation(renameLocation);
-				vscode.window.activeTextEditor.selection = new vscode.Selection(pos, pos);
-				await vscode.commands.executeCommand('editor.action.rename');
-			}
+			await vscode.commands.executeCommand('editor.action.rename', [
+				document.uri,
+				typeConverters.Position.fromLocation(renameLocation)
+			]);
 		}
 		return true;
 	}
