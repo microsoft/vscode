@@ -33,6 +33,14 @@
     "onView:npm"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "ignore",
+        "filenames": [
+          ".npmignore"
+        ]
+      }
+    ],
     "views": {
       "explorer": [
         {
