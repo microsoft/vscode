@@ -26,6 +26,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import API from './utils/api';
+import FileConfigurationManager from './features/fileConfigurationManager';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -45,6 +46,8 @@ export default class TypeScriptServiceClientHost {
 	private readonly languagePerId = new Map<string, LanguageProvider>();
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
+	private readonly fileConfigurationManager: FileConfigurationManager;
+
 	private reportStyleCheckAsWarnings: boolean = true;
 
 	constructor(
@@ -91,9 +94,10 @@ export default class TypeScriptServiceClientHost {
 
 		this.typingsStatus = new TypingsStatus(this.client);
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
+		this.fileConfigurationManager = new FileConfigurationManager(this.client);
 
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -119,7 +123,7 @@ export default class TypeScriptServiceClientHost {
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -138,6 +142,7 @@ export default class TypeScriptServiceClientHost {
 		disposeAll(this.disposables);
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
+		this.fileConfigurationManager.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -175,6 +180,8 @@ export default class TypeScriptServiceClientHost {
 	}
 
 	private populateService(): void {
+		this.fileConfigurationManager.reset();
+
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then(() => {
 			for (const language of this.languagePerId.values()) {
