@@ -141,23 +141,30 @@ export class ProgressService2 implements IProgressService2 {
 		} else {
 			const [options, progress] = this._stack[idx];
 
-			let text = options.title;
-			if (progress.value && progress.value.message) {
-				text = progress.value.message;
-			}
+			let progressTitle = options.title;
+			let progressMessage = progress.value && progress.value.message;
+			let text: string;
+			let title: string;
 
-			if (!text) {
-				// no message -> no progress. try with next on stack
+			if (progressTitle && progressMessage) {
+				// <title>: <message>
+				text = localize('progress.text2', "{0}: {1}", progressTitle, progressMessage);
+				title = options.source ? localize('progress.title3', "[{0}] {1}: {2}", options.source, progressTitle, progressMessage) : text;
+
+			} else if (progressTitle) {
+				// <title>
+				text = progressTitle;
+				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressTitle) : text;
+
+			} else if (progressMessage) {
+				// <message>
+				text = progressMessage;
+				title = options.source ? localize('progress.title2', "[{0}]: {1}", options.source, progressMessage) : text;
+
+			} else {
+				// no title, no message -> no progress. try with next on stack
 				this._updateWindowProgress(idx + 1);
 				return;
-			}
-
-			let title = text;
-			if (options.title && options.title !== title) {
-				title = localize('progress.subtitle', "{0} - {1}", options.title, title);
-			}
-			if (options.source) {
-				title = localize('progress.title', "{0}: {1}", options.source, title);
 			}
 
 			WindowProgressItem.Instance.text = text;
