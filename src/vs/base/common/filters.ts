@@ -341,7 +341,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function skipScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function anyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	pattern = pattern.toLowerCase();
 	word = word.toLowerCase();
 
@@ -452,7 +452,9 @@ function isWhitespaceAtPos(value: string, index: number): boolean {
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
-export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export type FuzzyScore = [number, number[]];
+
+export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
@@ -715,15 +717,15 @@ class LazyArray {
 
 //#region --- graceful ---
 
-export function fuzzyScoreGracefulAggressive(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function fuzzyScoreGracefulAggressive(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	return fuzzyScoreWithPermutations(pattern, word, true, patternMaxWhitespaceIgnore);
 }
 
-export function fuzzyScoreGraceful(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function fuzzyScoreGraceful(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	return fuzzyScoreWithPermutations(pattern, word, false, patternMaxWhitespaceIgnore);
 }
 
-function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: boolean, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: boolean, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	let top: [number, number[]] = fuzzyScore(pattern, word, patternMaxWhitespaceIgnore);
 
 	if (top && !aggressive) {

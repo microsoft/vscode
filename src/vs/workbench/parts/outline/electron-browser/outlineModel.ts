@@ -8,14 +8,12 @@ import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvid
 import { ITextModel } from 'vs/editor/common/model';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
-
-export type FuzzyScore = [number, number[]];
 
 export abstract class TreeElement {
 	abstract id: string;
