@@ -45,7 +45,7 @@ export class UpdateImportsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.client.apiVersion.has290Features) {
+		if (!this.client.apiVersion.has290Features()) {
 			return;
 		}
 
