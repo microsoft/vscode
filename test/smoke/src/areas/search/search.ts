@@ -68,9 +68,7 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
-		await this.code.waitForElement(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`, text);
 	}
 
 	async replaceFileMatch(index: number): Promise<void> {
