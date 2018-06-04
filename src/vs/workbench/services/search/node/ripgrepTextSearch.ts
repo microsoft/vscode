@@ -487,11 +487,7 @@ function getRgArgs(config: IRawSearch) {
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
-		const rgRegexPattern = strings.endsWith(config.contentPattern.pattern, '$') ?
-			config.contentPattern.pattern.replace(/\$$/, '\\r?') :
-			config.contentPattern.pattern;
-
-		args.push('--regexp', rgRegexPattern);
+		args.push('--regexp', fixRegexEndingPattern(config.contentPattern.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		args.push('--fixed-strings');
@@ -544,4 +540,13 @@ function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
 	});
 
 	return universalExcludes;
+}
+
+// Exported for testing
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

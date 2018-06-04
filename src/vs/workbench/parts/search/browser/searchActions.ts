@@ -589,6 +589,7 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	public run(): TPromise<any> {
 		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.element);
 		if (nextFocusElement) {
+			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus(nextFocusElement);
 		}
 
