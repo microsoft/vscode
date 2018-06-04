@@ -135,39 +135,41 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 
 		await this.formattingOptionsManager.ensureConfigurationForDocument(document, undefined);
 
+
 		const args: Proto.GetApplicableRefactorsRequestArgs = typeConverters.Range.toFileRangeRequestArgs(file, rangeOrSelection);
+		let response: Proto.GetApplicableRefactorsResponse;
 		try {
-			const response = await this.client.execute('getApplicableRefactors', args, token);
+			response = await this.client.execute('getApplicableRefactors', args, token);
 			if (!response || !response.body) {
 				return [];
 			}
-
-			const actions: vscode.CodeAction[] = [];
-			for (const info of response.body) {
-				if (info.inlineable === false) {
-					const codeAction = new vscode.CodeAction(info.description, vscode.CodeActionKind.Refactor);
-					codeAction.command = {
-						title: info.description,
-						command: SelectRefactorCommand.ID,
-						arguments: [document, file, info, rangeOrSelection]
-					};
-					actions.push(codeAction);
-				} else {
-					for (const action of info.actions) {
-						const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
-						codeAction.command = {
-							title: action.description,
-							command: ApplyRefactoringCommand.ID,
-							arguments: [document, file, info.name, action.name, rangeOrSelection]
-						};
-						actions.push(codeAction);
-					}
-				}
-			}
-			return actions;
 		} catch {
 			return [];
 		}
+
+		const actions: vscode.CodeAction[] = [];
+		for (const info of response.body) {
+			if (info.inlineable === false) {
+				const codeAction = new vscode.CodeAction(info.description, vscode.CodeActionKind.Refactor);
+				codeAction.command = {
+					title: info.description,
+					command: SelectRefactorCommand.ID,
+					arguments: [document, file, info, rangeOrSelection]
+				};
+				actions.push(codeAction);
+			} else {
+				for (const action of info.actions) {
+					const codeAction = new vscode.CodeAction(action.description, TypeScriptRefactorProvider.getKind(action));
+					codeAction.command = {
+						title: action.description,
+						command: ApplyRefactoringCommand.ID,
+						arguments: [document, file, info.name, action.name, rangeOrSelection]
+					};
+					actions.push(codeAction);
+				}
+			}
+		}
+		return actions;
 	}
 
 	private static getKind(refactor: Proto.RefactorActionInfo) {
