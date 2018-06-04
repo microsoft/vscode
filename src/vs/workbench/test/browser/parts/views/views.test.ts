@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ContributableViewsModel } from 'vs/workbench/browser/parts/views/contributableViews';
+import { ContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
 import { ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';

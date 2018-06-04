@@ -56,7 +56,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
+import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
