@@ -516,7 +516,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[wordPos - 1]) {
+				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || lowWord[wordPos - 2] === word[wordPos - 2])) {
 					// hitting upper-case: `foo <-> forOthers`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
