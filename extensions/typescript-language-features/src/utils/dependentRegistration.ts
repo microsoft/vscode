@@ -38,7 +38,6 @@ class ConditionalRegistration {
 
 export class VersionDependentRegistration {
 	private readonly _registration: ConditionalRegistration;
-
 	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
@@ -62,5 +61,35 @@ export class VersionDependentRegistration {
 
 	private update(api: API) {
 		this._registration.update(api.gte(this.minVersion));
+	}
+}
+
+
+export class ConfigurationDependentRegistration {
+	private readonly _registration: ConditionalRegistration;
+	private readonly _disposables: vscode.Disposable[] = [];
+
+	constructor(
+		private readonly language: string,
+		private readonly configValue: string,
+		register: () => vscode.Disposable,
+	) {
+		this._registration = new ConditionalRegistration(register);
+
+		this.update();
+
+		vscode.workspace.onDidChangeConfiguration(() => {
+			this.update();
+		}, null, this._disposables);
+	}
+
+	public dispose() {
+		disposeAll(this._disposables);
+		this._registration.dispose();
+	}
+
+	private update() {
+		const config = vscode.workspace.getConfiguration(this.language);
+		this._registration.update(!!config.get<boolean>(this.configValue));
 	}
 }

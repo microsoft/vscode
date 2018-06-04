@@ -96,7 +96,6 @@ export default class LanguageProvider {
 		typingsStatus: TypingsStatus
 	): Promise<void> {
 		const selector = this.documentSelector;
-		const config = vscode.workspace.getConfiguration(this.id);
 
 		const cachedResponse = new CachedNavTreeResponse();
 
@@ -106,7 +105,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/documentHighlight')).register(selector, client));
 		this.disposables.push((await import('./features/documentSymbol')).register(selector, client));
 		this.disposables.push((await import('./features/folding')).register(selector, client));
-		this.disposables.push((await import('./features/formatting')).register(selector, this.description.id, config, client, this.fileConfigurationManager));
+		this.disposables.push((await import('./features/formatting')).register(selector, this.description.id, client, this.fileConfigurationManager));
 		this.disposables.push((await import('./features/hover')).register(selector, client));
 		this.disposables.push((await import('./features/implementations')).register(selector, client));
 		this.disposables.push((await import('./features/implementationsCodeLens')).register(selector, this.description.id, client, cachedResponse));

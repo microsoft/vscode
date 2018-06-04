@@ -4,12 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { ConfigurationDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { disposeAll } from '../utils/dispose';
+
 
 class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEditProvider, vscode.OnTypeFormattingEditProvider {
 	private enabled: boolean = true;
@@ -117,54 +117,17 @@ class TypeScriptFormattingProvider implements vscode.DocumentRangeFormattingEdit
 	}
 }
 
-class FormattingProviderManager {
-	private formattingProviderRegistration: vscode.Disposable | undefined;
-	private disposables: vscode.Disposable[] = [];
-	constructor(
-		private readonly modeId: string,
-		private readonly formattingProvider: TypeScriptFormattingProvider,
-		private readonly selector: vscode.DocumentSelector
-	) {
-		vscode.workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null, this.disposables);
-	}
-
-	public dispose() {
-		disposeAll(this.disposables);
-
-		if (this.formattingProviderRegistration) {
-			this.formattingProviderRegistration.dispose();
-			this.formattingProviderRegistration = undefined;
-		}
-	}
-
-	public updateConfiguration(): void {
-		const config = vscode.workspace.getConfiguration(this.modeId);
-		this.formattingProvider.updateConfiguration(config);
-
-		if (!this.formattingProvider.isEnabled() && this.formattingProviderRegistration) {
-			this.formattingProviderRegistration.dispose();
-			this.formattingProviderRegistration = undefined;
-		} else if (this.formattingProvider.isEnabled() && !this.formattingProviderRegistration) {
-			this.formattingProviderRegistration = vscode.languages.registerDocumentRangeFormattingEditProvider(this.selector, this.formattingProvider);
-		}
-	}
-}
-
 export function register(
 	selector: vscode.DocumentSelector,
 	modeId: string,
-	config: vscode.WorkspaceConfiguration,
 	client: ITypeScriptServiceClient,
 	fileConfigurationManager: FileConfigurationManager
 ) {
-	const disposables: vscode.Disposable[] = [];
-	const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
-	formattingProvider.updateConfiguration(config);
-	disposables.push(vscode.languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
-
-	const formattingProviderManager = new FormattingProviderManager(modeId, formattingProvider, selector);
-	formattingProviderManager.updateConfiguration();
-	disposables.push(formattingProviderManager);
-
-	return vscode.Disposable.from(...disposables);
+	return new ConfigurationDependentRegistration(modeId, 'format.enable', () => {
+		const formattingProvider = new TypeScriptFormattingProvider(client, fileConfigurationManager);
+		return vscode.Disposable.from(
+			vscode.languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'),
+			vscode.languages.registerDocumentRangeFormattingEditProvider(selector, formattingProvider),
+		);
+	});
 }
