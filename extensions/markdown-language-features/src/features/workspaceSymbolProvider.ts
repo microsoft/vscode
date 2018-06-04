@@ -8,9 +8,10 @@ import { disposeAll } from '../util/dispose';
 import { isMarkdownFile } from '../util/file';
 import { Lazy, lazy } from '../util/lazy';
 import MDDocumentSymbolProvider from './documentSymbolProvider';
+import { SkinnyTextDocument } from '../tableOfContentsProvider';
 
 export interface WorkspaceMarkdownDocumentProvider {
-	getAllMarkdownDocuments(): Thenable<vscode.TextDocument[]>;
+	getAllMarkdownDocuments(): Thenable<SkinnyTextDocument[]>;
 
 	readonly onDidChangeMarkdownDocument: vscode.Event<vscode.TextDocument>;
 	readonly onDidCreateMarkdownDocument: vscode.Event<vscode.TextDocument>;
@@ -121,7 +122,7 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 	public async populateSymbolCache(): Promise<void> {
 		const markDownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
 		for (const document of markDownDocumentUris) {
-			this._symbolCache.set(document.fileName, this.getSymbols(document));
+			this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
 		}
 	}
 
@@ -129,7 +130,7 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 		disposeAll(this._disposables);
 	}
 
-	private getSymbols(document: vscode.TextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
+	private getSymbols(document: SkinnyTextDocument): Lazy<Thenable<vscode.SymbolInformation[]>> {
 		return lazy(async () => {
 			return this._symbolProvider.provideDocumentSymbols(document);
 		});
