@@ -50,11 +50,10 @@ export default class LanguageProvider {
 		typingsStatus: TypingsStatus,
 	) {
 		this.fileConfigurationManager = new FileConfigurationManager(client);
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, {
-			delete: (resource) => {
-				this.diagnosticsManager.delete(resource);
-			}
-		}, this._validate);
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, this._validate);
+		this.bufferSyncSupport.onDelete(resource => {
+			this.diagnosticsManager.delete(resource);
+		}, null, this.disposables);
 
 		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
 
