@@ -21,7 +21,7 @@
 	"schema.languageId": "關聯的圖示定義識別碼。",
 	"schema.fonts": "用在圖示定義中的字型。",
 	"schema.id": "字型識別碼。",
-	"schema.src": "字型位置。",
+	"schema.src": "字型的位置。",
 	"schema.font-path": "字型路徑，相對於目前的圖示佈景主題檔案。",
 	"schema.font-format": "字型格式。",
 	"schema.font-weight": "字型粗細。",

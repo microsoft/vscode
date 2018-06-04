@@ -10,7 +10,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { prepareActions } from 'vs/workbench/browser/actions';
 import { Action } from 'vs/base/common/actions';
 
-suite('Workbench Action Registry', () => {
+suite('Workbench action registry', () => {
 
 	test('Workbench Action Bar prepareActions()', function () {
 		let a1 = new Separator();

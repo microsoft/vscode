@@ -21,7 +21,6 @@
 	"disconnectDebug": "연결 끊기",
 	"continueDebug": "계속",
 	"pauseDebug": "일시 중지",
-	"terminateThread": "스레드 종료",
 	"restartFrame": "프레임 다시 시작",
 	"removeBreakpoint": "중단점 제거",
 	"removeAllBreakpoints": "모든 중단점 제거",
@@ -41,7 +40,6 @@
 	"debugConsoleAction": "디버그 콘솔",
 	"unreadOutput": "디버그 콘솔의 새 출력",
 	"debugFocusConsole": "디버그 콘솔에 포커스",
-	"focusProcess": "프로세스에 포커스",
 	"stepBackDebug": "뒤로 이동",
 	"reverseContinue": "반전"
 }

@@ -62,7 +62,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 		this._register(this.debugService.onDidChangeState(state => this.onDebugServiceStateChange(state)));
 		this._register(this.contextService.onDidChangeWorkbenchState(() => this.updateTitleArea()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
-			if (e.affectsConfiguration('debug.toolbar')) {
+			if (e.affectsConfiguration('debug.toolBarLocation')) {
 				this.updateTitleArea();
 			}
 		}));
@@ -107,12 +107,12 @@ export class DebugViewlet extends PersistentViewsViewlet {
 			return [this.startAction, this.configureAction, this.toggleReplAction];
 		}
 
-		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, true, this.debugService, this.keybindingService, this.instantiationService);
+		return DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
 	}
 
 	public get showInitialDebugActions(): boolean {
 		const state = this.debugService.state;
-		return state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').toolbar !== 'dock';
+		return state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation !== 'docked';
 	}
 
 	public getSecondaryActions(): IAction[] {
@@ -153,7 +153,7 @@ export class DebugViewlet extends PersistentViewsViewlet {
 			this.progressRunner = null;
 		}
 
-		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolbar === 'dock') {
+		if (this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation === 'docked') {
 			this.updateTitleArea();
 		}
 	}

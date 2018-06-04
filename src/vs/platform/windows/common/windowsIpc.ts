@@ -52,7 +52,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
-	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
+	call(command: 'openWindow', arg: [number, string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
@@ -131,7 +131,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1]);
+			case 'openWindow': return this.service.openWindow(arg[0], arg[1], arg[2]);
 			case 'openNewWindow': return this.service.openNewWindow();
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
@@ -309,8 +309,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
-		return this.channel.call('openWindow', [paths, options]);
+	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
 	openNewWindow(): TPromise<void> {

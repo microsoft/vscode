@@ -37,12 +37,15 @@
 /** Panel Switcher */
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background: url('ellipsis.svg') center center no-repeat;
+	background-image: url('ellipsis.svg');
 	display: block;
 	height: 31px;
 	min-width: 28px;
 	margin-left: 0px;
 	margin-right: 0px;
+	background-size: 16px;
+	background-repeat: no-repeat;
+	background-position: center center;
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
@@ -156,5 +159,5 @@
 
 .vs-dark .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more,
 .hc-black .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
-	background: url('ellipsis-inverse.svg') center center no-repeat;
+	background-image: url('ellipsis-inverse.svg');
 }

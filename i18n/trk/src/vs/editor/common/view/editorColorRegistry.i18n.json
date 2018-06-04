@@ -32,6 +32,7 @@
 	"infoBorder": "Düzenleyicideki bilgilendirme karalamalarının kenarlık rengi.",
 	"hintForeground": "Düzenleyicideki ipucu karalamalarının ön plan rengi.",
 	"hintBorder": "Düzenleyicideki ipucu karalamalarının kenarlık rengi.",
+	"unnecessaryForeground": "Düzenleyicide gereksiz kodun ön plan rengi.",
 	"overviewRulerRangeHighlight": "Aralık vurguları için genel bakış cetvelinin işaretleyici rengi. Altta yer alan süslemeleri gizlememek için renk opak olmamalıdır.",
 	"overviewRuleError": "Hatalar için genel bakış cetvelinin işaretleyici rengi.",
 	"overviewRuleWarning": "Uyarılar için genel bakış cetvelinin işaretleyici rengi.",

@@ -13,15 +13,14 @@ import { IEditorOverrideServices, DynamicStandaloneServices, StaticServices } fr
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { OpenerService } from 'vs/platform/opener/browser/openerService';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { Colorizer, IColorizerElementOptions, IColorizerOptions } from 'vs/editor/standalone/browser/colorizer';
-import { SimpleEditorService, SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
+import { SimpleEditorModelResolverService } from 'vs/editor/standalone/browser/simpleServices';
 import * as modes from 'vs/editor/common/modes';
 import { IWebWorkerOptions, MonacoWebWorker, createWebWorker as actualCreateWebWorker } from 'vs/editor/common/services/webWorker';
 import { IMarkerData, IMarker } from 'vs/platform/markers/common/markers';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
-import { IEditorService } from 'vs/platform/editor/common/editor';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -43,13 +42,6 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
 
-	// The editorService is a lovely beast. It needs to point back to the code editor instance...
-	let simpleEditorService: SimpleEditorService = null;
-	if (!services.has(IEditorService)) {
-		simpleEditorService = new SimpleEditorService();
-		services.set(IEditorService, simpleEditorService);
-	}
-
 	let simpleEditorModelResolverService: SimpleEditorModelResolverService = null;
 	if (!services.has(ITextModelService)) {
 		simpleEditorModelResolverService = new SimpleEditorModelResolverService();
@@ -57,14 +49,10 @@ function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: H
 	}
 
 	if (!services.has(IOpenerService)) {
-		services.set(IOpenerService, new OpenerService(services.get(IEditorService), services.get(ICommandService)));
+		services.set(IOpenerService, new OpenerService(services.get(ICodeEditorService), services.get(ICommandService)));
 	}
 
 	let result = callback(services);
-
-	if (simpleEditorService) {
-		simpleEditorService.setEditor(result);
-	}
 
 	if (simpleEditorModelResolverService) {
 		simpleEditorModelResolverService.setEditor(result);

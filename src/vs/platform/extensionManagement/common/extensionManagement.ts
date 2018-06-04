@@ -149,6 +149,7 @@ export interface IGalleryExtensionAssets {
 	icon: IGalleryExtensionAsset;
 	license: IGalleryExtensionAsset;
 	repository: IGalleryExtensionAsset;
+	coreTranslations: { [languageId: string]: IGalleryExtensionAsset };
 }
 
 export function isIExtensionIdentifier(thing: any): thing is IExtensionIdentifier {
@@ -248,21 +249,25 @@ export interface IReportedExtension {
 	malicious: boolean;
 }
 
-export enum DownloadOperation {
-	None,
-	Install,
+export enum InstallOperation {
+	Install = 1,
 	Update
+}
+
+export interface ITranslation {
+	contents: { [key: string]: {} };
 }
 
 export interface IExtensionGalleryService {
 	_serviceBrand: any;
 	isEnabled(): boolean;
 	query(options?: IQueryOptions): TPromise<IPager<IGalleryExtension>>;
-	download(extension: IGalleryExtension, operation: DownloadOperation): TPromise<string>;
+	download(extension: IGalleryExtension, operation: InstallOperation): TPromise<string>;
 	reportStatistic(publisher: string, name: string, version: string, type: StatisticType): TPromise<void>;
 	getReadme(extension: IGalleryExtension): TPromise<string>;
 	getManifest(extension: IGalleryExtension): TPromise<IExtensionManifest>;
 	getChangelog(extension: IGalleryExtension): TPromise<string>;
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation>;
 	loadCompatibleVersion(extension: IGalleryExtension): TPromise<IGalleryExtension>;
 	loadAllDependencies(dependencies: IExtensionIdentifier[]): TPromise<IGalleryExtension[]>;
 	getExtensionsReport(): TPromise<IReportedExtension[]>;
@@ -276,6 +281,7 @@ export interface InstallExtensionEvent {
 
 export interface DidInstallExtensionEvent {
 	identifier: IExtensionIdentifier;
+	operation: InstallOperation;
 	zipPath?: string;
 	gallery?: IGalleryExtension;
 	local?: ILocalExtension;

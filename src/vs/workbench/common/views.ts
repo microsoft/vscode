@@ -14,23 +14,34 @@ import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ThemeIcon } from 'vs/platform/theme/common/themeService';
+import { values } from 'vs/base/common/map';
 
 export class ViewLocation {
 
+	private static readonly _onDidRegister: Emitter<ViewLocation> = new Emitter<ViewLocation>();
+	static readonly onDidRegister: Event<ViewLocation> = ViewLocation._onDidRegister.event;
+
 	private static locations: Map<string, ViewLocation> = new Map<string, ViewLocation>();
 	static register(id: string): ViewLocation {
-		const viewLocation = new ViewLocation(id);
-		ViewLocation.locations.set(id, viewLocation);
-		return viewLocation;
+		if (!ViewLocation.locations.has(id)) {
+			const viewLocation = new ViewLocation(id);
+			ViewLocation.locations.set(id, viewLocation);
+			ViewLocation._onDidRegister.fire(viewLocation);
+		}
+		return ViewLocation.get(id);
 	}
 	static get(value: string): ViewLocation {
 		return ViewLocation.locations.get(value);
+	}
+	static get all(): ViewLocation[] {
+		return values(ViewLocation.locations);
 	}
 
 	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
 	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
 	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
 	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm.views.contributed');
+	static readonly TEST: ViewLocation = ViewLocation.register('workbench.view.extension.test');
 
 	private constructor(private _id: string) { }
 	get id(): string { return this._id; }
@@ -72,8 +83,6 @@ export interface IViewsRegistry {
 	deregisterViews(ids: string[], location: ViewLocation): void;
 
 	getViews(loc: ViewLocation): IViewDescriptor[];
-
-	getAllViews(): IViewDescriptor[];
 
 	getView(id: string): IViewDescriptor;
 
@@ -125,19 +134,13 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 				this._views.delete(location);
 				this._viewLocations.splice(this._viewLocations.indexOf(location), 1);
 			}
+			this._onViewsDeregistered.fire(viewsToDeregister);
 		}
 
-		this._onViewsDeregistered.fire(viewsToDeregister);
 	}
 
 	getViews(loc: ViewLocation): IViewDescriptor[] {
 		return this._views.get(loc) || [];
-	}
-
-	getAllViews(): IViewDescriptor[] {
-		const result: IViewDescriptor[] = [];
-		this._views.forEach(views => result.push(...views));
-		return result;
 	}
 
 	getView(id: string): IViewDescriptor {
@@ -155,6 +158,14 @@ export interface IViewsViewlet extends IViewlet {
 
 	openView(id: string, focus?: boolean): TPromise<void>;
 
+}
+
+export const IViewsService = createDecorator<IViewsService>('viewsService');
+
+export interface IViewsService {
+	_serviceBrand: any;
+
+	openView(id: string, focus?: boolean): TPromise<void>;
 }
 
 // Custom views
@@ -186,18 +197,8 @@ export interface ITreeViewer extends IDisposable {
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	treeView?: boolean;
+	treeViewer: ITreeViewer;
 
-}
-
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-
-export interface IViewsService {
-	_serviceBrand: any;
-
-	getTreeViewer(id: string): ITreeViewer;
-
-	openView(id: string, focus?: boolean): TPromise<void>;
 }
 
 export type TreeViewItemHandleArg = {

@@ -10,13 +10,11 @@ import URI from 'vs/base/common/uri';
 import * as network from 'vs/base/common/network';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { Match, FileMatch, FileMatchOrMatch, ISearchWorkbenchService } from 'vs/workbench/parts/search/common/searchModel';
 import { IProgressRunner } from 'vs/platform/progress/common/progress';
-import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ScrollType } from 'vs/editor/common/editorCommon';
@@ -95,7 +93,7 @@ export class ReplaceService implements IReplaceService {
 
 	constructor(
 		@ITextFileService private textFileService: ITextFileService,
-		@IEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@IBulkEditService private bulkEditorService: IBulkEditService
 	) { }
@@ -143,7 +141,7 @@ export class ReplaceService implements IReplaceService {
 			}
 		}).then(editor => {
 			this.updateReplacePreview(fileMatch).then(() => {
-				let editorControl = (<IDiffEditor>editor.getControl());
+				let editorControl = editor.getControl();
 				if (element instanceof Match) {
 					editorControl.revealLineInCenter(element.range().startLineNumber, ScrollType.Immediate);
 				}

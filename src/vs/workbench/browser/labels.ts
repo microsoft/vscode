@@ -10,8 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput } from 'vs/workbench/common/editor';
 import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -26,6 +25,7 @@ import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/fi
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
+import { DataUri } from 'vs/workbench/common/resources';
 
 export interface IResourceLabel {
 	name: string;
@@ -327,7 +327,15 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
 	if (resource) {
-		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
+
+		// Get the name of the resource. For data-URIs, we need to parse specially
+		let name: string;
+		if (resource.scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(resource);
+			name = metadata.get(DataUri.META_DATA_LABEL);
+		} else {
+			name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
+		}
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {

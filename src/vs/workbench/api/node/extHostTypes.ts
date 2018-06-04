@@ -903,6 +903,11 @@ export class Hierarchy<T> {
 	}
 }
 
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
 export class CodeAction {
 	title: string;
 
@@ -1840,23 +1845,11 @@ export enum LogLevel {
 }
 
 //#region file api
-// todo@remote
-export enum DeprecatedFileChangeType {
-	Updated = 0,
-	Added = 1,
-	Deleted = 2
-}
 
 export enum FileChangeType {
 	Changed = 1,
 	Created = 2,
 	Deleted = 3,
-}
-
-export enum DeprecatedFileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
 }
 
 export class FileSystemError extends Error {

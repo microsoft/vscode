@@ -4,13 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as path from 'path';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats, IFolderQuery } from 'vs/platform/search/common/search';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -58,7 +57,6 @@ class SearchOperation {
 
 	constructor(
 		readonly progress: (match: IFileMatch) => any,
-		readonly folders: IFolderQuery[],
 		readonly id: number = ++SearchOperation._idPool,
 		readonly matches = new Map<string, IFileMatch>()
 	) {
@@ -102,6 +100,9 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		}
 
 		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
+		if (!folderQueriesForScheme.length) {
+			return TPromise.wrap(null);
+		}
 
 		query = {
 			...query,
@@ -112,7 +113,7 @@ class RemoteSearchProvider implements ISearchResultProvider {
 
 		return new PPromise((resolve, reject, report) => {
 
-			const search = new SearchOperation(report, query.folderQueries);
+			const search = new SearchOperation(report);
 			this._searches.set(search.id, search);
 
 			outer = query.type === QueryType.File
@@ -142,14 +143,8 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		const searchOp = this._searches.get(session);
 		if (Array.isArray(dataOrUri)) {
 			dataOrUri.forEach(m => {
-				const folderQuery = searchOp.folders[m.resource.folderIdx];
-				if (!folderQuery) {
-					return;
-				}
-
-				const fullUri = URI.file(path.join(folderQuery.folder.fsPath, m.resource.relativePath));
 				searchOp.addMatch({
-					resource: fullUri,
+					resource: URI.revive(m.resource),
 					lineMatches: m.lineMatches
 				});
 			});

@@ -341,7 +341,7 @@ export function matchesFuzzy(word: string, wordToMatchAgainst: string, enableSep
 	return enableSeparateSubstringMatching ? fuzzySeparateFilter(word, wordToMatchAgainst) : fuzzyContiguousFilter(word, wordToMatchAgainst);
 }
 
-export function skipScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function anyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	pattern = pattern.toLowerCase();
 	word = word.toLowerCase();
 
@@ -452,7 +452,9 @@ function isWhitespaceAtPos(value: string, index: number): boolean {
 
 const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
-export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export type FuzzyScore = [number, number[]];
+
+export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number, firstMatchCanBeWeak?: boolean): FuzzyScore {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
@@ -514,7 +516,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 					} else {
 						score = 5;
 					}
-				} else if (lowWordChar !== word[wordPos - 1]) {
+				} else if (lowWordChar !== word[wordPos - 1] && (wordPos === 1 || lowWord[wordPos - 2] === word[wordPos - 2])) {
 					// hitting upper-case: `foo <-> forOthers`
 					if (pattern[patternPos - 1] === word[wordPos - 1]) {
 						score = 7;
@@ -576,6 +578,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
+	_firstMatchCanBeWeak = firstMatchCanBeWeak;
 	_findAllMatches(patternLen, wordLen, patternLen === wordLen ? 1 : 0, new LazyArray(), false);
 
 	if (_matchesCount === 0) {
@@ -589,6 +592,7 @@ let _matchesCount: number = 0;
 let _topMatch: LazyArray;
 let _topScore: number = 0;
 let _patternStartPos: number = 0;
+let _firstMatchCanBeWeak: boolean = false;
 
 function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
 
@@ -642,7 +646,7 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			if (score === 1) {
 				simpleMatchCount += 1;
 
-				if (patternPos === _patternStartPos) {
+				if (patternPos === _patternStartPos && !_firstMatchCanBeWeak) {
 					// when the first match is a weak
 					// match we discard it
 					return undefined;
@@ -715,15 +719,15 @@ class LazyArray {
 
 //#region --- graceful ---
 
-export function fuzzyScoreGracefulAggressive(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function fuzzyScoreGracefulAggressive(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	return fuzzyScoreWithPermutations(pattern, word, true, patternMaxWhitespaceIgnore);
 }
 
-export function fuzzyScoreGraceful(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+export function fuzzyScoreGraceful(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	return fuzzyScoreWithPermutations(pattern, word, false, patternMaxWhitespaceIgnore);
 }
 
-function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: boolean, patternMaxWhitespaceIgnore?: number): [number, number[]] {
+function fuzzyScoreWithPermutations(pattern: string, word: string, aggressive?: boolean, patternMaxWhitespaceIgnore?: number): FuzzyScore {
 	let top: [number, number[]] = fuzzyScore(pattern, word, patternMaxWhitespaceIgnore);
 
 	if (top && !aggressive) {

@@ -6,12 +6,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { wireCancellationToken, asWinJsPromise } from 'vs/base/common/async';
-import { CancellationTokenSource, CancellationToken } from 'vs/base/common/cancellation';
-import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder, QuickInput } from 'vscode';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { QuickPickOptions, QuickPickItem, InputBoxOptions, WorkspaceFolderPickOptions, WorkspaceFolder } from 'vscode';
 import { MainContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, IMainContext } from './extHost.protocol';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { isPromiseCanceledError } from 'vs/base/common/errors';
 
 export type Item = string | QuickPickItem;
 
@@ -23,8 +22,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 
 	private _onDidSelectItem: (handle: number) => void;
 	private _validateInput: (input: string) => string | Thenable<string>;
-
-	private _nextMultiStepHandle = 1;
 
 	constructor(mainContext: IMainContext, workspace: ExtHostWorkspace, commands: ExtHostCommands) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadQuickOpen);
@@ -143,44 +140,6 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			}
 
 			return this._workspace.getWorkspaceFolders().filter(folder => folder.uri.toString() === selectedFolder.uri.toString())[0];
-		});
-	}
-
-	// ---- Multi-step input
-
-	multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, clientToken: CancellationToken = CancellationToken.None): Thenable<T> {
-		const handle = this._nextMultiStepHandle++;
-		const remotePromise = this._proxy.$multiStep(handle);
-
-		const cancellationSource = new CancellationTokenSource();
-		const handlerPromise = TPromise.wrap(handler({
-			showQuickPick: this.showQuickPick.bind(this, handle),
-			showInputBox: this.showInput.bind(this, handle)
-		}, cancellationSource.token));
-
-		clientToken.onCancellationRequested(() => {
-			remotePromise.cancel();
-			cancellationSource.cancel();
-		});
-
-		return TPromise.join<void, T>([
-			remotePromise.then(() => {
-				throw new Error('Unexpectedly fulfilled promise.');
-			}, err => {
-				if (!isPromiseCanceledError(err)) {
-					throw err;
-				}
-				cancellationSource.cancel();
-			}),
-			handlerPromise.then(result => {
-				remotePromise.cancel();
-				return result;
-			}, err => {
-				remotePromise.cancel();
-				throw err;
-			})
-		]).then(([_, result]) => result, ([remoteErr, handlerErr]) => {
-			throw handlerErr || remoteErr;
 		});
 	}
 }

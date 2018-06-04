@@ -172,10 +172,10 @@ export default class BufferSyncSupport {
 	}
 
 	public listen(): void {
-		workspace.onDidOpenTextDocument(this.onDidOpenTextDocument, this, this.disposables);
+		workspace.onDidOpenTextDocument(this.openTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
-		workspace.textDocuments.forEach(this.onDidOpenTextDocument, this);
+		workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
 	public set validate(value: boolean) {
@@ -196,7 +196,7 @@ export default class BufferSyncSupport {
 		disposeAll(this.disposables);
 	}
 
-	private onDidOpenTextDocument(document: TextDocument): void {
+	public openTextDocument(document: TextDocument): void {
 		if (!this.modeIds.has(document.languageId)) {
 			return;
 		}
@@ -216,18 +216,21 @@ export default class BufferSyncSupport {
 		this.requestDiagnostic(resource);
 	}
 
-	private onDidCloseTextDocument(document: TextDocument): void {
-		const resource = document.uri;
+	public closeResource(resource: Uri): void {
 		const syncedBuffer = this.syncedBuffers.get(resource);
 		if (!syncedBuffer) {
 			return;
 		}
-		this.diagnostics.delete(resource);
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		if (!fs.existsSync(resource.fsPath)) {
+			this.diagnostics.delete(resource);
 			this.requestAllDiagnostics();
 		}
+	}
+
+	private onDidCloseTextDocument(document: TextDocument): void {
+		this.closeResource(document.uri);
 	}
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
@@ -248,6 +251,24 @@ export default class BufferSyncSupport {
 		for (const filePath of this.syncedBuffers.allResources) {
 			this.pendingDiagnostics.set(filePath, Date.now());
 		}
+		this.diagnosticDelayer.trigger(() => {
+			this.sendPendingDiagnostics();
+		}, 200);
+	}
+
+	public getErr(resources: Uri[]): any {
+		const handledResources = resources.filter(resource => this.handles(resource));
+		if (!handledResources.length) {
+			return;
+		}
+
+		for (const resource of handledResources) {
+			const file = this.client.normalizePath(resource);
+			if (file) {
+				this.pendingDiagnostics.set(file, Date.now());
+			}
+		}
+
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, 200);

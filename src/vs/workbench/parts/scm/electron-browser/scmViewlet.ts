@@ -22,8 +22,7 @@ import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -31,7 +30,7 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { MenuItemAction, IMenuService, MenuId } from 'vs/platform/actions/common/actions';
 import { IAction, Action, IActionItem, ActionRunner } from 'vs/base/common/actions';
-import { fillInActions, ContextAwareMenuItemActionItem } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions, ContextAwareMenuItemActionItem, fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { SCMMenus } from './scmMenus';
 import { ActionBar, IActionItemProvider, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
@@ -57,7 +56,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/contributableViews';
+import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
@@ -312,7 +311,7 @@ class MainPanel extends ViewletPanel {
 		const secondary: IAction[] = [];
 		const result = { primary, secondary };
 
-		fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
+		fillInContextMenuActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => g === 'inline');
 
 		menu.dispose();
 		contextKeyService.dispose();
@@ -382,7 +381,6 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 		private actionItemProvider: IActionItemProvider,
 		private themeService: IThemeService,
 		private contextKeyService: IContextKeyService,
-		private contextMenuService: IContextMenuService,
 		private menuService: IMenuService
 	) { }
 
@@ -426,7 +424,7 @@ class ResourceGroupRenderer implements IRenderer<ISCMResourceGroup, ResourceGrou
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
@@ -490,7 +488,6 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 		private themeService: IThemeService,
 		private instantiationService: IInstantiationService,
 		private contextKeyService: IContextKeyService,
-		private contextMenuService: IContextMenuService,
 		private menuService: IMenuService
 	) { }
 
@@ -538,7 +535,7 @@ class ResourceRenderer implements IRenderer<ISCMResource, ResourceTemplate> {
 			const primary: IAction[] = [];
 			const secondary: IAction[] = [];
 			const result = { primary, secondary };
-			fillInActions(menu, { shouldForwardArgs: true }, result, this.contextMenuService, g => /^inline/.test(g));
+			fillInActionBarActions(menu, { shouldForwardArgs: true }, result, g => /^inline/.test(g));
 
 			template.actionBar.clear();
 			template.actionBar.push(primary, { icon: true, label: false });
@@ -757,8 +754,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextViewService protected contextViewService: IContextViewService,
 		@ICommandService protected commandService: ICommandService,
 		@INotificationService private notificationService: INotificationService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService,
+		@IEditorService protected editorService: IEditorService,
 		@IInstantiationService protected instantiationService: IInstantiationService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IContextKeyService protected contextKeyService: IContextKeyService,
@@ -874,8 +870,8 @@ export class RepositoryPanel extends ViewletPanel {
 		const actionItemProvider = (action: IAction) => this.getActionItem(action);
 
 		const renderers = [
-			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.contextKeyService, this.contextMenuService, this.menuService),
-			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.contextKeyService, this.contextMenuService, this.menuService)
+			new ResourceGroupRenderer(actionItemProvider, this.themeService, this.contextKeyService, this.menuService),
+			new ResourceRenderer(actionItemProvider, () => this.getSelectedResources(), this.themeService, this.instantiationService, this.contextKeyService, this.menuService)
 		];
 
 		this.list = this.instantiationService.createInstance(WorkbenchList, this.listContainer, delegate, renderers, {
@@ -957,15 +953,10 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private pin(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = this.editorService.getActiveEditorInput();
-
-		if (!activeEditor) {
-			return;
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.group.pinEditor(activeControl.input);
 		}
-
-		this.editorGroupService.pinEditor(activeEditor.position, activeEditorInput);
-		activeEditor.focus();
 	}
 
 	private onListContextMenu(e: IListContextMenuEvent<ISCMResourceGroup | ISCMResource>): void {
@@ -992,7 +983,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	private updateInputBox(): void {
-		if (typeof this.repository.provider.commitTemplate === 'undefined') {
+		if (typeof this.repository.provider.commitTemplate === 'undefined' || this.inputBox.value) {
 			return;
 		}
 
@@ -1054,6 +1045,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private repositoryPanels: RepositoryPanel[] = [];
 	private singleRepositoryPanelTitleActionsDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
+	private lastFocusedRepository: ISCMRepository | undefined;
 
 	private _onDidSplice = new Emitter<ISpliceEvent<ISCMRepository>>();
 	readonly onDidSplice: Event<ISpliceEvent<ISCMRepository>> = this._onDidSplice.event;
@@ -1082,8 +1074,6 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		@IContextMenuService protected contextMenuService: IContextMenuService,
 		@IThemeService protected themeService: IThemeService,
 		@ICommandService protected commandService: ICommandService,
-		@IEditorGroupService protected editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IStorageService storageService: IStorageService,
 		@IExtensionService extensionService: IExtensionService,
@@ -1202,7 +1192,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		const start = this.getContributedViewsStartIndex();
 
-		for (let i = 0; i < this.contributedViews.viewDescriptors.length; i++) {
+		for (let i = 0; i < this.contributedViews.visibleViewDescriptors.length; i++) {
 			const panel = this.panels[start + i] as ViewsViewletPanel;
 			promises.push(panel.setVisible(visible));
 		}
@@ -1315,6 +1305,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		newRepositoryPanels.forEach(panel => {
 			this.addPanels([{ panel, size: panel.minimumSize, index: index++ }]);
 			panel.repository.focus();
+			panel.onDidFocus(() => this.lastFocusedRepository = panel.repository);
+			if (newRepositoryPanels.length === 1 || this.lastFocusedRepository === panel.repository) {
+				panel.focus();
+			}
 		});
 
 		// Remove unselected panels

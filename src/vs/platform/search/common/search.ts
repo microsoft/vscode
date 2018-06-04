@@ -104,17 +104,12 @@ export interface IPatternInfo {
 	isSmartCase?: boolean;
 }
 
-export interface IFileMatch<U = uri> {
+export interface IFileMatch<U extends UriComponents = uri> {
 	resource?: U;
 	lineMatches?: ILineMatch[];
 }
 
-export interface IPathInFolder {
-	folderIdx: number;
-	relativePath: string;
-}
-
-export type IRawFileMatch2 = IFileMatch<IPathInFolder>;
+export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
 export interface ILineMatch {
 	preview: string;
@@ -195,7 +190,6 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
-	enableSearchProviders: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

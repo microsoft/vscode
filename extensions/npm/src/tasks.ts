@@ -58,7 +58,7 @@ function getPrePostScripts(scripts: any): Set<string> {
 		const script = keys[i];
 		const prepost = ['pre' + script, 'post' + script];
 		prepost.forEach(each => {
-			if (scripts[each]) {
+			if (scripts[each] !== undefined) {
 				prePostScripts.add(each);
 			}
 		});
@@ -142,19 +142,25 @@ function isExcluded(folder: WorkspaceFolder, packageJsonUri: Uri) {
 	}
 
 	let exclude = workspace.getConfiguration('npm', folder.uri).get<string | string[]>('exclude');
+	let packageJsonFolder = path.dirname(packageJsonUri.fsPath);
 
 	if (exclude) {
 		if (Array.isArray(exclude)) {
 			for (let pattern of exclude) {
-				if (testForExclusionPattern(packageJsonUri.fsPath, pattern)) {
+				if (testForExclusionPattern(packageJsonFolder, pattern)) {
 					return true;
 				}
 			}
-		} else if (testForExclusionPattern(packageJsonUri.fsPath, exclude)) {
+		} else if (testForExclusionPattern(packageJsonFolder, exclude)) {
 			return true;
 		}
 	}
 	return false;
+}
+
+function isDebugScript(script: string): boolean {
+	let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
+	return match !== null;
 }
 
 async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> {
@@ -183,6 +189,9 @@ async function provideNpmScriptsForFolder(packageJsonUri: Uri): Promise<Task[]> 
 		if (prePostScripts.has(each)) {
 			task.group = TaskGroup.Clean; // hack: use Clean group to tag pre/post scripts
 		}
+		if (isDebugScript(scripts![each])) {
+			task.group = TaskGroup.Rebuild; // hack: use Rebuild group to tag debug scripts
+		}
 		result.push(task);
 	});
 	// always add npm install (without a problem matcher)
@@ -197,7 +206,7 @@ export function getTaskName(script: string, relativePath: string | undefined) {
 	return script;
 }
 
-function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
+export function createTask(script: string, cmd: string, folder: WorkspaceFolder, packageJsonUri: Uri, matcher?: any): Task {
 
 	function getCommandLine(folder: WorkspaceFolder, cmd: string): string {
 		let packageManager = getPackageManager(folder);

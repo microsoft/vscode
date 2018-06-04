@@ -38,6 +38,7 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
 const SLOW_CANVAS_RENDER_THRESHOLD = 50;
+const NUMBER_OF_FRAMES_TO_MEASURE = 20;
 
 let Terminal: typeof XTermTerminal;
 
@@ -64,6 +65,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
+	private _onDataListeners: ((data: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
@@ -118,6 +120,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];
+		this._onDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
@@ -278,7 +281,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm.winptyCompatInit();
 		this._xterm.on('linefeed', () => this._onLineFeed());
 		if (this._processManager) {
-			this._processManager.onProcessData(data => this._sendPtyDataToXterm(data));
+			this._processManager.onProcessData(data => this._onProcessData(data));
 			this._xterm.on('data', data => this._processManager.write(data));
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
@@ -436,13 +439,16 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _measureRenderTime(): void {
+		let frameTimes: number[] = [];
 		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
-		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
-			const startTime = performance.now();
-			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
-			const renderTimeMilliseconds = performance.now() - startTime;
-			if (renderTimeMilliseconds > SLOW_CANVAS_RENDER_THRESHOLD) {
+
+		const evaluateCanvasRenderer = () => {
+			// Discard first frame time as it's normal to take longer
+			frameTimes.shift();
+
+			const averageTime = frameTimes.reduce((p, c) => p + c) / frameTimes.length;
+			if (averageTime > SLOW_CANVAS_RENDER_THRESHOLD) {
 				const promptChoices: IPromptChoice[] = [
 					{
 						label: nls.localize('yes', "Yes"),
@@ -453,7 +459,8 @@ export class TerminalInstance implements ITerminalInstance {
 						}
 					} as IPromptChoice,
 					{
-						label: nls.localize('no', "No")
+						label: nls.localize('no', "No"),
+						run: () => { }
 					} as IPromptChoice,
 					{
 						label: nls.localize('dontShowAgain', "Don't Show Again"),
@@ -463,13 +470,21 @@ export class TerminalInstance implements ITerminalInstance {
 				];
 				this._notificationService.prompt(
 					Severity.Warning,
-					nls.localize('terminal.slowRendering', 'The current standard canvas renderer for the integrated terminal appears to be slow on your computer. Using the DOM-based renderer may improve performance, do you want to switch to the DOM-based renderer? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
+					nls.localize('terminal.slowRendering', 'The standard renderer for the integrated terminal appears to be slow on your computer. Would you like to switch to the alternative DOM-based renderer which may improve performance? [Read more about terminal settings](https://code.visualstudio.com/docs/editor/integrated-terminal#_changing-how-the-terminal-is-rendered).'),
 					promptChoices
 				);
 			}
+		};
 
-			// Restore original function
-			textRenderLayer.onGridChanged = originalOnGridChanged;
+		textRenderLayer.onGridChanged = (terminal: XTermTerminal, firstRow: number, lastRow: number) => {
+			const startTime = performance.now();
+			originalOnGridChanged.call(textRenderLayer, terminal, firstRow, lastRow);
+			frameTimes.push(performance.now() - startTime);
+			if (frameTimes.length === NUMBER_OF_FRAMES_TO_MEASURE) {
+				evaluateCanvasRenderer();
+				// Restore original function
+				textRenderLayer.onGridChanged = originalOnGridChanged;
+			}
 		};
 	}
 
@@ -662,13 +677,20 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 	}
 
-	private _sendPtyDataToXterm(data: string): void {
+	private _onProcessData(data: string): void {
 		if (this._widgetManager) {
 			this._widgetManager.closeMessage();
 		}
 		if (this._xterm) {
 			this._xterm.write(data);
 		}
+		this._onDataListeners.forEach(listener => {
+			try {
+				listener(data);
+			} catch (err) {
+				console.error(`onData listener threw`, err);
+			}
+		});
 	}
 
 	private _onProcessExit(exitCode: number): void {
@@ -762,7 +784,7 @@ export class TerminalInstance implements ITerminalInstance {
 		if (oldTitle !== this._title) {
 			this.setTitle(this._title, true);
 		}
-		this._processManager.onProcessData(data => this._sendPtyDataToXterm(data));
+		this._processManager.onProcessData(data => this._onProcessData(data));
 
 		// Clean up waitOnExit state
 		if (this._isExiting && this._shellLaunchConfig.waitOnExit) {
@@ -775,7 +797,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onData(listener: (data: string) => void): lifecycle.IDisposable {
-		return this._processManager.onProcessData(data => listener(data));
+		this._onDataListeners.push(listener);
+		return {
+			dispose: () => {
+				const i = this._onDataListeners.indexOf(listener);
+				if (i >= 0) {
+					this._onDataListeners.splice(i, 1);
+				}
+			}
+		};
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {

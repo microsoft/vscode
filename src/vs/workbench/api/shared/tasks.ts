@@ -103,3 +103,7 @@ export interface TaskFilterDTO {
 	version?: string;
 	type?: string;
 }
+
+export interface TaskSystemInfoDTO {
+	platform: string;
+}

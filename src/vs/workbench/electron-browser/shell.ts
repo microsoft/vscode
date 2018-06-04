@@ -36,7 +36,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -69,7 +69,6 @@ import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -95,6 +94,8 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
 
 /**
  * Services that we require for the Shell
@@ -270,7 +271,7 @@ export class WorkbenchShell {
 			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length,
+			restoredEditors: info.restoredEditorsCount,
 			startupKind: this.lifecycleService.startupKind
 		});
 
@@ -447,7 +448,9 @@ export class WorkbenchShell {
 
 		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
-		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 

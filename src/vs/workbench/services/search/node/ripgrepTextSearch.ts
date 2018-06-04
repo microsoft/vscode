@@ -487,11 +487,17 @@ function getRgArgs(config: IRawSearch) {
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
-		args.push('--regexp', config.contentPattern.pattern);
+		const rgRegexPattern = strings.endsWith(config.contentPattern.pattern, '$') ?
+			config.contentPattern.pattern.replace(/\$$/, '\\r?') :
+			config.contentPattern.pattern;
+
+		args.push('--regexp', rgRegexPattern);
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		args.push('--fixed-strings');
 	}
+
+	args.push('--no-config');
 
 	// Folder to search
 	args.push('--');

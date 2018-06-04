@@ -133,7 +133,7 @@ suite('window namespace tests', () => {
 		}
 	});
 
-	test('issue #25801 - default column when opening a file', async () => {
+	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -153,7 +153,7 @@ suite('window namespace tests', () => {
 			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
 		);
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
@@ -403,84 +403,6 @@ suite('window namespace tests', () => {
 		});
 		const b = commands.executeCommand('workbench.action.closeQuickOpen');
 		return Promise.all([a, b]);
-	});
-
-	test('multiStepInput, two steps', async function () {
-		const picks = window.multiStepInput(async (input, token) => {
-			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick1, 'eins');
-
-			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick2, 'vier');
-
-			return [ await pick1, await pick2 ];
-		});
-		assert.deepEqual(await picks, ['eins', 'vier']);
-	});
-
-	test('multiStepInput, interrupted by showQuickPick', async function () {
-		const picks = window.multiStepInput(async (input, token) => {
-			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick1, 'eins');
-
-			assert.ok(!token.isCancellationRequested);
-			const otherPick = window.showQuickPick(['sieben', 'acht', 'neun']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await otherPick, 'sieben');
-			assert.ok(token.isCancellationRequested);
-
-			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick2, undefined);
-
-			return [ await pick1, await pick2 ];
-		});
-		assert.deepEqual(await picks, ['eins', undefined]);
-	});
-
-	test('multiStepInput, interrupted by multiStepInput', async function () {
-		const picks = window.multiStepInput(async (input, token) => {
-			const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick1, 'eins');
-
-			assert.ok(!token.isCancellationRequested);
-			const otherPick = window.multiStepInput(async (input, token) => {
-				const otherPick = window.showQuickPick(['sieben', 'acht', 'neun']);
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-				assert.equal(await otherPick, 'sieben');
-
-				return otherPick;
-			});
-			assert.equal(await otherPick, 'sieben');
-			assert.ok(token.isCancellationRequested);
-
-			const pick2 = input.showQuickPick(['vier', 'fünf', 'sechs']);
-			await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-			assert.equal(await pick2, undefined);
-
-			return [ await pick1, await pick2 ];
-		});
-		assert.deepEqual(await picks, ['eins', undefined]);
-	});
-
-	test('multiStepInput, interrupted by error', async function () {
-		try {
-			const picks = window.multiStepInput(async (input, token) => {
-				const pick1 = input.showQuickPick(['eins', 'zwei', 'drei']);
-				await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-				assert.equal(await pick1, 'eins');
-
-				throw new Error('because');
-			});
-			await picks;
-			assert.ok(false);
-		} catch (error) {
-			assert.equal(error.message, 'because');
-		}
 	});
 
 	test('showWorkspaceFolderPick', function () {

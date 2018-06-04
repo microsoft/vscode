@@ -2505,10 +2505,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 			const upLineNumber = lineNumber - distance;
 			const downLineNumber = lineNumber + distance;
 
-			if (upLineNumber < 1 || upLineNumber < minLineNumber) {
+			if (distance !== 0 && (upLineNumber < 1 || upLineNumber < minLineNumber)) {
 				goUp = false;
 			}
-			if (downLineNumber > lineCount || downLineNumber > maxLineNumber) {
+			if (distance !== 0 && (downLineNumber > lineCount || downLineNumber > maxLineNumber)) {
 				goDown = false;
 			}
 			if (distance > 50000) {

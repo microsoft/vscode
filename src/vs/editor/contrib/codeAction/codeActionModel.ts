@@ -113,7 +113,7 @@ export class CodeActionOracle {
 			const model = this._editor.getModel();
 			const markerRange = this._getRangeOfMarker(selection);
 			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
-			const actions = getCodeActions(model, selection, trigger && trigger.filter);
+			const actions = getCodeActions(model, selection, trigger);
 
 			if (this._progressService && trigger.type === 'manual') {
 				this._progressService.showWhile(actions, 250);

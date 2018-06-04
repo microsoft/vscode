@@ -2679,7 +2679,7 @@ declare namespace monaco.editor {
 		 */
 		wordWrapMinified?: boolean;
 		/**
-		 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
+		 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 		 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 		 */
 		wrappingIndent?: string;
@@ -2977,9 +2977,13 @@ declare namespace monaco.editor {
 		 */
 		Same = 1,
 		/**
-		 * Indent => wrapped lines get +1 indentation as the parent.
+		 * Indent => wrapped lines get +1 indentation toward the parent.
 		 */
 		Indent = 2,
+		/**
+		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+		 */
+		DeepIndent = 3,
 	}
 
 	/**

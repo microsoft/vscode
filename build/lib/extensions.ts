@@ -49,6 +49,7 @@ function error(err: any): Stream {
 const baseHeaders = {
 	'X-Market-Client-Id': 'VSCode Build',
 	'User-Agent': 'VSCode Build',
+	'X-Market-User-Id': '291C1CD0-051A-4123-9B4B-30D60EF52EE2',
 };
 
 export function fromMarketplace(extensionName: string, version: string): Stream {

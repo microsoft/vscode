@@ -65,6 +65,9 @@ class OutlineAdapter {
 		let parentStack: Hierarchy<SymbolInformation2>[] = [];
 		for (let i = 0; i < info.length; i++) {
 			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
+			element.parent.containerName = info[i].containerName;
+			element.parent.location = info[i].location; // todo@joh make this proper
+
 			while (true) {
 				if (parentStack.length === 0) {
 					parentStack.push(element);
@@ -72,7 +75,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (parent.parent.range.contains(element.parent.range)) {
+				if (parent.parent.range.contains(element.parent.range) && !parent.parent.range.isEqual(element.parent.range)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;
@@ -88,17 +91,12 @@ class CodeLensAdapter {
 
 	private static _badCmd: vscode.Command = { command: 'missing', title: '<<MISSING COMMAND>>' };
 
-	private _documents: ExtHostDocuments;
-	private _commands: CommandsConverter;
-	private _heapService: ExtHostHeapService;
-	private _provider: vscode.CodeLensProvider;
-
-	constructor(documents: ExtHostDocuments, commands: CommandsConverter, heapService: ExtHostHeapService, provider: vscode.CodeLensProvider) {
-		this._documents = documents;
-		this._commands = commands;
-		this._heapService = heapService;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _commands: CommandsConverter,
+		private readonly _heapService: ExtHostHeapService,
+		private readonly _provider: vscode.CodeLensProvider
+	) { }
 
 	provideCodeLenses(resource: URI): TPromise<modes.ICodeLensSymbol[]> {
 		const doc = this._documents.getDocumentData(resource).document;
@@ -140,13 +138,11 @@ class CodeLensAdapter {
 }
 
 class DefinitionAdapter {
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DefinitionProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.DefinitionProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DefinitionProvider
+	) { }
 
 	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
@@ -163,13 +159,11 @@ class DefinitionAdapter {
 }
 
 class ImplementationAdapter {
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.ImplementationProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.ImplementationProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.ImplementationProvider
+	) { }
 
 	provideImplementation(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		let doc = this._documents.getDocumentData(resource).document;
@@ -186,13 +180,11 @@ class ImplementationAdapter {
 }
 
 class TypeDefinitionAdapter {
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.TypeDefinitionProvider;
 
-	constructor(documents: ExtHostDocuments, provider: vscode.TypeDefinitionProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.TypeDefinitionProvider
+	) { }
 
 	provideTypeDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
 		const doc = this._documents.getDocumentData(resource).document;
@@ -208,15 +200,12 @@ class TypeDefinitionAdapter {
 	}
 }
 
-
 class HoverAdapter {
 
 	constructor(
 		private readonly _documents: ExtHostDocuments,
 		private readonly _provider: vscode.HoverProvider,
-	) {
-		//
-	}
+	) { }
 
 	public provideHover(resource: URI, position: IPosition): TPromise<modes.Hover> {
 
@@ -241,13 +230,10 @@ class HoverAdapter {
 
 class DocumentHighlightAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DocumentHighlightProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentHighlightProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentHighlightProvider
+	) { }
 
 	provideDocumentHighlights(resource: URI, position: IPosition): TPromise<modes.DocumentHighlight[]> {
 
@@ -265,13 +251,10 @@ class DocumentHighlightAdapter {
 
 class ReferenceAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.ReferenceProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.ReferenceProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.ReferenceProvider
+	) { }
 
 	provideReferences(resource: URI, position: IPosition, context: modes.ReferenceContext): TPromise<modes.Location[]> {
 		let doc = this._documents.getDocumentData(resource).document;
@@ -315,7 +298,8 @@ class CodeActionAdapter {
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined
+			only: context.only ? new CodeActionKind(context.only) : undefined,
+			triggerKind: context.trigger,
 		};
 
 		return asWinJsPromise(token =>
@@ -359,13 +343,10 @@ class CodeActionAdapter {
 
 class DocumentFormattingAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DocumentFormattingEditProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentFormattingEditProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentFormattingEditProvider
+	) { }
 
 	provideDocumentFormattingEdits(resource: URI, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
@@ -382,13 +363,10 @@ class DocumentFormattingAdapter {
 
 class RangeFormattingAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.DocumentRangeFormattingEditProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.DocumentRangeFormattingEditProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.DocumentRangeFormattingEditProvider
+	) { }
 
 	provideDocumentRangeFormattingEdits(resource: URI, range: IRange, options: modes.FormattingOptions): TPromise<ISingleEditOperation[]> {
 
@@ -406,13 +384,10 @@ class RangeFormattingAdapter {
 
 class OnTypeFormattingAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.OnTypeFormattingEditProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.OnTypeFormattingEditProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.OnTypeFormattingEditProvider
+	) { }
 
 	autoFormatTriggerCharacters: string[] = []; // not here
 
@@ -498,13 +473,10 @@ class RenameAdapter {
 		return typeof provider.prepareRename === 'function';
 	}
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.RenameProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.RenameProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.RenameProvider
+	) { }
 
 	provideRenameEdits(resource: URI, position: IPosition, newName: string): TPromise<modes.WorkspaceEdit> {
 
@@ -733,13 +705,10 @@ class SuggestAdapter {
 
 class SignatureHelpAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _provider: vscode.SignatureHelpProvider;
-
-	constructor(documents: ExtHostDocuments, provider: vscode.SignatureHelpProvider) {
-		this._documents = documents;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _provider: vscode.SignatureHelpProvider
+	) { }
 
 	provideSignatureHelp(resource: URI, position: IPosition): TPromise<modes.SignatureHelp> {
 
@@ -757,15 +726,11 @@ class SignatureHelpAdapter {
 
 class LinkProviderAdapter {
 
-	private _documents: ExtHostDocuments;
-	private _heapService: ExtHostHeapService;
-	private _provider: vscode.DocumentLinkProvider;
-
-	constructor(documents: ExtHostDocuments, heapService: ExtHostHeapService, provider: vscode.DocumentLinkProvider) {
-		this._documents = documents;
-		this._heapService = heapService;
-		this._provider = provider;
-	}
+	constructor(
+		private readonly _documents: ExtHostDocuments,
+		private readonly _heapService: ExtHostHeapService,
+		private readonly _provider: vscode.DocumentLinkProvider
+	) { }
 
 	provideLinks(resource: URI): TPromise<modes.ILink[]> {
 		const doc = this._documents.getDocumentData(resource).document;

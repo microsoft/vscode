@@ -11,6 +11,5 @@
 	"installAdditionalSCMProviders": "Installiere weiter SCM Provider...",
 	"no open repo": "Es gibt keine aktiven Quellcodeanbieter.",
 	"source control": "Quellcodeverwaltung",
-	"viewletTitle": "{0}: {1}",
-	"hideView": "Ausblenden"
+	"viewletTitle": "{0}: {1}"
 }

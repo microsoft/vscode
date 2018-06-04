@@ -119,13 +119,16 @@ function registerVariableCompletions(pattern: string): vscode.Disposable {
 		provideCompletionItems(document, position, token) {
 			const location = getLocation(document.getText(), document.offsetAt(position));
 			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
+				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
+				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
+
 				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
 				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
 				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
 				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
 				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
 					label: '${' + variable.label + '}',
-					range: new vscode.Range(position, position),
+					range: new vscode.Range(startPosition, position),
 					detail: variable.detail
 				}));
 			}

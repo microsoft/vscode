@@ -9,7 +9,7 @@
 	"callstackSection": "呼叫堆疊區段",
 	"debugStopped": "於 {0} 暫停",
 	"callStackAriaLabel": "偵錯呼叫堆疊",
-	"process": "處理序",
+	"session": "工作階段",
 	"paused": "已暫停",
 	"running": "正在執行",
 	"thread": "執行緒",

@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/bccefcd3facfca34c7821801692472ac1fce61d6",
+	"version": "https://github.com/Microsoft/TypeScript-TmLanguage/commit/2165b3e1139e13880d450ba1bae0801df32b1a01",
 	"name": "JavaScript (with React support)",
 	"scopeName": "source.js",
 	"patterns": [
@@ -47,6 +47,9 @@
 				},
 				{
 					"include": "#decl-block"
+				},
+				{
+					"include": "#label"
 				},
 				{
 					"include": "#expression"
@@ -132,6 +135,38 @@
 				{
 					"name": "storage.modifier.js",
 					"match": "(?<![_$[:alnum:]])(?:(?<=\\.\\.\\.)|(?<!\\.))(declare)(?![_$[:alnum:]])(?:(?=\\.\\.\\.)|(?!\\.))"
+				}
+			]
+		},
+		"label": {
+			"patterns": [
+				{
+					"begin": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)(?=\\s*\\{)",
+					"beginCaptures": {
+						"1": {
+							"name": "entity.name.label.js"
+						},
+						"2": {
+							"name": "punctuation.separator.label.js"
+						}
+					},
+					"end": "(?<=\\{)",
+					"patterns": [
+						{
+							"include": "#decl-block"
+						}
+					]
+				},
+				{
+					"match": "([_$[:alpha:]][_$[:alnum:]]*)\\s*(:)",
+					"captures": {
+						"1": {
+							"name": "entity.name.label.js"
+						},
+						"2": {
+							"name": "punctuation.separator.label.js"
+						}
+					}
 				}
 			]
 		},
@@ -1391,9 +1426,6 @@
 			},
 			"patterns": [
 				{
-					"include": "#string"
-				},
-				{
 					"include": "#comment"
 				},
 				{
@@ -1407,6 +1439,9 @@
 				},
 				{
 					"include": "#field-declaration"
+				},
+				{
+					"include": "#string"
 				},
 				{
 					"include": "#type-annotation"

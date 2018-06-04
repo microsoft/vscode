@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Görgetés az előző parancshoz",
 	"workbench.action.terminal.scrollToNextCommand": "Görgetés a következő parancshoz",
 	"workbench.action.terminal.selectToPreviousCommand": "Előző parancs kiválasztása",
-	"workbench.action.terminal.selectToNextCommand": "Következő parancs kiválasztása"
+	"workbench.action.terminal.selectToNextCommand": "Következő parancs kiválasztása",
+	"workbench.action.terminal.selectToPreviousLine": "Kijelölés az előző sorig",
+	"workbench.action.terminal.selectToNextLine": "Kijelölés a következő sorig"
 }

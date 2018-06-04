@@ -460,3 +460,7 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	},
 	when: ExplorerRootContext.toNegated()
 });
+
+// Empty Editor Group Context Menu
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.files.newUntitledFile', title: nls.localize('newFile', "New File") }, group: '1_file', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "Open File...") }, group: '1_file', order: 20 });

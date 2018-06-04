@@ -10,7 +10,7 @@ import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant } from './util';
+import { grep, isDescendant, pathEquals } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -612,6 +612,8 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -786,6 +788,8 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -852,6 +856,8 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -1325,7 +1331,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
 		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
@@ -1432,7 +1438,7 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD.name;
-		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
@@ -1450,8 +1456,12 @@ export class CommandCenter {
 			return;
 		}
 
+		const remoteName = HEAD.remote || HEAD.upstream.remote;
+		const remote = repository.remotes.find(r => r.name === remoteName);
+		const isReadonly = remote && remote.isReadOnly;
+
 		const config = workspace.getConfiguration('git');
-		const shouldPrompt = config.get<boolean>('confirmSync') === true;
+		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
 			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
@@ -1522,6 +1532,8 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -1737,7 +1749,7 @@ export class CommandCenter {
 			}
 
 			// Could it be a submodule?
-			if (resource.fsPath === repository.root) {
+			if (pathEquals(resource.fsPath, repository.root)) {
 				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 

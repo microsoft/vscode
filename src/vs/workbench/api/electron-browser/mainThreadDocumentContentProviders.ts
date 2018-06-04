@@ -9,7 +9,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { MainThreadDocumentContentProvidersShape, ExtHostContext, ExtHostDocumentContentProvidersShape, MainContext, IExtHostContext } from '../node/extHost.protocol';
 import { createTextBuffer } from 'vs/editor/common/model/textModel';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -28,8 +27,7 @@ export class MainThreadDocumentContentProviders implements MainThreadDocumentCon
 		@ITextModelService private readonly _textModelResolverService: ITextModelService,
 		@IModeService private readonly _modeService: IModeService,
 		@IModelService private readonly _modelService: IModelService,
-		@ICodeEditorService codeEditorService: ICodeEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@ICodeEditorService codeEditorService: ICodeEditorService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentContentProviders);
 	}

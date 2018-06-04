@@ -33,9 +33,10 @@ import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Action } from 'vs/base/common/actions';
+import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
 
 const $ = dom.$;
 
@@ -369,7 +370,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -426,7 +427,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(inputBox);
 
 		this.countContainer = dom.append(this.filterContainer, $('.quick-input-count'));
-		const count = new CountBadge(this.countContainer, { countFormat: localize('quickInput.countSelected', "{0} Selected") });
+		const count = new CountBadge(this.countContainer, { countFormat: localize({ key: 'quickInput.countSelected', comment: ['This tells the user how many items are selected in a list of items to select from. The items can be anything.'] }, "{0} Selected") });
 		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
@@ -534,7 +535,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 						this.inQuickOpen('quickInput', false);
 						this.ui.container.style.display = 'none';
 						if (!focusLost) {
-							this.restoreFocus();
+							this.editorGroupService.activeGroup.focus();
 						}
 					});
 				result.then(null, onUnexpectedError);
@@ -544,16 +545,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.inQuickOpen('quickInput', false);
 		this.ui.container.style.display = 'none';
 		if (!focusLost) {
-			this.restoreFocus();
+			this.editorGroupService.activeGroup.focus();
 		}
 		return TPromise.as(undefined);
-	}
-
-	private restoreFocus(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
 	}
 
 	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {
@@ -631,10 +625,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const d = token.onCancellationRequested(() => this.close());
 		this.controller.result.then(() => d.dispose(), () => d.dispose());
 
-		const delay = TPromise.timeout(800);
-		delay.then(() => this.progressBar.infinite(), () => { /* ignore */ });
-
 		const wasController = this.controller;
+
+		const delay = TPromise.timeout(800);
+		delay.then(() => {
+			if (this.controller === wasController) {
+				this.progressBar.infinite();
+			}
+		}, () => { /* ignore */ });
+
 		this.controller.ready.then(() => {
 			delay.cancel();
 			if (this.controller !== wasController) {
@@ -743,21 +742,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 }
 
-export class QuickPickManyToggleAction extends Action {
-
-	public static readonly ID = 'workbench.action.quickPickManyToggle';
-	public static readonly LABEL = localize('quickPickManyToggle', "Toggle Selection in Quick Pick");
-
-	constructor(
-		id: string,
-		label: string,
-		@IQuickInputService private quickInputService: IQuickInputService
-	) {
-		super(id, label);
+export const QuickPickManyToggle: ICommandAndKeybindingRule = {
+	id: 'workbench.action.quickPickManyToggle',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	when: inQuickOpenContext,
+	primary: undefined,
+	handler: accessor => {
+		const quickInputService = accessor.get(IQuickInputService);
+		quickInputService.toggle();
 	}
-
-	public run(event?: any): TPromise<any> {
-		this.quickInputService.toggle();
-		return TPromise.as(true);
-	}
-}
+};

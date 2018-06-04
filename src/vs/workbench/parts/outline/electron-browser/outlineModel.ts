@@ -8,32 +8,49 @@ import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvid
 import { ITextModel } from 'vs/editor/common/model';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
-
-export type FuzzyScore = [number, number[]];
+import { commonPrefixLength } from 'vs/base/common/strings';
 
 export abstract class TreeElement {
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
 	abstract parent: TreeElement | any;
 
-	static findId(candidate: string, container: TreeElement): string {
+	static findId(candidate: SymbolInformation | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
 		// the parent path, and some dedupe logic when names collide
-		let id = container.id + candidate;
-		for (let i = 1; container.children[id] !== void 0; i++) {
-			id = container.id + candidate + i;
+		let candidateId: string;
+		if (typeof candidate === 'string') {
+			candidateId = `${container.id}/${candidate}`;
+		} else {
+			candidateId = `${container.id}/${candidate.name}`;
+			if (container.children[candidateId] !== void 0) {
+				candidateId = `${container.id}/${candidate.name}_${candidate.definingRange.startLineNumber}_${candidate.definingRange.startColumn}`;
+			}
 		}
+
+		let id = candidateId;
+		for (let i = 0; container.children[id] !== void 0; i++) {
+			id = `${candidateId}_${i}`;
+		}
+
 		return id;
 	}
 
 	static getElementById(id: string, element: TreeElement): TreeElement {
-		if (element.id === id) {
+		if (!id) {
+			return undefined;
+		}
+		let len = commonPrefixLength(id, element.id);
+		if (len === id.length) {
 			return element;
+		}
+		if (len < element.id.length) {
+			return undefined;
 		}
 		for (const key in element.children) {
 			let candidate = TreeElement.getElementById(id, element.children[key]);
@@ -88,7 +105,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name);
+		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}
@@ -174,7 +191,7 @@ export class OutlineModel extends TreeElement {
 	}
 
 	private static _makeOutlineElement(info: SymbolInformation, container: OutlineGroup | OutlineElement): void {
-		let id = TreeElement.findId(info.name, container);
+		let id = TreeElement.findId(info, container);
 		let res = new OutlineElement(id, container, info);
 		if (info.children) {
 			for (const childInfo of info.children) {

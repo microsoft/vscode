@@ -30,6 +30,8 @@
 	"debuggers": "Debugger ({0})",
 	"debugger name": "Name",
 	"debugger type": "Typ",
+	"view container id": "ID",
+	"view container location": "Wo",
 	"views": "Ansichten ({0})",
 	"view id": "ID",
 	"view name": "Name",

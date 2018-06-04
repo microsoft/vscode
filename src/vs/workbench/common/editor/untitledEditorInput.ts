@@ -12,7 +12,7 @@ import * as labels from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -21,7 +21,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**

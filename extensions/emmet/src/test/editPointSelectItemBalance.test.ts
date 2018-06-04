@@ -211,6 +211,35 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		});
 	});
 
+	test('Emmet Balance In using the same stack as Balance out in html file', function (): any {
+		return withRandomFileEditor(htmlContents, 'html', (editor, doc) => {
+
+			editor.selections = [new Selection(15, 6, 15, 10)];
+			let expectedBalanceOutRanges: [number, number, number, number][] = [
+				[15, 3, 15, 32],   // <li class="item1">Item 2</li>
+				[13, 23, 16, 2],  // inner contents of <ul class="nav main">
+				[13, 2, 16, 7],		// outer contents of <ul class="nav main">
+				[12, 21, 17, 1], // inner contents of <div class="header">
+				[12, 1, 17, 7], // outer contents of <div class="header">
+				[8, 6, 18, 0],	// inner contents of <body>
+				[8, 0, 18, 7], // outer contents of <body>
+				[2, 16, 19, 0],   // inner contents of <html>
+				[2, 0, 19, 7],   // outer contents of <html>
+			];
+			expectedBalanceOutRanges.forEach(([linestart, colstart, lineend, colend]) => {
+				balanceOut();
+				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			});
+
+			expectedBalanceOutRanges.reverse().forEach(([linestart, colstart, lineend, colend]) => {
+				testSelection(editor.selection, colstart, linestart, colend, lineend);
+				balanceIn();
+			});
+
+			return Promise.resolve();
+		});
+	});
+
 });
 
 function testSelection(selection: Selection, startChar: number, startline: number, endChar?: number, endLine?: number) {

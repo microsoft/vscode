@@ -78,6 +78,13 @@ export default class TypeScriptServiceClientHost {
 		this.client.onConfigDiagnosticsReceived(diag => this.configFileDiagnosticsReceived(diag), null, this.disposables);
 		this.client.onResendModelsRequested(() => this.populateService(), null, this.disposables);
 
+		this.client.onProjectUpdatedInBackground(files => {
+			const resources = files.openFiles.map(Uri.file);
+			for (const language of this.languagePerId.values()) {
+				language.getErr(resources);
+			}
+		}, null, this.disposables);
+
 		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
 		this.disposables.push(this.versionStatus);
 

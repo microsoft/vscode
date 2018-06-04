@@ -21,7 +21,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { memoize } from 'vs/base/common/decorators';
 import * as platform from 'vs/base/common/platform';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -245,15 +245,15 @@ class ZoomStatusbarItem extends Themable implements IStatusbarItem {
 
 	constructor(
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
+		@IEditorService editorService: IEditorService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(themeService);
 		ZoomStatusbarItem.instance = this;
-		this.toUnbind.push(editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(editorService.onDidActiveEditorChange(() => this.onActiveEditorChanged()));
 	}
 
-	private onEditorsChanged(): void {
+	private onActiveEditorChanged(): void {
 		this.hide();
 		this.onSelectScale = void 0;
 	}

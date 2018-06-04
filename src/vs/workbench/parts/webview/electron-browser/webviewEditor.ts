@@ -4,21 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as DOM from 'vs/base/browser/dom';
+import { domEvent } from 'vs/base/browser/event';
 import { Emitter, Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { Position } from 'vs/platform/editor/common/editor';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { EditorOptions } from 'vs/workbench/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { WebviewEditorInput } from 'vs/workbench/parts/webview/electron-browser/webviewEditorInput';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { BaseWebviewEditor, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED, KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS, KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE } from './baseWebviewEditor';
 import { WebviewElement } from './webviewElement';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export class WebviewEditor extends BaseWebviewEditor {
 
@@ -30,6 +33,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 
 	private _webviewFocusTracker?: DOM.IFocusTracker;
 	private _webviewFocusListenerDisposable?: IDisposable;
+	private _onFocusWindowHandler?: IDisposable;
 
 	private readonly _onDidFocusWebview = new Emitter<void>();
 
@@ -40,6 +44,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		@IPartService private readonly _partService: IPartService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		super(WebviewEditor.ID, telemetryService, themeService, _contextKeyService);
 	}
@@ -71,6 +76,20 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.layout(dimension);
 	}
 
+	public focus() {
+		super.focus();
+		if (this._onFocusWindowHandler) {
+			return;
+		}
+
+		// Make sure we restore focus when switching back to a VS Code window
+		this._onFocusWindowHandler = domEvent(window, 'focus')(() => {
+			if (this._editorService.activeControl === this) {
+				this.focus();
+			}
+		});
+	}
+
 	public dispose(): void {
 		// Let the editor input dispose of the webview.
 		this._webview = undefined;
@@ -86,6 +105,10 @@ export class WebviewEditor extends BaseWebviewEditor {
 			this._webviewFocusListenerDisposable.dispose();
 		}
 
+		if (this._onFocusWindowHandler) {
+			this._onFocusWindowHandler.dispose();
+		}
+
 		super.dispose();
 	}
 
@@ -99,7 +122,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		return this._onDidFocusWebview.event;
 	}
 
-	protected setEditorVisible(visible: boolean, position?: Position): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		if (this.input && this.input instanceof WebviewEditorInput) {
 			if (visible) {
 				this.input.claimWebview(this);
@@ -119,7 +142,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 			}
 		}
 
-		super.setEditorVisible(visible, position);
+		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput() {
@@ -133,20 +156,21 @@ export class WebviewEditor extends BaseWebviewEditor {
 		super.clearInput();
 	}
 
-	async setInput(input: WebviewEditorInput, options: EditorOptions): TPromise<void> {
-		if (this.input && this.input.matches(input)) {
-			return undefined;
-		}
-
+	async setInput(input: WebviewEditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		if (this.input) {
 			(this.input as WebviewEditorInput).releaseWebview(this);
 			this._webview = undefined;
 			this._webviewContent = undefined;
 		}
-		await super.setInput(input, options);
+		await super.setInput(input, options, token);
 
 		await input.resolve();
-		await input.updatePosition(this.position);
+
+		if (token.isCancellationRequested) {
+			return;
+		}
+
+		input.updateGroup(this.group.id);
 		this.updateWebview(input);
 	}
 

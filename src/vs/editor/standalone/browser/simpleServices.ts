@@ -4,13 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Schemas } from 'vs/base/common/network';
 import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IConfigurationService, IConfigurationChangeEvent, IConfigurationOverrides, IConfigurationData } from 'vs/platform/configuration/common/configuration';
 import { ISingleFolderWorkspaceIdentifier, IWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { IEditor, IEditorInput, IEditorOptions, IEditorService, IResourceInput, Position } from 'vs/platform/editor/common/editor';
 import { ICommandService, ICommand, ICommandEvent, ICommandHandler, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { USLayoutResolvedKeybinding } from 'vs/platform/keybinding/common/usLayoutResolvedKeybinding';
@@ -36,7 +34,7 @@ import { ITelemetryService, ITelemetryInfo } from 'vs/platform/telemetry/common/
 import { ResolvedKeybinding, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { OS } from 'vs/base/common/platform';
-import { IRange, Range } from 'vs/editor/common/core/range';
+import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { INotificationService, INotification, INotificationHandle, NoOpNotification, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { IConfirmation, IConfirmationResult, IDialogService, IDialogOptions } from 'vs/platform/dialogs/common/dialogs';
@@ -47,34 +45,6 @@ import { WorkspaceEdit, isResourceTextEdit, TextEdit } from 'vs/editor/common/mo
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { localize } from 'vs/nls';
-
-export class SimpleEditor implements IEditor {
-
-	public input: IEditorInput;
-	public options: IEditorOptions;
-	public position: Position;
-
-	public _widget: editorCommon.IEditor;
-
-	constructor(editor: editorCommon.IEditor) {
-		this._widget = editor;
-	}
-
-	public getId(): string { return 'editor'; }
-	public getControl(): editorCommon.IEditor { return this._widget; }
-	public focus(): void { this._widget.focus(); }
-	public isVisible(): boolean { return true; }
-
-	public withTypedEditor<T>(codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
-		if (isCodeEditor(this._widget)) {
-			// Single Editor
-			return codeEditorCallback(<ICodeEditor>this._widget);
-		} else {
-			// Diff Editor
-			return diffEditorCallback(<IDiffEditor>this._widget);
-		}
-	}
-}
 
 export class SimpleModel implements ITextEditorModel {
 
@@ -107,94 +77,29 @@ export interface IOpenEditorDelegate {
 	(url: string): boolean;
 }
 
-export class SimpleEditorService implements IEditorService {
-	public _serviceBrand: any;
-
-	private editor: SimpleEditor;
-	private openEditorDelegate: IOpenEditorDelegate;
-
-	constructor() {
-		this.openEditorDelegate = null;
-	}
-
-	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
-	}
-
-	public setOpenEditorDelegate(openEditorDelegate: IOpenEditorDelegate): void {
-		this.openEditorDelegate = openEditorDelegate;
-	}
-
-	public openEditor(typedData: IResourceInput, sideBySide?: boolean): TPromise<IEditor> {
-		return TPromise.as(this.editor.withTypedEditor(
-			(editor) => this.doOpenEditor(editor, typedData),
-			(diffEditor) => (
-				this.doOpenEditor(diffEditor.getOriginalEditor(), typedData) ||
-				this.doOpenEditor(diffEditor.getModifiedEditor(), typedData)
-			)
-		));
-	}
-
-	private doOpenEditor(editor: ICodeEditor, data: IResourceInput): IEditor {
-		let model = this.findModel(editor, data);
-		if (!model) {
-			if (data.resource) {
-				if (this.openEditorDelegate) {
-					this.openEditorDelegate(data.resource.toString());
-					return null;
-				} else {
-					let schema = data.resource.scheme;
-					if (schema === Schemas.http || schema === Schemas.https) {
-						// This is a fully qualified http or https URL
-						dom.windowOpenNoOpener(data.resource.toString());
-						return this.editor;
-					}
-				}
-			}
-			return null;
-		}
-
-		let selection = <IRange>data.options.selection;
-		if (selection) {
-			if (typeof selection.endLineNumber === 'number' && typeof selection.endColumn === 'number') {
-				editor.setSelection(selection);
-				editor.revealRangeInCenter(selection, editorCommon.ScrollType.Immediate);
-			} else {
-				let pos = {
-					lineNumber: selection.startLineNumber,
-					column: selection.startColumn
-				};
-				editor.setPosition(pos);
-				editor.revealPositionInCenter(pos, editorCommon.ScrollType.Immediate);
-			}
-		}
-
-		return this.editor;
-	}
-
-	private findModel(editor: ICodeEditor, data: IResourceInput): ITextModel {
-		let model = editor.getModel();
-		if (model.uri.toString() !== data.resource.toString()) {
-			return null;
-		}
-
-		return model;
+function withTypedEditor<T>(widget: editorCommon.IEditor, codeEditorCallback: (editor: ICodeEditor) => T, diffEditorCallback: (editor: IDiffEditor) => T): T {
+	if (isCodeEditor(widget)) {
+		// Single Editor
+		return codeEditorCallback(<ICodeEditor>widget);
+	} else {
+		// Diff Editor
+		return diffEditorCallback(<IDiffEditor>widget);
 	}
 }
 
 export class SimpleEditorModelResolverService implements ITextModelService {
 	public _serviceBrand: any;
 
-	private editor: SimpleEditor;
+	private editor: editorCommon.IEditor;
 
 	public setEditor(editor: editorCommon.IEditor): void {
-		this.editor = new SimpleEditor(editor);
+		this.editor = editor;
 	}
 
 	public createModelReference(resource: URI): TPromise<IReference<ITextEditorModel>> {
 		let model: ITextModel;
 
-		model = this.editor.withTypedEditor(
+		model = withTypedEditor(this.editor,
 			(editor) => this.findModel(editor, resource),
 			(diffEditor) => this.findModel(diffEditor.getOriginalEditor(), resource) || this.findModel(diffEditor.getModifiedEditor(), resource)
 		);

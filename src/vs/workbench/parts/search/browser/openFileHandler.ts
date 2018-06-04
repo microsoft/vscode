@@ -23,9 +23,7 @@ import { QuickOpenEntry, QuickOpenModel } from 'vs/base/parts/quickopen/browser/
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
@@ -33,6 +31,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
 import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class FileQuickOpenModel extends QuickOpenModel {
 
@@ -49,7 +48,7 @@ export class FileEntry extends EditorQuickOpenEntry {
 		private name: string,
 		private description: string,
 		private icon: string,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IModeService private modeService: IModeService,
 		@IModelService private modelService: IModelService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -118,7 +117,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 	private cacheState: CacheState;
 
 	constructor(
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
@@ -151,7 +150,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private doFindResults(searchValue: string, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
 		const query: IQueryOptions = {
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: searchValue,
 			cacheKey: cacheKey
 		};
@@ -193,7 +192,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 
 	private cacheQuery(cacheKey: string): ISearchQuery {
 		const options: IQueryOptions = {
-			extraFileResources: getOutOfWorkspaceEditorResources(this.editorGroupService, this.contextService),
+			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: '',
 			cacheKey: cacheKey,
 			maxResults: 0,
