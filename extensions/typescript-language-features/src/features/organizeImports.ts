@@ -10,6 +10,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
 
 const localize = nls.loadMessageBundle();
 
@@ -82,4 +83,23 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	commandManager: CommandManager,
+	fileConfigurationManager: FileConfigurationManager
+) {
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api) {
+			return api.has280Features();
+		},
+		register() {
+			const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+			return vscode.languages.registerCodeActionsProvider(selector,
+				organizeImportsProvider,
+				organizeImportsProvider.metadata);
+		}
+	});
 }

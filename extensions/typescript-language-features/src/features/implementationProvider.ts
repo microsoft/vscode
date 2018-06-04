@@ -3,12 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ImplementationProvider, TextDocument, Position, CancellationToken, Definition } from 'vscode';
-
+import * as vscode from 'vscode';
+import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
 import DefinitionProviderBase from './definitionProviderBase';
 
-export default class TypeScriptImplementationProvider extends DefinitionProviderBase implements ImplementationProvider {
-	public provideImplementation(document: TextDocument, position: Position, token: CancellationToken | boolean): Promise<Definition | undefined> {
+class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {
+	public provideImplementation(document: vscode.TextDocument, position: vscode.Position, token: vscode.CancellationToken | boolean): Promise<vscode.Definition | undefined> {
 		return this.getSymbolLocations('implementation', document, position, token);
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api: API) {
+			return api.has220Features();
+		},
+		register() {
+			return vscode.languages.registerImplementationProvider(selector,
+				new TypeScriptImplementationProvider(client));
+		}
+	});
 }

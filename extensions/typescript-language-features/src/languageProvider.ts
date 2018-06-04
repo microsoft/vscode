@@ -36,7 +36,6 @@ export default class LanguageProvider {
 	private _enableSuggestionDiagnostics: boolean = true;
 
 	private readonly disposables: vscode.Disposable[] = [];
-	private readonly versionDependentDisposables: vscode.Disposable[] = [];
 
 	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
@@ -75,7 +74,6 @@ export default class LanguageProvider {
 
 	public dispose(): void {
 		disposeAll(this.disposables);
-		disposeAll(this.versionDependentDisposables);
 
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
@@ -109,17 +107,18 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/directiveCommentCompletionProvider')).register(selector, client));
 		this.disposables.push((await import('./features/documentHighlightProvider')).register(selector, client));
 		this.disposables.push((await import('./features/documentSymbolProvider')).register(selector, client));
+		this.disposables.push((await import('./features/foldingProvider')).register(selector, client));
 		this.disposables.push((await import('./features/formattingProvider')).register(selector, this.description.id, config, client, this.fileConfigurationManager));
 		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
+		this.disposables.push((await import('./features/implementationProvider')).register(selector, this.client));
 		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
+		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager));
 		this.disposables.push((await import('./features/quickFixProvider')).register(selector, client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter));
 		this.disposables.push((await import('./features/refactorProvider')).register(selector, client, this.fileConfigurationManager, commandManager));
 		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
 		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
 		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
-		this.disposables.push((await import('./features/foldingProvider')).register(selector, client));
-
-		this.registerVersionDependentProviders();
+		this.disposables.push((await import('./features/typeDefinitionProvider')).register(selector, this.client));
 
 		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id, cachedResponse);
 		referenceCodeLensProvider.updateConfiguration();
@@ -194,33 +193,10 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.fileConfigurationManager.reset();
-		this.registerVersionDependentProviders();
 	}
 
 	public getErr(resources: vscode.Uri[]) {
 		this.bufferSyncSupport.getErr(resources);
-	}
-
-	private async registerVersionDependentProviders(): Promise<void> {
-		disposeAll(this.versionDependentDisposables);
-
-		if (!this.client) {
-			return;
-		}
-
-		const selector = this.documentSelector;
-		if (this.client.apiVersion.has220Features()) {
-			this.versionDependentDisposables.push(vscode.languages.registerImplementationProvider(selector, new (await import('./features/implementationProvider')).default(this.client)));
-		}
-
-		if (this.client.apiVersion.has213Features()) {
-			this.versionDependentDisposables.push(vscode.languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
-		}
-
-		if (this.client.apiVersion.has280Features()) {
-			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
-			this.versionDependentDisposables.push(vscode.languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
-		}
 	}
 
 	public triggerAllDiagnostics(): void {
