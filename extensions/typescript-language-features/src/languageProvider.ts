@@ -12,7 +12,6 @@ import BufferSyncSupport from './features/bufferSyncSupport';
 
 import TypingsStatus from './utils/typingsStatus';
 import FileConfigurationManager from './features/fileConfigurationManager';
-import * as languageConfigurations from './utils/languageConfigurations';
 import { CommandManager } from './utils/commandManager';
 import { DiagnosticsManager, DiagnosticKind } from './features/diagnostics';
 import { LanguageDescription } from './utils/languageDescription';
@@ -162,12 +161,6 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
 		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
-
-		if (!this.description.isExternal) {
-			for (const modeId of this.description.modeIds) {
-				this.disposables.push(languages.setLanguageConfiguration(modeId, languageConfigurations.jsTsLanguageConfiguration));
-			}
-		}
 	}
 
 	private async initFoldingProvider(): Promise<void> {
