@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter, DiagnosticSeverity } from 'vscode';
+import * as vscode from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -36,10 +36,10 @@ export default class LanguageProvider {
 	private _validate: boolean = true;
 	private _enableSuggestionDiagnostics: boolean = true;
 
-	private readonly disposables: Disposable[] = [];
-	private readonly versionDependentDisposables: Disposable[] = [];
+	private readonly disposables: vscode.Disposable[] = [];
+	private readonly versionDependentDisposables: vscode.Disposable[] = [];
 
-	private foldingProviderRegistration: Disposable | undefined = void 0;
+	private foldingProviderRegistration: vscode.Disposable | undefined = void 0;
 	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
@@ -58,7 +58,7 @@ export default class LanguageProvider {
 
 		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
 
-		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
+		vscode.workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
 
 		client.onReady(async () => {
@@ -68,7 +68,7 @@ export default class LanguageProvider {
 
 		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
 			try {
-				const doc = await workspace.openTextDocument(uri);
+				const doc = await vscode.workspace.openTextDocument(uri);
 				return this.handles(uri, doc);
 			} catch {
 				return false;
@@ -87,7 +87,7 @@ export default class LanguageProvider {
 	}
 
 	@memoize
-	private get documentSelector(): DocumentFilter[] {
+	private get documentSelector(): vscode.DocumentFilter[] {
 		const documentSelector = [];
 		for (const language of this.description.modeIds) {
 			for (const scheme of fileSchemes.supportedSchemes) {
@@ -103,19 +103,19 @@ export default class LanguageProvider {
 		typingsStatus: TypingsStatus
 	): Promise<void> {
 		const selector = this.documentSelector;
-		const config = workspace.getConfiguration(this.id);
+		const config = vscode.workspace.getConfiguration(this.id);
 
 		const TypeScriptCompletionItemProvider = (await import('./features/completionItemProvider')).default;
-		this.disposables.push(languages.registerCompletionItemProvider(selector,
+		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector,
 			new TypeScriptCompletionItemProvider(client, typingsStatus, this.fileConfigurationManager, commandManager),
 			...TypeScriptCompletionItemProvider.triggerCharacters));
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
+		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector, new (await import('./features/directiveCommentCompletionProvider')).default(client), '@'));
 
 		const { TypeScriptFormattingProvider, FormattingProviderManager } = await import('./features/formattingProvider');
 		const formattingProvider = new TypeScriptFormattingProvider(client, this.fileConfigurationManager);
 		formattingProvider.updateConfiguration(config);
-		this.disposables.push(languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
+		this.disposables.push(vscode.languages.registerOnTypeFormattingEditProvider(selector, formattingProvider, ';', '}', '\n'));
 
 		const formattingProviderManager = new FormattingProviderManager(this.description.id, formattingProvider, selector);
 		formattingProviderManager.updateConfiguration();
@@ -124,24 +124,24 @@ export default class LanguageProvider {
 
 		const cachedResponse = new CachedNavTreeResponse();
 
-		this.disposables.push(languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
-		this.disposables.push(languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
-		this.disposables.push(languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
-		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
-		this.disposables.push(languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
-		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerCompletionItemProvider(selector, new (await import('./features/jsDocCompletionProvider')).default(client, commandManager), '*'));
+		this.disposables.push(vscode.languages.registerHoverProvider(selector, new (await import('./features/hoverProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerDefinitionProvider(selector, new (await import('./features/definitionProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
 
 
-		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
+		this.disposables.push(vscode.languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
+		this.disposables.push(vscode.languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
 
 		const TypescriptSignatureHelpProvider = (await import('./features/signatureHelpProvider')).default;
-		this.disposables.push(languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
+		this.disposables.push(vscode.languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
 		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
-		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
+		this.disposables.push(vscode.languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
 		await this.initFoldingProvider();
-		this.disposables.push(workspace.onDidChangeConfiguration(c => {
+		this.disposables.push(vscode.workspace.onDidChangeConfiguration(c => {
 			if (c.affectsConfiguration(foldingSetting)) {
 				this.initFoldingProvider();
 			}
@@ -153,21 +153,21 @@ export default class LanguageProvider {
 		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id, cachedResponse);
 		referenceCodeLensProvider.updateConfiguration();
 		this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
-		this.disposables.push(languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
+		this.disposables.push(vscode.languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
 
 		const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, this.description.id, cachedResponse);
 		implementationCodeLensProvider.updateConfiguration();
 		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
-		this.disposables.push(languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
+		this.disposables.push(vscode.languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
-		this.disposables.push(languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
+		this.disposables.push(vscode.languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 	}
 
 	private async initFoldingProvider(): Promise<void> {
-		let enable = workspace.getConfiguration().get(foldingSetting, false);
+		let enable = vscode.workspace.getConfiguration().get(foldingSetting, false);
 		if (enable && this.client.apiVersion.has280Features()) {
 			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
+				this.foldingProviderRegistration = vscode.languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
 			}
 		} else {
 			if (this.foldingProviderRegistration) {
@@ -178,7 +178,7 @@ export default class LanguageProvider {
 	}
 
 	private configurationChanged(): void {
-		const config = workspace.getConfiguration(this.id, null);
+		const config = vscode.workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
 
@@ -187,7 +187,7 @@ export default class LanguageProvider {
 		}
 	}
 
-	public handles(resource: Uri, doc: TextDocument): boolean {
+	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
 		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
 			return true;
 		}
@@ -240,7 +240,7 @@ export default class LanguageProvider {
 		this.registerVersionDependentProviders();
 	}
 
-	public getErr(resources: Uri[]) {
+	public getErr(resources: vscode.Uri[]) {
 		this.bufferSyncSupport.getErr(resources);
 	}
 
@@ -253,16 +253,16 @@ export default class LanguageProvider {
 
 		const selector = this.documentSelector;
 		if (this.client.apiVersion.has220Features()) {
-			this.versionDependentDisposables.push(languages.registerImplementationProvider(selector, new (await import('./features/implementationProvider')).default(this.client)));
+			this.versionDependentDisposables.push(vscode.languages.registerImplementationProvider(selector, new (await import('./features/implementationProvider')).default(this.client)));
 		}
 
 		if (this.client.apiVersion.has213Features()) {
-			this.versionDependentDisposables.push(languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
+			this.versionDependentDisposables.push(vscode.languages.registerTypeDefinitionProvider(selector, new (await import('./features/typeDefinitionProvider')).default(this.client)));
 		}
 
 		if (this.client.apiVersion.has280Features()) {
 			const organizeImportsProvider = new (await import('./features/organizeImports')).OrganizeImportsCodeActionProvider(this.client, this.commandManager, this.fileConfigurationManager);
-			this.versionDependentDisposables.push(languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
+			this.versionDependentDisposables.push(vscode.languages.registerCodeActionsProvider(selector, organizeImportsProvider, organizeImportsProvider.metadata));
 		}
 	}
 
@@ -270,13 +270,13 @@ export default class LanguageProvider {
 		this.bufferSyncSupport.requestAllDiagnostics();
 	}
 
-	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
-		const config = workspace.getConfiguration(this.id, file);
+	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any })[]): void {
+		const config = vscode.workspace.getConfiguration(this.id, file);
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
 				diag.customTags = undefined;
-				if (diag.reportUnnecessary && diag.severity === DiagnosticSeverity.Hint) {
+				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
 				}
 			}
@@ -284,7 +284,7 @@ export default class LanguageProvider {
 		}));
 	}
 
-	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {
+	public configFileDiagnosticsReceived(file: vscode.Uri, diagnostics: vscode.Diagnostic[]): void {
 		this.diagnosticsManager.configFileDiagnosticsReceived(file, diagnostics);
 	}
 }
