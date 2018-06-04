@@ -110,16 +110,11 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedNavTreeResponse,
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v220);
-		},
-		register() {
-			const provider = new TypeScriptImplementationsCodeLensProvider(client, modeId, cachedResponse);
-			return vscode.Disposable.from(
-				vscode.languages.registerCodeLensProvider(selector, provider),
-				provider,
-			);
-		}
+	return new VersionDependentRegistration(client, API.v220, () => {
+		const provider = new TypeScriptImplementationsCodeLensProvider(client, modeId, cachedResponse);
+		return vscode.Disposable.from(
+			vscode.languages.registerCodeLensProvider(selector, provider),
+			provider,
+		);
 	});
 }

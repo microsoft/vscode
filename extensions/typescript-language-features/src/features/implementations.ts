@@ -19,13 +19,8 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api: API) {
-			return api.gte(API.v220);
-		},
-		register() {
-			return vscode.languages.registerImplementationProvider(selector,
-				new TypeScriptImplementationProvider(client));
-		}
+	return new VersionDependentRegistration(client, API.v220, () => {
+		return vscode.languages.registerImplementationProvider(selector,
+			new TypeScriptImplementationProvider(client));
 	});
 }

@@ -84,15 +84,10 @@ export function register(
 	commandManager: CommandManager,
 	fileConfigurationManager: FileConfigurationManager
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v280);
-		},
-		register() {
-			const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
-			return vscode.languages.registerCodeActionsProvider(selector,
-				organizeImportsProvider,
-				organizeImportsProvider.metadata);
-		}
+	return new VersionDependentRegistration(client, API.v280, () => {
+		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+		return vscode.languages.registerCodeActionsProvider(selector,
+			organizeImportsProvider,
+			organizeImportsProvider.metadata);
 	});
 }

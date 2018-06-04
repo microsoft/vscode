@@ -76,14 +76,9 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v230);
-		},
-		register() {
-			return vscode.languages.registerCompletionItemProvider(selector,
-				new DirectiveCommentCompletionProvider(client),
-				'@');
-		}
+	return new VersionDependentRegistration(client, API.v230, () => {
+		return vscode.languages.registerCompletionItemProvider(selector,
+			new DirectiveCommentCompletionProvider(client),
+			'@');
 	});
 }

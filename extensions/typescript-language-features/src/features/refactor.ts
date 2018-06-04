@@ -210,14 +210,9 @@ export function register(
 	formattingOptionsManager: FormattingOptionsManager,
 	commandManager: CommandManager,
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v240);
-		},
-		register() {
-			return vscode.languages.registerCodeActionsProvider(selector,
-				new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager),
-				TypeScriptRefactorProvider.metadata);
-		}
+	return new VersionDependentRegistration(client, API.v240, () => {
+		return vscode.languages.registerCodeActionsProvider(selector,
+			new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager),
+			TypeScriptRefactorProvider.metadata);
 	});
 }

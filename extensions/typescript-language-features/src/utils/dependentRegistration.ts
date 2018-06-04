@@ -48,9 +48,10 @@ export class VersionDependentRegistration {
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly delegate: VersionDependentRegistrationDelegate,
+		private readonly minVersion: API,
+		register: () => vscode.Disposable,
 	) {
-		this._registration = new ConditionalRegistration(this.delegate.register);
+		this._registration = new ConditionalRegistration(register);
 
 		this.update(client.apiVersion);
 
@@ -65,6 +66,6 @@ export class VersionDependentRegistration {
 	}
 
 	private update(api: API) {
-		this._registration.update(this.delegate.isSupportedVersion(api));
+		this._registration.update(api.gte(this.minVersion));
 	}
 }

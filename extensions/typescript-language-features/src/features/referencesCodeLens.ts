@@ -119,16 +119,11 @@ export function register(
 	client: ITypeScriptServiceClient,
 	cachedResponse: CachedNavTreeResponse,
 ) {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v206);
-		},
-		register() {
-			const referenceCodeLensProvider = new TypeScriptReferencesCodeLensProvider(client, modeId, cachedResponse);
-			return vscode.Disposable.from(
-				vscode.languages.registerCodeLensProvider(selector, referenceCodeLensProvider),
-				referenceCodeLensProvider,
-			);
-		}
+	return new VersionDependentRegistration(client, API.v206, () => {
+		const referenceCodeLensProvider = new TypeScriptReferencesCodeLensProvider(client, modeId, cachedResponse);
+		return vscode.Disposable.from(
+			vscode.languages.registerCodeLensProvider(selector, referenceCodeLensProvider),
+			referenceCodeLensProvider,
+		);
 	});
 }

@@ -75,12 +75,8 @@ export function register(
 	selector: vscode.DocumentSelector,
 	client: ITypeScriptServiceClient,
 ): vscode.Disposable {
-	return new VersionDependentRegistration(client, {
-		isSupportedVersion(api) {
-			return api.gte(API.v280);
-		},
-		register() {
-			return vscode.languages.registerFoldingRangeProvider(selector, new TypeScriptFoldingProvider(client));
-		}
+	return new VersionDependentRegistration(client, API.v280, () => {
+		return vscode.languages.registerFoldingRangeProvider(selector,
+			new TypeScriptFoldingProvider(client));
 	});
 }
