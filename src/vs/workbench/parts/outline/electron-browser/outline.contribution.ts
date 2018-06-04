@@ -16,7 +16,7 @@ const _outlineDesc = <IViewDescriptor>{
 	ctor: OutlinePanel,
 	location: ViewLocation.Explorer,
 	canToggleVisibility: true,
-	hideByDefault: true,
+	hideByDefault: false,
 	order: 2
 };
 
