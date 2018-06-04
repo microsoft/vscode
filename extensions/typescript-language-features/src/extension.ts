@@ -75,9 +75,7 @@ function createLazyClientHost(
 			context.subscriptions.push(
 				ProjectStatus.create(
 					clientHost.serviceClient,
-					clientHost.serviceClient.telemetryReporter,
-					path => new Promise<boolean>(resolve => setTimeout(() => resolve(clientHost.handles(path)), 750)),
-					context.workspaceState));
+					clientHost.serviceClient.telemetryReporter));
 		});
 
 		return clientHost;
