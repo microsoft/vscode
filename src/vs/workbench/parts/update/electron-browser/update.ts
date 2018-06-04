@@ -29,6 +29,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
 import { isWindows } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -113,12 +114,14 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IOpenerService openerService: IOpenerService
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
 		// was there an update? if so, open release notes
-		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
 			showReleaseNotes(instantiationService, pkg.version)
 				.then(undefined, () => {
 					notificationService.prompt(
