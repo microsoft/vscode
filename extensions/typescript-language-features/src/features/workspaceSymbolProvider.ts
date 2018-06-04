@@ -3,25 +3,24 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { workspace, window, Uri, WorkspaceSymbolProvider, SymbolInformation, SymbolKind, CancellationToken } from 'vscode';
-
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 
-function getSymbolKind(item: Proto.NavtoItem): SymbolKind {
+function getSymbolKind(item: Proto.NavtoItem): vscode.SymbolKind {
 	switch (item.kind) {
-		case 'method': return SymbolKind.Method;
-		case 'enum': return SymbolKind.Enum;
-		case 'function': return SymbolKind.Function;
-		case 'class': return SymbolKind.Class;
-		case 'interface': return SymbolKind.Interface;
-		case 'var': return SymbolKind.Variable;
-		default: return SymbolKind.Variable;
+		case 'method': return vscode.SymbolKind.Method;
+		case 'enum': return vscode.SymbolKind.Enum;
+		case 'function': return vscode.SymbolKind.Function;
+		case 'class': return vscode.SymbolKind.Class;
+		case 'interface': return vscode.SymbolKind.Interface;
+		case 'var': return vscode.SymbolKind.Variable;
+		default: return vscode.SymbolKind.Variable;
 	}
 }
 
-export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbolProvider {
+class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly modeIds: string[]
@@ -29,8 +28,8 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 
 	public async provideWorkspaceSymbols(
 		search: string,
-		token: CancellationToken
-	): Promise<SymbolInformation[]> {
+		token: vscode.CancellationToken
+	): Promise<vscode.SymbolInformation[]> {
 		const uri = this.getUri();
 		if (!uri) {
 			return [];
@@ -50,13 +49,13 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			return [];
 		}
 
-		const result: SymbolInformation[] = [];
+		const result: vscode.SymbolInformation[] = [];
 		for (const item of response.body) {
 			if (!item.containerName && item.kind === 'alias') {
 				continue;
 			}
 			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
-			result.push(new SymbolInformation(label, getSymbolKind(item), item.containerName || '',
+			result.push(new vscode.SymbolInformation(label, getSymbolKind(item), item.containerName || '',
 				typeConverters.Location.fromTextSpan(this.client.asUrl(item.file), item)));
 		}
 		return result;
@@ -70,12 +69,12 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		return label;
 	}
 
-	private getUri(): Uri | undefined {
+	private getUri(): vscode.Uri | undefined {
 		// typescript wants to have a resource even when asking
 		// general questions so we check the active editor. If this
 		// doesn't match we take the first TS document.
 
-		const editor = window.activeTextEditor;
+		const editor = vscode.window.activeTextEditor;
 		if (editor) {
 			const document = editor.document;
 			if (document && this.modeIds.indexOf(document.languageId) >= 0) {
@@ -83,7 +82,7 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 			}
 		}
 
-		const documents = workspace.textDocuments;
+		const documents = vscode.workspace.textDocuments;
 		for (const document of documents) {
 			if (this.modeIds.indexOf(document.languageId) >= 0) {
 				return document.uri;
@@ -91,4 +90,11 @@ export default class TypeScriptWorkspaceSymbolProvider implements WorkspaceSymbo
 		}
 		return undefined;
 	}
+}
+
+export function register(
+	client: ITypeScriptServiceClient,
+	modeIds: string[],
+) {
+	return vscode.languages.registerWorkspaceSymbolProvider(new TypeScriptWorkspaceSymbolProvider(client, modeIds));
 }

@@ -119,8 +119,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
 		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
 		this.disposables.push((await import('./features/typeDefinitionProvider')).register(selector, client));
-
-		this.disposables.push(vscode.languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
+		this.disposables.push((await import('./features/workspaceSymbolProvider')).register(client, this.description.modeIds));
 	}
 
 	private configurationChanged(): void {
