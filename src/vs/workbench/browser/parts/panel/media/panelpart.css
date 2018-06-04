@@ -39,7 +39,7 @@
 .monaco-workbench > .part.panel > .title > .panel-switcher-container.composite-bar > .monaco-action-bar .action-label.toggle-more {
 	background: url('ellipsis.svg') center center no-repeat;
 	display: block;
-	height: 31px;
+	height: 28px;
 	min-width: 28px;
 	margin-left: 0px;
 	margin-right: 0px;
