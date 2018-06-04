@@ -94,7 +94,7 @@ function fileMenuRegistration() {
 		group: '4_save',
 		command: {
 			id: 'workbench.action.files.save',
-			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save")
+			title: nls.localize({ key: 'miSave', comment: ['&& denotes a mnemonic'] }, "&&Save"),
 		},
 		order: 1
 	});
@@ -120,7 +120,7 @@ function fileMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '5_autosave',
 		command: {
-			id: 'vscode.toggleAutoSave',
+			id: 'workbench.action.toggleAutoSave',
 			title: nls.localize('miAutoSave', "Auto Save")
 		},
 		order: 1

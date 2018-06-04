@@ -12,7 +12,7 @@ import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } f
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -25,6 +25,7 @@ import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import URI from 'vs/base/common/uri';
+import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 
 interface CustomMenu {
 	title: string;
@@ -33,6 +34,16 @@ interface CustomMenu {
 }
 
 export class MenubarPart extends Part {
+
+	private keys = [
+		'files.autoSave',
+		// 'editor.multiCursorModifier',
+		// 'workbench.sideBar.location',
+		// 'workbench.statusBar.visible',
+		// 'workbench.activityBar.visible',
+		'window.enableMenuBarMnemonics',
+		// 'window.nativeTabs'
+	];
 
 	private topLevelMenus: {
 		'File': IMenu;
@@ -85,7 +96,8 @@ export class MenubarPart extends Part {
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IKeybindingService private keybindingService: IKeybindingService
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -120,6 +132,66 @@ export class MenubarPart extends Part {
 		this.setupNativeMenubar();
 
 		this.isFocused = false;
+
+		this.registerListeners();
+	}
+
+	private get currentEnableMenuBarMnemonics(): boolean {
+		let enableMenuBarMnemonics = this.configurationService.getValue<boolean>('window.enableMenuBarMnemonics');
+		if (typeof enableMenuBarMnemonics !== 'boolean') {
+			enableMenuBarMnemonics = true;
+		}
+
+		return enableMenuBarMnemonics;
+	}
+
+	private get currentAutoSaveSetting(): string {
+		return this.configurationService.getValue<string>('files.autoSave');
+	}
+
+	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
+		if (this.keys.some(key => event.affectsConfiguration(key))) {
+			this.setupCustomMenubar();
+		}
+	}
+
+	private registerListeners(): void {
+
+		// Keep flag when app quits
+		// app.on('will-quit', () => {
+		// 	this.isQuitting = true;
+		// });
+
+		// // Listen to some events from window service to update menu
+		// this.historyMainService.onRecentlyOpenedChange(() => this.updateMenu());
+		// this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
+		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
+		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
+		// this.windowsMainService.onWindowClose(() => this.updateWorkspaceMenuItems());
+
+		// Listen to extension viewlets
+		// ipc.on('vscode:extensionViewlets', (event: any, rawExtensionViewlets: string) => {
+		// 	let extensionViewlets: IExtensionViewlet[] = [];
+		// 	try {
+		// 		extensionViewlets = JSON.parse(rawExtensionViewlets);
+		// 	} catch (error) {
+		// 		// Should not happen
+		// 	}
+
+		// 	if (extensionViewlets.length) {
+		// 		this.extensionViewlets = extensionViewlets;
+		// 		this.updateMenu();
+		// 	}
+		// });
+
+		// Update when auto save config changes
+		this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e));
+
+		// Listen to update service
+		// this.updateService.onStateChange(() => this.updateMenu());
+
+		// Listen to keybindings change
+		// this.keybindingsResolver.onKeybindingsChanged(() => this.scheduleUpdateMenu());
 	}
 
 	private setupNativeMenubar(): void {
@@ -130,7 +202,7 @@ export class MenubarPart extends Part {
 		KeybindingsRegistry.registerCommandAndKeybindingRule({
 			id: 'menubar.mnemonics.' + menuIndex,
 			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-			when: void 0,
+			when: ContextKeyExpr.has('config.window.enableMenuBarMnemonics'),
 			primary: null,
 			win: { primary: KeyMod.Alt | keyCode },
 			handler: (accessor, resource: URI | object) => {
@@ -142,17 +214,18 @@ export class MenubarPart extends Part {
 	}
 
 	private setupCustomMenubar(): void {
+		this.container.clearChildren();
+
 		this.customMenus = [];
+
 		let idx = 0;
 
 		for (let menuTitle of Object.keys(this.topLevelMenus)) {
 			const menu: IMenu = this.topLevelMenus[menuTitle];
-
 			let menuIndex = idx++;
 
 			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
-
-			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '<u>$1</u>');
+			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<u>$1</u>' : '$1');
 			$(titleElement).div({ class: 'menubar-menu-title' }).innerHtml(displayTitle);
 
 			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
@@ -172,9 +245,16 @@ export class MenubarPart extends Part {
 				for (let group of groups) {
 					const [, actions] = group;
 
-					// actions.map((action: MenuItemAction) => {
-					// 	action.label = action.label.replace(/\(&&\w\)|&&/g, '');
-					// });
+					actions.map((action: IAction) => {
+						let cleansed = action.label.replace(/&&(.)/g, '$1');
+						if (!this.currentEnableMenuBarMnemonics) {
+							action.label = cleansed;
+						}
+
+						if (cleansed === 'Auto Save') {
+							action.checked = this.currentAutoSaveSetting !== 'off';
+						}
+					});
 
 					this.customMenus[menuIndex].actions.push(...actions);
 					this.customMenus[menuIndex].actions.push(new Separator());
@@ -270,7 +350,9 @@ export class MenubarPart extends Part {
 			let groups = menu.getActions();
 			for (let group of groups) {
 				const [, actions] = group;
+
 				actions.forEach(menuItemAction => {
+					// const label = this.enableMenubarMnemonics ? menuItemAction.label : menuItemAction.label.replace(/&&(.)/g, '$1');
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItemAction.id,
 						label: menuItemAction.label,
