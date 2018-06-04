@@ -84,8 +84,6 @@ export interface IViewsRegistry {
 
 	getViews(loc: ViewLocation): IViewDescriptor[];
 
-	getAllViews(): IViewDescriptor[];
-
 	getView(id: string): IViewDescriptor;
 
 }
@@ -145,12 +143,6 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 		return this._views.get(loc) || [];
 	}
 
-	getAllViews(): IViewDescriptor[] {
-		const result: IViewDescriptor[] = [];
-		this._views.forEach(views => result.push(...views));
-		return result;
-	}
-
 	getView(id: string): IViewDescriptor {
 		for (const viewLocation of this._viewLocations) {
 			const viewDescriptor = (this._views.get(viewLocation) || []).filter(v => v.id === id)[0];
@@ -166,6 +158,14 @@ export interface IViewsViewlet extends IViewlet {
 
 	openView(id: string, focus?: boolean): TPromise<void>;
 
+}
+
+export const IViewsService = createDecorator<IViewsService>('viewsService');
+
+export interface IViewsService {
+	_serviceBrand: any;
+
+	openView(id: string, focus?: boolean): TPromise<void>;
 }
 
 // Custom views
@@ -197,18 +197,8 @@ export interface ITreeViewer extends IDisposable {
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	treeView?: boolean;
+	treeViewer: ITreeViewer;
 
-}
-
-export const IViewsService = createDecorator<IViewsService>('viewsService');
-
-export interface IViewsService {
-	_serviceBrand: any;
-
-	getTreeViewer(id: string): ITreeViewer;
-
-	openView(id: string, focus?: boolean): TPromise<void>;
 }
 
 export type TreeViewItemHandleArg = {
