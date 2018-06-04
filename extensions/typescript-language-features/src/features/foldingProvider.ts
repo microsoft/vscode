@@ -7,7 +7,7 @@ import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
-import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 class TypeScriptFoldingProvider implements vscode.FoldingRangeProvider {
 	public constructor(

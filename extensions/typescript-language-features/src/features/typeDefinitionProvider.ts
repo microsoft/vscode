@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import DefinitionProviderBase from './definitionProviderBase';
 import API from '../utils/api';
 

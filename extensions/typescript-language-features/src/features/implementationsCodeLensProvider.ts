@@ -3,39 +3,38 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CodeLens, CancellationToken, TextDocument, Range, Location, workspace } from 'vscode';
+import * as vscode from 'vscode';
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import * as PConst from '../protocol.const';
-
-import { TypeScriptBaseCodeLensProvider, ReferencesCodeLens, CachedNavTreeResponse } from './baseCodeLensProvider';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
-
-import * as nls from 'vscode-nls';
+import { CachedNavTreeResponse, ReferencesCodeLens, TypeScriptBaseCodeLensProvider } from './baseCodeLensProvider';
+import { disposeAll } from '../utils/dispose';
 const localize = nls.loadMessageBundle();
 
 export default class TypeScriptImplementationsCodeLensProvider extends TypeScriptBaseCodeLensProvider {
+
+	private readonly _disposables: vscode.Disposable[] = [];
+
 	public constructor(
 		client: ITypeScriptServiceClient,
 		private readonly language: string,
 		cachedResponse: CachedNavTreeResponse
 	) {
 		super(client, cachedResponse);
+
+		this.updateConfiguration();
+
+		vscode.workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null, this._disposables);
 	}
 
-	public updateConfiguration(): void {
-		const config = workspace.getConfiguration(this.language);
-		this.setEnabled(config.get('implementationsCodeLens.enabled', false));
+	public dispose() {
+		disposeAll(this._disposables);
 	}
 
-	public async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
-		if (!this.client.apiVersion.has220Features()) {
-			return [];
-		}
-		return super.provideCodeLenses(document, token);
-	}
-
-	public resolveCodeLens(inputCodeLens: CodeLens, token: CancellationToken): Promise<CodeLens> {
+	public resolveCodeLens(inputCodeLens: vscode.CodeLens, token: vscode.CancellationToken): Promise<vscode.CodeLens> {
 		const codeLens = inputCodeLens as ReferencesCodeLens;
 		const args = typeConverters.Position.toFileLocationRequestArgs(codeLens.file, codeLens.range.start);
 		return this.client.execute('implementation', args, token).then(response => {
@@ -46,10 +45,10 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 			const locations = response.body
 				.map(reference =>
 					// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
-					new Location(this.client.asUrl(reference.file),
+					new vscode.Location(this.client.asUrl(reference.file),
 						reference.start.line === reference.end.line
 							? typeConverters.Range.fromTextSpan(reference)
-							: new Range(
+							: new vscode.Range(
 								reference.start.line - 1, reference.start.offset - 1,
 								reference.start.line, 0)))
 				// Exclude original from implementations
@@ -76,10 +75,10 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 	}
 
 	protected extractSymbol(
-		document: TextDocument,
+		document: vscode.TextDocument,
 		item: Proto.NavigationTree,
 		_parent: Proto.NavigationTree | null
-	): Range | null {
+	): vscode.Range | null {
 		switch (item.kind) {
 			case PConst.Kind.interface:
 				return super.getSymbolRange(document, item);
@@ -96,4 +95,30 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		}
 		return null;
 	}
+
+	private updateConfiguration(): void {
+		const config = vscode.workspace.getConfiguration(this.language);
+		this.setEnabled(config.get('implementationsCodeLens.enabled', false));
+	}
+}
+
+
+export function register(
+	selector: vscode.DocumentSelector,
+	modeId: string,
+	client: ITypeScriptServiceClient,
+	cachedResponse: CachedNavTreeResponse,
+) {
+	return new VersionDependentRegistration(client, {
+		isSupportedVersion(api) {
+			return api.has220Features();
+		},
+		register() {
+			const provider = new TypeScriptImplementationsCodeLensProvider(client, modeId, cachedResponse);
+			return vscode.Disposable.from(
+				vscode.languages.registerCodeLensProvider(selector, provider),
+				provider,
+			);
+		}
+	});
 }

@@ -30,8 +30,6 @@ export default class LanguageProvider {
 	private readonly bufferSyncSupport: BufferSyncSupport;
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
-	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
-
 	private _validate: boolean = true;
 	private _enableSuggestionDiagnostics: boolean = true;
 
@@ -111,24 +109,16 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/formattingProvider')).register(selector, this.description.id, config, client, this.fileConfigurationManager));
 		this.disposables.push((await import('./features/hoverProvider')).register(selector, client));
 		this.disposables.push((await import('./features/implementationProvider')).register(selector, client));
+		this.disposables.push((await import('./features/implementationsCodeLensProvider')).register(selector, this.description.id, client, cachedResponse));
 		this.disposables.push((await import('./features/jsDocCompletionProvider')).register(selector, client, commandManager));
 		this.disposables.push((await import('./features/organizeImports')).register(selector, client, this.commandManager, this.fileConfigurationManager));
 		this.disposables.push((await import('./features/quickFixProvider')).register(selector, client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter));
 		this.disposables.push((await import('./features/refactorProvider')).register(selector, client, this.fileConfigurationManager, commandManager));
 		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
+		this.disposables.push((await import('./features/referencesCodeLensProvider')).register(selector, this.description.id, client, cachedResponse));
 		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
 		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
 		this.disposables.push((await import('./features/typeDefinitionProvider')).register(selector, client));
-
-		const referenceCodeLensProvider = new (await import('./features/referencesCodeLensProvider')).default(client, this.description.id, cachedResponse);
-		referenceCodeLensProvider.updateConfiguration();
-		this.toUpdateOnConfigurationChanged.push(referenceCodeLensProvider);
-		this.disposables.push(vscode.languages.registerCodeLensProvider(selector, referenceCodeLensProvider));
-
-		const implementationCodeLensProvider = new (await import('./features/implementationsCodeLensProvider')).default(client, this.description.id, cachedResponse);
-		implementationCodeLensProvider.updateConfiguration();
-		this.toUpdateOnConfigurationChanged.push(implementationCodeLensProvider);
-		this.disposables.push(vscode.languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
 		this.disposables.push(vscode.languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
 	}
@@ -137,10 +127,6 @@ export default class LanguageProvider {
 		const config = vscode.workspace.getConfiguration(this.id, null);
 		this.updateValidate(config.get(validateSetting, true));
 		this.updateSuggestionDiagnostics(config.get(suggestionSetting, true));
-
-		for (const toUpdate of this.toUpdateOnConfigurationChanged) {
-			toUpdate.updateConfiguration();
-		}
 	}
 
 	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {

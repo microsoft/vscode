@@ -10,7 +10,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
-import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 const localize = nls.loadMessageBundle();
 

@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
-import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import DefinitionProviderBase from './definitionProviderBase';
 
 class TypeScriptImplementationProvider extends DefinitionProviderBase implements vscode.ImplementationProvider {

@@ -11,7 +11,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
 import { CommandManager, Command } from '../utils/commandManager';
-import { VersionDependentRegistration } from '../utils/versionDependentRegistration';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';

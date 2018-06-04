@@ -8,20 +8,50 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import API from '../utils/api';
 import { disposeAll } from '../utils/dispose';
 
-export interface Delegate {
+class ConditionalRegistration {
+	private registration: vscode.Disposable | undefined = undefined;
+
+	public constructor(
+		private readonly _doRegister: () => vscode.Disposable
+	) { }
+
+	public dispose() {
+		if (this.registration) {
+			this.registration.dispose();
+			this.registration = undefined;
+		}
+	}
+
+	public update(enabled: boolean) {
+		if (enabled) {
+			if (!this.registration) {
+				this.registration = this._doRegister();
+			}
+		} else {
+			if (this.registration) {
+				this.registration.dispose();
+				this.registration = undefined;
+			}
+		}
+	}
+}
+
+export interface VersionDependentRegistrationDelegate {
 	isSupportedVersion(api: API): boolean;
 	register(): vscode.Disposable;
 }
 
 export class VersionDependentRegistration {
-	private registration: vscode.Disposable | undefined = undefined;
+	private readonly _registration: ConditionalRegistration;
 
 	private readonly _disposables: vscode.Disposable[] = [];
 
 	constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly delegate: Delegate,
+		private readonly delegate: VersionDependentRegistrationDelegate,
 	) {
+		this._registration = new ConditionalRegistration(this.delegate.register);
+
 		this.update(client.apiVersion);
 
 		this.client.onTsServerStarted(() => {
@@ -31,22 +61,10 @@ export class VersionDependentRegistration {
 
 	public dispose() {
 		disposeAll(this._disposables);
-		if (this.registration) {
-			this.registration.dispose();
-			this.registration = undefined;
-		}
+		this._registration.dispose();
 	}
 
 	private update(api: API) {
-		if (this.delegate.isSupportedVersion(api)) {
-			if (!this.registration) {
-				this.registration = this.delegate.register();
-			}
-		} else {
-			if (this.registration) {
-				this.registration.dispose();
-				this.registration = undefined;
-			}
-		}
+		this._registration.update(this.delegate.isSupportedVersion(api));
 	}
 }
