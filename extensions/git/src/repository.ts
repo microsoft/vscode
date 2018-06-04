@@ -559,11 +559,9 @@ export class Repository implements Disposable {
 			return;
 		}
 
-		const whitespacesOnly = text.length && !text.replace(/\s/g, '');
-
-		if (whitespacesOnly) {
+		if (/^\s+$/.test(text)) {
 			return {
-				message: localize('commitMessageWhitespacesOnlyWarning', "Current commit message only contains whitespaces"),
+				message: localize('commitMessageWhitespacesOnlyWarning', "Current commit message only contains whitespace characters"),
 				type: SourceControlInputBoxValidationType.Warning
 			};
 		}
