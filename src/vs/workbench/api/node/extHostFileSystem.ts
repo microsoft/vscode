@@ -186,10 +186,10 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 	}
 
 	registerDeprecatedFileSystemProvider(scheme: string, provider: vscode.DeprecatedFileSystemProvider) {
-		return this.registerFileSystemProvider(scheme, new FileSystemProviderShim(provider), { isCaseSensitive: false });
+		return this.registerFileSystemProvider(scheme, new FileSystemProviderShim(provider));
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean }) {
+	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean } = {}) {
 
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
