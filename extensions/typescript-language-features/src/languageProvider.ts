@@ -124,14 +124,10 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/documentHighlightProvider')).register(selector, client));
 		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
 		this.disposables.push((await import('./features/documentSymbolProvider')).register(selector, client));
-
-		this.disposables.push(vscode.languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
-		this.disposables.push(vscode.languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
-
-		const TypescriptSignatureHelpProvider = (await import('./features/signatureHelpProvider')).default;
-		this.disposables.push(vscode.languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
-		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
-		this.disposables.push(vscode.languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
+		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
+		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
+		this.disposables.push((await import('./features/quickFixProvider')).register(selector, client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter));
+		this.disposables.push((await import('./features/refactorProvider')).register(selector, client, this.fileConfigurationManager, commandManager));
 
 		await this.initFoldingProvider();
 		this.disposables.push(vscode.workspace.onDidChangeConfiguration(c => {

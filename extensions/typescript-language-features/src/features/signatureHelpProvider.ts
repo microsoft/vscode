@@ -9,8 +9,7 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 
-
-export default class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
+class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
 
 	public static readonly triggerCharacters = ['(', ',', '<'];
 
@@ -70,4 +69,13 @@ export default class TypeScriptSignatureHelpProvider implements vscode.Signature
 		signature.label += Previewer.plain(item.suffixDisplayParts);
 		return signature;
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+) {
+	return vscode.languages.registerSignatureHelpProvider(selector,
+		new TypeScriptSignatureHelpProvider(client),
+		...TypeScriptSignatureHelpProvider.triggerCharacters);
 }

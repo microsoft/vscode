@@ -155,7 +155,7 @@ class SupportedCodeActionProvider {
 	}
 }
 
-export default class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
+class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 
 	private readonly supportedCodeActionProvider: SupportedCodeActionProvider;
 
@@ -282,4 +282,17 @@ export default class TypeScriptQuickFixProvider implements vscode.CodeActionProv
 		};
 		return action;
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	fileConfigurationManager: FileConfigurationManager,
+	commandManager: CommandManager,
+	diagnosticsManager: DiagnosticsManager,
+	bufferSyncSupport: BufferSyncSupport,
+	telemetryReporter: TelemetryReporter
+) {
+	return vscode.languages.registerCodeActionsProvider(selector,
+		new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, bufferSyncSupport, telemetryReporter));
 }

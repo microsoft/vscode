@@ -92,7 +92,7 @@ class SelectRefactorCommand implements Command {
 	}
 }
 
-export default class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
+class TypeScriptRefactorProvider implements vscode.CodeActionProvider {
 	private static readonly extractFunctionKind = vscode.CodeActionKind.RefactorExtract.append('function');
 	private static readonly extractConstantKind = vscode.CodeActionKind.RefactorExtract.append('constant');
 	private static readonly moveKind = vscode.CodeActionKind.Refactor.append('move');
@@ -204,4 +204,14 @@ export default class TypeScriptRefactorProvider implements vscode.CodeActionProv
 		}
 		return vscode.CodeActionKind.Refactor;
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	formattingOptionsManager: FormattingOptionsManager,
+	commandManager: CommandManager,
+) {
+	const refactorProvider = new TypeScriptRefactorProvider(client, formattingOptionsManager, commandManager);
+	return vscode.languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata);
 }
