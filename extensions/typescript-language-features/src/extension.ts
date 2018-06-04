@@ -6,7 +6,7 @@
 import * as vscode from 'vscode';
 import * as commands from './commands';
 import { LanguageConfigurationManager } from './features/languageConfiguration';
-import TypeScriptTaskProviderManager from './features/taskProvider';
+import TypeScriptTaskProviderManager from './features/task';
 import TypeScriptServiceClientHost from './typeScriptServiceClientHost';
 import { CommandManager } from './utils/commandManager';
 import * as fileSchemes from './utils/fileSchemes';
