@@ -46,7 +46,7 @@
 }
 
 .monaco-workbench > .part.panel > .title > .panel-switcher-container > .monaco-action-bar {
-	line-height: 28px; /* matches panel titles in settings */
+	line-height: 27px; /* matches panel titles in settings */
 	height: 35px;
 }
 
@@ -60,7 +60,7 @@
 	padding-right: 10px;
 	font-size: 11px;
 	padding-bottom: 3px; /* puts the bottom border down */
-	padding-top: 2px;
+	padding-top: 4px;
 	display: flex;
 }
 
