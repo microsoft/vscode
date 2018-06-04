@@ -10,7 +10,7 @@
         color-picker: [],
         css-less-sass: [ aeschli ],
         debug: {
-            assignees: [ isidorn ],
+            assignees: [ weinand ],
             assignLabel: false
         },
         diff-editor: [],
@@ -47,7 +47,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         format: [],
