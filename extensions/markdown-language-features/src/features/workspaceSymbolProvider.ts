@@ -11,17 +11,17 @@ import MDDocumentSymbolProvider from './documentSymbolProvider';
 import { SkinnyTextDocument } from '../tableOfContentsProvider';
 
 export interface WorkspaceMarkdownDocumentProvider {
-	getAllMarkdownDocuments(): Thenable<SkinnyTextDocument[]>;
+	getAllMarkdownDocuments(): Thenable<Iterable<SkinnyTextDocument>>;
 
-	readonly onDidChangeMarkdownDocument: vscode.Event<vscode.TextDocument>;
-	readonly onDidCreateMarkdownDocument: vscode.Event<vscode.TextDocument>;
+	readonly onDidChangeMarkdownDocument: vscode.Event<SkinnyTextDocument>;
+	readonly onDidCreateMarkdownDocument: vscode.Event<SkinnyTextDocument>;
 	readonly onDidDeleteMarkdownDocument: vscode.Event<vscode.Uri>;
 }
 
 class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocumentProvider {
 
-	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
-	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.TextDocument>();
+	private readonly _onDidChangeMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
+	private readonly _onDidCreateMarkdownDocumentEmitter = new vscode.EventEmitter<SkinnyTextDocument>();
 	private readonly _onDidDeleteMarkdownDocumentEmitter = new vscode.EventEmitter<vscode.Uri>();
 
 	private _watcher: vscode.FileSystemWatcher | undefined;
@@ -40,9 +40,8 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 
 	async getAllMarkdownDocuments() {
 		const resources = await vscode.workspace.findFiles('**/*.md', '**/node_modules/**');
-		const documents = await Promise.all(
-			resources.map(resource => vscode.workspace.openTextDocument(resource).then(x => x, () => undefined)));
-		return documents.filter(doc => doc && isMarkdownFile(doc)) as vscode.TextDocument[];
+		const docs = await Promise.all(resources.map(doc => this.getMarkdownDocument(doc)));
+		return docs.filter(doc => !!doc) as SkinnyTextDocument[];
 	}
 
 	public get onDidChangeMarkdownDocument() {
@@ -68,15 +67,15 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 		this._watcher = vscode.workspace.createFileSystemWatcher('**/*.md');
 
 		this._watcher.onDidChange(async resource => {
-			const document = await vscode.workspace.openTextDocument(resource);
-			if (isMarkdownFile(document)) {
+			const document = await this.getMarkdownDocument(resource);
+			if (document) {
 				this._onDidChangeMarkdownDocumentEmitter.fire(document);
 			}
 		}, null, this._disposables);
 
 		this._watcher.onDidCreate(async resource => {
-			const document = await vscode.workspace.openTextDocument(resource);
-			if (isMarkdownFile(document)) {
+			const document = await this.getMarkdownDocument(resource);
+			if (document) {
 				this._onDidCreateMarkdownDocumentEmitter.fire(document);
 			}
 		}, null, this._disposables);
@@ -90,6 +89,11 @@ class VSCodeWorkspaceMarkdownDocumentProvider implements WorkspaceMarkdownDocume
 				this._onDidChangeMarkdownDocumentEmitter.fire(e.document);
 			}
 		}, null, this._disposables);
+	}
+
+	private async getMarkdownDocument(resource: vscode.Uri): Promise<SkinnyTextDocument | undefined> {
+		const doc = await vscode.workspace.openTextDocument(resource);
+		return doc && isMarkdownFile(doc) ? doc : undefined;
 	}
 }
 
@@ -120,8 +124,8 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 	}
 
 	public async populateSymbolCache(): Promise<void> {
-		const markDownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
-		for (const document of markDownDocumentUris) {
+		const markdownDocumentUris = await this._workspaceMarkdownDocumentProvider.getAllMarkdownDocuments();
+		for (const document of markdownDocumentUris) {
 			this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
 		}
 	}
@@ -136,8 +140,8 @@ export default class MarkdownWorkspaceSymbolProvider implements vscode.Workspace
 		});
 	}
 
-	private onDidChangeDocument(document: vscode.TextDocument) {
-		this._symbolCache.set(document.fileName, this.getSymbols(document));
+	private onDidChangeDocument(document: SkinnyTextDocument) {
+		this._symbolCache.set(document.uri.fsPath, this.getSymbols(document));
 	}
 
 	private onDidDeleteDocument(resource: vscode.Uri) {
