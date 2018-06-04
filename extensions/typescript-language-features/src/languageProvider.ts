@@ -24,7 +24,6 @@ import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
-const foldingSetting = 'typescript.experimental.syntaxFolding';
 
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
@@ -39,7 +38,6 @@ export default class LanguageProvider {
 	private readonly disposables: vscode.Disposable[] = [];
 	private readonly versionDependentDisposables: vscode.Disposable[] = [];
 
-	private foldingProviderRegistration: vscode.Disposable | undefined = void 0;
 	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
@@ -119,14 +117,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/referenceProvider')).register(selector, client));
 		this.disposables.push((await import('./features/renameProvider')).register(selector, client));
 		this.disposables.push((await import('./features/signatureHelpProvider')).register(selector, client));
-
-		await this.initFoldingProvider();
-		this.disposables.push(vscode.workspace.onDidChangeConfiguration(c => {
-			if (c.affectsConfiguration(foldingSetting)) {
-				this.initFoldingProvider();
-			}
-		}));
-		this.disposables.push({ dispose: () => this.foldingProviderRegistration && this.foldingProviderRegistration.dispose() });
+		this.disposables.push((await import('./features/foldingProvider')).register(selector, client));
 
 		this.registerVersionDependentProviders();
 
@@ -141,20 +132,6 @@ export default class LanguageProvider {
 		this.disposables.push(vscode.languages.registerCodeLensProvider(selector, implementationCodeLensProvider));
 
 		this.disposables.push(vscode.languages.registerWorkspaceSymbolProvider(new (await import('./features/workspaceSymbolProvider')).default(client, this.description.modeIds)));
-	}
-
-	private async initFoldingProvider(): Promise<void> {
-		let enable = vscode.workspace.getConfiguration().get(foldingSetting, false);
-		if (enable && this.client.apiVersion.has280Features()) {
-			if (!this.foldingProviderRegistration) {
-				this.foldingProviderRegistration = vscode.languages.registerFoldingRangeProvider(this.documentSelector, new (await import('./features/foldingProvider')).default(this.client));
-			}
-		} else {
-			if (this.foldingProviderRegistration) {
-				this.foldingProviderRegistration.dispose();
-				this.foldingProviderRegistration = void 0;
-			}
-		}
 	}
 
 	private configurationChanged(): void {
