@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter } from 'vscode';
+import { languages, workspace, Diagnostic, Disposable, Uri, TextDocument, DocumentFilter, DiagnosticSeverity } from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
@@ -21,7 +21,7 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
-import { UnusedHighlighter } from './features/unusedHighlighter';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -30,7 +30,6 @@ const foldingSetting = 'typescript.experimental.syntaxFolding';
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
 	private readonly bufferSyncSupport: BufferSyncSupport;
-	private readonly ununsedHighlighter: UnusedHighlighter;
 	private readonly fileConfigurationManager: FileConfigurationManager;
 
 	private readonly toUpdateOnConfigurationChanged: ({ updateConfiguration: () => void })[] = [];
@@ -42,6 +41,7 @@ export default class LanguageProvider {
 	private readonly versionDependentDisposables: Disposable[] = [];
 
 	private foldingProviderRegistration: Disposable | undefined = void 0;
+	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -58,7 +58,6 @@ export default class LanguageProvider {
 		}, this._validate);
 
 		this.diagnosticsManager = new DiagnosticsManager(description.diagnosticOwner);
-		this.ununsedHighlighter = new UnusedHighlighter();
 
 		workspace.onDidChangeConfiguration(this.configurationChanged, this, this.disposables);
 		this.configurationChanged();
@@ -66,6 +65,15 @@ export default class LanguageProvider {
 		client.onReady(async () => {
 			await this.registerProviders(client, commandManager, typingsStatus);
 			this.bufferSyncSupport.listen();
+		});
+
+		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
+			try {
+				const doc = await workspace.openTextDocument(uri);
+				return this.handles(uri, doc);
+			} catch {
+				return false;
+			}
 		});
 	}
 
@@ -76,6 +84,7 @@ export default class LanguageProvider {
 		this.diagnosticsManager.dispose();
 		this.bufferSyncSupport.dispose();
 		this.fileConfigurationManager.dispose();
+		this.renameHandler.dispose();
 	}
 
 	@memoize
@@ -122,10 +131,13 @@ export default class LanguageProvider {
 		this.disposables.push(languages.registerDocumentHighlightProvider(selector, new (await import('./features/documentHighlightProvider')).default(client)));
 		this.disposables.push(languages.registerReferenceProvider(selector, new (await import('./features/referenceProvider')).default(client)));
 		this.disposables.push(languages.registerDocumentSymbolProvider(selector, new (await import('./features/documentSymbolProvider')).default(client)));
-		this.disposables.push(languages.registerSignatureHelpProvider(selector, new (await import('./features/signatureHelpProvider')).default(client), '(', ','));
+
+
 		this.disposables.push(languages.registerRenameProvider(selector, new (await import('./features/renameProvider')).default(client)));
 		this.disposables.push(languages.registerCodeActionsProvider(selector, new (await import('./features/quickFixProvider')).default(client, this.fileConfigurationManager, commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter)));
 
+		const TypescriptSignatureHelpProvider = (await import('./features/signatureHelpProvider')).default;
+		this.disposables.push(languages.registerSignatureHelpProvider(selector, new TypescriptSignatureHelpProvider(client), ...TypescriptSignatureHelpProvider.triggerCharacters));
 		const refactorProvider = new (await import('./features/refactorProvider')).default(client, this.fileConfigurationManager, commandManager);
 		this.disposables.push(languages.registerCodeActionsProvider(selector, refactorProvider, refactorProvider.metadata));
 
@@ -229,11 +241,14 @@ export default class LanguageProvider {
 
 	public reInitialize(): void {
 		this.diagnosticsManager.reInitialize();
-		this.ununsedHighlighter.reInitialize();
 		this.bufferSyncSupport.reOpenDocuments();
 		this.bufferSyncSupport.requestAllDiagnostics();
 		this.fileConfigurationManager.reset();
 		this.registerVersionDependentProviders();
+	}
+
+	public getErr(resources: Uri[]) {
+		this.bufferSyncSupport.getErr(resources);
 	}
 
 	private async registerVersionDependentProviders(): Promise<void> {
@@ -264,11 +279,16 @@ export default class LanguageProvider {
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: Uri, diagnostics: (Diagnostic & { reportUnnecessary: any })[]): void {
 		const config = workspace.getConfiguration(this.id, file);
-		const reportUnnecessary = config.get<boolean>('showUnused.enabled', true);
-		if (diagnosticsKind === DiagnosticKind.Suggestion) {
-			this.ununsedHighlighter.diagnosticsReceived(file, diagnostics.filter(diag => diag.reportUnnecessary));
-		}
-		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => diag.reportUnnecessary ? reportUnnecessary : true));
+		const reportUnnecessary = config.get<boolean>('showUnused', true);
+		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
+			if (!reportUnnecessary) {
+				diag.customTags = undefined;
+				if (diag.reportUnnecessary && diag.severity === DiagnosticSeverity.Hint) {
+					return false;
+				}
+			}
+			return true;
+		}));
 	}
 
 	public configFileDiagnosticsReceived(file: Uri, diagnostics: Diagnostic[]): void {

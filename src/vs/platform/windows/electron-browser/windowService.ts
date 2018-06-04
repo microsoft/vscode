@@ -89,6 +89,10 @@ export class WindowService implements IWindowService {
 		return this.windowsService.saveAndEnterWorkspace(this.windowId, path);
 	}
 
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void> {
+		return this.windowsService.openWindow(this.windowId, paths, options);
+	}
+
 	closeWindow(): TPromise<void> {
 		return this.windowsService.closeWindow(this.windowId);
 	}

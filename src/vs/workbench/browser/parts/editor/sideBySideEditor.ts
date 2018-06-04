@@ -6,15 +6,16 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { EditorInput, EditorOptions, SideBySideEditorInput } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, SideBySideEditorInput, IEditorControl, IEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IEditorControl, Position, IEditor } from 'vs/platform/editor/common/editor';
 import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { scrollbarShadow } from 'vs/platform/theme/common/colorRegistry';
 import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -43,30 +44,26 @@ export class SideBySideEditor extends BaseEditor {
 		this.createSash(parent);
 	}
 
-	public setInput(newInput: SideBySideEditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		const oldInput = <SideBySideEditorInput>this.input;
-		return super.setInput(newInput, options)
-			.then(() => this.updateInput(oldInput, newInput, options));
+		return super.setInput(newInput, options, token)
+			.then(() => this.updateInput(oldInput, newInput, options, token));
 	}
 
-	protected setEditorVisible(visible: boolean, position: Position): void {
+	public setOptions(options: EditorOptions): void {
 		if (this.masterEditor) {
-			this.masterEditor.setVisible(visible, position);
+			this.masterEditor.setOptions(options);
 		}
-		if (this.detailsEditor) {
-			this.detailsEditor.setVisible(visible, position);
-		}
-		super.setEditorVisible(visible, position);
 	}
 
-	public changePosition(position: Position): void {
+	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		if (this.masterEditor) {
-			this.masterEditor.changePosition(position);
+			this.masterEditor.setVisible(visible, group);
 		}
 		if (this.detailsEditor) {
-			this.detailsEditor.changePosition(position);
+			this.detailsEditor.setVisible(visible, group);
 		}
-		super.changePosition(position);
+		super.setEditorVisible(visible, group);
 	}
 
 	public clearInput(): void {
@@ -110,27 +107,27 @@ export class SideBySideEditor extends BaseEditor {
 		return false;
 	}
 
-	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options?: EditorOptions): void {
+	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): void {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {
 				this.disposeEditors();
 			}
 			this.createEditorContainers();
 
-			return this.setNewInput(newInput, options);
+			return this.setNewInput(newInput, options, token);
 		} else {
-			this.detailsEditor.setInput(newInput.details);
-			this.masterEditor.setInput(newInput.master, options);
+			this.detailsEditor.setInput(newInput.details, null, token);
+			this.masterEditor.setInput(newInput.master, options, token);
 
 			return void 0;
 		}
 	}
 
-	private setNewInput(newInput: SideBySideEditorInput, options?: EditorOptions): void {
+	private setNewInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): void {
 		const detailsEditor = this._createEditor(<EditorInput>newInput.details, this.detailsEditorContainer);
 		const masterEditor = this._createEditor(<EditorInput>newInput.master, this.masterEditorContainer);
 
-		this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options);
+		this.onEditorsCreated(detailsEditor, masterEditor, newInput.details, newInput.master, options, token);
 	}
 
 	private _createEditor(editorInput: EditorInput, container: HTMLElement): BaseEditor {
@@ -138,16 +135,16 @@ export class SideBySideEditor extends BaseEditor {
 
 		const editor = descriptor.instantiate(this.instantiationService);
 		editor.create(container);
-		editor.setVisible(this.isVisible(), this.position);
+		editor.setVisible(this.isVisible(), this.group);
 
 		return editor;
 	}
 
-	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions): TPromise<void> {
+	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
 		this.dolayout(this.sash.getVerticalSashLeft());
-		return TPromise.join([this.detailsEditor.setInput(detailsInput), this.masterEditor.setInput(masterInput, options)]).then(() => this.focus());
+		return TPromise.join([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
 
 	private createEditorContainers(): void {

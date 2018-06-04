@@ -80,7 +80,7 @@ class MyPart3 extends Part {
 	}
 }
 
-suite('Workbench Part', () => {
+suite('Workbench parts', () => {
 	let fixture: HTMLElement;
 	let fixtureId = 'workbench-part-fixture';
 	let storage: IStorageService;

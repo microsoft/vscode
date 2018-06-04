@@ -9,9 +9,10 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { values } from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import { IFileMatch, ISearchComplete, ISearchProgressItem, ISearchQuery, ISearchResultProvider, ISearchService, QueryType, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, ExtHostSearchShape, IExtHostContext, MainContext, MainThreadSearchShape } from '../node/extHost.protocol';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 
 @extHostNamedCustomer(MainContext.MainThreadSearch)
 export class MainThreadSearch implements MainThreadSearchShape {
@@ -21,7 +22,8 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@ISearchService private readonly _searchService: ISearchService
+		@ISearchService private readonly _searchService: ISearchService,
+		@ITelemetryService private readonly _telemetryService: ITelemetryService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostSearch);
 	}
@@ -42,6 +44,10 @@ export class MainThreadSearch implements MainThreadSearchShape {
 
 	$handleFindMatch(handle: number, session, data: UriComponents | IRawFileMatch2[]): void {
 		this._searchProvider.get(handle).handleFindMatch(session, data);
+	}
+
+	$handleTelemetry(eventName: string, data: any): void {
+		this._telemetryService.publicLog(eventName, data);
 	}
 }
 
@@ -94,6 +100,9 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		}
 
 		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
+		if (!folderQueriesForScheme.length) {
+			return TPromise.wrap(null);
+		}
 
 		query = {
 			...query,
@@ -111,9 +120,9 @@ class RemoteSearchProvider implements ISearchResultProvider {
 				? this._proxy.$provideFileSearchResults(this._handle, search.id, query)
 				: this._proxy.$provideTextSearchResults(this._handle, search.id, query.contentPattern, query);
 
-			outer.then(() => {
+			outer.then((result: ISearchCompleteStats) => {
 				this._searches.delete(search.id);
-				resolve(({ results: values(search.matches), stats: undefined }));
+				resolve(({ results: values(search.matches), stats: result.stats, limitHit: result.limitHit }));
 			}, err => {
 				this._searches.delete(search.id);
 				reject(err);

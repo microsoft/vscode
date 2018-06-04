@@ -1,4 +1,4 @@
 {
-	"displayName": "Search",
-	"description": "Provides search."
+	"displayName": "Search (ripgrep)",
+	"description": "Provides search using Ripgrep."
 }

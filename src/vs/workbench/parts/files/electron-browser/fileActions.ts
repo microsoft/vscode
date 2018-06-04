@@ -25,25 +25,21 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
 import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -53,6 +49,9 @@ import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common
 import { Schemas } from 'vs/base/common/network';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Constants } from 'vs/editor/common/core/uint';
+import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IEditableData {
 	action: IAction;
@@ -483,7 +482,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -514,7 +513,7 @@ class CreateFileAction extends BaseCreateAction {
 	constructor(
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -792,7 +791,7 @@ export class AddFilesAction extends BaseFileAction {
 		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IDialogService private dialogService: IDialogService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
@@ -875,7 +874,7 @@ export class AddFilesAction extends BaseFileAction {
 
 										// if we only add one file, just open it directly
 										if (resources.length === 1) {
-											this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+											this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 										}
 									}, error => this.onError(error));
 								});
@@ -921,7 +920,7 @@ class CopyFileAction extends BaseFileAction {
 	public run(): TPromise<any> {
 
 		// Write to clipboard as file/folder to copy
-		this.clipboardService.writeFiles(this.elements.map(e => e.resource));
+		this.clipboardService.writeResources(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
@@ -947,7 +946,7 @@ class PasteFileAction extends BaseFileAction {
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
@@ -1010,7 +1009,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		fileToDuplicate: ExplorerItem,
 		target: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
@@ -1058,11 +1057,30 @@ function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { res
 	return candidate;
 }
 
-function incrementFileName(name: string, isFolder: boolean): string {
+export function incrementFileName(name: string, isFolder: boolean): string {
+	const separators = '[\\.\\-_]';
+	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
 	// file.1.txt=>file.2.txt
-	if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-		return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g2);
+			return number < maxNumber
+				? g1 + strings.pad(number + 1, g2.length) + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
+	}
+
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? strings.pad(number + 1, g1.length) + g2 + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
 	}
 
 	// file.txt=>file.1.txt
@@ -1073,7 +1091,22 @@ function incrementFileName(name: string, isFolder: boolean): string {
 
 	// folder.1=>folder.2
 	if (isFolder && name.match(/(\d+)$/)) {
-		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length)
+				: strings.format('{0}.1', groups[0]);
+		});
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length) + groups[1]
+				: strings.format('{0}{1}.1', groups[0], groups[1]);
+		});
 	}
 
 	// file/folder=>file.1/folder.1
@@ -1090,34 +1123,40 @@ export class GlobalCompareResourcesAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const activeInput = this.editorService.getActiveEditorInput();
+		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.getResource() : void 0;
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const unbind = once(this.editorGroupService.onEditorOpening)(e => {
-				const resource = e.input.getResource();
+			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+
+				// Only once!
+				toDispose.dispose();
+
+				// Open editor as diff
+				const resource = editor.getResource();
 				if (resource) {
-					e.prevent(() => {
-						return this.editorService.openEditor({
+					return {
+						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						});
-					});
+						}).then(() => void 0)
+					};
 				}
+
+				return void 0;
 			});
 
 			// Bring up quick open
 			this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
-				unbind.dispose(); // make sure to unbind if quick open is closing
+				toDispose.dispose(); // make sure to unbind if quick open is closing
 			});
 		} else {
 			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
@@ -1221,11 +1260,25 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	}
 
 	protected doRun(context: any): TPromise<any> {
-		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID);
+		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 
 	protected includeUntitled(): boolean {
 		return true;
+	}
+}
+
+export class CloseGroupAction extends Action {
+
+	public static readonly ID = 'workbench.files.action.closeGroup';
+	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
+
+	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+		super(id, label, 'action-close-all-files');
+	}
+
+	public run(context?: any): TPromise<any> {
+		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
 
@@ -1285,7 +1338,7 @@ export class ShowActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService
 	) {
@@ -1293,7 +1346,7 @@ export class ShowActiveFileInExplorer extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
 		} else {
@@ -1363,17 +1416,17 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@INotificationService private notificationService: INotificationService,
+		@IEditorService private editorService: IEditorService,
+		@IWindowService private windowService: IWindowService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			this.windowService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
 			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
@@ -1475,7 +1528,7 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelService: ITextModelService,
 		@IFileService private fileService: IFileService
@@ -1486,7 +1539,7 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
+		const resource: URI = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
 				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
@@ -1636,7 +1689,7 @@ export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const clipboardService = accessor.get(IClipboardService);
 	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	return TPromise.join(resources.distinctParents(clipboardService.readFiles(), r => r).map(toCopy => {
+	return TPromise.join(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
 		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
 		return pasteFileAction.run(toCopy);
 	}));

@@ -791,9 +791,6 @@ export class SearchModel extends Disposable {
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		this.currentRequest = null;
 
-		if (completed) {
-			this._searchResult.add(completed.results, false);
-		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__

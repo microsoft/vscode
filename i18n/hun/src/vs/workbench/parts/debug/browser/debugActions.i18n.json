@@ -41,7 +41,7 @@
 	"debugConsoleAction": "Hibakeresési konzol",
 	"unreadOutput": "Új kimenet a hibakeresési konzolban",
 	"debugFocusConsole": "Váltás a hibakeresési konzolra",
-	"focusProcess": "Váltás a folyamatra",
+	"focusSession": "Váltás munkamenetre",
 	"stepBackDebug": "Visszalépés",
 	"reverseContinue": "Visszafordítás"
 }

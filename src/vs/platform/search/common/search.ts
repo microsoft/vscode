@@ -127,10 +127,13 @@ export interface ISearchProgressItem extends IFileMatch, IProgress {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
-export interface ISearchComplete {
+export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	stats?: ISearchStats;
+}
+
+export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
-	stats: ISearchStats;
 }
 
 export interface ISearchStats {
@@ -187,7 +190,6 @@ export interface ISearchConfigurationProperties {
 	smartCase: boolean;
 	globalFindClipboard: boolean;
 	location: 'sidebar' | 'panel';
-	enableSearchProviders: boolean;
 }
 
 export interface ISearchConfiguration extends IFilesConfiguration {

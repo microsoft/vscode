@@ -14,11 +14,12 @@ import * as Platform from 'vs/platform/registry/common/platform';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroup } from 'vs/workbench/test/workbenchTestServices';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { TestThemeService } from 'vs/platform/theme/test/common/testThemeService';
 import URI from 'vs/base/common/uri';
 import { IEditorRegistry, Extensions, EditorDescriptor } from 'vs/workbench/browser/editor';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const NullThemeService = new TestThemeService();
 
@@ -31,17 +32,9 @@ export class MyEditor extends BaseEditor {
 		super('MyEditor', NullTelemetryService, NullThemeService);
 	}
 
-	getId(): string {
-		return 'myEditor';
-	}
-
-	public layout(): void {
-
-	}
-
-	public createEditor(): any {
-
-	}
+	getId(): string { return 'myEditor'; }
+	layout(): void { }
+	createEditor(): any { }
 }
 
 export class MyOtherEditor extends BaseEditor {
@@ -50,17 +43,10 @@ export class MyOtherEditor extends BaseEditor {
 		super('myOtherEditor', NullTelemetryService, NullThemeService);
 	}
 
-	getId(): string {
-		return 'myOtherEditor';
-	}
+	getId(): string { return 'myOtherEditor'; }
 
-	public layout(): void {
-
-	}
-
-	public createEditor(): any {
-
-	}
+	layout(): void { }
+	createEditor(): any { }
 }
 
 class MyInputFactory implements IEditorInputFactory {
@@ -79,27 +65,27 @@ class MyInput extends EditorInput {
 		return ids[1];
 	}
 
-	public getTypeId(): string {
+	getTypeId(): string {
 		return '';
 	}
 
-	public resolve(refresh?: boolean): any {
+	resolve(refresh?: boolean): any {
 		return null;
 	}
 }
 
 class MyOtherInput extends EditorInput {
-	public getTypeId(): string {
+	getTypeId(): string {
 		return '';
 	}
 
-	public resolve(refresh?: boolean): any {
+	resolve(refresh?: boolean): any {
 		return null;
 	}
 }
 class MyResourceInput extends ResourceEditorInput { }
 
-suite('Workbench BaseEditor', () => {
+suite('Workbench base editor', () => {
 
 	test('BaseEditor API', function () {
 		let e = new MyEditor(NullTelemetryService);
@@ -109,18 +95,20 @@ suite('Workbench BaseEditor', () => {
 		assert(!e.isVisible());
 		assert(!e.input);
 		assert(!e.options);
-		return e.setInput(input, options).then(() => {
+		return e.setInput(input, options, CancellationToken.None).then(() => {
 			assert.strictEqual(input, e.input);
 			assert.strictEqual(options, e.options);
 
-			e.setVisible(true);
+			const group = new TestEditorGroup(1);
+			e.setVisible(true, group);
 			assert(e.isVisible());
+			assert.equal(e.group, group);
 			input.onDispose(() => {
 				assert(false);
 			});
 			e.dispose();
 			e.clearInput();
-			e.setVisible(false);
+			e.setVisible(false, group);
 			assert(!e.isVisible());
 			assert(!e.input);
 			assert(!e.options);

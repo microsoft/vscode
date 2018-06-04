@@ -25,6 +25,10 @@ export enum Severity {
 	Error = 3,
 }
 
+export enum MarkerTag {
+	Unnecessary = 1,
+}
+
 export enum MarkerSeverity {
 	Hint = 1,
 	Info = 2,
@@ -246,6 +250,7 @@ export function createMonacoBaseAPI(): typeof monaco {
 		SelectionDirection: SelectionDirection,
 		Severity: Severity,
 		MarkerSeverity: MarkerSeverity,
+		MarkerTag: MarkerTag,
 		Promise: TPromise,
 		Uri: <any>URI,
 		Token: Token

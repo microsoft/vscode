@@ -8,7 +8,6 @@
 	],
 	"vscode.extension.contributes.configuration.title": "Resumen de la configuración. Esta etiqueta se usará en el archivo de configuración como comentario divisor.",
 	"vscode.extension.contributes.configuration.properties": "Descripción de las propiedades de configuración.",
-	"scope.application.description": "Configuración específica de aplicación, que puede ser configurado en configuración de usuario.",
 	"scope.window.description": "Configuración específica para ventanas, que se puede definir en la configuración de usuario o de área de trabajo.",
 	"scope.resource.description": "Configuración específica para recursos, que se puede definir en la configuración de usuario, de área de trabajo o de carpeta.",
 	"scope.description": "Ámbito donde es aplicable la configuración. Los ámbitos disponibles son \"window\" y \"resource\".",

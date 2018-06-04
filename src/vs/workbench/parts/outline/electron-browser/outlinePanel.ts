@@ -35,13 +35,14 @@ import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { OutlineElement, OutlineModel } from './outlineModel';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { isPromiseCanceledError, onUnexpectedError } from 'vs/base/common/errors';
+import { onUnexpectedError } from 'vs/base/common/errors';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
+import { asDisposablePromise } from 'vs/base/common/async';
 
 class RequestState {
 
@@ -70,12 +71,11 @@ class RequestOracle {
 	private _lastState: RequestState;
 
 	constructor(
-		private readonly _callback: (editor: ICodeEditor) => any,
+		private readonly _callback: (editor: ICodeEditor, change: IModelContentChangedEvent) => any,
 		private readonly _featureRegistry: LanguageFeatureRegistry<any>,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
-		editorGroupService.onEditorsChanged(this._update, this, this._disposables);
+		_editorService.onDidActiveEditorChange(this._update, this, this._disposables);
 		_featureRegistry.onDidChange(this._update, this, this._disposables);
 		this._update();
 	}
@@ -87,17 +87,17 @@ class RequestOracle {
 
 	private _update(): void {
 
-		let editor = this._workbenchEditorService.getActiveEditor();
-		let control = editor && editor.getControl();
+		let widget = this._editorService.activeTextEditorWidget;
 		let codeEditor: ICodeEditor = undefined;
-		if (isCodeEditor(control)) {
-			codeEditor = control;
-		} else if (isDiffEditor(control)) {
-			codeEditor = control.getModifiedEditor();
+		if (isCodeEditor(widget)) {
+			codeEditor = widget;
+		} else if (isDiffEditor(widget)) {
+			codeEditor = widget.getModifiedEditor();
 		}
 
 		if (!codeEditor || !codeEditor.getModel()) {
-			this._callback(undefined);
+			this._lastState = undefined;
+			this._callback(undefined, undefined);
 			return;
 		}
 
@@ -114,16 +114,20 @@ class RequestOracle {
 		}
 		dispose(this._sessionDisposable);
 		this._lastState = thisState;
-		this._callback(codeEditor);
+		this._callback(codeEditor, undefined);
 
 		let handle: number;
-		let listener = codeEditor.onDidChangeModelContent(_ => {
-			handle = setTimeout(() => this._callback(codeEditor), 50);
+		let contentListener = codeEditor.onDidChangeModelContent(event => {
+			handle = setTimeout(() => this._callback(codeEditor, event), 150);
+		});
+		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
+			this._callback(codeEditor, undefined);
 		});
 		this._sessionDisposable = {
 			dispose() {
-				listener.dispose();
+				contentListener.dispose();
 				clearTimeout(handle);
+				modeListener.dispose();
 			}
 		};
 	}
@@ -212,7 +216,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -312,11 +316,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	setVisible(visible: boolean): TPromise<void> {
 		if (visible) {
-			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, editor => this._onEditor(editor), DocumentSymbolProviderRegistry);
+			this._requestOracle = this._requestOracle || this._instantiationService.createInstance(RequestOracle, (editor, event) => this._doUpdate(editor, event).then(undefined, onUnexpectedError), DocumentSymbolProviderRegistry);
 		} else {
 			dispose(this._requestOracle);
 			this._requestOracle = undefined;
-			this._onEditor(undefined);
+			this._doUpdate(undefined, undefined);
 		}
 		return super.setVisible(visible);
 	}
@@ -362,7 +366,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._message.innerText = escape(message);
 	}
 
-	private async _onEditor(editor: ICodeEditor): TPromise<void> {
+	private async _doUpdate(editor: ICodeEditor, event: IModelContentChangedEvent): TPromise<void> {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
@@ -373,23 +377,40 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
 
-		dom.removeClass(this._domNode, 'message');
 
 		let textModel = editor.getModel();
-		let modelPromise = OutlineModel.create(textModel);
-		this._editorDisposables.push({ dispose() { modelPromise.cancel(); } });
-
-		let model: OutlineModel;
-		try {
-			model = await modelPromise;
-		} catch (e) {
-			if (!isPromiseCanceledError(e)) {
-				onUnexpectedError(e);
-			}
+		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
+		if (!model) {
 			return;
 		}
 
+		let newSize = TreeElement.size(model);
+		if (newSize > 7500) {
+			// this is a workaround for performance issues with the tree: https://github.com/Microsoft/vscode/issues/18180
+			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
+		}
+
+		dom.removeClass(this._domNode, 'message');
 		let oldModel = <OutlineModel>this._tree.getInput();
+
+		if (event && oldModel) {
+			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
+			// wait a little (and hope that the next change isn't as drastic).
+			let newLength = textModel.getValueLength();
+			let newRatio = newSize / newLength;
+			let oldSize = TreeElement.size(oldModel);
+			let oldLength = newLength - event.changes.reduce((prev, value) => prev + value.rangeLength, 0);
+			let oldRatio = oldSize / oldLength;
+			if (newRatio <= oldRatio * 0.5 || newRatio >= oldRatio * 1.5) {
+				if (!await asDisposablePromise(
+					TPromise.timeout(2000).then(_ => true),
+					false,
+					this._editorDisposables).promise
+				) {
+					return;
+				}
+			}
+		}
 
 		if (oldModel && oldModel.adopt(model)) {
 			this._tree.refresh(undefined, true);
@@ -466,7 +487,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
 		let { range, uri } = element.symbol.location;
 		let input = this._editorService.createInput({ resource: uri });
-		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside);
+		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {

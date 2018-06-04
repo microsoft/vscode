@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "提供組態設定。",
 	"invalid.title": "'configuration.title' 必須是字串",
 	"invalid.properties": "'configuration.properties' 必須是物件",
+	"invalid.property": "'configuration.property' 必須是物件",
 	"invalid.allOf": "'configuration.allOf' 已取代而不應再使用。請改為將多個組態區段作為陣列，傳遞至「組態」貢獻點。",
 	"workspaceConfig.folders.description": "要載入工作區之資料夾的清單。",
 	"workspaceConfig.path.description": "檔案路徑，例如 `/root/folderA` 或 `./folderA` 即為會對工作區檔案位置解析的相關路徑。",

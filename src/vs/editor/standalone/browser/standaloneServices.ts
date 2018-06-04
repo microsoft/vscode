@@ -29,7 +29,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { StandaloneCodeEditorServiceImpl } from 'vs/editor/standalone/browser/standaloneCodeServiceImpl';
 import {
 	SimpleConfigurationService, SimpleResourceConfigurationService, SimpleMenuService,
 	SimpleProgressService, StandaloneCommandService, StandaloneKeybindingService, SimpleNotificationService,
@@ -142,7 +142,7 @@ export module StaticServices {
 
 	export const standaloneThemeService = define(IStandaloneThemeService, () => new StandaloneThemeServiceImpl());
 
-	export const codeEditorService = define(ICodeEditorService, (o) => new CodeEditorServiceImpl(standaloneThemeService.get(o)));
+	export const codeEditorService = define(ICodeEditorService, (o) => new StandaloneCodeEditorServiceImpl(standaloneThemeService.get(o)));
 
 	export const progressService = define(IProgressService, () => new SimpleProgressService());
 

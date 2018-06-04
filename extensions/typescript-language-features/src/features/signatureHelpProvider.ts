@@ -3,23 +3,29 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { CancellationToken, ParameterInformation, Position, SignatureHelp, SignatureHelpProvider, SignatureInformation, TextDocument } from 'vscode';
+import * as vscode from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as Previewer from '../utils/previewer';
 import * as typeConverters from '../utils/typeConverters';
 
 
-export default class TypeScriptSignatureHelpProvider implements SignatureHelpProvider {
+export default class TypeScriptSignatureHelpProvider implements vscode.SignatureHelpProvider {
+
+	public static readonly triggerCharacters = ['(', ',', '<'];
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async provideSignatureHelp(document: TextDocument, position: Position, token: CancellationToken): Promise<SignatureHelp | undefined | null> {
+	public async provideSignatureHelp(
+		document: vscode.TextDocument,
+		position: vscode.Position,
+		token: vscode.CancellationToken
+	): Promise<vscode.SignatureHelp | undefined> {
 		const filepath = this.client.normalizePath(document.uri);
 		if (!filepath) {
-			return null;
+			return undefined;
 		}
 		const args: Proto.SignatureHelpRequestArgs = typeConverters.Position.toFileLocationRequestArgs(filepath, position);
 
@@ -28,41 +34,40 @@ export default class TypeScriptSignatureHelpProvider implements SignatureHelpPro
 			const response = await this.client.execute('signatureHelp', args, token);
 			info = response.body;
 			if (!info) {
-				return null;
+				return undefined;
 			}
 		} catch {
-			return null;
+			return undefined;
 		}
 
-		const result = new SignatureHelp();
+		const result = new vscode.SignatureHelp();
 		result.activeSignature = info.selectedItemIndex;
-		result.activeParameter = info.argumentIndex;
-
-		info.items.forEach((item, i) => {
-			// keep active parameter in bounds
-			if (i === info!.selectedItemIndex && item.isVariadic) {
-				result.activeParameter = Math.min(info!.argumentIndex, item.parameters.length - 1);
-			}
-
-			const signature = new SignatureInformation('');
-			signature.label += Previewer.plain(item.prefixDisplayParts);
-
-			item.parameters.forEach((p, i, a) => {
-				const parameter = new ParameterInformation(
-					Previewer.plain(p.displayParts),
-					Previewer.markdownDocumentation(p.documentation, []));
-
-				signature.label += parameter.label;
-				signature.parameters.push(parameter);
-				if (i < a.length - 1) {
-					signature.label += Previewer.plain(item.separatorDisplayParts);
-				}
-			});
-			signature.label += Previewer.plain(item.suffixDisplayParts);
-			signature.documentation = Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param'));
-			result.signatures.push(signature);
-		});
+		result.activeParameter = this.getActiveParmeter(info);
+		result.signatures = info.items.map(signature => this.convertSignature(signature));
 
 		return result;
+	}
+
+	private getActiveParmeter(info: Proto.SignatureHelpItems): number {
+		const activeSignature = info.items[info.selectedItemIndex];
+		if (activeSignature && activeSignature.isVariadic) {
+			return Math.min(info.argumentIndex, activeSignature.parameters.length - 1);
+		}
+		return info.argumentIndex;
+	}
+
+	private convertSignature(item: Proto.SignatureHelpItem) {
+		const signature = new vscode.SignatureInformation(
+			Previewer.plain(item.prefixDisplayParts),
+			Previewer.markdownDocumentation(item.documentation, item.tags.filter(x => x.name !== 'param')));
+
+		signature.parameters = item.parameters.map(p =>
+			new vscode.ParameterInformation(
+				Previewer.plain(p.displayParts),
+				Previewer.markdownDocumentation(p.documentation, [])));
+
+		signature.label += signature.parameters.map(parameter => parameter.label).join(Previewer.plain(item.separatorDisplayParts));
+		signature.label += Previewer.plain(item.suffixDisplayParts);
+		return signature;
 	}
 }

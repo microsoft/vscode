@@ -13,5 +13,6 @@
 	"indentUsingTabs": "Indentálás tabulátorral",
 	"indentUsingSpaces": "Indentálás szóközzel",
 	"detectIndentation": "Indentálás felismerése a tartalom alapján",
-	"editor.reindentlines": "Sorok újraindentálása"
+	"editor.reindentlines": "Sorok újraindentálása",
+	"editor.reindentselectedlines": "Kijelölt sorok újraindentálása "
 }

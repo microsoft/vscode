@@ -46,7 +46,6 @@ import URI from 'vs/base/common/uri';
 import { relative } from 'path';
 import { dirname } from 'vs/base/common/resources';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { distinct } from 'vs/base/common/arrays';
 import { getMultiSelectedResources } from 'vs/workbench/parts/files/browser/files';
@@ -59,6 +58,7 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } fr
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { SearchViewLocationUpdater } from 'vs/workbench/parts/search/browser/searchViewLocationUpdater';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 registerSingleton(ISearchWorkbenchService, SearchWorkbenchService);
 replaceContributions();
@@ -72,8 +72,10 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: Constants.SearchViewVisibleKey,
 	primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_J,
 	handler: accessor => {
-		openSearchView(accessor.get(IViewletService), accessor.get(IPanelService), true)
-			.then(view => view.toggleQueryDetails());
+		const searchView = getSearchView(accessor.get(IViewletService), accessor.get(IPanelService));
+		if (searchView) {
+			searchView.toggleQueryDetails();
+		}
 	}
 });
 
@@ -337,7 +339,7 @@ CommandsRegistry.registerCommand({
 		const viewletService = accessor.get(IViewletService);
 		const panelService = accessor.get(IPanelService);
 		const fileService = accessor.get(IFileService);
-		const resources = getMultiSelectedResources(resource, listService, accessor.get(IWorkbenchEditorService));
+		const resources = getMultiSelectedResources(resource, listService, accessor.get(IEditorService));
 
 		return openSearchView(viewletService, panelService, true).then(searchView => {
 			if (resources && resources.length) {
@@ -600,14 +602,10 @@ configurationRegistry.registerConfiguration({
 			included: platform.isMacintosh
 		},
 		'search.location': {
+			type: 'string',
 			enum: ['sidebar', 'panel'],
 			default: 'sidebar',
-			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space. Next release search in panel will have improved horizontal layout and this will no longer be a preview."),
-		},
-		'search.enableSearchProviders': {
-			type: 'boolean',
-			default: false,
-			description: nls.localize('search.enableSearchProviders', " (Experimental) Controls whether search provider extensions should be enabled.")
+			description: nls.localize('search.location', "Controls if the search will be shown as a view in the sidebar or as a panel in the panel area for more horizontal space."),
 		}
 	}
 });

@@ -21,7 +21,6 @@
 	"schema.languageId": "연결에 대한 아이콘 정의의 ID입니다.",
 	"schema.fonts": "아이콘 정의에 사용된 글꼴입니다.",
 	"schema.id": "글꼴의 ID입니다.",
-	"schema.src": "글꼴의 위치입니다.",
 	"schema.font-path": "현재 아이콘 테마 파일의 상대 글꼴 경로입니다.",
 	"schema.font-format": "글꼴의 형식입니다.",
 	"schema.font-weight": "글꼴의 두께입니다.",

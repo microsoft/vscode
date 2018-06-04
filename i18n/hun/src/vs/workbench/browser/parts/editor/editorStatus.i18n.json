@@ -16,7 +16,7 @@
 	"screenReaderDetected": "Képernyőolvasóra optimalizálva",
 	"screenReaderDetectedExtra": "Ha nem használ képernyőolvasót, állítsa az `editor.accessibilitySupport` értékét \"off\"-ra.",
 	"disableTabMode": "Kisegítő mód letiltása",
-	"gotoLine": "Sor megkeresése",
+	"gotoLine": "Ugrás adott sorhoz",
 	"selectIndentation": "Indentálás kiválasztása",
 	"selectEncoding": "Kódolás kiválasztása",
 	"selectEOL": "Sorvégjel kiválasztása",

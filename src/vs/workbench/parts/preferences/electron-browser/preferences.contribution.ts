@@ -19,7 +19,7 @@ import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/prefer
 import { SettingsEditor2 } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 import { DefaultPreferencesEditorInput, PreferencesEditorInput, KeybindingsEditorInput, SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { KeybindingsEditor } from 'vs/workbench/parts/preferences/browser/keybindingsEditor';
-import { OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action, OpenRawUserSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
+import { OpenRawDefaultSettingsAction, OpenSettingsAction, OpenGlobalSettingsAction, OpenGlobalKeybindingsFileAction, OpenWorkspaceSettingsAction, OpenFolderSettingsAction, ConfigureLanguageBasedSettingsAction, OPEN_FOLDER_SETTINGS_COMMAND, OpenGlobalKeybindingsAction, OpenSettings2Action } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import {
 	IKeybindingsEditor, IPreferencesSearchService, CONTEXT_KEYBINDING_FOCUS, CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS, KEYBINDINGS_EDITOR_COMMAND_DEFINE, KEYBINDINGS_EDITOR_COMMAND_REMOVE, KEYBINDINGS_EDITOR_COMMAND_SEARCH,
 	KEYBINDINGS_EDITOR_COMMAND_COPY, KEYBINDINGS_EDITOR_COMMAND_RESET, KEYBINDINGS_EDITOR_COMMAND_COPY_COMMAND, KEYBINDINGS_EDITOR_COMMAND_SHOW_SIMILAR, KEYBINDINGS_EDITOR_COMMAND_FOCUS_KEYBINDINGS, KEYBINDINGS_EDITOR_COMMAND_CLEAR_SEARCH_RESULTS
@@ -28,7 +28,7 @@ import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiati
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { PreferencesContribution } from 'vs/workbench/parts/preferences/common/preferencesContribution';
 import { ContextKeyExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IEditorRegistry, EditorDescriptor, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -190,9 +190,8 @@ Registry.as<IEditorInputFactoryRegistry>(EditorInputExtensions.EditorInputFactor
 const category = nls.localize('preferences', "Preferences");
 const registry = Registry.as<IWorkbenchActionRegistry>(Extensions.WorkbenchActions);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawDefaultSettingsAction, OpenRawDefaultSettingsAction.ID, OpenRawDefaultSettingsAction.LABEL), 'Preferences: Open Raw Default Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenRawUserSettingsAction, OpenRawUserSettingsAction.ID, OpenRawUserSettingsAction.LABEL), 'Preferences: Open Raw User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettingsAction, OpenSettingsAction.ID, OpenSettingsAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_COMMA }), 'Preferences: Open Settings', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (Experimental)', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(OpenSettings2Action, OpenSettings2Action.ID, OpenSettings2Action.LABEL), 'Preferences: Open Settings (Preview)', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalSettingsAction, OpenGlobalSettingsAction.ID, OpenGlobalSettingsAction.LABEL), 'Preferences: Open User Settings', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsAction, OpenGlobalKeybindingsAction.ID, OpenGlobalKeybindingsAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_S) }), 'Preferences: Open Keyboard Shortcuts', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(OpenGlobalKeybindingsFileAction, OpenGlobalKeybindingsFileAction.ID, OpenGlobalKeybindingsFileAction.LABEL, { primary: null }), 'Preferences: Open Keyboard Shortcuts File', category);
@@ -204,8 +203,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.KEY_K),
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.defineKeybinding(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.defineKeybinding(control.activeKeybindingEntry);
 	}
 });
 
@@ -218,8 +217,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 		primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyCode.Backspace)
 	},
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.removeKeybinding(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.removeKeybinding(control.activeKeybindingEntry);
 	}
 });
 
@@ -229,8 +228,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.resetKeybinding(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.resetKeybinding(control.activeKeybindingEntry);
 	}
 });
 
@@ -239,7 +238,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-	handler: (accessor, args: any) => (accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor).search('')
+	handler: (accessor, args: any) => (accessor.get(IEditorService).activeControl as IKeybindingsEditor).search('')
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
@@ -248,8 +247,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.showSimilarKeybindings(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.showSimilarKeybindings(control.activeKeybindingEntry);
 	}
 });
 
@@ -259,8 +258,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.copyKeybinding(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.copyKeybinding(control.activeKeybindingEntry);
 	}
 });
 
@@ -270,8 +269,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: null,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.copyKeybindingCommand(editor.activeKeybindingEntry);
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.copyKeybindingCommand(control.activeKeybindingEntry);
 	}
 });
 
@@ -281,8 +280,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 	primary: KeyCode.DownArrow,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.focusKeybindings();
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.focusKeybindings();
 	}
 });
 
@@ -292,8 +291,8 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDINGS_SEARCH_FOCUS),
 	primary: KeyCode.Escape,
 	handler: (accessor, args: any) => {
-		const editor = accessor.get(IWorkbenchEditorService).getActiveEditor() as IKeybindingsEditor;
-		editor.clearSearchResults();
+		const control = accessor.get(IEditorService).activeControl as IKeybindingsEditor;
+		control.clearSearchResults();
 	}
 });
 

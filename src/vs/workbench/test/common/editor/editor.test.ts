@@ -9,11 +9,11 @@ import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorInput, toResource, EditorViewStateMemento } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorModel, Position } from 'vs/platform/editor/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
 import URI from 'vs/base/common/uri';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestServices';
+import { workbenchInstantiationService, TestEditorGroupsService, TestEditorGroup } from 'vs/workbench/test/workbenchTestServices';
 import { Schemas } from 'vs/base/common/network';
 
 class ServiceAccessor {
@@ -40,7 +40,7 @@ class FileEditorInput extends EditorInput {
 	}
 }
 
-suite('Workbench - Editor', () => {
+suite('Workbench editor', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;
@@ -88,54 +88,76 @@ suite('Workbench - Editor', () => {
 	});
 
 	test('EditorViewStateMemento - basics', function () {
+		const testGroup0 = new TestEditorGroup(0);
+		const testGroup1 = new TestEditorGroup(1);
+		const testGroup4 = new TestEditorGroup(4);
+
+		const editorGroupService = new TestEditorGroupsService([
+			testGroup0,
+			testGroup1,
+			new TestEditorGroup(2)
+		]);
+
 		interface TestViewState {
 			line: number;
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorViewStateMemento<TestViewState>(rawMemento, 'key', 3);
+		let memento = new EditorViewStateMemento<TestViewState>(editorGroupService, rawMemento, 'key', 3);
 
-		let res = memento.loadState(URI.file('/A'), Position.ONE);
+		let res = memento.loadState(testGroup0, URI.file('/A'));
 		assert.ok(!res);
 
-		memento.saveState(URI.file('/A'), Position.ONE, { line: 3 });
-		res = memento.loadState(URI.file('/A'), Position.ONE);
+		memento.saveState(testGroup0, URI.file('/A'), { line: 3 });
+		res = memento.loadState(testGroup0, URI.file('/A'));
 		assert.ok(res);
 		assert.equal(res.line, 3);
 
-		memento.saveState(URI.file('/A'), Position.TWO, { line: 5 });
-		res = memento.loadState(URI.file('/A'), Position.TWO);
+		memento.saveState(testGroup1, URI.file('/A'), { line: 5 });
+		res = memento.loadState(testGroup1, URI.file('/A'));
 		assert.ok(res);
 		assert.equal(res.line, 5);
 
 		// Ensure capped at 3 elements
-		memento.saveState(URI.file('/B'), Position.ONE, { line: 1 });
-		memento.saveState(URI.file('/C'), Position.ONE, { line: 1 });
-		memento.saveState(URI.file('/D'), Position.ONE, { line: 1 });
-		memento.saveState(URI.file('/E'), Position.ONE, { line: 1 });
+		memento.saveState(testGroup0, URI.file('/B'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/C'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/D'), { line: 1 });
+		memento.saveState(testGroup0, URI.file('/E'), { line: 1 });
 
-		assert.ok(!memento.loadState(URI.file('/A'), Position.ONE));
-		assert.ok(!memento.loadState(URI.file('/B'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/C'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/D'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/E'), Position.ONE));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/A')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/B')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/E')));
+
+		// Save at an unknown group
+		memento.saveState(testGroup4, URI.file('/E'), { line: 1 });
+		assert.ok(memento.loadState(testGroup4, URI.file('/E'))); // only gets removed when memento is saved
+		memento.saveState(testGroup4, URI.file('/C'), { line: 1 });
+		assert.ok(memento.loadState(testGroup4, URI.file('/C'))); // only gets removed when memento is saved
 
 		memento.save();
 
-		memento = new EditorViewStateMemento(rawMemento, 'key', 3);
-		assert.ok(memento.loadState(URI.file('/C'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/D'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/E'), Position.ONE));
+		memento = new EditorViewStateMemento(editorGroupService, rawMemento, 'key', 3);
+		assert.ok(memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/E')));
+
+		// Check on entries no longer there from invalid groups
+		assert.ok(!memento.loadState(testGroup4, URI.file('/E')));
+		assert.ok(!memento.loadState(testGroup4, URI.file('/C')));
 
 		memento.clearState(URI.file('/C'));
 		memento.clearState(URI.file('/E'));
 
-		assert.ok(!memento.loadState(URI.file('/C'), Position.ONE));
-		assert.ok(memento.loadState(URI.file('/D'), Position.ONE));
-		assert.ok(!memento.loadState(URI.file('/E'), Position.ONE));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/C')));
+		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
+		assert.ok(!memento.loadState(testGroup0, URI.file('/E')));
 	});
 
 	test('EditorViewStateMemento - use with editor input', function () {
+		const testGroup0 = new TestEditorGroup(0);
+
 		interface TestViewState {
 			line: number;
 		}
@@ -157,58 +179,21 @@ suite('Workbench - Editor', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorViewStateMemento<TestViewState>(rawMemento, 'key', 3);
+		let memento = new EditorViewStateMemento<TestViewState>(new TestEditorGroupsService(), rawMemento, 'key', 3);
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 
-		let res = memento.loadState(testInputA, Position.ONE);
+		let res = memento.loadState(testGroup0, testInputA);
 		assert.ok(!res);
 
-		memento.saveState(testInputA, Position.ONE, { line: 3 });
-		res = memento.loadState(testInputA, Position.ONE);
+		memento.saveState(testGroup0, testInputA, { line: 3 });
+		res = memento.loadState(testGroup0, testInputA);
 		assert.ok(res);
 		assert.equal(res.line, 3);
 
 		// State removed when input gets disposed
 		testInputA.dispose();
-		res = memento.loadState(testInputA, Position.ONE);
+		res = memento.loadState(testGroup0, testInputA);
 		assert.ok(!res);
-	});
-
-	test('EditorViewStateMemento - migration', function () {
-		interface TestViewState {
-			line: number;
-		}
-
-		const rawMemento = {
-			'key': {
-				[URI.file('/A').toString()]: {
-					0: {
-						line: 5
-					}
-				},
-				[URI.file('/B').toString()]: {
-					0: {
-						line: 1
-					},
-					1: {
-						line: 2
-					}
-				}
-			}
-		};
-		let memento = new EditorViewStateMemento<TestViewState>(rawMemento, 'key', 3);
-
-		let res = memento.loadState(URI.file('/A'), Position.ONE);
-		assert.ok(res);
-		assert.equal(res.line, 5);
-
-		res = memento.loadState(URI.file('/B'), Position.ONE);
-		assert.ok(res);
-		assert.equal(res.line, 1);
-
-		res = memento.loadState(URI.file('/B'), Position.TWO);
-		assert.ok(res);
-		assert.equal(res.line, 2);
 	});
 });

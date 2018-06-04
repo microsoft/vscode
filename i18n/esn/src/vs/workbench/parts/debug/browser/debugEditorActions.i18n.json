@@ -8,7 +8,6 @@
 	],
 	"toggleBreakpointAction": "Depuración: Alternar punto de interrupción",
 	"conditionalBreakpointEditorAction": "Depuración: agregar punto de interrupción condicional...",
-	"logPointEditorAction": "Depuración: Añadir Logpoint...",
 	"runToCursor": "Ejecutar hasta el cursor",
 	"debugEvaluate": "Depuración: Evaluar",
 	"debugAddToWatch": "Depuración: Agregar a inspección",

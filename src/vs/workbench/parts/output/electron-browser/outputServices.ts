@@ -41,6 +41,7 @@ import { binarySearch } from 'vs/base/common/arrays';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -516,7 +517,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel): TPromise<void> {
+	private onDidPanelOpen(panel: IPanel): Thenable<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
@@ -592,10 +593,10 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		}
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): TPromise<void> {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
 		if (this._outputPanel) {
 			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel);
-			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }))
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }), CancellationToken.None)
 				.then(() => {
 					if (!preserveFocus) {
 						this._outputPanel.focus();

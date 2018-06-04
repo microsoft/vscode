@@ -26,7 +26,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -372,7 +372,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 

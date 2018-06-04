@@ -63,6 +63,10 @@ export class Search extends Viewlet {
 		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.collapse`);
 	}
 
+	async collapseReplace(): Promise<void> {
+		await this.code.waitAndClick(`${VIEWLET} .search-widget .monaco-button.toggle-replace-button.expand`);
+	}
+
 	async setReplaceText(text: string): Promise<void> {
 		await this.code.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
 		await this.code.waitForElement(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);

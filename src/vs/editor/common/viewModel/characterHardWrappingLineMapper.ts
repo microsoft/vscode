@@ -92,14 +92,24 @@ export class CharacterHardWrappingLineMapperFactory implements ILineMapperFactor
 		if (hardWrappingIndent !== WrappingIndent.None) {
 			firstNonWhitespaceIndex = strings.firstNonWhitespaceIndex(lineText);
 			if (firstNonWhitespaceIndex !== -1) {
+				// Track existing indent
 				wrappedTextIndent = lineText.substring(0, firstNonWhitespaceIndex);
 				for (let i = 0; i < firstNonWhitespaceIndex; i++) {
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, lineText.charCodeAt(i) === CharCode.Tab, 1);
 				}
+
+				// Increase indent of continuation lines, if desired
+				let numberOfAdditionalTabs = 0;
 				if (hardWrappingIndent === WrappingIndent.Indent) {
+					numberOfAdditionalTabs = 1;
+				} else if (hardWrappingIndent === WrappingIndent.DeepIndent) {
+					numberOfAdditionalTabs = 2;
+				}
+				for (let i = 0; i < numberOfAdditionalTabs; i++) {
 					wrappedTextIndent += '\t';
 					wrappedTextIndentVisibleColumn = CharacterHardWrappingLineMapperFactory.nextVisibleColumn(wrappedTextIndentVisibleColumn, tabSize, true, 1);
 				}
+
 				// Force sticking to beginning of line if no character would fit except for the indentation
 				if (wrappedTextIndentVisibleColumn + columnsForFullWidthChar > breakingColumn) {
 					wrappedTextIndent = '';

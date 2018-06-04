@@ -116,11 +116,11 @@
 	};
 
 	document.addEventListener('DOMContentLoaded', () => {
-		ipcRenderer.on('baseUrl', (event, value) => {
+		ipcRenderer.on('baseUrl', (_event, value) => {
 			initData.baseUrl = value;
 		});
 
-		ipcRenderer.on('styles', (event, variables, activeTheme) => {
+		ipcRenderer.on('styles', (_event, variables, activeTheme) => {
 			initData.styles = variables;
 			initData.activeTheme = activeTheme;
 
@@ -190,8 +190,10 @@
 								postMessage: function(msg) {
 									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
 								},
-								setState: function(state) {
-									return originalPostMessage({ command: 'do-update-state', data: JSON.stringify(state) }, '*');
+								setState: function(newState) {
+									state = newState;
+									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, '*');
+									return newState;
 								},
 								getState: function() {
 									return state;
@@ -216,7 +218,7 @@
 			defaultStyles.id = '_defaultStyles';
 
 			const vars = Object.keys(initData.styles || {}).map(variable => {
-				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-]/gi, '')};`;
+				return `--${variable}: ${initData.styles[variable].replace(/[^\#\"\'\,\. a-z0-9\-\(\)]/gi, '')};`;
 			});
 			defaultStyles.innerHTML = `
 			:root { ${vars.join('\n')} }
@@ -258,7 +260,7 @@
 
 			blockquote {
 				background: var(--vscode-textBlockQuote-background);
-				border-color: var(vscode-textBlockQuote-border);
+				border-color: var(--vscode-textBlockQuote-border);
 			}
 
 			::-webkit-scrollbar {
@@ -372,6 +374,8 @@
 					}
 					newFrame.setAttribute('id', 'active-frame');
 					newFrame.style.visibility = 'visible';
+					newFrame.contentWindow.focus();
+
 					contentWindow.addEventListener('scroll', handleInnerScroll);
 
 					pendingMessages.forEach((data) => {
@@ -407,7 +411,7 @@
 		});
 
 		// Forward message to the embedded iframe
-		ipcRenderer.on('message', (event, data) => {
+		ipcRenderer.on('message', (_event, data) => {
 			const pending = getPendingFrame();
 			if (pending) {
 				pendingMessages.push(data);
@@ -419,7 +423,7 @@
 			}
 		});
 
-		ipcRenderer.on('initial-scroll-position', (event, progress) => {
+		ipcRenderer.on('initial-scroll-position', (_event, progress) => {
 			initData.initialScrollProgress = progress;
 		});
 

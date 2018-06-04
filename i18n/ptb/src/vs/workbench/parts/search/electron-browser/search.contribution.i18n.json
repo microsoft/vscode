@@ -10,6 +10,7 @@
 	"copyMatchLabel": "Copiar",
 	"copyPathLabel": "Copiar Caminho",
 	"copyAllLabel": "Copiar todos",
+	"clearSearchHistoryLabel": "Limpar Histórico de Pesquisa",
 	"findInFolder": "Procurar na pasta...",
 	"findInWorkspace": "Procurar no Espaço de Trabalho...",
 	"showTriggerActions": "Ir para Símbolo no Espaço de Trabalho...",

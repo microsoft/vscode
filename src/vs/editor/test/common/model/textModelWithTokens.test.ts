@@ -596,4 +596,25 @@ suite('TextModel.getLineIndentGuide', () => {
 			[0, 'include script'],
 		]);
 	});
+
+	test('issue #49173', () => {
+		let model = TextModel.createFromString([
+			'class A {',
+			'	public m1(): void {',
+			'	}',
+			'	public m2(): void {',
+			'	}',
+			'	public m3(): void {',
+			'	}',
+			'	public m4(): void {',
+			'	}',
+			'	public m5(): void {',
+			'	}',
+			'}',
+		].join('\n'));
+
+		const actual = model.getActiveIndentGuide(2, 4, 9);
+		assert.deepEqual(actual, { startLineNumber: 2, endLineNumber: 9, indent: 1 });
+		model.dispose();
+	});
 });

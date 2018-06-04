@@ -44,7 +44,6 @@
 	"workbench.action.terminal.scrollUpPage": "向上滚动(页)",
 	"workbench.action.terminal.scrollToTop": "滚动到顶部",
 	"workbench.action.terminal.clear": "清除",
-	"workbench.action.terminal.clearSelection": "清除选定内容",
 	"workbench.action.terminal.allowWorkspaceShell": "允许配置工作区 Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "禁止配置工作区 Shell",
 	"workbench.action.terminal.rename": "重命名",
@@ -57,5 +56,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "滚动到上一条命令",
 	"workbench.action.terminal.scrollToNextCommand": "滚动到下一条命令",
 	"workbench.action.terminal.selectToPreviousCommand": "选择上一条命令所有内容",
-	"workbench.action.terminal.selectToNextCommand": "选择下一条命令所有内容"
+	"workbench.action.terminal.selectToNextCommand": "选择下一条命令所有内容",
+	"workbench.action.terminal.selectToPreviousLine": "选择上一行的所有内容",
+	"workbench.action.terminal.selectToNextLine": "选择下一行的所有内容"
 }

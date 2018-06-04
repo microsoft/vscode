@@ -188,8 +188,8 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		console.log('*** Running npm install...');
-		cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+		console.log('*** Running yarn...');
+		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 

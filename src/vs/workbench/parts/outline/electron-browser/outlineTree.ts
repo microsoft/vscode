@@ -70,15 +70,17 @@ export class OutlineDataSource implements IDataSource {
 		return element.id;
 	}
 
-	hasChildren(tree: ITree, element: TreeElement): boolean {
+	hasChildren(tree: ITree, element: OutlineModel | OutlineGroup | OutlineElement): boolean {
 		if (element instanceof OutlineModel) {
 			return true;
 		}
 		if (element instanceof OutlineElement && !element.score) {
 			return false;
 		}
-		for (const _ in element.children) {
-			return true;
+		for (const id in element.children) {
+			if (element.children[id].score) {
+				return true;
+			}
 		}
 		return false;
 	}

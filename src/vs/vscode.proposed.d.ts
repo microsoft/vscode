@@ -66,10 +66,10 @@ declare module 'vscode' {
 		excludes: string[];
 		useIgnoreFiles?: boolean;
 		followSymlinks?: boolean;
-		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
 	}
 
 	export interface TextSearchOptions extends SearchOptions {
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
 		maxFileSize?: number;
 		encoding?: string;
 	}
@@ -77,7 +77,7 @@ declare module 'vscode' {
 	export interface FileSearchOptions extends SearchOptions { }
 
 	export interface TextSearchResult {
-		uri: Uri;
+		path: string;
 		range: Range;
 
 		// For now, preview must be a single line of text
@@ -85,7 +85,7 @@ declare module 'vscode' {
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
@@ -183,7 +183,7 @@ declare module 'vscode' {
 
 	export interface DebugConfigurationProvider {
 		/**
-		 * This optional method is called just before a debug adapter is started to determine its excutable path and arguments.
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
 		 * Registering more than one debugAdapterExecutable for a type results in an error.
 		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
@@ -296,132 +296,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Matt: WebView Serializer
-
-	/**
-	 * Restore webview panels that have been persisted when vscode shuts down.
-	 */
-	interface WebviewPanelSerializer {
-		/**
-		 * Restore a webview panel from its seriailzed `state`.
-		 *
-		 * Called when a serialized webview first becomes visible.
-		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state.
-		 *
-		 * @return Thanble indicating that the webview has been fully restored.
-		 */
-		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
-	}
-
-	namespace window {
-		/**
-		 * Registers a webview panel serializer.
-		 *
-		 * Extensions that support reviving should have an `"onView:viewType"` activation method and
-		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
-		 *
-		 * Only a single serializer may be registered at a time for a given `viewType`.
-		 *
-		 * @param viewType Type of the webview panel that can be serialized.
-		 * @param reviver Webview serializer.
-		 */
-		export function registerWebviewPanelSerializer(viewType: string, reviver: WebviewPanelSerializer): Disposable;
-	}
-
-	//#endregion
-
-	//#region Tasks
-
-	/**
-	 * An object representing an executed Task. It can be used
-	 * to terminate a task.
-	 *
-	 * This interface is not intended to be implemented.
-	 */
-	export interface TaskExecution {
-		/**
-		 * The task that got started.
-		 */
-		task: Task;
-
-		/**
-		 * Terminates the task execution.
-		 */
-		terminate(): void;
-	}
-
-	/**
-	 * An event signaling the start of a task execution.
-	 *
-	 * This interface is not intended to be implemented.
-	 */
-	interface TaskStartEvent {
-		/**
-		 * The task item representing the task that got started.
-		 */
-		execution: TaskExecution;
-	}
-
-	/**
-	 * An event signaling the end of an executed task.
-	 *
-	 * This interface is not intended to be implemented.
-	 */
-	interface TaskEndEvent {
-		/**
-		 * The task item representing the task that finished.
-		 */
-		execution: TaskExecution;
-	}
-
-	/**
-	 * An event signaling the start of a process execution
-	 * triggered through a task
-	 */
-	export interface TaskProcessStartEvent {
-
-		/**
-		 * The task execution for which the process got started.
-		 */
-		execution: TaskExecution;
-
-		/**
-		 * The underlying process id.
-		 */
-		processId: number;
-	}
-
-	/**
-	 * An event signaling the end of a process execution
-	 * triggered through a task
-	 */
-	export interface TaskProcessEndEvent {
-
-		/**
-		 * The task execution for which the process got started.
-		 */
-		execution: TaskExecution;
-
-		/**
-		 * The process's exit code.
-		 */
-		exitCode: number;
-	}
-
-	export interface TaskFilter {
-		/**
-		 * The task version as used in the tasks.json file.
-		 * The string support the package.json semver notation.
-		 */
-		version?: string;
-
-		/**
-		 * The task type to return;
-		 */
-		type?: string;
-	}
+	//#region Task
 
 	export namespace workspace {
 
@@ -460,70 +335,8 @@ declare module 'vscode' {
 		export const onDidEndTask: Event<TaskEndEvent>;
 	}
 
-	/**
-	 * Namespace for tasks functionality.
-	 */
-	export namespace tasks {
-
-		/**
-		 * Register a task provider.
-		 *
-		 * @param type The task kind type this provider is registered for.
-		 * @param provider A task provider.
-		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
-		 */
-		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
-
-		/**
-		 * Fetches all tasks available in the systems. This includes tasks
-		 * from `tasks.json` files as well as tasks from task providers
-		 * contributed through extensions.
-		 *
-		 * @param filter a filter to filter the return tasks.
-		 */
-		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
-
-		/**
-		 * Executes a task that is managed by VS Code. The returned
-		 * task execution can be used to terminate the task.
-		 *
-		 * @param task the task to execute
-		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
-
-		/**
-		 * The currently active task executions or an empty array.
-		 *
-		 * @readonly
-		 */
-		export let taskExecutions: ReadonlyArray<TaskExecution>;
-
-		/**
-		 * Fires when a task starts.
-		 */
-		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Fires when a task ends.
-		 */
-		export const onDidEndTask: Event<TaskEndEvent>;
-
-		/**
-		 * Fires when the underlying process has been started.
-		 * This event will not fire for tasks that don't
-		 * execute an underlying process.
-		 */
-		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
-
-		/**
-		 * Fires when the underlying process has ended.
-		 * This event will not fire for tasks that don't
-		 * execute an underlying process.
-		 */
-		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
-	}
-
 	//#endregion
+
 
 	//#region Terminal
 
@@ -538,7 +351,7 @@ declare module 'vscode' {
 
 	export namespace window {
 		/**
-		 * The currently active terminals or an empty array.
+		 * The currently opened terminals or an empty array.
 		 *
 		 * @readonly
 		 */
@@ -571,19 +384,20 @@ declare module 'vscode' {
 
 	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
 
-	export class HierarchicalSymbolInformation {
-		name: string;
-		kind: SymbolKind;
-		detail: string;
-		location: Location;
-		range: Range;
-		children: HierarchicalSymbolInformation[];
+	export class Hierarchy<T> {
+		parent: T;
+		children: Hierarchy<T>[];
+		constructor(element: T);
+	}
 
-		constructor(name: string, detail: string, kind: SymbolKind, location: Location, range: Range);
+	export class SymbolInformation2 extends SymbolInformation {
+		detail: string;
+		range: Range;
+		constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location);
 	}
 
 	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<HierarchicalSymbolInformation[] | SymbolInformation[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | Hierarchy<SymbolInformation>[]>;
 	}
 
 	//#endregion
@@ -596,26 +410,96 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Multi-step input
-
-	export namespace window {
-
+	//#region mjbvz: Unused diagnostics
+	/**
+	 * Additional metadata about the type of diagnostic.
+	 */
+	export enum DiagnosticTag {
 		/**
-		 * Collect multiple inputs from the user. The provided handler will be called with a
-		 * [`QuickInput`](#QuickInput) that should be used to control the UI.
-		 *
-		 * @param handler The callback that will collect the inputs.
+		 * Unused or unnecessary code.
 		 */
-		export function multiStepInput<T>(handler: (input: QuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+		Unnecessary = 1,
 	}
 
+	export interface Diagnostic {
+		/**
+		 * Additional metadata about the type of the diagnostic.
+		 */
+		customTags?: DiagnosticTag[];
+	}
+
+	//#endregion
+
+	//#region mjbvz: File rename events
+	export interface ResourceRenamedEvent {
+		readonly oldResource: Uri;
+		readonly newResource: Uri;
+	}
+
+	export namespace workspace {
+		export const onDidRenameResource: Event<ResourceRenamedEvent>;
+	}
+	//#endregion
+
+	//#region mjbvz: Code action trigger
+
 	/**
-	 * Controls the UI within a multi-step input session. The handler passed to [`window.multiStepInput`](#window.multiStepInput)
-	 * should use the instance of this interface passed to it to collect all inputs.
+	 * How a [code action provider](#CodeActionProvider) was triggered
 	 */
-	export interface QuickInput {
-		showQuickPick: typeof window.showQuickPick;
-		showInputBox: typeof window.showInputBox;
+	export enum CodeActionTrigger {
+		/**
+		 * Provider was triggered automatically by VS Code.
+		 */
+		Automatic = 1,
+
+		/**
+		 * User requested code actions.
+		 */
+		Manual = 2,
+	}
+
+	interface CodeActionContext {
+		/**
+		 * How the code action provider was triggered.
+		 */
+		triggerKind?: CodeActionTrigger;
+	}
+
+	//#endregion
+
+
+	//#region Matt: WebView Serializer
+
+	/**
+	 * Restore webview panels that have been persisted when vscode shuts down.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
+		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
+	}
+
+	namespace window {
+		/**
+		 * Registers a webview panel serializer.
+		 *
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param serializer Webview serializer.
+		 */
+		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
 	}
 
 	//#endregion

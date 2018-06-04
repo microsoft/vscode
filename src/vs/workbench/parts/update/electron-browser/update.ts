@@ -14,7 +14,6 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -113,7 +112,6 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IOpenerService openerService: IOpenerService
 	) {
@@ -177,7 +175,6 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		if (environmentService.disableUpdates) {
@@ -245,7 +242,6 @@ export class UpdateContribution implements IGlobalActivity {
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -386,7 +382,7 @@ export class UpdateContribution implements IGlobalActivity {
 
 		const handle = this.notificationService.prompt(
 			severity.Info,
-			nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
+			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
 			[{
 				label: nls.localize('neveragain', "Don't Show Again"),
 				isSecondary: true,

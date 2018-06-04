@@ -17,13 +17,5 @@
 	"issueTitleLabel": "Titolo",
 	"issueTitleRequired": "Immettere un titolo.",
 	"titleLengthValidation": "Il titolo è troppo lungo.",
-	"systemInfo": "Informazioni sul sistema in uso",
-	"sendData": "Invia i dati",
-	"processes": "Processi attualmente in esecuzione",
-	"workspaceStats": "Statistiche area di lavoro personale",
-	"extensions": "Estensioni personali",
-	"searchedExtensions": "Estensioni cercate",
-	"settingsSearchDetails": "Dettagli ricerca impostazioni",
-	"details": "Immettere i dettagli.",
-	"loadingData": "Caricamento dei dati..."
+	"details": "Immettere i dettagli."
 }

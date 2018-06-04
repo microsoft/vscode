@@ -42,7 +42,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EXTENSION_TERMINATE_BROADCAST_CHANNEL, EXTENSION_CLOSE_EXTHOST_BROADCAST_CHANNEL, EXTENSION_RELOAD_BROADCAST_CHANNEL } from 'vs/platform/extensions/common/extensionHost';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
@@ -54,7 +54,6 @@ import { IAction, Action } from 'vs/base/common/actions';
 import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import product from 'vs/platform/node/product';
-import { ILogService, LogLevel } from 'vs/platform/log/common/log';
 import { deepClone, equals } from 'vs/base/common/objects';
 
 const DEBUG_BREAKPOINTS_KEY = 'debug.breakpoint';
@@ -88,7 +87,7 @@ export class DebugService implements debug.IDebugService {
 
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
@@ -107,7 +106,6 @@ export class DebugService implements debug.IDebugService {
 		@ITaskService private taskService: ITaskService,
 		@IFileService private fileService: IFileService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@ILogService private logService: ILogService
 	) {
 		this.toDispose = [];
 		this.toDisposeOnSessionEnd = new Map<string, lifecycle.IDisposable[]>();
@@ -777,9 +775,6 @@ export class DebugService implements debug.IDebugService {
 
 				if (noDebug) {
 					config.noDebug = true;
-				}
-				if (!config.logLevel) {
-					config.logLevel = LogLevel[this.logService.getLevel()].toLowerCase();
 				}
 
 				return (type ? TPromise.as(null) : this.configurationManager.guessDebugger().then(a => type = a && a.type)).then(() =>

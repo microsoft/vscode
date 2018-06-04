@@ -48,21 +48,47 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		this.config = this._configurationService.getValue<ITerminalConfiguration>(TERMINAL_CONFIG_SECTION);
 	}
 
-	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
+	public configFontIsMonospace(): boolean {
+		this._createCharMeasureElementIfNecessary();
+		let fontSize = 15;
+		let fontFamily = this.config.fontFamily || this._configurationService.getValue<IEditorOptions>('editor').fontFamily;
+		let i_rect = this._getBoundingRectFor('i', fontFamily, fontSize);
+		let w_rect = this._getBoundingRectFor('w', fontFamily, fontSize);
+
+		let invalidBounds = !i_rect.width || !w_rect.width;
+		if (invalidBounds) {
+			// There is no reason to believe the font is not Monospace.
+			return true;
+		}
+
+		return i_rect.width === w_rect.width;
+	}
+
+	private _createCharMeasureElementIfNecessary() {
 		// Create charMeasureElement if it hasn't been created or if it was orphaned by its parent
 		if (!this._charMeasureElement || !this._charMeasureElement.parentElement) {
 			this._charMeasureElement = document.createElement('div');
 			this.panelContainer.appendChild(this._charMeasureElement);
 		}
+	}
 
+	private _getBoundingRectFor(char: string, fontFamily: string, fontSize: number): ClientRect | DOMRect {
 		const style = this._charMeasureElement.style;
-		style.display = 'block';
+		style.display = 'inline-block';
 		style.fontFamily = fontFamily;
 		style.fontSize = fontSize + 'px';
 		style.lineHeight = 'normal';
-		this._charMeasureElement.innerText = 'X';
+		this._charMeasureElement.innerText = char;
 		const rect = this._charMeasureElement.getBoundingClientRect();
 		style.display = 'none';
+
+		return rect;
+	}
+
+	private _measureFont(fontFamily: string, fontSize: number, letterSpacing: number, lineHeight: number): ITerminalFont {
+		this._createCharMeasureElementIfNecessary();
+
+		let rect = this._getBoundingRectFor('X', fontFamily, fontSize);
 
 		// Bounding client rect was invalid, use last font measurement if available.
 		if (this._lastFontMeasurement && !rect.width && !rect.height) {

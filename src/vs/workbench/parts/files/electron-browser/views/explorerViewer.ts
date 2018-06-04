@@ -30,7 +30,6 @@ import { DesktopDragAndDropData, ExternalElementsDragAndDropData } from 'vs/base
 import { ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { ExplorerItem, NewStatPlaceholder, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { DragMouseEvent, IMouseEvent } from 'vs/base/browser/mouseEvent';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -42,8 +41,6 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMenuService, IMenu, MenuId } from 'vs/platform/actions/common/actions';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService } from 'vs/platform/windows/common/windows';
@@ -57,6 +54,9 @@ import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/work
 import { rtrim } from 'vs/base/common/strings';
 import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -395,7 +395,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 	private previousSelectionRangeStop: ExplorerItem;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IMenuService private menuService: IMenuService,
@@ -512,7 +512,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 		tree.setFocus(stat);
 
 		// update dynamic contexts
-		this.fileCopiedContextKey.set(this.clipboardService.hasFiles());
+		this.fileCopiedContextKey.set(this.clipboardService.hasResources());
 
 		if (!this.contributedContextMenu) {
 			this.contributedContextMenu = this.menuService.createMenu(MenuId.ExplorerContext, tree.contextKeyService);
@@ -525,7 +525,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			getAnchor: () => anchor,
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInContextMenuActions(this.contributedContextMenu, { arg: stat instanceof ExplorerItem ? stat.resource : {}, shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 			onHide: (wasCancelled?: boolean) => {
@@ -551,7 +551,7 @@ export class FileController extends WorkbenchTreeController implements IDisposab
 			*/
 			this.telemetryService.publicLog('workbenchActionExecuted', { id: 'workbench.files.openFile', from: 'explorer' });
 
-			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options }, options.sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 		}
 	}
 

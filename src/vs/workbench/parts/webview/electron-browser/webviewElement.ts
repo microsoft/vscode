@@ -477,7 +477,7 @@ function registerFileProtocol(
 						mimeType: mime
 					});
 				}, () => {
-					callback({ error: -1 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+					callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
 				});
 				return;
 			}

@@ -6,7 +6,8 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
-import { Position as EditorPosition, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
@@ -20,7 +21,7 @@ import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
-import { MarkerSeverity, IRelatedInformation, IMarkerData } from 'vs/platform/markers/common/markers';
+import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 
 export interface PositionLike {
 	line: number;
@@ -88,6 +89,16 @@ export namespace Position {
 	}
 }
 
+export namespace DiagnosticTag {
+	export function from(value: vscode.DiagnosticTag): MarkerTag {
+		switch (value) {
+			case types.DiagnosticTag.Unnecessary:
+				return MarkerTag.Unnecessary;
+		}
+		return undefined;
+	}
+}
+
 export namespace Diagnostic {
 	export function from(value: vscode.Diagnostic): IMarkerData {
 		return {
@@ -96,7 +107,8 @@ export namespace Diagnostic {
 			source: value.source,
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
-			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from)
+			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
+			customTags: Array.isArray(value.customTags) ? value.customTags.map(DiagnosticTag.from) : undefined,
 		};
 	}
 }
@@ -145,29 +157,28 @@ export namespace DiagnosticSeverity {
 }
 
 export namespace ViewColumn {
-	export function from(column?: vscode.ViewColumn): EditorPosition {
-		let editorColumn = EditorPosition.ONE;
-		if (typeof column !== 'number') {
-			// stick with ONE
+	export function from(column?: vscode.ViewColumn): EditorViewColumn {
+		let editorColumn: EditorViewColumn;
+		if (column === <number>types.ViewColumn.One) {
+			editorColumn = 0;
 		} else if (column === <number>types.ViewColumn.Two) {
-			editorColumn = EditorPosition.TWO;
+			editorColumn = 1;
 		} else if (column === <number>types.ViewColumn.Three) {
-			editorColumn = EditorPosition.THREE;
-		} else if (column === <number>types.ViewColumn.Active) {
+			editorColumn = 2;
+		} else {
+			// in any other case (no column or ViewColumn.Active), leave the
+			// editorColumn as undefined which signals to use the active column
 			editorColumn = undefined;
 		}
 		return editorColumn;
 	}
 
-	export function to(position?: EditorPosition): vscode.ViewColumn {
-		if (typeof position !== 'number') {
-			return undefined;
-		}
-		if (position === EditorPosition.ONE) {
+	export function to(position?: EditorViewColumn): vscode.ViewColumn {
+		if (position === 0) {
 			return <number>types.ViewColumn.One;
-		} else if (position === EditorPosition.TWO) {
+		} else if (position === 1) {
 			return <number>types.ViewColumn.Two;
-		} else if (position === EditorPosition.THREE) {
+		} else if (position === 2) {
 			return <number>types.ViewColumn.Three;
 		}
 		return undefined;
@@ -364,27 +375,28 @@ export namespace SymbolInformation {
 }
 
 export namespace HierarchicalSymbolInformation {
-	export function from(info: vscode.HierarchicalSymbolInformation): modes.SymbolInformation {
+	export function from(info: vscode.Hierarchy<vscode.SymbolInformation2>): modes.SymbolInformation {
 		let result: modes.SymbolInformation = {
-			name: info.name,
-			detail: info.detail,
-			location: location.from(info.location),
-			definingRange: Range.from(info.range),
-			kind: SymbolKind.from(info.kind)
+			name: info.parent.name,
+			detail: info.parent.detail,
+			location: location.from(info.parent.location),
+			definingRange: Range.from(info.parent.range),
+			kind: SymbolKind.from(info.parent.kind),
+			containerName: info.parent.containerName
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
 		}
 		return result;
 	}
-	export function to(info: modes.SymbolInformation): types.HierarchicalSymbolInformation {
-		let result = new types.HierarchicalSymbolInformation(
+	export function to(info: modes.SymbolInformation): types.Hierarchy<vscode.SymbolInformation2> {
+		let result = new types.Hierarchy<vscode.SymbolInformation2>(new types.SymbolInformation2(
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
+			Range.to(info.definingRange),
 			location.to(info.location),
-			Range.to(info.definingRange)
-		);
+		));
 		if (info.children) {
 			result.children = info.children.map(to);
 		}

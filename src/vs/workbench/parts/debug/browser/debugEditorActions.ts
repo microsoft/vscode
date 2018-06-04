@@ -8,12 +8,14 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { ServicesAccessor, registerEditorAction, EditorAction } from 'vs/editor/browser/editorExtensions';
+import { ServicesAccessor, registerEditorAction, EditorAction, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEXT_DEBUG_STATE, State, REPL_ID, VIEWLET_ID, IDebugEditorContribution, EDITOR_CONTRIBUTION_ID, BreakpointWidgetContext, IBreakpoint } from 'vs/workbench/parts/debug/common/debug';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 
 class ToggleBreakpointAction extends EditorAction {
 	constructor() {
@@ -209,6 +211,68 @@ class ShowDebugHoverAction extends EditorAction {
 	}
 }
 
+class GoToBreakpointAction extends EditorAction {
+	constructor(private isNext: boolean, opts: IActionOptions) {
+		super(opts);
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): TPromise<any> {
+		const debugService = accessor.get(IDebugService);
+		const editorService = accessor.get(IEditorService);
+		const currentUri = editor.getModel().uri;
+		const currentLine = editor.getPosition().lineNumber;
+		//Breakpoints returned from `getBreakpoints` are already sorted.
+		const allEnabledBreakpoints = debugService.getModel().getBreakpoints({ enabledOnly: true });
+
+		//Try to find breakpoint in current file
+		let moveBreakpoint =
+			this.isNext
+				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
+				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
+
+		//Try to find breakpoints in following files
+		if (!moveBreakpoint) {
+			moveBreakpoint =
+				this.isNext
+					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
+					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
+		}
+
+		//Move to first or last possible breakpoint
+		if (!moveBreakpoint && allEnabledBreakpoints.length) {
+			moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
+		}
+
+		if (moveBreakpoint) {
+			return openBreakpointSource(moveBreakpoint, false, true, debugService, editorService);
+		}
+
+		return TPromise.as(null);
+	}
+}
+
+class GoToNextBreakpointAction extends GoToBreakpointAction {
+	constructor() {
+		super(true, {
+			id: 'editor.debug.action.goToNextBreakpoint',
+			label: nls.localize('goToNextBreakpoint', "Debug: Go To Next Breakpoint"),
+			alias: 'Debug: Go To Next Breakpoint',
+			precondition: null
+		});
+	}
+}
+
+class GoToPreviousBreakpointAction extends GoToBreakpointAction {
+	constructor() {
+		super(false, {
+			id: 'editor.debug.action.goToPreviousBreakpoint',
+			label: nls.localize('goToPreviousBreakpoint', "Debug: Go To Previous Breakpoint"),
+			alias: 'Debug: Go To Previous Breakpoint',
+			precondition: null
+		});
+	}
+}
+
 registerEditorAction(ToggleBreakpointAction);
 registerEditorAction(ConditionalBreakpointAction);
 registerEditorAction(LogPointAction);
@@ -216,3 +280,5 @@ registerEditorAction(RunToCursorAction);
 registerEditorAction(SelectionToReplAction);
 registerEditorAction(SelectionToWatchExpressionsAction);
 registerEditorAction(ShowDebugHoverAction);
+registerEditorAction(GoToNextBreakpointAction);
+registerEditorAction(GoToPreviousBreakpointAction);

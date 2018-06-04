@@ -40,8 +40,7 @@ export class Debugger {
 
 	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
 		return this.getAdapterExecutable(root).then(adapterExecutable => {
-			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-			if (debugConfigs.extensionHostDebugAdapter) {
+			if (this.inEH()) {
 				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
 			} else {
 				if (debugPort) {
@@ -81,11 +80,8 @@ export class Debugger {
 				return null;
 			}
 
-			// optionally substitute in EH
-			const inEh = this.configurationService.getValue<IDebugConfiguration>('debug').extensionHostDebugAdapter;
-
 			// now substitute all other variables
-			return (inEh ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
+			return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
 				try {
 					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
 				} catch (e) {
@@ -96,10 +92,13 @@ export class Debugger {
 	}
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		const type = debugConfigs.extensionHostDebugAdapter ? this.type : '*';
-		return this.configurationManager.runInTerminal(type, args, config);
+		return this.configurationManager.runInTerminal(this.inEH() ? this.type : '*', args, config);
+	}
+
+	private inEH(): boolean {
+		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+		return debugConfigs.extensionHostDebugAdapter;
 	}
 
 	public get label(): string {

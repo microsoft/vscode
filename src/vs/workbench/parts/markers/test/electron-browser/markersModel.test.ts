@@ -13,34 +13,25 @@ import { MarkersModel, Marker, ResourceMarkers, RelatedInformation } from 'vs/wo
 class TestMarkersModel extends MarkersModel {
 
 	get filteredResources(): ResourceMarkers[] {
-		let res: ResourceMarkers[] = [];
+		const res: ResourceMarkers[] = [];
 		this.forEachFilteredResource(resource => res.push(resource));
 		return res;
 	}
 
-	static compare(a: any, b: any): number {
-		if (a instanceof ResourceMarkers && b instanceof ResourceMarkers) {
-			return ResourceMarkers.compare(a, b);
-		}
-		if (a instanceof Marker && b instanceof Marker) {
-			return Marker.compare(a, b);
-		}
-		return 0;
-	}
 }
 
 suite('MarkersModel Test', () => {
 
 	test('getFilteredResource return markers grouped by resource', function () {
-		let marker1 = aMarker('res1');
-		let marker2 = aMarker('res2');
-		let marker3 = aMarker('res1');
-		let marker4 = aMarker('res3');
-		let marker5 = aMarker('res4');
-		let marker6 = aMarker('res2');
-		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const marker1 = aMarker('res1');
+		const marker2 = aMarker('res2');
+		const marker3 = aMarker('res1');
+		const marker4 = aMarker('res3');
+		const marker5 = aMarker('res4');
+		const marker6 = aMarker('res2');
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals = testObject.filteredResources;
+		const actuals = testObject.filteredResources;
 
 		assert.equal(4, actuals.length);
 
@@ -64,15 +55,15 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('sort palces resources with no errors at the end', function () {
-		let marker1 = aMarker('a/res1', MarkerSeverity.Warning);
-		let marker2 = aMarker('a/res2');
-		let marker3 = aMarker('res4');
-		let marker4 = aMarker('b/res3');
-		let marker5 = aMarker('res4');
-		let marker6 = aMarker('c/res2', MarkerSeverity.Info);
-		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const marker1 = aMarker('a/res1', MarkerSeverity.Warning);
+		const marker2 = aMarker('a/res2');
+		const marker3 = aMarker('res4');
+		const marker4 = aMarker('b/res3');
+		const marker5 = aMarker('res4');
+		const marker6 = aMarker('c/res2', MarkerSeverity.Info);
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals = testObject.filteredResources.sort(TestMarkersModel.compare);
+		const actuals = testObject.resources;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res2'));
@@ -83,15 +74,15 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('sort resources by file path', function () {
-		let marker1 = aMarker('a/res1');
-		let marker2 = aMarker('a/res2');
-		let marker3 = aMarker('res4');
-		let marker4 = aMarker('b/res3');
-		let marker5 = aMarker('res4');
-		let marker6 = aMarker('c/res2');
-		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
+		const marker1 = aMarker('a/res1');
+		const marker2 = aMarker('a/res2');
+		const marker3 = aMarker('res4');
+		const marker4 = aMarker('b/res3');
+		const marker5 = aMarker('res4');
+		const marker6 = aMarker('c/res2');
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6]);
 
-		let actuals = testObject.filteredResources.sort(TestMarkersModel.compare);
+		const actuals = testObject.resources;
 
 		assert.equal(5, actuals.length);
 		assert.ok(compareResource(actuals[0], 'a/res1'));
@@ -102,24 +93,24 @@ suite('MarkersModel Test', () => {
 	});
 
 	test('sort markers by severity, line and column', function () {
-		let marker1 = aWarningWithRange(8, 1, 9, 3);
-		let marker2 = aWarningWithRange(3);
-		let marker3 = anErrorWithRange(8, 1, 9, 3);
-		let marker4 = anIgnoreWithRange(5);
-		let marker5 = anInfoWithRange(8, 1, 8, 4, 'ab');
-		let marker6 = anErrorWithRange(3);
-		let marker7 = anErrorWithRange(5);
-		let marker8 = anInfoWithRange(5);
-		let marker9 = anErrorWithRange(8, 1, 8, 4, 'ab');
-		let marker10 = anErrorWithRange(10);
-		let marker11 = anErrorWithRange(8, 1, 8, 4, 'ba');
-		let marker12 = anIgnoreWithRange(3);
-		let marker13 = aWarningWithRange(5);
-		let marker14 = anErrorWithRange(4);
-		let marker15 = anErrorWithRange(8, 2, 8, 4);
-		let testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
+		const marker1 = aWarningWithRange(8, 1, 9, 3);
+		const marker2 = aWarningWithRange(3);
+		const marker3 = anErrorWithRange(8, 1, 9, 3);
+		const marker4 = anIgnoreWithRange(5);
+		const marker5 = anInfoWithRange(8, 1, 8, 4, 'ab');
+		const marker6 = anErrorWithRange(3);
+		const marker7 = anErrorWithRange(5);
+		const marker8 = anInfoWithRange(5);
+		const marker9 = anErrorWithRange(8, 1, 8, 4, 'ab');
+		const marker10 = anErrorWithRange(10);
+		const marker11 = anErrorWithRange(8, 1, 8, 4, 'ba');
+		const marker12 = anIgnoreWithRange(3);
+		const marker13 = aWarningWithRange(5);
+		const marker14 = anErrorWithRange(4);
+		const marker15 = anErrorWithRange(8, 2, 8, 4);
+		const testObject = new TestMarkersModel([marker1, marker2, marker3, marker4, marker5, marker6, marker7, marker8, marker9, marker10, marker11, marker12, marker13, marker14, marker15]);
 
-		let actuals = testObject.filteredResources[0].markers.sort(TestMarkersModel.compare);
+		const actuals = testObject.resources[0].markers;
 
 		assert.equal(actuals[0].raw, marker6);
 		assert.equal(actuals[1].raw, marker14);

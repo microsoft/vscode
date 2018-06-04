@@ -92,12 +92,13 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 		this.updateScheduler = new RunOnceScheduler(() => {
 			const state = this.debugService.state;
-			if (state === State.Inactive || state === State.Initializing || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar
-				|| this.configurationService.getValue<IDebugConfiguration>('debug').toolbar !== 'float') {
+			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
+			if (state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar
+				|| toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
 				return this.hide();
 			}
 
-			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, false, this.debugService, this.keybindingService, this.instantiationService);
+			const actions = DebugActionsWidget.getActions(this.allActions, this.toUnbind, this.debugService, this.keybindingService, this.instantiationService);
 			if (!arrays.equals(actions, this.activeActions, (first, second) => first.id === second.id)) {
 				this.actionBar.clear();
 				this.actionBar.push(actions, { icon: true, label: false });
@@ -218,7 +219,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 	}
 
 	private onDidConfigurationChange(event: IConfigurationChangeEvent): void {
-		if (event.affectsConfiguration('debug.hideActionBar') || event.affectsConfiguration('debug.toolbar')) {
+		if (event.affectsConfiguration('debug.hideActionBar') || event.affectsConfiguration('debug.toolBarLocation')) {
 			this.updateScheduler.schedule();
 		}
 	}
@@ -242,7 +243,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.$el.hide();
 	}
 
-	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], ignoreFocusSessionAction: boolean, debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
+	public static getActions(allActions: AbstractDebugAction[], toUnbind: IDisposable[], debugService: IDebugService, keybindingService: IKeybindingService, instantiationService: IInstantiationService): AbstractDebugAction[] {
 		if (allActions.length === 0) {
 			allActions.push(new ContinueAction(ContinueAction.ID, ContinueAction.LABEL, debugService, keybindingService));
 			allActions.push(new PauseAction(PauseAction.ID, PauseAction.LABEL, debugService, keybindingService));
@@ -254,9 +255,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 			allActions.push(instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			allActions.push(new StepBackAction(StepBackAction.ID, StepBackAction.LABEL, debugService, keybindingService));
 			allActions.push(new ReverseContinueAction(ReverseContinueAction.ID, ReverseContinueAction.LABEL, debugService, keybindingService));
-			if (!ignoreFocusSessionAction) {
-				allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
-			}
+			allActions.push(instantiationService.createInstance(FocusSessionAction, FocusSessionAction.ID, FocusSessionAction.LABEL));
 			allActions.forEach(a => {
 				toUnbind.push(a);
 			});

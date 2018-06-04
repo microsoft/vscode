@@ -125,4 +125,89 @@ suite('Workbench - TerminalConfigHelper', () => {
 		configHelper.panelContainer = fixture;
 		assert.equal(configHelper.getFont().lineHeight, 1, 'editor.lineHeight should be 1 when terminal.integrated.lineHeight not set');
 	});
+
+	test('TerminalConfigHelper - isMonospace monospace', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 'monospace'
+			}
+		});
+
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
+	});
+
+	test('TerminalConfigHelper - isMonospace sans-serif', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 'sans-serif'
+			}
+		});
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
+	});
+
+	test('TerminalConfigHelper - isMonospace serif', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: 'serif'
+			}
+		});
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
+	});
+
+	test('TerminalConfigHelper - isMonospace monospace falls back to editor.fontFamily', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'monospace'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: null
+			}
+		});
+
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), true, 'monospace is monospaced');
+	});
+
+	test('TerminalConfigHelper - isMonospace sans-serif falls back to editor.fontFamily', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'sans-serif'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: null
+			}
+		});
+
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), false, 'sans-serif is not monospaced');
+	});
+
+	test('TerminalConfigHelper - isMonospace serif falls back to editor.fontFamily', function () {
+		const configurationService = new TestConfigurationService();
+		configurationService.setUserConfiguration('editor', {
+			fontFamily: 'serif'
+		});
+		configurationService.setUserConfiguration('terminal', {
+			integrated: {
+				fontFamily: null
+			}
+		});
+
+		let configHelper = new TerminalConfigHelper(configurationService, null, null, null);
+		configHelper.panelContainer = fixture;
+		assert.equal(configHelper.configFontIsMonospace(), false, 'serif is not monospaced');
+	});
 });

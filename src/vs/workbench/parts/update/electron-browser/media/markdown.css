@@ -64,13 +64,15 @@ table > tbody > tr > td {
 }
 
 table > tbody > tr + tr > td {
-	border-top: 1px solid;
+	border-top-width: 1px;
+	border-top-style: solid;
 }
 
 blockquote {
 	margin: 0 7px 0 5px;
 	padding: 0 16px 0 10px;
-	border-left: 5px solid;
+	border-left-width: 5px;
+	border-left-style: solid;
 }
 
 code {
