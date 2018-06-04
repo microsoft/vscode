@@ -309,6 +309,14 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
 	});
 
+	test('fuzzyScore (first match can be weak)', function () {
+		let fuzzyScoreWeak = (pattern, word) => fuzzyScore(pattern, word, undefined, true);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScoreWeak);
+		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScoreWeak);
+		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScoreWeak);
+		assertTopScore(fuzzyScoreWeak, 'tor', 2, 'constructor', 'Thor', 'cTor');
+	});
+
 	test('fuzzyScore, many matches', function () {
 
 		assertMatches(

@@ -105,7 +105,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name);
+		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}

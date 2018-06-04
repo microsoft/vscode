@@ -454,7 +454,7 @@ const enum Arrow { Top = 0b1, Diag = 0b10, Left = 0b100 }
 
 export type FuzzyScore = [number, number[]];
 
-export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number): FuzzyScore {
+export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIgnore?: number, firstMatchCanBeWeak?: boolean): FuzzyScore {
 
 	const patternLen = pattern.length > 100 ? 100 : pattern.length;
 	const wordLen = word.length > 100 ? 100 : word.length;
@@ -578,6 +578,7 @@ export function fuzzyScore(pattern: string, word: string, patternMaxWhitespaceIg
 	_matchesCount = 0;
 	_topScore = -100;
 	_patternStartPos = patternStartPos;
+	_firstMatchCanBeWeak = firstMatchCanBeWeak;
 	_findAllMatches(patternLen, wordLen, patternLen === wordLen ? 1 : 0, new LazyArray(), false);
 
 	if (_matchesCount === 0) {
@@ -591,6 +592,7 @@ let _matchesCount: number = 0;
 let _topMatch: LazyArray;
 let _topScore: number = 0;
 let _patternStartPos: number = 0;
+let _firstMatchCanBeWeak: boolean = false;
 
 function _findAllMatches(patternPos: number, wordPos: number, total: number, matches: LazyArray, lastMatched: boolean): void {
 
@@ -644,7 +646,7 @@ function _findAllMatches(patternPos: number, wordPos: number, total: number, mat
 			if (score === 1) {
 				simpleMatchCount += 1;
 
-				if (patternPos === _patternStartPos) {
+				if (patternPos === _patternStartPos && !_firstMatchCanBeWeak) {
 					// when the first match is a weak
 					// match we discard it
 					return undefined;
