@@ -840,7 +840,7 @@ export class Repository implements Disposable {
 			const text = lastLine.isEmptyOrWhitespace ? `${textToAppend}\n` : `\n${textToAppend}\n`;
 
 			edit.insert(document.uri, lastLine.range.end, text);
-			workspace.applyEdit(edit);
+			await workspace.applyEdit(edit).then(document.save);
 		});
 	}
 
@@ -963,8 +963,15 @@ export class Repository implements Disposable {
 				return fs.existsSync(folder.fsPath);
 			});
 
+			let alreadyIgnored = await this.checkIgnore(knownHugeFolderUris.map(uri => uri.path));
+
+			//filter already ignored
+			knownHugeFolderUris = knownHugeFolderUris.filter(folder => {
+				return !alreadyIgnored.has(folder.path);
+			});
+
 			//text
-			const addKnown = localize('add known', "Would you like to add known large folders to .gitignore?");
+			const addKnown = localize('add known', "Would you like to add {0} to .gitignore?", knownHugeFolderUris.map(uri => path.basename(uri.fsPath)).join(', '));
 			const gitWarn = localize('huge', "The git repository at {0} has too many active changes, only a subset of Git features will be enabled.", this.repository.root);
 
 			//options
@@ -972,7 +979,7 @@ export class Repository implements Disposable {
 			const yes = { title: localize('yes', "Yes") };
 
 			let warningPromise;
-			if (knownHugeFolders.length) {
+			if (knownHugeFolderUris.length) {
 				warningPromise = window.showWarningMessage(`${gitWarn} ${addKnown}`, yes, neverAgain);
 			} else {
 				warningPromise = window.showWarningMessage(gitWarn, neverAgain);
