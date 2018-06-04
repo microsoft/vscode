@@ -803,7 +803,12 @@ export class Repository implements Disposable {
 			await this.repository.pull(rebase, remoteName, pullBranch);
 
 			const remote = this.remotes.find(r => r.name === remoteName);
-			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true) && (!remote || remote.canPush);
+
+			if (remote && remote.isReadOnly) {
+				return;
+			}
+
+			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 			if (shouldPush) {
 				await this.repository.push(remoteName, pushBranch);
@@ -1154,7 +1159,7 @@ export class Repository implements Disposable {
 		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
 		const remote = this.remotes.find(r => r.name === remoteName);
 
-		if (remote && !remote.canPush) {
+		if (remote && remote.isReadOnly) {
 			return `${this.HEAD.behind}↓`;
 		}
 

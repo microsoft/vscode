@@ -1456,8 +1456,12 @@ export class CommandCenter {
 			return;
 		}
 
+		const remoteName = HEAD.remote || HEAD.upstream.remote;
+		const remote = repository.remotes.find(r => r.name === remoteName);
+		const isReadonly = remote && remote.isReadOnly;
+
 		const config = workspace.getConfiguration('git');
-		const shouldPrompt = config.get<boolean>('confirmSync') === true;
+		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
 			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);

@@ -35,7 +35,7 @@ export interface Remote {
 	name: string;
 	fetchUrl?: string;
 	pushUrl?: string;
-	canPush: boolean;
+	isReadOnly: boolean;
 }
 
 export interface Stash {
@@ -1228,34 +1228,31 @@ export class Repository {
 
 	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
-		const remotes: Remote[] = [];
 		const lines = result.stdout.trim().split('\n').filter(l => !!l);
+		const remotes: Remote[] = [];
+
 		for (const line of lines) {
 			const parts = line.split(/\s/);
-			let remote = remotes.find(r => r.name === parts[0]);
+			const [name, url, type] = parts;
+
+			let remote = remotes.find(r => r.name === name);
+
 			if (!remote) {
-				remote = { name: parts[0], canPush: true };
+				remote = { name, isReadOnly: false };
 				remotes.push(remote);
 			}
 
-			switch (parts[2]) {
-				case '(fetch)': {
-					remote.fetchUrl = parts[1];
-					break;
-				}
-				case '(push)': {
-					remote.pushUrl = parts[1];
-					break;
-				}
-				default: {
-					remote.fetchUrl = parts[1];
-					remote.pushUrl = parts[1];
-					break;
-				}
+			if (/fetch/i.test(type)) {
+				remote.fetchUrl = url;
+			} else if (/push/i.test(type)) {
+				remote.pushUrl = url;
+			} else {
+				remote.fetchUrl = url;
+				remote.pushUrl = url;
 			}
 
 			// https://github.com/Microsoft/vscode/issues/45271
-			remote.canPush = remote.pushUrl !== undefined && remote.pushUrl !== 'no_push';
+			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
 		}
 
 		return remotes;
