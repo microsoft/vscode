@@ -27,7 +27,6 @@ const suggestionSetting = 'suggestionActions.enabled';
 
 export default class LanguageProvider {
 	private readonly diagnosticsManager: DiagnosticsManager;
-	private readonly bufferSyncSupport: BufferSyncSupport;
 
 	private _validate: boolean = true;
 	private _enableSuggestionDiagnostics: boolean = true;
@@ -43,8 +42,8 @@ export default class LanguageProvider {
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
+		private readonly bufferSyncSupport: BufferSyncSupport,
 	) {
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.diagnosticsManager.delete(resource);
 		}, null, this.disposables);
@@ -56,7 +55,6 @@ export default class LanguageProvider {
 
 		client.onReady(async () => {
 			await this.registerProviders();
-			this.bufferSyncSupport.listen();
 		});
 
 		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
@@ -73,7 +71,6 @@ export default class LanguageProvider {
 		disposeAll(this.disposables);
 
 		this.diagnosticsManager.dispose();
-		this.bufferSyncSupport.dispose();
 		this.renameHandler.dispose();
 	}
 
@@ -167,12 +164,6 @@ export default class LanguageProvider {
 
 	public reInitialize(): void {
 		this.diagnosticsManager.reInitialize();
-		this.bufferSyncSupport.reOpenDocuments();
-		this.bufferSyncSupport.requestAllDiagnostics();
-	}
-
-	public getErr(resources: vscode.Uri[]) {
-		this.bufferSyncSupport.getErr(resources);
 	}
 
 	public triggerAllDiagnostics(): void {

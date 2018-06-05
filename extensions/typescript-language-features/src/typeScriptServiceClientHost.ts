@@ -27,6 +27,7 @@ import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import API from './utils/api';
 import FileConfigurationManager from './features/fileConfigurationManager';
+import BufferSyncSupport from './features/bufferSyncSupport';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -47,6 +48,7 @@ export default class TypeScriptServiceClientHost {
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 	private readonly fileConfigurationManager: FileConfigurationManager;
+	private readonly bufferSyncSupport: BufferSyncSupport;
 
 	private reportStyleCheckAsWarnings: boolean = true;
 
@@ -84,9 +86,7 @@ export default class TypeScriptServiceClientHost {
 
 		this.client.onProjectUpdatedInBackground(files => {
 			const resources = files.openFiles.map(Uri.file);
-			for (const language of this.languagePerId.values()) {
-				language.getErr(resources);
-			}
+			this.bufferSyncSupport.getErr(resources);
 		}, null, this.disposables);
 
 		this.versionStatus = new VersionStatus(resource => this.client.toPath(resource));
@@ -96,8 +96,15 @@ export default class TypeScriptServiceClientHost {
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
 		this.fileConfigurationManager = new FileConfigurationManager(this.client);
 
+		const allModeIds: string[] = [];
 		for (const description of descriptions) {
-			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+			allModeIds.push(...description.modeIds);
+		}
+		this.bufferSyncSupport = new BufferSyncSupport(this.client, allModeIds);
+		this.client.onReady(() => { this.bufferSyncSupport.listen(); });
+
+		for (const description of descriptions) {
+			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, this.bufferSyncSupport);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
@@ -123,7 +130,7 @@ export default class TypeScriptServiceClientHost {
 					diagnosticOwner: 'typescript',
 					isExternal: true
 				};
-				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
+				const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager, this.bufferSyncSupport);
 				this.languages.push(manager);
 				this.disposables.push(manager);
 				this.languagePerId.set(description.id, manager);
@@ -143,6 +150,7 @@ export default class TypeScriptServiceClientHost {
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
 		this.fileConfigurationManager.dispose();
+		this.bufferSyncSupport.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -181,6 +189,8 @@ export default class TypeScriptServiceClientHost {
 
 	private populateService(): void {
 		this.fileConfigurationManager.reset();
+		this.bufferSyncSupport.reOpenDocuments();
+		this.bufferSyncSupport.requestAllDiagnostics();
 
 		// See https://github.com/Microsoft/TypeScript/issues/5530
 		workspace.saveAll(false).then(() => {
