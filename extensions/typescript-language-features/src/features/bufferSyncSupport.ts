@@ -105,24 +105,24 @@ class SyncedBufferMap {
 	) { }
 
 	public has(resource: Uri): boolean {
-		const file = this._normalizePath(resource);
+		const file = this.toKey(resource);
 		return !!file && this._map.has(file);
 	}
 
 	public get(resource: Uri): SyncedBuffer | undefined {
-		const file = this._normalizePath(resource);
+		const file = this.toKey(resource);
 		return file ? this._map.get(file) : undefined;
 	}
 
 	public set(resource: Uri, buffer: SyncedBuffer) {
-		const file = this._normalizePath(resource);
+		const file = this.toKey(resource);
 		if (file) {
 			this._map.set(file, buffer);
 		}
 	}
 
 	public delete(resource: Uri): void {
-		const file = this._normalizePath(resource);
+		const file = this.toKey(resource);
 		if (file) {
 			this._map.delete(file);
 		}
@@ -135,12 +135,12 @@ class SyncedBufferMap {
 	public get allResources(): Iterable<string> {
 		return this._map.keys();
 	}
+
+	private toKey(resource: Uri): string | null {
+		return this._normalizePath(resource);
+	}
 }
 
-
-export interface Diagnostics {
-	delete(resource: Uri): void;
-}
 
 export default class BufferSyncSupport {
 
