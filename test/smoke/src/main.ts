@@ -215,7 +215,7 @@ function createApp(quality: Quality): Application {
 
 	if (opts.log) {
 		loggers.push(new FileLogger(opts.log));
-		log = 'verbose';
+		log = 'trace';
 	}
 
 	return new Application({
