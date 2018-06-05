@@ -96,7 +96,7 @@ export function setup() {
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, `looking for index.js and line 6`).then(c, e);
 			});
 
 		});
