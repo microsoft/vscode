@@ -11,7 +11,7 @@ import { Position } from 'vs/editor/common/core/position';
 suite('Editor Core - Range', () => {
 	test('empty range', () => {
 		let s = new Range(1, 1, 1, 1);
-		assert.equal(s.startLineNumber, 2);
+		assert.equal(s.startLineNumber, 1);
 		assert.equal(s.startColumn, 1);
 		assert.equal(s.endLineNumber, 1);
 		assert.equal(s.endColumn, 1);
