@@ -125,6 +125,8 @@ class WindowDriver implements IWindowDriver {
 				const id = el.id ? `#${el.id}` : '';
 				const classes = el.className.split(/\s+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
 				chain.unshift(`${tagName}${id}${classes}`);
+
+				el = el.parentElement;
 			}
 
 			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`);
