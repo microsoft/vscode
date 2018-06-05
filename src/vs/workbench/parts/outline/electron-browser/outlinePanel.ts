@@ -33,7 +33,6 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
@@ -44,6 +43,8 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { asDisposablePromise } from 'vs/base/common/async';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 class RequestState {
 
@@ -196,7 +197,7 @@ class OutlineState {
 	}
 }
 
-export class OutlinePanel extends ViewsViewletPanel {
+export class OutlinePanel extends ViewletPanel {
 
 	private _disposables = new Array<IDisposable>();
 
@@ -214,7 +215,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
 	constructor(
-		options: IViewOptions,
+		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,

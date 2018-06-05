@@ -17,12 +17,11 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { ViewLocation } from 'vs/workbench/common/views';
-import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { forEach } from 'vs/base/common/collections';
@@ -151,7 +150,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			const location: ViewLocation = ViewLocation.register(id);
 
 			// Register as viewlet
-			class CustomViewlet extends PersistentViewsViewlet {
+			class CustomViewlet extends ViewsViewlet {
 				constructor(
 					@IPartService partService: IPartService,
 					@ITelemetryService telemetryService: ITelemetryService,
@@ -159,12 +158,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 					@IStorageService storageService: IStorageService,
 					@IEditorService editorService: IEditorService,
 					@IInstantiationService instantiationService: IInstantiationService,
-					@IContextKeyService contextKeyService: IContextKeyService,
 					@IThemeService themeService: IThemeService,
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService
 				) {
-					super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+					super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
 			const viewletDescriptor = new ViewletDescriptor(

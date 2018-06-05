@@ -13,7 +13,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { $, Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { OpenFolderAction, OpenFileFolderAction, AddRootFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
 import { attachButtonStyler } from 'vs/platform/theme/common/styler';
@@ -25,8 +25,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { IFileService } from 'vs/platform/files/common/files';
 import URI from 'vs/base/common/uri';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class EmptyView extends ViewsViewletPanel {
+export class EmptyView extends ViewletPanel {
 
 	public static readonly ID: string = 'workbench.explorer.emptyView';
 	public static readonly NAME = nls.localize('noWorkspace', "No Folder Opened");
@@ -46,7 +47,7 @@ export class EmptyView extends ViewsViewletPanel {
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
 		@IFileService private fileService: IFileService,
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
 	}
 
@@ -102,16 +103,12 @@ export class EmptyView extends ViewsViewletPanel {
 			if (this.button) {
 				this.button.label = nls.localize('openFolder', "Open Folder");
 			}
-			this.titleDiv.text(this.name);
+			this.titleDiv.text(this.title);
 		}
 	}
 
 	layoutBody(size: number): void {
 		// no-op
-	}
-
-	public create(): TPromise<void> {
-		return TPromise.as(null);
 	}
 
 	public setVisible(visible: boolean): TPromise<void> {

@@ -29,16 +29,17 @@ import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 const $ = dom.$;
 
-export class BreakpointsView extends ViewsViewletPanel {
+export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private static readonly MEMENTO = 'breakopintsview.memento';

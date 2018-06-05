@@ -24,7 +24,7 @@ import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -35,8 +35,9 @@ import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRe
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class ExtensionsListView extends ViewsViewletPanel {
+export class ExtensionsListView extends ViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
@@ -59,7 +60,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {

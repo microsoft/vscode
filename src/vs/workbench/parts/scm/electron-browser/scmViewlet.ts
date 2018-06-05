@@ -58,7 +58,6 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
 import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
-import { ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
@@ -218,7 +217,7 @@ class MainPanel extends ViewletPanel {
 		@IMenuService private menuService: IMenuService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(localize('scm providers', "Source Control Providers"), {}, keybindingService, contextMenuService, configurationService);
+		super({ id: 'scm.mainPanel', name: localize('scm providers', "Source Control Providers") }, keybindingService, contextMenuService, configurationService);
 		this.updateBodySize();
 	}
 
@@ -746,6 +745,7 @@ export class RepositoryPanel extends ViewletPanel {
 	}
 
 	constructor(
+		id: string,
 		readonly repository: ISCMRepository,
 		private viewModel: IViewModel,
 		@IKeybindingService protected keybindingService: IKeybindingService,
@@ -760,7 +760,7 @@ export class RepositoryPanel extends ViewletPanel {
 		@IContextKeyService protected contextKeyService: IContextKeyService,
 		@IMenuService protected menuService: IMenuService
 	) {
-		super(repository.provider.label, {}, keybindingService, contextMenuService, configurationService);
+		super({ id, name: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
 	}
 
@@ -1105,16 +1105,16 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		this.onDidChangeRepositories();
 
-		this.contributedViews.onDidAdd(this.onDidAddContributedView, this, this.disposables);
-		this.contributedViews.onDidRemove(this.onDidRemoveContributedView, this, this.disposables);
+		this.contributedViews.onDidAdd(this.onDidAddContributedViews, this, this.disposables);
+		this.contributedViews.onDidRemove(this.onDidRemoveContributedViews, this, this.disposables);
 
 		let index = this.getContributedViewsStartIndex();
-		for (const viewDescriptor of this.contributedViews.visibleViewDescriptors) {
+		const contributedViews: IAddedViewDescriptorRef[] = this.contributedViews.visibleViewDescriptors.map(viewDescriptor => {
 			const size = this.contributedViews.getSize(viewDescriptor.id);
 			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
-
-			this.onDidAddContributedView({ viewDescriptor, index: index++, size, collapsed });
-		}
+			return { viewDescriptor, index: index++, size, collapsed };
+		});
+		this.onDidAddContributedViews(contributedViews);
 
 		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}
@@ -1193,7 +1193,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		const start = this.getContributedViewsStartIndex();
 
 		for (let i = 0; i < this.contributedViews.visibleViewDescriptors.length; i++) {
-			const panel = this.panels[start + i] as ViewsViewletPanel;
+			const panel = this.panels[start + i] as ViewletPanel;
 			promises.push(panel.setVisible(visible));
 		}
 
@@ -1293,8 +1293,8 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		// Collect new selected panels
 		const newRepositoryPanels = repositories
 			.filter(r => this.repositoryPanels.every(p => p.repository !== r))
-			.map(r => {
-				const panel = this.instantiationService.createInstance(RepositoryPanel, r, this);
+			.map((r, index) => {
+				const panel = this.instantiationService.createInstance(RepositoryPanel, `scm.repository.${r.provider.label}.${index}`, r, this);
 				panel.render();
 				return panel;
 			});
@@ -1353,32 +1353,34 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return value;
 	}
 
-	onDidAddContributedView({ viewDescriptor, index, size, collapsed }: IAddedViewDescriptorRef): void {
+	onDidAddContributedViews(added: IAddedViewDescriptorRef[]): void {
 		const start = this.getContributedViewsStartIndex();
-		const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
-			id: viewDescriptor.id,
-			name: viewDescriptor.name,
-			actionRunner: this.getActionRunner(),
-			expanded: !collapsed,
-			viewletSettings: {} // what is this
-		}) as ViewsViewletPanel;
+		const panelsToAdd: { panel: ViewletPanel, size: number, index: number }[] = [];
 
-		panel.render();
+		for (const { viewDescriptor, collapsed, index, size } of added) {
+			const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
+				id: viewDescriptor.id,
+				name: viewDescriptor.name,
+				actionRunner: this.getActionRunner(),
+				expanded: !collapsed
+			}) as ViewletPanel;
+			panel.render();
+			panel.setVisible(true);
+			const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
+				e.stopPropagation();
+				e.preventDefault();
+				this.onViewHeaderContextMenu(new StandardMouseEvent(e), viewDescriptor);
+			});
 
-		this.addPanels([{ panel, size: size || panel.minimumSize, index: start + index }]);
-		panel.setVisible(true);
+			const collapseDisposable = latch(mapEvent(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
+				this.contributedViews.setCollapsed(viewDescriptor.id, collapsed);
+			});
 
-		const contextMenuDisposable = addDisposableListener(panel.draggableElement, 'contextmenu', e => {
-			e.stopPropagation();
-			e.preventDefault();
-			this.onViewHeaderContextMenu(new StandardMouseEvent(e), viewDescriptor);
-		});
+			this.contributedViewDisposables.splice(index, 0, combinedDisposable([contextMenuDisposable, collapseDisposable]));
+			panelsToAdd.push({ panel, size: size || panel.minimumSize, index: start + index });
+		}
 
-		const collapseDisposable = latch(mapEvent(panel.onDidChange, () => !panel.isExpanded()))(collapsed => {
-			this.contributedViews.setCollapsed(viewDescriptor.id, collapsed);
-		});
-
-		this.contributedViewDisposables.splice(index, 0, combinedDisposable([contextMenuDisposable, collapseDisposable]));
+		this.addPanels(panelsToAdd);
 	}
 
 	private onViewHeaderContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {
@@ -1421,14 +1423,18 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return result;
 	}
 
-	onDidRemoveContributedView({ viewDescriptor, index }: IViewDescriptorRef): void {
+	onDidRemoveContributedViews(removed: IViewDescriptorRef[]): void {
+		removed = removed.sort((a, b) => b.index - a.index);
 		const start = this.getContributedViewsStartIndex();
-		const panel = this.panels[start + index];
+		const panelsToRemove: ViewletPanel[] = [];
 
-		this.removePanels([panel]);
+		for (const { index } of removed) {
+			const [disposable] = this.contributedViewDisposables.splice(index, 1);
+			disposable.dispose();
+			panelsToRemove.push(this.panels[start + index]);
+		}
 
-		const [disposable] = this.contributedViewDisposables.splice(index, 1);
-		disposable.dispose();
+		this.removePanels(panelsToRemove);
 	}
 
 	private saveContributedViewSizes(): void {
@@ -1466,7 +1472,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 	openView(id: string, focus?: boolean): TPromise<void> {
 		this.contributedViews.setVisible(id, true);
-		const panel = this.panels.filter(panel => panel instanceof ViewsViewletPanel && panel.id === id)[0];
+		const panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
 		if (panel) {
 			panel.setExpanded(true);
 			panel.focus();

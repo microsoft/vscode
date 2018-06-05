@@ -42,7 +42,7 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
-import { PersistentViewsViewlet, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -52,6 +52,8 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 interface SearchInputEvent extends Event {
 	target: HTMLInputElement;
@@ -196,7 +198,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 }
 
-export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtensionsViewlet {
+export class ExtensionsViewlet extends ViewsViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
 	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
@@ -232,7 +234,7 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.searchDelayer = new ThrottledDelayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
@@ -388,20 +390,19 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
-		await this.updateViews([], !!value);
+		if (value) {
+			this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
+		}
 	}
 
-	protected async updateViews(unregisteredViews: IViewDescriptor[] = [], showAll = false): TPromise<ViewsViewletPanel[]> {
-		const created = await super.updateViews(unregisteredViews);
-		const toShow = showAll ? this.views : created;
-		if (toShow.length) {
-			await this.progress(TPromise.join(toShow.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
-		}
-		return created;
+	protected onDidAddViews(added: IAddedViewDescriptorRef[]): ViewletPanel[] {
+		const addedViews = super.onDidAddViews(added);
+		this.progress(TPromise.join(addedViews.map(addedView => (<ExtensionsListView>addedView).show(this.searchBox.value))));
+		return addedViews;
 	}
 
 	private count(): number {
-		return this.views.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
+		return this.panels.reduce((count, view) => (<ExtensionsListView>view).count() + count, 0);
 	}
 
 	private onEscape(): void {
@@ -409,23 +410,23 @@ export class ExtensionsViewlet extends PersistentViewsViewlet implements IExtens
 	}
 
 	private onEnter(): void {
-		(<ExtensionsListView>this.views[0]).select();
+		(<ExtensionsListView>this.panels[0]).select();
 	}
 
 	private onUpArrow(): void {
-		(<ExtensionsListView>this.views[0]).showPrevious();
+		(<ExtensionsListView>this.panels[0]).showPrevious();
 	}
 
 	private onDownArrow(): void {
-		(<ExtensionsListView>this.views[0]).showNext();
+		(<ExtensionsListView>this.panels[0]).showNext();
 	}
 
 	private onPageUpArrow(): void {
-		(<ExtensionsListView>this.views[0]).showPreviousPage();
+		(<ExtensionsListView>this.panels[0]).showPreviousPage();
 	}
 
 	private onPageDownArrow(): void {
-		(<ExtensionsListView>this.views[0]).showNextPage();
+		(<ExtensionsListView>this.panels[0]).showNextPage();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {

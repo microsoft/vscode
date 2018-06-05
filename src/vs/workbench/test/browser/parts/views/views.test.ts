@@ -21,8 +21,8 @@ class ViewDescriptorSequence {
 
 	constructor(model: ContributableViewsModel) {
 		this.elements = [...model.visibleViewDescriptors];
-		model.onDidAdd(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor), null, this.disposables);
-		model.onDidRemove(({ viewDescriptor, index }) => this.elements.splice(index, 1), null, this.disposables);
+		model.onDidAdd(added => added.forEach(({ viewDescriptor, index }) => this.elements.splice(index, 0, viewDescriptor)), null, this.disposables);
+		model.onDidRemove(removed => removed.sort((a, b) => b.index - a.index).forEach(({ index }) => this.elements.splice(index, 1)), null, this.disposables);
 		model.onDidMove(({ from, to }) => move(this.elements, from.index, to.index), null, this.disposables);
 	}
 

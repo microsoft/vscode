@@ -22,7 +22,7 @@ import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, FileIconThemableWorkbenchTree, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ExplorerItem, Model } from 'vs/workbench/parts/files/common/explorerModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
@@ -42,6 +42,7 @@ import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -93,7 +94,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService decorationService: IDecorationsService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
@@ -155,6 +156,31 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// noop
 	}
 
+	public render(): void {
+
+		super.render();
+
+		// Update configuration
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
+		// Load and Fill Viewer
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		this.doRefresh(targetsToExpand).then(() => {
+
+			// When the explorer viewer is loaded, listen to changes to the editor input
+			this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
+
+			// Also handle configuration updates
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+
+			this.revealActiveFile();
+		});
+	}
+
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 		this.tree = this.createViewer(this.treeContainer);
@@ -183,29 +209,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		actions.push(this.instantiationService.createInstance(CollapseAction, this.getViewer(), true, 'explorer-action collapse-explorer'));
 
 		return actions;
-	}
-
-	public create(): TPromise<void> {
-
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
-
-		// Load and Fill Viewer
-		let targetsToExpand = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		}
-		return this.doRefresh(targetsToExpand).then(() => {
-
-			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
-
-			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
-
-			this.revealActiveFile();
-		});
 	}
 
 	private revealActiveFile(): void {
