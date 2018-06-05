@@ -55,7 +55,7 @@ export function setup() {
 			await new Promise((c, e) => {
 				const request = http.get(`http://localhost:${port}`);
 				request.on('error', e);
-				app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
+				app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 6, 'looking for index.js and line 6').then(c, e);
 			});
 		});
 
@@ -79,13 +79,13 @@ export function setup() {
 
 			await app.workbench.debug.stepIn();
 
-			const first = await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js', 'looking for response.js');
+			const first = await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name), 'looking for response.js');
 			await app.workbench.debug.stepOver();
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'response.js' && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
+			await app.workbench.debug.waitForStackFrame(sf => /response\.js$/.test(sf.name) && sf.lineNumber === first.lineNumber + 1, `looking for response.js and line ${first.lineNumber + 1}`);
 			await app.workbench.debug.stepOut();
 
-			await app.workbench.debug.waitForStackFrame(sf => sf.name === 'index.js' && sf.lineNumber === 7, `looking for index.js and line 7`);
+			await app.workbench.debug.waitForStackFrame(sf => /index\.js$/.test(sf.name) && sf.lineNumber === 7, `looking for index.js and line 7`);
 		});
 
 		it('continue', async function () {
