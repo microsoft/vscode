@@ -20,6 +20,7 @@ export interface ColorContribution {
 	readonly description: string;
 	readonly defaults: ColorDefaults;
 	readonly needsTransparency: boolean;
+	readonly deprecationMessage: string;
 }
 
 
@@ -87,7 +88,7 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
-		let colorContribution = { id, description, defaults, needsTransparency };
+		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
 		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
 		if (deprecationMessage) {
