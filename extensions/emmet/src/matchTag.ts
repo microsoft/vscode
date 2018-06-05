@@ -7,19 +7,27 @@ import * as vscode from 'vscode';
 import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
 import { DocumentStreamReader } from './bufferStream';
-import { getNode, parseDocument, validate, allowedMimeTypesInScriptTag } from './util';
+import { getNode, validate, getTemplateScriptNestedNode, isTemplateScript } from './util';
 
 
 export function matchTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
 		return;
 	}
-	const editor = vscode.window.activeTextEditor;
 
-	let rootNode = <HtmlNode>parseDocument(editor.document);
-	if (!rootNode) {
+	const editor = vscode.window.activeTextEditor;
+	let rootNode: HtmlNode;
+
+	try {
+		rootNode = parse(new DocumentStreamReader(editor.document));
+		if (!rootNode) {
+			return;
+		}
+	} catch (e) {
+		vscode.window.showErrorMessage('Emmet: Failed to parse the file');
 		return;
 	}
+
 
 	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
@@ -36,22 +44,12 @@ export function matchTag() {
 
 function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection | undefined {
 	let currentNode = <HtmlNode>getNode(rootNode, position, true);
-	if (!currentNode) {
-		return;
+	if (!currentNode) { return; }
+
+	if (isTemplateScript(currentNode)) {
+		let nestedNode = getTemplateScriptNestedNode(editor.document, currentNode, position);
+		currentNode = nestedNode ? nestedNode : currentNode;
 	}
-
-	// check if this node is a script representing an HTML template. If so, parse the inside as HTML and select appropriate node
-	if (currentNode.name === 'script' &&
-		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start)) &&
-		(currentNode.attributes &&
-			currentNode.attributes.some(x => x.name.toString() === 'type'
-				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1))) {
-
-		let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
-		let scriptInnerNodes = parse(buffer);
-		currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
-	}
-
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
@@ -62,5 +60,3 @@ function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Positi
 	let finalPosition = position.isBeforeOrEqual(currentNode.open.end) ? currentNode.close.start.translate(0, 2) : currentNode.open.start.translate(0, 1);
 	return new vscode.Selection(finalPosition, finalPosition);
 }
-
-

@@ -156,7 +156,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
-	test.only('match tag with template scripts', () => {
+	test('match tag with template scripts', () => {
 		let templateScript = `
 	<script type="text/template">
 		<div>

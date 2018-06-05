@@ -47,7 +47,7 @@ export const LANGUAGE_MODES: any = {
 	'typescriptreact': ['!', '.', '}', '*', '$', ']', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9']
 };
 
-export const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
+const allowedMimeTypesInScriptTag = ['text/html', 'text/plain', 'text/x-template', 'text/template'];
 
 const emmetModes = ['html', 'pug', 'slim', 'haml', 'xml', 'xsl', 'jsx', 'css', 'scss', 'sass', 'less', 'stylus'];
 
@@ -564,4 +564,35 @@ export function isStyleAttribute(currentNode: Node | null, position: vscode.Posi
 	}
 	const styleAttribute = currentHtmlNode.attributes[index];
 	return position.isAfterOrEqual(styleAttribute.value.start) && position.isBeforeOrEqual(styleAttribute.value.end);
+}
+
+export function isTemplateScript(currentNode: HtmlNode): boolean {
+	return currentNode.name === 'script' &&
+		(currentNode.attributes &&
+			currentNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
+}
+
+/**
+ * Given `currentNode` as a script HTML template, returns the `HtmlNode`
+ * at `position` within that template.
+ */
+export function getTemplateScriptNestedNode(document: vscode.TextDocument, currentNode: HtmlNode, position: vscode.Position): HtmlNode | undefined {
+	if (isTemplateScript(currentNode) &&
+		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
+
+		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
+
+		try {
+			let scriptInnerNodes = parse(buffer);
+			if (!scriptInnerNodes) {
+				return;
+			}
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
+		} catch (e) {
+			vscode.window.showErrorMessage('Emmet: Failed to parse template');
+			return;
+		}
+	}
+	return currentNode;
 }
