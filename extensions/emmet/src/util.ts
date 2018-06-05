@@ -322,9 +322,9 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 		try {
 			let scriptInnerNodes = parse(buffer);
 			if (!scriptInnerNodes) {
-				return;
+				return currentNode;
 			}
-			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true) || currentNode;
 		} catch (e) { }
 	}
 
