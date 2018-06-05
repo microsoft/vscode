@@ -184,9 +184,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private requestQueue: RequestQueue;
 	private callbacks: CallbackMap;
 
-	private readonly _onTsServerStarted = new EventEmitter<API>();
-	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
-
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
 	 * API version obtained from the version picker after checking the corresponding path exists.
@@ -258,15 +255,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
-	private _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
-	public get onDiagnosticsReceived(): Event<TsDiagnostics> { return this._onDiagnosticsReceived.event; }
-
-	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
-	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
-
-	private _onResendModelsRequested = new EventEmitter<void>();
-	public get onResendModelsRequested(): Event<void> { return this._onResendModelsRequested.event; }
-
 	public get configuration() {
 		return this._configuration;
 	}
@@ -308,9 +296,17 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	get onTsServerStarted(): Event<API> {
-		return this._onTsServerStarted.event;
-	}
+	private readonly _onTsServerStarted = new EventEmitter<API>();
+	public readonly onTsServerStarted = this._onTsServerStarted.event;
+
+	private readonly _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public readonly onDiagnosticsReceived = this._onDiagnosticsReceived.event;
+
+	private readonly _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
+	public readonly onConfigDiagnosticsReceived = this._onConfigDiagnosticsReceived.event;
+
+	private readonly _onResendModelsRequested = new EventEmitter<void>();
+	public readonly onResendModelsRequested = this._onResendModelsRequested.event;
 
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
@@ -321,9 +317,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
 	public readonly onDidEndInstallTypings = this._onDidEndInstallTypings.event;
 
-	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
-		return this._onTypesInstallerInitializationFailed.event;
-	}
+	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
+	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
 
 	public get apiVersion(): API {
 		return this._apiVersion;
