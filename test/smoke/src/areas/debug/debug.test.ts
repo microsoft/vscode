@@ -47,9 +47,6 @@ export function setup() {
 		it('start debugging', async function () {
 			const app = this.app as Application;
 
-			// TODO@isidor
-			await new Promise(c => setTimeout(c, 100));
-
 			port = await app.workbench.debug.startDebugging();
 
 			await new Promise((c, e) => {
