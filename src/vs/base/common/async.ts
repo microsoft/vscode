@@ -6,7 +6,7 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -131,9 +131,9 @@ export interface ITask<T> {
  */
 export class Throttler {
 
-	private activePromise: Promise;
-	private queuedPromise: Promise;
-	private queuedPromiseFactory: ITask<Promise>;
+	private activePromise: TPromise;
+	private queuedPromise: TPromise;
+	private queuedPromiseFactory: ITask<TPromise>;
 
 	constructor() {
 		this.activePromise = null;
@@ -221,7 +221,7 @@ export class SimpleThrottler {
 export class Delayer<T> {
 
 	private timeout: number;
-	private completionPromise: Promise;
+	private completionPromise: TPromise;
 	private onSuccess: ValueCallback;
 	private task: ITask<T | TPromise<T>>;
 
@@ -357,10 +357,10 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 }
 
 /**
- * Replacement for `WinJS.Promise.timeout`.
+ * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): Promise<void> {
-	return new Promise(resolve => setTimeout(resolve, n));
+export function timeout(n: number): Thenable<void> {
+	return new TPromise(resolve => setTimeout(resolve, n));
 }
 
 function isWinJSPromise(candidate: any): candidate is TPromise {
@@ -466,7 +466,7 @@ export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t:
 }
 
 interface ILimitedTaskFactory {
-	factory: ITask<Promise>;
+	factory: ITask<TPromise>;
 	c: ValueCallback;
 	e: ErrorCallback;
 	p: ProgressCallback;
@@ -497,7 +497,7 @@ export class Limiter<T> {
 		return this.runningPromises + this.outstandingPromises.length;
 	}
 
-	queue(promiseFactory: ITask<Promise>): Promise;
+	queue(promiseFactory: ITask<TPromise>): TPromise;
 	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		return new TPromise<T>((c, e, p) => {
 			this.outstandingPromises.push({
@@ -737,13 +737,13 @@ export class RunOnceWorker<T> extends RunOnceScheduler {
 	}
 }
 
-export function nfcall(fn: Function, ...args: any[]): Promise;
+export function nfcall(fn: Function, ...args: any[]): TPromise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
 }
 
-export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
+export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
