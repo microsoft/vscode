@@ -117,13 +117,17 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (element !== document.activeElement) {
-			const el = document.activeElement;
-			const tagName = el.tagName;
-			const id = el.id ? `#${el.id}` : '';
-			const classes = el.className.split(/\W+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
-			const current = `${tagName}${id}${classes}`;
+			const chain = [];
+			let el = document.activeElement;
 
-			throw new Error(`Active element not found. Current active element is '${current}'`);
+			while (el) {
+				const tagName = el.tagName;
+				const id = el.id ? `#${el.id}` : '';
+				const classes = el.className.split(/\s+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+				chain.unshift(`${tagName}${id}${classes}`);
+			}
+
+			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`);
 		}
 
 		return true;
