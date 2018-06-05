@@ -663,9 +663,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				return resource;
 			}
 		}
-		const resource = Uri.file(filepath);
-
-		return resource;
+		return this.bufferSyncSupport.toResource(filepath);
 	}
 
 	public getWorkspaceRootForResource(resource: Uri): string | undefined {
@@ -976,7 +974,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 
 		if (this.apiVersion.gte(API.v222)) {
-			this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
+			this.cancellationPipeName = electron.getTempSock('tscancellation');
 			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 		}
 

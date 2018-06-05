@@ -11,6 +11,8 @@ import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import API from '../utils/api';
+import { memoize } from '../utils/memoize';
+import { getTempFile } from '../utils/temp';
 
 enum BufferKind {
 	TypeScript = 1,
@@ -67,6 +69,10 @@ class SyncedBuffer {
 		}
 
 		this.client.execute('open', args, false);
+	}
+
+	public get resource(): Uri {
+		return this.document.uri;
 	}
 
 	public get lineCount(): number {
@@ -126,6 +132,10 @@ class SyncedBufferMap {
 		return file ? this._map.get(file) : undefined;
 	}
 
+	public getForPath(filePath: string): SyncedBuffer | undefined {
+		return this.get(Uri.file(filePath));
+	}
+
 	public set(resource: Uri, buffer: SyncedBuffer) {
 		const file = this.toKey(resource);
 		if (file) {
@@ -149,7 +159,8 @@ class SyncedBufferMap {
 	}
 
 	private toKey(resource: Uri): string | null {
-		return this._normalizePath(resource);
+		const key = this._normalizePath(resource);
+		return key ? key.toLowerCase() : key;
 	}
 }
 
@@ -178,7 +189,7 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizedPath(path));
+		this.syncedBuffers = new SyncedBufferMap(path => this.normalizePath(path));
 
 		this.updateConfiguration();
 		workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null);
@@ -200,6 +211,14 @@ export default class BufferSyncSupport {
 
 	public handles(resource: Uri): boolean {
 		return this.syncedBuffers.has(resource);
+	}
+
+	public toResource(filePath: string): Uri {
+		const buffer = this.syncedBuffers.getForPath(filePath);
+		if (buffer) {
+			return buffer.resource;
+		}
+		return Uri.file(filePath);
 	}
 
 	public reOpenDocuments(): void {
@@ -376,4 +395,40 @@ export default class BufferSyncSupport {
 				return this._validateTypeScript;
 		}
 	}
+
+	private normalizePath(path: Uri): string | null {
+		const key = this.client.normalizedPath(path);
+		if (!key) {
+			return key;
+		}
+
+		return this.isCaseInsensitivePath(key) ? key.toLowerCase() : key;
+	}
+
+	private isCaseInsensitivePath(path: string) {
+		if (isWindowsPath(path)) {
+			return true;
+		}
+
+		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
+	}
+
+	@memoize
+	private get onIsCaseInsenitiveFileSystem() {
+		if (process.platform === 'win32') {
+			return true;
+		}
+
+		if (process.platform !== 'darwin') {
+			return false;
+		}
+
+		const temp = getTempFile('typescript-case-check');
+		fs.writeFileSync(temp, '');
+		return fs.existsSync(temp.toUpperCase());
+	}
+}
+
+function isWindowsPath(path: string): boolean {
+	return /^[a-zA-Z]:\\/.test(path);
 }
