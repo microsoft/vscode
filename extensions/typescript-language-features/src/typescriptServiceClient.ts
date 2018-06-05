@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader, ICallback } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, commands, env } from 'vscode';
 import * as Proto from './protocol';
 import { ITypeScriptServiceClient } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
