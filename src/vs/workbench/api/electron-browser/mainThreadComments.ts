@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
@@ -21,7 +21,7 @@ import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/c
 
 @extHostNamedCustomer(MainContext.MainThreadComments)
 export class MainThreadComments extends Disposable implements MainThreadCommentsShape {
-
+	private _disposables: IDisposable[];
 	private _proxy: ExtHostCommentsShape;
 	private _documentProviders = new Map<number, IDisposable>();
 	private _workspaceProviders = new Map<number, IDisposable>();
@@ -34,8 +34,9 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		@ICodeEditorService private _codeEditorService: ICodeEditorService
 	) {
 		super();
+		this._disposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
-		this._editorService.onDidActiveEditorChange(e => {
+		this._disposables.push(this._editorService.onDidActiveEditorChange(e => {
 			const outerEditor = this.getFocusedEditor();
 			if (!outerEditor) {
 				return;
@@ -54,8 +55,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			this.provideDocumentComments(outerEditorURI).then(commentInfos => {
 				this._commentService.setComments(outerEditorURI, commentInfos.filter(info => info !== null));
 			});
-
-		});
+		}));
 	}
 
 	$registerDocumentCommentProvider(handle: number): void {
@@ -106,7 +106,11 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	dispose(): void {
-		throw new Error('Method not implemented.');
+		this._disposables = dispose(this._disposables);
+		this._workspaceProviders.forEach(value => dispose(value));
+		this._workspaceProviders.clear();
+		this._documentProviders.forEach(value => dispose(value));
+		this._documentProviders.clear();
 	}
 
 	getFocusedEditor(): ICodeEditor {
