@@ -276,7 +276,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this.startDelayed(lifecycleService);
 
 		if (this._environmentService.disableExtensions) {
-			this._notificationService.info(nls.localize('extensionsDisabled', "All extensions are disabled."));
+			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+				label: nls.localize('Reload', "Reload"),
+				run: () => {
+					this._windowService.reloadWindow();
+				}
+			}]);
 		}
 	}
 
