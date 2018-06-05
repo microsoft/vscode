@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as crypto from 'crypto';
-
 import * as nls from 'vs/nls';
 
 import * as Objects from 'vs/base/common/objects';
@@ -24,6 +22,8 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import * as Tasks from '../common/tasks';
 import { TaskDefinitionRegistry } from '../common/taskDefinitionRegistry';
+
+import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
 export enum ShellQuoting {
 	/**
@@ -1075,23 +1075,6 @@ namespace ProblemMatcherConverter {
 	}
 }
 
-namespace TaskIdentifier {
-	export function from(this: void, value: TaskIdentifier): Tasks.TaskIdentifier {
-		if (!value || !Types.isString(value.type)) {
-			return undefined;
-		}
-		const hash = crypto.createHash('md5');
-		hash.update(JSON.stringify(value));
-		let key = hash.digest('hex');
-		let result: Tasks.TaskIdentifier = {
-			_key: key,
-			type: value.type
-		};
-		result = Objects.assign(result, value);
-		return result;
-	}
-}
-
 const source: Tasks.TaskSource = {
 	kind: Tasks.TaskSourceKind.Workspace,
 	label: 'Workspace',
@@ -1213,8 +1196,9 @@ namespace ConfiguringTask {
 			context.problemReporter.error(message);
 			return undefined;
 		}
-		let identifier: TaskIdentifier;
+		let taskIdentifier: Tasks.TaskIdentifier;
 		if (Types.isString(customize)) {
+			let identifier: TaskIdentifier;
 			if (customize.indexOf(grunt) === 0) {
 				identifier = { type: 'grunt', task: customize.substring(grunt.length) } as TaskIdentifier;
 			} else if (customize.indexOf(jake) === 0) {
@@ -1226,48 +1210,15 @@ namespace ConfiguringTask {
 			} else if (customize.indexOf(typescript) === 0) {
 				identifier = { type: 'typescript', tsconfig: customize.substring(typescript.length + 6) } as TaskIdentifier;
 			}
+			if (identifier !== void 0) {
+				taskIdentifier = TaskDefinition.createTaskIdentifier(typeDeclaration, identifier, context.problemReporter);
+			}
 		} else {
-			identifier = {
-				type
-			};
-			let properties = typeDeclaration.properties;
-			let required: Set<string> = new Set();
-			if (Array.isArray(typeDeclaration.required)) {
-				typeDeclaration.required.forEach(element => Types.isString(element) ? required.add(element) : required);
-			}
-			for (let property of Object.keys(properties)) {
-				let value = external[property];
-				if (value !== void 0 && value !== null) {
-					identifier[property] = value;
-				} else if (required.has(property)) {
-					let schema = properties[property];
-					if (schema.default !== void 0) {
-						identifier[property] = Objects.deepClone(schema.default);
-					} else {
-						switch (schema.type) {
-							case 'boolean':
-								identifier[property] = false;
-								break;
-							case 'number':
-							case 'integer':
-								identifier[property] = 0;
-								break;
-							case 'string':
-								identifier[property] = '';
-								break;
-							default:
-								let message = nls.localize(
-									'ConfigurationParser.missingRequiredProperty',
-									'Error: the task configuration \'{0}\' missed the required property \'{1}\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0), property
-								);
-								context.problemReporter.error(message);
-								return undefined;
-						}
-					}
-				}
-			}
+			taskIdentifier = TaskDefinition.createTaskIdentifier(typeDeclaration, external, context.problemReporter);
 		}
-		let taskIdentifier = TaskIdentifier.from(identifier);
+		if (taskIdentifier === void 0) {
+			return undefined;
+		}
 		let configElement: Tasks.TaskSourceConfigElement = {
 			workspaceFolder: context.workspaceFolder,
 			file: '.vscode\\tasks.json',
@@ -1881,10 +1832,6 @@ export function parse(workspaceFolder: IWorkspaceFolder, platform: Platform, con
 
 export function createCustomTask(contributedTask: Tasks.ContributedTask, configuredProps: Tasks.ConfigurationProperties & { _id: string; _source: Tasks.WorkspaceTaskSource }): Tasks.CustomTask {
 	return CustomTask.createCustomTask(contributedTask, configuredProps);
-}
-
-export function getTaskIdentifier(value: TaskIdentifier): Tasks.TaskIdentifier {
-	return TaskIdentifier.from(value);
 }
 
 /*

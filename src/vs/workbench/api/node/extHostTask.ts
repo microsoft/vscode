@@ -28,8 +28,6 @@ import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumen
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-export { TaskExecutionDTO };
-
 /*
 namespace ProblemPattern {
 	export function from(value: vscode.ProblemPattern | vscode.MultiLineProblemPattern): Problems.ProblemPattern | Problems.MultiLineProblemPattern {
@@ -385,21 +383,16 @@ namespace Tasks {
 		// in shape and we don't have backwards converting function. So transfer the URI and resolve the
 		// workspace folder on the main side.
 		(source as any as tasks.ExtensionTaskSourceTransfer).__workspaceFolder = workspaceFolder ? workspaceFolder.uri as URI : undefined;
+		(source as any as tasks.ExtensionTaskSourceTransfer).__definition = task.definition;
 		let label = nls.localize('task.label', '{0}: {1}', source.label, task.name);
-		let key = (task as types.Task).definitionKey;
-		let kind = (task as types.Task).definition;
-		let id = `${extension.id}.${key}`;
-		let taskKind: tasks.TaskIdentifier = {
-			_key: key,
-			type: kind.type
-		};
-		Objects.assign(taskKind, kind);
+		// The definition id will be prefix on the main side since we compute it there.
+		let id = `${extension.id}`;
 		let result: tasks.ContributedTask = {
-			_id: id, // uuidMap.getUUID(identifier),
+			_id: id,
 			_source: source,
 			_label: label,
-			type: kind.type,
-			defines: taskKind,
+			type: task.definition.type,
+			defines: undefined,
 			name: task.name,
 			identifier: label,
 			group: task.group ? (task.group as types.TaskGroup).id : undefined,

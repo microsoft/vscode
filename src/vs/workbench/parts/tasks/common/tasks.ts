@@ -325,6 +325,7 @@ export interface ExtensionTaskSource {
 
 export interface ExtensionTaskSourceTransfer {
 	__workspaceFolder: UriComponents;
+	__definition: { type: string;[name: string]: any };
 }
 
 export interface InMemoryTaskSource {
@@ -605,8 +606,15 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, alias: string, compareId: boolean = false): boolean {
-		return alias === task._label || alias === task.identifier || (compareId && alias === task._id);
+	export function matches(task: Task, key: string | TaskIdentifier, compareId: boolean = false): boolean {
+		if (key === void 0) {
+			return false;
+		}
+		if (Types.isString(key)) {
+			return key === task._label || key === task.identifier || (compareId && key === task._id);
+		}
+		let identifier = Task.getTaskDefinition(task);
+		return identifier !== void 0 && identifier._key === key._key;
 	}
 
 	export function getQualifiedLabel(task: Task): string {

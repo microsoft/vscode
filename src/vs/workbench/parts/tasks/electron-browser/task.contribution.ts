@@ -75,12 +75,13 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter
+	TaskSorter
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
 import * as TaskConfig from '../node/taskConfiguration';
+import { TaskIdentifier } from 'vs/workbench/parts/tasks/node/tasks';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
@@ -1428,10 +1429,10 @@ class TaskService implements ITaskService {
 				// This is for backwards compatibility with the 0.1.0 task annotation code
 				// if we had a gulp, jake or grunt command a task specification was a annotation
 				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier: TaskIdentifier = TaskConfig.getTaskIdentifier({
+					let identifier = TaskIdentifier.create({
 						type: commandName,
 						task: task.name
-					} as TaskConfig.TaskIdentifier);
+					});
 					getResult()[identifier._key] = task;
 				}
 			}
