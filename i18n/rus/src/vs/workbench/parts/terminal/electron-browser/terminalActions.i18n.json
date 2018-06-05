@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Перейти к предыдущей команде",
 	"workbench.action.terminal.scrollToNextCommand": "Перейти к следующей команде",
 	"workbench.action.terminal.selectToPreviousCommand": "Выбрать предыдущую команду",
-	"workbench.action.terminal.selectToNextCommand": "Выбрать следующую команду"
+	"workbench.action.terminal.selectToNextCommand": "Выбрать следующую команду",
+	"workbench.action.terminal.selectToPreviousLine": "Выделить текст до предыдущей строки",
+	"workbench.action.terminal.selectToNextLine": "Выделить текст до следующей строки"
 }

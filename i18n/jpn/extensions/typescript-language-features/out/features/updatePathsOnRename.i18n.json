@@ -9,5 +9,6 @@
 	"prompt": "移動したファイルの import を自動的に更新しますか: '{0}'?",
 	"reject.title": "いいえ",
 	"accept.title": "はい",
-	"always.title": "はい。常に import を自動的に更新します。"
+	"always.title": "はい。常に import を自動的に更新します。",
+	"never.title": "いいえ。常に import を自動的に更新しません。"
 }

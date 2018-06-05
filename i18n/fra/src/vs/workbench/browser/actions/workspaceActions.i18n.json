@@ -14,5 +14,6 @@
 	"save": "&&Enregistrer",
 	"saveWorkspace": "Enregistrer l’espace de travail",
 	"openWorkspaceAction": "Ouvrir un espace de travail...",
-	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail"
+	"openWorkspaceConfigFile": "Ouvrir le Fichier de Configuration d’espace de travail",
+	"duplicateWorkspaceInNewWindow": "Dupliquer l'espace de travail dans une Nouvelle fenêtre"
 }

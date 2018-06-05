@@ -11,8 +11,10 @@
 	"relativeFile": "El archivo abierto actualmente relativo a ${workspaceFolder}",
 	"file": "El archivo abierto actualmente",
 	"cwd": "El directorio de trabajo del ejecutor de tarea en el arranque",
+	"lineNumber": "El número de línea seleccionado actual en el archivo activo",
 	"selectedText": "El texto actual seleccionado en el archivo activo ",
 	"fileDirname": "Nombre del directorio del archivo abierto actual",
+	"fileExtname": "Extensión de archivo abierto actual",
 	"fileBasename": "Nombre base del archivo abierto actual ",
 	"fileBasenameNoExtension": "Nombre base del archivo abierto actual sin extensión de archivo ",
 	"exampleExtension": "Ejemplo"

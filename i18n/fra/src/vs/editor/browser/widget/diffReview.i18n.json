@@ -8,6 +8,7 @@
 	],
 	"label.close": "Fermer",
 	"no_lines": "aucune ligne",
+	"one_line": "1 ligne",
 	"more_lines": "{0} lignes",
 	"header": "Différence {0} sur {1} : original {2}, {3}, modifié {4}, {5}",
 	"blankLine": "vide",
