@@ -31,7 +31,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
@@ -43,6 +43,7 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { asDisposablePromise } from 'vs/base/common/async';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 
 class RequestState {
 
@@ -206,6 +207,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
 	private _input: InputBox;
+	private _progressBar: ProgressBar;
 	private _tree: WorkbenchTree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
@@ -244,8 +246,16 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		this._message = dom.$('.outline-message');
 		this._inputContainer = dom.$('.outline-input');
+
+		let progressContainer = dom.$('.outline-progress');
+		this._progressBar = new ProgressBar(progressContainer);
+		this.disposables.push(attachProgressBarStyler(this._progressBar, this._themeService));
+
 		let treeContainer = dom.$('.outline-tree');
-		dom.append(container, this._message, this._inputContainer, treeContainer);
+		dom.append(
+			container,
+			this._message, this._inputContainer, progressContainer, treeContainer
+		);
 
 		this._input = new InputBox(this._inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
@@ -363,6 +373,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	private _showMessage(message: string) {
 		dom.addClass(this._domNode, 'message');
+		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
 	}
 
@@ -372,11 +383,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._editorDisposables = new Array();
 		this._input.disable();
 		this._input.value = '';
+		this._progressBar.infinite().show(150);
 
 		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
-
 
 		let textModel = editor.getModel();
 		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
@@ -390,6 +401,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
 		}
 
+		this._progressBar.stop().hide();
 		dom.removeClass(this._domNode, 'message');
 		let oldModel = <OutlineModel>this._tree.getInput();
 
