@@ -515,7 +515,7 @@ export class CodeWindow implements ICodeWindow {
 		// pendingLoadConfig so that it is applied only on this load
 		const configuration = objects.assign({}, config);
 		if (disableExtensions !== undefined) {
-			configuration['disable-extensions'] = disableExtensions['disable-extensions'];
+			configuration['disable-extensions'] = disableExtensions;
 		}
 
 		// Clear Document Edited if needed
