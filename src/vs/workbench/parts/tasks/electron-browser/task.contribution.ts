@@ -138,6 +138,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const infoIcon = document.createElement('div');
 		const error = document.createElement('div');
 		const warning = document.createElement('div');
+		const noProblems = document.createElement('div');
 		const info = document.createElement('div');
 		const building = document.createElement('div');
 
@@ -155,21 +156,28 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		Dom.addClass(errorIcon, 'mask-icon');
 		label.appendChild(errorIcon);
 		this.icons.push(errorIcon);
+		Dom.hide(errorIcon);
 
 		Dom.addClass(error, 'task-statusbar-item-label-counter');
 		error.innerHTML = '0';
 		error.title = errorIcon.title = errorTitle(0);
 		label.appendChild(error);
+		Dom.hide(error);
 
 		Dom.addClass(warningIcon, 'task-statusbar-item-label-warning');
 		Dom.addClass(warningIcon, 'mask-icon');
 		label.appendChild(warningIcon);
 		this.icons.push(warningIcon);
+		Dom.hide(warningIcon);
 
 		Dom.addClass(warning, 'task-statusbar-item-label-counter');
 		warning.innerHTML = '0';
 		warning.title = warningIcon.title = warningTitle(0);
 		label.appendChild(warning);
+		Dom.hide(warning);
+
+		noProblems.innerHTML = 'No Problems';
+		label.appendChild(noProblems);
 
 		Dom.addClass(infoIcon, 'task-statusbar-item-label-info');
 		Dom.addClass(infoIcon, 'mask-icon');
@@ -198,18 +206,33 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		const manyProblems = nls.localize('manyProblems', "10K+");
 		const packNumber = n => n > 9999 ? manyProblems : n > 999 ? n.toString().charAt(0) + 'K' : n.toString();
 		let updateLabel = (stats: MarkerStatistics) => {
-			error.innerHTML = packNumber(stats.errors);
-			error.title = errorIcon.title = errorTitle(stats.errors);
-			warning.innerHTML = packNumber(stats.warnings);
-			warning.title = warningIcon.title = warningTitle(stats.warnings);
-			if (stats.infos > 0) {
-				info.innerHTML = packNumber(stats.infos);
-				info.title = infoIcon.title = infoTitle(stats.infos);
-				Dom.show(info);
-				Dom.show(infoIcon);
-			} else {
-				Dom.hide(info);
-				Dom.hide(infoIcon);
+			const hasNoErrorsAndWarnings = stats.errors === 0 && stats.warnings === 0;
+			if (hasNoErrorsAndWarnings) {
+				Dom.hide(error);
+				Dom.hide(errorIcon);
+				Dom.hide(warning);
+				Dom.hide(warningIcon);
+				Dom.show(noProblems);
+			}
+			else {
+				error.innerHTML = packNumber(stats.errors);
+				error.title = errorIcon.title = errorTitle(stats.errors);
+				warning.innerHTML = packNumber(stats.warnings);
+				warning.title = warningIcon.title = warningTitle(stats.warnings);
+				Dom.hide(noProblems);
+				Dom.show(error);
+				Dom.show(errorIcon);
+				Dom.show(warning);
+				Dom.show(warningIcon);
+				if (stats.infos > 0) {
+					info.innerHTML = packNumber(stats.infos);
+					info.title = infoIcon.title = infoTitle(stats.infos);
+					Dom.show(info);
+					Dom.show(infoIcon);
+				} else {
+					Dom.hide(info);
+					Dom.hide(infoIcon);
+				}
 			}
 		};
 
