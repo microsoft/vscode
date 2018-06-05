@@ -272,7 +272,7 @@ export abstract class ViewsViewlet extends PanelViewlet implements IViewsViewlet
 			const panel = this.createView(viewDescriptor,
 				{
 					id: viewDescriptor.id,
-					name: viewDescriptor.name,
+					title: viewDescriptor.name,
 					actionRunner: this.getActionRunner(),
 					expanded: !collapsed,
 					viewletSettings: this.viewletSettings

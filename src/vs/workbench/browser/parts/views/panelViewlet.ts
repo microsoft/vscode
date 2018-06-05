@@ -38,7 +38,7 @@ export interface IPanelColors extends IColorMapping {
 export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
 	id: string;
-	name: string;
+	title: string;
 }
 
 export abstract class ViewletPanel extends Panel {
@@ -68,7 +68,7 @@ export abstract class ViewletPanel extends Panel {
 		super(options);
 
 		this.id = options.id;
-		this.title = options.name;
+		this.title = options.title;
 		this.actionRunner = options.actionRunner;
 	}
 

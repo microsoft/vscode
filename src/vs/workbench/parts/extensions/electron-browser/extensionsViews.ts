@@ -60,12 +60,12 @@ export class ExtensionsListView extends ViewletPanel {
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {
 		const titleDiv = append(container, $('div.title'));
-		append(titleDiv, $('span')).textContent = this.options.name;
+		append(titleDiv, $('span')).textContent = this.options.title;
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);

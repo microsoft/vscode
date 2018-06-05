@@ -49,7 +49,7 @@ export class CustomTreeViewPanel extends ViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewsService viewsService: IViewsService,
 	) {
-		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		this.treeViewer = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id)).treeViewer;
 		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
 		this.menus = this.instantiationService.createInstance(TitleMenus, this.id);
