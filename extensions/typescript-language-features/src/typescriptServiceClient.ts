@@ -618,7 +618,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	public normalizePath(resource: Uri): string | null {
+	public normalizedPath(resource: Uri): string | null {
 		if (this._apiVersion.gte(API.v213)) {
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
@@ -640,11 +640,15 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
+	public toPath(resource: Uri): string | null {
+		return this.normalizedPath(resource);
+	}
+
 	private get inMemoryResourcePrefix(): string {
 		return this._apiVersion.gte(API.v270) ? '^' : '';
 	}
 
-	public asUrl(filepath: string): Uri {
+	public toResource(filepath: string): Uri {
 		if (this._apiVersion.gte(API.v213)) {
 			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 			) {
@@ -851,7 +855,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
-						resource: this.asUrl(diagnosticEvent.body.file),
+						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
 				}

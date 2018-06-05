@@ -89,7 +89,7 @@ export default class TypeScriptServiceClientHost {
 			}
 		}, null, this.disposables);
 
-		this.versionStatus = new VersionStatus(resource => this.client.normalizePath(resource));
+		this.versionStatus = new VersionStatus(resource => this.client.toPath(resource));
 		this.disposables.push(this.versionStatus);
 
 		this.typingsStatus = new TypingsStatus(this.client);
@@ -211,12 +211,12 @@ export default class TypeScriptServiceClientHost {
 			return;
 		}
 
-		(this.findLanguage(this.client.asUrl(body.configFile))).then(language => {
+		(this.findLanguage(this.client.toResource(body.configFile))).then(language => {
 			if (!language) {
 				return;
 			}
 			if (body.diagnostics.length === 0) {
-				language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), []);
+				language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), []);
 			} else if (body.diagnostics.length >= 1) {
 				workspace.openTextDocument(Uri.file(body.configFile)).then((document) => {
 					let curly: [number, number, number] | undefined = undefined;
@@ -246,10 +246,10 @@ export default class TypeScriptServiceClientHost {
 					}
 					if (diagnostic) {
 						diagnostic.source = language.diagnosticSource;
-						language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [diagnostic]);
+						language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [diagnostic]);
 					}
 				}, _error => {
-					language.configFileDiagnosticsReceived(this.client.asUrl(body.configFile), [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
+					language.configFileDiagnosticsReceived(this.client.toResource(body.configFile), [new Diagnostic(new Range(0, 0, 0, 0), body.diagnostics[0].text)]);
 				});
 			}
 		});

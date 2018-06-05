@@ -11,8 +11,25 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 
 export interface ITypeScriptServiceClient {
-	normalizePath(resource: Uri): string | null;
-	asUrl(filepath: string): Uri;
+	/**
+	 * Convert a resource (VS Code) to a normalized path (TypeScript).
+	 *
+	 * Does not try handling case insensitivity.
+	 */
+	normalizedPath(resource: Uri): string | null;
+
+	/**
+	 * Map a resource to a normalized path
+	 *
+	 * This will attempt to handle case insensitivity.
+	 */
+	toPath(resource: Uri): string | null;
+
+	/**
+	 * Convert a path to a resource.
+	 */
+	toResource(filepath: string): Uri;
+
 	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
 	onTsServerStarted: Event<API>;

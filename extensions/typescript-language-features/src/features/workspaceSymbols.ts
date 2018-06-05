@@ -35,7 +35,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			return [];
 		}
 
-		const filepath = this.client.normalizePath(uri);
+		const filepath = this.client.toPath(uri);
 		if (!filepath) {
 			return [];
 		}
@@ -56,7 +56,7 @@ class TypeScriptWorkspaceSymbolProvider implements vscode.WorkspaceSymbolProvide
 			}
 			const label = TypeScriptWorkspaceSymbolProvider.getLabel(item);
 			result.push(new vscode.SymbolInformation(label, getSymbolKind(item), item.containerName || '',
-				typeConverters.Location.fromTextSpan(this.client.asUrl(item.file), item)));
+				typeConverters.Location.fromTextSpan(this.client.toResource(item.file), item)));
 		}
 		return result;
 	}

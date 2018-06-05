@@ -20,7 +20,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 		newName: string,
 		token: vscode.CancellationToken
 	): Promise<vscode.WorkspaceEdit | null> {
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return null;
 		}
@@ -55,7 +55,7 @@ class TypeScriptRenameProvider implements vscode.RenameProvider {
 	) {
 		const result = new vscode.WorkspaceEdit();
 		for (const spanGroup of locations) {
-			const resource = this.client.asUrl(spanGroup.file);
+			const resource = this.client.toResource(spanGroup.file);
 			if (resource) {
 				for (const textSpan of spanGroup.locs) {
 					result.replace(resource, typeConverters.Range.fromTextSpan(textSpan), newName);

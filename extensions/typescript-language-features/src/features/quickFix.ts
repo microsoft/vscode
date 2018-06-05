@@ -184,7 +184,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			return [];
 		}
 
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return [];
 		}

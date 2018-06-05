@@ -64,7 +64,7 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 	}
 
 	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
-		const filepath = this.client.normalizePath(document.uri);
+		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return [];
 		}

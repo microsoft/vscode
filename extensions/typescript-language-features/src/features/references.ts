@@ -19,7 +19,7 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 		options: vscode.ReferenceContext,
 		token: vscode.CancellationToken
 	): Promise<vscode.Location[]> {
-		const filepath = this.client.normalizePath(document.uri);
+		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return [];
 		}
@@ -36,7 +36,7 @@ class TypeScriptReferenceSupport implements vscode.ReferenceProvider {
 				if (!options.includeDeclaration && has203Features && ref.isDefinition) {
 					continue;
 				}
-				const url = this.client.asUrl(ref.file);
+				const url = this.client.toResource(ref.file);
 				const location = typeConverters.Location.fromTextSpan(url, ref);
 				result.push(location);
 			}

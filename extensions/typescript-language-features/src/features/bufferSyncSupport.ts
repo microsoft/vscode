@@ -77,14 +77,9 @@ class SyncedBuffer {
 	}
 
 	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		const filePath = this.client.normalizePath(this.document.uri);
-		if (!filePath) {
-			return;
-		}
-
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
-				file: filePath,
+				file: this.filepath,
 				line: range.start.line + 1,
 				offset: range.start.character + 1,
 				endLine: range.end.line + 1,
@@ -166,7 +161,7 @@ export default class BufferSyncSupport {
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizePath(path));
+		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizedPath(path));
 	}
 
 	private readonly _onDelete = new EventEmitter<Uri>();
@@ -203,7 +198,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 		const resource = document.uri;
-		const filepath = this.client.normalizePath(resource);
+		const filepath = this.client.normalizedPath(resource);
 		if (!filepath) {
 			return;
 		}
@@ -237,12 +232,14 @@ export default class BufferSyncSupport {
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
-		if (syncedBuffer) {
-			syncedBuffer.onContentChanged(e.contentChanges);
-			if (this.pendingGetErr) {
-				this.pendingGetErr.token.cancel();
-				this.pendingGetErr = undefined;
-			}
+		if (!syncedBuffer) {
+			return;
+		}
+
+		syncedBuffer.onContentChanged(e.contentChanges);
+		if (this.pendingGetErr) {
+			this.pendingGetErr.token.cancel();
+			this.pendingGetErr = undefined;
 		}
 	}
 
@@ -265,7 +262,7 @@ export default class BufferSyncSupport {
 		}
 
 		for (const resource of handledResources) {
-			const file = this.client.normalizePath(resource);
+			const file = this.client.normalizedPath(resource);
 			if (file) {
 				this.pendingDiagnostics.set(file, Date.now());
 			}
@@ -281,7 +278,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 
-		const file = this.client.normalizePath(resource);
+		const file = this.client.normalizedPath(resource);
 		if (!file) {
 			return;
 		}
@@ -299,7 +296,7 @@ export default class BufferSyncSupport {
 	}
 
 	public hasPendingDiagnostics(resource: Uri): boolean {
-		const file = this.client.normalizePath(resource);
+		const file = this.client.normalizedPath(resource);
 		return !file || this.pendingDiagnostics.has(file);
 	}
 

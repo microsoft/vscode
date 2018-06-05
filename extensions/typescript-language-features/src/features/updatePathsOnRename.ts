@@ -54,12 +54,12 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		const newFile = this.client.normalizePath(newResource);
+		const newFile = this.client.toPath(newResource);
 		if (!newFile) {
 			return;
 		}
 
-		const oldFile = this.client.normalizePath(oldResource);
+		const oldFile = this.client.toPath(oldResource);
 		if (!oldFile) {
 			return;
 		}

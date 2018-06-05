@@ -21,7 +21,7 @@ class TypeScriptHoverProvider implements vscode.HoverProvider {
 		position: vscode.Position,
 		token: vscode.CancellationToken
 	): Promise<vscode.Hover | undefined> {
-		const filepath = this.client.normalizePath(document.uri);
+		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return undefined;
 		}
