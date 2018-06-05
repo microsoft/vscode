@@ -4,19 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
+import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import * as typeConverters from '../utils/typeConverters';
-import FileConfigurationManager from './fileConfigurationManager';
-import { getEditForCodeAction, applyCodeActionCommands } from '../utils/codeAction';
-import { Command, CommandManager } from '../utils/commandManager';
-import { DiagnosticsManager } from './diagnostics';
-import BufferSyncSupport from './bufferSyncSupport';
-
-import * as nls from 'vscode-nls';
-import TelemetryReporter from '../utils/telemetry';
 import API from '../utils/api';
+import { applyCodeActionCommands, getEditForCodeAction } from '../utils/codeAction';
+import { Command, CommandManager } from '../utils/commandManager';
+import TelemetryReporter from '../utils/telemetry';
+import * as typeConverters from '../utils/typeConverters';
+import { DiagnosticsManager } from './diagnostics';
+import FileConfigurationManager from './fileConfigurationManager';
+
 const localize = nls.loadMessageBundle();
 
 class ApplyCodeActionCommand implements Command {
@@ -165,7 +163,6 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 		private readonly formattingConfigurationManager: FileConfigurationManager,
 		commandManager: CommandManager,
 		private readonly diagnosticsManager: DiagnosticsManager,
-		private readonly bufferSyncSupport: BufferSyncSupport,
 		telemetryReporter: TelemetryReporter
 	) {
 		commandManager.register(new ApplyCodeActionCommand(client, telemetryReporter));
@@ -194,7 +191,7 @@ class TypeScriptQuickFixProvider implements vscode.CodeActionProvider {
 			return [];
 		}
 
-		if (this.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
+		if (this.client.bufferSyncSupport.hasPendingDiagnostics(document.uri)) {
 			return [];
 		}
 
@@ -291,9 +288,8 @@ export function register(
 	fileConfigurationManager: FileConfigurationManager,
 	commandManager: CommandManager,
 	diagnosticsManager: DiagnosticsManager,
-	bufferSyncSupport: BufferSyncSupport,
 	telemetryReporter: TelemetryReporter
 ) {
 	return vscode.languages.registerCodeActionsProvider(selector,
-		new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, bufferSyncSupport, telemetryReporter));
+		new TypeScriptQuickFixProvider(client, fileConfigurationManager, commandManager, diagnosticsManager, telemetryReporter));
 }

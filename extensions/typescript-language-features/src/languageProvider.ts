@@ -7,9 +7,6 @@ import * as vscode from 'vscode';
 import { basename } from 'path';
 
 import TypeScriptServiceClient from './typescriptServiceClient';
-
-import BufferSyncSupport from './features/bufferSyncSupport';
-
 import TypingsStatus from './utils/typingsStatus';
 import FileConfigurationManager from './features/fileConfigurationManager';
 import { CommandManager } from './utils/commandManager';
@@ -41,10 +38,9 @@ export default class LanguageProvider {
 		private readonly commandManager: CommandManager,
 		private readonly telemetryReporter: TelemetryReporter,
 		private readonly typingsStatus: TypingsStatus,
-		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly bufferSyncSupport: BufferSyncSupport,
+		private readonly fileConfigurationManager: FileConfigurationManager
 	) {
-		this.bufferSyncSupport.onDelete(resource => {
+		this.client.bufferSyncSupport.onDelete(resource => {
 			this.diagnosticsManager.delete(resource);
 		}, null, this.disposables);
 
@@ -57,7 +53,7 @@ export default class LanguageProvider {
 			await this.registerProviders();
 		});
 
-		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.bufferSyncSupport, this.fileConfigurationManager, async uri => {
+		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.fileConfigurationManager, async uri => {
 			try {
 				const doc = await vscode.workspace.openTextDocument(uri);
 				return this.handles(uri, doc);
@@ -102,7 +98,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/implementationsCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
 		this.disposables.push((await import('./features/jsDocCompletions')).register(selector, this.client, this.commandManager));
 		this.disposables.push((await import('./features/organizeImports')).register(selector, this.client, this.commandManager, this.fileConfigurationManager));
-		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.diagnosticsManager, this.bufferSyncSupport, this.telemetryReporter));
+		this.disposables.push((await import('./features/quickFix')).register(selector, this.client, this.fileConfigurationManager, this.commandManager, this.diagnosticsManager, this.telemetryReporter));
 		this.disposables.push((await import('./features/refactor')).register(selector, this.client, this.fileConfigurationManager, this.commandManager));
 		this.disposables.push((await import('./features/references')).register(selector, this.client));
 		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
@@ -123,7 +119,7 @@ export default class LanguageProvider {
 			return true;
 		}
 
-		if (this.bufferSyncSupport.handles(resource)) {
+		if (this.client.bufferSyncSupport.handles(resource)) {
 			return true;
 		}
 
@@ -167,7 +163,7 @@ export default class LanguageProvider {
 	}
 
 	public triggerAllDiagnostics(): void {
-		this.bufferSyncSupport.requestAllDiagnostics();
+		this.client.bufferSyncSupport.requestAllDiagnostics();
 	}
 
 	public diagnosticsReceived(diagnosticsKind: DiagnosticKind, file: vscode.Uri, diagnostics: (vscode.Diagnostic & { reportUnnecessary: any })[]): void {

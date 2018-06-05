@@ -31,6 +31,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
+import BufferSyncSupport from './features/bufferSyncSupport';
 
 const localize = nls.loadMessageBundle();
 
@@ -198,11 +199,14 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	private readonly disposables: Disposable[] = [];
 
+	public readonly bufferSyncSupport: BufferSyncSupport;
+
 	constructor(
 		private readonly workspaceState: Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
-		private readonly logDirectoryProvider: LogDirectoryProvider
+		private readonly logDirectoryProvider: LogDirectoryProvider,
+		allModeIds: string[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -226,6 +230,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 		this.tracer = new Tracer(this.logger);
+
+		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
+		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
 		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
@@ -265,6 +272,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public dispose() {
+		this.bufferSyncSupport.dispose();
 		this._onTsServerStarted.dispose();
 		this._onDidBeginInstallTypings.dispose();
 		this._onDidEndInstallTypings.dispose();
@@ -303,9 +311,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	get onTsServerStarted(): Event<API> {
 		return this._onTsServerStarted.event;
 	}
-
-	private readonly _onProjectUpdatedInBackground = new EventEmitter<Proto.ProjectsUpdatedInBackgroundEventBody>();
-	public readonly onProjectUpdatedInBackground = this._onProjectUpdatedInBackground.event;
 
 	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
 	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
@@ -663,7 +668,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				return resource;
 			}
 		}
-		return Uri.file(filepath);
+		const resource = Uri.file(filepath);
+
+		return resource;
 	}
 
 	public getWorkspaceRootForResource(resource: Uri): string | undefined {
@@ -878,7 +885,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 			case 'projectsUpdatedInBackground':
 				if (event.body) {
-					this._onProjectUpdatedInBackground.fire((event as Proto.ProjectsUpdatedInBackgroundEvent).body);
+					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
+					const resources = body.openFiles.map(Uri.file);
+					this.bufferSyncSupport.getErr(resources);
 				}
 				break;
 

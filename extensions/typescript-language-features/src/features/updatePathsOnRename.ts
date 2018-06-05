@@ -8,11 +8,10 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
-import BufferSyncSupport from './bufferSyncSupport';
 import FileConfigurationManager from './fileConfigurationManager';
-import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -29,7 +28,6 @@ export class UpdateImportsOnFileRenameHandler {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly bufferSyncSupport: BufferSyncSupport,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
@@ -73,8 +71,8 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.bufferSyncSupport.closeResource(oldResource);
-		this.bufferSyncSupport.openTextDocument(document);
+		this.client.bufferSyncSupport.closeResource(oldResource);
+		this.client.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
 		if (!edits || !edits.size) {
