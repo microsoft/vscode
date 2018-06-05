@@ -708,15 +708,9 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolInformation2: class extends extHostTypes.SymbolInformation2 {
-				constructor(name, detail, kind, range, location) {
+				constructor(name, kind, containerName, location) {
 					checkProposedApiEnabled(extension);
-					super(name, detail, kind, range, location);
-				}
-			},
-			Hierarchy: class <T> extends extHostTypes.Hierarchy<T> {
-				constructor(parent: T) {
-					checkProposedApiEnabled(extension);
-					super(parent);
+					super(name, kind, containerName, location);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,

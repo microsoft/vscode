@@ -418,20 +418,13 @@ declare module 'vscode' {
 
 	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
 
-	export class Hierarchy<T> {
-		parent: T;
-		children: Hierarchy<T>[];
-		constructor(element: T);
-	}
-
 	export class SymbolInformation2 extends SymbolInformation {
-		detail: string;
-		range: Range;
-		constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location);
+		definingRange: Range;
+		children: SymbolInformation2[];
 	}
 
 	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | Hierarchy<SymbolInformation>[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | SymbolInformation2[]>;
 	}
 
 	//#endregion

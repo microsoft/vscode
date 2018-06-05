@@ -882,25 +882,15 @@ export class SymbolInformation {
 }
 
 export class SymbolInformation2 extends SymbolInformation {
+	definingRange: Range;
+	children: SymbolInformation2[];
+	constructor(name: string, kind: SymbolKind, containerName: string, location: Location) {
+		super(name, kind, containerName, location);
 
-	detail: string;
-	range: Range;
-
-	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
-		super(name, kind, undefined, location);
-		this.detail = detail;
-		this.range = range;
-	}
-}
-
-export class Hierarchy<T> {
-	parent: T;
-	children: Hierarchy<T>[];
-
-	constructor(parent: T) {
-		this.parent = parent;
 		this.children = [];
+		this.definingRange = location.range;
 	}
+
 }
 
 export enum CodeActionTrigger {

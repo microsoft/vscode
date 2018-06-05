@@ -51,7 +51,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 					// The root represents the file. Ignore this when showing in the UI
 					const tree = response.body;
 					if (tree.childItems) {
-						const result = new Array<vscode.Hierarchy<vscode.SymbolInformation2>>();
+						const result = new Array<vscode.SymbolInformation2>();
 						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 						return result;
 					}
@@ -89,27 +89,25 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		}
 	}
 
-	private static convertNavTree(resource: vscode.Uri, bucket: vscode.Hierarchy<vscode.SymbolInformation>[], item: Proto.NavigationTree): boolean {
+	private static convertNavTree(resource: vscode.Uri, bucket: vscode.SymbolInformation[], item: Proto.NavigationTree): boolean {
 		const symbolInfo = new vscode.SymbolInformation2(
 			item.text,
-			'', // todo@joh detail
 			getSymbolKind(item.kind),
-			typeConverters.Range.fromTextSpan(item.spans[0]),
+			'', // no container name
 			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
 		);
 
-		const hierarchy = new vscode.Hierarchy(symbolInfo);
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);
 
 		if (item.childItems) {
 			for (const child of item.childItems) {
-				const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, hierarchy.children, child);
+				const includedChild = TypeScriptDocumentSymbolProvider.convertNavTree(resource, symbolInfo.children, child);
 				shouldInclude = shouldInclude || includedChild;
 			}
 		}
 
 		if (shouldInclude) {
-			bucket.push(hierarchy);
+			bucket.push(symbolInfo);
 		}
 		return shouldInclude;
 	}
