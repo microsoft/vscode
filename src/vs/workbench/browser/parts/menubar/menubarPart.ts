@@ -17,7 +17,7 @@ import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND } from 'vs/workbench/common/theme';
+import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
@@ -26,6 +26,8 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
+import { Color } from 'vs/base/common/color';
+import { isFullscreen } from 'vs/base/browser/browser';
 
 interface CustomMenu {
 	title: string;
@@ -37,6 +39,7 @@ export class MenubarPart extends Part {
 
 	private keys = [
 		'files.autoSave',
+		'window.menuBarVisibility',
 		// 'editor.multiCursorModifier',
 		// 'workbench.sideBar.location',
 		// 'workbench.statusBar.visible',
@@ -463,6 +466,25 @@ export class MenubarPart extends Part {
 			holder: menuHolder,
 			widget: menuWidget
 		};
+	}
+
+	updateStyles(): void {
+		super.updateStyles();
+
+		// Part container
+		if (this.container) {
+			const fgColor = this.getColor(TITLE_BAR_ACTIVE_FOREGROUND);
+			const bgColor = this.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
+
+			this.container.style('color', fgColor);
+			if (isFullscreen()) {
+				this.container.style('background-color', bgColor);
+			} else {
+				this.container.style('background-color', null);
+			}
+
+			this.container.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
+		}
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {

@@ -12,6 +12,13 @@
 	margin-left: 35px;
 }
 
+.monaco-workbench.fullscreen > .part.menubar {
+	position: absolute;
+	width: 100%;
+	margin: 0px;
+	padding: 0px 5px;
+}
+
 .monaco-workbench > .part.menubar > .menubar-menu-button {
 	display: flex;
 	align-items: center;

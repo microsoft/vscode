@@ -169,6 +169,7 @@ interface IZenMode {
 export class Workbench extends Disposable implements IPartService {
 
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
+	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
@@ -218,6 +219,7 @@ export class Workbench extends Disposable implements IPartService {
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
+	private menubarHidden: boolean;
 	private zenMode: IZenMode;
 	private centeredEditorLayoutActive: boolean;
 	private fontAliasing: FontAliasingOption;
@@ -500,6 +502,8 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		}
 
+		this.menubarPart.updateStyles();
+
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
 		if (hasCustomTitle) {
@@ -565,6 +569,9 @@ export class Workbench extends Disposable implements IPartService {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
 		}
+
+		const newMenubarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
+		this.setMenubarHidden(newMenubarVisibility, skipLayout);
 	}
 
 	//#endregion
@@ -828,6 +835,10 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Panel position
 		this.setPanelPositionFromStorageOrConfig();
+
+		// Menubar visibility
+		const menuBarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
+		this.setMenubarHidden(menuBarVisibility, true);
 
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
@@ -1167,7 +1178,7 @@ export class Workbench extends Disposable implements IPartService {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
+				return !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1459,6 +1470,14 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		this.workbenchLayout.layout();
+	}
+
+	setMenubarHidden(visibility: string, skipLayout: boolean): void {
+		this.menubarHidden = !(visibility === 'visible' || (visibility === 'default' && !browser.isFullscreen()));
+
+		if (!skipLayout) {
+			this.workbenchLayout.layout();
+		}
 	}
 
 	getPanelPosition(): Position {
