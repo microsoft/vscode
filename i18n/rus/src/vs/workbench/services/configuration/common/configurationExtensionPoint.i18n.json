@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "Добавляет параметры конфигурации.",
 	"invalid.title": "configuration.title должно быть строкой",
 	"invalid.properties": "configuration.properties должно быть объектом",
+	"invalid.property": "Параметр 'configuration.property' должен быть объектом",
 	"invalid.allOf": "Параметр 'configuration.allOf' является устаревшим, и использовать его не рекомендуется. Вместо этого передайте несколько параметров в виде массива в точку вклада 'configuration'.",
 	"workspaceConfig.folders.description": "Список папок, которые будут загружены в рабочую область.",
 	"workspaceConfig.path.description": "Путь к файлу, например, \"/root/folderA\" или \"./folderA\" для пути по отношению к файлу рабочей области.",

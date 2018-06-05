@@ -18,7 +18,11 @@
 	"issueTitleRequired": "Veuillez s’il vous plaît entrer un titre.",
 	"titleLengthValidation": "Le titre est trop long.",
 	"details": "Veuillez saisir les détails ",
+	"sendSystemInfo": "Inclure des informations sur mon système ({0})",
 	"show": "afficher",
+	"sendProcessInfo": "Inclure mes processus en cours d’exécution ({0})",
+	"sendWorkspaceInfo": "Inclure des metadonnées sur mon espace de travail ({0})",
+	"sendExtensions": "Inclure mes extensions activées ({0})",
 	"sendSearchedExtensions": "Envoyer les extensions recherchées ({0})",
 	"sendSettingsSearchDetails": " Envoyer les paramètres des critères de recherche ({0}) "
 }

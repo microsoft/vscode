@@ -145,6 +145,7 @@
 	"miConditionalBreakpoint": "Punto de interrupción &&condicional...",
 	"miInlineBreakpoint": "Punt&&o de interrupción en línea",
 	"miFunctionBreakpoint": "Punto de interrupción de &&función...",
+	"miLogPoint": "&&Punto de registro",
 	"miNewBreakpoint": "&&Nuevo punto de interrupción",
 	"miEnableAllBreakpoints": "Habilitar todos los puntos de interrupción",
 	"miDisableAllBreakpoints": "&&Deshabilitar todos los puntos de interrupción",

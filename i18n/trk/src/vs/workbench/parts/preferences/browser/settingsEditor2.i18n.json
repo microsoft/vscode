@@ -10,5 +10,6 @@
 	"SearchSettings.AriaLabel": "Ayarları ara",
 	"SearchSettings.Placeholder": "Ayarları ara",
 	"advancedCustomizationLabel": "Gelişmiş özelleştirmeler için açın ve düzenleyin:",
+	"openSettingsLabel": "settings.json",
 	"treeAriaLabel": "Ayarlar"
 }

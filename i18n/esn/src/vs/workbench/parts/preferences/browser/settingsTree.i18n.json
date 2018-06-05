@@ -9,6 +9,11 @@
 	"modifiedItemForeground": "Color de primer plano para un ajuste modificado.",
 	"workspace": "Área de trabajo",
 	"user": "Usuario",
+	"resetButtonTitle": "restablecer",
 	"configured": "Modificado",
-	"settingRowAriaLabel": "{0} {1}, Configuración"
+	"alsoConfiguredIn": "Modificado también en",
+	"configuredIn": "Modificado en",
+	"editInSettingsJson": "Editar en settings.json",
+	"settingRowAriaLabel": "{0} {1}, Configuración",
+	"groupRowAriaLabel": "{0}, grupo"
 }

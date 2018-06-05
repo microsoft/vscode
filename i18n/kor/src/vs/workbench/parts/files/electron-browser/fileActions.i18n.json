@@ -43,6 +43,7 @@
 	"confirmDeleteMessageMultiple": "다음 {0}개 파일을 영구히 삭제하시겠습니까?",
 	"confirmDeleteMessageFolder": "'{0}'과(와) 해당 내용을 영구히 삭제할까요?",
 	"confirmDeleteMessageFile": "'{0}'을(를) 영구히 삭제할까요?",
+	"addFiles": "파일 추가",
 	"confirmOverwrite": "이름이 같은 파일 또는 폴더가 대상 폴더에 이미 있습니다. 덮어쓸까요?",
 	"replaceButtonLabel": "바꾸기(&&R)",
 	"fileIsAncestor": "붙여 넣을 파일이 대상 폴더의 상위 항목입니다.",
