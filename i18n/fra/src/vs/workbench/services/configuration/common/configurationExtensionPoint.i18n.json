@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "Ajoute des paramètres de configuration.",
 	"invalid.title": "'configuration.title' doit être une chaîne",
 	"invalid.properties": "'configuration.properties' doit être un objet",
+	"invalid.property": "'configuration.property' doit être un objet",
 	"invalid.allOf": "'configuration.allOf' est obsolète et ne doit plus être utilisé. Au lieu de cela, passez plusieurs sections de configuration sous forme de tableau au point de contribution 'configuration'.",
 	"workspaceConfig.folders.description": "Liste des dossiers à être chargés dans l’espace de travail.",
 	"workspaceConfig.path.description": "Un chemin de fichier, par exemple, '/root/folderA' ou './folderA' pour un chemin relatif résolu selon l’emplacement du fichier d’espace de travail.",

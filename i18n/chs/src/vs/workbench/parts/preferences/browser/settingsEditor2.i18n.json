@@ -13,5 +13,6 @@
 	"advancedCustomizationLabel": "高级自定义请打开和编辑",
 	"openSettingsLabel": "settings.json",
 	"showOverriddenOnly": "仅显示已修改项",
-	"treeAriaLabel": "设置"
+	"treeAriaLabel": "设置",
+	"feedbackButtonLabel": "提供反馈"
 }

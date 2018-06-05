@@ -30,5 +30,6 @@
 	"search.quickOpen.includeSymbols": "設定以將全域符號搜尋的結果納入 Quick Open 的檔案結果中。",
 	"search.followSymlinks": "控制是否要在搜尋時遵循 symlink。",
 	"search.smartCase": "如果搜尋式為全部小寫，則用不分大小寫的搜尋，否則用分大小寫的搜尋",
-	"search.globalFindClipboard": "控制搜尋檢視是否應讀取或修改 macOS 上的共用尋找剪貼簿 (shared find clipboard)"
+	"search.globalFindClipboard": "控制搜尋檢視是否應讀取或修改 macOS 上的共用尋找剪貼簿 (shared find clipboard)",
+	"search.location": "控制搜尋是否以檢視方式在側邊欄顯示，或以面板方式在面板區域顯示以取得更多水平空間。"
 }

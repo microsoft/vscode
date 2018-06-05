@@ -14,5 +14,6 @@
 	"save": "저장(&&S)",
 	"saveWorkspace": "작업 영역 저장",
 	"openWorkspaceAction": "작업 영역 열기...",
-	"openWorkspaceConfigFile": "작업 영역 구성 파일 열기"
+	"openWorkspaceConfigFile": "작업 영역 구성 파일 열기",
+	"duplicateWorkspaceInNewWindow": "새 창에 작업 영역 복제"
 }

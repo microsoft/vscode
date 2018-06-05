@@ -143,6 +143,7 @@
 	"miContinue": "&&Continua",
 	"miToggleBreakpoint": "Attiva/Disattiva &&punto di interruzione",
 	"miConditionalBreakpoint": "Punto di interruzione &&condizionale...",
+	"miInlineBreakpoint": "P&&unto di interruzione in linea",
 	"miFunctionBreakpoint": "Punto di interruzione &&funzione...",
 	"miLogPoint": "&&Punto di registrazione...",
 	"miNewBreakpoint": "&&Nuovo punto di interruzione",

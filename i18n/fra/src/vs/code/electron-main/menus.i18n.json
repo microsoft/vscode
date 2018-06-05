@@ -143,6 +143,7 @@
 	"miContinue": "&&Continuer",
 	"miToggleBreakpoint": "Activer/désactiver le poi&&nt d'arrêt",
 	"miConditionalBreakpoint": "Point d'arrêt &&conditionnel...",
+	"miInlineBreakpoint": "P&&oint d'arrêt Inline",
 	"miFunctionBreakpoint": "Point d'arrêt sur &&fonction...",
 	"miLogPoint": "&&Point de journalisation...",
 	"miNewBreakpoint": "&&Nouveau point d'arrêt",

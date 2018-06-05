@@ -9,6 +9,7 @@
 	"quickFixWithKb": "Afficher les correctifs ({0})",
 	"quickFix": "Afficher les correctifs",
 	"quickfix.trigger.label": "Correction rapide...",
+	"editor.action.quickFix.noneMessage": "Aucune action de code disponible",
 	"refactor.label": "Remanier...",
 	"editor.action.refactor.noneMessage": "Aucune refactorisation disponible",
 	"source.label": "Action de la source",

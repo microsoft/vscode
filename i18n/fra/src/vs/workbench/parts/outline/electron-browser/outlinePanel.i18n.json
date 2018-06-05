@@ -12,5 +12,6 @@
 	"sortByName": "Trier par : Nom",
 	"sortByKind": "Trier par : Type",
 	"live": "Suivre le curseur",
-	"no-editor": "Aucun éditeur d'ouvert ne peut fournir des informations générales."
+	"no-editor": "Aucun éditeur d'ouvert ne peut fournir des informations générales.",
+	"too-many-symbols": "Nous sommes désolés, mais ce fichier est trop volumineux pour afficher un résumé."
 }

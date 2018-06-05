@@ -8,5 +8,6 @@
 	],
 	"largeFile": "{0}: 为减少内存使用并避免卡顿或崩溃，我们已关闭对此大型文件内容的标记、折行和折叠。",
 	"neverShowAgain": "确定，且不再显示",
-	"removeOptimizations": "强制启用功能"
+	"removeOptimizations": "强制启用功能",
+	"reopenFilePrompt": "请重新打开文件以使此设置生效。"
 }

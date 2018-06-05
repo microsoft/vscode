@@ -12,5 +12,6 @@
 	"sortByName": "排序依据: 名称",
 	"sortByKind": "排序方式: 类型",
 	"live": "跟随光标",
-	"no-editor": "当前打开的编辑器无法提供大纲信息。"
+	"no-editor": "当前打开的编辑器无法提供大纲信息。",
+	"too-many-symbols": "抱歉，文件太大，无法显示大纲。"
 }

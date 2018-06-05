@@ -12,5 +12,7 @@
 	"runToCursor": "カーソル行の前まで実行",
 	"debugEvaluate": "デバッグ: 評価",
 	"debugAddToWatch": "デバッグ: ウォッチに追加",
-	"showDebugHover": "デバッグ: ホバーの表示"
+	"showDebugHover": "デバッグ: ホバーの表示",
+	"goToNextBreakpoint": "デバッグ： 次のブレークポイントへ移動",
+	"goToPreviousBreakpoint": "デバッグ： 前のブレークポイントへ移動"
 }

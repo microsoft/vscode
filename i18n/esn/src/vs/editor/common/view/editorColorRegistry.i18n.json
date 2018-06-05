@@ -32,6 +32,7 @@
 	"infoBorder": "Color del borde de los subrayados ondulados informativos en el editor.",
 	"hintForeground": "Color de primer plano de pista squigglies en el editor.",
 	"hintBorder": "Color de borde de pista squigglies en el editor.",
+	"unnecessaryForeground": "Color de primer plano de código innecesario en el editor.",
 	"overviewRulerRangeHighlight": "Resumen de color de marcador para destacar rangos. El color no debe ser opaco para no ocultar las decoraciones subyacentes.",
 	"overviewRuleError": "Color de marcador de regla de información general para errores. ",
 	"overviewRuleWarning": "Color de marcador de regla de información general para advertencias.",

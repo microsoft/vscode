@@ -27,6 +27,8 @@
 	"addConditionalBreakpoint": "条件付きブレークポイントの追加...",
 	"addLogPoint": "ログポイントを追加...",
 	"breakpointHasCondition": "この {0} には削除時に失われる {1} があります。代わりに {0} を無効にすることを検討してください。",
+	"message": "メッセージ",
+	"condition": "条件",
 	"removeLogPoint": "{0} を削除",
 	"disableLogPoint": "{0} を無効にする",
 	"cancel": "キャンセル",

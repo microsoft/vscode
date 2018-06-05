@@ -19,6 +19,8 @@
 	"taskdef.path": "包含 package.json 文件的文件夹路径，其中 package.json 文件提供脚本。可以省略。",
 	"view.name": "npm 脚本",
 	"command.refresh": "刷新",
+	"command.run": "运行",
 	"command.debug": "调试",
-	"command.openScript": "开放"
+	"command.openScript": "开放",
+	"command.runInstall": "运行 install"
 }

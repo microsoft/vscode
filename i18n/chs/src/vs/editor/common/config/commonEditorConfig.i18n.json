@@ -26,6 +26,7 @@
 	"detectIndentation": "当打开文件时，将基于文件内容检测 \"editor.tabSize\" 和 \"editor.insertSpaces\"。",
 	"roundedSelection": "控制选取范围是否有圆角",
 	"scrollBeyondLastLine": "控制编辑器是否可以滚动到最后一行之后",
+	"scrollBeyondLastColumn": "控制编辑器水平滚动时可以超出滚动的字符数",
 	"smoothScrolling": "控制编辑器是否在滚动时使用动画",
 	"minimap.enabled": "控制是否显示 minimap",
 	"minimap.side": "控制在哪一侧显示小地图。",
