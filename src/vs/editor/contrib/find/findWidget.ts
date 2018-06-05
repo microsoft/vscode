@@ -28,7 +28,7 @@ import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/c
 import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/theme/common/themeService';
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
-import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, findWidgetResizeBorderBackground } from 'vs/platform/theme/common/colorRegistry';
+import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, editorWidgetResizeBorder } from 'vs/platform/theme/common/colorRegistry';
 
 
 export interface IFindController {
@@ -1109,7 +1109,7 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .find-widget.no-results .matchesCount { color: ${error}; }`);
 	}
 
-	const resizeBorderBackground = theme.getColor(findWidgetResizeBorderBackground);
+	const resizeBorderBackground = theme.getColor(editorWidgetResizeBorder);
 	if (resizeBorderBackground) {
 		collector.addRule(`.monaco-editor .find-widget .monaco-sash { background-color: ${resizeBorderBackground}; width: 3px !important; margin-left: -4px;}`);
 	} else {
