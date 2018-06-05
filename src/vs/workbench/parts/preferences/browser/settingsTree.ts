@@ -35,7 +35,7 @@ export const modifiedItemForeground = registerColor('settings.modifiedItemForegr
 	light: '#019001',
 	dark: '#73C991',
 	hc: '#73C991'
-}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
+}, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a modified setting."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
