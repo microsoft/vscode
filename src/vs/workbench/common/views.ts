@@ -40,7 +40,7 @@ export class ViewLocation {
 	static readonly Explorer: ViewLocation = ViewLocation.register('workbench.view.explorer');
 	static readonly Debug: ViewLocation = ViewLocation.register('workbench.view.debug');
 	static readonly Extensions: ViewLocation = ViewLocation.register('workbench.view.extensions');
-	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm.views.contributed');
+	static readonly SCM: ViewLocation = ViewLocation.register('workbench.view.scm');
 	static readonly TEST: ViewLocation = ViewLocation.register('workbench.view.extension.test');
 
 	private constructor(private _id: string) { }
