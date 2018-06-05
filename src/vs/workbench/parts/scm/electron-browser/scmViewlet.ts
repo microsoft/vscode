@@ -1114,7 +1114,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 			const collapsed = this.contributedViews.isCollapsed(viewDescriptor.id);
 			return { viewDescriptor, index: index++, size, collapsed };
 		});
-		this.onDidAddContributedViews(contributedViews);
+		if (contributedViews.length) {
+			this.onDidAddContributedViews(contributedViews);
+		}
 
 		this.onDidSashChange(this.saveContributedViewSizes, this, this.disposables);
 	}

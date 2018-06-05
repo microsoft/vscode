@@ -154,7 +154,9 @@ export abstract class ViewsViewlet extends PanelViewlet implements IViewsViewlet
 			const collapsed = this.viewsModel.isCollapsed(viewDescriptor.id);
 			return ({ viewDescriptor, index, size, collapsed });
 		});
-		this.onDidAddViews(addedViews);
+		if (addedViews.length) {
+			this.onDidAddViews(addedViews);
+		}
 
 		// Update headers after and title contributed views after available, since we read from cache in the beginning to know if the viewlet has single view or not. Ref #29609
 		this.extensionService.whenInstalledExtensionsRegistered().then(() => {
