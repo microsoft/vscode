@@ -159,8 +159,7 @@ class SyncedBufferMap {
 	}
 
 	private toKey(resource: Uri): string | null {
-		const key = this._normalizePath(resource);
-		return key ? key.toLowerCase() : key;
+		return this._normalizePath(resource);
 	}
 }
 
