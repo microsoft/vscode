@@ -167,6 +167,7 @@ export default class BufferSyncSupport {
 	private readonly pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
+	private listening: boolean = false;
 
 	constructor(
 		client: ITypeScriptServiceClient,
@@ -187,6 +188,10 @@ export default class BufferSyncSupport {
 	public readonly onDelete = this._onDelete.event;
 
 	public listen(): void {
+		if (this.listening) {
+			return;
+		}
+		this.listening = true;
 		workspace.onDidOpenTextDocument(this.openTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
