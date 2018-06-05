@@ -12,6 +12,10 @@ import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
 import API from '../utils/api';
 
+enum BufferKind {
+	TypeScript = 1,
+	JavaScript = 2,
+}
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(resource: Uri): void;
@@ -31,7 +35,7 @@ class SyncedBuffer {
 
 	constructor(
 		private readonly document: TextDocument,
-		private readonly filepath: string,
+		public readonly filepath: string,
 		private readonly diagnosticRequestor: IDiagnosticRequestor,
 		private readonly client: ITypeScriptServiceClient
 	) { }
@@ -67,6 +71,19 @@ class SyncedBuffer {
 
 	public get lineCount(): number {
 		return this.document.lineCount;
+	}
+
+	public get kind(): BufferKind {
+		switch (this.document.languageId) {
+			case languageModeIds.javascript:
+			case languageModeIds.javascriptreact:
+				return BufferKind.JavaScript;
+
+			case languageModeIds.typescript:
+			case languageModeIds.typescriptreact:
+			default:
+				return BufferKind.TypeScript;
+		}
 	}
 
 	public close(): void {
@@ -141,7 +158,8 @@ export default class BufferSyncSupport {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validate: boolean;
+	private _validateJavaScript: boolean = true;
+	private _validateTypeScript: boolean = true;
 	private readonly modeIds: Set<string>;
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
@@ -152,16 +170,17 @@ export default class BufferSyncSupport {
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: string[],
-		validate: boolean
+		modeIds: string[]
 	) {
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
-		this._validate = validate;
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
 		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizedPath(path));
+
+		this.updateConfiguration();
+		workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null);
 	}
 
 	private readonly _onDelete = new EventEmitter<Uri>();
@@ -172,10 +191,6 @@ export default class BufferSyncSupport {
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.openTextDocument, this);
-	}
-
-	public set validate(value: boolean) {
-		this._validate = value;
 	}
 
 	public handles(resource: Uri): boolean {
@@ -244,11 +259,10 @@ export default class BufferSyncSupport {
 	}
 
 	public requestAllDiagnostics() {
-		if (!this._validate) {
-			return;
-		}
-		for (const filePath of this.syncedBuffers.allResources) {
-			this.pendingDiagnostics.set(filePath, Date.now());
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (this.shouldValidate(buffer)) {
+				this.pendingDiagnostics.set(buffer.filepath, Date.now());
+			}
 		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
@@ -274,10 +288,6 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(resource: Uri): void {
-		if (!this._validate) {
-			return;
-		}
-
 		const file = this.client.normalizedPath(resource);
 		if (!file) {
 			return;
@@ -285,11 +295,13 @@ export default class BufferSyncSupport {
 
 		this.pendingDiagnostics.set(file, Date.now());
 		const buffer = this.syncedBuffers.get(resource);
-		let delay = 300;
-		if (buffer) {
-			const lineCount = buffer.lineCount;
-			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		if (!buffer || !this.shouldValidate(buffer)) {
+			return;
 		}
+
+		let delay = 300;
+		const lineCount = buffer.lineCount;
+		delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, delay);
@@ -301,9 +313,6 @@ export default class BufferSyncSupport {
 	}
 
 	private sendPendingDiagnostics(): void {
-		if (!this._validate) {
-			return;
-		}
 		const files = new Set(Array.from(this.pendingDiagnostics.entries())
 			.sort((a, b) => a[1] - b[1])
 			.map(entry => entry[0]));
@@ -342,5 +351,24 @@ export default class BufferSyncSupport {
 			};
 		}
 		this.pendingDiagnostics.clear();
+	}
+
+	private updateConfiguration() {
+		const jsConfig = workspace.getConfiguration('javascript', null);
+		const tsConfig = workspace.getConfiguration('typescript', null);
+
+		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
+		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
+	}
+
+	private shouldValidate(buffer: SyncedBuffer) {
+		switch (buffer.kind) {
+			case BufferKind.JavaScript:
+				return this._validateJavaScript;
+
+			case BufferKind.TypeScript:
+			default:
+				return this._validateTypeScript;
+		}
 	}
 }

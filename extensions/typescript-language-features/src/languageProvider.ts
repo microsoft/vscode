@@ -44,7 +44,7 @@ export default class LanguageProvider {
 		private readonly typingsStatus: TypingsStatus,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 	) {
-		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds, this._validate);
+		this.bufferSyncSupport = new BufferSyncSupport(client, description.modeIds);
 		this.bufferSyncSupport.onDelete(resource => {
 			this.diagnosticsManager.delete(resource);
 		}, null, this.disposables);
@@ -147,7 +147,6 @@ export default class LanguageProvider {
 			return;
 		}
 		this._validate = value;
-		this.bufferSyncSupport.validate = value;
 		this.diagnosticsManager.validate = value;
 		if (value) {
 			this.triggerAllDiagnostics();
