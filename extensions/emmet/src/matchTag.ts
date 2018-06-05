@@ -4,8 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
+import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { DocumentStreamReader } from './bufferStream';
+import { getNode, parseDocument, validate, allowedMimeTypesInScriptTag } from './util';
+
 
 export function matchTag() {
 	if (!validate(false) || !vscode.window.activeTextEditor) {
@@ -36,6 +39,19 @@ function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Positi
 	if (!currentNode) {
 		return;
 	}
+
+	// check if this node is a script representing an HTML template. If so, parse the inside as HTML and select appropriate node
+	if (currentNode.name === 'script' &&
+		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start)) &&
+		(currentNode.attributes &&
+			currentNode.attributes.some(x => x.name.toString() === 'type'
+				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1))) {
+
+		let buffer = new DocumentStreamReader(editor.document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
+		let scriptInnerNodes = parse(buffer);
+		currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
+	}
+
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
