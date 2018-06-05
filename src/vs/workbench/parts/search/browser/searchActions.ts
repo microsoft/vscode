@@ -556,13 +556,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		// If the previous element is a File or Folder, expand it and go to its last child.
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (previousElement && previousElement instanceof FolderMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
-		if (previousElement && previousElement instanceof FileMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
