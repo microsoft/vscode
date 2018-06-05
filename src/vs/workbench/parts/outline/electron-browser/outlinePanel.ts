@@ -120,7 +120,8 @@ class RequestOracle {
 
 		let handle: number;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
-			handle = setTimeout(() => this._callback(codeEditor, event), 150);
+			clearTimeout(handle);
+			handle = setTimeout(() => this._callback(codeEditor, event), 350);
 		});
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor, undefined);
