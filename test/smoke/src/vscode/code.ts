@@ -89,6 +89,7 @@ export interface SpawnOptions {
 	logger: Logger;
 	verbose?: boolean;
 	extraArgs?: string[];
+	log?: string;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -125,6 +126,10 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 
 	if (options.verbose) {
 		args.push('--driver-verbose');
+	}
+
+	if (options.log) {
+		args.push('--log', options.log);
 	}
 
 	if (options.extraArgs) {

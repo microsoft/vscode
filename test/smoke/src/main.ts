@@ -10,6 +10,7 @@ import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
+import { ncp } from 'ncp';
 import { Application, Quality } from './application';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
@@ -210,8 +211,11 @@ function createApp(quality: Quality): Application {
 		loggers.push(new ConsoleLogger());
 	}
 
+	let log: string | undefined = undefined;
+
 	if (opts.log) {
 		loggers.push(new FileLogger(opts.log));
+		log = 'verbose';
 	}
 
 	return new Application({
@@ -223,7 +227,8 @@ function createApp(quality: Quality): Application {
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger: new MultiLogger(loggers),
-		verbose: opts.verbose
+		verbose: opts.verbose,
+		log
 	});
 }
 
@@ -235,6 +240,13 @@ before(async function () {
 
 after(async function () {
 	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+
+	if (opts.log) {
+		const logsDir = path.join(userDataDir, 'logs');
+		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+	}
+
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 
