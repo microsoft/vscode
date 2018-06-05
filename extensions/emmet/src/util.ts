@@ -310,6 +310,27 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	return foundNode;
 }
 
+export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false): HtmlNode | undefined {
+	let currentNode = <HtmlNode>getNode(root, position, true);
+	if (!currentNode) { return; }
+
+	if (isTemplateScript(currentNode) && currentNode.close &&
+		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
+
+		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
+
+		try {
+			let scriptInnerNodes = parse(buffer);
+			if (!scriptInnerNodes) {
+				return;
+			}
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
+		} catch (e) { }
+	}
+
+	return currentNode;
+}
+
 /**
  * Returns inner range of an html node.
  * @param currentNode
@@ -571,28 +592,4 @@ export function isTemplateScript(currentNode: HtmlNode): boolean {
 		(currentNode.attributes &&
 			currentNode.attributes.some(x => x.name.toString() === 'type'
 				&& allowedMimeTypesInScriptTag.indexOf(x.value.toString()) > -1));
-}
-
-/**
- * Given `currentNode` as a script HTML template, returns the `HtmlNode`
- * at `position` within that template.
- */
-export function getTemplateScriptNestedNode(document: vscode.TextDocument, currentNode: HtmlNode, position: vscode.Position): HtmlNode | undefined {
-	if (isTemplateScript(currentNode) &&
-		(position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
-
-		let buffer = new DocumentStreamReader(document, currentNode.open.end, new vscode.Range(currentNode.open.end, currentNode.close.start));
-
-		try {
-			let scriptInnerNodes = parse(buffer);
-			if (!scriptInnerNodes) {
-				return;
-			}
-			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true);
-		} catch (e) {
-			vscode.window.showErrorMessage('Emmet: Failed to parse template');
-			return;
-		}
-	}
-	return currentNode;
 }

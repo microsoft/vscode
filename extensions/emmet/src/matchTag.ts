@@ -4,10 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import parse from '@emmetio/html-matcher';
 import { HtmlNode } from 'EmmetNode';
-import { DocumentStreamReader } from './bufferStream';
-import { getNode, validate, getTemplateScriptNestedNode, isTemplateScript } from './util';
+import { getHtmlNode, parseDocument, validate } from './util';
 
 
 export function matchTag() {
@@ -16,18 +14,8 @@ export function matchTag() {
 	}
 
 	const editor = vscode.window.activeTextEditor;
-	let rootNode: HtmlNode;
-
-	try {
-		rootNode = parse(new DocumentStreamReader(editor.document));
-		if (!rootNode) {
-			return;
-		}
-	} catch (e) {
-		vscode.window.showErrorMessage('Emmet: Failed to parse the file');
-		return;
-	}
-
+	let rootNode: HtmlNode = <HtmlNode>parseDocument(editor.document);
+	if (!rootNode) { return; }
 
 	let updatedSelections: vscode.Selection[] = [];
 	editor.selections.forEach(selection => {
@@ -43,13 +31,8 @@ export function matchTag() {
 }
 
 function getUpdatedSelections(editor: vscode.TextEditor, position: vscode.Position, rootNode: HtmlNode): vscode.Selection | undefined {
-	let currentNode = <HtmlNode>getNode(rootNode, position, true);
+	let currentNode = getHtmlNode(editor.document, rootNode, position, true);
 	if (!currentNode) { return; }
-
-	if (isTemplateScript(currentNode)) {
-		let nestedNode = getTemplateScriptNestedNode(editor.document, currentNode, position);
-		currentNode = nestedNode ? nestedNode : currentNode;
-	}
 
 	// If no closing tag or cursor is between open and close tag, then no-op
 	if (!currentNode.close || (position.isAfter(currentNode.open.end) && position.isBefore(currentNode.close.start))) {
