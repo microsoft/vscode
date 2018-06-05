@@ -13,12 +13,12 @@ import { domEvent, stop } from 'vs/base/browser/event';
 import { basename } from 'vs/base/common/paths';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, dispose, combinedDisposable, empty as EmptyDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { PanelViewlet, ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { PanelViewlet, ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { append, $, addClass, toggleClass, trackFocus, Dimension, addDisposableListener } from 'vs/base/browser/dom';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer, IListContextMenuEvent, IListEvent } from 'vs/base/browser/ui/list/list';
-import { VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { VIEWLET_ID, VIEW_CONTAINER } from 'vs/workbench/parts/scm/common/scm';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ISCMService, ISCMRepository, ISCMResourceGroup, ISCMResource, InputValidationType } from 'vs/workbench/services/scm/common/scm';
@@ -57,7 +57,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
@@ -1084,7 +1084,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		this.menus = instantiationService.createInstance(SCMMenus, undefined);
 		this.menus.onDidChangeTitle(this.updateTitleArea, this, this.disposables);
 
-		this.contributedViews = new PersistentContributableViewsModel(ViewLocation.SCM, 'scm.views', contextKeyService, storageService, contextService);
+		this.contributedViews = new PersistentContributableViewsModel(VIEW_CONTAINER, 'scm.views', contextKeyService, storageService, contextService);
 		this.disposables.push(this.contributedViews);
 	}
 
@@ -1360,9 +1360,9 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		const panelsToAdd: { panel: ViewletPanel, size: number, index: number }[] = [];
 
 		for (const { viewDescriptor, collapsed, index, size } of added) {
-			const panel = this.instantiationService.createInstance(viewDescriptor.ctor, {
+			const panel = this.instantiationService.createInstance(viewDescriptor.ctor, <IViewletPanelOptions>{
 				id: viewDescriptor.id,
-				name: viewDescriptor.name,
+				title: viewDescriptor.name,
 				actionRunner: this.getActionRunner(),
 				expanded: !collapsed
 			}) as ViewletPanel;

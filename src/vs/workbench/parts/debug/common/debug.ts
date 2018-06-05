@@ -21,8 +21,12 @@ import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/con
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.debug';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
+
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';

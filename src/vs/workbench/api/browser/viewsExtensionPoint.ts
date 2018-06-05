@@ -8,7 +8,7 @@ import { localize } from 'vs/nls';
 import { forEach } from 'vs/base/common/collections';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { ViewLocation, ViewsRegistry, ICustomViewDescriptor } from 'vs/workbench/common/views';
+import { ViewContainer, ViewsRegistry, ICustomViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { CustomTreeViewPanel, CustomTreeViewer } from 'vs/workbench/browser/parts/views/customView';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { coalesce, } from 'vs/base/common/arrays';
@@ -18,6 +18,9 @@ import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ProgressLocation } from 'vs/platform/progress/common/progress';
+import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
+import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
+import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
 
 interface IUserFriendlyViewDescriptor {
 	id: string;
@@ -84,9 +87,13 @@ const viewsContribution: IJSONSchema = {
 const viewsExtensionPoint: IExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }> = ExtensionsRegistry.registerExtensionPoint<{ [loc: string]: IUserFriendlyViewDescriptor[] }>('views', [viewsContainersExtensionPoint], viewsContribution);
 
 class ViewsContainersExtensionHandler implements IWorkbenchContribution {
+
+	private viewContainersRegistry: IViewContainersRegistry;
+
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
+		this.viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		this.handleAndRegisterCustomViews();
 	}
 
@@ -100,21 +107,21 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 						return;
 					}
 
-					let location = this.getViewLocation(entry.key);
-					if (!location) {
+					let container = this.getViewContainer(entry.key);
+					if (!container) {
 						collector.warn(localize('ViewContainerDoesnotExist', "View container '{0}' does not exist and all views registered to it will be added to 'Explorer'.", entry.key));
-						location = ViewLocation.Explorer;
+						container = this.viewContainersRegistry.get(EXPLORER);
 					}
-					const registeredViews = ViewsRegistry.getViews(location);
+					const registeredViews = ViewsRegistry.getViews(container);
 					const viewIds = [];
 					const viewDescriptors = coalesce(entry.value.map(item => {
 						// validate
 						if (viewIds.indexOf(item.id) !== -1) {
-							collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the location `{1}`", item.id, location.id));
+							collector.error(localize('duplicateView1', "Cannot register multiple views with same id `{0}` in the view container `{1}`", item.id, container.id));
 							return null;
 						}
 						if (registeredViews.some(v => v.id === item.id)) {
-							collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the location `{1}`", item.id, location.id));
+							collector.error(localize('duplicateView2', "A view with id `{0}` is already registered in the view container `{1}`", item.id, container.id));
 							return null;
 						}
 
@@ -122,11 +129,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							id: item.id,
 							name: item.name,
 							ctor: CustomTreeViewPanel,
-							location,
+							container,
 							when: ContextKeyExpr.deserialize(item.when),
 							canToggleVisibility: true,
-							collapsed: this.showCollapsed(location),
-							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, this.getProgressLocation(location))
+							collapsed: this.showCollapsed(container),
+							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, this.getProgressLocation(container))
 						};
 
 						viewIds.push(viewDescriptor.id);
@@ -138,13 +145,13 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		});
 	}
 
-	private getProgressLocation(location: ViewLocation): ProgressLocation {
-		switch (location.id) {
-			case ViewLocation.Explorer.id:
+	private getProgressLocation(container: ViewContainer): ProgressLocation {
+		switch (container.id) {
+			case EXPLORER:
 				return ProgressLocation.Explorer;
-			case ViewLocation.SCM.id:
+			case SCM:
 				return ProgressLocation.Scm;
-			case ViewLocation.Debug.id:
+			case DEBUG:
 				return null /* No debug progress location yet */;
 		}
 		return null;
@@ -175,20 +182,20 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	}
 
 
-	private getViewLocation(value: string): ViewLocation {
+	private getViewContainer(value: string): ViewContainer {
 		switch (value) {
-			case 'explorer': return ViewLocation.Explorer;
-			case 'debug': return ViewLocation.Debug;
-			case 'scm': return ViewLocation.SCM;
-			default: return ViewLocation.get(`workbench.view.extension.${value}`);
+			case 'explorer': return this.viewContainersRegistry.get(EXPLORER);
+			case 'debug': return this.viewContainersRegistry.get(DEBUG);
+			case 'scm': return this.viewContainersRegistry.get(SCM);
+			default: return this.viewContainersRegistry.get(`workbench.view.extension.${value}`);
 		}
 	}
 
-	private showCollapsed(location: ViewLocation): boolean {
-		switch (location) {
-			case ViewLocation.Explorer:
-			case ViewLocation.SCM:
-			case ViewLocation.Debug:
+	private showCollapsed(container: ViewContainer): boolean {
+		switch (container.id) {
+			case EXPLORER:
+			case SCM:
+			case DEBUG:
 				return true;
 		}
 		return false;

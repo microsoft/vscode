@@ -9,7 +9,7 @@ import { Action, IAction } from 'vs/base/common/actions';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { ViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, VIEWLET_ID, State, VARIABLES_VIEW_ID, WATCH_VIEW_ID, CALLSTACK_VIEW_ID, BREAKPOINTS_VIEW_ID, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { StartAction, ToggleReplAction, ConfigureAction, AbstractDebugAction, SelectAndStartAction, FocusSessionAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { StartDebugActionItem, FocusSessionActionItem } from 'vs/workbench/parts/debug/browser/debugActionItems';
@@ -28,10 +28,9 @@ import { memoize } from 'vs/base/common/decorators';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { DebugActionsWidget } from 'vs/workbench/parts/debug/browser/debugActionsWidget';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ViewLocation } from 'vs/workbench/common/views';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class DebugViewlet extends ViewsViewlet {
+export class DebugViewlet extends ViewContainerViewlet {
 
 	private startDebugActionItem: StartDebugActionItem;
 	private progressRunner: IProgressRunner;
@@ -54,7 +53,7 @@ export class DebugViewlet extends ViewsViewlet {
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextViewService private contextViewService: IContextViewService,
 	) {
-		super(VIEWLET_ID, ViewLocation.Debug, `${VIEWLET_ID}.state`, false, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, false, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.progressRunner = null;
 

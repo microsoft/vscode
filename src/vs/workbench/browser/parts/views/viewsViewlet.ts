@@ -13,7 +13,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ViewLocation, IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsViewlet, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -31,6 +31,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { localize } from 'vs/nls';
 import { IAddedViewDescriptorRef, IViewDescriptorRef, PersistentContributableViewsModel } from 'vs/workbench/browser/parts/views/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export abstract class TreeViewsViewletPanel extends ViewletPanel {
 
@@ -107,7 +108,7 @@ export interface IViewletViewOptions extends IViewletPanelOptions {
 	viewletSettings: object;
 }
 
-export abstract class ViewsViewlet extends PanelViewlet implements IViewsViewlet {
+export abstract class ViewContainerViewlet extends PanelViewlet implements IViewsViewlet {
 
 	private readonly viewletSettings: Object;
 	private didLayout = false;
@@ -121,7 +122,6 @@ export abstract class ViewsViewlet extends PanelViewlet implements IViewsViewlet
 
 	constructor(
 		id: string,
-		location: ViewLocation,
 		viewletStateStorageId: string,
 		showHeaderInTitleWhenSingleView: boolean,
 		@IPartService partService: IPartService,
@@ -135,7 +135,8 @@ export abstract class ViewsViewlet extends PanelViewlet implements IViewsViewlet
 	) {
 		super(id, { showHeaderInTitleWhenSingleView, dnd: new DefaultPanelDndController() }, partService, contextMenuService, telemetryService, themeService);
 
-		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, location, viewletStateStorageId));
+		const container = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(id);
+		this.viewsModel = this._register(this.instantiationService.createInstance(PersistentContributableViewsModel, container, viewletStateStorageId));
 		this.viewletSettings = this.getMemento(storageService, Scope.WORKSPACE);
 
 		this.visibleViewsStorageId = `${id}.numberOfVisibleViews`;

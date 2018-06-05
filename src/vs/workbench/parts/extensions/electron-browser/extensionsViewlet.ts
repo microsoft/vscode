@@ -24,7 +24,7 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, VIEW_CONTAINER } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
@@ -41,8 +41,8 @@ import { IActivityService, ProgressBadge, NumberBadge } from 'vs/workbench/servi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { inputForeground, inputBackground, inputBorder } from 'vs/platform/theme/common/colorRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/common/views';
-import { ViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IContextKeyService, ContextKeyExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -92,7 +92,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.listView',
 			name: localize('marketPlace', "Marketplace"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: ExtensionsListView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions')),
 			weight: 100
@@ -103,7 +103,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.installedList',
 			name: localize('installedExtensions', "Installed"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions')),
 			order: 1,
@@ -115,7 +115,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.searchInstalledList',
 			name: localize('searchInstalledExtensions', "Installed"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchInstalledExtensions')),
 			weight: 100
@@ -126,7 +126,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.recommendedList',
 			name: localize('recommendedExtensions', "Recommended"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
 			weight: 70,
@@ -139,7 +139,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.otherrecommendedList',
 			name: localize('otherRecommendedExtensions', "Other Recommendations"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: RecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('recommendedExtensions')),
 			weight: 50,
@@ -152,7 +152,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.workspaceRecommendedList',
 			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: WorkspaceRecommendedExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			weight: 50,
@@ -165,7 +165,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.builtInExtensionsList',
 			name: localize('builtInExtensions', "Features"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: BuiltInExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
@@ -177,7 +177,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.builtInThemesExtensionsList',
 			name: localize('builtInThemesExtensions', "Themes"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: BuiltInThemesExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
@@ -189,7 +189,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		return {
 			id: 'extensions.builtInBasicsExtensionsList',
 			name: localize('builtInBasicsExtensions', "Programming Languages"),
-			location: ViewLocation.Extensions,
+			container: VIEW_CONTAINER,
 			ctor: BuiltInBasicsExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
@@ -198,7 +198,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 	}
 }
 
-export class ExtensionsViewlet extends ViewsViewlet implements IExtensionsViewlet {
+export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensionsViewlet {
 
 	private onSearchChange: EventOf<string>;
 	private nonEmptyWorkspaceContextKey: IContextKey<boolean>;
@@ -234,7 +234,7 @@ export class ExtensionsViewlet extends ViewsViewlet implements IExtensionsViewle
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IExtensionService extensionService: IExtensionService
 	) {
-		super(VIEWLET_ID, ViewLocation.Extensions, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+		super(VIEWLET_ID, `${VIEWLET_ID}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 
 		this.searchDelayer = new ThrottledDelayer(500);
 		this.nonEmptyWorkspaceContextKey = NonEmptyWorkspaceContext.bindTo(contextKeyService);
