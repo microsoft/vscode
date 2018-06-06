@@ -45,7 +45,8 @@
 	cursor: pointer;
 }
 
-.task-statusbar-item-label > .task-statusbar-item-label-counter {
+.task-statusbar-item-label > .task-statusbar-item-label-counter,
+.task-statusbar-item-label > .task-statusbar-item-label-no-problems {
 	display: inline-block;
 	vertical-align: top;
 	padding-left: 2px;

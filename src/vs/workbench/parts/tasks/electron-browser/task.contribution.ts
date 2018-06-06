@@ -176,6 +176,7 @@ class BuildStatusBarItem extends Themable implements IStatusbarItem {
 		label.appendChild(warning);
 		Dom.hide(warning);
 
+		Dom.addClass(noProblems, 'task-statusbar-item-label-no-problems');
 		noProblems.innerHTML = 'No Problems';
 		label.appendChild(noProblems);
 
