@@ -5,7 +5,7 @@
 
 import * as vscode from 'vscode';
 import { HtmlNode } from 'EmmetNode';
-import { getNode, parseDocument, validate } from './util';
+import { getHtmlNode, parseDocument, validate } from './util';
 
 let balanceOutStack: Array<vscode.Selection[]> = [];
 let lastOut = false;
@@ -61,7 +61,7 @@ function balance(out: boolean) {
 }
 
 function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start);
+	let nodeToBalance = getHtmlNode(document, rootNode, selection.start);
 	if (!nodeToBalance) {
 		return selection;
 	}
@@ -82,7 +82,7 @@ function getRangeToBalanceOut(document: vscode.TextDocument, selection: vscode.S
 }
 
 function getRangeToBalanceIn(document: vscode.TextDocument, selection: vscode.Selection, rootNode: HtmlNode): vscode.Selection {
-	let nodeToBalance = <HtmlNode>getNode(rootNode, selection.start, true);
+	let nodeToBalance = getHtmlNode(document, rootNode, selection.start, true);
 	if (!nodeToBalance) {
 		return selection;
 	}

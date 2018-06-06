@@ -311,7 +311,7 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 }
 
 export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false): HtmlNode | undefined {
-	let currentNode = <HtmlNode>getNode(root, position, true);
+	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
 	if (!currentNode) { return; }
 
 	if (isTemplateScript(currentNode) && currentNode.close &&
@@ -321,7 +321,7 @@ export function getHtmlNode(document: vscode.TextDocument, root: Node | undefine
 
 		try {
 			let scriptInnerNodes = parse(buffer);
-			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, true) || currentNode;
+			currentNode = <HtmlNode>getNode(scriptInnerNodes, position, includeNodeBoundary) || currentNode;
 		} catch (e) { }
 	}
 

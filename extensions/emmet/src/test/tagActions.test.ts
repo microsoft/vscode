@@ -30,6 +30,17 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 
+	let contentsWithTemplate = `
+	<script type="text/template">
+		<ul>
+			<li><span>Hello</span></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span/>
+	</script>
+	`;
+
 	test('update tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -46,6 +57,30 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(3, 17, 3, 17), // cursor inside tags
 				new Selection(4, 5, 4, 5), // cursor inside opening tag
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
+			];
+
+			return updateTag('section')!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('update tag with template', () => {
+		const expectedContents = `
+	<script type="text/template">
+		<section>
+			<li><span>Hello</span></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</section>
+		<span/>
+	</script>
+	`;
+
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
 			];
 
 			return updateTag('section')!.then(() => {
@@ -81,6 +116,30 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+
+	test('remove tag with template', () => {
+		const expectedContents = `
+	<script type="text/template">
+\t\t
+		<li><span>Hello</span></li>
+		<li><span>There</span></li>
+		<div><li><span>Bye</span></li></div>
+\t
+		<span/>
+	</script>
+	`;
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
+			];
+
+			return removeTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('split/join tag with mutliple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -93,6 +152,30 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 17, 3, 17), // join tag
+				new Selection(7, 5, 7, 5), // split tag
+			];
+
+			return splitJoinTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('split/join tag with templates', () => {
+		const expectedContents = `
+	<script type="text/template">
+		<ul>
+			<li><span/></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span></span>
+	</script>
+	`;
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
 			editor.selections = [
 				new Selection(3, 17, 3, 17), // join tag
 				new Selection(7, 5, 7, 5), // split tag
