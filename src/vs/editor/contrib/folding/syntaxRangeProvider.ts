@@ -27,6 +27,7 @@ export class SyntaxRangeProvider implements RangeProvider {
 
 	constructor(private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
+	readonly id = 'syntax';
 
 	compute(model: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions> {
 		return collectSyntaxRanges(this.providers, model, cancellationToken).then(ranges => {
