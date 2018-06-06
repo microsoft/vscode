@@ -19,6 +19,7 @@
 	"titleLengthValidation": "Başlık çok uzun.",
 	"details": "Lütfen detayları giriniz.",
 	"sendSystemInfo": "Sistem bilgilerimi dahil et ({0})",
+	"show": "göster",
 	"sendProcessInfo": "Şu anda çalışan işlemlerimi dahil et ({0})",
 	"sendWorkspaceInfo": "Çalışma alanımın meta verilerini dahil et ({0})",
 	"sendExtensions": " Aktif eklentilerimi dahil et ({0})",
