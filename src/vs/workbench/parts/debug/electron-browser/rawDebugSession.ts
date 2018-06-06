@@ -17,6 +17,7 @@ import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { formatPII } from 'vs/workbench/parts/debug/common/debugUtils';
 import { SocketDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter';
+import { Queue } from 'vs/base/common/async';
 
 
 export interface SessionExitedEvent extends debug.DebugEvent {
@@ -38,12 +39,12 @@ export class RawDebugSession implements debug.IRawSession {
 	private debugAdapter: debug.IDebugAdapter;
 
 	public emittedStopped: boolean;
-	public readyForBreakpoints: boolean;
+	public initialised: boolean;
 
 	private cachedInitServerP: TPromise<void>;
 	private startTime: number;
 	public disconnected: boolean;
-	private sentPromises: TPromise<DebugProtocol.Response>[];
+	private requestQueue = new Queue();
 	private _capabilities: DebugProtocol.Capabilities;
 	private allThreadsContinued: boolean;
 
@@ -70,9 +71,26 @@ export class RawDebugSession implements debug.IRawSession {
 		@IOutputService private outputService: IOutputService
 	) {
 		this.emittedStopped = false;
-		this.readyForBreakpoints = false;
+		this.initialised = false;
 		this.allThreadsContinued = true;
-		this.sentPromises = [];
+
+		this.requestQueue.queue(() => {
+
+			if (this.cachedInitServerP) {
+				return this.cachedInitServerP;
+			}
+
+			const startSessionP = this.startSession();
+
+			this.cachedInitServerP = startSessionP.then(() => {
+				this.startTime = new Date().getTime();
+			}, err => {
+				this.cachedInitServerP = null;
+				return TPromise.wrapError(err);
+			});
+
+			return this.cachedInitServerP;
+		});
 
 		this._onDidInitialize = new Emitter<DebugProtocol.InitializedEvent>();
 		this._onDidStop = new Emitter<DebugProtocol.StoppedEvent>();
@@ -135,24 +153,6 @@ export class RawDebugSession implements debug.IRawSession {
 		return this._onDidEvent.event;
 	}
 
-	private initServer(): TPromise<void> {
-
-		if (this.cachedInitServerP) {
-			return this.cachedInitServerP;
-		}
-
-		const startSessionP = this.startSession();
-
-		this.cachedInitServerP = startSessionP.then(() => {
-			this.startTime = new Date().getTime();
-		}, err => {
-			this.cachedInitServerP = null;
-			return TPromise.wrapError(err);
-		});
-
-		return this.cachedInitServerP;
-	}
-
 	private startSession(): TPromise<void> {
 
 		return this._debugger.createDebugAdapter(this.root, this.outputService, this.debugServerPort).then(debugAdapter => {
@@ -173,7 +173,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	private send<R extends DebugProtocol.Response>(command: string, args: any, cancelOnDisconnect = true): TPromise<R> {
-		return this.initServer().then(() => {
+		return this.requestQueue.queue(() => {
 			const promise = this.internalSend<R>(command, args).then(response => response, (errorResponse: DebugProtocol.ErrorResponse) => {
 				const error = errorResponse && errorResponse.body ? errorResponse.body.error : null;
 				const errorMessage = errorResponse ? errorResponse.message : '';
@@ -208,9 +208,6 @@ export class RawDebugSession implements debug.IRawSession {
 				return errors.isPromiseCanceledError(errorResponse) ? undefined : TPromise.wrapError<R>(new Error(userMessage));
 			});
 
-			if (cancelOnDisconnect) {
-				this.sentPromises.push(promise);
-			}
 			return promise;
 		});
 	}
@@ -233,7 +230,7 @@ export class RawDebugSession implements debug.IRawSession {
 		event.sessionId = this.id;
 
 		if (event.event === 'initialized') {
-			this.readyForBreakpoints = true;
+			this.initialised = true;
 			this._onDidInitialize.fire(event);
 		} else if (event.event === 'capabilities' && event.body) {
 			const capabilites = (<DebugProtocol.CapabilitiesEvent>event).body.capabilities;
@@ -285,7 +282,17 @@ export class RawDebugSession implements debug.IRawSession {
 		return this.send('attach', args).then(response => this.readCapabilities(response));
 	}
 
+	private clearRequestQueue(): void {
+		// If the debug session is initialitised it is fine to clear all pending requests
+		// This is mostly done by "step" requests which change the state of the debuggee
+		// Thus canceling other requests like "variables" and "evaluate" makes snese
+		if (this.initialised) {
+			this.requestQueue.cancel();
+		}
+	}
+
 	public next(args: DebugProtocol.NextArguments): TPromise<DebugProtocol.NextResponse> {
+		this.clearRequestQueue();
 		return this.send('next', args).then(response => {
 			this.fireFakeContinued(args.threadId);
 			return response;
@@ -293,6 +300,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public stepIn(args: DebugProtocol.StepInArguments): TPromise<DebugProtocol.StepInResponse> {
+		this.clearRequestQueue();
 		return this.send('stepIn', args).then(response => {
 			this.fireFakeContinued(args.threadId);
 			return response;
@@ -300,6 +308,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public stepOut(args: DebugProtocol.StepOutArguments): TPromise<DebugProtocol.StepOutResponse> {
+		this.clearRequestQueue();
 		return this.send('stepOut', args).then(response => {
 			this.fireFakeContinued(args.threadId);
 			return response;
@@ -307,6 +316,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public continue(args: DebugProtocol.ContinueArguments): TPromise<DebugProtocol.ContinueResponse> {
+		this.clearRequestQueue();
 		return this.send<DebugProtocol.ContinueResponse>('continue', args).then(response => {
 			if (response && response.body && response.body.allThreadsContinued !== undefined) {
 				this.allThreadsContinued = response.body.allThreadsContinued;
@@ -329,6 +339,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public restartFrame(args: DebugProtocol.RestartFrameArguments, threadId: number): TPromise<DebugProtocol.RestartFrameResponse> {
+		this.clearRequestQueue();
 		return this.send('restartFrame', args).then(response => {
 			this.fireFakeContinued(threadId);
 			return response;
@@ -340,16 +351,11 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public disconnect(restart = false, force = false): TPromise<DebugProtocol.DisconnectResponse> {
+		this.clearRequestQueue();
+
 		if (this.disconnected && force) {
 			return this.stopServer();
 		}
-
-		// Cancel all sent promises on disconnect so debug trees are not left in a broken state #3666.
-		// Give a 1s timeout to give a chance for some promises to complete.
-		setTimeout(() => {
-			this.sentPromises.forEach(p => p && p.cancel());
-			this.sentPromises = [];
-		}, 1000);
 
 		if (this.debugAdapter && !this.disconnected) {
 			// point of no return: from now on don't report any errors
@@ -405,6 +411,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public stepBack(args: DebugProtocol.StepBackArguments): TPromise<DebugProtocol.StepBackResponse> {
+		this.clearRequestQueue();
 		return this.send('stepBack', args).then(response => {
 			if (response.body === undefined) {
 				this.fireFakeContinued(args.threadId);
@@ -414,6 +421,7 @@ export class RawDebugSession implements debug.IRawSession {
 	}
 
 	public reverseContinue(args: DebugProtocol.ReverseContinueArguments): TPromise<DebugProtocol.ReverseContinueResponse> {
+		this.clearRequestQueue();
 		return this.send('reverseContinue', args).then(response => {
 			if (response.body === undefined) {
 				this.fireFakeContinued(args.threadId);

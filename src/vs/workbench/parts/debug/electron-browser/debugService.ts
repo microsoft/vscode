@@ -1224,7 +1224,7 @@ export class DebugService implements debug.IDebugService {
 
 		const sendBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
 			const raw = <RawDebugSession>session.raw;
-			if (!raw.readyForBreakpoints) {
+			if (!raw.initialised) {
 				return TPromise.as(null);
 			}
 
@@ -1274,7 +1274,7 @@ export class DebugService implements debug.IDebugService {
 	private sendFunctionBreakpoints(session?: debug.ISession): TPromise<void> {
 		const sendFunctionBreakpointsToSession = (session: debug.ISession): TPromise<void> => {
 			const raw = <RawDebugSession>session.raw;
-			if (!raw.readyForBreakpoints || !raw.capabilities.supportsFunctionBreakpoints) {
+			if (!raw.initialised || !raw.capabilities.supportsFunctionBreakpoints) {
 				return TPromise.as(null);
 			}
 
@@ -1299,7 +1299,7 @@ export class DebugService implements debug.IDebugService {
 	private sendExceptionBreakpoints(session?: debug.ISession): TPromise<void> {
 		const sendExceptionBreakpointsToSession = (session: debug.ISession): TPromise<any> => {
 			const raw = <RawDebugSession>session.raw;
-			if (!raw.readyForBreakpoints || this.model.getExceptionBreakpoints().length === 0) {
+			if (!raw.initialised || this.model.getExceptionBreakpoints().length === 0) {
 				return TPromise.as(null);
 			}
 
