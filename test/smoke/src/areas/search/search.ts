@@ -57,8 +57,7 @@ export class Search extends Viewlet {
 		const fileMatch = FILE_MATCH(filename);
 
 		await this.code.waitAndClick(fileMatch);
-		// give time for Chrome to show the remove label
-		await new Promise(c => setTimeout(c, 500));
+		await this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0);
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
@@ -79,11 +78,16 @@ export class Search extends Viewlet {
 		const fileMatch = FILE_MATCH(filename);
 
 		await this.code.waitAndClick(fileMatch);
+		await this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0);
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {
 		await this.code.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+	}
+
+	async waitForNoResultText(): Promise<void> {
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, el => !el);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

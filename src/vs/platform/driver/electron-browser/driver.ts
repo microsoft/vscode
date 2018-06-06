@@ -30,12 +30,16 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		}
 	}
 
+	const { left, top } = getTopLeftOffset(element as HTMLElement);
+
 	return {
 		tagName: element.tagName,
 		className: element.className,
 		textContent: element.textContent || '',
 		attributes,
-		children
+		children,
+		left,
+		top
 	};
 }
 

@@ -21,6 +21,8 @@ export interface IElement {
 	textContent: string;
 	attributes: { [name: string]: string; };
 	children: IElement[];
+	top: number;
+	left: number;
 }
 
 export interface IDriver {

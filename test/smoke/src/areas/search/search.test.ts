@@ -48,12 +48,12 @@ export function setup() {
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
 			await app.workbench.search.replaceFileMatch('app.js');
-
 			await app.workbench.search.waitForResultText('17 results in 5 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
+			await app.workbench.search.waitForNoResultText();
 		});
 	});
 }
