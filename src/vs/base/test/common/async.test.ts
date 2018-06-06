@@ -507,6 +507,31 @@ suite('Async', () => {
 		});
 	});
 
+	test('Queue - cancel', function () {
+		let queue = new Async.Queue();
+
+		let res: number[] = [];
+
+		let f1 = () => TPromise.timeout(0).then(() => res.push(1));
+		let f2 = () => TPromise.timeout(10).then(() => res.push(2));
+		let f3 = () => TPromise.as(true).then(() => res.push(3));
+		let f4 = () => TPromise.timeout(20).then(() => res.push(4));
+		let f5 = () => TPromise.timeout(0).then(() => res.push(5));
+
+		queue.queue(f1).then(() => assert.fail());
+		queue.queue(f2).then(() => assert.fail());
+		queue.queue(f3).then(() => assert.fail());
+		assert.equal(queue.size, 3);
+		queue.cancel();
+		assert.equal(queue.size, 0);
+		queue.queue(f4).then(undefined, () => assert.fail());
+		return queue.queue(f5).then(() => {
+			assert.equal(res.length, 2);
+			assert.equal(res[0], 4);
+			assert.equal(res[1], 5);
+		});
+	});
+
 	test('Queue - errors bubble individually but not cause stop', function () {
 		let queue = new Async.Queue();
 
@@ -547,6 +572,8 @@ suite('Async', () => {
 			return queue.queue(f2).then(() => {
 				return queue.queue(f3).then(() => {
 					return queue.queue(f4).then(() => {
+						// Queue is empty, cancel should be a noop
+						queue.cancel();
 						return queue.queue(f5).then(() => {
 							assert.equal(res[0], 1);
 							assert.equal(res[1], 2);

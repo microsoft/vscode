@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as nls from 'vs/nls';
 import * as errors from 'vs/base/common/errors';
 import { TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
@@ -486,7 +487,7 @@ interface ILimitedTaskFactory {
  * ensures that at any time no more than M promises are running at the same time.
  */
 export class Limiter<T> {
-	private runningPromises: number;
+	private runningPromises: TPromise<T>[];
 	private maxDegreeOfParalellism: number;
 	private outstandingPromises: ILimitedTaskFactory[];
 	private readonly _onFinished: Emitter<void>;
@@ -494,7 +495,7 @@ export class Limiter<T> {
 	constructor(maxDegreeOfParalellism: number) {
 		this.maxDegreeOfParalellism = maxDegreeOfParalellism;
 		this.outstandingPromises = [];
-		this.runningPromises = 0;
+		this.runningPromises = [];
 		this._onFinished = new Emitter<void>();
 	}
 
@@ -503,7 +504,7 @@ export class Limiter<T> {
 	}
 
 	public get size(): number {
-		return this.runningPromises + this.outstandingPromises.length;
+		return this.runningPromises.length + this.outstandingPromises.length;
 	}
 
 	queue(promiseFactory: ITask<TPromise>): TPromise;
@@ -520,19 +521,29 @@ export class Limiter<T> {
 		});
 	}
 
+	cancel(): void {
+		const outstanding = this.outstandingPromises;
+		const running = this.runningPromises;
+		this.outstandingPromises = [];
+		this.runningPromises = [];
+
+		outstanding.forEach(o => o.e(new Error(nls.localize('canceled', "Canceled"))));
+		running.forEach(p => p.cancel());
+	}
+
 	private consume(): void {
-		while (this.outstandingPromises.length && this.runningPromises < this.maxDegreeOfParalellism) {
+		while (this.outstandingPromises.length && this.runningPromises.length < this.maxDegreeOfParalellism) {
 			const iLimitedTask = this.outstandingPromises.shift();
-			this.runningPromises++;
 
 			const promise = iLimitedTask.factory();
+			this.runningPromises.push(promise);
 			promise.done(iLimitedTask.c, iLimitedTask.e, iLimitedTask.p);
-			promise.done(() => this.consumed(), () => this.consumed());
+			promise.done(() => this.consumed(promise), () => this.consumed(promise));
 		}
 	}
 
-	private consumed(): void {
-		this.runningPromises--;
+	private consumed(promise: TPromise<T>): void {
+		this.runningPromises = this.runningPromises.filter(p => p !== promise);
 
 		if (this.outstandingPromises.length > 0) {
 			this.consume();
