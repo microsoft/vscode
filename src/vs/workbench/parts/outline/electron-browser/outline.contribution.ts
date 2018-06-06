@@ -18,7 +18,8 @@ const _outlineDesc = <IViewDescriptor>{
 	container: VIEW_CONTAINER,
 	canToggleVisibility: true,
 	hideByDefault: false,
-	order: 2
+	order: 2,
+	weight: 30
 };
 
 ViewsRegistry.registerViews([_outlineDesc]);
