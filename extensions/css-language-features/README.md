@@ -6,7 +6,7 @@ This extension offers CSS/SCSS/Less support in VS Code.
 
 - `yarn`
 - `yarn` at `/server`
-- Run the `Launch Extension` target
+- Run the `Launch Extension` debug target in the Debug View
 - Run `Reload Window` command in the launched instance to reload the extension
 
 ### Try vscode-css-languageservice
