@@ -5,6 +5,8 @@
 
 .monaco-action-bar .action-item .action-label.extension-action {
 	padding: 0 5px;
+	outline-offset: 1px;
+	outline-width: 1.5px;
 	line-height: initial;
 }
 

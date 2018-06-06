@@ -124,6 +124,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
+	margin: 2px;
 	padding: 1px 6px;
 }
 
