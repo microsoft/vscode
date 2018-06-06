@@ -19,6 +19,7 @@
 	"contributions": "Eklemeler",
 	"changelog": "Değişim Günlüğü",
 	"dependencies": "Bağımlılıklar",
+	"dependenciestooltip": "Bu eklentinin bağımlı olduğu eklentileri listele",
 	"noReadme": "README dosyası yok.",
 	"noChangelog": "Değişim günlüğü yok.",
 	"noContributions": "Hiçbir Ekleme Yapmıyor",
