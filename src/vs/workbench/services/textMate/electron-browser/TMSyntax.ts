@@ -22,6 +22,7 @@ import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/t
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 import URI from 'vs/base/common/uri';
 
 export class TMScopeRegistry {
@@ -139,6 +140,7 @@ export class TextMateService implements ITextMateService {
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
+	private _notificationService: INotificationService;
 
 	private _languageToScope: Map<string, string>;
 	private _styleElement: HTMLStyleElement;
@@ -149,7 +151,8 @@ export class TextMateService implements ITextMateService {
 
 	constructor(
 		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -160,6 +163,7 @@ export class TextMateService implements ITextMateService {
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
+		this._notificationService = notificationService;
 
 		this._grammarRegistry = null;
 
@@ -383,7 +387,7 @@ export class TextMateService implements ITextMateService {
 
 	private registerDefinition(modeId: string): void {
 		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages));
+			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService));
 		}, onUnexpectedError);
 	}
 }
@@ -397,7 +401,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _seenLanguages: boolean[];
 	private readonly _initialState: StackElement;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;
@@ -421,7 +425,9 @@ class TMTokenization implements ITokenizationSupport {
 
 		// Do not attempt to tokenize if a line has over 20k
 		if (line.length >= 20000) {
-			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
+			const lineText = line.substr(0, 15);
+			console.log(`Line (${lineText}...): longer than 20k characters, tokenization skipped.`);
+			this.notificationService.warn(nls.localize('too many characters', "The line '{0}' is longer than 20k characters, for performance reasons tokenization is skipped.", lineText));
 			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}
 
