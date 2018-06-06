@@ -86,8 +86,17 @@ export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, buck
 	let promise = new TPromise((resolve, reject) => {
 		dispose = function () {
 			resolve(cancelValue);
+			if (isWinJSPromise(input)) {
+				input.cancel();
+			}
 		};
-		input.then(resolve, reject);
+		input.then(resolve, err => {
+			if (errors.isPromiseCanceledError(err)) {
+				resolve(cancelValue);
+			} else {
+				reject(err);
+			}
+		});
 	});
 	let res = {
 		promise,
