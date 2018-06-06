@@ -56,9 +56,7 @@
           "settings.json",
           "launch.json",
           "tasks.json",
-          "keybindings.json",
-          "tsconfig.json",
-          "jsconfig.json"
+          "keybindings.json"
         ],
         "configuration": "./language-configuration.json"
       }
