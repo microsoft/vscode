@@ -26,6 +26,7 @@
 	"detectIndentation": "Bir dosyayı açarken, `editor.tabSize` ve `editor.insertSpaces` dosya içeriğine bağlı olarak algılanır.",
 	"roundedSelection": "Seçimlerin köşelerinin yuvarlak olup olmayacağını denetler",
 	"scrollBeyondLastLine": "Düzenleyicinin son satırın ötesine ilerleyip ilerlemeyeceğini denetler",
+	"scrollBeyondLastColumn": "Düzenleyicinin yatay olarak kaydıracağına ek karakter sayısı",
 	"smoothScrolling": "Düzenleyicinin bir animasyon kullanarak kaydırıp kaydırmayacağını denetler",
 	"minimap.enabled": "Mini haritanın gösterilip gösterilmeyeceğini denetler",
 	"minimap.side": "Mini haritanın görüntüleneceği tarafı denetler.",

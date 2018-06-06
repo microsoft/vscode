@@ -143,6 +143,7 @@
 	"miContinue": "&&Fortfahren",
 	"miToggleBreakpoint": "Haltepunkt &&umschalten",
 	"miConditionalBreakpoint": "&&Bedingter Haltepunkt...",
+	"miInlineBreakpoint": "Inlinehaltep&&unkt",
 	"miFunctionBreakpoint": "&&Funktionshaltepunkt...",
 	"miLogPoint": "&&Protokollpunkt …",
 	"miNewBreakpoint": "&&Neuer Haltepunkt",

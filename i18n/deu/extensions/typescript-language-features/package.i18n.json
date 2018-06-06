@@ -45,6 +45,7 @@
 	"typescript.selectTypeScriptVersion.title": "TypeScript-Version wählen",
 	"typescript.reportStyleChecksAsWarnings": "Formatvorlagenprüfungen als Warnungen melden",
 	"jsDocCompletion.enabled": "Automatische JSDoc-Kommentare aktivieren/deaktivieren",
+	"javascript.implicitProjectConfig.checkJs": "Aktiviert/deaktiviert die Semantikprüfung bei JavaScript-Dateien. Diese Einstellung wird von vorhandenen \"jsconfig.json\"- oder \"tsconfig.json\"-Dateien außer Kraft gesetzt. Erfordert TypeScript 2.3.1 oder höher.",
 	"typescript.npm": "Gibt den Pfad zur ausführbaren NPM-Datei an, die für die automatische Typerfassung verwendet wird. Hierfür ist TypeScript 2.3.4 oder höher erforderlich.",
 	"typescript.check.npmIsInstalled": "Überprüfen Sie, ob NPM für die automatische Typerfassung installiert ist.",
 	"javascript.nameSuggestions": "Das Einbeziehen eindeutiger Namen von der Datei in der JavaScript-Vorschlagsliste aktivieren/deaktivieren.",
@@ -52,7 +53,15 @@
 	"typescript.problemMatchers.tsc.label": "TypeScript-Probleme",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript-Probleme (Überwachungsmodus)",
 	"typescript.quickSuggestionsForPaths": "Aktiviert oder deaktiviert Schnellvorschläge, wenn Sie einen Importpfad ausschreiben.",
+	"typescript.locale": "Legt das zum Melden von JavaScript- und TypeScript-Fehlern verwendete Gebietsschema fest. Erfordert TypeScript 2.6.0 oder höher. Beim Der Standardwert \"null\" wird das Gebietsschema von VS Code verwendet.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Aktiviert oder deaktiviert \"experimentalDecorators\" für JavaScript-Dateien, die nicht Teil eines Projekts sind. Vorhandene jsconfig.json- oder tsconfig.json-Dateien setzen diese Einstellung außer Kraft. Erfordert TypeScript 2.3.1 oder höher.",
+	"typescript.autoImportSuggestions.enabled": "Aktiviert oder deaktiviert Vorschläge für den automatischen Import. Erfordert TypeScript 2.6.1 oder höher.",
 	"typescript.experimental.syntaxFolding": "Aktiviert bzw. deaktiviert die syntaxabhängigen Faltungsmarkierungen.",
 	"taskDefinition.tsconfig.description": "Die \"tsconfig\"-Datei, die den TS-Build definiert.",
-	"javascript.suggestionActions.enabled": "Aktiviert/deaktiviert Vorschlagsdiagnosen für JavaScript-Dateien im Editor. Erfordert TypeScript 2.8 oder höher."
+	"javascript.suggestionActions.enabled": "Aktiviert/deaktiviert Vorschlagsdiagnosen für JavaScript-Dateien im Editor. Erfordert TypeScript 2.8 oder höher.",
+	"typescript.suggestionActions.enabled": "Aktiviert bzw. deaktiviert Vorschlagsdiagnosen für TypeScript-Dateien im Editor. Erfordert TypeScript 2.8 oder höher.",
+	"typescript.preferences.quoteStyle": "Der bevorzugte Stil für Anführungszeichen bei schnellen Problembehebungen. Mögliche Werte sind \"single\" (einfache Anführungszeichen), \"double\" (doppelte Anführungszeichen) und \"auto\" (hierbei wird der Stil für Anführungszeichen aus bestehenden Importen abgeleitet). Erfordert TypeScript 2.9 oder höher.",
+	"typescript.preferences.importModuleSpecifier": "Bevorzugter Pfadstil für den automatischen Import. Mögliche Werte sind:\n- \"relative\" (relativ zum Dateispeicherort)\n- \"non-relative\" (nicht-relativ, d. h. auf Grundlage des in der Datei \"jsconfig.json\" oder \"tsconfig.json\" konfigurierten Werts für \"baseUrl\")\n- \"auto\" (ermittelt den jeweils kürzeren Pfadtyp)\nErfordert TypeScript 2.9 oder höher.",
+	"typescript.showUnused": "Aktiviert bzw. deaktiviert das Hervorheben unbenutzter Variablen im Code. Erforderlich TypeScript 2.9 oder höher.",
+	"typescript.updateImportsOnFileMove.enabled": "Aktiviert bzw. deaktiviert die automatische Änderungen von Importpfaden, wenn Sie eine Datei in VS Code umbenennen oder verschieben. Mögliche Werte sind \"prompt\" (fordert bei jeder Umbenennung zur Auswahl auf), \"always\" (aktualisiert Pfade automatisch\" und \"never\" (Pfade werden nie geändert). Erfordert TypeScript 2.9 oder höher."
 }
