@@ -22,10 +22,8 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
-import { IFileService } from 'vs/platform/files/common/files';
-import URI from 'vs/base/common/uri';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
 
 export class EmptyView extends ViewletPanel {
 
@@ -43,9 +41,7 @@ export class EmptyView extends ViewletPanel {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IFileService private fileService: IFileService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 		this.contextService.onDidChangeWorkbenchState(() => this.setLabels());
@@ -77,15 +73,8 @@ export class EmptyView extends ViewletPanel {
 		}));
 
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, (e: DragEvent) => {
-			const resources: URI[] = [];
-			for (let i = 0; i < e.dataTransfer.files.length; i++) {
-				resources.push(URI.file(e.dataTransfer.files.item(i).path));
-			}
-
-			this.fileService.resolveFiles(resources.map(r => ({ resource: r }))).then(stats => {
-				const dirs = stats.filter(s => s.success && s.stat.isDirectory);
-				return this.workspaceEditingService.addFolders(dirs.map(d => ({ uri: d.stat.resource })));
-			}).done(undefined, errors.onUnexpectedError);
+			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+			dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
 		}));
 
 		this.setLabels();
