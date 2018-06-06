@@ -43,18 +43,34 @@ const shellCommand: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property of the task and the shell property in the options instead. See also the 1.14 release notes.')
 };
 
+const taskIdentifier: IJSONSchema = {
+	type: 'object',
+	additionalProperties: true,
+	properties: {
+		type: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+		}
+	}
+};
+
 const dependsOn: IJSONSchema = {
 	anyOf: [
 		{
 			type: 'string',
-			default: true,
 			description: nls.localize('JsonSchema.tasks.dependsOn.string', 'Another task this task depends on.')
 		},
+		taskIdentifier,
 		{
 			type: 'array',
 			description: nls.localize('JsonSchema.tasks.dependsOn.array', 'The other tasks this task depends on.'),
 			items: {
-				type: 'string'
+				anyOf: [
+					{
+						type: 'string',
+					},
+					taskIdentifier
+				]
 			}
 		}
 	]

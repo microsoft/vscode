@@ -112,6 +112,14 @@ export interface PresentationOptions {
 
 export interface TaskIdentifier {
 	type?: string;
+	[name: string]: any;
+}
+
+export namespace TaskIdentifier {
+	export function is(value: any): value is TaskIdentifier {
+		let candidate: TaskIdentifier = value;
+		return candidate !== void 0 && Types.isString(value.type);
+	}
 }
 
 export interface LegacyTaskProperties {
@@ -279,7 +287,7 @@ export interface ConfigurationProperties {
 	/**
 	 * The other tasks the task depend on
 	 */
-	dependsOn?: string | string[];
+	dependsOn?: string | TaskIdentifier | (string | TaskIdentifier)[];
 
 	/**
 	 * Controls the behavior of the used terminal
@@ -1103,6 +1111,18 @@ namespace GroupKind {
 	}
 }
 
+namespace TaskDependency {
+	export function from(this: void, external: string | TaskIdentifier, context: ParseContext): Tasks.TaskDependency {
+		if (Types.isString(external)) {
+			return { workspaceFolder: context.workspaceFolder, task: external };
+		} else if (TaskIdentifier.is(external)) {
+			return { workspaceFolder: context.workspaceFolder, task: TaskDefinition.createTaskIdentifier(external as Tasks.TaskIdentifier, context.problemReporter) };
+		} else {
+			return undefined;
+		}
+	}
+}
+
 namespace ConfigurationProperties {
 
 	const properties: MetaData<Tasks.ConfigurationProperties, any>[] = [
@@ -1145,10 +1165,10 @@ namespace ConfigurationProperties {
 			}
 		}
 		if (external.dependsOn !== void 0) {
-			if (Types.isString(external.dependsOn)) {
-				result.dependsOn = [{ workspaceFolder: context.workspaceFolder, task: external.dependsOn }];
-			} else if (Types.isStringArray(external.dependsOn)) {
-				result.dependsOn = external.dependsOn.map((task) => { return { workspaceFolder: context.workspaceFolder, task: task }; });
+			if (Types.isArray(external.dependsOn)) {
+				result.dependsOn = external.dependsOn.map(item => TaskDependency.from(item, context));
+			} else {
+				result.dependsOn = [TaskDependency.from(external, context)];
 			}
 		}
 		if (includeCommandOptions && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {
@@ -1196,27 +1216,37 @@ namespace ConfiguringTask {
 			context.problemReporter.error(message);
 			return undefined;
 		}
-		let taskIdentifier: Tasks.TaskIdentifier;
+		let identifier: Tasks.TaskIdentifier;
 		if (Types.isString(customize)) {
-			let identifier: TaskIdentifier;
 			if (customize.indexOf(grunt) === 0) {
-				identifier = { type: 'grunt', task: customize.substring(grunt.length) } as TaskIdentifier;
+				identifier = { type: 'grunt', task: customize.substring(grunt.length) };
 			} else if (customize.indexOf(jake) === 0) {
-				identifier = { type: 'jake', task: customize.substring(jake.length) } as TaskIdentifier;
+				identifier = { type: 'jake', task: customize.substring(jake.length) };
 			} else if (customize.indexOf(gulp) === 0) {
-				identifier = { type: 'gulp', task: customize.substring(gulp.length) } as TaskIdentifier;
+				identifier = { type: 'gulp', task: customize.substring(gulp.length) };
 			} else if (customize.indexOf(npm) === 0) {
-				identifier = { type: 'npm', script: customize.substring(npm.length + 4) } as TaskIdentifier;
+				identifier = { type: 'npm', script: customize.substring(npm.length + 4) };
 			} else if (customize.indexOf(typescript) === 0) {
-				identifier = { type: 'typescript', tsconfig: customize.substring(typescript.length + 6) } as TaskIdentifier;
-			}
-			if (identifier !== void 0) {
-				taskIdentifier = TaskDefinition.createTaskIdentifier(typeDeclaration, identifier, context.problemReporter);
+				identifier = { type: 'typescript', tsconfig: customize.substring(typescript.length + 6) };
 			}
 		} else {
-			taskIdentifier = TaskDefinition.createTaskIdentifier(typeDeclaration, external, context.problemReporter);
+			if (Types.isString(external.type)) {
+				identifier = external as Tasks.TaskIdentifier;
+			}
 		}
+		if (identifier === void 0) {
+			context.problemReporter.error(nls.localize(
+				'ConfigurationParser.missingType',
+				'Error: the task configuration \'{0}\' is missing the required property \'type\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
+			));
+			return undefined;
+		}
+		let taskIdentifier: Tasks.KeyedTaskIdentifier = TaskDefinition.createTaskIdentifier(identifier, context.problemReporter);
 		if (taskIdentifier === void 0) {
+			context.problemReporter.error(nls.localize(
+				'ConfigurationParser.incorrectType',
+				'Error: the task configuration \'{0}\' is using and unknown type. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
+			));
 			return undefined;
 		}
 		let configElement: Tasks.TaskSourceConfigElement = {

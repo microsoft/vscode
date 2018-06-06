@@ -75,13 +75,14 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskSorter
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
 
+import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+
 import * as TaskConfig from '../node/taskConfiguration';
-import { TaskIdentifier } from 'vs/workbench/parts/tasks/node/tasks';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
 import { TerminalTaskSystem } from './terminalTaskSystem';
 import { ProcessRunnerDetector } from 'vs/workbench/parts/tasks/node/processRunnerDetector';
@@ -675,10 +676,19 @@ class TaskService implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
+		}
+		let key: string | KeyedTaskIdentifier;
+		if (!Types.isString(identifier)) {
+			key = TaskDefinition.createTaskIdentifier(identifier, console);
+		} else {
+			key = identifier;
+		}
+		if (key === void 0) {
+			return TPromise.as(undefined);
 		}
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
@@ -686,7 +696,7 @@ class TaskService implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias, compareId)) {
+				if (Task.matches(task, key, compareId)) {
 					return task;
 				}
 			}
@@ -1156,27 +1166,37 @@ class TaskService implements ITaskService {
 		interface ResolverData {
 			label: Map<string, Task>;
 			identifier: Map<string, Task>;
+			taskIdentifier: Map<string, Task>;
 		}
 
 		let resolverData: Map<string, ResolverData> = new Map();
 		grouped.forEach((tasks, folder) => {
 			let data = resolverData.get(folder);
 			if (!data) {
-				data = { label: new Map<string, Task>(), identifier: new Map<string, Task>() };
+				data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
 				resolverData.set(folder, data);
 			}
 			for (let task of tasks) {
 				data.label.set(task._label, task);
 				data.identifier.set(task.identifier, task);
+				let keyedIdentifier = Task.getTaskDefinition(task, true);
+				if (keyedIdentifier !== void 0) {
+					data.taskIdentifier.set(keyedIdentifier._key, task);
+				}
 			}
 		});
 		return {
-			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
+			resolve: (workspaceFolder: IWorkspaceFolder, identifier: string | TaskIdentifier) => {
 				let data = resolverData.get(workspaceFolder.uri.toString());
 				if (!data) {
 					return undefined;
 				}
-				return data.label.get(alias) || data.identifier.get(alias);
+				if (Types.isString(identifier)) {
+					return data.label.get(identifier) || data.identifier.get(identifier);
+				} else {
+					let key = TaskDefinition.createTaskIdentifier(identifier, console);
+					return key !== void 0 ? data.taskIdentifier.get(key._key) : undefined;
+				}
 			}
 		};
 	}
@@ -1429,7 +1449,7 @@ class TaskService implements ITaskService {
 				// This is for backwards compatibility with the 0.1.0 task annotation code
 				// if we had a gulp, jake or grunt command a task specification was a annotation
 				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier = TaskIdentifier.create({
+					let identifier = NKeyedTaskIdentifier.create({
 						type: commandName,
 						task: task.name
 					});
@@ -1900,12 +1920,18 @@ class TaskService implements ITaskService {
 		if (!this.canRunCommand()) {
 			return;
 		}
+		let identifier: string | KeyedTaskIdentifier = undefined;
 		if (Types.isString(arg)) {
+			identifier = arg;
+		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
+			identifier = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
+		}
+		if (identifier !== void 0) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
-					let task = resolver.resolve(folder, arg);
+					let task = resolver.resolve(folder, identifier);
 					if (task) {
 						this.run(task);
 						return;

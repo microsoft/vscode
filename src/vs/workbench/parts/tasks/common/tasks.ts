@@ -312,7 +312,7 @@ export interface WorkspaceTaskSource {
 	readonly kind: 'workspace';
 	readonly label: string;
 	readonly config: TaskSourceConfigElement;
-	readonly customizes?: TaskIdentifier;
+	readonly customizes?: KeyedTaskIdentifier;
 }
 
 export interface ExtensionTaskSource {
@@ -336,14 +336,17 @@ export interface InMemoryTaskSource {
 export type TaskSource = WorkspaceTaskSource | ExtensionTaskSource | InMemoryTaskSource;
 
 export interface TaskIdentifier {
-	_key: string;
 	type: string;
 	[name: string]: any;
 }
 
+export interface KeyedTaskIdentifier extends TaskIdentifier {
+	_key: string;
+}
+
 export interface TaskDependency {
 	workspaceFolder: IWorkspaceFolder;
-	task: string;
+	task: string | KeyedTaskIdentifier;
 }
 
 export enum GroupType {
@@ -445,21 +448,21 @@ export namespace CustomTask {
 		let candidate: CustomTask = value;
 		return candidate && candidate.type === 'custom';
 	}
-	export function getDefinition(task: CustomTask): TaskIdentifier {
+	export function getDefinition(task: CustomTask): KeyedTaskIdentifier {
 		let type: string;
 		if (task.command !== void 0) {
 			type = task.command.runtime === RuntimeType.Shell ? 'shell' : 'process';
 		} else {
 			type = '$composite';
 		}
-		let result: TaskIdentifier = {
+		let result: KeyedTaskIdentifier = {
 			type,
 			_key: task._id,
 			id: task._id
 		};
 		return result;
 	}
-	export function customizes(task: CustomTask): TaskIdentifier {
+	export function customizes(task: CustomTask): KeyedTaskIdentifier {
 		if (task._source && task._source.customizes) {
 			return task._source.customizes;
 		}
@@ -474,7 +477,7 @@ export interface ConfiguringTask extends CommonTask, ConfigurationProperties {
 	 */
 	_source: WorkspaceTaskSource;
 
-	configures: TaskIdentifier;
+	configures: KeyedTaskIdentifier;
 }
 
 export namespace ConfiguringTask {
@@ -491,7 +494,7 @@ export interface ContributedTask extends CommonTask, ConfigurationProperties {
 	 */
 	_source: ExtensionTaskSource;
 
-	defines: TaskIdentifier;
+	defines: KeyedTaskIdentifier;
 
 	hasDefinedMatchers: boolean;
 
@@ -606,7 +609,7 @@ export namespace Task {
 		}
 	}
 
-	export function matches(task: Task, key: string | TaskIdentifier, compareId: boolean = false): boolean {
+	export function matches(task: Task, key: string | KeyedTaskIdentifier, compareId: boolean = false): boolean {
 		if (key === void 0) {
 			return false;
 		}
@@ -626,11 +629,15 @@ export namespace Task {
 		}
 	}
 
-	export function getTaskDefinition(task: Task): TaskIdentifier {
+	export function getTaskDefinition(task: Task, useSource: boolean = false): KeyedTaskIdentifier {
 		if (ContributedTask.is(task)) {
 			return task.defines;
 		} else if (CustomTask.is(task)) {
-			return CustomTask.getDefinition(task);
+			if (useSource && task._source.customizes !== void 0) {
+				return task._source.customizes;
+			} else {
+				return CustomTask.getDefinition(task);
+			}
 		} else {
 			return undefined;
 		}

@@ -10,10 +10,11 @@ import * as crypto from 'crypto';
 
 import * as Objects from 'vs/base/common/objects';
 
-import { TaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/common/tasks';
+import { TaskIdentifier, KeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/common/tasks';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 
-namespace TaskIdentifier {
-	export function create(value: { type: string;[name: string]: any }): TaskIdentifier {
+namespace KeyedTaskIdentifier {
+	export function create(value: TaskIdentifier): KeyedTaskIdentifier {
 		const hash = crypto.createHash('md5');
 		hash.update(JSON.stringify(value));
 		let result = { _key: hash.digest('hex'), type: value.taskType };
@@ -23,14 +24,12 @@ namespace TaskIdentifier {
 }
 
 namespace TaskDefinition {
-	export function createTaskIdentifier(definition: TaskDefinition, external: { type?: string;[name: string]: any }, reporter: { error(message: string): void; }): TaskIdentifier | undefined {
-		if (definition.taskType !== external.type) {
-			reporter.error(nls.localize(
-				'TaskDefinition.missingType',
-				'Error: the task configuration \'{0}\' is missing the required property \'type\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
-			));
+	export function createTaskIdentifier(external: TaskIdentifier, reporter: { error(message: string): void; }): KeyedTaskIdentifier | undefined {
+		let definition = TaskDefinitionRegistry.get(external.type);
+		if (definition === void 0) {
 			return undefined;
 		}
+
 		let literal: { type: string;[name: string]: any } = Object.create(null);
 		literal.type = definition.taskType;
 		let required: Set<string> = new Set();
@@ -60,15 +59,15 @@ namespace TaskDefinition {
 						default:
 							reporter.error(nls.localize(
 								'TaskDefinition.missingRequiredProperty',
-								'Error: the task configuration \'{0}\' is missing the required property \'{1}\'. The task configuration will be ignored.', JSON.stringify(external, undefined, 0), property
+								'Error: the task identifier \'{0}\' is missing the required property \'{1}\'. The task identifier will be ignored.', JSON.stringify(external, undefined, 0), property
 							));
 							return undefined;
 					}
 				}
 			}
 		}
-		return TaskIdentifier.create(literal);
+		return KeyedTaskIdentifier.create(literal);
 	}
 }
 
-export { TaskIdentifier, TaskDefinition };
+export { KeyedTaskIdentifier, TaskDefinition };

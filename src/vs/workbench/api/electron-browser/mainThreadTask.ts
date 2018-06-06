@@ -15,7 +15,7 @@ import * as Platform from 'vs/base/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
 } from 'vs/workbench/parts/tasks/common/tasks';
 
@@ -29,7 +29,6 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
-import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -65,17 +64,13 @@ namespace TaskProcessEndedDTO {
 }
 
 namespace TaskDefinitionDTO {
-	export function from(value: TaskIdentifier): TaskDefinitionDTO {
+	export function from(value: KeyedTaskIdentifier): TaskDefinitionDTO {
 		let result = Objects.assign(Object.create(null), value);
 		delete result._key;
 		return result;
 	}
-	export function to(value: TaskDefinitionDTO): TaskIdentifier {
-		let taskDefinition = TaskDefinitionRegistry.get(value.type);
-		if (taskDefinition === void 0) {
-			return undefined;
-		}
-		return TaskDefinition.createTaskIdentifier(taskDefinition, value, console);
+	export function to(value: TaskDefinitionDTO): KeyedTaskIdentifier {
+		return TaskDefinition.createTaskIdentifier(value, console);
 	}
 }
 
@@ -399,8 +394,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						if (taskTransfer.__workspaceFolder !== void 0 && taskTransfer.__definition !== void 0) {
 							(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(taskTransfer.__workspaceFolder));
 							delete taskTransfer.__workspaceFolder;
-							let taskDefinition = TaskDefinitionRegistry.get(taskTransfer.__definition.type);
-							let taskIdentifier = TaskDefinition.createTaskIdentifier(taskDefinition, taskTransfer.__definition, console);
+							let taskIdentifier = TaskDefinition.createTaskIdentifier(taskTransfer.__definition, console);
 							delete taskTransfer.__definition;
 							if (taskIdentifier !== void 0) {
 								(task as ContributedTask).defines = taskIdentifier;
