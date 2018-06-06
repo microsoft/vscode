@@ -45,18 +45,7 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".code-workspace",
-          "language-configuration.json",
-          "icon-theme.json",
-          "color-theme.json",
-          ".code-snippets",
           ".jsonc"
-        ],
-        "filenames": [
-          "settings.json",
-          "launch.json",
-          "tasks.json",
-          "keybindings.json"
         ],
         "configuration": "./language-configuration.json"
       }
