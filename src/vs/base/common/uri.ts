@@ -565,7 +565,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (fragment) {
 		res += '#';
-		res += encoder(fragment, false);
+		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
 	}
 	return res;
 }
