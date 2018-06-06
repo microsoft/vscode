@@ -475,7 +475,7 @@ export class SettingsRenderer implements IRenderer {
 			this.renderBool(element, isSelected, template, onChange);
 		} else if (element.valueType === 'string') {
 			this.renderText(element, isSelected, template, onChange);
-		} else if (element.valueType === 'number') {
+		} else if (element.valueType === 'number' || element.valueType === 'integer') {
 			this.renderText(element, isSelected, template, value => onChange(parseInt(value)));
 		} else {
 			this.renderEditInSettingsJson(element, isSelected, template);
