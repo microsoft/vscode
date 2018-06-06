@@ -407,7 +407,7 @@ export class OutlinePanel extends ViewletPanel {
 		dom.removeClass(this._domNode, 'message');
 		let oldModel = <OutlineModel>this._tree.getInput();
 
-		if (event && oldModel) {
+		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
 			// wait a little (and hope that the next change isn't as drastic).
 			let newLength = textModel.getValueLength();
