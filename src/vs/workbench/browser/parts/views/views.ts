@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEWLET_ID } from 'vs/workbench/common/views';
+import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -482,6 +482,8 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 	}
 }
 
+const SCM_VIEWLET_ID = 'workbench.view.scm';
+
 export class ViewsService extends Disposable implements IViewsService {
 
 	_serviceBrand: any;
@@ -497,7 +499,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		viewContainersRegistry.all.forEach(viewContainer => this.onDidRegisterViewContainer(viewContainer));
 		this._register(viewContainersRegistry.onDidRegister(viewContainer => this.onDidRegisterViewContainer(viewContainer)));
-		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== TEST_VIEWLET_ID))));
+		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== TEST_VIEW_CONTAINER_ID))));
 	}
 
 	openView(id: string, focus: boolean): TPromise<void> {
@@ -518,9 +520,12 @@ export class ViewsService extends Disposable implements IViewsService {
 	}
 
 	private onDidRegisterViewContainer(viewContainer: ViewContainer): void {
-		const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewContainer));
-		this._register(viewDescriptorCollection.onDidChange(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection)));
-		this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection));
+		// TODO: @Joao Remove this after moving SCM Viewlet to ViewContainerViewlet - https://github.com/Microsoft/vscode/issues/49054
+		if (viewContainer.id !== SCM_VIEWLET_ID) {
+			const viewDescriptorCollection = this._register(this.instantiationService.createInstance(ViewDescriptorCollection, viewContainer));
+			this._register(viewDescriptorCollection.onDidChange(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection)));
+			this.lifecycleService.when(LifecyclePhase.Eventually).then(() => this.updateViewletEnablement(viewContainer, viewDescriptorCollection));
+		}
 	}
 
 	private updateViewletEnablement(viewContainer: ViewContainer, viewDescriptorCollection: ViewDescriptorCollection): void {

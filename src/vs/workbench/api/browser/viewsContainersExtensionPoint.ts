@@ -20,7 +20,7 @@ import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { Extensions as ViewContainerExtensions, IViewContainersRegistry, TEST_VIEWLET_ID } from 'vs/workbench/common/views';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
 import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -83,7 +83,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 		const cssClass = `extensionViewlet-test`;
 		const icon = require.toUrl('./media/test.svg');
 
-		this.registerCustomViewlet({ id: TEST_VIEWLET_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
+		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
 
 	private handleAndRegisterCustomViewContainers() {

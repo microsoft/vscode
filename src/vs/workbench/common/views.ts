@@ -17,7 +17,7 @@ import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { values } from 'vs/base/common/map';
 import { Registry } from 'vs/platform/registry/common/platform';
 
-export const TEST_VIEWLET_ID = 'workbench.view.extension.test';
+export const TEST_VIEW_CONTAINER_ID = 'workbench.view.extension.test';
 
 export namespace Extensions {
 	export const ViewContainersRegistry = 'workbench.registry.view.containers';
@@ -54,8 +54,7 @@ export interface IViewContainersRegistry {
 }
 
 export class ViewContainer {
-	protected constructor(private _id: string) { }
-	get id(): string { return this._id; }
+	protected constructor(readonly id: string) { }
 }
 
 class ViewContainersRegistryImpl implements IViewContainersRegistry {
