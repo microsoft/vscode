@@ -11,6 +11,22 @@ const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox inpu
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
 const FILE_MATCH = filename => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
 
+async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
+	let count = 0;
+	while (true) {
+		await setup();
+
+		try {
+			await attempt();
+			return;
+		} catch (err) {
+			if (++count > 5) {
+				throw err;
+			}
+		}
+	}
+}
+
 export class Search extends Viewlet {
 
 	constructor(code: Code) {
@@ -56,8 +72,11 @@ export class Search extends Viewlet {
 	async removeFileMatch(filename: string): Promise<void> {
 		const fileMatch = FILE_MATCH(filename);
 
-		await this.code.waitAndClick(fileMatch);
-		await this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0);
+		await retry(
+			() => this.code.waitAndClick(fileMatch),
+			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
+		);
+
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
@@ -77,8 +96,11 @@ export class Search extends Viewlet {
 	async replaceFileMatch(filename: string): Promise<void> {
 		const fileMatch = FILE_MATCH(filename);
 
-		await this.code.waitAndClick(fileMatch);
-		await this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0);
+		await retry(
+			() => this.code.waitAndClick(fileMatch),
+			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
+		);
+
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 
