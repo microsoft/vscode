@@ -9,6 +9,7 @@ import { Code } from '../../vscode/code';
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
+const FILE_MATCH = filename => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
 
 export class Search extends Viewlet {
 
@@ -52,15 +53,14 @@ export class Search extends Viewlet {
 		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
 	}
 
-	async removeFileMatch(index: number): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
+	async removeFileMatch(filename: string): Promise<void> {
+		const fileMatch = FILE_MATCH(filename);
 
+		await this.code.waitAndClick(fileMatch);
 		// give time for Chrome to show the remove label
 		await new Promise(c => setTimeout(c, 500));
-
-		const file = await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`);
-		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-remove`);
-		await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
+		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
+		await this.code.waitForElement(fileMatch, el => !el);
 	}
 
 	async expandReplace(): Promise<void> {
@@ -75,9 +75,11 @@ export class Search extends Viewlet {
 		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`, text);
 	}
 
-	async replaceFileMatch(index: number): Promise<void> {
-		await this.code.waitAndMove(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
+	async replaceFileMatch(filename: string): Promise<void> {
+		const fileMatch = FILE_MATCH(filename);
+
+		await this.code.waitAndClick(fileMatch);
+		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {

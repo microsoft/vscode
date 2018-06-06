@@ -32,7 +32,6 @@ export interface IDriver {
 	dispatchKeybinding(windowId: number, keybinding: string): TPromise<void>;
 	click(windowId: number, selector: string, xoffset?: number | undefined, yoffset?: number | undefined): TPromise<void>;
 	doubleClick(windowId: number, selector: string): TPromise<void>;
-	move(windowId: number, selector: string): TPromise<void>;
 	setValue(windowId: number, selector: string, text: string): TPromise<void>;
 	getTitle(windowId: number): TPromise<string>;
 	isActiveElement(windowId: number, selector: string): TPromise<boolean>;
@@ -50,7 +49,6 @@ export interface IDriverChannel extends IChannel {
 	call(command: 'dispatchKeybinding', arg: [number, string]): TPromise<void>;
 	call(command: 'click', arg: [number, string, number | undefined, number | undefined]): TPromise<void>;
 	call(command: 'doubleClick', arg: [number, string]): TPromise<void>;
-	call(command: 'move', arg: [number, string]): TPromise<void>;
 	call(command: 'setValue', arg: [number, string, string]): TPromise<void>;
 	call(command: 'getTitle', arg: [number]): TPromise<string>;
 	call(command: 'isActiveElement', arg: [number, string]): TPromise<boolean>;
@@ -73,7 +71,6 @@ export class DriverChannel implements IDriverChannel {
 			case 'dispatchKeybinding': return this.driver.dispatchKeybinding(arg[0], arg[1]);
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2], arg[3]);
 			case 'doubleClick': return this.driver.doubleClick(arg[0], arg[1]);
-			case 'move': return this.driver.move(arg[0], arg[1]);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1], arg[2]);
 			case 'getTitle': return this.driver.getTitle(arg[0]);
 			case 'isActiveElement': return this.driver.isActiveElement(arg[0], arg[1]);
@@ -115,10 +112,6 @@ export class DriverChannelClient implements IDriver {
 
 	doubleClick(windowId: number, selector: string): TPromise<void> {
 		return this.channel.call('doubleClick', [windowId, selector]);
-	}
-
-	move(windowId: number, selector: string): TPromise<void> {
-		return this.channel.call('move', [windowId, selector]);
 	}
 
 	setValue(windowId: number, selector: string, text: string): TPromise<void> {
@@ -197,7 +190,6 @@ export class WindowDriverRegistryChannelClient implements IWindowDriverRegistry 
 export interface IWindowDriver {
 	click(selector: string, xoffset?: number | undefined, yoffset?: number | undefined): TPromise<void>;
 	doubleClick(selector: string): TPromise<void>;
-	move(selector: string): TPromise<void>;
 	setValue(selector: string, text: string): TPromise<void>;
 	getTitle(): TPromise<string>;
 	isActiveElement(selector: string): TPromise<boolean>;
@@ -210,7 +202,6 @@ export interface IWindowDriver {
 export interface IWindowDriverChannel extends IChannel {
 	call(command: 'click', arg: [string, number | undefined, number | undefined]): TPromise<void>;
 	call(command: 'doubleClick', arg: string): TPromise<void>;
-	call(command: 'move', arg: string): TPromise<void>;
 	call(command: 'setValue', arg: [string, string]): TPromise<void>;
 	call(command: 'getTitle'): TPromise<string>;
 	call(command: 'isActiveElement', arg: string): TPromise<boolean>;
@@ -229,7 +220,6 @@ export class WindowDriverChannel implements IWindowDriverChannel {
 		switch (command) {
 			case 'click': return this.driver.click(arg[0], arg[1], arg[2]);
 			case 'doubleClick': return this.driver.doubleClick(arg);
-			case 'move': return this.driver.move(arg);
 			case 'setValue': return this.driver.setValue(arg[0], arg[1]);
 			case 'getTitle': return this.driver.getTitle();
 			case 'isActiveElement': return this.driver.isActiveElement(arg);
@@ -255,10 +245,6 @@ export class WindowDriverChannelClient implements IWindowDriver {
 
 	doubleClick(selector: string): TPromise<void> {
 		return this.channel.call('doubleClick', selector);
-	}
-
-	move(selector: string): TPromise<void> {
-		return this.channel.call('move', selector);
 	}
 
 	setValue(selector: string, text: string): TPromise<void> {

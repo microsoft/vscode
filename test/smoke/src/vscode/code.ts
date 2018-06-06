@@ -247,11 +247,6 @@ export class Code {
 		await poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
 	}
 
-	async waitAndMove(selector: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.move(windowId, selector), () => true, `move '${selector}'`);
-	}
-
 	async waitForSetValue(selector: string, value: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.setValue(windowId, selector, value), () => true, `set value '${selector}'`);

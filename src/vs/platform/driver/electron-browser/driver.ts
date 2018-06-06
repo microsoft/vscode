@@ -87,14 +87,6 @@ class WindowDriver implements IWindowDriver {
 		await TPromise.timeout(100);
 	}
 
-	async move(selector: string): TPromise<void> {
-		const { x, y } = await this._getElementXY(selector);
-		const webContents = electron.remote.getCurrentWebContents();
-		webContents.sendInputEvent({ type: 'mouseMove', x, y } as any);
-
-		await TPromise.timeout(100);
-	}
-
 	async setValue(selector: string, text: string): TPromise<void> {
 		const element = document.querySelector(selector);
 
