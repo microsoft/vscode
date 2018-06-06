@@ -18,6 +18,7 @@ const _outlineDesc = <IViewDescriptor>{
 	container: VIEW_CONTAINER,
 	canToggleVisibility: true,
 	hideByDefault: false,
+	collapsed: true,
 	order: 2,
 	weight: 30
 };
