@@ -117,7 +117,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 		const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {selfClosingStyle: 'xhtml'}}, ConfigurationTarget.Global).then(() =>{
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { selfClosingStyle: 'xhtml' } }, ConfigurationTarget.Global).then(() => {
 			return withRandomFileEditor(contents, 'jsx', (editor, doc) => {
 				editor.selections = [
 					new Selection(3, 17, 3, 17), // join tag
@@ -150,6 +150,32 @@ suite('Tests for Emmet actions on html tags', () => {
 				assert.equal(selection.active.character, 3);
 				assert.equal(selection.anchor.line, 8);
 				assert.equal(selection.anchor.character, 3);
+			});
+
+			return Promise.resolve();
+		});
+	});
+
+	test('match tag with template scripts', () => {
+		let templateScript = `
+	<script type="text/template">
+		<div>
+			Hello
+		</div>
+	</script>`;
+
+		return withRandomFileEditor(templateScript, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 2, 2, 2), // just before div tag starts, i.e before <
+			];
+
+			matchTag();
+
+			editor.selections.forEach(selection => {
+				assert.equal(selection.active.line, 4);
+				assert.equal(selection.active.character, 4);
+				assert.equal(selection.anchor.line, 4);
+				assert.equal(selection.anchor.character, 4);
 			});
 
 			return Promise.resolve();
