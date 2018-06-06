@@ -54,6 +54,10 @@ export class Search extends Viewlet {
 
 	async removeFileMatch(index: number): Promise<void> {
 		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
+
+		// give time for Chrome to show the remove label
+		await new Promise(c => setTimeout(c, 500));
+
 		const file = await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`);
 		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-remove`);
 		await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
