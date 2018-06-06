@@ -626,6 +626,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.mouseWheelZoom,
 			'markdownDescription': nls.localize('mouseWheelZoom', "Zoom the font of the editor when using mouse wheel and holding `Ctrl`.")
 		},
+		'editor.cursorSmoothCaretAnimation': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.viewInfo.cursorSmoothCaretAnimation,
+			'description': nls.localize('cursorSmoothCaretAnimation', "Controls whether the smooth caret animation should be enabled.")
+		},
 		'editor.cursorStyle': {
 			'type': 'string',
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],

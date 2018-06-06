@@ -25,6 +25,7 @@ export class ViewCursors extends ViewPart {
 	private _readOnly: boolean;
 	private _cursorBlinking: TextEditorCursorBlinkingStyle;
 	private _cursorStyle: TextEditorCursorStyle;
+	private _cursorSmoothCaretAnimation: boolean;
 	private _selectionIsEmpty: boolean;
 
 	private _isVisible: boolean;
@@ -47,6 +48,7 @@ export class ViewCursors extends ViewPart {
 		this._readOnly = this._context.configuration.editor.readOnly;
 		this._cursorBlinking = this._context.configuration.editor.viewInfo.cursorBlinking;
 		this._cursorStyle = this._context.configuration.editor.viewInfo.cursorStyle;
+		this._cursorSmoothCaretAnimation = this._context.configuration.editor.viewInfo.cursorSmoothCaretAnimation;
 		this._selectionIsEmpty = true;
 
 		this._primaryCursor = new ViewCursor(this._context);
@@ -296,6 +298,9 @@ export class ViewCursors extends ViewPart {
 			}
 		} else {
 			result += ' cursor-solid';
+		}
+		if (this._cursorSmoothCaretAnimation) {
+			result += ' cursor-smooth-caret-animation';
 		}
 		return result;
 	}

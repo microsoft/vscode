@@ -133,6 +133,7 @@ const configurationValueWhitelist = [
 	'editor.overviewRulerLanes',
 	'editor.overviewRulerBorder',
 	'editor.cursorBlinking',
+	'editor.cursorSmoothCaretAnimation',
 	'editor.cursorStyle',
 	'editor.mouseWheelZoom',
 	'editor.fontLigatures',

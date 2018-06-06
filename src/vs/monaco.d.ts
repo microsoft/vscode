@@ -2697,6 +2697,11 @@ declare namespace monaco.editor {
 		 */
 		mouseWheelZoom?: boolean;
 		/**
+		 * Enable smooth caret animation.
+		 * Defaults to false.
+		 */
+		cursorSmoothCaretAnimation?: boolean;
+		/**
 		 * Control the cursor style, either 'block' or 'line'.
 		 * Defaults to 'line'.
 		 */
@@ -3230,6 +3235,7 @@ declare namespace monaco.editor {
 		readonly overviewRulerBorder: boolean;
 		readonly cursorBlinking: TextEditorCursorBlinkingStyle;
 		readonly mouseWheelZoom: boolean;
+		readonly cursorSmoothCaretAnimation: boolean;
 		readonly cursorStyle: TextEditorCursorStyle;
 		readonly cursorWidth: number;
 		readonly hideCursorInOverviewRuler: boolean;
