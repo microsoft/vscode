@@ -8,7 +8,7 @@ import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
 import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
 
 export function activate(): void {
-	if (vscode.workspace.getConfiguration('searchrg').get('enable')) {
+	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
 		const outputChannel = vscode.window.createOutputChannel('search-rg');
 		const provider = new RipgrepSearchProvider(outputChannel);
 		vscode.workspace.registerSearchProvider('file', provider);
