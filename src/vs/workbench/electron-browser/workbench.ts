@@ -42,7 +42,8 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, IDimension } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
@@ -82,7 +83,7 @@ import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfigu
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/workbench/services/actions/common/menuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions';
@@ -112,6 +113,7 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -243,7 +245,8 @@ export class Workbench extends Disposable implements IPartService {
 		@IConfigurationService private configurationService: WorkspaceService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: NotificationService
+		@INotificationService private notificationService: NotificationService,
+		@IContextViewService private contextViewService: ContextViewService
 	) {
 		super();
 
@@ -348,7 +351,14 @@ export class Workbench extends Disposable implements IPartService {
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
 
 		// Context Menu
-		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));
+		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
+
+		// Use themable context menus when custom titlebar is enabled to match custom menubar
+		if (isWindows && hasCustomTitle) {
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, undefined, undefined, this.notificationService, this.contextViewService));
+		} else {
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
+		}
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
