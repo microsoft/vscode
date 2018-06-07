@@ -256,47 +256,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Task
-
-	export namespace workspace {
-
-		/**
-		 * Fetches all tasks available in the systems. This includes tasks
-		 * from `tasks.json` files as well as tasks from task providers
-		 * contributed through extensions.
-		 *
-		 * @param filter a filter to filter the return tasks.
-		 */
-		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
-
-		/**
-		 * Executes a task that is managed by VS Code. The returned
-		 * task execution can be used to terminate the task.
-		 *
-		 * @param task the task to execute
-		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
-
-		/**
-		 * The currently active task executions or an empty array.
-		 *
-		 * @readonly
-		 */
-		export let taskExecutions: ReadonlyArray<TaskExecution>;
-
-		/**
-		 * Fires when a task starts.
-		 */
-		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Fires when a task ends.
-		 */
-		export const onDidEndTask: Event<TaskEndEvent>;
-	}
-
-	//#endregion
-
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
