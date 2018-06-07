@@ -39,7 +39,6 @@ export interface ISashEvent {
 }
 
 export interface ISashOptions {
-	baseSize?: number;
 	orientation?: Orientation;
 }
 
@@ -54,7 +53,6 @@ export class Sash {
 	private layoutProvider: ISashLayoutProvider;
 	private hidden: boolean;
 	private orientation: Orientation;
-	private size: number;
 	private disposables: IDisposable[] = [];
 
 	private _enabled = true;
@@ -99,10 +97,8 @@ export class Sash {
 		Gesture.addTarget(this.el);
 		domEvent(this.el, EventType.Start)(this.onTouchStart, this, this.disposables);
 
-		this.size = options.baseSize || 5;
-
 		if (isIPad) {
-			this.size *= 4; // see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
+			// see also http://ux.stackexchange.com/questions/39023/what-is-the-optimum-button-size-of-touch-screen-applications
 			addClass(this.el, 'touch');
 		}
 
@@ -118,11 +114,9 @@ export class Sash {
 		if (this.orientation === Orientation.HORIZONTAL) {
 			addClass(this.el, 'horizontal');
 			removeClass(this.el, 'vertical');
-			this.el.style.height = `${this.size}px`;
 		} else {
 			removeClass(this.el, 'horizontal');
 			addClass(this.el, 'vertical');
-			this.el.style.width = `${this.size}px`;
 		}
 
 		if (this.layoutProvider) {
@@ -244,9 +238,11 @@ export class Sash {
 	}
 
 	layout(): void {
+		const size = isIPad ? 20 : 5;
+
 		if (this.orientation === Orientation.VERTICAL) {
 			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
-			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (this.size / 2) + 'px';
+			this.el.style.left = verticalProvider.getVerticalSashLeft(this) - (size / 2) + 'px';
 
 			if (verticalProvider.getVerticalSashTop) {
 				this.el.style.top = verticalProvider.getVerticalSashTop(this) + 'px';
@@ -257,7 +253,7 @@ export class Sash {
 			}
 		} else {
 			const horizontalProvider = (<IHorizontalSashLayoutProvider>this.layoutProvider);
-			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (this.size / 2) + 'px';
+			this.el.style.top = horizontalProvider.getHorizontalSashTop(this) - (size / 2) + 'px';
 
 			if (horizontalProvider.getHorizontalSashLeft) {
 				this.el.style.left = horizontalProvider.getHorizontalSashLeft(this) + 'px';
