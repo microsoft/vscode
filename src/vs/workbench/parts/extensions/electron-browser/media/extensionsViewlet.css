@@ -192,14 +192,16 @@
 	opacity: 0.9;
 }
 
-.vs .extensions-viewlet > .extensions .extension.disabled > .icon,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .icon,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .header-container,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .description,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .description,
-.vs .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author,
-.vs-dark .extensions-viewlet > .extensions .extension.disabled > .details > .footer > .author {
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
+.vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .description,
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author,
+.vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .footer > .author {
 	opacity: 0.5;
 }
 
