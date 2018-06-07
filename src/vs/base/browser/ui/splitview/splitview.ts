@@ -461,11 +461,7 @@ export class SplitView implements IDisposable {
 		const expandsUp = reverseViews.map(i => previous = (i.view.maximumSize - i.size > 0) || previous).reverse();
 
 		this.sashItems.forEach((s, i) => {
-			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
-				s.sash.enable();
-			} else {
-				s.sash.disable();
-			}
+			s.sash.enabled = (collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1]);
 		});
 	}
 

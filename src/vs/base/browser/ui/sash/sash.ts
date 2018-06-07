@@ -52,16 +52,39 @@ export class Sash {
 
 	private el: HTMLElement;
 	private layoutProvider: ISashLayoutProvider;
-	private isDisabled: boolean;
 	private hidden: boolean;
 	private orientation: Orientation;
 	private size: number;
 	private disposables: IDisposable[] = [];
 
-	private _onDidStart = new Emitter<ISashEvent>();
-	private _onDidChange = new Emitter<ISashEvent>();
-	private _onDidReset = new Emitter<void>();
-	private _onDidEnd = new Emitter<void>();
+	private _enabled = true;
+	get enabled(): boolean { return this._enabled; }
+	set enabled(enabled: boolean) {
+		this._enabled = enabled;
+
+		if (enabled) {
+			removeClass(this.el, 'disabled');
+		} else {
+			addClass(this.el, 'disabled');
+		}
+
+		this._onDidEnablementChange.fire(enabled);
+	}
+
+	private readonly _onDidEnablementChange = new Emitter<boolean>();
+	readonly onDidEnablementChange: Event<boolean> = this._onDidEnablementChange.event;
+
+	private readonly _onDidStart = new Emitter<ISashEvent>();
+	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
+
+	private readonly _onDidChange = new Emitter<ISashEvent>();
+	readonly onDidChange: Event<ISashEvent> = this._onDidChange.event;
+
+	private readonly _onDidReset = new Emitter<void>();
+	readonly onDidReset: Event<void> = this._onDidReset.event;
+
+	private readonly _onDidEnd = new Emitter<void>();
+	readonly onDidEnd: Event<void> = this._onDidEnd.event;
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
 		this.el = append(container, $('.monaco-sash'));
@@ -85,25 +108,8 @@ export class Sash {
 
 		this.setOrientation(options.orientation || Orientation.VERTICAL);
 
-		this.isDisabled = false;
 		this.hidden = false;
 		this.layoutProvider = layoutProvider;
-	}
-
-	get onDidStart(): Event<ISashEvent> {
-		return this._onDidStart.event;
-	}
-
-	get onDidChange(): Event<ISashEvent> {
-		return this._onDidChange.event;
-	}
-
-	get onDidReset(): Event<void> {
-		return this._onDidReset.event;
-	}
-
-	get onDidEnd(): Event<void> {
-		return this._onDidEnd.event;
 	}
 
 	setOrientation(orientation: Orientation): void {
@@ -127,7 +133,7 @@ export class Sash {
 	private onMouseDown(e: MouseEvent): void {
 		EventHelper.stop(e, false);
 
-		if (this.isDisabled) {
+		if (!this.enabled) {
 			return;
 		}
 
@@ -277,20 +283,6 @@ export class Sash {
 
 	isHidden(): boolean {
 		return this.hidden;
-	}
-
-	enable(): void {
-		removeClass(this.el, 'disabled');
-		this.isDisabled = false;
-	}
-
-	disable(): void {
-		addClass(this.el, 'disabled');
-		this.isDisabled = true;
-	}
-
-	get enabled(): boolean {
-		return !this.isDisabled;
 	}
 
 	dispose(): void {
