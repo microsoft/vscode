@@ -45,13 +45,13 @@ class OutlineAdapter {
 			}
 			let [probe] = value;
 			if (!(probe instanceof SymbolInformation2)) {
-				value = OutlineAdapter._asSymbolHierarchy(<SymbolInformation[]>value);
+				value = OutlineAdapter._asSymbolHierarchy(resource, <SymbolInformation[]>value);
 			}
 			return (<SymbolInformation2[]>value).map(typeConvert.SymbolInformation2.from);
 		});
 	}
 
-	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.SymbolInformation2[] {
+	private static _asSymbolHierarchy(resource: URI, info: SymbolInformation[]): vscode.SymbolInformation2[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		info = info.slice(0).sort((a, b) => {
@@ -67,6 +67,7 @@ class OutlineAdapter {
 			let element = new SymbolInformation2(info[i].name, info[i].kind, '', info[i].location);
 			element.containerName = info[i].containerName;
 			element.location = info[i].location; // todo@joh make this proper
+			element.location.uri = element.location.uri || resource;
 
 			while (true) {
 				if (parentStack.length === 0) {
