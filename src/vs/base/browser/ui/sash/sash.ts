@@ -164,6 +164,29 @@ export class Sash {
 	private onMouseDown(e: MouseEvent): void {
 		EventHelper.stop(e, false);
 
+		if (!(e as any).__orthogonalSashEvent) {
+			let orthogonalSash: Sash | undefined;
+
+			if (this.orientation === Orientation.VERTICAL) {
+				if (e.offsetY <= 2) {
+					orthogonalSash = this.orthogonalStartSash;
+				} else if (e.offsetY >= this.el.clientHeight - 2) {
+					orthogonalSash = this.orthogonalEndSash;
+				}
+			} else {
+				if (e.offsetX <= 2) {
+					orthogonalSash = this.orthogonalStartSash;
+				} else if (e.offsetX >= this.el.clientWidth - 2) {
+					orthogonalSash = this.orthogonalEndSash;
+				}
+			}
+
+			if (orthogonalSash) {
+				(e as any).__orthogonalSashEvent = true;
+				orthogonalSash.onMouseDown(e);
+			}
+		}
+
 		if (!this.enabled) {
 			return;
 		}
@@ -275,7 +298,7 @@ export class Sash {
 	}
 
 	layout(): void {
-		const size = isIPad ? 20 : 5;
+		const size = isIPad ? 20 : 4;
 
 		if (this.orientation === Orientation.VERTICAL) {
 			const verticalProvider = (<IVerticalSashLayoutProvider>this.layoutProvider);
@@ -335,6 +358,9 @@ export class Sash {
 	}
 
 	dispose(): void {
+		this.orthogonalStartSashDisposables = dispose(this.orthogonalStartSashDisposables);
+		this.orthogonalEndSashDisposables = dispose(this.orthogonalEndSashDisposables);
+
 		if (this.el && this.el.parentElement) {
 			this.el.parentElement.removeChild(this.el);
 		}

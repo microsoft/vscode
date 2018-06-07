@@ -9,20 +9,29 @@
 	touch-action: none;
 }
 
+.monaco-sash.disabled {
+	pointer-events: none;
+}
+
 .monaco-sash.vertical {
 	cursor: ew-resize;
 	top: 0;
-	width: 5px;
+	width: 4px;
 	height: 100%;
-	background: red;
 }
 
-.monaco-sash.orthogonal-start::before,
-.monaco-sash.orthogonal-end::after {
+.monaco-sash.horizontal {
+	cursor: ns-resize;
+	left: 0;
+	width: 100%;
+	height: 4px;
+}
+
+.monaco-sash:not(.disabled).orthogonal-start::before,
+.monaco-sash:not(.disabled).orthogonal-end::after {
 	content: ' ';
-	height: 5px;
-	width: 5px;
-	background: green;
+	height: 4px;
+	width: 4px;
 	z-index: 100;
 	display: block;
 	cursor: all-scroll;
@@ -30,27 +39,19 @@
 }
 
 .monaco-sash.orthogonal-start.vertical::before {
-	top: -2.5px;
+	top: -2px;
 }
 
 .monaco-sash.orthogonal-end.vertical::after {
-	bottom: -2.5px;
+	bottom: -2px;
 }
 
 .monaco-sash.orthogonal-start.horizontal::before {
-	left: -2.5px;
+	left: -2px;
 }
 
 .monaco-sash.orthogonal-end.horizontal::after {
-	right: -2.5px;
-}
-
-.monaco-sash.horizontal {
-	cursor: ns-resize;
-	left: 0;
-	width: 100%;
-	height: 5px;
-	background: blue;
+	right: -2px;
 }
 
 .monaco-sash.disabled {
