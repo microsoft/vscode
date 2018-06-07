@@ -45,13 +45,13 @@ class OutlineAdapter {
 			}
 			let [probe] = value;
 			if (!(probe instanceof Hierarchy)) {
-				value = OutlineAdapter._asSymbolHierarchy(<SymbolInformation[]>value);
+				value = OutlineAdapter._asSymbolHierarchy(resource, <SymbolInformation[]>value);
 			}
 			return (<Hierarchy<SymbolInformation2>[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
 		});
 	}
 
-	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.Hierarchy<SymbolInformation2>[] {
+	private static _asSymbolHierarchy(resource: URI, info: SymbolInformation[]): vscode.Hierarchy<SymbolInformation2>[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		info = info.slice(0).sort((a, b) => {
@@ -67,6 +67,7 @@ class OutlineAdapter {
 			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
 			element.parent.containerName = info[i].containerName;
 			element.parent.location = info[i].location; // todo@joh make this proper
+			element.parent.location.uri = element.parent.location.uri || resource;
 
 			while (true) {
 				if (parentStack.length === 0) {
