@@ -19,11 +19,19 @@ const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 export class IndentRangeProvider implements RangeProvider {
 	readonly id = 'indent';
 
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions> {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
+	readonly decorations;
+
+	constructor(private editorModel: ITextModel) {
+	}
+
+	dispose() {
+	}
+
+	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
-		return TPromise.as(computeRanges(editorModel, offSide, markers));
+		return TPromise.as(computeRanges(this.editorModel, offSide, markers));
 	}
 }
 
