@@ -8,7 +8,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { ContextKeyDefinedExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { HistoryInputBoxContext } from 'vs/platform/widget/browser/input';
-import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputbox';
+import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'input.action.historyPrevious',
