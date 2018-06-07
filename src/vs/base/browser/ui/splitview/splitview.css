@@ -5,7 +5,13 @@
 
 .monaco-split-view2 {
 	position: relative;
-	overflow: hidden;
+	/* overflow: hidden; */
+	width: 100%;
+	height: 100%;
+}
+
+.monaco-split-view2 > .sash-container {
+	position: absolute;
 	width: 100%;
 	height: 100%;
 }
@@ -17,7 +23,7 @@
 }
 
 .monaco-split-view2 > .split-view-container > .split-view-view {
-	overflow: hidden;
+	/* overflow: hidden; */
 	white-space: initial;
 }
 

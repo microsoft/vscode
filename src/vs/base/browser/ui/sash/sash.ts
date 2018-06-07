@@ -40,6 +40,8 @@ export interface ISashEvent {
 
 export interface ISashOptions {
 	orientation?: Orientation;
+	orthogonalStartSash?: Sash;
+	orthogonalEndSash?: Sash;
 }
 
 export enum Orientation {
@@ -84,6 +86,38 @@ export class Sash {
 	private readonly _onDidEnd = new Emitter<void>();
 	readonly onDidEnd: Event<void> = this._onDidEnd.event;
 
+	private orthogonalStartSashDisposables: IDisposable[] = [];
+	private _orthogonalStartSash: Sash | undefined;
+	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
+	set orthogonalStartSash(sash: Sash | undefined) {
+		this.orthogonalStartSashDisposables = dispose(this.orthogonalStartSashDisposables);
+
+		if (sash) {
+			sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this, this.orthogonalStartSashDisposables);
+			this.onOrthogonalStartSashEnablementChange(sash.enabled);
+		} else {
+			this.onOrthogonalStartSashEnablementChange(false);
+		}
+
+		this._orthogonalStartSash = sash;
+	}
+
+	private orthogonalEndSashDisposables: IDisposable[] = [];
+	private _orthogonalEndSash: Sash | undefined;
+	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
+	set orthogonalEndSash(sash: Sash | undefined) {
+		this.orthogonalEndSashDisposables = dispose(this.orthogonalEndSashDisposables);
+
+		if (sash) {
+			sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this, this.orthogonalEndSashDisposables);
+			this.onOrthogonalEndSashEnablementChange(sash.enabled);
+		} else {
+			this.onOrthogonalEndSashEnablementChange(false);
+		}
+
+		this._orthogonalEndSash = sash;
+	}
+
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
 		this.el = append(container, $('.monaco-sash'));
 
@@ -106,6 +140,9 @@ export class Sash {
 
 		this.hidden = false;
 		this.layoutProvider = layoutProvider;
+
+		this.orthogonalStartSash = options.orthogonalStartSash;
+		this.orthogonalEndSash = options.orthogonalEndSash;
 	}
 
 	setOrientation(orientation: Orientation): void {
@@ -279,6 +316,22 @@ export class Sash {
 
 	isHidden(): boolean {
 		return this.hidden;
+	}
+
+	private onOrthogonalStartSashEnablementChange(enabled: boolean): void {
+		if (enabled) {
+			addClass(this.el, 'orthogonal-start');
+		} else {
+			removeClass(this.el, 'orthogonal-start');
+		}
+	}
+
+	private onOrthogonalEndSashEnablementChange(enabled: boolean): void {
+		if (enabled) {
+			addClass(this.el, 'orthogonal-end');
+		} else {
+			removeClass(this.el, 'orthogonal-end');
+		}
 	}
 
 	dispose(): void {

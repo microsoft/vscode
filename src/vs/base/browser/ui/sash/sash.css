@@ -14,6 +14,35 @@
 	top: 0;
 	width: 5px;
 	height: 100%;
+	background: red;
+}
+
+.monaco-sash.orthogonal-start::before,
+.monaco-sash.orthogonal-end::after {
+	content: ' ';
+	height: 5px;
+	width: 5px;
+	background: green;
+	z-index: 100;
+	display: block;
+	cursor: all-scroll;
+	position: absolute;
+}
+
+.monaco-sash.orthogonal-start.vertical::before {
+	top: -2.5px;
+}
+
+.monaco-sash.orthogonal-end.vertical::after {
+	bottom: -2.5px;
+}
+
+.monaco-sash.orthogonal-start.horizontal::before {
+	left: -2.5px;
+}
+
+.monaco-sash.orthogonal-end.horizontal::after {
+	right: -2.5px;
 }
 
 .monaco-sash.horizontal {
@@ -21,6 +50,7 @@
 	left: 0;
 	width: 100%;
 	height: 5px;
+	background: blue;
 }
 
 .monaco-sash.disabled {
