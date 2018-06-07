@@ -27,6 +27,8 @@ const defaultStyles: ISplitViewStyles = {
 export interface ISplitViewOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
 	styles?: ISplitViewStyles;
+	orthogonalStartSash?: Sash;
+	orthogonalEndSash?: Sash;
 }
 
 export interface IView {
@@ -117,8 +119,9 @@ export namespace Sizing {
 
 export class SplitView implements IDisposable {
 
-	private orientation: Orientation;
+	readonly orientation: Orientation;
 	private el: HTMLElement;
+	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;
 	private contentSize = 0;
@@ -136,6 +139,30 @@ export class SplitView implements IDisposable {
 		return this.viewItems.length;
 	}
 
+	private _orthogonalStartSash: Sash | undefined;
+	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
+	set orthogonalStartSash(sash: Sash | undefined) {
+		for (const sashItem of this.sashItems) {
+			sashItem.sash.orthogonalStartSash = sash;
+		}
+
+		this._orthogonalStartSash = sash;
+	}
+
+	private _orthogonalEndSash: Sash | undefined;
+	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
+	set orthogonalEndSash(sash: Sash | undefined) {
+		for (const sashItem of this.sashItems) {
+			sashItem.sash.orthogonalEndSash = sash;
+		}
+
+		this._orthogonalEndSash = sash;
+	}
+
+	get sashes(): Sash[] {
+		return this.sashItems.map(s => s.sash);
+	}
+
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
 
@@ -144,9 +171,8 @@ export class SplitView implements IDisposable {
 		dom.addClass(this.el, this.orientation === Orientation.VERTICAL ? 'vertical' : 'horizontal');
 		container.appendChild(this.el);
 
-		this.viewContainer = document.createElement('div');
-		dom.addClass(this.viewContainer, 'split-view-container');
-		this.el.appendChild(this.viewContainer);
+		this.sashContainer = dom.append(this.el, dom.$('.sash-container'));
+		this.viewContainer = dom.append(this.el, dom.$('.split-view-container'));
 
 		this.style(options.styles || defaultStyles);
 	}
@@ -207,7 +233,11 @@ export class SplitView implements IDisposable {
 		if (this.viewItems.length > 1) {
 			const orientation = this.orientation === Orientation.VERTICAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
 			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
-			const sash = new Sash(this.el, layoutProvider, { orientation });
+			const sash = new Sash(this.sashContainer, layoutProvider, {
+				orientation,
+				orthogonalStartSash: this.orthogonalStartSash,
+				orthogonalEndSash: this.orthogonalEndSash
+			});
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
 				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX });
@@ -483,11 +513,7 @@ export class SplitView implements IDisposable {
 		const expandsUp = reverseViews.map(i => previous = (i.view.maximumSize - i.size > 0) || previous).reverse();
 
 		this.sashItems.forEach((s, i) => {
-			if ((collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1])) {
-				s.sash.enable();
-			} else {
-				s.sash.disable();
-			}
+			s.sash.enabled = (collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1]);
 		});
 	}
 
