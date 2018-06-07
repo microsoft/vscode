@@ -400,6 +400,7 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
 	private readonly _initialState: StackElement;
+	private _tokenizationWarningAlreadyShown: boolean;
 
 	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
@@ -425,9 +426,11 @@ class TMTokenization implements ITokenizationSupport {
 
 		// Do not attempt to tokenize if a line has over 20k
 		if (line.length >= 20000) {
-			const lineText = line.substr(0, 15);
-			console.log(`Line (${lineText}...): longer than 20k characters, tokenization skipped.`);
-			this.notificationService.warn(nls.localize('too many characters', "The line '{0}' is longer than 20k characters, for performance reasons tokenization is skipped.", lineText));
+			if (!this._tokenizationWarningAlreadyShown) {
+				this._tokenizationWarningAlreadyShown = true;
+				this.notificationService.warn(nls.localize('too many characters', "Tokenization is skipped for lines longer than 20k characters for performance reasons."));
+			}
+			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}
 
