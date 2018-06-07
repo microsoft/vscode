@@ -29,6 +29,7 @@ import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorR
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -151,7 +152,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private createInput(container: HTMLElement): void {
-		this.filterInputBox = this._register(this.instantiationService.createInstance(HistoryInputBox, container, this.contextViewService, {
+		this.filterInputBox = this._register(this.instantiationService.createInstance(ContextScopedHistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
 			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
 			history: this.itemOptions.filterHistory
@@ -232,27 +233,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 		}
 	}
 
-	private showNextFilter() {
-		this.filterInputBox.showNextValue();
-	}
-
-	private showPreviousFilter() {
-		this.filterInputBox.showPreviousValue();
-	}
-
 	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Escape:
 				filterInputBox.value = '';
-				handled = true;
-				break;
-			case KeyCode.UpArrow:
-				this.showPreviousFilter();
-				handled = true;
-				break;
-			case KeyCode.DownArrow:
-				this.showNextFilter();
 				handled = true;
 				break;
 		}

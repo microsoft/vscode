@@ -14,6 +14,8 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
+import { ContextScopedFindInput } from 'vs/platform/widget/browser/input';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -31,14 +33,15 @@ export abstract class SimpleFindWidget extends Widget {
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super();
 
-		this._findInput = this._register(new FindInput(null, this._contextViewService, {
+		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		}));
+		}, contextKeyService));
 
 		// Find History with update delayer
 		this._updateHistoryDelayer = new Delayer<void>(500);

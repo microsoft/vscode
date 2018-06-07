@@ -14,6 +14,8 @@ import { KeyCode } from 'vs/base/common/keyCodes';
 import { Event as CommonEvent, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachInputBoxStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export interface IOptions {
 	placeholder?: string;
@@ -44,7 +46,8 @@ export class PatternInputWidget extends Widget {
 	public onCancel: CommonEvent<boolean> = this._onCancel.event;
 
 	constructor(parent: HTMLElement, private contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected themeService: IThemeService,
+		@IContextKeyService private contextKeyService: IContextKeyService
 	) {
 		super();
 		this.onOptionChange = null;
@@ -146,14 +149,14 @@ export class PatternInputWidget extends Widget {
 		this.domNode.style.width = this.width + 'px';
 		dom.addClass(this.domNode, 'monaco-findInput');
 
-		this.inputBox = new HistoryInputBox(this.domNode, this.contextViewProvider, {
+		this.inputBox = new ContextScopedHistoryInputBox(this.domNode, this.contextViewProvider, {
 			placeholder: this.placeholder || '',
 			ariaLabel: this.ariaLabel || '',
 			validationOptions: {
 				validation: null
 			},
 			history: options.history || []
-		});
+		}, this.contextKeyService);
 		this._register(attachInputBoxStyler(this.inputBox, this.themeService));
 		this.inputFocusTracker = dom.trackFocus(this.inputBox.inputElement);
 		this.onkeyup(this.inputBox.inputElement, (keyboardEvent) => this.onInputKeyUp(keyboardEvent));
@@ -186,9 +189,10 @@ export class PatternInputWidget extends Widget {
 export class ExcludePatternInputWidget extends PatternInputWidget {
 
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options: IOptions = Object.create(null),
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(parent, contextViewProvider, options, themeService);
+		super(parent, contextViewProvider, options, themeService, contextKeyService);
 	}
 
 	private useExcludesAndIgnoreFilesBox: Checkbox;

@@ -10,7 +10,7 @@ import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
 import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
-import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -45,6 +45,7 @@ export class WebviewElement {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._webview = document.createElement('webview');
@@ -188,7 +189,7 @@ export class WebviewElement {
 			}),
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
+		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this._contextKeyService, this);
 		this._disposables.push(this._webviewFindWidget);
 
 		this.style(this._themeService.getTheme());

@@ -31,6 +31,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -243,7 +244,7 @@ export class SearchWidget extends Widget {
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new FindInput(searchInputContainer, this.contextViewService, inputOptions));
+		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.keyBindingService));
 		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
 		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
@@ -282,11 +283,11 @@ export class SearchWidget extends Widget {
 	private renderReplaceInput(parent: HTMLElement, options: ISearchWidgetOptions): void {
 		this.replaceContainer = dom.append(parent, dom.$('.replace-container.disabled'));
 		let replaceBox = dom.append(this.replaceContainer, dom.$('.input-box'));
-		this.replaceInput = this._register(new HistoryInputBox(replaceBox, this.contextViewService, {
+		this.replaceInput = this._register(new ContextScopedHistoryInputBox(replaceBox, this.contextViewService, {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			history: options.replaceHistory || []
-		}));
+		}, this.keyBindingService));
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
 		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());

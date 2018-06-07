@@ -6,14 +6,16 @@
 import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WebviewElement } from './webviewElement';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		@IContextViewService contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		private readonly webview: WebviewElement
 	) {
-		super(contextViewService);
+		super(contextViewService, contextKeyService);
 	}
 
 	public find(previous: boolean) {

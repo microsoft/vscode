@@ -30,6 +30,7 @@ import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/t
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, editorWidgetResizeBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
 
 
 export interface IFindController {
@@ -88,6 +89,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 	private _controller: IFindController;
 	private readonly _contextViewProvider: IContextViewProvider;
 	private readonly _keybindingService: IKeybindingService;
+	private readonly _contextKeyService: IContextKeyService;
 
 	private _domNode: HTMLElement;
 	private _findInput: FindInput;
@@ -131,6 +133,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._state = state;
 		this._contextViewProvider = contextViewProvider;
 		this._keybindingService = keybindingService;
+		this._contextKeyService = contextKeyService;
 
 		this._isVisible = false;
 		this._isReplaceVisible = false;
@@ -710,7 +713,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _buildFindPart(): HTMLElement {
 		// Find input
-		this._findInput = this._register(new FindInput(null, this._contextViewProvider, {
+		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewProvider, {
 			width: FIND_INPUT_AREA_WIDTH,
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
@@ -733,7 +736,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 					return { content: e.message };
 				}
 			}
-		}));
+		}, this._contextKeyService));
 		this._findInput.setRegex(!!this._state.isRegex);
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
@@ -839,11 +842,11 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
 		replaceInput.style.width = REPLACE_INPUT_AREA_WIDTH + 'px';
-		this._replaceInputBox = this._register(new HistoryInputBox(replaceInput, null, {
+		this._replaceInputBox = this._register(new ContextScopedHistoryInputBox(replaceInput, null, {
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
 			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
 			history: []
-		}));
+		}, this._contextKeyService));
 
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'input', (e) => {
