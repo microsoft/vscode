@@ -45,6 +45,9 @@ import { asDisposablePromise } from 'vs/base/common/async';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { firstIndex } from 'vs/base/common/arrays';
+import URI from 'vs/base/common/uri';
 
 class RequestState {
 
@@ -222,6 +225,7 @@ export class OutlinePanel extends ViewletPanel {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
+		@IMarkerService private readonly _markerService: IMarkerService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -500,6 +504,21 @@ export class OutlinePanel extends ViewletPanel {
 		// feature: reveal editor selection in outline
 		this._editorDisposables.push(editor.onDidChangeCursorSelection(e => e.reason === CursorChangeReason.Explicit && this._revealEditorSelection(model, e.selection)));
 		this._revealEditorSelection(model, editor.getSelection());
+
+		// feature: show markers in outline
+		const updateMarker = (e: URI[]) => {
+			if (firstIndex(e, a => a.toString() === textModel.uri.toString()) < 0) {
+				return;
+			}
+			const marker = this._markerService.read({ resource: textModel.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
+			if (marker.length === 0) {
+				return;
+			}
+			model.updateMarker(marker);
+			this._tree.refresh(undefined, true);
+		};
+		updateMarker([textModel.uri]);
+		this._editorDisposables.push(this._markerService.onMarkerChanged(updateMarker));
 	}
 
 	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
@@ -525,3 +544,4 @@ export class OutlinePanel extends ViewletPanel {
 		}
 	}
 }
+

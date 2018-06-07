@@ -22,6 +22,9 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -100,13 +103,11 @@ export class OutlineDataSource implements IDataSource {
 	}
 }
 
-export interface OutlineGroupTemplate {
-	label: HTMLDivElement;
-}
-
-export interface OutlineElementTemplate {
-	icon: HTMLSpanElement;
+export interface OutlineTemplate {
+	container: HTMLElement;
 	label: HighlightedLabel;
+	icon?: HTMLElement;
+	extra?: HTMLElement;
 }
 
 export class OutlineRenderer implements IRenderer {
@@ -114,7 +115,8 @@ export class OutlineRenderer implements IRenderer {
 	constructor(
 		@IExtensionService readonly _extensionService: IExtensionService,
 		@IEnvironmentService readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService
+		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService,
+		@IThemeService readonly _themeService: IThemeService
 	) {
 		//
 	}
@@ -127,26 +129,31 @@ export class OutlineRenderer implements IRenderer {
 		return element instanceof OutlineGroup ? 'outline-group' : 'outline-element';
 	}
 
-	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): any {
+	renderTemplate(tree: ITree, templateId: string, container: HTMLElement): OutlineTemplate {
 		if (templateId === 'outline-element') {
 			const icon = dom.$('.outline-element-icon symbol-icon');
 			const labelContainer = dom.$('.outline-element-label');
+			const extra = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer);
-			return { icon, label: new HighlightedLabel(labelContainer) };
+			dom.append(container, icon, labelContainer, extra);
+			return { container, icon, label: new HighlightedLabel(labelContainer), extra };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, labelContainer);
-			return { label: new HighlightedLabel(labelContainer) };
+			return { container, label: new HighlightedLabel(labelContainer) };
 		}
+
+		throw new Error(templateId);
 	}
 
-	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: any): void {
+	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('outline.title', "line {0} in {1}", element.symbol.location.range.startLineNumber, getPathLabel(element.symbol.location.uri, this._contextService, this._environmentService)));
+			this._renderMarkerInfo(element, template);
+
 		}
 		if (element instanceof OutlineGroup) {
 			this._extensionService.getExtensions().then(all => {
@@ -164,11 +171,29 @@ export class OutlineRenderer implements IRenderer {
 		}
 	}
 
-	disposeTemplate(tree: ITree, templateId: string, template: OutlineElementTemplate | OutlineGroupTemplate): void {
-		if (template.label instanceof HighlightedLabel) {
-			template.label.dispose();
+	private _renderMarkerInfo(element: OutlineElement, template: OutlineTemplate): void {
+		if (!element.marker || !element.marker.topSev) {
+			dom.removeClass(template.extra, 'bubble');
+			template.extra.innerText = '';
+			template.extra.title = '';
+			template.container.style.removeProperty('--outline-element-color');
+		} else if (element.marker.count > 0) {
+			dom.removeClass(template.extra, 'bubble');
+			template.extra.innerText = element.marker.count < 10 ? element.marker.count.toString() : '+9';
+			template.extra.title = element.marker.count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", element.marker.count);
+			template.container.style.setProperty('--outline-element-color', this._themeService.getTheme().getColor(element.marker.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString());
+		} else {
+			template.extra.innerText = '\uf052';
+			dom.addClass(template.extra, 'bubble');
+			template.extra.title = localize('deep.problem', "Contains elements with problems");
+			template.container.style.setProperty('--outline-element-color', this._themeService.getTheme().getColor(element.marker.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString());
 		}
 	}
+
+	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
+		template.label.dispose();
+	}
+
 }
 
 export class OutlineTreeState {

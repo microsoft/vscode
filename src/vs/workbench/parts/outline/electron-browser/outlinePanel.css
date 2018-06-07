@@ -57,10 +57,17 @@
 	display: none;
 }
 
+.monaco-tree.focused .selected .outline-element {
+	/* make sure selection color wins when a label is being selected */
+	color: inherit !important;
+}
+
 .monaco-workbench .outline-panel .outline-element {
 	display: flex;
+	flex: 1;
 	flex-flow: row nowrap;
 	align-items: center;
+	color: var(--outline-element-color);
 }
 
 .monaco-workbench .outline-panel .outline-element .outline-element-icon {
@@ -74,4 +81,19 @@
 
 .monaco-workbench .outline-panel .outline-element .outline-element-label .monaco-highlighted-label .highlight {
 	font-weight: bold;
+}
+
+.monaco-workbench .outline-panel .outline-element .outline-element-decoration {
+	opacity: 0.75;
+	font-size: 90%;
+	font-weight: 600;
+	padding: 0 12px 0 5px;
+	margin-left: auto;
+	text-align: center;
+}
+
+.monaco-workbench .outline-panel .outline-element .outline-element-decoration.bubble {
+	font-family: octicons;
+	font-size: 14px;
+	opacity: 0.4;
 }

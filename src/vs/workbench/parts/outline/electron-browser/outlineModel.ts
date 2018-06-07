@@ -10,10 +10,11 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -74,6 +75,7 @@ export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
 	score: FuzzyScore = [0, []];
+	marker: { count: number, topSev: MarkerSeverity };
 
 	constructor(
 		readonly id: string,
@@ -133,6 +135,53 @@ export class OutlineGroup extends TreeElement {
 			return this._getItemEnclosingPosition(position, item.children) || item;
 		}
 		return undefined;
+	}
+
+	updateMarker(marker: IMarker[]): void {
+		for (const key in this.children) {
+			this._updateMarker(marker, this.children[key]);
+		}
+	}
+
+	private _updateMarker(marker: IMarker[], item: OutlineElement): void {
+		let idx = binarySearch<IRange>(marker, item.symbol.definingRange, Range.compareRangesUsingStarts);
+		let start: number;
+		if (idx < 0) {
+			// ~idx is the index at which the symbol should be... start search from there
+			start = ~idx;
+			if (start > 0 && Range.areIntersecting(marker[start - 1], item.symbol.definingRange)) {
+				start -= 1;
+			}
+		} else {
+			start = idx;
+		}
+
+		let myMarkers: IMarker[] = [];
+		let myTopSev: MarkerSeverity;
+
+		while (start < marker.length) {
+			if (!Range.areIntersecting(marker[start], item.symbol.definingRange)) {
+				break;
+			}
+			// this marker belongs to this element and it takes it away.
+			// children of this marker might take it away again tho...
+			let myMarker = marker.splice(start, 1)[0];
+			myMarkers.push(myMarker);
+			if (!myTopSev || myMarker.severity > myTopSev) {
+				myTopSev = myMarker.severity;
+			}
+		}
+
+		// recursivion into children. this might cause myMarkers to become empty
+		// and because of that we store the top marker to which tell me what the
+		// most severe marker of my children is
+		for (const key in item.children) {
+			this._updateMarker(myMarkers, item.children[key]);
+		}
+		item.marker = {
+			count: myMarkers.length,
+			topSev: myTopSev
+		};
 	}
 }
 
@@ -247,5 +296,15 @@ export class OutlineModel extends TreeElement {
 
 	getItemById(id: string): TreeElement {
 		return TreeElement.getElementById(id, this);
+	}
+
+	updateMarker(marker: IMarker[]): void {
+		// sort markers by start range so that we can use
+		// outline element starts for quicker look up
+		marker.sort(Range.compareRangesUsingStarts);
+
+		for (const key in this._groups) {
+			this._groups[key].updateMarker(marker);
+		}
 	}
 }
