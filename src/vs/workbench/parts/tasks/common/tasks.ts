@@ -200,7 +200,7 @@ export interface PresentationOptions {
 	/**
 	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
 	 */
-	reuseMessage: boolean;
+	showReuseMessage: boolean;
 }
 
 export enum RuntimeType {
