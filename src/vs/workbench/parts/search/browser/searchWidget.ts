@@ -116,20 +116,23 @@ export class SearchWidget extends Widget {
 	private _onReplaceAll = this._register(new Emitter<void>());
 	public readonly onReplaceAll: Event<void> = this._onReplaceAll.event;
 
+	private _onBlur = this._register(new Emitter<void>());
+	public readonly onBlur: Event<void> = this._onBlur.event;
+
 	constructor(
 		container: Builder,
 		options: ISearchWidgetOptions,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
-		@IContextKeyService private keyBindingService: IContextKeyService,
-		@IKeybindingService private keyBindingService2: IKeybindingService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IKeybindingService private keyBindingService: IKeybindingService,
 		@IClipboardService private clipboardServce: IClipboardService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
 		super();
-		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.keyBindingService);
-		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.keyBindingService);
-		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.keyBindingService);
+		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
+		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
+		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.render(container, options);
 	}
 
@@ -162,6 +165,10 @@ export class SearchWidget extends Widget {
 
 	public isReplaceShown(): boolean {
 		return !dom.hasClass(this.replaceContainer, 'disabled');
+	}
+
+	isReplaceActive(): boolean {
+		return this.replaceActive.get();
 	}
 
 	public getReplaceValue(): string {
@@ -210,6 +217,14 @@ export class SearchWidget extends Widget {
 		return this.replaceInput.hasFocus();
 	}
 
+	public focusReplaceAllAction(): void {
+		this.replaceActionBar.focus(true);
+	}
+
+	public focusRegexAction(): void {
+		this.searchInput.focusOnRegex();
+	}
+
 	private render(container: Builder, options: ISearchWidgetOptions): void {
 		this.domNode = container.div({ 'class': 'search-widget' }).style({ position: 'relative' }).getHTMLElement();
 		this.renderToggleReplaceButton(this.domNode);
@@ -237,16 +252,16 @@ export class SearchWidget extends Widget {
 			label: nls.localize('label.Search', 'Search: Type Search Term and press Enter to search or Escape to cancel'),
 			validation: (value: string) => this.validateSearchInput(value),
 			placeholder: nls.localize('search.placeHolder', "Search"),
-			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService2),
-			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService2),
-			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService2.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService2),
+			appendCaseSensitiveLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleCaseSensitiveCommandId), this.keyBindingService),
+			appendWholeWordsLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleWholeWordCommandId), this.keyBindingService),
+			appendRegexLabel: appendKeyBindingLabel('', this.keyBindingService.lookupKeybinding(Constants.ToggleRegexCommandId), this.keyBindingService),
 			history: options.searchHistory
 		};
 
 		let searchInputContainer = dom.append(parent, dom.$('.search-container.input-box'));
-		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.keyBindingService));
+		this.searchInput = this._register(new ContextScopedFindInput(searchInputContainer, this.contextViewService, inputOptions, this.contextKeyService));
 		this._register(attachFindInputBoxStyler(this.searchInput, this.themeService));
-		this.searchInput.onKeyUp((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyUp(keyboardEvent));
+		this.searchInput.onKeyDown((keyboardEvent: IKeyboardEvent) => this.onSearchInputKeyDown(keyboardEvent));
 		this.searchInput.setValue(options.value || '');
 		this.searchInput.setRegex(!!options.isRegex);
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
@@ -254,6 +269,8 @@ export class SearchWidget extends Widget {
 		this._register(this.onSearchSubmit(() => {
 			this.searchInput.inputBox.addToHistory(this.searchInput.getValue());
 		}));
+		this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent));
+		this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent));
 
 		this._register(this.onReplaceValueChanged(() => {
 			this.replaceInput.addToHistory(this.replaceInput.value);
@@ -287,9 +304,9 @@ export class SearchWidget extends Widget {
 			ariaLabel: nls.localize('label.Replace', 'Replace: Type replace term and press Enter to preview or Escape to cancel'),
 			placeholder: nls.localize('search.replace.placeHolder', "Replace"),
 			history: options.replaceHistory || []
-		}, this.keyBindingService));
+		}, this.contextKeyService));
 		this._register(attachInputBoxStyler(this.replaceInput, this.themeService));
-		this.onkeyup(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyUp(keyboardEvent));
+		this.onkeydown(this.replaceInput.inputElement, (keyboardEvent) => this.onReplaceInputKeyDown(keyboardEvent));
 		this.replaceInput.onDidChange(() => this._onReplaceValueChanged.fire());
 		this.searchInput.inputBox.onDidChange(() => this.onSearchInputChanged());
 
@@ -320,13 +337,9 @@ export class SearchWidget extends Widget {
 	public setReplaceAllActionState(enabled: boolean): void {
 		if (this.replaceAllAction.enabled !== enabled) {
 			this.replaceAllAction.enabled = enabled;
-			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService2) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
+			this.replaceAllAction.label = enabled ? SearchWidget.REPLACE_ALL_ENABLED_LABEL(this.keyBindingService) : SearchWidget.REPLACE_ALL_DISABLED_LABEL;
 			this.updateReplaceActiveState();
 		}
-	}
-
-	private isReplaceActive(): boolean {
-		return this.replaceActive.get();
 	}
 
 	private updateReplaceActiveState(): void {
@@ -366,26 +379,61 @@ export class SearchWidget extends Widget {
 		this.setReplaceAllActionState(false);
 	}
 
-	private onSearchInputKeyUp(keyboardEvent: IKeyboardEvent) {
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this.submitSearch();
-				return;
-			case KeyCode.Escape:
-				this._onSearchCancel.fire();
-				return;
-			default:
-				return;
+	private onSearchInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyCode.Enter)) {
+			this.submitSearch();
+			keyboardEvent.preventDefault();
+		}
+
+		else if (keyboardEvent.equals(KeyCode.Escape)) {
+			this._onSearchCancel.fire();
+			keyboardEvent.preventDefault();
+		}
+
+		else if (keyboardEvent.equals(KeyCode.Tab)) {
+			if (this.isReplaceShown()) {
+				this.replaceInput.focus();
+			} else {
+				this.searchInput.focusOnCaseSensitive();
+			}
+			keyboardEvent.preventDefault();
 		}
 	}
 
-	private onReplaceInputKeyUp(keyboardEvent: IKeyboardEvent) {
-		switch (keyboardEvent.keyCode) {
-			case KeyCode.Enter:
-				this.submitSearch();
-				return;
-			default:
-				return;
+	private onCaseSensitiveKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
+			if (this.isReplaceShown()) {
+				this.replaceInput.focus();
+				keyboardEvent.preventDefault();
+			}
+		}
+	}
+
+	private onRegexKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyCode.Tab)) {
+			if (this.isReplaceActive()) {
+				this.focusReplaceAllAction();
+			} else {
+				this._onBlur.fire();
+			}
+			keyboardEvent.preventDefault();
+		}
+	}
+
+	private onReplaceInputKeyDown(keyboardEvent: IKeyboardEvent) {
+		if (keyboardEvent.equals(KeyCode.Enter)) {
+			this.submitSearch();
+			keyboardEvent.preventDefault();
+		}
+
+		else if (keyboardEvent.equals(KeyCode.Tab)) {
+			this.searchInput.focusOnCaseSensitive();
+			keyboardEvent.preventDefault();
+		}
+
+		else if (keyboardEvent.equals(KeyMod.Shift | KeyCode.Tab)) {
+			this.searchInput.focus();
+			keyboardEvent.preventDefault();
 		}
 	}
 

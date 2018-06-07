@@ -251,42 +251,6 @@ export class ShowPreviousReplaceTermAction extends Action {
 	}
 }
 
-export class FocusNextInputAction extends Action {
-
-	public static readonly ID = 'search.focus.nextInputBox';
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusNextInputBox();
-		return TPromise.as(null);
-	}
-}
-
-export class FocusPreviousInputAction extends Action {
-
-	public static readonly ID = 'search.focus.previousInputBox';
-
-	constructor(id: string, label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IPanelService private panelService: IPanelService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		const searchView = getSearchView(this.viewletService, this.panelService);
-		searchView.focusPreviousInputBox();
-		return TPromise.as(null);
-	}
-}
-
 export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
 	const editorService = accessor.get(IEditorService);
 	const activeControl = editorService.activeControl;

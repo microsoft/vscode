@@ -83,6 +83,9 @@ export class FindInput extends Widget {
 	private _onCaseSensitiveKeyDown = this._register(new Emitter<IKeyboardEvent>());
 	public readonly onCaseSensitiveKeyDown: Event<IKeyboardEvent> = this._onCaseSensitiveKeyDown.event;
 
+	private _onRegexKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onRegexKeyDown: Event<IKeyboardEvent> = this._onRegexKeyDown.event;
+
 	constructor(parent: HTMLElement, contextViewProvider: IContextViewProvider, options?: IFindInputOptions) {
 		super();
 		this.contextViewProvider = contextViewProvider;
@@ -248,6 +251,10 @@ export class FindInput extends Widget {
 		this.caseSensitive.focus();
 	}
 
+	public focusOnRegex(): void {
+		this.regex.focus();
+	}
+
 	private _lastHighlightFindOptions: number = 0;
 	public highlightFindOptions(): void {
 		dom.removeClass(this.domNode, 'highlight-' + (this._lastHighlightFindOptions));
@@ -293,6 +300,9 @@ export class FindInput extends Widget {
 				}
 				this.setInputWidth();
 				this.validate();
+			},
+			onKeyDown: (e) => {
+				this._onRegexKeyDown.fire(e);
 			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
