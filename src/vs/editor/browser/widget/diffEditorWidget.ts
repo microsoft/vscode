@@ -1520,7 +1520,7 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 		this._sash = this._register(new Sash(this._dataSource.getContainerDomNode(), this));
 
 		if (this._disableSash) {
-			this._sash.disable();
+			this._sash.enabled = false;
 		}
 
 		this._sash.onDidStart(() => this.onSashDragStart());
@@ -1539,9 +1539,9 @@ class DiffEdtorWidgetSideBySide extends DiffEditorWidgetStyle implements IDiffEd
 			this._disableSash = newDisableSash;
 
 			if (this._disableSash) {
-				this._sash.disable();
+				this._sash.enabled = false;
 			} else {
-				this._sash.enable();
+				this._sash.enabled = true;
 			}
 		}
 	}
