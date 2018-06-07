@@ -496,7 +496,7 @@ export class ActionBar implements IActionRunner {
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
 		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menubar');
+			this.actionsList.setAttribute('role', 'menu');
 		} else {
 			this.actionsList.setAttribute('role', 'toolbar');
 		}

@@ -317,10 +317,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	private onDidChangeMaximized(maximized: boolean) {
 		if (maximized) {
 			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-maximize');
+			if (!element) {
+				return;
+			}
+
 			element.classList.remove('window-maximize');
 			element.classList.add('window-unmaximize');
 		} else {
 			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize');
+			if (!element) {
+				return;
+			}
+
 			element.classList.remove('window-unmaximize');
 			element.classList.add('window-maximize');
 		}

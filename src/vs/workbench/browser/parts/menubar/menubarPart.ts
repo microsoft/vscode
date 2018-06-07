@@ -218,6 +218,7 @@ export class MenubarPart extends Part {
 
 	private setupCustomMenubar(): void {
 		this.container.clearChildren();
+		this.container.attr('role', 'menubar');
 
 		this.customMenus = [];
 
@@ -229,7 +230,11 @@ export class MenubarPart extends Part {
 
 			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
 			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<u>$1</u>' : '$1');
-			$(titleElement).div({ class: 'menubar-menu-title' }).innerHtml(displayTitle);
+			let legibleTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1');
+			$(titleElement).div({ class: 'menubar-menu-title', 'aria-hidden': true }).innerHtml(displayTitle);
+
+			titleElement.attr('aria-label', legibleTitle);
+			titleElement.attr('role', 'menu');
 
 			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
 			if (mnemonic) {
@@ -269,11 +274,7 @@ export class MenubarPart extends Part {
 			menu.onDidChange(updateActions);
 			updateActions();
 
-			// this.menus[menuTitle].element.on(EventType.CLICK, () => {
-			// 	this.showMenu(menuTitle);
-			// });
-
-			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, () => {
+			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, (event) => {
 				this.toggleCustomMenu(menuIndex);
 				this.isFocused = !this.isFocused;
 			});
@@ -410,7 +411,7 @@ export class MenubarPart extends Part {
 	private _getActionItem(action: IAction): ActionItem {
 		const keybinding = this.keybindingService.lookupKeybinding(action.id);
 		if (keybinding) {
-			return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel() });
+			return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
 		}
 		return null;
 	}
@@ -430,6 +431,8 @@ export class MenubarPart extends Part {
 			}
 		}
 
+		customMenu.titleElement.domFocus();
+
 		let menuHolder = $(customMenu.titleElement).div({ class: 'menubar-menu-items-holder' });
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
@@ -442,6 +445,7 @@ export class MenubarPart extends Part {
 
 		let menuOptions: IMenuOptions = {
 			actionRunner: this.actionRunner,
+			ariaLabel: 'File',
 			actionItemProvider: (action) => { return this._getActionItem(action); }
 		};
 
