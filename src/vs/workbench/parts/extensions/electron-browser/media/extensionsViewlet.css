@@ -69,6 +69,10 @@
 	box-sizing: border-box;
 }
 
+.extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark {
+	opacity: 0.5;
+}
+
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
 	position: absolute;
 	top: 1px;
