@@ -178,10 +178,16 @@ export class OutlineGroup extends TreeElement {
 		for (const key in item.children) {
 			this._updateMarker(myMarkers, item.children[key]);
 		}
-		item.marker = {
-			count: myMarkers.length,
-			topSev: myTopSev
-		};
+
+		if (!myTopSev) {
+			item.marker = undefined;
+		} else {
+			item.marker = {
+				count: myMarkers.length,
+				topSev: myTopSev
+			};
+		}
+
 	}
 }
 

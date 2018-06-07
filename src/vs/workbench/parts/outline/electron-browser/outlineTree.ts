@@ -172,7 +172,7 @@ export class OutlineRenderer implements IRenderer {
 	}
 
 	private _renderMarkerInfo(element: OutlineElement, template: OutlineTemplate): void {
-		if (!element.marker || !element.marker.topSev) {
+		if (!element.marker) {
 			dom.removeClass(template.extra, 'bubble');
 			template.extra.innerText = '';
 			template.extra.title = '';

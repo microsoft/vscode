@@ -506,18 +506,17 @@ export class OutlinePanel extends ViewletPanel {
 		this._revealEditorSelection(model, editor.getSelection());
 
 		// feature: show markers in outline
-		const updateMarker = (e: URI[]) => {
+		const updateMarker = (e: URI[], ignoreEmpty?: boolean) => {
 			if (firstIndex(e, a => a.toString() === textModel.uri.toString()) < 0) {
 				return;
 			}
 			const marker = this._markerService.read({ resource: textModel.uri, severities: MarkerSeverity.Error | MarkerSeverity.Warning });
-			if (marker.length === 0) {
-				return;
+			if (marker.length > 0 || !ignoreEmpty) {
+				model.updateMarker(marker);
+				this._tree.refresh(undefined, true);
 			}
-			model.updateMarker(marker);
-			this._tree.refresh(undefined, true);
 		};
-		updateMarker([textModel.uri]);
+		updateMarker([textModel.uri], true);
 		this._editorDisposables.push(this._markerService.onMarkerChanged(updateMarker));
 	}
 
