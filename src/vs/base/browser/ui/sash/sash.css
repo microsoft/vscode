@@ -9,49 +9,16 @@
 	touch-action: none;
 }
 
-.monaco-sash.disabled {
-	pointer-events: none;
-}
-
 .monaco-sash.vertical {
 	cursor: ew-resize;
-	top: 0;
-	width: 4px;
 	height: 100%;
+	top: 0;
 }
 
 .monaco-sash.horizontal {
 	cursor: ns-resize;
-	left: 0;
 	width: 100%;
-	height: 4px;
-}
-
-.monaco-sash:not(.disabled).orthogonal-start::before,
-.monaco-sash:not(.disabled).orthogonal-end::after {
-	content: ' ';
-	height: 4px;
-	width: 4px;
-	z-index: 100;
-	display: block;
-	cursor: all-scroll;
-	position: absolute;
-}
-
-.monaco-sash.orthogonal-start.vertical::before {
-	top: -2px;
-}
-
-.monaco-sash.orthogonal-end.vertical::after {
-	bottom: -2px;
-}
-
-.monaco-sash.orthogonal-start.horizontal::before {
-	left: -2px;
-}
-
-.monaco-sash.orthogonal-end.horizontal::after {
-	right: -2px;
+	left: 0;
 }
 
 .monaco-sash.disabled {
@@ -66,14 +33,4 @@
 
 .monaco-sash.mac.horizontal {
 	cursor: row-resize;
-}
-
-/** Touch **/
-
-.monaco-sash.touch.vertical {
-	width: 20px;
-}
-
-.monaco-sash.touch.horizontal {
-	height: 20px;
 }

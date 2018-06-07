@@ -459,7 +459,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		if (!this.options.isResizeable) {
 			this._resizeSash.hide();
-			this._resizeSash.enabled = false;
+			this._resizeSash.disable();
 		}
 
 		let data: { startY: number; heightInLines: number; };

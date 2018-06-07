@@ -94,7 +94,7 @@ suite('Splitview', () => {
 		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 3, 'split view should have 3 views');
 
-		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
+		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 2, 'split view should have 2 sashes');
 
 		splitview.removeView(2);
@@ -102,7 +102,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 2, 'split view should have 2 views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 1, 'split view should have 1 sash');
 
 		splitview.removeView(0);
@@ -110,7 +110,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 1, 'split view should have 1 view');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.removeView(0);
@@ -118,7 +118,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 0, 'split view should have no views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.dispose();

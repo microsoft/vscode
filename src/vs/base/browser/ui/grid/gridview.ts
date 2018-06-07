@@ -7,7 +7,7 @@
 
 import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
-import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
+import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
@@ -136,11 +136,6 @@ class BranchNode implements ISplitView, IDisposable {
 	private splitviewSashResetDisposable: IDisposable = EmptyDisposable;
 	private childrenSashResetDisposable: IDisposable = EmptyDisposable;
 
-	get orthogonalStartSash(): Sash | undefined { return this.splitview.orthogonalStartSash; }
-	set orthogonalStartSash(sash: Sash | undefined) { this.splitview.orthogonalStartSash = sash; }
-	get orthogonalEndSash(): Sash | undefined { return this.splitview.orthogonalEndSash; }
-	set orthogonalEndSash(sash: Sash | undefined) { this.splitview.orthogonalEndSash = sash; }
-
 	constructor(
 		readonly orientation: Orientation,
 		styles: IGridViewStyles,
@@ -155,7 +150,7 @@ class BranchNode implements ISplitView, IDisposable {
 		this.children = [];
 
 		this.element = $('.monaco-grid-branch-node');
-		this.splitview = new SplitView(this.element, { orientation, styles });
+		this.splitview = new SplitView(this.element, { orientation: this.orientation, styles });
 		this.splitview.layout(size);
 
 		const onDidSashReset = mapEvent(this.splitview.onDidSashReset, i => [i]);
@@ -193,8 +188,6 @@ class BranchNode implements ISplitView, IDisposable {
 
 		this.splitview.addView(node, size, index);
 		this.children.splice(index, 0, node);
-		node.orthogonalStartSash = this.splitview.sashes[index - 1];
-		node.orthogonalEndSash = this.splitview.sashes[index];
 		this.onDidChildrenChange();
 	}
 
@@ -222,7 +215,6 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.swapViews(from, to);
-		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
 		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
 	}
 
@@ -318,14 +310,6 @@ class LeafNode implements ISplitView, IDisposable {
 
 	get onDidChange(): Event<number> {
 		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
-	}
-
-	set orthogonalStartSash(sash: Sash) {
-		// noop
-	}
-
-	set orthogonalEndSash(sash: Sash) {
-		// noop
 	}
 
 	layout(size: number): void {

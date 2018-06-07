@@ -5,32 +5,19 @@
 
 .monaco-split-view2 {
 	position: relative;
-	width: 100%;
-	height: 100%;
-}
-
-.monaco-split-view2 > .sash-container {
-	position: absolute;
+	overflow: hidden;
 	width: 100%;
 	height: 100%;
 }
 
 .monaco-split-view2 > .split-view-container {
-	display: flex;
 	width: 100%;
 	height: 100%;
 	white-space: nowrap;
 }
 
-.monaco-split-view2.vertical > .split-view-container {
-	flex-direction: column;
-}
-
-.monaco-split-view2.horizontal > .split-view-container {
-	flex-direction: row;
-}
-
 .monaco-split-view2 > .split-view-container > .split-view-view {
+	overflow: hidden;
 	white-space: initial;
 }
 
