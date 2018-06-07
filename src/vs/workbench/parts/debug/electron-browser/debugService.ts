@@ -425,10 +425,10 @@ export class DebugService implements debug.IDebugService {
 					if (!breakpoint.column) {
 						event.body.breakpoint.column = undefined;
 					}
-					this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
+					breakpoint.setSessionData(session.getId(), event.body.breakpoint);
 				}
 				if (functionBreakpoint) {
-					this.model.updateFunctionBreakpoints({ [functionBreakpoint.getId()]: event.body.breakpoint });
+					functionBreakpoint.setSessionData(session.getId(), event.body.breakpoint);
 				}
 			}
 		}));
@@ -646,7 +646,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
-		this.model.updateFunctionBreakpoints({ [id]: { name: newFunctionName } });
+		this.model.renameFunctionBreakpoint(id, newFunctionName);
 		return this.sendFunctionBreakpoints();
 	}
 
@@ -706,7 +706,6 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getSessions().length === 0) {
 					this.removeReplExpressions();
 					this.allSessions.clear();
-					this.model.unverifyBreakpoints();
 				}
 
 				let config: debug.IConfig, compound: debug.ICompound;
@@ -1184,13 +1183,6 @@ export class DebugService implements debug.IDebugService {
 		this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
 
 		if (this.model.getSessions().length === 0) {
-			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean, column: number, endLine: number, endColumn: number } } = {};
-			breakpoints.forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column, endLine: bp.endLineNumber, endColumn: bp.endColumn };
-			});
-			this.model.updateBreakpoints(data);
-
 			this.inDebugMode.reset();
 			this.debugType.reset();
 			this.viewModel.setMultiSessionView(false);
@@ -1255,16 +1247,9 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: DebugProtocol.Breakpoint } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
-					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
-					if (!breakpointsToSend[i].column) {
-						// If there was no column sent ignore the breakpoint column response from the adapter
-						data[breakpointsToSend[i].getId()].column = undefined;
-					}
+					breakpointsToSend[i].setSessionData(raw.getId(), response.body.breakpoints[i]);
 				}
-
-				this.model.updateBreakpoints(data);
 			});
 		};
 
@@ -1284,12 +1269,9 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: { name?: string, verified?: boolean } } = {};
 				for (let i = 0; i < breakpointsToSend.length; i++) {
-					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
+					breakpointsToSend[i].setSessionData(raw.getId(), response.body.breakpoints[i]);
 				}
-
-				this.model.updateFunctionBreakpoints(data);
 			});
 		};
 
@@ -1334,6 +1316,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private store(): void {
+		// TODO@Isidor proper storage of breakpoints
 		const breakpoints = this.model.getBreakpoints();
 		if (breakpoints.length) {
 			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);

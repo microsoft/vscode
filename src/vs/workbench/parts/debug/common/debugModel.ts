@@ -726,8 +726,8 @@ export class Enablement implements IEnablement {
 
 export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
-	public verified: boolean;
-	public idFromAdapter: number;
+	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
+	private sessionId: string;
 
 	constructor(
 		enabled: boolean,
@@ -740,28 +740,93 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
-		this.verified = false;
+	}
+
+	protected getSessionData() {
+		return this.sessionData.get(this.sessionId);
+	}
+
+	public setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
+		this.sessionData.set(sessionId, data);
+	}
+
+	public setSessionId(sessionId: string): void {
+		this.sessionId = sessionId;
+	}
+
+	public get verified(): boolean {
+		const data = this.getSessionData();
+		return !!(data && data.verified);
+	}
+
+	public get idFromAdapter(): number {
+		const data = this.getSessionData();
+		return data ? data.id : undefined;
 	}
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
-	public message: string;
-	public endLineNumber: number;
-	public endColumn: number;
-
 	constructor(
 		public uri: uri,
-		public lineNumber: number,
-		public column: number,
+		private _lineNumber: number,
+		private _column: number,
 		enabled: boolean,
 		condition: string,
 		hitCondition: string,
 		logMessage: string,
-		public adapterData: any,
+		private _adapterData: any,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	public get lineNumber(): number {
+		const data = this.getSessionData();
+		return data && typeof data.line === 'number' ? data.line : this._lineNumber;
+	}
+
+	public get column(): number {
+		const data = this.getSessionData();
+		return data && typeof data.column === 'number' ? data.column : this._column;
+	}
+
+	public get message(): string {
+		const data = this.getSessionData();
+		return data ? data.message : undefined;
+	}
+
+	public get adapterData(): any {
+		const data = this.getSessionData();
+		return data && data.source && data.source.adapterData ? data.source.adapterData : this._adapterData;
+	}
+
+	public get endLineNumber(): number {
+		const data = this.getSessionData();
+		return data ? data.endLine : undefined;
+	}
+
+	public get endColumn(): number {
+		const data = this.getSessionData();
+		return data ? data.endColumn : undefined;
+	}
+
+	public update(data: IBreakpointUpdateData): void {
+		if (!isUndefinedOrNull(data.lineNumber)) {
+			this._lineNumber = data.lineNumber;
+		}
+		if (!isUndefinedOrNull(data.column)) {
+			this._column = data.column;
+		}
+		if (!isUndefinedOrNull(data.condition)) {
+			this.condition = data.condition;
+		}
+		if (!isUndefinedOrNull(data.hitCondition)) {
+			this.hitCondition = data.hitCondition;
+		}
+		if (!isUndefinedOrNull(data.logMessage)) {
+			this.logMessage = data.logMessage;
+		}
 	}
 }
 
@@ -893,7 +958,7 @@ export class Model implements IModel {
 		return thread.fetchCallStack();
 	}
 
-	public getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
+	public getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): Breakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri ? filter.uri.toString() : undefined;
 			return this.breakpoints.filter(bp => {
@@ -917,7 +982,7 @@ export class Model implements IModel {
 		return this.breakpoints;
 	}
 
-	public getFunctionBreakpoints(): IFunctionBreakpoint[] {
+	public getFunctionBreakpoints(): FunctionBreakpoint[] {
 		return this.functionBreakpoints;
 	}
 
@@ -967,37 +1032,12 @@ export class Model implements IModel {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				if (!isUndefinedOrNull(bpData.line)) {
-					bp.lineNumber = bpData.line;
-				}
-				bp.endLineNumber = bpData.endLine;
-				bp.column = bpData.column;
-				bp.endColumn = bpData.endColumn;
-				if (!isUndefinedOrNull(bpData.verified)) {
-					bp.verified = bpData.verified;
-				}
-				bp.idFromAdapter = bpData.id;
-				bp.message = bpData.message;
-				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
-
-				if (!isUndefinedOrNull(bpData.condition)) {
-					bp.condition = bpData.condition;
-				}
-				if (!isUndefinedOrNull(bpData.hitCondition)) {
-					bp.hitCondition = bpData.hitCondition;
-				}
-				if (!isUndefinedOrNull(bpData.logMessage)) {
-					bp.logMessage = bpData.logMessage;
-				}
+				bp.update(bpData);
 				updated.push(bp);
 			}
 		});
 		this.sortAndDeDup();
 		this._onDidChangeBreakpoints.fire({ changed: updated });
-	}
-
-	public unverifyBreakpoints(): void {
-		this.breakpoints.forEach(bp => bp.verified = false);
 	}
 
 	private sortAndDeDup(): void {
@@ -1022,17 +1062,12 @@ export class Model implements IModel {
 			}
 
 			element.enabled = enable;
-			if (element instanceof Breakpoint && !element.enabled) {
-				const breakpoint = <Breakpoint>element;
-				breakpoint.verified = false;
-			}
 
 			this._onDidChangeBreakpoints.fire({ changed: changed });
 		}
 	}
 
 	public enableOrDisableAllBreakpoints(enable: boolean): void {
-
 		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
 
 		this.breakpoints.forEach(bp => {
@@ -1040,9 +1075,6 @@ export class Model implements IModel {
 				changed.push(bp);
 			}
 			bp.enabled = enable;
-			if (!enable) {
-				bp.verified = false;
-			}
 		});
 		this.functionBreakpoints.forEach(fbp => {
 			if (fbp.enabled !== enable) {
@@ -1062,23 +1094,12 @@ export class Model implements IModel {
 		return newFunctionBreakpoint;
 	}
 
-	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number; hitCondition?: string } }): void {
-
-		const changed: IFunctionBreakpoint[] = [];
-
-		this.functionBreakpoints.forEach(fbp => {
-			const fbpData = data[fbp.getId()];
-			if (fbpData) {
-				fbp.name = fbpData.name || fbp.name;
-				fbp.verified = fbpData.verified;
-				fbp.idFromAdapter = fbpData.id;
-				fbp.hitCondition = fbpData.hitCondition;
-
-				changed.push(fbp);
-			}
-		});
-
-		this._onDidChangeBreakpoints.fire({ changed: changed });
+	public renameFunctionBreakpoint(id: string, name: string): void {
+		const functionBreakpoint = this.functionBreakpoints.filter(fbp => fbp.getId() === id).pop();
+		if (functionBreakpoint) {
+			functionBreakpoint.name = name;
+			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint] });
+		}
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {
