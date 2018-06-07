@@ -670,12 +670,14 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public logToRepl(value: string | debug.IExpression, sev = severity.Info, source?: debug.IReplElementSource): void {
-		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
+		const clearAnsiSequence = '\\u001b[2J';
+		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.model.removeReplExpressions();
-		} else {
-			this.model.appendToRepl(value, sev, source);
+			value = value.substr(value.indexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
+
+		this.model.appendToRepl(value, sev, source);
 	}
 
 	public addWatchExpression(name: string): void {

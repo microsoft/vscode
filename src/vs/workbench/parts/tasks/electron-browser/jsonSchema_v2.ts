@@ -83,7 +83,7 @@ const presentation: IJSONSchema = {
 		reveal: 'always',
 		focus: false,
 		panel: 'shared',
-		reuseMessage: true
+		showReuseMessage: true
 	},
 	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
 	additionalProperties: false,
@@ -115,10 +115,10 @@ const presentation: IJSONSchema = {
 			default: 'shared',
 			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
 		},
-		reuseMessage: {
+		showReuseMessage: {
 			type: 'boolean',
 			default: true,
-			description: nls.localize('JsonSchema.tasks.presentation.reuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
+			description: nls.localize('JsonSchema.tasks.presentation.showReuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
 		}
 	}
 };

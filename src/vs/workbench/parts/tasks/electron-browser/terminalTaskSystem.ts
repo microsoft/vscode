@@ -527,8 +527,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			if (task.command.presentation.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else if (task.command.presentation.reuseMessage) {
+			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+			} else {
+				waitOnExit = '\u200B';
 			}
 		}
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
