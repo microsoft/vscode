@@ -24,7 +24,7 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, VIEW_CONTAINER } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChange, VIEW_CONTAINER } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
@@ -434,14 +434,16 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			return;
 		}
 
-		const promises = this.editorGroupService.groups.map(group => {
-			const editors = group.editors.filter(input => input instanceof ExtensionsInput);
-			const promises = editors.map(editor => group.closeEditor(editor));
+		if (this.configurationService.getValue<boolean>(CloseExtensionDetailsOnViewChange)) {
+			const promises = this.editorGroupService.groups.map(group => {
+				const editors = group.editors.filter(input => input instanceof ExtensionsInput);
+				const promises = editors.map(editor => group.closeEditor(editor));
 
-			return TPromise.join(promises);
-		});
+				return TPromise.join(promises);
+			});
 
-		TPromise.join(promises).done(null, onUnexpectedError);
+			TPromise.join(promises).done(null, onUnexpectedError);
+		}
 	}
 
 	private progress<T>(promise: TPromise<T>): TPromise<T> {
