@@ -341,7 +341,7 @@ export class SplitView implements IDisposable {
 		this.resize(this.viewItems.length - 1, size - previousSize);
 	}
 
-	private onSashStart({ sash, start }: ISashEvent): void {
+	private onSashStart({ sash, start, current }: ISashEvent): void {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
 		const sizes = this.viewItems.map(i => i.size);
 
@@ -359,7 +359,7 @@ export class SplitView implements IDisposable {
 		this.sashDragState = { start, index, sizes, minDelta, maxDelta };
 	}
 
-	private onSashChange({ sash, current }: ISashEvent): void {
+	private onSashChange({ current }: ISashEvent): void {
 		const { index, start, sizes, minDelta, maxDelta } = this.sashDragState;
 		const delta = clamp(current - start, minDelta, maxDelta);
 
@@ -438,43 +438,41 @@ export class SplitView implements IDisposable {
 			return;
 		}
 
-		if (delta !== 0) {
-			let upIndexes = range(index, -1);
-			let downIndexes = range(index + 1, this.viewItems.length);
+		let upIndexes = range(index, -1);
+		let downIndexes = range(index + 1, this.viewItems.length);
 
-			if (typeof highPriorityIndex === 'number') {
-				upIndexes = pushToStart(upIndexes, highPriorityIndex);
-				downIndexes = pushToStart(downIndexes, highPriorityIndex);
-			}
+		if (typeof highPriorityIndex === 'number') {
+			upIndexes = pushToStart(upIndexes, highPriorityIndex);
+			downIndexes = pushToStart(downIndexes, highPriorityIndex);
+		}
 
-			if (typeof lowPriorityIndex === 'number') {
-				upIndexes = pushToEnd(upIndexes, lowPriorityIndex);
-				downIndexes = pushToEnd(downIndexes, lowPriorityIndex);
-			}
+		if (typeof lowPriorityIndex === 'number') {
+			upIndexes = pushToEnd(upIndexes, lowPriorityIndex);
+			downIndexes = pushToEnd(downIndexes, lowPriorityIndex);
+		}
 
-			const upItems = upIndexes.map(i => this.viewItems[i]);
-			const upSizes = upIndexes.map(i => sizes[i]);
+		const upItems = upIndexes.map(i => this.viewItems[i]);
+		const upSizes = upIndexes.map(i => sizes[i]);
 
-			const downItems = downIndexes.map(i => this.viewItems[i]);
-			const downSizes = downIndexes.map(i => sizes[i]);
+		const downItems = downIndexes.map(i => this.viewItems[i]);
+		const downSizes = downIndexes.map(i => sizes[i]);
 
-			for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < upItems.length; i++) {
-				const item = upItems[i];
-				const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
-				const viewDelta = size - upSizes[i];
+		for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < upItems.length; i++) {
+			const item = upItems[i];
+			const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
+			const viewDelta = size - upSizes[i];
 
-				deltaUp -= viewDelta;
-				item.size = size;
-			}
+			deltaUp -= viewDelta;
+			item.size = size;
+		}
 
-			for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < downItems.length; i++) {
-				const item = downItems[i];
-				const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
-				const viewDelta = size - downSizes[i];
+		for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < downItems.length; i++) {
+			const item = downItems[i];
+			const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
+			const viewDelta = size - downSizes[i];
 
-				deltaDown += viewDelta;
-				item.size = size;
-			}
+			deltaDown += viewDelta;
+			item.size = size;
 		}
 
 		let contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);

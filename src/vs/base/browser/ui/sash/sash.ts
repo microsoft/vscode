@@ -208,14 +208,7 @@ export class Sash {
 		const startX = mouseDownEvent.posx;
 		const startY = mouseDownEvent.posy;
 		const altKey = mouseDownEvent.altKey;
-
-		const startEvent: ISashEvent = {
-			startX: startX,
-			currentX: startX,
-			startY: startY,
-			currentY: startY,
-			altKey
-		};
+		const startEvent: ISashEvent = { startX, currentX: startX, startY, currentY: startY, altKey };
 
 		addClass(this.el, 'active');
 		this._onDidStart.fire(startEvent);
@@ -259,14 +252,7 @@ export class Sash {
 		const onMouseMove = (e: MouseEvent) => {
 			EventHelper.stop(e, false);
 			const mouseMoveEvent = new StandardMouseEvent(e as MouseEvent);
-
-			const event: ISashEvent = {
-				startX: startX,
-				currentX: mouseMoveEvent.posx,
-				startY: startY,
-				currentY: mouseMoveEvent.posy,
-				altKey
-			};
+			const event: ISashEvent = { startX, currentX: mouseMoveEvent.posx, startY, currentY: mouseMoveEvent.posy, altKey };
 
 			this._onDidChange.fire(event);
 		};
