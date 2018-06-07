@@ -165,7 +165,7 @@
 .extensions-viewlet > .extensions .extension > .details > .footer {
 	display: flex;
 	justify-content: flex-end;
-	height: 18px;
+	height: 24px;
 	overflow: hidden;
 }
 
@@ -183,8 +183,9 @@
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label {
 	margin-right: 0;
+	margin-top: 0.3em;
 	margin-left: 0.3em;
-	line-height: 15px;
+	line-height: 14px;
 }
 
 .extensions-viewlet > .extensions .extension > .details > .footer > .monaco-action-bar .action-label:not(:empty) {

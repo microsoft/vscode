@@ -5,6 +5,8 @@
 
 .monaco-action-bar .action-item .action-label.extension-action {
 	padding: 0 5px;
+	outline-offset: 2px;
+	outline-width: 2px;
 	line-height: initial;
 }
 
@@ -60,6 +62,8 @@
 	width: 10px;
 	border: none;
 	background: url('manage.svg') center center no-repeat;
+	outline-offset: 0px;
+	margin-top: 0.15em
 }
 
 .hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage,
