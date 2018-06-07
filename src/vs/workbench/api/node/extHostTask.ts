@@ -232,13 +232,14 @@ namespace TaskPanelKind {
 namespace PresentationOptions {
 	export function from(value: vscode.TaskPresentationOptions): tasks.PresentationOptions {
 		if (value === void 0 || value === null) {
-			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared };
+			return { reveal: tasks.RevealKind.Always, echo: true, focus: false, panel: tasks.PanelKind.Shared, reuseMessage: true };
 		}
 		return {
 			reveal: TaskRevealKind.from(value.reveal),
 			echo: value.echo === void 0 ? true : !!value.echo,
 			focus: !!value.focus,
-			panel: TaskPanelKind.from(value.panel)
+			panel: TaskPanelKind.from(value.panel),
+			reuseMessage: value.reuseMessage === void 0 ? true : !!value.reuseMessage
 		};
 	}
 }
