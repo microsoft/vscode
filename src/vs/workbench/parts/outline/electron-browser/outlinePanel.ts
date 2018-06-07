@@ -205,6 +205,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _editorDisposables = new Array<IDisposable>();
 	private _outlineViewState = new OutlineState();
 	private _requestOracle: RequestOracle;
+	private _cachedHeight: number;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
@@ -322,8 +323,10 @@ export class OutlinePanel extends ViewletPanel {
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 	}
 
-	protected layoutBody(height: number): void {
-		this._tree.layout(height - dom.getTotalHeight(this._inputContainer));
+	protected layoutBody(height: number = this._cachedHeight): void {
+		this._cachedHeight = height;
+		this._input.layout();
+		this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 7 /*progressbar height, defined in outlinePanel.css*/));
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -442,6 +445,7 @@ export class OutlinePanel extends ViewletPanel {
 		}
 
 		this._input.enable();
+		this.layoutBody();
 
 		// feature: filter on type
 		// on type -> update filters
