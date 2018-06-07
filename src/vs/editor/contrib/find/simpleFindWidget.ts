@@ -7,7 +7,6 @@ import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
@@ -29,7 +28,6 @@ export abstract class SimpleFindWidget extends Widget {
 	private _isVisible: boolean;
 	private _focusTracker: dom.IFocusTracker;
 	private _findInputFocusTracker: dom.IFocusTracker;
-	private _findHistory: HistoryNavigator<string>;
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
@@ -43,7 +41,6 @@ export abstract class SimpleFindWidget extends Widget {
 		}));
 
 		// Find History with update delayer
-		this._findHistory = new HistoryNavigator<string>();
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
@@ -197,22 +194,16 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _updateHistory() {
 		if (this.inputValue) {
-			this._findHistory.add(this._findInput.getValue());
+			this._findInput.inputBox.addToHistory(this._findInput.getValue());
 		}
 	}
 
 	public showNextFindTerm() {
-		const next = this._findHistory.next();
-		if (next) {
-			this._findInput.setValue(next);
-		}
+		this._findInput.inputBox.showNextValue();
 	}
 
 	public showPreviousFindTerm() {
-		const previous = this._findHistory.previous();
-		if (previous) {
-			this._findInput.setValue(previous);
-		}
+		this._findInput.inputBox.showPreviousValue();
 	}
 }
 

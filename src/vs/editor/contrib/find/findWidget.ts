@@ -11,12 +11,13 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
+import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { FindInput, IFindInputStyles } from 'vs/base/browser/ui/findinput/findInput';
-import { IMessage as InputBoxMessage, InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { IMessage as InputBoxMessage, HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Sash, IHorizontalSashLayoutProvider, ISashEvent, Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -90,7 +91,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _domNode: HTMLElement;
 	private _findInput: FindInput;
-	private _replaceInputBox: InputBox;
+	private _replaceInputBox: HistoryInputBox;
 
 	private _toggleReplaceBtn: SimpleButton;
 	private _matchesCount: HTMLElement;
@@ -113,6 +114,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 
 	private _resizeSash: Sash;
 	private _resized: boolean;
+	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
 		codeEditor: ICodeEditor,
@@ -133,6 +135,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._isVisible = false;
 		this._isReplaceVisible = false;
 
+		this._updateHistoryDelayer = new Delayer<void>(500);
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
 		this._buildDomNode();
 		this._updateButtons();
@@ -238,6 +241,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		return null;
 	}
 
+	public showNextFindTerm() {
+		this._findInput.inputBox.showNextValue();
+	}
+
+	public showPreviousFindTerm() {
+		this._findInput.inputBox.showPreviousValue();
+	}
+
+	public showNextReplaceTerm() {
+		this._replaceInputBox.showNextValue();
+	}
+
+	public showPreviousReplaceTerm() {
+		this._replaceInputBox.showPreviousValue();
+	}
+
 	// ----- React to state changes
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
@@ -294,6 +313,22 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		}
 		if (e.searchString || e.currentMatch) {
 			this._layoutViewZone();
+		}
+		if (e.updateHistory) {
+			this._delayedUpdateHistory();
+		}
+	}
+
+	private _delayedUpdateHistory() {
+		this._updateHistoryDelayer.trigger(this._updateHistory.bind(this));
+	}
+
+	private _updateHistory() {
+		if (this._state.searchString) {
+			this._findInput.inputBox.addToHistory(this._state.searchString);
+		}
+		if (this._state.replaceString) {
+			this._replaceInputBox.addToHistory(this._state.replaceString);
 		}
 	}
 
@@ -703,7 +738,7 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._findInput.setCaseSensitive(!!this._state.matchCase);
 		this._findInput.setWholeWords(!!this._state.wholeWord);
 		this._register(this._findInput.onKeyDown((e) => this._onFindInputKeyDown(e)));
-		this._register(this._findInput.onInput(() => {
+		this._register(this._findInput.inputBox.onDidChange(() => {
 			this._state.change({ searchString: this._findInput.getValue() }, true);
 		}));
 		this._register(this._findInput.onDidOptionChange(() => {
@@ -804,9 +839,10 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		let replaceInput = document.createElement('div');
 		replaceInput.className = 'replace-input';
 		replaceInput.style.width = REPLACE_INPUT_AREA_WIDTH + 'px';
-		this._replaceInputBox = this._register(new InputBox(replaceInput, null, {
+		this._replaceInputBox = this._register(new HistoryInputBox(replaceInput, null, {
 			ariaLabel: NLS_REPLACE_INPUT_LABEL,
-			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER
+			placeholder: NLS_REPLACE_INPUT_PLACEHOLDER,
+			history: []
 		}));
 
 		this._register(dom.addStandardDisposableListener(this._replaceInputBox.inputElement, 'keydown', (e) => this._onReplaceInputKeyDown(e)));

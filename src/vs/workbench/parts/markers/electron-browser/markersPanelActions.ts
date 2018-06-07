@@ -7,7 +7,7 @@ import { Delayer } from 'vs/base/common/async';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { HistoryInputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -24,11 +24,11 @@ import { attachInputBoxStyler, attachStylerCallback, attachCheckboxStyler } from
 import { IMarkersWorkbenchService } from 'vs/workbench/parts/markers/electron-browser/markers';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 
@@ -77,7 +77,6 @@ export class MarkersFilterAction extends Action {
 
 }
 
-
 export interface IMarkersFilterActionItemOptions {
 	filterText: string;
 	filterHistory: string[];
@@ -93,8 +92,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private delayedFilterUpdate: Delayer<void>;
 	private container: HTMLElement;
-	private filterInputBox: InputBox;
-	private filterHistory: HistoryNavigator<string>;
+	private filterInputBox: HistoryInputBox;
 	private controlsContainer: HTMLInputElement;
 	private filterBadge: HTMLInputElement;
 	private filesExcludeFilter: Checkbox;
@@ -102,6 +100,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	constructor(
 		private itemOptions: IMarkersFilterActionItemOptions,
 		action: IAction,
+		@IInstantiationService private instantiationService: IInstantiationService,
 		@IContextViewService private contextViewService: IContextViewService,
 		@IThemeService private themeService: IThemeService,
 		@IMarkersWorkbenchService private markersWorkbenchService: IMarkersWorkbenchService,
@@ -109,7 +108,6 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	) {
 		super(null, action);
 		this.delayedFilterUpdate = new Delayer<void>(500);
-		this.filterHistory = new HistoryNavigator<string>(itemOptions.filterHistory || []);
 	}
 
 	render(container: HTMLElement): void {
@@ -129,7 +127,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	getFilterHistory(): string[] {
-		return this.filterHistory.getHistory();
+		return this.filterInputBox.getHistory();
 	}
 
 	get useFilesExclude(): boolean {
@@ -153,10 +151,11 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private createInput(container: HTMLElement): void {
-		this.filterInputBox = new InputBox(container, this.contextViewService, {
+		this.filterInputBox = this._register(this.instantiationService.createInstance(HistoryInputBox, container, this.contextViewService, {
 			placeholder: Messages.MARKERS_PANEL_FILTER_PLACEHOLDER,
-			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL
-		});
+			ariaLabel: Messages.MARKERS_PANEL_FILTER_ARIA_LABEL,
+			history: this.itemOptions.filterHistory
+		}));
 		this._register(attachInputBoxStyler(this.filterInputBox, this.themeService));
 		this.filterInputBox.value = this.itemOptions.filterText;
 		this._register(this.filterInputBox.onDidChange(filter => this.delayedFilterUpdate.trigger(() => this.onDidInputChange())));
@@ -203,8 +202,8 @@ export class MarkersFilterActionItem extends BaseActionItem {
 
 	private onDidInputChange() {
 		const filterText = this.filterInputBox.value;
-		if (filterText && filterText !== this.filterHistory.current()) {
-			this.filterHistory.add(this.getFilterText());
+		if (filterText) {
+			this.filterInputBox.addToHistory(filterText);
 		}
 		this._onDidChange.fire();
 		this.reportFilteringUsed();
@@ -234,23 +233,14 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private showNextFilter() {
-		let next = this.filterHistory.next();
-		if (next) {
-			this.filterInputBox.value = next;
-		}
+		this.filterInputBox.showNextValue();
 	}
 
 	private showPreviousFilter() {
-		let previous = this.filterHistory.previous();
-		if (this.filterInputBox.value) {
-			this.filterHistory.addIfNotPresent(this.filterInputBox.value);
-		}
-		if (previous) {
-			this.filterInputBox.value = previous;
-		}
+		this.filterInputBox.showPreviousValue();
 	}
 
-	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: InputBox) {
+	private onInputKeyDown(keyboardEvent: IKeyboardEvent, filterInputBox: HistoryInputBox) {
 		let handled = false;
 		switch (keyboardEvent.keyCode) {
 			case KeyCode.Escape:

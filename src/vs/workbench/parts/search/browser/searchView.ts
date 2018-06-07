@@ -64,8 +64,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
-	private static readonly MAX_HISTORY_ITEMS = 100;
-
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
@@ -242,10 +240,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+				this.inputPatternIncludes = this.instantiationService.createInstance(PatternInputWidget, builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
 					history: patternIncludesHistory,
-					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternIncludes.setValue(patternIncludes);
@@ -265,10 +262,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				this.inputPatternExcludes = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+				this.inputPatternExcludes = this.instantiationService.createInstance(ExcludePatternInputWidget, builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
 					history: patternExclusionsHistory,
-					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternExcludes.setValue(patternExclusions);
@@ -341,8 +337,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
-			replaceHistory: replaceHistory,
-			historyLimit: SearchView.MAX_HISTORY_ITEMS
+			replaceHistory: replaceHistory
 		});
 
 		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
