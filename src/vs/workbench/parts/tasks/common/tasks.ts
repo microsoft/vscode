@@ -621,7 +621,7 @@ export namespace Task {
 		if (Types.isString(key)) {
 			return key === task._label || key === task.identifier || (compareId && key === task._id);
 		}
-		let identifier = Task.getTaskDefinition(task);
+		let identifier = Task.getTaskDefinition(task, true);
 		return identifier !== void 0 && identifier._key === key._key;
 	}
 
