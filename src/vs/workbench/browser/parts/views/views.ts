@@ -17,6 +17,7 @@ import { IContextKeyService, IContextKeyChangeEvent, IReadableSet } from 'vs/pla
 import { Event, chain, filterEvent, Emitter } from 'vs/base/common/event';
 import { sortedDiff, firstIndex, move } from 'vs/base/common/arrays';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { isUndefinedOrNull } from 'vs/base/common/types';
 
 function filterViewEvent(container: ViewContainer, event: Event<IViewDescriptor[]>): Event<IViewDescriptor[]> {
 	return chain(event)
@@ -352,7 +353,13 @@ export class ContributableViewsModel extends Disposable {
 		viewDescriptors = viewDescriptors.sort(this.compareViewDescriptors.bind(this));
 
 		for (const viewDescriptor of viewDescriptors) {
-			if (!this.viewStates.has(viewDescriptor.id)) {
+			const viewState = this.viewStates.get(viewDescriptor.id);
+			if (viewState) {
+				if (isUndefinedOrNull(viewState.collapsed)) {
+					// collapsed state was not set, so set it from view descriptor
+					viewState.collapsed = !!viewDescriptor.collapsed;
+				}
+			} else {
 				this.viewStates.set(viewDescriptor.id, {
 					visible: true,
 					collapsed: viewDescriptor.collapsed
@@ -462,12 +469,13 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		const viewsVisibilityStates = <{ id: string, isHidden: boolean }[]>storedVisibilityStates.map(c => typeof c === 'string' /* migration */ ? { id: c, isHidden: true } : c);
 		for (const { id, isHidden } of viewsVisibilityStates) {
 			const viewState = storedViewsStates[id];
-			// View state should exist always. Add a check if in case does not exist.
 			if (viewState) {
 				viewStates.set(id, <IViewState>{ ...viewState, ...{ visible: !isHidden } });
+			} else {
+				// New workspace
+				viewStates.set(id, <IViewState>{ ...{ visible: !isHidden } });
 			}
 		}
-		// Migration: Update those not existing in visibility states
 		for (const id of Object.keys(storedViewsStates)) {
 			if (!viewStates.has(id)) {
 				viewStates.set(id, <IViewState>{ ...storedViewsStates[id], ...{ visible: true } });
