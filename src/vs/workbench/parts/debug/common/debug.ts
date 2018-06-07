@@ -337,6 +337,7 @@ export interface IBreakpointsChangeEvent {
 	added?: (IBreakpoint | IFunctionBreakpoint)[];
 	removed?: (IBreakpoint | IFunctionBreakpoint)[];
 	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	sessionOnly?: boolean;
 }
 
 // Debug enums

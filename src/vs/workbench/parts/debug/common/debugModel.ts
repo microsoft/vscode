@@ -756,12 +756,22 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
 	public get verified(): boolean {
 		const data = this.getSessionData();
-		return !!(data && data.verified);
+		return data ? data.verified : true;
 	}
 
 	public get idFromAdapter(): number {
 		const data = this.getSessionData();
 		return data ? data.id : undefined;
+	}
+
+	public toJSON(): any {
+		const result = Object.create(null);
+		result.enabled = this.enabled;
+		result.condition = this.condition;
+		result.hitCondition = this.hitCondition;
+		result.logMessage = this.logMessage;
+
+		return result;
 	}
 }
 
@@ -788,7 +798,8 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
 	public get column(): number {
 		const data = this.getSessionData();
-		return data && typeof data.column === 'number' ? data.column : this._column;
+		// Only respect the column if the user explictly set the column to have an inline breakpoint
+		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
 	}
 
 	public get message(): string {
@@ -809,6 +820,16 @@ export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 	public get endColumn(): number {
 		const data = this.getSessionData();
 		return data ? data.endColumn : undefined;
+	}
+
+	public toJSON(): any {
+		const result = super.toJSON();
+		result.uri = this.uri;
+		result.lineNumber = this._lineNumber;
+		result.column = this._column;
+		result.adapterData = this.adapterData;
+
+		return result;
 	}
 
 	public update(data: IBreakpointUpdateData): void {
@@ -841,12 +862,28 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		id = generateUuid()) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
+
+	public toJSON(): any {
+		const result = super.toJSON();
+		result.name = this.name;
+
+		return result;
+	}
 }
 
 export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
 	constructor(public filter: string, public label: string, enabled: boolean) {
 		super(enabled, generateUuid());
+	}
+
+	public toJSON(): any {
+		const result = Object.create(null);
+		result.filter = this.filter;
+		result.label = this.label;
+		result.enabled = this.enabled;
+
+		return result;
 	}
 }
 
@@ -864,6 +901,7 @@ export class Model implements IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
+	private breakpointsSessionId: string;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -958,7 +996,7 @@ export class Model implements IModel {
 		return thread.fetchCallStack();
 	}
 
-	public getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): Breakpoint[] {
+	public getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): IBreakpoint[] {
 		if (filter) {
 			const uriStr = filter.uri ? filter.uri.toString() : undefined;
 			return this.breakpoints.filter(bp => {
@@ -982,7 +1020,7 @@ export class Model implements IModel {
 		return this.breakpoints;
 	}
 
-	public getFunctionBreakpoints(): FunctionBreakpoint[] {
+	public getFunctionBreakpoints(): IFunctionBreakpoint[] {
 		return this.functionBreakpoints;
 	}
 
@@ -992,6 +1030,11 @@ export class Model implements IModel {
 
 	public setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
+			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) => exbp.filter === data[i].filter && exbp.label === data[i].label)) {
+				// No change
+				return;
+			}
+
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
@@ -1011,6 +1054,7 @@ export class Model implements IModel {
 
 	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, rawBp.id));
+		newBreakpoints.forEach(bp => bp.setSessionId(this.breakpointsSessionId));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -1038,6 +1082,35 @@ export class Model implements IModel {
 		});
 		this.sortAndDeDup();
 		this._onDidChangeBreakpoints.fire({ changed: updated });
+	}
+
+	public setBreakpointSessionData(sessionId: string, data: { [id: string]: DebugProtocol.Breakpoint }): void {
+		this.breakpoints.forEach(bp => {
+			const bpData = data[bp.getId()];
+			if (bpData) {
+				bp.setSessionData(sessionId, bpData);
+			}
+		});
+		this.functionBreakpoints.forEach(fbp => {
+			const fbpData = data[fbp.getId()];
+			if (fbpData) {
+				fbp.setSessionData(sessionId, fbpData);
+			}
+		});
+
+		this._onDidChangeBreakpoints.fire({
+			sessionOnly: true
+		});
+	}
+
+	public setBreakpointsSessionId(sessionId: string): void {
+		this.breakpointsSessionId = sessionId;
+		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
+		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
+
+		this._onDidChangeBreakpoints.fire({
+			sessionOnly: true
+		});
 	}
 
 	private sortAndDeDup(): void {

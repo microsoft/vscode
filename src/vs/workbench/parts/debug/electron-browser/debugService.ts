@@ -138,6 +138,10 @@ export class DebugService implements debug.IDebugService {
 		this.lifecycleService.onShutdown(this.store, this);
 		this.lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.viewModel.onDidFocusSession(s => {
+			const id = s ? s.getId() : undefined;
+			this.model.setBreakpointsSessionId(id);
+		}));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -425,10 +429,10 @@ export class DebugService implements debug.IDebugService {
 					if (!breakpoint.column) {
 						event.body.breakpoint.column = undefined;
 					}
-					breakpoint.setSessionData(session.getId(), event.body.breakpoint);
+					this.model.setBreakpointSessionData(session.getId(), { [breakpoint.getId()]: event.body.breakpoint });
 				}
 				if (functionBreakpoint) {
-					functionBreakpoint.setSessionData(session.getId(), event.body.breakpoint);
+					this.model.setBreakpointSessionData(session.getId(), { [functionBreakpoint.getId()]: event.body.breakpoint });
 				}
 			}
 		}));
@@ -493,7 +497,7 @@ export class DebugService implements debug.IDebugService {
 		let result: ExceptionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
+				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled);
 			});
 		} catch (e) { }
 
@@ -611,7 +615,7 @@ export class DebugService implements debug.IDebugService {
 
 	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<debug.IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
-		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
+		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
 
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
@@ -1247,9 +1251,11 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
+				const data = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
-					breakpointsToSend[i].setSessionData(raw.getId(), response.body.breakpoints[i]);
+					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
+				this.model.setBreakpointSessionData(raw.getId(), data);
 			});
 		};
 
@@ -1269,9 +1275,11 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
+				const data = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
-					breakpointsToSend[i].setSessionData(raw.getId(), response.body.breakpoints[i]);
+					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
+				this.model.setBreakpointSessionData(raw.getId(), data);
 			});
 		};
 
@@ -1316,7 +1324,6 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	private store(): void {
-		// TODO@Isidor proper storage of breakpoints
 		const breakpoints = this.model.getBreakpoints();
 		if (breakpoints.length) {
 			this.storageService.store(DEBUG_BREAKPOINTS_KEY, JSON.stringify(breakpoints), StorageScope.WORKSPACE);
