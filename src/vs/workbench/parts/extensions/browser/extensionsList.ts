@@ -139,7 +139,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	renderElement(extension: IExtension, index: number, data: ITemplateData): void {
 		removeClass(data.element, 'loading');
-		removeClass(data.root, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
 		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === extension.id);
@@ -147,7 +146,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		this.extensionService.getExtensions().then(enabledExtensions => {
 			const isExtensionRunning = enabledExtensions.some(e => areSameExtensions(e, extension));
 
-			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
 			toggleClass(data.root, 'disabled', isInstalled && !isExtensionRunning);
 		});
 
