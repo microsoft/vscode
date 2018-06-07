@@ -62,7 +62,8 @@
 	width: 10px;
 	border: none;
 	background: url('manage.svg') center center no-repeat;
-	outline-offset: -1.5px;
+	outline-offset: 0px;
+	margin-top: 0.15em
 }
 
 .hc-black .extensions-viewlet>.extensions .extension>.details>.footer>.monaco-action-bar .action-item .action-label.extension-action.manage,
