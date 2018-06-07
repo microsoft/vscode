@@ -15,12 +15,18 @@ export interface TocEntry {
 	readonly location: vscode.Location;
 }
 
+export interface SkinnyTextDocument {
+	readonly uri: vscode.Uri;
+	getText(): string;
+	lineAt(line: number): vscode.TextLine;
+}
+
 export class TableOfContentsProvider {
 	private toc?: TocEntry[];
 
 	public constructor(
 		private engine: MarkdownEngine,
-		private document: vscode.TextDocument
+		private document: SkinnyTextDocument
 	) { }
 
 	public async getToc(): Promise<TocEntry[]> {
@@ -40,7 +46,7 @@ export class TableOfContentsProvider {
 		return toc.find(entry => entry.slug.equals(slug));
 	}
 
-	private async buildToc(document: vscode.TextDocument): Promise<TocEntry[]> {
+	private async buildToc(document: SkinnyTextDocument): Promise<TocEntry[]> {
 		const toc: TocEntry[] = [];
 		const tokens = await this.engine.parse(document.uri, document.getText());
 

@@ -442,7 +442,7 @@ export const NOTIFICATIONS_BORDER = registerColor('notifications.border', {
  * Base class for all themable workbench components.
  */
 export class Themable extends Disposable {
-	private theme: ITheme;
+	protected theme: ITheme;
 
 	constructor(
 		protected themeService: IThemeService

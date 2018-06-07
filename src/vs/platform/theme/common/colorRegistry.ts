@@ -20,6 +20,7 @@ export interface ColorContribution {
 	readonly description: string;
 	readonly defaults: ColorDefaults;
 	readonly needsTransparency: boolean;
+	readonly deprecationMessage: string;
 }
 
 
@@ -87,7 +88,7 @@ class ColorRegistry implements IColorRegistry {
 	}
 
 	public registerColor(id: string, defaults: ColorDefaults, description: string, needsTransparency = false, deprecationMessage?: string): ColorIdentifier {
-		let colorContribution = { id, description, defaults, needsTransparency };
+		let colorContribution: ColorContribution = { id, description, defaults, needsTransparency, deprecationMessage };
 		this.colorsById[id] = colorContribution;
 		let propertySchema: IJSONSchema = { type: 'string', description, format: 'color-hex', default: '#ff0000' };
 		if (deprecationMessage) {
@@ -240,6 +241,7 @@ export const editorForeground = registerColor('editor.foreground', { light: '#33
 export const editorWidgetBackground = registerColor('editorWidget.background', { dark: '#2D2D30', light: '#EFEFF2', hc: '#0C141F' }, nls.localize('editorWidgetBackground', 'Background color of editor widgets, such as find/replace.'));
 export const editorWidgetBorder = registerColor('editorWidget.border', { dark: '#454545', light: '#C8C8C8', hc: contrastBorder }, nls.localize('editorWidgetBorder', 'Border color of editor widgets. The color is only used if the widget chooses to have a border and if the color is not overridden by a widget.'));
 
+export const editorWidgetResizeBorder = registerColor('editorWidget.resizeBorder', { light: null, dark: null, hc: null }, nls.localize('editorWidgetResizeBorder', "Border color of the resize bar of editor widgets. The color is only used if the widget chooses to have a resize border and if the color is not overridden by a widget."));
 
 /**
  * Editor selection colors.
@@ -260,12 +262,6 @@ export const editorFindRangeHighlight = registerColor('editor.findRangeHighlight
 export const editorFindMatchBorder = registerColor('editor.findMatchBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('editorFindMatchBorder', "Border color of the current search match."));
 export const editorFindMatchHighlightBorder = registerColor('editor.findMatchHighlightBorder', { light: null, dark: null, hc: activeContrastBorder }, nls.localize('findMatchHighlightBorder', "Border color of the other search matches."));
 export const editorFindRangeHighlightBorder = registerColor('editor.findRangeHighlightBorder', { dark: null, light: null, hc: transparent(activeContrastBorder, 0.4) }, nls.localize('findRangeHighlightBorder', "Border color of the range limiting the search. The color must not be opaque to not hide underlying decorations."), true);
-
-/**
- * Editor Find Widget
- */
-
-export const findWidgetResizeBorderBackground = registerColor('editor.findWidgetResizeBorder', { light: null, dark: null, hc: null }, nls.localize('findWidgetResizeBorder', "Border color of the resize bar of find widget."));
 
 /**
  * Editor hover

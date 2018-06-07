@@ -398,7 +398,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: openPreviousEditorKeybinding.mac
 });
 
-
 // Editor Commands
 editorCommands.setup();
 
@@ -440,73 +439,97 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
+interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
+
+function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorToolItem, when: ContextKeyExpr, order: number): void {
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+		command: {
+			id: primary.id,
+			title: primary.title,
+			iconPath: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)).fsPath,
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`)).fsPath
+			}
+		},
+		alt: {
+			id: alternative.id,
+			title: alternative.title,
+			iconPath: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)).fsPath,
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`)).fsPath
+			}
+		},
+		group: 'navigation',
+		when,
+		order
+	});
+}
+
 // Editor Title Menu: Split Editor
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
+	}, {
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
-		}
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.not('splitEditorsVertically'),
-	order: 100000 // towards the end
-});
+	ContextKeyExpr.not('splitEditorsVertically'),
+	100000 /* towards the end */
+);
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
+	}, {
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
-		}
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.has('splitEditorsVertically'),
-	order: 100000 // towards the end
-});
+	ContextKeyExpr.has('splitEditorsVertically'),
+	100000 // towards the end
+);
 
 // Editor Title Menu: Close Group (tabs disabled)
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'close-editor-inverse.svg',
+		iconLight: 'close-editor.svg'
+	}, {
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors.svg')).fsPath
-		}
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.not('config.workbench.editor.showTabs'),
-	order: 1000000 // towards the end
-});
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
+
+appendEditorToolItem(
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		iconDark: 'close-dirty-inverse.svg',
+		iconLight: 'close-dirty.svg'
+	}, {
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
 
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepEditor', "Keep Editor"), category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });

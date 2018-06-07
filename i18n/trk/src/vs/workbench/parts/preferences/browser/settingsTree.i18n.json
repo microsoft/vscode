@@ -8,5 +8,7 @@
 	],
 	"workspace": "Çalışma Alanı",
 	"user": "Kullanıcı",
-	"configured": "Değiştirilmiş"
+	"configured": "Değiştirilmiş",
+	"settingRowAriaLabel": "{0} {1}, Ayar",
+	"groupRowAriaLabel": "{0}, grup"
 }

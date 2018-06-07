@@ -106,6 +106,18 @@ suite('Files - Increment file name', () => {
 		assert.strictEqual(result, '2.test.js');
 	});
 
+	test('Increment file name with just version in name', function () {
+		const name = '1.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, '2.js');
+	});
+
+	test('Increment file name with just version in name, too big number', function () {
+		const name = '9007199254740992.js';
+		const result = incrementFileName(name, false);
+		assert.strictEqual(result, '9007199254740992.1.js');
+	});
+
 	test('Increment file name with prefix version, trailing zeros', function () {
 		const name = '001.test.js';
 		const result = incrementFileName(name, false);

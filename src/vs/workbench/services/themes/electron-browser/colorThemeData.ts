@@ -31,7 +31,7 @@ const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	numbers: ['constant.numeric'],
 	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
 	functions: ['entity.name.function', 'support.function'],
-	variables: ['variable']
+	variables: ['variable', 'entity.name.variable']
 };
 
 export class ColorThemeData implements IColorTheme {

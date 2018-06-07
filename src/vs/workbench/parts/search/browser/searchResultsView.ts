@@ -123,6 +123,7 @@ interface IFolderMatchTemplate {
 }
 
 interface IFileMatchTemplate {
+	el: HTMLElement;
 	label: FileLabel;
 	badge: CountBadge;
 	actions: ActionBar;
@@ -208,7 +209,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
 		const actions = new ActionBar(fileMatchElement, { animated: false });
-		return { label, badge, actions };
+		return { el: fileMatchElement, label, badge, actions };
 	}
 
 	private renderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IMatchTemplate {
@@ -256,6 +257,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
 		const folderMatch = fileMatch.parent();
 		const root = folderMatch.hasRoot() ? folderMatch.resource() : undefined;
+		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
 		templateData.label.setFile(fileMatch.resource(), { root });
 		let count = fileMatch.count();
 		templateData.badge.setCount(count);

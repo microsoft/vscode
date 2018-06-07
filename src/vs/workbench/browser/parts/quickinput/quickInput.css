@@ -120,3 +120,7 @@
 	opacity: 0.7;
 	line-height: normal;
 }
+
+.quick-input-list .monaco-highlighted-label .highlight {
+	font-weight: bold;
+}

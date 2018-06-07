@@ -35,7 +35,7 @@ export const modifiedItemForeground = registerColor('settings.modifiedItemForegr
 	light: '#019001',
 	dark: '#73C991',
 	hc: '#73C991'
-}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
+}, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a modified setting."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
@@ -475,7 +475,7 @@ export class SettingsRenderer implements IRenderer {
 			this.renderBool(element, isSelected, template, onChange);
 		} else if (element.valueType === 'string') {
 			this.renderText(element, isSelected, template, onChange);
-		} else if (element.valueType === 'number') {
+		} else if (element.valueType === 'number' || element.valueType === 'integer') {
 			this.renderText(element, isSelected, template, value => onChange(parseInt(value)));
 		} else {
 			this.renderEditInSettingsJson(element, isSelected, template);

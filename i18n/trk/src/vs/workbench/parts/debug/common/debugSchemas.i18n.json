@@ -32,6 +32,7 @@
 	"app.launch.json.configurations": "Yapılandırma listesi. IntelliSense kullanarak yeni yapılandırmalar ekleyin veya mevcut olanları düzenleyin.",
 	"app.launch.json.compounds": "Bileşikler listesi. Her bileşik, birlikte çalıştırılacak birden çok yapılandırmaya başvurur.",
 	"app.launch.json.compound.name": "Bileşiğin adı. Başlatma yapılandırması açılır kutu menüsünde görünür.",
+	"useUniqueNames": "Lütfen benzersiz yapılandırma adları kullanın.",
 	"app.launch.json.compound.folder": "Bileşiğin bulunduğu klasörün adı.",
 	"app.launch.json.compounds.configurations": "Bu bileşiğin parçası olarak başlatılacak yapılandırmaların adları."
 }

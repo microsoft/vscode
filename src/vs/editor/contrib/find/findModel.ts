@@ -70,7 +70,9 @@ export const FIND_IDS = {
 	ReplaceAllAction: 'editor.action.replaceAll',
 	SelectAllMatchesAction: 'editor.action.selectAllMatches',
 	ShowPreviousFindTermAction: 'find.history.showPrevious',
-	ShowNextFindTermAction: 'find.history.showNext'
+	ShowNextFindTermAction: 'find.history.showNext',
+	ShowPreviousReplaceTermAction: 'replace.history.showPrevious',
+	ShowNextReplaceTermAction: 'replace.history.showNext'
 };
 
 export const MATCHES_LIMIT = 19999;

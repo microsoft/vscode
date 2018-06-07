@@ -416,11 +416,6 @@
           "description": "%typescript.locale%",
           "scope": "window"
         },
-        "typescript.experimental.syntaxFolding": {
-          "type": "boolean",
-          "default": true,
-          "description": "%typescript.experimental.syntaxFolding%"
-        },
         "javascript.suggestionActions.enabled": {
           "type": "boolean",
           "default": true,

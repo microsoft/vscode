@@ -9,6 +9,23 @@ import { Code } from '../../vscode/code';
 const VIEWLET = 'div[id="workbench.view.search"] .search-view';
 const INPUT = `${VIEWLET} .search-widget .search-container .monaco-inputbox input`;
 const INCLUDE_INPUT = `${VIEWLET} .query-details .file-types.includes .monaco-inputbox input`;
+const FILE_MATCH = filename => `${VIEWLET} .results .filematch[data-resource$="${filename}"]`;
+
+async function retry(setup: () => Promise<any>, attempt: () => Promise<any>) {
+	let count = 0;
+	while (true) {
+		await setup();
+
+		try {
+			await attempt();
+			return;
+		} catch (err) {
+			if (++count > 5) {
+				throw err;
+			}
+		}
+	}
+}
 
 export class Search extends Viewlet {
 
@@ -52,11 +69,16 @@ export class Search extends Viewlet {
 		await this.code.waitAndClick(`${VIEWLET} .query-details.more .more`);
 	}
 
-	async removeFileMatch(index: number): Promise<void> {
-		await this.code.waitAndMove(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		const file = await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`);
-		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-remove`);
-		await this.code.waitForTextContent(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch a.label-name`, void 0, result => result !== file);
+	async removeFileMatch(filename: string): Promise<void> {
+		const fileMatch = FILE_MATCH(filename);
+
+		await retry(
+			() => this.code.waitAndClick(fileMatch),
+			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
+		);
+
+		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
+		await this.code.waitForElement(fileMatch, el => !el);
 	}
 
 	async expandReplace(): Promise<void> {
@@ -68,18 +90,26 @@ export class Search extends Viewlet {
 	}
 
 	async setReplaceText(text: string): Promise<void> {
-		await this.code.waitAndClick(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`);
-		await this.code.waitForElement(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`);
-		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox.synthetic-focus input[title="Replace"]`, text);
+		await this.code.waitForSetValue(`${VIEWLET} .search-widget .replace-container .monaco-inputbox input[title="Replace"]`, text);
 	}
 
-	async replaceFileMatch(index: number): Promise<void> {
-		await this.code.waitAndMove(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch`);
-		await this.code.waitAndClick(`${VIEWLET} .results .monaco-tree-rows>:nth-child(${index}) .filematch .action-label.icon.action-replace-all`);
+	async replaceFileMatch(filename: string): Promise<void> {
+		const fileMatch = FILE_MATCH(filename);
+
+		await retry(
+			() => this.code.waitAndClick(fileMatch),
+			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
+		);
+
+		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 
 	async waitForResultText(text: string): Promise<void> {
 		await this.code.waitForTextContent(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, text);
+	}
+
+	async waitForNoResultText(): Promise<void> {
+		await this.code.waitForElement(`${VIEWLET} .messages[aria-hidden="false"] .message>p`, el => !el);
 	}
 
 	private async waitForInputFocus(selector: string): Promise<void> {

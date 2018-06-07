@@ -12,7 +12,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED, CONTEXT_REPLACE_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -66,7 +66,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	protected _editor: ICodeEditor;
 	private _findWidgetVisible: IContextKey<boolean>;
 	protected _state: FindReplaceState;
-	private _currentHistoryNavigator: HistoryNavigator<string>;
+	private _currentFindHistoryNavigator: HistoryNavigator<string>;
+	private _currentReplaceHistoryNavigator: HistoryNavigator<string>;
 	protected _updateHistoryDelayer: Delayer<void>;
 	private _model: FindModelBoundToEditorModel;
 	private _storageService: IStorageService;
@@ -89,7 +90,8 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		this._clipboardService = clipboardService;
 
 		this._updateHistoryDelayer = new Delayer<void>(500);
-		this._currentHistoryNavigator = new HistoryNavigator<string>();
+		this._currentFindHistoryNavigator = new HistoryNavigator<string>();
+		this._currentReplaceHistoryNavigator = new HistoryNavigator<string>();
 		this._state = this._register(new FindReplaceState());
 		this.loadQueryState();
 		this._register(this._state.onFindReplaceStateChange((e) => this._onStateChanged(e)));
@@ -139,7 +141,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {
 		this.saveQueryState(e);
 
-		if (e.updateHistory && e.searchString) {
+		if (e.updateHistory && (e.searchString || e.replaceString)) {
 			this._delayedUpdateHistory();
 		}
 		if (e.isRevealed) {
@@ -181,7 +183,11 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 
 	protected _updateHistory() {
 		if (this._state.searchString) {
-			this._currentHistoryNavigator.add(this._state.searchString);
+			this._currentFindHistoryNavigator.add(this._state.searchString);
+		}
+
+		if (this._state.replaceString) {
+			this._currentReplaceHistoryNavigator.add(this._state.replaceString);
 		}
 	}
 
@@ -190,7 +196,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public getHistory(): HistoryNavigator<string> {
-		return this._currentHistoryNavigator;
+		return this._currentFindHistoryNavigator;
 	}
 
 	public closeFindWidget(): void {
@@ -329,7 +335,7 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public showPreviousFindTerm(): boolean {
-		let previousTerm = this._currentHistoryNavigator.previous();
+		let previousTerm = this._currentFindHistoryNavigator.previous();
 		if (previousTerm) {
 			this._state.change({ searchString: previousTerm }, false, false);
 		}
@@ -337,9 +343,25 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 	}
 
 	public showNextFindTerm(): boolean {
-		let nextTerm = this._currentHistoryNavigator.next();
+		let nextTerm = this._currentFindHistoryNavigator.next();
 		if (nextTerm) {
 			this._state.change({ searchString: nextTerm }, false, false);
+		}
+		return true;
+	}
+
+	public showPreviousReplaceTerm(): boolean {
+		let previousTerm = this._currentReplaceHistoryNavigator.previous();
+		if (previousTerm) {
+			this._state.change({ replaceString: previousTerm }, false, false);
+		}
+		return true;
+	}
+
+	public showNextReplaceTerm(): boolean {
+		let nextTerm = this._currentReplaceHistoryNavigator.next();
+		if (nextTerm) {
+			this._state.change({ replaceString: nextTerm }, false, false);
 		}
 		return true;
 	}
@@ -691,6 +713,60 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 	}
 }
 
+export class ShowNextReplaceTermAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowNextReplaceTermAction,
+			label: nls.localize('showNextReplaceTermAction', "Show Next Replace Term"),
+			alias: 'Show Next Replace Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_REPLACE_INPUT_FOCUSED, EditorContextKeys.focus),
+				primary: ShowNextFindTermKeybinding.primary,
+				mac: ShowNextFindTermKeybinding.mac,
+				win: ShowNextFindTermKeybinding.win,
+				linux: ShowNextFindTermKeybinding.linux
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = CommonFindController.get(editor);
+		if (controller) {
+			controller.showNextReplaceTerm();
+		}
+	}
+}
+
+export class ShowPreviousReplaceTermAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: FIND_IDS.ShowPreviousReplaceTermAction,
+			label: nls.localize('showPreviousReplaceTermAction', "Show Previous Replace Term"),
+			alias: 'Show Previous Replace Term',
+			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
+			kbOpts: {
+				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
+				kbExpr: ContextKeyExpr.and(CONTEXT_REPLACE_INPUT_FOCUSED, EditorContextKeys.focus),
+				primary: ShowPreviousFindTermKeybinding.primary,
+				mac: ShowPreviousFindTermKeybinding.mac,
+				win: ShowPreviousFindTermKeybinding.win,
+				linux: ShowPreviousFindTermKeybinding.linux
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+		let controller = CommonFindController.get(editor);
+		if (controller) {
+			controller.showPreviousReplaceTerm();
+		}
+	}
+}
+
 registerEditorContribution(FindController);
 
 registerEditorAction(StartFindAction);
@@ -702,6 +778,8 @@ registerEditorAction(PreviousSelectionMatchFindAction);
 registerEditorAction(StartFindReplaceAction);
 registerEditorAction(ShowNextFindTermAction);
 registerEditorAction(ShowPreviousFindTermAction);
+registerEditorAction(ShowNextReplaceTermAction);
+registerEditorAction(ShowPreviousReplaceTermAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

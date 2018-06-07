@@ -6,7 +6,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { illegalArgument } from 'vs/base/common/errors';
+import { illegalArgument, onUnexpectedError } from 'vs/base/common/errors';
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { RawContextKey, IContextKey, IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
@@ -20,7 +20,7 @@ import RenameInputField from './renameInputField';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { WorkspaceEdit, RenameProviderRegistry, RenameProvider, RenameLocation } from 'vs/editor/common/modes';
-import { Position } from 'vs/editor/common/core/position';
+import { Position, IPosition } from 'vs/editor/common/core/position';
 import { alert } from 'vs/base/browser/ui/aria/aria';
 import { Range } from 'vs/editor/common/core/range';
 import { MessageController } from 'vs/editor/contrib/message/messageController';
@@ -28,6 +28,8 @@ import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorS
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
+import URI from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
 class RenameSkeleton {
 
@@ -130,6 +132,10 @@ class RenameController implements IEditorContribution {
 		const position = this.editor.getPosition();
 		const skeleton = new RenameSkeleton(this.editor.getModel(), position);
 
+		if (!skeleton.hasProvider()) {
+			return undefined;
+		}
+
 		let loc: RenameLocation;
 		try {
 			loc = await skeleton.resolveRenameLocation();
@@ -230,7 +236,24 @@ export class RenameAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
+	runCommand(accessor: ServicesAccessor, args: [URI, IPosition]): void | TPromise<void> {
+		const editorService = accessor.get(ICodeEditorService);
+		const [uri, pos] = args || [undefined, undefined];
+
+		if (URI.isUri(uri) && Position.isIPosition(pos)) {
+			return editorService.openCodeEditor({ resource: uri }, editorService.getActiveCodeEditor()).then(editor => {
+				editor.setPosition(pos);
+				editor.invokeWithinContext(accessor => {
+					this.reportTelemetry(accessor, editor);
+					return this.run(accessor, editor);
+				});
+			}, onUnexpectedError);
+		}
+
+		return super.runCommand(accessor, args);
+	}
+
+	run(accessor: ServicesAccessor, editor: ICodeEditor): TPromise<void> {
 		let controller = RenameController.get(editor);
 		if (controller) {
 			return controller.run();

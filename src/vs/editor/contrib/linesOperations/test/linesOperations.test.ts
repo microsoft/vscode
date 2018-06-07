@@ -265,6 +265,23 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('#50471 Join lines at the end of document', function () {
+			withTestCodeEditor(
+				[
+					'hello',
+					'world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'hello', '001');
+					assert.equal(model.getLineContent(2), 'world', '002');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 6, 2, 6).toString(), '003');
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withTestCodeEditor(
 				[

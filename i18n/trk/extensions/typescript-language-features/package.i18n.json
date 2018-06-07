@@ -45,6 +45,7 @@
 	"typescript.selectTypeScriptVersion.title": "TypeScript Sürümünü Seç",
 	"typescript.reportStyleChecksAsWarnings": "Stil kontrollerini uyarı olarak bildir",
 	"jsDocCompletion.enabled": "Otomatik JSDoc yorumlarını etkinleştir veya devre dışı bırak.",
+	"javascript.implicitProjectConfig.checkJs": "JavaScript dosyalarının anlamsal kontrolünü etkinleştir veya devre dışı bırak. Mevcut jsconfig.json veya tsconfig.json dosyaları bu ayarı geçersiz kılar. TypeScript >= 2.3.1 gerektirir.",
 	"typescript.npm": "Otomatik Tür Kazanımı için kullanılacak NPM yürütülebilir dosyasının yolunu belirtir. TypeScript >= 2.3.4 gerektirir.",
 	"typescript.check.npmIsInstalled": "Otomatik Tür Kazanımı için NPM'in yüklü olup olmadığını kontrol et.",
 	"javascript.nameSuggestions": "JavaScript öneri listelerindeki dosyadan benzersiz adları eklemeyi etkinleştir veya devre dışı bırak.",
@@ -52,7 +53,15 @@
 	"typescript.problemMatchers.tsc.label": "TypeScript sorunları",
 	"typescript.problemMatchers.tscWatch.label": "TypeScript sorunları (izleme modu)",
 	"typescript.quickSuggestionsForPaths": "Bir içe aktarım yolu girerken hızlı önerileri etkinleştir/devre dışı bırak.",
+	"typescript.locale": "JavaScript ve TypeScript hatalarını bildirirken kullanılarak dili(bölgeyi) ayarlar. TypeScript >= 2.6.0 gerektirir.  varsayılan değer 'null', VS Code'un dil(bölge) ayarlarını kullanır.",
+	"javascript.implicitProjectConfig.experimentalDecorators": "Bir projenin parçası olmayan JavaScript dosyaları için deneysel dekoratörler ('experimentalDecorators') özelliğini etkinleştir veya devre dışı bırak. Mevcut jsconfig.json veya tsconfig.json dosyaları bu ayarı geçersiz kılar. TypeScript >= 2.3.1 gerektirir.",
+	"typescript.autoImportSuggestions.enabled": "Otomatik içe aktarım önerilerini etkinleştir/devre dışı bırak. TypeScript >= 2.6.1 gerektirir.",
 	"typescript.experimental.syntaxFolding": "Sözdimine duyarlı katlama işaretleyicilerini etkinleştirin/devre dışı bırakın.",
 	"taskDefinition.tsconfig.description": "TS derlemesini tanımlayan tsconfig dosyası.",
-	"javascript.suggestionActions.enabled": "Düzenleyicideki JavaScript dosyalarında öneri tanılamayı etkinleştir veya devre dışı bırak. TypeScript >= 2.8 gerektirir."
+	"javascript.suggestionActions.enabled": "Düzenleyicideki JavaScript dosyalarında öneri tanılamayı etkinleştir veya devre dışı bırak. TypeScript >= 2.8 gerektirir.",
+	"typescript.suggestionActions.enabled": "Düzenleyicideki TypeScript dosyalarında öneri tanılamayı etkinleştir veya devre dışı bırak. TypeScript >= 2.8 gerektirir.",
+	"typescript.preferences.quoteStyle": "Hızlı düzeltmeler için tercih edilen tırnak stili: Tek tırnak için 'single', çift tırnak için 'double', veya mevcut olan içe aktarımlardan tespit etmek için 'auto'. TypeScript >= 2.9 gerektirir.",
+	"typescript.preferences.importModuleSpecifier": "Otomatik içe aktaırmlar için tercih edilen yol stili:\n- \"relative\" dosya konumuna göreli yol.\n- \"non-relative\" 'jsconfig.json' / 'tsconfig.json' dosyanızda yapılandırdığınız 'baseUrl' ayarına göre yol.\n- \"auto\" en kısa yol türü.\nTypeScript >= 2.9 gerektirir.",
+	"typescript.showUnused": "Koddaki kullanılmayan değişkenlerin vurgulanmasını etkinleştir veya devre dışı bırak. TypeScript >= 2.9 gerektirir.",
+	"typescript.updateImportsOnFileMove.enabled": "VS Code'da bir dosyanın adını değiştirdiğinizde veya dosyayı taşıdığınızda içe aktarımların otomatik güncellenmesini etkinleştirin veya devre dışı bırakın. Olası değerler: tüm yeniden adlandırmalarda onay için 'prompt', her zaman yolların otomatik olarak güncellenmesi için 'always', yolların hiçbir zaman değişmemesi ve hiçbir zaman onay istenmemesi için 'never'. TypeScript >= 2.9 gerektirir."
 }

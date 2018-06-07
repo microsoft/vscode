@@ -10,6 +10,8 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
 import * as typeconverts from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -24,10 +26,6 @@ class OrganizeImportsCommand implements Command {
 	) { }
 
 	public async execute(file: string): Promise<boolean> {
-		if (!this.client.apiVersion.has280Features()) {
-			return false;
-		}
-
 		const args: Proto.OrganizeImportsRequestArgs = {
 			scope: {
 				type: 'file',
@@ -65,11 +63,7 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		_context: vscode.CodeActionContext,
 		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		if (!this.client.apiVersion.has280Features()) {
-			return [];
-		}
-
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return [];
 		}
@@ -82,4 +76,18 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	commandManager: CommandManager,
+	fileConfigurationManager: FileConfigurationManager
+) {
+	return new VersionDependentRegistration(client, API.v280, () => {
+		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+		return vscode.languages.registerCodeActionsProvider(selector,
+			organizeImportsProvider,
+			organizeImportsProvider.metadata);
+	});
 }

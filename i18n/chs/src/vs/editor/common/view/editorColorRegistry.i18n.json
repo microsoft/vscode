@@ -32,6 +32,7 @@
 	"infoBorder": "编辑器中信息波浪线的边框颜色。",
 	"hintForeground": "编辑器中提示波浪线的前景色。",
 	"hintBorder": "编辑器中提示波浪线的边框颜色。",
+	"unnecessaryForeground": "编辑器中不必要代码的前景色。",
 	"overviewRulerRangeHighlight": "概览标尺中高亮范围的标记颜色。颜色必须透明，使其不会挡住下方的其他元素。",
 	"overviewRuleError": "概述错误的标尺标记颜色。",
 	"overviewRuleWarning": "概述警告的标尺标记颜色。",

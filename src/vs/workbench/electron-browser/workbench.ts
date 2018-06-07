@@ -361,9 +361,9 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(toDisposable(() => this.panelPart.shutdown()));
 		serviceCollection.set(IPanelService, this.panelPart);
 
-		// Custom views service
-		const customViewsService = this.instantiationService.createInstance(ViewsService);
-		serviceCollection.set(IViewsService, customViewsService);
+		// views service
+		const viewsService = this.instantiationService.createInstance(ViewsService);
+		serviceCollection.set(IViewsService, viewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
@@ -389,7 +389,6 @@ export class Workbench extends Disposable implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this._register(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 

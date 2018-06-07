@@ -3,25 +3,21 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import Logger from './logger';
+import { getTempFile, makeRandomHexString } from './temp';
 import path = require('path');
 import os = require('os');
 import net = require('net');
 import cp = require('child_process');
-import Logger from './logger';
 
 export interface IForkOptions {
 	cwd?: string;
 	execArgv?: string[];
 }
 
-export function makeRandomHexString(length: number): string {
-	let chars = ['0', '1', '2', '3', '4', '5', '6', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'];
-	let result = '';
-	for (let i = 0; i < length; i++) {
-		const idx = Math.floor(chars.length * Math.random());
-		result += chars[idx];
-	}
-	return result;
+export function getTempSock(prefix: string): string {
+	const fullName = `vscode-${prefix}-${makeRandomHexString(20)}`;
+	return getTempFile(fullName + '.sock');
 }
 
 function generatePipeName(): string {
@@ -37,12 +33,6 @@ function getPipeName(name: string): string {
 	// Mac/Unix: use socket file
 	return path.join(os.tmpdir(), fullName + '.sock');
 }
-
-export function getTempFile(name: string): string {
-	const fullName = 'vscode-' + name;
-	return path.join(os.tmpdir(), fullName + '.sock');
-}
-
 
 function generatePatchedEnv(
 	env: any,
@@ -131,7 +121,7 @@ export function fork(
 	};
 
 	// Create the process
-	logger.info('Forking TSServer', `PATH: ${newEnv['PATH']}`);
+	logger.info('Forking TSServer', `PATH: ${newEnv['PATH']} `);
 
 	const bootstrapperPath = require.resolve('./electronForkStart');
 	childProcess = cp.fork(bootstrapperPath, [modulePath].concat(args), {

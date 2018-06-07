@@ -266,7 +266,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					promises.push(promise);
 				} else {
-					this.log(nls.localize('dependencyFailed', 'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'', dependency.task, dependency.workspaceFolder.name));
+					this.log(nls.localize('dependencyFailed',
+						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
+						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
+						dependency.workspaceFolder.name
+					));
 					this.showOutput();
 				}
 			});

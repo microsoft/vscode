@@ -9,6 +9,7 @@
 	"callstackSection": "Aufruflistenabschnitt",
 	"debugStopped": "Angehalten bei {0}",
 	"callStackAriaLabel": "Aufrufliste debuggen",
+	"session": "Sitzung",
 	"paused": "Angehalten",
 	"running": "Wird ausgeführt",
 	"thread": "Thread",

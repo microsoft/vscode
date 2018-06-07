@@ -8,14 +8,12 @@ import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvid
 import { ITextModel } from 'vs/editor/common/model';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
 import { Range } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
-
-export type FuzzyScore = [number, number[]];
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -107,7 +105,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name);
+		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}

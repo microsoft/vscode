@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, Hierarchy, SymbolInformation2 } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, SymbolInformation2 } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -44,14 +44,14 @@ class OutlineAdapter {
 				return undefined;
 			}
 			let [probe] = value;
-			if (!(probe instanceof Hierarchy)) {
+			if (!(probe instanceof SymbolInformation2)) {
 				value = OutlineAdapter._asSymbolHierarchy(<SymbolInformation[]>value);
 			}
-			return (<Hierarchy<SymbolInformation2>[]>value).map(typeConvert.HierarchicalSymbolInformation.from);
+			return (<SymbolInformation2[]>value).map(typeConvert.SymbolInformation2.from);
 		});
 	}
 
-	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.Hierarchy<SymbolInformation2>[] {
+	private static _asSymbolHierarchy(info: SymbolInformation[]): vscode.SymbolInformation2[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		info = info.slice(0).sort((a, b) => {
@@ -61,12 +61,12 @@ class OutlineAdapter {
 			}
 			return res;
 		});
-		let res: Hierarchy<SymbolInformation2>[] = [];
-		let parentStack: Hierarchy<SymbolInformation2>[] = [];
+		let res: SymbolInformation2[] = [];
+		let parentStack: SymbolInformation2[] = [];
 		for (let i = 0; i < info.length; i++) {
-			let element = new Hierarchy(new SymbolInformation2(info[i].name, '', info[i].kind, info[i].location.range, info[i].location));
-			element.parent.containerName = info[i].containerName;
-			element.parent.location = info[i].location; // todo@joh make this proper
+			let element = new SymbolInformation2(info[i].name, info[i].kind, '', info[i].location);
+			element.containerName = info[i].containerName;
+			element.location = info[i].location; // todo@joh make this proper
 
 			while (true) {
 				if (parentStack.length === 0) {
@@ -75,7 +75,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (parent.parent.range.contains(element.parent.range) && !parent.parent.range.isEqual(element.parent.range)) {
+				if (parent.definingRange.contains(element.definingRange) && !parent.definingRange.isEqual(element.definingRange)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;

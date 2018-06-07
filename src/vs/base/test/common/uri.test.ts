@@ -451,6 +451,16 @@ suite('URI', () => {
 		assert.equal(fileUri2.authority, '');
 	});
 
+	test('Ctrl click to follow hash query param url gets urlencoded #49628', function () {
+		let input = 'http://localhost:3000/#/foo?bar=baz';
+		let uri = URI.parse(input);
+		assert.equal(uri.toString(true), input);
+
+		input = 'http://localhost:3000/foo?bar=baz';
+		uri = URI.parse(input);
+		assert.equal(uri.toString(true), input);
+	});
+
 	test('URI - (de)serialize', function () {
 
 		var values = [

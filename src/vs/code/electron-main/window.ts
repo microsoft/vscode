@@ -141,7 +141,8 @@ export class CodeWindow implements ICodeWindow {
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
-				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				disableBlinkFeatures: 'Auxclick', // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				experimentalFeatures: true
 			}
 		};
 
@@ -476,7 +477,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration, isReload?: boolean): void {
+	public load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -491,6 +492,13 @@ export class CodeWindow implements ICodeWindow {
 		else {
 			this.pendingLoadConfig = config;
 			this._readyState = ReadyState.NAVIGATING;
+		}
+
+		// Add disable-extensions to the config, but do not preserve it on currentConfig or
+		// pendingLoadConfig so that it is applied only on this load
+		const configuration = objects.assign({}, config);
+		if (disableExtensions !== undefined) {
+			configuration['disable-extensions'] = disableExtensions;
 		}
 
 		// Clear Document Edited if needed
@@ -511,7 +519,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Load URL
 		mark('main:loadWindow');
-		this._win.loadURL(this.getUrl(config));
+		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -549,14 +557,11 @@ export class CodeWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
-		if (cli) {
-			configuration['disable-extensions'] = cli['disable-extensions'];
-		}
-
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration, true);
+		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
+		this.load(configuration, true, disableExtensions);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {

@@ -76,7 +76,8 @@
 			"scope": [
 				"variable",
 				"meta.definition.variable.name",
-				"support.variable"
+				"support.variable",
+				"entity.name.variable"
 			],
 			"settings": {
 				"foreground": "#9CDCFE"
