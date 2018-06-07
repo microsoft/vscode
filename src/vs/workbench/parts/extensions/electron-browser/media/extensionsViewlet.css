@@ -69,10 +69,6 @@
 	box-sizing: border-box;
 }
 
-.extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark {
-	opacity: 0.5;
-}
-
 .extensions-viewlet > .extensions .monaco-list-row > .bookmark > .octicon {
 	position: absolute;
 	top: 1px;
@@ -195,6 +191,8 @@
 	opacity: 0.9;
 }
 
+.vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
+.vs-dark  .extensions-viewlet > .extensions .monaco-list-row.disabled > .bookmark,
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
 .vs-dark .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .icon,
 .vs .extensions-viewlet > .extensions .monaco-list-row.disabled > .extension > .details > .header-container,
