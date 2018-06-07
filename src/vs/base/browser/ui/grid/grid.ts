@@ -362,11 +362,19 @@ interface InitialLayoutContext<T extends ISerializableView> {
 	root: GridBranchNode<T>;
 }
 
-export interface ISerializedNode {
-	type: 'branch' | 'leaf';
-	data: ISerializedNode[] | object;
+export interface ISerializedLeafNode {
+	type: 'leaf';
+	data: object;
 	size: number;
 }
+
+export interface ISerializedBranchNode {
+	type: 'branch';
+	data: ISerializedNode[];
+	size: number;
+}
+
+export type ISerializedNode = ISerializedLeafNode | ISerializedBranchNode;
 
 export interface ISerializedGrid {
 	root: ISerializedNode;
@@ -535,4 +543,81 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			this.restoreViewsSize(childLocation, child, orthogonal(orientation), widthScale, heightScale);
 		}
 	}
+}
+
+export type GridNodeDescriptor = { size?: number, groups?: GridNodeDescriptor[] };
+export type GridDescriptor = { orientation: Orientation, groups?: GridNodeDescriptor[] };
+
+export function sanitizeGridNodeDescriptor(nodeDescriptor: GridNodeDescriptor): void {
+	if (nodeDescriptor.groups && nodeDescriptor.groups.length === 0) {
+		nodeDescriptor.groups = undefined;
+	}
+
+	if (!nodeDescriptor.groups) {
+		return;
+	}
+
+	let totalDefinedSize = 0;
+	let totalDefinedSizeCount = 0;
+
+	for (const child of nodeDescriptor.groups) {
+		sanitizeGridNodeDescriptor(child);
+
+		if (child.size) {
+			totalDefinedSize += child.size;
+			totalDefinedSizeCount++;
+		}
+	}
+
+	const totalUndefinedSize = totalDefinedSizeCount > 0 ? totalDefinedSize : 1;
+	const totalUndefinedSizeCount = nodeDescriptor.groups.length - totalDefinedSizeCount;
+	const eachUndefinedSize = totalUndefinedSize / totalUndefinedSizeCount;
+
+	for (const child of nodeDescriptor.groups) {
+		if (!child.size) {
+			child.size = eachUndefinedSize;
+		}
+	}
+}
+
+function createSerializedNode(nodeDescriptor: GridNodeDescriptor): ISerializedNode {
+	if (nodeDescriptor.groups) {
+		return { type: 'branch', data: nodeDescriptor.groups.map(c => createSerializedNode(c)), size: nodeDescriptor.size! };
+	} else {
+		return { type: 'leaf', data: null, size: nodeDescriptor.size! };
+	}
+}
+
+function getDimensions(node: ISerializedNode, orientation: Orientation): { width?: number, height?: number } {
+	if (node.type === 'branch') {
+		const childrenDimensions = node.data.map(c => getDimensions(c, orthogonal(orientation)));
+
+		if (orientation === Orientation.VERTICAL) {
+			const width = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.width || 0)));
+			const height = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + d.height, 0);
+			return { width, height };
+		} else {
+			const width = childrenDimensions.length === 0 ? undefined : childrenDimensions.reduce((r, d) => r + d.width, 0);
+			const height = node.size || (childrenDimensions.length === 0 ? undefined : Math.max(...childrenDimensions.map(d => d.height || 0)));
+			return { width, height };
+		}
+	} else {
+		const width = orientation === Orientation.VERTICAL ? node.size : undefined;
+		const height = orientation === Orientation.VERTICAL ? undefined : node.size;
+		return { width, height };
+	}
+}
+
+export function createSerializedGrid(gridDescriptor: GridDescriptor): ISerializedGrid {
+	sanitizeGridNodeDescriptor(gridDescriptor);
+
+	const root = createSerializedNode(gridDescriptor);
+	const { width, height } = getDimensions(root, gridDescriptor.orientation);
+
+	return {
+		root,
+		orientation: gridDescriptor.orientation,
+		width: width || 1,
+		height: height || 1
+	};
 }
