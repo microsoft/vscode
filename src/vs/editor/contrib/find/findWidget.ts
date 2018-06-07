@@ -252,14 +252,6 @@ export class FindWidget extends Widget implements IOverlayWidget, IHorizontalSas
 		this._findInput.inputBox.showPreviousValue();
 	}
 
-	public showNextReplaceTerm() {
-		this._replaceInputBox.showNextValue();
-	}
-
-	public showPreviousReplaceTerm() {
-		this._replaceInputBox.showPreviousValue();
-	}
-
 	// ----- React to state changes
 
 	private _onStateChanged(e: FindReplaceStateChangedEvent): void {

@@ -27,6 +27,9 @@ import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searc
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
+import { showDeprecatedWarning } from 'vs/platform/widget/browser/input';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -92,13 +95,17 @@ export class ShowNextSearchIncludeAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@INotificationService private notificationService: INotificationService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchIncludePattern.showNextTerm();
 		return TPromise.as(null);
@@ -113,13 +120,17 @@ export class ShowPreviousSearchIncludeAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchIncludePattern.showPreviousTerm();
 		return TPromise.as(null);
@@ -134,13 +145,17 @@ export class ShowNextSearchExcludeAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IPanelService private panelService: IPanelService,
-		@IContextKeyService private contextKeyService: IContextKeyService
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchExcludePattern.showNextTerm();
 		return TPromise.as(null);
@@ -155,13 +170,17 @@ export class ShowPreviousSearchExcludeAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchExcludePattern.showPreviousTerm();
 		return TPromise.as(null);
@@ -176,13 +195,17 @@ export class ShowNextSearchTermAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.showNextSearchTerm();
 		return TPromise.as(null);
@@ -197,13 +220,17 @@ export class ShowPreviousSearchTermAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.showPreviousSearchTerm();
 		return TPromise.as(null);
@@ -217,13 +244,17 @@ export class ShowNextReplaceTermAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.showNextReplaceTerm();
 		return TPromise.as(null);
@@ -238,13 +269,17 @@ export class ShowPreviousReplaceTermAction extends Action {
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@INotificationService private notificationService: INotificationService,
+		@IKeybindingService private keybindingService: IKeybindingService,
+		@IStorageService private storageService: IStorageService
 	) {
 		super(id, label);
 		this.enabled = this.contextKeyService.contextMatchesRules(Constants.SearchViewVisibleKey);
 	}
 
 	public run(): TPromise<any> {
+		showDeprecatedWarning(this.notificationService, this.keybindingService, this.storageService);
 		const searchView = getSearchView(this.viewletService, this.panelService);
 		searchView.searchAndReplaceWidget.showPreviousReplaceTerm();
 		return TPromise.as(null);

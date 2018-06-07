@@ -14,8 +14,11 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput, showDeprecatedWarning } from 'vs/platform/widget/browser/input';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -35,6 +38,9 @@ export abstract class SimpleFindWidget extends Widget {
 	constructor(
 		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
@@ -202,10 +208,12 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	public showNextFindTerm() {
+		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
 		this._findInput.inputBox.showNextValue();
 	}
 
 	public showPreviousFindTerm() {
+		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
 		this._findInput.inputBox.showPreviousValue();
 	}
 }
