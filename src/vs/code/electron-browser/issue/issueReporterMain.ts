@@ -205,7 +205,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.buttonHoverBackground) {
-			content.push(`.monaco-text-button:hover, monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
+			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
