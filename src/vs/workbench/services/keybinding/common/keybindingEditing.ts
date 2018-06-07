@@ -17,13 +17,28 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
-import { IUserFriendlyKeybinding, IKeybindingEditingService } from 'vs/platform/keybinding/common/keybinding';
+import { IUserFriendlyKeybinding } from 'vs/platform/keybinding/common/keybinding';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService, ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService } from 'vs/platform/files/common/files';
+import { createDecorator, ServiceIdentifier } from 'vs/platform/instantiation/common/instantiation';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { ITextModel } from 'vs/editor/common/model';
+
+
+export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
+
+export interface IKeybindingEditingService {
+
+	_serviceBrand: ServiceIdentifier<any>;
+
+	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+
+	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+
+	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
+}
 
 export class KeybindingsEditingService extends Disposable implements IKeybindingEditingService {
 

@@ -10,7 +10,6 @@ import { IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextk
 import { IResolveResult } from 'vs/platform/keybinding/common/keybindingResolver';
 import { ResolvedKeybindingItem } from 'vs/platform/keybinding/common/resolvedKeybindingItem';
 import { Event } from 'vs/base/common/event';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface IUserFriendlyKeybinding {
 	key: string;
@@ -80,15 +79,3 @@ export interface IKeybindingService {
 	customKeybindingsCount(): number;
 }
 
-export const IKeybindingEditingService = createDecorator<IKeybindingEditingService>('keybindingEditingService');
-
-export interface IKeybindingEditingService {
-
-	_serviceBrand: any;
-
-	editKeybinding(key: string, keybindingItem: ResolvedKeybindingItem): TPromise<void>;
-
-	removeKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
-
-	resetKeybinding(keybindingItem: ResolvedKeybindingItem): TPromise<void>;
-}

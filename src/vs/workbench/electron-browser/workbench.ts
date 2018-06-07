@@ -48,8 +48,8 @@ import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench
 import { IJSONEditingService } from 'vs/workbench/services/configuration/common/jsonEditing';
 import { JSONEditingService } from 'vs/workbench/services/configuration/node/jsonEditingService';
 import { ContextKeyService } from 'vs/platform/contextkey/browser/contextKeyService';
-import { IKeybindingService, IKeybindingEditingService } from 'vs/platform/keybinding/common/keybinding';
-import { KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { IKeybindingEditingService, KeybindingsEditingService } from 'vs/workbench/services/keybinding/common/keybindingEditing';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IActivityService } from 'vs/workbench/services/activity/common/activity';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
