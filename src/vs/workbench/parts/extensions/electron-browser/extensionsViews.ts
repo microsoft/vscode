@@ -236,7 +236,9 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => e.type === LocalExtensionType.User	// exclude disabled builtin extensions
+					&& runningExtensions.every(r => !areSameExtensions(r, e))
+					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
@@ -590,6 +592,38 @@ export class InstalledExtensionsView extends ExtensionsListView {
 		let searchInstalledQuery = '@installed';
 		searchInstalledQuery = query ? searchInstalledQuery + ' ' + query : searchInstalledQuery;
 		return super.show(searchInstalledQuery);
+	}
+}
+
+export class EnabledExtensionsView extends ExtensionsListView {
+
+	public static isEnabledExtensionsQuery(query: string): boolean {
+		return ExtensionsListView.isEnabledExtensionsQuery(query);
+	}
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		if (EnabledExtensionsView.isEnabledExtensionsQuery(query)) {
+			return super.show(query);
+		}
+		let searchEnabledQuery = '@enabled';
+		searchEnabledQuery = query ? searchEnabledQuery + ' ' + query : searchEnabledQuery;
+		return super.show(searchEnabledQuery);
+	}
+}
+
+export class DisabledExtensionsView extends ExtensionsListView {
+
+	public static isDisabledExtensionsQuery(query: string): boolean {
+		return ExtensionsListView.isDisabledExtensionsQuery(query);
+	}
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		if (DisabledExtensionsView.isDisabledExtensionsQuery(query)) {
+			return super.show(query);
+		}
+		let searchDisabledQuery = '@disabled';
+		searchDisabledQuery = query ? searchDisabledQuery + ' ' + query : searchDisabledQuery;
+		return super.show(searchDisabledQuery);
 	}
 }
 
