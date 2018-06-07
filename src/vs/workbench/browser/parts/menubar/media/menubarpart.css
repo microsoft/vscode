@@ -48,6 +48,14 @@
 	opacity: 1;
 }
 
+.menubar-menu-items-holder.monaco-menu-container {
+	box-shadow: 0 2px 8px #A8A8A8;
+}
+
+.vs-dark .menubar-menu-items-holder.monaco-menu-container {
+	box-shadow: 0 2px 8px #000;
+}
+
 /*
 .menubar-menu-items-holder-open {
 	display: flex;
