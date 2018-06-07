@@ -54,7 +54,7 @@ class JsDocCompletionProvider implements CompletionItemProvider {
 		position: Position,
 		token: CancellationToken
 	): Promise<CompletionItem[]> {
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return [];
 		}
@@ -130,7 +130,7 @@ class TryCompleteJsDocCommand implements Command {
 	 * if possible, otherwise falling back to a default comment format.
 	 */
 	public async execute(resource: Uri, start: Position): Promise<boolean> {
-		const file = this.client.normalizePath(resource);
+		const file = this.client.toPath(resource);
 		if (!file) {
 			return false;
 		}

@@ -41,7 +41,7 @@ export function activate(
 			void lazyClientHost.value;
 
 			context.subscriptions.push(new ManagedFileContextManager(resource => {
-				return lazyClientHost.value.serviceClient.normalizePath(resource);
+				return lazyClientHost.value.serviceClient.toPath(resource);
 			}));
 			return true;
 		}

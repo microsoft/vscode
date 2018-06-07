@@ -8,7 +8,7 @@ import * as path from 'path';
 import {
 	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace, Selection, TaskGroup
+	WorkspaceFolder, commands, debug, window, workspace, tasks, Selection, TaskGroup
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
 import {
@@ -158,7 +158,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			this.scriptNotValid(task);
 			return;
 		}
-		workspace.executeTask(script.task);
+		tasks.executeTask(script.task);
 	}
 
 	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
@@ -272,7 +272,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			return;
 		}
 		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, []);
-		workspace.executeTask(task);
+		tasks.executeTask(task);
 	}
 
 	private async openScript(selection: PackageJSON | NpmScript) {
@@ -318,9 +318,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let tasks = await workspace.fetchTasks({ type: 'npm' });
-			if (tasks) {
-				this.taskTree = this.buildTaskTree(tasks);
+			let taskItems = await tasks.fetchTasks({ type: 'npm' });
+			if (taskItems) {
+				this.taskTree = this.buildTaskTree(taskItems);
 				if (this.taskTree.length === 0) {
 					this.taskTree = [new NoScripts()];
 				}

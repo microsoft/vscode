@@ -21,6 +21,7 @@
 	"allowBreakpointsEverywhere": "任意のファイルにブレークポイントを設定できるようにする",
 	"openExplorerOnEnd": "デバッグ セッションの終わりにエクスプローラ ビューを自動的に開きます",
 	"inlineValues": "デバッグ中にエディターの行内に変数値を表示します",
+	"toolBarLocation": "デバッグ ツールバーの位置を制御します。\"floating\" はすべてのビュー内、 \"docked\" はデバッグ ビュー内、または \"hidden\" のいずれかです",
 	"never": "今後ステータス バーにデバッグを表示しない",
 	"always": "ステータス バーにデバッグを常に表示する",
 	"onFirstSessionStart": "初めてデバッグが開始されたときのみステータス バーにデバッグを表示する",

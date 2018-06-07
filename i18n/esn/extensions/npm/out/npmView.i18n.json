@@ -9,5 +9,6 @@
 	"noScripts": "No se encontraron scripts",
 	"noDebugOptions": "No se pudo iniciar \"{0} \" para la depuración porque las secuencias de comandos carecen de una opción de depuración de nodo, por ejemplo \"--inspect-brk\".",
 	"learnMore": "Más información",
-	"ok": "Aceptar"
+	"ok": "Aceptar",
+	"scriptInvalid": "No se pudo encontrar la secuencia de comandos \"{0}\". Trate de actualizar la vista."
 }

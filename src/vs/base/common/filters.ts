@@ -255,7 +255,8 @@ export function matchesCamelCase(word: string, camelCaseWord: string): IMatch[] 
 	let result: IMatch[] = null;
 	let i = 0;
 
-	while (i < camelCaseWord.length && (result = _matchesCamelCase(word.toLowerCase(), camelCaseWord, 0, i)) === null) {
+	word = word.toLowerCase();
+	while (i < camelCaseWord.length && (result = _matchesCamelCase(word, camelCaseWord, 0, i)) === null) {
 		i = nextAnchor(camelCaseWord, i + 1);
 	}
 
@@ -275,7 +276,9 @@ export function matchesWords(word: string, target: string, contiguous: boolean =
 	let result: IMatch[] = null;
 	let i = 0;
 
-	while (i < target.length && (result = _matchesWords(word.toLowerCase(), target, 0, i, contiguous)) === null) {
+	word = word.toLowerCase();
+	target = target.toLowerCase();
+	while (i < target.length && (result = _matchesWords(word, target, 0, i, contiguous)) === null) {
 		i = nextWord(target, i + 1);
 	}
 
@@ -287,7 +290,7 @@ function _matchesWords(word: string, target: string, i: number, j: number, conti
 		return [];
 	} else if (j === target.length) {
 		return null;
-	} else if (word[i] !== target[j].toLowerCase()) {
+	} else if (word[i] !== target[j]) {
 		return null;
 	} else {
 		let result: IMatch[] = null;

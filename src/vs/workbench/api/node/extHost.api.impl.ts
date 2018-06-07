@@ -544,21 +544,6 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
-				return extHostTask.fetchTasks(filter);
-			}),
-			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
-				return extHostTask.executeTask(extension, task);
-			}),
-			get taskExecutions(): vscode.TaskExecution[] {
-				return extHostTask.taskExecutions;
-			},
-			onDidStartTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
-			},
-			onDidEndTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
-			},
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
@@ -708,15 +693,9 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolInformation2: class extends extHostTypes.SymbolInformation2 {
-				constructor(name, detail, kind, range, location) {
+				constructor(name, kind, containerName, location) {
 					checkProposedApiEnabled(extension);
-					super(name, detail, kind, range, location);
-				}
-			},
-			Hierarchy: class <T> extends extHostTypes.Hierarchy<T> {
-				constructor(parent: T) {
-					checkProposedApiEnabled(extension);
-					super(parent);
+					super(name, kind, containerName, location);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,

@@ -43,18 +43,34 @@ const shellCommand: IJSONSchema = {
 	deprecationMessage: nls.localize('JsonSchema.tasks.isShellCommand.deprecated', 'The property isShellCommand is deprecated. Use the type property of the task and the shell property in the options instead. See also the 1.14 release notes.')
 };
 
+const taskIdentifier: IJSONSchema = {
+	type: 'object',
+	additionalProperties: true,
+	properties: {
+		type: {
+			type: 'string',
+			description: nls.localize('JsonSchema.tasks.dependsOn.identifier', 'The task indentifier.')
+		}
+	}
+};
+
 const dependsOn: IJSONSchema = {
 	anyOf: [
 		{
 			type: 'string',
-			default: true,
 			description: nls.localize('JsonSchema.tasks.dependsOn.string', 'Another task this task depends on.')
 		},
+		taskIdentifier,
 		{
 			type: 'array',
 			description: nls.localize('JsonSchema.tasks.dependsOn.array', 'The other tasks this task depends on.'),
 			items: {
-				type: 'string'
+				anyOf: [
+					{
+						type: 'string',
+					},
+					taskIdentifier
+				]
 			}
 		}
 	]
@@ -66,7 +82,8 @@ const presentation: IJSONSchema = {
 		echo: true,
 		reveal: 'always',
 		focus: false,
-		panel: 'shared'
+		panel: 'shared',
+		reuseMessage: true
 	},
 	description: nls.localize('JsonSchema.tasks.presentation', 'Configures the panel that is used to present the task\'s ouput and reads its input.'),
 	additionalProperties: false,
@@ -97,6 +114,11 @@ const presentation: IJSONSchema = {
 			enum: ['shared', 'dedicated', 'new'],
 			default: 'shared',
 			description: nls.localize('JsonSchema.tasks.presentation.instance', 'Controls if the panel is shared between tasks, dedicated to this task or a new one is created on every run.')
+		},
+		reuseMessage: {
+			type: 'boolean',
+			default: true,
+			description: nls.localize('JsonSchema.tasks.presentation.reuseMessage', 'Controls whether to show the `Terminal will be reused by tasks, press any key to close it` message.')
 		}
 	}
 };

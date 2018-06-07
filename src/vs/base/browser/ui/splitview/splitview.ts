@@ -13,10 +13,20 @@ import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
 import { range, firstIndex } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Color } from 'vs/base/common/color';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
+
+export interface ISplitViewStyles {
+	separatorBorder: Color;
+}
+
+const defaultStyles: ISplitViewStyles = {
+	separatorBorder: Color.transparent
+};
 
 export interface ISplitViewOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
+	styles?: ISplitViewStyles;
 	orthogonalStartSash?: Sash;
 	orthogonalEndSash?: Sash;
 }
@@ -163,6 +173,18 @@ export class SplitView implements IDisposable {
 
 		this.sashContainer = dom.append(this.el, dom.$('.sash-container'));
 		this.viewContainer = dom.append(this.el, dom.$('.split-view-container'));
+
+		this.style(options.styles || defaultStyles);
+	}
+
+	style(styles: ISplitViewStyles): void {
+		if (styles.separatorBorder.isTransparent()) {
+			dom.removeClass(this.el, 'separator-border');
+			this.el.style.removeProperty('--separator-border');
+		} else {
+			dom.addClass(this.el, 'separator-border');
+			this.el.style.setProperty('--separator-border', styles.separatorBorder.toString());
+		}
 	}
 
 	addView(view: IView, size: number | Sizing, index = this.viewItems.length): void {

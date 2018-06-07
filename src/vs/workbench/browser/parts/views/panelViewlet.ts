@@ -37,6 +37,8 @@ export interface IPanelColors extends IColorMapping {
 
 export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
+	id: string;
+	title: string;
 }
 
 export abstract class ViewletPanel extends Panel {
@@ -49,12 +51,15 @@ export abstract class ViewletPanel extends Panel {
 	private _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
 
+	private _isVisible: boolean;
+	readonly id: string;
+	readonly title: string;
+
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
 
 	constructor(
-		readonly title: string,
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -62,7 +67,21 @@ export abstract class ViewletPanel extends Panel {
 	) {
 		super(options);
 
+		this.id = options.id;
+		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		if (this._isVisible !== visible) {
+			this._isVisible = visible;
+		}
+
+		return TPromise.wrap(null);
+	}
+
+	isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	render(): void {
@@ -139,6 +158,9 @@ export abstract class ViewletPanel extends Panel {
 
 	getOptimalWidth(): number {
 		return 0;
+	}
+
+	shutdown(): void {
 	}
 }
 

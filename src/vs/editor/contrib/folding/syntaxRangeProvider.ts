@@ -25,17 +25,22 @@ const foldingContext: FoldingContext = {
 
 export class SyntaxRangeProvider implements RangeProvider {
 
-	constructor(private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
+	readonly id = 'syntax';
+
+	constructor(private editorModel: ITextModel, private providers: FoldingRangeProvider[], private limit = MAX_FOLDING_REGIONS) {
 	}
 
-	compute(model: ITextModel, cancellationToken: CancellationToken): Thenable<FoldingRegions> {
-		return collectSyntaxRanges(this.providers, model, cancellationToken).then(ranges => {
+	compute(cancellationToken: CancellationToken): Thenable<FoldingRegions> {
+		return collectSyntaxRanges(this.providers, this.editorModel, cancellationToken).then(ranges => {
 			if (ranges) {
 				let res = sanitizeRanges(ranges, this.limit);
 				return res;
 			}
 			return null;
 		});
+	}
+
+	dispose() {
 	}
 
 }
@@ -164,14 +169,16 @@ export function sanitizeRanges(rangeData: IFoldingRangeData[], limit: number): F
 					previous.push(top);
 					top = entry;
 					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
-				} else if (entry.start > top.end) {
-					do {
-						top = previous.pop();
-					} while (top && entry.start > top.end);
-					if (top) {
-						previous.push(top);
+				} else {
+					if (entry.start > top.end) {
+						do {
+							top = previous.pop();
+						} while (top && entry.start > top.end);
+						if (top) {
+							previous.push(top);
+						}
+						top = entry;
 					}
-					top = entry;
 					collector.add(entry.start, entry.end, entry.kind && entry.kind.value, previous.length);
 				}
 			}

@@ -8,10 +8,11 @@
 import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
-import { SplitView, IView as ISplitView, Sizing } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
+import { Color } from 'vs/base/common/color';
 
 export { Sizing } from 'vs/base/browser/ui/splitview/splitview';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
@@ -61,6 +62,16 @@ export function isGridBranchNode(node: GridNode): node is GridBranchNode {
 	return !!(node as any).children;
 }
 
+export interface IGridViewStyles extends ISplitViewStyles { }
+
+const defaultStyles: IGridViewStyles = {
+	separatorBorder: Color.transparent
+};
+
+export interface IGridViewOptions {
+	styles?: IGridViewStyles;
+}
+
 class BranchNode implements ISplitView, IDisposable {
 
 	readonly element: HTMLElement;
@@ -72,6 +83,9 @@ class BranchNode implements ISplitView, IDisposable {
 
 	private _orthogonalSize: number;
 	get orthogonalSize(): number { return this._orthogonalSize; }
+
+	private _styles: IGridViewStyles;
+	get styles(): IGridViewStyles { return this._styles; }
 
 	get width(): number {
 		return this.orientation === Orientation.HORIZONTAL ? this.size : this.orthogonalSize;
@@ -129,9 +143,11 @@ class BranchNode implements ISplitView, IDisposable {
 
 	constructor(
 		readonly orientation: Orientation,
+		styles: IGridViewStyles,
 		size: number = 0,
 		orthogonalSize: number = 0
 	) {
+		this._styles = styles;
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
 
@@ -139,11 +155,22 @@ class BranchNode implements ISplitView, IDisposable {
 		this.children = [];
 
 		this.element = $('.monaco-grid-branch-node');
-		this.splitview = new SplitView(this.element, { orientation });
+		this.splitview = new SplitView(this.element, { orientation, styles });
 		this.splitview.layout(size);
 
 		const onDidSashReset = mapEvent(this.splitview.onDidSashReset, i => [i]);
 		this.splitviewSashResetDisposable = onDidSashReset(this._onDidSashReset.fire, this._onDidSashReset);
+	}
+
+	style(styles: IGridViewStyles): void {
+		this._styles = styles;
+		this.splitview.style(styles);
+
+		for (const child of this.children) {
+			if (child instanceof BranchNode) {
+				child.style(styles);
+			}
+		}
 	}
 
 	layout(size: number): void {
@@ -318,7 +345,7 @@ type Node = BranchNode | LeafNode;
 
 function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number): T {
 	if (node instanceof BranchNode) {
-		const result = new BranchNode(orthogonal(node.orientation), size, orthogonalSize);
+		const result = new BranchNode(orthogonal(node.orientation), node.styles, size, orthogonalSize);
 
 		let totalSize = 0;
 
@@ -346,6 +373,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 export class GridView implements IDisposable {
 
 	private element: HTMLElement;
+	private styles: IGridViewStyles;
 
 	private _root: BranchNode;
 	private onDidSashResetRelay = new Relay<number[]>();
@@ -407,9 +435,15 @@ export class GridView implements IDisposable {
 		return this.root.maximumHeight;
 	}
 
-	constructor(container: HTMLElement) {
+	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
 		this.element = append(container, $('.monaco-grid-view'));
-		this.root = new BranchNode(Orientation.VERTICAL);
+		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
+		this.styles = options.styles || defaultStyles;
+	}
+
+	style(styles: IGridViewStyles): void {
+		this.styles = styles;
+		this.root.style(styles);
 	}
 
 	layout(width: number, height: number): void {
@@ -431,7 +465,7 @@ export class GridView implements IDisposable {
 			const [, parentIndex] = tail(rest);
 			grandParent.removeChild(parentIndex);
 
-			const newParent = new BranchNode(parent.orientation, parent.size, parent.orthogonalSize);
+			const newParent = new BranchNode(parent.orientation, this.styles, parent.size, parent.orthogonalSize);
 			grandParent.addChild(newParent, parent.size, parentIndex);
 			newParent.orthogonalLayout(parent.orthogonalSize);
 

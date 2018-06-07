@@ -19,6 +19,7 @@
 	"titleLengthValidation": "標題太長。",
 	"details": "請輸入詳細資料。",
 	"sendSystemInfo": "包含我的系統資訊 ({0})",
+	"show": "顯示",
 	"sendProcessInfo": "包含我目前正在執行的程序 ({0})",
 	"sendWorkspaceInfo": "包含我的工作區詮釋資料 ({0})",
 	"sendExtensions": "包含我已啟用擴充功能 ({0})",

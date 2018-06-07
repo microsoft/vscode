@@ -27,7 +27,7 @@ class TypeScriptReferencesCodeLensProvider extends TypeScriptBaseCodeLensProvide
 
 			const locations = response.body.refs
 				.map(reference =>
-					typeConverters.Location.fromTextSpan(this.client.asUrl(reference.file), reference))
+					typeConverters.Location.fromTextSpan(this.client.toResource(reference.file), reference))
 				.filter(location =>
 					// Exclude original definition from references
 					!(location.uri.toString() === codeLens.document.toString() &&

@@ -76,7 +76,7 @@ export default class FileConfigurationManager {
 		options: FormattingOptions,
 		token: CancellationToken | undefined
 	): Promise<void> {
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return;
 		}

@@ -12,7 +12,7 @@ import { Platform } from 'vs/base/common/platform';
 
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
-import { Task, TaskEvent } from './tasks';
+import { Task, TaskEvent, KeyedTaskIdentifier } from './tasks';
 
 export enum TaskErrors {
 	NotConfigured,
@@ -95,7 +95,7 @@ export interface ITaskExecuteResult {
 }
 
 export interface ITaskResolver {
-	resolve(workspaceFolder: IWorkspaceFolder, identifier: string): Task;
+	resolve(workspaceFolder: IWorkspaceFolder, identifier: string | KeyedTaskIdentifier): Task;
 }
 
 export interface TaskTerminateResponse extends TerminateResponse {

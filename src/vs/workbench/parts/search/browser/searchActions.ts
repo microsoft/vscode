@@ -3,30 +3,30 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import * as nls from 'vs/nls';
 import * as DOM from 'vs/base/browser/dom';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
-import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { INavigator } from 'vs/base/common/iterator';
-import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
-import { Match, FileMatch, FileMatchOrMatch, FolderMatch, RenderableMatch, SearchResult, searchMatchComparer } from 'vs/workbench/parts/search/common/searchModel';
-import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ResolvedKeybinding, createKeybinding } from 'vs/base/common/keyCodes';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { OS, isWindows } from 'vs/base/common/platform';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { VIEW_ID } from 'vs/platform/search/common/search';
+import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import { getPathLabel } from 'vs/base/common/labels';
+import { Schemas } from 'vs/base/common/network';
+import { isWindows, OS } from 'vs/base/common/platform';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { ITree } from 'vs/base/parts/tree/browser/tree';
+import * as nls from 'vs/nls';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { ICommandHandler } from 'vs/platform/commands/common/commands';
-import { Schemas } from 'vs/base/common/network';
-import { getPathLabel } from 'vs/base/common/labels';
-import URI from 'vs/base/common/uri';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { ISearchHistoryService, VIEW_ID } from 'vs/platform/search/common/search';
+import { SearchView } from 'vs/workbench/parts/search/browser/searchView';
+import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searchMatchComparer, SearchResult } from 'vs/workbench/parts/search/common/searchModel';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -556,13 +556,13 @@ export abstract class AbstractSearchAndReplaceAction extends Action {
 
 		// If the previous element is a File or Folder, expand it and go to its last child.
 		// Spell out the two cases, would be too easy to create an infinite loop, like by adding another level...
-		if (previousElement && previousElement instanceof FolderMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof FolderMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
 		}
 
-		if (previousElement && previousElement instanceof FileMatch) {
+		if (element instanceof Match && previousElement && previousElement instanceof FileMatch) {
 			navigator.next();
 			viewer.expand(previousElement);
 			previousElement = navigator.previous();
@@ -830,9 +830,6 @@ export const copyAllCommand: ICommandHandler = accessor => {
 };
 
 export const clearHistoryCommand: ICommandHandler = accessor => {
-	const viewletService = accessor.get(IViewletService);
-	const panelService = accessor.get(IPanelService);
-	const searchView = getSearchView(viewletService, panelService);
-
-	searchView.clearHistory();
+	const searchHistoryService = accessor.get(ISearchHistoryService);
+	searchHistoryService.clearHistory();
 };

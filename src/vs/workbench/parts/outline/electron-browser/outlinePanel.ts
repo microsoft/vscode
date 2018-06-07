@@ -31,9 +31,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
@@ -43,6 +42,9 @@ import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { asDisposablePromise } from 'vs/base/common/async';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 class RequestState {
 
@@ -118,7 +120,8 @@ class RequestOracle {
 
 		let handle: number;
 		let contentListener = codeEditor.onDidChangeModelContent(event => {
-			handle = setTimeout(() => this._callback(codeEditor, event), 150);
+			clearTimeout(handle);
+			handle = setTimeout(() => this._callback(codeEditor, event), 350);
 		});
 		let modeListener = codeEditor.onDidChangeModelLanguage(_ => {
 			this._callback(codeEditor, undefined);
@@ -195,24 +198,26 @@ class OutlineState {
 	}
 }
 
-export class OutlinePanel extends ViewsViewletPanel {
+export class OutlinePanel extends ViewletPanel {
 
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
 	private _outlineViewState = new OutlineState();
 	private _requestOracle: RequestOracle;
+	private _cachedHeight: number;
 	private _domNode: HTMLElement;
 	private _message: HTMLDivElement;
 	private _inputContainer: HTMLDivElement;
 	private _input: InputBox;
+	private _progressBar: ProgressBar;
 	private _tree: WorkbenchTree;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
 	constructor(
-		options: IViewOptions,
+		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService private readonly _storageService: IStorageService,
@@ -244,8 +249,16 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 		this._message = dom.$('.outline-message');
 		this._inputContainer = dom.$('.outline-input');
+
+		let progressContainer = dom.$('.outline-progress');
+		this._progressBar = new ProgressBar(progressContainer);
+		this.disposables.push(attachProgressBarStyler(this._progressBar, this._themeService));
+
 		let treeContainer = dom.$('.outline-tree');
-		dom.append(container, this._message, this._inputContainer, treeContainer);
+		dom.append(
+			container,
+			this._message, this._inputContainer, progressContainer, treeContainer
+		);
 
 		this._input = new InputBox(this._inputContainer, null, { placeholder: localize('filter', "Filter") });
 		this._input.disable();
@@ -310,8 +323,10 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
 	}
 
-	protected layoutBody(height: number): void {
-		this._tree.layout(height - dom.getTotalHeight(this._inputContainer));
+	protected layoutBody(height: number = this._cachedHeight): void {
+		this._cachedHeight = height;
+		this._input.layout();
+		this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 7 /*progressbar height, defined in outlinePanel.css*/));
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
@@ -363,6 +378,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 
 	private _showMessage(message: string) {
 		dom.addClass(this._domNode, 'message');
+		this._progressBar.stop().hide();
 		this._message.innerText = escape(message);
 	}
 
@@ -372,11 +388,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 		this._editorDisposables = new Array();
 		this._input.disable();
 		this._input.value = '';
+		this._progressBar.infinite().show(150);
 
 		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
 		}
-
 
 		let textModel = editor.getModel();
 		let model = await asDisposablePromise(OutlineModel.create(textModel), undefined, this._editorDisposables).promise;
@@ -390,10 +406,11 @@ export class OutlinePanel extends ViewsViewletPanel {
 			return this._showMessage(localize('too-many-symbols', "We are sorry, but this file is too large for showing an outline."));
 		}
 
+		this._progressBar.stop().hide();
 		dom.removeClass(this._domNode, 'message');
 		let oldModel = <OutlineModel>this._tree.getInput();
 
-		if (event && oldModel) {
+		if (event && oldModel && textModel.getLineCount() >= 25) {
 			// heuristic: when the symbols-to-lines ratio changes by 50% between edits
 			// wait a little (and hope that the next change isn't as drastic).
 			let newLength = textModel.getValueLength();
@@ -428,6 +445,7 @@ export class OutlinePanel extends ViewsViewletPanel {
 		}
 
 		this._input.enable();
+		this.layoutBody();
 
 		// feature: filter on type
 		// on type -> update filters

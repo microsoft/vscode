@@ -167,7 +167,7 @@ class TscTaskProvider implements vscode.TaskProvider {
 		if (editor) {
 			const document = editor.document;
 			if (document && (document.languageId === 'typescript' || document.languageId === 'typescriptreact')) {
-				return this.client.value.normalizePath(document.uri);
+				return this.client.value.toPath(document.uri);
 			}
 		}
 		return null;

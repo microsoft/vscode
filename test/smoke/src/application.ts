@@ -106,6 +106,7 @@ export class Application {
 			extensionsPath: this.options.extensionsPath,
 			logger: this.options.logger,
 			verbose: this.options.verbose,
+			log: this.options.log,
 			extraArgs,
 		});
 

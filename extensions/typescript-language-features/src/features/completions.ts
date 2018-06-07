@@ -275,7 +275,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			});
 		}
 
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return [];
 		}
@@ -332,7 +332,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			return undefined;
 		}
 
-		const filepath = this.client.normalizePath(item.document.uri);
+		const filepath = this.client.toPath(item.document.uri);
 		if (!filepath) {
 			return undefined;
 		}

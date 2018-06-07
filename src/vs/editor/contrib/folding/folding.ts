@@ -31,11 +31,20 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { InitializingRangeProvider } from 'vs/editor/contrib/folding/intializingRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	readonly id: string;
+	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	dispose(): void;
+}
+
+interface FoldingStateMemento {
+	collapsedRegions?: CollapseMemento;
+	lineCount?: number;
+	provider?: string;
 }
 
 export class FoldingController implements IEditorContribution {
@@ -59,6 +68,8 @@ export class FoldingController implements IEditorContribution {
 
 	private rangeProvider: RangeProvider;
 	private foldingRegionPromise: TPromise<FoldingRegions>;
+
+	private foldingStateMemento: FoldingStateMemento;
 
 	private foldingModelPromise: TPromise<FoldingModel>;
 	private updateScheduler: Delayer<FoldingModel>;
@@ -119,14 +130,15 @@ export class FoldingController implements IEditorContribution {
 	/**
 	 * Store view state.
 	 */
-	public saveViewState(): { collapsedRegions?: CollapseMemento, lineCount?: number } {
+	public saveViewState(): FoldingStateMemento {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return {};
 		}
 		if (this.foldingModel) { // disposed ?
 			let collapsedRegions = this.foldingModel.isInitialized ? this.foldingModel.getMemento() : this.hiddenRangeModel.getMemento();
-			return { collapsedRegions, lineCount: model.getLineCount() };
+			let provider = this.rangeProvider ? this.rangeProvider.id : void 0;
+			return { collapsedRegions, lineCount: model.getLineCount(), provider };
 		}
 		return void 0;
 	}
@@ -134,13 +146,17 @@ export class FoldingController implements IEditorContribution {
 	/**
 	 * Restore view state.
 	 */
-	public restoreViewState(state: { collapsedRegions?: CollapseMemento, lineCount?: number }): void {
+	public restoreViewState(state: FoldingStateMemento): void {
 		let model = this.editor.getModel();
 		if (!model || !this._isEnabled || model.isTooLargeForTokenization()) {
 			return;
 		}
 		if (!state || !state.collapsedRegions || state.lineCount !== model.getLineCount()) {
 			return;
+		}
+
+		if (state.provider !== 'indent') {
+			this.foldingStateMemento = state;
 		}
 
 		// set the hidden ranges right away, before waiting for the folding model.
@@ -190,27 +206,44 @@ export class FoldingController implements IEditorContribution {
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
+				this.foldingStateMemento = null;
+				if (this.rangeProvider) {
+					this.rangeProvider.dispose();
+				}
 				this.rangeProvider = null;
-
 			}
 		});
 		this.onModelContentChanged();
 	}
 
 	private onFoldingStrategyChanged() {
+		if (this.rangeProvider) {
+			this.rangeProvider.dispose();
+		}
 		this.rangeProvider = null;
 		this.onModelContentChanged();
 	}
 
-	private getRangeProvider(): RangeProvider {
-		if (!this.rangeProvider) {
-			if (this._useFoldingProviders) {
-				let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
-				this.rangeProvider = foldingProviders.length ? new SyntaxRangeProvider(foldingProviders) : new IndentRangeProvider();
-			} else {
-				this.rangeProvider = new IndentRangeProvider();
+	private getRangeProvider(editorModel: ITextModel): RangeProvider {
+		if (this.rangeProvider) {
+			return this.rangeProvider;
+		}
+		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
+
+		if (this._useFoldingProviders) {
+			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
+			if (foldingProviders.length === 0 && this.foldingStateMemento) {
+				this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
+					// if after 30 the InitializingRangeProvider is still not replaced, force a refresh
+					this.foldingStateMemento = null;
+					this.onFoldingStrategyChanged();
+				}, 30000);
+				return this.rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
+			} else if (foldingProviders.length > 0) {
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
 			}
 		}
+		this.foldingStateMemento = null;
 		return this.rangeProvider;
 	}
 
@@ -228,7 +261,7 @@ export class FoldingController implements IEditorContribution {
 				if (!this.foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				let foldingRegionPromise = this.foldingRegionPromise = asWinJsPromise<FoldingRegions>(token => this.getRangeProvider().compute(this.foldingModel.textModel, token));
+				let foldingRegionPromise = this.foldingRegionPromise = asWinJsPromise<FoldingRegions>(token => this.getRangeProvider(this.foldingModel.textModel).compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions

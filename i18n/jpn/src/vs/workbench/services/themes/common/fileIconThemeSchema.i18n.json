@@ -21,6 +21,7 @@
 	"schema.languageId": "関連付けのためのアイコン定義の ID。",
 	"schema.fonts": "アイコンの定義に使用されるフォント。",
 	"schema.id": "フォントの ID。",
+	"schema.src": "フォントの場所。",
 	"schema.font-path": "現在のアイコン テーマ ファイルへのフォントの相対パス。",
 	"schema.font-format": "フォントの書式。",
 	"schema.font-weight": "フォントの太さ。",

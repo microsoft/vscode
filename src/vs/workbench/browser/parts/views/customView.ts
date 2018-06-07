@@ -15,7 +15,7 @@ import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry } from 'vs/workbench/common/views';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ProgressLocation, IProgressService2 } from 'vs/platform/progress/common/progress';
@@ -33,8 +33,9 @@ import { basename } from 'vs/base/common/paths';
 import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/themeService';
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class CustomTreeViewPanel extends ViewsViewletPanel {
+export class CustomTreeViewPanel extends ViewletPanel {
 
 	private menus: TitleMenus;
 	private treeViewer: ITreeViewer;
@@ -48,7 +49,7 @@ export class CustomTreeViewPanel extends ViewsViewletPanel {
 		@IConfigurationService configurationService: IConfigurationService,
 		@IViewsService viewsService: IViewsService,
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 		this.treeViewer = (<ICustomViewDescriptor>ViewsRegistry.getView(options.id)).treeViewer;
 		this.disposables.push(toDisposable(() => this.treeViewer.setVisibility(false)));
 		this.menus = this.instantiationService.createInstance(TitleMenus, this.id);

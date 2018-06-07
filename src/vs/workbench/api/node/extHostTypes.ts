@@ -882,25 +882,15 @@ export class SymbolInformation {
 }
 
 export class SymbolInformation2 extends SymbolInformation {
+	definingRange: Range;
+	children: SymbolInformation2[];
+	constructor(name: string, kind: SymbolKind, containerName: string, location: Location) {
+		super(name, kind, containerName, location);
 
-	detail: string;
-	range: Range;
-
-	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
-		super(name, kind, undefined, location);
-		this.detail = detail;
-		this.range = range;
-	}
-}
-
-export class Hierarchy<T> {
-	parent: T;
-	children: Hierarchy<T>[];
-
-	constructor(parent: T) {
-		this.parent = parent;
 		this.children = [];
+		this.definingRange = location.range;
 	}
+
 }
 
 export enum CodeActionTrigger {
@@ -1494,7 +1484,6 @@ export class Task implements vscode.Task {
 	private __id: string;
 
 	private _definition: vscode.TaskDefinition;
-	private _definitionKey: string;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
@@ -1555,7 +1544,6 @@ export class Task implements vscode.Task {
 		}
 		this.__id = undefined;
 		this._scope = undefined;
-		this._definitionKey = undefined;
 		this._definition = undefined;
 		if (this._execution instanceof ProcessExecution) {
 			this._definition = {
@@ -1579,17 +1567,7 @@ export class Task implements vscode.Task {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
 		this.clear();
-		this._definitionKey = undefined;
 		this._definition = value;
-	}
-
-	get definitionKey(): string {
-		if (!this._definitionKey) {
-			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._definition));
-			this._definitionKey = hash.digest('hex');
-		}
-		return this._definitionKey;
 	}
 
 	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {

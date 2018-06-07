@@ -5,62 +5,62 @@
 
 'use strict';
 
-import 'vs/css!./media/searchview';
-import * as nls from 'vs/nls';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { Emitter, debounceEvent } from 'vs/base/common/event';
-import * as errors from 'vs/base/common/errors';
-import * as aria from 'vs/base/browser/ui/aria/aria';
-import * as env from 'vs/base/common/platform';
-import { Delayer } from 'vs/base/common/async';
-import URI from 'vs/base/common/uri';
-import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
+import { $, Builder } from 'vs/base/browser/builder';
 import * as dom from 'vs/base/browser/dom';
-import { IAction } from 'vs/base/common/actions';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { Builder, $ } from 'vs/base/browser/builder';
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
-import { ITree, IFocusEvent } from 'vs/base/parts/tree/browser/tree';
-import { Scope } from 'vs/workbench/common/memento';
-import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
-import { FileChangeType, FileChangesEvent, IFileService } from 'vs/platform/files/common/files';
-import { Match, FileMatch, SearchModel, FileMatchOrMatch, IChangeEvent, ISearchWorkbenchService, FolderMatch } from 'vs/workbench/parts/search/common/searchModel';
-import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { MessageType } from 'vs/base/browser/ui/inputbox/inputBox';
-import { ISearchProgressItem, ISearchComplete, ISearchQuery, IQueryOptions, ISearchConfiguration, IPatternInfo, VIEW_ID } from 'vs/platform/search/common/search';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IProgressService } from 'vs/platform/progress/common/progress';
-import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IAction } from 'vs/base/common/actions';
+import { Delayer } from 'vs/base/common/async';
+import * as errors from 'vs/base/common/errors';
+import { debounceEvent, Emitter } from 'vs/base/common/event';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { PatternInputWidget, ExcludePatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
-import { SearchRenderer, SearchDataSource, SearchAccessibilityProvider, SearchFilter, SearchTreeController, SearchSorter } from 'vs/workbench/parts/search/browser/searchResultsView';
-import { SearchWidget, ISearchWidgetOptions } from 'vs/workbench/parts/search/browser/searchWidget';
-import { RefreshAction, CollapseDeepestExpandedLevelAction, ClearSearchResultsAction, CancelSearchAction } from 'vs/workbench/parts/search/browser/searchActions';
-import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
-import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { OpenFolderAction, OpenFileFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
-import * as Constants from 'vs/workbench/parts/search/common/constants';
-import { IThemeService, ITheme, ICssStyleCollector, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
-import { editorFindMatchHighlight, diffInserted, diffRemoved, diffInsertedOutline, diffRemovedOutline, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
-import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
-import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
-import { isDiffEditor, isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
+import * as paths from 'vs/base/common/paths';
+import * as env from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFocusEvent, ITree } from 'vs/base/parts/tree/browser/tree';
+import 'vs/css!./media/searchview';
+import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
-import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import * as nls from 'vs/nls';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IConfirmation, IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { FileChangesEvent, FileChangeType, IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IProgressService } from 'vs/platform/progress/common/progress';
+import { IPatternInfo, IQueryOptions, ISearchComplete, ISearchConfiguration, ISearchHistoryService, ISearchProgressItem, ISearchQuery, VIEW_ID } from 'vs/platform/search/common/search';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { diffInserted, diffInsertedOutline, diffRemoved, diffRemovedOutline, editorFindMatchHighlight, editorFindMatchHighlightBorder } from 'vs/platform/theme/common/colorRegistry';
+import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
+import { OpenFileFolderAction, OpenFolderAction } from 'vs/workbench/browser/actions/workspaceActions';
+import { SimpleFileResourceDragAndDrop } from 'vs/workbench/browser/dnd';
+import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { Scope } from 'vs/workbench/common/memento';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IViewlet } from 'vs/workbench/common/viewlet';
-import { Viewlet } from 'vs/workbench/browser/viewlet';
+import { PreferencesEditor } from 'vs/workbench/parts/preferences/browser/preferencesEditor';
+import { ExcludePatternInputWidget, PatternInputWidget } from 'vs/workbench/parts/search/browser/patternInputWidget';
+import { CancelSearchAction, ClearSearchResultsAction, CollapseDeepestExpandedLevelAction, RefreshAction } from 'vs/workbench/parts/search/browser/searchActions';
+import { SearchAccessibilityProvider, SearchDataSource, SearchFilter, SearchRenderer, SearchSorter, SearchTreeController } from 'vs/workbench/parts/search/browser/searchResultsView';
+import { ISearchWidgetOptions, SearchWidget } from 'vs/workbench/parts/search/browser/searchWidget';
+import * as Constants from 'vs/workbench/parts/search/common/constants';
+import { QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
+import { IReplaceService } from 'vs/workbench/parts/search/common/replace';
+import { getOutOfWorkspaceEditorResources } from 'vs/workbench/parts/search/common/search';
+import { FileMatch, FileMatchOrMatch, FolderMatch, IChangeEvent, ISearchWorkbenchService, Match, SearchModel } from 'vs/workbench/parts/search/common/searchModel';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
+import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
@@ -130,7 +130,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		@IReplaceService private replaceService: IReplaceService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IPreferencesService private preferencesService: IPreferencesService,
-		@IThemeService protected themeService: IThemeService
+		@IThemeService protected themeService: IThemeService,
+		@ISearchHistoryService private searchHistoryService: ISearchHistoryService
 	) {
 		super(VIEW_ID, partService, telemetryService, themeService);
 
@@ -152,6 +153,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFilesChanged(e)));
 		this.toUnbind.push(this.untitledEditorService.onDidChangeDirty(e => this.onUntitledDidChangeDirty(e)));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.onDidChangeWorkbenchState()));
+		this._register(this.searchHistoryService.onDidClearHistory(() => this.clearHistory()));
 
 		this.selectCurrentMatchEmitter = new Emitter<string>();
 		debounceEvent(this.selectCurrentMatchEmitter.event, (l, e) => e, 100, /*leading=*/true)
@@ -182,11 +184,12 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		});
 		this.createSearchWidget(this.searchWidgetsContainer);
 
+		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
 		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		const patternExclusionsHistory: string[] = this.viewletSettings['query.folderExclusionsHistory'] || [];
+		const patternExclusionsHistory: string[] = history.exclude || [];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let patternIncludesHistory: string[] = this.viewletSettings['query.folderIncludesHistory'] || [];
+		let patternIncludesHistory: string[] = history.include || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
@@ -328,8 +331,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let isRegex = this.viewletSettings['query.regex'] === true;
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
-		let searchHistory = this.viewletSettings['query.searchHistory'] || [];
-		let replaceHistory = this.viewletSettings['query.replaceHistory'] || [];
+		const history = this.searchHistoryService.load();
+		let searchHistory = history.search || [];
+		let replaceHistory = history.replace || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -1509,7 +1513,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.updateTitleArea();
 	}
 
-	public clearHistory(): void {
+	private clearHistory(): void {
 		this.searchWidget.clearHistory();
 		this.inputPatternExcludes.clearHistory();
 		this.inputPatternIncludes.clearHistory();
@@ -1523,23 +1527,22 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const patternExcludes = this.inputPatternExcludes.getValue().trim();
 		const patternIncludes = this.inputPatternIncludes.getValue().trim();
 		const useExcludesAndIgnoreFiles = this.inputPatternExcludes.useExcludesAndIgnoreFiles();
-		const searchHistory = this.searchWidget.getSearchHistory();
-		const replaceHistory = this.searchWidget.getReplaceHistory();
-		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
-		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
 
 		// store memento
 		this.viewletSettings['query.contentPattern'] = contentPattern;
-		this.viewletSettings['query.searchHistory'] = searchHistory;
-		this.viewletSettings['query.replaceHistory'] = replaceHistory;
 		this.viewletSettings['query.regex'] = isRegex;
 		this.viewletSettings['query.wholeWords'] = isWholeWords;
 		this.viewletSettings['query.caseSensitive'] = isCaseSensitive;
 		this.viewletSettings['query.folderExclusions'] = patternExcludes;
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
-		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
-		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
+
+		this.searchHistoryService.save({
+			search: this.searchWidget.getSearchHistory(),
+			replace: this.searchWidget.getReplaceHistory(),
+			exclude: this.inputPatternExcludes.getHistory(),
+			include: this.inputPatternIncludes.getHistory()
+		});
 
 		super.shutdown();
 	}

@@ -459,7 +459,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, change event', function () {
+	test('registerTextDocumentContentProvider, change event', async function () {
 
 		let callCount = 0;
 		let emitter = new vscode.EventEmitter<vscode.Uri>();
@@ -472,25 +472,22 @@ suite('workspace-namespace', () => {
 		});
 
 		const uri = vscode.Uri.parse('foo://testing/path3');
+		const doc = await vscode.workspace.openTextDocument(uri);
 
-		return vscode.workspace.openTextDocument(uri).then(doc => {
+		assert.equal(callCount, 1);
+		assert.equal(doc.getText(), 'call0');
 
-			assert.equal(callCount, 1);
-			assert.equal(doc.getText(), 'call0');
+		return new Promise(resolve => {
 
-			return new Promise((resolve, reject) => {
-
-				let subscription = vscode.workspace.onDidChangeTextDocument(event => {
-					subscription.dispose();
-					assert.ok(event.document === doc);
-					assert.equal(event.document.getText(), 'call1');
-					resolve();
-				});
-
-				emitter.fire(doc.uri);
-
+			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
+				assert.ok(event.document === doc);
+				assert.equal(event.document.getText(), 'call1');
+				subscription.dispose();
 				registration.dispose();
+				resolve();
 			});
+
+			emitter.fire(doc.uri);
 		});
 	});
 

@@ -17,7 +17,8 @@
   "enableProposedApi": true,
   "main": "./client/out/cssMain",
   "scripts": {
-    "compile": "gulp compile-extension:css-language-features-client && gulp compile-extension:css-language-features-server",
+    "compile": "gulp compile-extension:css-language-features-client compile-extension:css-language-features-server",
+    "watch": "gulp watch-extension:css-language-features-client watch-extension:css-language-features-server",
     "postinstall": "cd server && yarn install",
     "install-client-next": "yarn add vscode-languageclient@next"
   },

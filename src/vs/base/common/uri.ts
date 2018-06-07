@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as platform from 'vs/base/common/platform';
+import { isWindows } from 'vs/base/common/platform';
 import { CharCode } from 'vs/base/common/charCode';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
@@ -237,7 +237,7 @@ export default class URI implements UriComponents {
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
-		if (platform.isWindows) {
+		if (isWindows) {
 			path = path.replace(/\\/g, _slash);
 		}
 
@@ -367,7 +367,7 @@ class _URI extends URI {
 }
 
 // reserved characters: https://tools.ietf.org/html/rfc3986#section-2.2
-const encodeTable = {
+const encodeTable: { [ch: number]: string } = {
 	[CharCode.Colon]: '%3A', // gen-delims
 	[CharCode.Slash]: '%2F',
 	[CharCode.QuestionMark]: '%3F',
@@ -491,7 +491,7 @@ function _makeFsPath(uri: URI): string {
 		// other path
 		value = uri.path;
 	}
-	if (platform.isWindows) {
+	if (isWindows) {
 		value = value.replace(/\//g, '\\');
 	}
 	return value;
@@ -565,7 +565,7 @@ function _asFormatted(uri: URI, skipEncoding: boolean): string {
 	}
 	if (fragment) {
 		res += '#';
-		res += encoder(fragment, false);
+		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
 	}
 	return res;
 }

@@ -144,7 +144,8 @@ export class Debugger {
 			initialConfigurations = initialConfigurations.concat(initialConfigs);
 		}
 
-		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join('\n').trim();
+		const eol = this.configurationService.getValue<string>('files.eol') === '\r\n' ? '\r\n' : '\n';
+		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join(eol).trim();
 		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
 		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");
 		const comment3 = nls.localize('launch.config.comment3', "For more information, visit: {0}", 'https://go.microsoft.com/fwlink/?linkid=830387');
@@ -157,7 +158,7 @@ export class Debugger {
 			`\t"version": "0.2.0",`,
 			`\t"configurations": ${configs}`,
 			'}'
-		].join('\n');
+		].join(eol);
 
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();

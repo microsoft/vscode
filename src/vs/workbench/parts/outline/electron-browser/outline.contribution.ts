@@ -6,18 +6,21 @@
 
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { localize } from 'vs/nls';
-import { IViewsService, ViewLocation, ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
+import { IViewsService, ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { OutlinePanel } from './outlinePanel';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
+import { VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: 'code.outline',
 	name: localize('name', "Outline"),
 	ctor: OutlinePanel,
-	location: ViewLocation.Explorer,
+	container: VIEW_CONTAINER,
 	canToggleVisibility: true,
 	hideByDefault: false,
-	order: 2
+	collapsed: true,
+	order: 2,
+	weight: 30
 };
 
 ViewsRegistry.registerViews([_outlineDesc]);

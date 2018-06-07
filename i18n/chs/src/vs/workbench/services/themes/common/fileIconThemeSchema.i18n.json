@@ -21,6 +21,7 @@
 	"schema.languageId": "关联的图标定义的 ID。",
 	"schema.fonts": "图标定义中使用的字体。",
 	"schema.id": "字体的 ID。",
+	"schema.src": "字体的位置。",
 	"schema.font-path": "相对于当前图标主题文件的字体路径。",
 	"schema.font-format": "字体的格式。",
 	"schema.font-weight": "字体的粗细。",

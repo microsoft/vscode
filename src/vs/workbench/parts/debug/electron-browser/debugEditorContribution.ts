@@ -520,7 +520,7 @@ export class DebugEditorContribution implements IDebugEditorContribution {
 
 		this.editor.focus();
 		if (!configurationsArrayPosition) {
-			return this.commandService.executeCommand('editor.action.triggerSuggest');
+			return TPromise.as(undefined);
 		}
 
 		const insertLine = (position: Position): TPromise<any> => {

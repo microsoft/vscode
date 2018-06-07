@@ -1197,7 +1197,7 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
-		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup, true);
+		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup);
 		if (nextGroup) {
 			nextGroup.focus();
 

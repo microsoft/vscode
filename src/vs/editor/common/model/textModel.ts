@@ -898,6 +898,9 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _isValidPosition(lineNumber: number, column: number, strict: boolean): boolean {
+		if (isNaN(lineNumber)) {
+			return false;
+		}
 
 		if (lineNumber < 1) {
 			return false;
@@ -905,6 +908,10 @@ export class TextModel extends Disposable implements model.ITextModel {
 
 		const lineCount = this._buffer.getLineCount();
 		if (lineNumber > lineCount) {
+			return false;
+		}
+
+		if (isNaN(column)) {
 			return false;
 		}
 
@@ -933,8 +940,8 @@ export class TextModel extends Disposable implements model.ITextModel {
 	 * @param strict Do NOT allow a position inside a high-low surrogate pair
 	 */
 	private _validatePosition(_lineNumber: number, _column: number, strict: boolean): Position {
-		const lineNumber = Math.floor(typeof _lineNumber === 'number' ? _lineNumber : 1);
-		const column = Math.floor(typeof _column === 'number' ? _column : 1);
+		const lineNumber = Math.floor((typeof _lineNumber === 'number' && !isNaN(_lineNumber)) ? _lineNumber : 1);
+		const column = Math.floor((typeof _column === 'number' && !isNaN(_column)) ? _column : 1);
 		const lineCount = this._buffer.getLineCount();
 
 		if (lineNumber < 1) {

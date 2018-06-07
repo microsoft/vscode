@@ -94,7 +94,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 			// set up a handler to send more
 			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
-				if (e) {
+				// Ignore session only breakpoint events since they should only reflect in the UI
+				if (e && !e.sessionOnly) {
 					const delta: IBreakpointsDeltaDto = {};
 					if (e.added) {
 						delta.added = this.convertToDto(e.added);
