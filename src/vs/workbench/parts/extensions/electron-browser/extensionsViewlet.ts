@@ -276,10 +276,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 		const onKeyDownForList = onKeyDown.filter(() => this.count() > 0);
 		onKeyDownForList.filter(e => e.keyCode === KeyCode.Enter).on(this.onEnter, this, this.disposables);
-		onKeyDownForList.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.disposables);
-		onKeyDownForList.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.disposables);
-		onKeyDownForList.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUpArrow, this, this.disposables);
-		onKeyDownForList.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDownArrow, this, this.disposables);
 
 		const onSearchInput = domEvent(this.searchBox, 'input') as EventOf<SearchInputEvent>;
 		onSearchInput(e => this.triggerSearch(e.immediate), null, this.disposables);
@@ -411,22 +407,6 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 
 	private onEnter(): void {
 		(<ExtensionsListView>this.panels[0]).select();
-	}
-
-	private onUpArrow(): void {
-		(<ExtensionsListView>this.panels[0]).showPrevious();
-	}
-
-	private onDownArrow(): void {
-		(<ExtensionsListView>this.panels[0]).showNext();
-	}
-
-	private onPageUpArrow(): void {
-		(<ExtensionsListView>this.panels[0]).showPreviousPage();
-	}
-
-	private onPageDownArrow(): void {
-		(<ExtensionsListView>this.panels[0]).showNextPage();
 	}
 
 	private onViewletOpen(viewlet: IViewlet): void {
