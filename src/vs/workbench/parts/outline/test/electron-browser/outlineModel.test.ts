@@ -43,14 +43,14 @@ suite('OutlineModel', function () {
 		data.sort(Range.compareRangesUsingStarts); // model does this
 
 		group.updateMarker(data);
-		assert.equal(e0.marker.length, 1);
-		assert.equal(e1.marker.length, 0);
-		assert.equal(e2.marker.length, 2);
+		assert.equal(e0.marker.count, 1);
+		assert.equal(e1.marker.count, 0);
+		assert.equal(e2.marker.count, 2);
 
 		group.updateMarker([]);
-		assert.equal(e0.marker.length, 0);
-		assert.equal(e1.marker.length, 0);
-		assert.equal(e2.marker.length, 0);
+		assert.equal(e0.marker.count, 0);
+		assert.equal(e1.marker.count, 0);
+		assert.equal(e2.marker.count, 0);
 	});
 
 });
