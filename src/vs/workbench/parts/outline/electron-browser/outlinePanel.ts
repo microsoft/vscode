@@ -48,6 +48,7 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { firstIndex } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
+import { OutlineConfigKeys } from './outline';
 
 class RequestState {
 
@@ -226,6 +227,7 @@ export class OutlinePanel extends ViewletPanel {
 		@IStorageService private readonly _storageService: IStorageService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IMarkerService private readonly _markerService: IMarkerService,
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IContextMenuService contextMenuService: IContextMenuService,
@@ -507,6 +509,9 @@ export class OutlinePanel extends ViewletPanel {
 
 		// feature: show markers in outline
 		const updateMarker = (e: URI[], ignoreEmpty?: boolean) => {
+			if (!this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+				return;
+			}
 			if (firstIndex(e, a => a.toString() === textModel.uri.toString()) < 0) {
 				return;
 			}
@@ -518,6 +523,22 @@ export class OutlinePanel extends ViewletPanel {
 		};
 		updateMarker([textModel.uri], true);
 		this._editorDisposables.push(this._markerService.onMarkerChanged(updateMarker));
+
+		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
+				this._tree.refresh(undefined, true);
+				return;
+			}
+			if (!e.affectsConfiguration(OutlineConfigKeys.problemsEnabled)) {
+				return;
+			}
+			if (!this._configurationService.getValue(OutlineConfigKeys.problemsEnabled)) {
+				model.updateMarker([]);
+				this._tree.refresh(undefined, true);
+			} else {
+				updateMarker([textModel.uri], true);
+			}
+		}));
 	}
 
 	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {

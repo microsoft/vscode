@@ -25,6 +25,8 @@ import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -104,10 +106,10 @@ export class OutlineDataSource implements IDataSource {
 }
 
 export interface OutlineTemplate {
-	container: HTMLElement;
+	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 	icon?: HTMLElement;
-	extra?: HTMLElement;
+	decoration?: HTMLElement;
 }
 
 export class OutlineRenderer implements IRenderer {
@@ -116,7 +118,8 @@ export class OutlineRenderer implements IRenderer {
 		@IExtensionService readonly _extensionService: IExtensionService,
 		@IEnvironmentService readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService,
-		@IThemeService readonly _themeService: IThemeService
+		@IThemeService readonly _themeService: IThemeService,
+		@IConfigurationService readonly _configurationService: IConfigurationService
 	) {
 		//
 	}
@@ -133,16 +136,16 @@ export class OutlineRenderer implements IRenderer {
 		if (templateId === 'outline-element') {
 			const icon = dom.$('.outline-element-icon symbol-icon');
 			const labelContainer = dom.$('.outline-element-label');
-			const extra = dom.$('.outline-element-decoration');
+			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, extra);
-			return { container, icon, label: new HighlightedLabel(labelContainer), extra };
+			dom.append(container, icon, labelContainer, decoration);
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
 			dom.addClass(container, 'outline-element');
 			dom.append(container, labelContainer);
-			return { container, label: new HighlightedLabel(labelContainer) };
+			return { labelContainer, label: new HighlightedLabel(labelContainer) };
 		}
 
 		throw new Error(templateId);
@@ -172,21 +175,40 @@ export class OutlineRenderer implements IRenderer {
 	}
 
 	private _renderMarkerInfo(element: OutlineElement, template: OutlineTemplate): void {
+
 		if (!element.marker) {
-			dom.removeClass(template.extra, 'bubble');
-			template.extra.innerText = '';
-			template.extra.title = '';
-			template.container.style.removeProperty('--outline-element-color');
-		} else if (element.marker.count > 0) {
-			dom.removeClass(template.extra, 'bubble');
-			template.extra.innerText = element.marker.count < 10 ? element.marker.count.toString() : '+9';
-			template.extra.title = element.marker.count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", element.marker.count);
-			template.container.style.setProperty('--outline-element-color', this._themeService.getTheme().getColor(element.marker.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString());
+			dom.hide(template.decoration);
+			template.labelContainer.style.removeProperty('--outline-element-color');
+			return;
+		}
+
+		const { count, topSev } = element.marker;
+		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
+
+		// color of the label
+		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+			template.labelContainer.style.setProperty('--outline-element-color', color);
 		} else {
-			template.extra.innerText = '\uf052';
-			dom.addClass(template.extra, 'bubble');
-			template.extra.title = localize('deep.problem', "Contains elements with problems");
-			template.container.style.setProperty('--outline-element-color', this._themeService.getTheme().getColor(element.marker.topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString());
+			template.labelContainer.style.removeProperty('--outline-element-color');
+		}
+
+		// badge with color/rollup
+		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
+			dom.hide(template.decoration);
+
+		} else if (count > 0) {
+			dom.show(template.decoration);
+			dom.removeClass(template.decoration, 'bubble');
+			template.decoration.innerText = count < 10 ? count.toString() : '+9';
+			template.decoration.title = count === 1 ? localize('1.problem', "1 problem in this element") : localize('N.problem', "{0} problems in this element", count);
+			template.decoration.style.setProperty('--outline-element-color', color);
+
+		} else {
+			dom.show(template.decoration);
+			dom.addClass(template.decoration, 'bubble');
+			template.decoration.innerText = '\uf052';
+			template.decoration.title = localize('deep.problem', "Contains elements with problems");
+			template.decoration.style.setProperty('--outline-element-color', color);
 		}
 	}
 

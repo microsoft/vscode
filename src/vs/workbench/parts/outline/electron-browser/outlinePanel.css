@@ -57,7 +57,7 @@
 	display: none;
 }
 
-.monaco-tree.focused .selected .outline-element {
+.monaco-tree.focused .selected .outline-element-label, .monaco-tree.focused .selected .outline-element-decoration {
 	/* make sure selection color wins when a label is being selected */
 	color: inherit !important;
 }
@@ -67,7 +67,6 @@
 	flex: 1;
 	flex-flow: row nowrap;
 	align-items: center;
-	color: var(--outline-element-color);
 }
 
 .monaco-workbench .outline-panel .outline-element .outline-element-icon {
@@ -77,6 +76,7 @@
 .monaco-workbench .outline-panel .outline-element .outline-element-label {
 	text-overflow: ellipsis;
 	overflow: hidden;
+	color: var(--outline-element-color);
 }
 
 .monaco-workbench .outline-panel .outline-element .outline-element-label .monaco-highlighted-label .highlight {
@@ -90,6 +90,7 @@
 	padding: 0 12px 0 5px;
 	margin-left: auto;
 	text-align: center;
+	color: var(--outline-element-color);
 }
 
 .monaco-workbench .outline-panel .outline-element .outline-element-decoration.bubble {

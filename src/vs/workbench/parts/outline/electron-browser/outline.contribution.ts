@@ -10,6 +10,9 @@ import { IViewsService, ViewsRegistry, IViewDescriptor } from 'vs/workbench/comm
 import { OutlinePanel } from './outlinePanel';
 import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 const _outlineDesc = <IViewDescriptor>{
 	id: 'code.outline',
@@ -34,4 +37,43 @@ MenuRegistry.addCommand({
 	id: 'outline.focus',
 	category: localize('category.focus', "File"),
 	title: localize('label.focus', "Focus on Outline")
+});
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'id': 'outline',
+	'order': 117,
+	'type': 'object',
+	'properties': {
+		[OutlineConfigKeys.problemsEnabled]: {
+			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
+			'type': 'boolean',
+			'default': true
+		}
+	}
+});
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'id': 'outline',
+	'order': 117,
+	'type': 'object',
+	'properties': {
+		[OutlineConfigKeys.problemsColors]: {
+			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
+			'type': 'boolean',
+			'default': true
+		}
+	}
+});
+
+Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
+	'id': 'outline',
+	'order': 117,
+	'type': 'object',
+	'properties': {
+		[OutlineConfigKeys.problemsBadges]: {
+			'description': localize('outline.problems.badges', "Use badges for Errors & Warnings."),
+			'type': 'boolean',
+			'default': true
+		}
+	}
 });
