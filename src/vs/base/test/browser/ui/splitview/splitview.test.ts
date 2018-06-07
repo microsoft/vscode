@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { SplitView, IView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { Sash } from 'vs/base/browser/ui/sash/sash';
+import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
 
@@ -274,36 +274,36 @@ suite('Splitview', () => {
 
 		let sashes = getSashes(splitview);
 		assert.equal(sashes.length, 2, 'there are two sashes');
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		splitview.layout(60);
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(20);
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(200);
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		view1.maximumSize = 20;
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		view2.maximumSize = 20;
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		view1.maximumSize = 300;
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		view2.maximumSize = 200;
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		splitview.dispose();
 		view3.dispose();

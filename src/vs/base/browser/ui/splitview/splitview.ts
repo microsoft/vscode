@@ -12,7 +12,7 @@ import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
 import { range, firstIndex } from 'vs/base/common/arrays';
-import { Sash, Orientation, ISashEvent as IBaseSashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
@@ -513,7 +513,18 @@ export class SplitView implements IDisposable {
 		const expandsUp = reverseViews.map(i => previous = (i.view.maximumSize - i.size > 0) || previous).reverse();
 
 		this.sashItems.forEach((s, i) => {
-			s.sash.enabled = (collapsesDown[i] && expandsUp[i + 1]) || (expandsDown[i] && collapsesUp[i + 1]);
+			const min = !(collapsesDown[i] && expandsUp[i + 1]);
+			const max = !(expandsDown[i] && collapsesUp[i + 1]);
+
+			if (min && max) {
+				s.sash.state = SashState.Disabled;
+			} else if (min && !max) {
+				s.sash.state = SashState.Minimum;
+			} else if (!min && max) {
+				s.sash.state = SashState.Maximum;
+			} else {
+				s.sash.state = SashState.Enabled;
+			}
 		});
 	}
 

@@ -13,7 +13,7 @@ import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Event, Emitter } from 'vs/base/common/event';
-import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, Dimension, append, $, addClass, removeClass } from 'vs/base/browser/dom';
+import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, Dimension, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 
 export interface ISashLayoutProvider { }
@@ -49,6 +49,13 @@ export enum Orientation {
 	HORIZONTAL
 }
 
+export enum SashState {
+	Disabled,
+	Minimum,
+	Maximum,
+	Enabled
+}
+
 export class Sash {
 
 	private el: HTMLElement;
@@ -57,22 +64,20 @@ export class Sash {
 	private orientation: Orientation;
 	private disposables: IDisposable[] = [];
 
-	private _enabled = true;
-	get enabled(): boolean { return this._enabled; }
-	set enabled(enabled: boolean) {
-		this._enabled = enabled;
+	private _state: SashState = SashState.Enabled;
+	get state(): SashState { return this._state; }
+	set state(state: SashState) {
+		this._state = state;
 
-		if (enabled) {
-			removeClass(this.el, 'disabled');
-		} else {
-			addClass(this.el, 'disabled');
-		}
+		toggleClass(this.el, 'disabled', state === SashState.Disabled);
+		toggleClass(this.el, 'minimum', state === SashState.Minimum);
+		toggleClass(this.el, 'maximum', state === SashState.Maximum);
 
-		this._onDidEnablementChange.fire(enabled);
+		this._onDidEnablementChange.fire(state);
 	}
 
-	private readonly _onDidEnablementChange = new Emitter<boolean>();
-	readonly onDidEnablementChange: Event<boolean> = this._onDidEnablementChange.event;
+	private readonly _onDidEnablementChange = new Emitter<SashState>();
+	readonly onDidEnablementChange: Event<SashState> = this._onDidEnablementChange.event;
 
 	private readonly _onDidStart = new Emitter<ISashEvent>();
 	readonly onDidStart: Event<ISashEvent> = this._onDidStart.event;
@@ -94,9 +99,9 @@ export class Sash {
 
 		if (sash) {
 			sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this, this.orthogonalStartSashDisposables);
-			this.onOrthogonalStartSashEnablementChange(sash.enabled);
+			this.onOrthogonalStartSashEnablementChange(sash.state);
 		} else {
-			this.onOrthogonalStartSashEnablementChange(false);
+			this.onOrthogonalStartSashEnablementChange(SashState.Disabled);
 		}
 
 		this._orthogonalStartSash = sash;
@@ -110,9 +115,9 @@ export class Sash {
 
 		if (sash) {
 			sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this, this.orthogonalEndSashDisposables);
-			this.onOrthogonalEndSashEnablementChange(sash.enabled);
+			this.onOrthogonalEndSashEnablementChange(sash.state);
 		} else {
-			this.onOrthogonalEndSashEnablementChange(false);
+			this.onOrthogonalEndSashEnablementChange(SashState.Disabled);
 		}
 
 		this._orthogonalEndSash = sash;
@@ -164,6 +169,8 @@ export class Sash {
 	private onMouseDown(e: MouseEvent): void {
 		EventHelper.stop(e, false);
 
+		let isMultisashResize = false;
+
 		if (!(e as any).__orthogonalSashEvent) {
 			let orthogonalSash: Sash | undefined;
 
@@ -182,12 +189,13 @@ export class Sash {
 			}
 
 			if (orthogonalSash) {
+				isMultisashResize = true;
 				(e as any).__orthogonalSashEvent = true;
 				orthogonalSash.onMouseDown(e);
 			}
 		}
 
-		if (!this.enabled) {
+		if (!this.state) {
 			return;
 		}
 
@@ -213,14 +221,40 @@ export class Sash {
 		this._onDidStart.fire(startEvent);
 
 		// fix https://github.com/Microsoft/vscode/issues/21675
-		const globalStyle = createStyleSheet(this.el);
-		if (this.orientation === Orientation.HORIZONTAL) {
-			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'row-resize' : 'ns-resize'}; }`;
-		} else {
-			globalStyle.innerHTML = `* { cursor: ${isMacintosh ? 'col-resize' : 'ew-resize'}; }`;
-		}
+		const style = createStyleSheet(this.el);
+		const updateStyle = () => {
+			let cursor = '';
+
+			if (isMultisashResize) {
+				cursor = 'all-scroll';
+			} else if (this.orientation === Orientation.HORIZONTAL) {
+				if (this.state === SashState.Minimum) {
+					cursor = 's-resize';
+				} else if (this.state === SashState.Maximum) {
+					cursor = 'n-resize';
+				} else {
+					cursor = isMacintosh ? 'row-resize' : 'ns-resize';
+				}
+			} else {
+				if (this.state === SashState.Minimum) {
+					cursor = 'e-resize';
+				} else if (this.state === SashState.Maximum) {
+					cursor = 'w-resize';
+				} else {
+					cursor = isMacintosh ? 'col-resize' : 'ew-resize';
+				}
+			}
+
+			style.innerHTML = `* { cursor: ${cursor} !important; }`;
+		};
 
 		const disposables: IDisposable[] = [];
+
+		updateStyle();
+
+		if (!isMultisashResize) {
+			this.onDidEnablementChange(updateStyle, null, disposables);
+		}
 
 		const onMouseMove = (e: MouseEvent) => {
 			EventHelper.stop(e, false);
@@ -240,7 +274,7 @@ export class Sash {
 		const onMouseUp = (e: MouseEvent) => {
 			EventHelper.stop(e, false);
 
-			this.el.removeChild(globalStyle);
+			this.el.removeChild(style);
 
 			removeClass(this.el, 'active');
 			this._onDidEnd.fire();
@@ -341,20 +375,12 @@ export class Sash {
 		return this.hidden;
 	}
 
-	private onOrthogonalStartSashEnablementChange(enabled: boolean): void {
-		if (enabled) {
-			addClass(this.el, 'orthogonal-start');
-		} else {
-			removeClass(this.el, 'orthogonal-start');
-		}
+	private onOrthogonalStartSashEnablementChange(state: SashState): void {
+		toggleClass(this.el, 'orthogonal-start', state !== SashState.Disabled);
 	}
 
-	private onOrthogonalEndSashEnablementChange(enabled: boolean): void {
-		if (enabled) {
-			addClass(this.el, 'orthogonal-end');
-		} else {
-			removeClass(this.el, 'orthogonal-end');
-		}
+	private onOrthogonalEndSashEnablementChange(state: SashState): void {
+		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
 	}
 
 	dispose(): void {

@@ -20,11 +20,35 @@
 	height: 100%;
 }
 
+.monaco-sash.mac.vertical {
+	cursor: col-resize;
+}
+
+.monaco-sash.vertical.minimum {
+	cursor: e-resize;
+}
+
+.monaco-sash.vertical.maximum {
+	cursor: w-resize;
+}
+
 .monaco-sash.horizontal {
 	cursor: ns-resize;
 	left: 0;
 	width: 100%;
 	height: 4px;
+}
+
+.monaco-sash.mac.horizontal {
+	cursor: row-resize;
+}
+
+.monaco-sash.horizontal.minimum {
+	cursor: s-resize;
+}
+
+.monaco-sash.horizontal.maximum {
+	cursor: n-resize;
 }
 
 .monaco-sash:not(.disabled).orthogonal-start::before,
@@ -56,16 +80,6 @@
 
 .monaco-sash.disabled {
 	cursor: default !important;
-}
-
-/** Custom Mac Cursor */
-
-.monaco-sash.mac.vertical {
-	cursor: col-resize;
-}
-
-.monaco-sash.mac.horizontal {
-	cursor: row-resize;
 }
 
 /** Touch **/
