@@ -13,7 +13,7 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { firstIndex } from 'vs/base/common/arrays';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { IViewDescriptor, IViewsViewlet, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsViewlet, IViewContainersRegistry, Extensions as ViewContainerExtensions, IView } from 'vs/workbench/common/views';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -198,7 +198,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			.then(() => void 0);
 	}
 
-	openView(id: string, focus?: boolean): TPromise<void> {
+	openView(id: string, focus?: boolean): TPromise<IView> {
 		if (focus) {
 			this.focus();
 		}
@@ -207,11 +207,9 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			this.toggleViewVisibility(id);
 		}
 		view = this.getView(id);
-		if (view) {
-			view.setExpanded(true);
-			view.focus();
-		}
-		return TPromise.as(null);
+		view.setExpanded(true);
+		view.focus();
+		return TPromise.as(view);
 	}
 
 	movePanel(from: ViewletPanel, to: ViewletPanel): void {

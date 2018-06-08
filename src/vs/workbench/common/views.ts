@@ -194,9 +194,15 @@ export const ViewsRegistry: IViewsRegistry = new class implements IViewsRegistry
 	}
 };
 
+export interface IView {
+
+	readonly id: string;
+
+}
+
 export interface IViewsViewlet extends IViewlet {
 
-	openView(id: string, focus?: boolean): TPromise<void>;
+	openView(id: string, focus?: boolean): TPromise<IView>;
 
 }
 
@@ -205,7 +211,7 @@ export const IViewsService = createDecorator<IViewsService>('viewsService');
 export interface IViewsService {
 	_serviceBrand: any;
 
-	openView(id: string, focus?: boolean): TPromise<void>;
+	openView(id: string, focus?: boolean): TPromise<IView>;
 }
 
 // Custom views

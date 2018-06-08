@@ -7,7 +7,7 @@ import 'vs/css!./media/views';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { IViewsService, ViewsRegistry, IViewsViewlet, ViewContainer, IViewDescriptor, IViewContainersRegistry, Extensions as ViewContainerExtensions, TEST_VIEW_CONTAINER_ID, IView } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ViewletRegistry, Extensions as ViewletExtensions } from 'vs/workbench/browser/viewlet';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -171,11 +171,6 @@ class ViewDescriptorCollection extends Disposable {
 	private isViewDescriptorActive(viewDescriptor: IViewDescriptor): boolean {
 		return !viewDescriptor.when || this.contextKeyService.contextMatchesRules(viewDescriptor.when);
 	}
-}
-
-export interface IView {
-	viewDescriptor: IViewDescriptor;
-	visible: boolean;
 }
 
 export interface IViewState {
@@ -510,7 +505,7 @@ export class ViewsService extends Disposable implements IViewsService {
 		this._register(Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets).onDidRegister(viewlet => this.viewletService.setViewletEnablement(viewlet.id, this.storageService.getBoolean(`viewservice.${viewlet.id}.enablement`, StorageScope.GLOBAL, viewlet.id !== TEST_VIEW_CONTAINER_ID))));
 	}
 
-	openView(id: string, focus: boolean): TPromise<void> {
+	openView(id: string, focus: boolean): TPromise<IView> {
 		const viewDescriptor = ViewsRegistry.getView(id);
 		if (viewDescriptor) {
 			const viewletDescriptor = this.viewletService.getViewlet(viewDescriptor.container.id);

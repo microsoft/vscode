@@ -27,6 +27,7 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IView } from 'vs/workbench/common/views';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -41,7 +42,7 @@ export interface IViewletPanelOptions extends IPanelOptions {
 	title: string;
 }
 
-export abstract class ViewletPanel extends Panel {
+export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 

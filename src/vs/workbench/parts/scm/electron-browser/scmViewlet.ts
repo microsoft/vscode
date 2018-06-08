@@ -57,7 +57,7 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IViewDescriptorRef, PersistentContributableViewsModel, IAddedViewDescriptorRef } from 'vs/workbench/browser/parts/views/views';
-import { IViewDescriptor, IViewsViewlet } from 'vs/workbench/common/views';
+import { IViewDescriptor, IViewsViewlet, IView } from 'vs/workbench/common/views';
 import { IPanelDndController, Panel } from 'vs/base/browser/ui/splitview/panelview';
 
 export interface ISpliceEvent<T> {
@@ -1473,14 +1473,18 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		return super.isSingleView() && this.repositoryPanels.length + this.contributedViews.visibleViewDescriptors.length === 1;
 	}
 
-	openView(id: string, focus?: boolean): TPromise<void> {
-		this.contributedViews.setVisible(id, true);
-		const panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
-		if (panel) {
-			panel.setExpanded(true);
-			panel.focus();
+	openView(id: string, focus?: boolean): TPromise<IView> {
+		if (focus) {
+			this.focus();
 		}
-		return TPromise.as(null);
+		let panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
+		if (!panel) {
+			this.contributedViews.setVisible(id, true);
+		}
+		panel = this.panels.filter(panel => panel instanceof ViewletPanel && panel.id === id)[0];
+		panel.setExpanded(true);
+		panel.focus();
+		return TPromise.as(panel);
 	}
 
 	hide(repository: ISCMRepository): void {
