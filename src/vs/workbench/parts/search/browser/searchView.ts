@@ -186,9 +186,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		const history = this.searchHistoryService.load();
 		const filePatterns = this.viewletSettings['query.filePatterns'] || '';
 		let patternExclusions = this.viewletSettings['query.folderExclusions'] || '';
-		const patternExclusionsHistory: string[] = history.exclude || [];
+		const patternExclusionsHistory: string[] = history.exclude || this.viewletSettings['query.folderExclusionsHistory'] || [];
 		let patternIncludes = this.viewletSettings['query.folderIncludes'] || '';
-		let patternIncludesHistory: string[] = history.include || [];
+		let patternIncludesHistory: string[] = history.include || this.viewletSettings['query.folderIncludesHistory'] || [];
 		const queryDetailsExpanded = this.viewletSettings['query.queryDetailsExpanded'] || '';
 		const useExcludesAndIgnoreFiles = typeof this.viewletSettings['query.useExcludesAndIgnoreFiles'] === 'boolean' ?
 			this.viewletSettings['query.useExcludesAndIgnoreFiles'] : true;
@@ -340,8 +340,8 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		let isWholeWords = this.viewletSettings['query.wholeWords'] === true;
 		let isCaseSensitive = this.viewletSettings['query.caseSensitive'] === true;
 		const history = this.searchHistoryService.load();
-		let searchHistory = history.search || [];
-		let replaceHistory = history.replace || [];
+		let searchHistory = history.search || this.viewletSettings['query.searchHistory'] || [];
+		let replaceHistory = history.replace || this.viewletSettings['query.replaceHistory'] || [];
 
 		this.searchWidget = this.instantiationService.createInstance(SearchWidget, builder, <ISearchWidgetOptions>{
 			value: contentPattern,
@@ -1548,11 +1548,21 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.viewletSettings['query.folderIncludes'] = patternIncludes;
 		this.viewletSettings['query.useExcludesAndIgnoreFiles'] = useExcludesAndIgnoreFiles;
 
+		// Deprecated, remove these memento props a couple releases after 1.25
+		const searchHistory = this.searchWidget.getSearchHistory();
+		const replaceHistory = this.searchWidget.getReplaceHistory();
+		const patternExcludesHistory = this.inputPatternExcludes.getHistory();
+		const patternIncludesHistory = this.inputPatternIncludes.getHistory();
+		this.viewletSettings['query.searchHistory'] = searchHistory;
+		this.viewletSettings['query.replaceHistory'] = replaceHistory;
+		this.viewletSettings['query.folderExclusionsHistory'] = patternExcludesHistory;
+		this.viewletSettings['query.folderIncludesHistory'] = patternIncludesHistory;
+
 		this.searchHistoryService.save({
-			search: this.searchWidget.getSearchHistory(),
-			replace: this.searchWidget.getReplaceHistory(),
-			exclude: this.inputPatternExcludes.getHistory(),
-			include: this.inputPatternIncludes.getHistory()
+			search: searchHistory,
+			replace: replaceHistory,
+			exclude: patternExcludesHistory,
+			include: patternIncludesHistory
 		});
 
 		super.shutdown();
