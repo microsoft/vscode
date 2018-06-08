@@ -254,16 +254,16 @@ export class OutlinePanel extends ViewletPanel {
 		dom.addClass(container, 'outline-panel');
 
 		this._message = dom.$('.outline-message');
+		let progressContainer = dom.$('.outline-progress');
 		this._inputContainer = dom.$('.outline-input');
 
-		let progressContainer = dom.$('.outline-progress');
 		this._progressBar = new ProgressBar(progressContainer);
 		this.disposables.push(attachProgressBarStyler(this._progressBar, this._themeService));
 
 		let treeContainer = dom.$('.outline-tree');
 		dom.append(
 			container,
-			this._message, this._inputContainer, progressContainer, treeContainer
+			this._message, progressContainer, this._inputContainer, treeContainer
 		);
 
 		this._input = new InputBox(this._inputContainer, null, { placeholder: localize('filter', "Filter") });

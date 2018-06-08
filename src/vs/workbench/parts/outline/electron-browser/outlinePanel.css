@@ -8,19 +8,10 @@
 	flex-direction: column;
 }
 
-.monaco-workbench .outline-panel .outline-input {
-	box-sizing: border-box;
-	padding: 5px 9px 2px 9px;
-}
-
-.monaco-workbench .outline-panel .outline-input .monaco-inputbox {
-	width: 100%;
-}
-
 .monaco-workbench .outline-panel .outline-progress {
 	width: 100%;
 	height: 2px;
-	padding-bottom: 5px;
+	padding-bottom: 3px;
 }
 
 .monaco-workbench .outline-panel .outline-progress .monaco-progress-container {
@@ -29,6 +20,15 @@
 
 .monaco-workbench .outline-panel .outline-progress .monaco-progress-container .progress-bit {
 	height: 2px;
+}
+
+.monaco-workbench .outline-panel .outline-input {
+	box-sizing: border-box;
+	padding: 2px 9px 12px 9px;
+}
+
+.monaco-workbench .outline-panel .outline-input .monaco-inputbox {
+	width: 100%;
 }
 
 .monaco-workbench .outline-panel .outline-tree {
