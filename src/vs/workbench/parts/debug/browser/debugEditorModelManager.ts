@@ -8,7 +8,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
@@ -197,7 +197,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return;
 		}
 
-		const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
+		const data: { [id: string]: IBreakpointUpdateData } = Object.create(null);
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
@@ -209,9 +209,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
 					data[breakpoint.getId()] = {
-						line: decorationRange.startLineNumber,
+						lineNumber: decorationRange.startLineNumber,
 						column: breakpoint.column ? decorationRange.startColumn : undefined,
-						verified: breakpoint.verified
 					};
 				}
 			}

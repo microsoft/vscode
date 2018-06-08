@@ -308,6 +308,7 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 			panelsToRemove.push(this.panels[index]);
 		}
 		this.removePanels(panelsToRemove);
+		dispose(panelsToRemove);
 	}
 
 	private onContextMenu(event: StandardMouseEvent, viewDescriptor: IViewDescriptor): void {

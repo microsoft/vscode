@@ -726,8 +726,8 @@ export class Enablement implements IEnablement {
 
 export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 
-	public verified: boolean;
-	public idFromAdapter: number;
+	private sessionData = new Map<string, DebugProtocol.Breakpoint>();
+	private sessionId: string;
 
 	constructor(
 		enabled: boolean,
@@ -740,28 +740,114 @@ export class BaseBreakpoint extends Enablement implements IBaseBreakpoint {
 		if (enabled === undefined) {
 			this.enabled = true;
 		}
-		this.verified = false;
+	}
+
+	protected getSessionData() {
+		return this.sessionData.get(this.sessionId);
+	}
+
+	public setSessionData(sessionId: string, data: DebugProtocol.Breakpoint): void {
+		this.sessionData.set(sessionId, data);
+	}
+
+	public setSessionId(sessionId: string): void {
+		this.sessionId = sessionId;
+	}
+
+	public get verified(): boolean {
+		const data = this.getSessionData();
+		return data ? data.verified : true;
+	}
+
+	public get idFromAdapter(): number {
+		const data = this.getSessionData();
+		return data ? data.id : undefined;
+	}
+
+	public toJSON(): any {
+		const result = Object.create(null);
+		result.enabled = this.enabled;
+		result.condition = this.condition;
+		result.hitCondition = this.hitCondition;
+		result.logMessage = this.logMessage;
+
+		return result;
 	}
 }
 
 export class Breakpoint extends BaseBreakpoint implements IBreakpoint {
 
-	public message: string;
-	public endLineNumber: number;
-	public endColumn: number;
-
 	constructor(
 		public uri: uri,
-		public lineNumber: number,
-		public column: number,
+		private _lineNumber: number,
+		private _column: number,
 		enabled: boolean,
 		condition: string,
 		hitCondition: string,
 		logMessage: string,
-		public adapterData: any,
+		private _adapterData: any,
 		id = generateUuid()
 	) {
 		super(enabled, hitCondition, condition, logMessage, id);
+	}
+
+	public get lineNumber(): number {
+		const data = this.getSessionData();
+		return data && typeof data.line === 'number' ? data.line : this._lineNumber;
+	}
+
+	public get column(): number {
+		const data = this.getSessionData();
+		// Only respect the column if the user explictly set the column to have an inline breakpoint
+		return data && typeof data.column === 'number' && typeof this._column === 'number' ? data.column : this._column;
+	}
+
+	public get message(): string {
+		const data = this.getSessionData();
+		return data ? data.message : undefined;
+	}
+
+	public get adapterData(): any {
+		const data = this.getSessionData();
+		return data && data.source && data.source.adapterData ? data.source.adapterData : this._adapterData;
+	}
+
+	public get endLineNumber(): number {
+		const data = this.getSessionData();
+		return data ? data.endLine : undefined;
+	}
+
+	public get endColumn(): number {
+		const data = this.getSessionData();
+		return data ? data.endColumn : undefined;
+	}
+
+	public toJSON(): any {
+		const result = super.toJSON();
+		result.uri = this.uri;
+		result.lineNumber = this._lineNumber;
+		result.column = this._column;
+		result.adapterData = this.adapterData;
+
+		return result;
+	}
+
+	public update(data: IBreakpointUpdateData): void {
+		if (!isUndefinedOrNull(data.lineNumber)) {
+			this._lineNumber = data.lineNumber;
+		}
+		if (!isUndefinedOrNull(data.column)) {
+			this._column = data.column;
+		}
+		if (!isUndefinedOrNull(data.condition)) {
+			this.condition = data.condition;
+		}
+		if (!isUndefinedOrNull(data.hitCondition)) {
+			this.hitCondition = data.hitCondition;
+		}
+		if (!isUndefinedOrNull(data.logMessage)) {
+			this.logMessage = data.logMessage;
+		}
 	}
 }
 
@@ -776,12 +862,28 @@ export class FunctionBreakpoint extends BaseBreakpoint implements IFunctionBreak
 		id = generateUuid()) {
 		super(enabled, hitCondition, condition, logMessage, id);
 	}
+
+	public toJSON(): any {
+		const result = super.toJSON();
+		result.name = this.name;
+
+		return result;
+	}
 }
 
 export class ExceptionBreakpoint extends Enablement implements IExceptionBreakpoint {
 
 	constructor(public filter: string, public label: string, enabled: boolean) {
 		super(enabled, generateUuid());
+	}
+
+	public toJSON(): any {
+		const result = Object.create(null);
+		result.filter = this.filter;
+		result.label = this.label;
+		result.enabled = this.enabled;
+
+		return result;
 	}
 }
 
@@ -799,6 +901,7 @@ export class Model implements IModel {
 	private toDispose: lifecycle.IDisposable[];
 	private replElements: IReplElement[];
 	private schedulers = new Map<string, RunOnceScheduler>();
+	private breakpointsSessionId: string;
 	private readonly _onDidChangeBreakpoints: Emitter<IBreakpointsChangeEvent>;
 	private readonly _onDidChangeCallStack: Emitter<void>;
 	private readonly _onDidChangeWatchExpressions: Emitter<IExpression>;
@@ -927,6 +1030,11 @@ export class Model implements IModel {
 
 	public setExceptionBreakpoints(data: DebugProtocol.ExceptionBreakpointsFilter[]): void {
 		if (data) {
+			if (this.exceptionBreakpoints.length === data.length && this.exceptionBreakpoints.every((exbp, i) => exbp.filter === data[i].filter && exbp.label === data[i].label)) {
+				// No change
+				return;
+			}
+
 			this.exceptionBreakpoints = data.map(d => {
 				const ebp = this.exceptionBreakpoints.filter(ebp => ebp.filter === d.filter).pop();
 				return new ExceptionBreakpoint(d.filter, d.label, ebp ? ebp.enabled : d.default);
@@ -946,6 +1054,7 @@ export class Model implements IModel {
 
 	public addBreakpoints(uri: uri, rawData: IBreakpointData[], fireEvent = true): IBreakpoint[] {
 		const newBreakpoints = rawData.map(rawBp => new Breakpoint(uri, rawBp.lineNumber, rawBp.column, rawBp.enabled, rawBp.condition, rawBp.hitCondition, rawBp.logMessage, undefined, rawBp.id));
+		newBreakpoints.forEach(bp => bp.setSessionId(this.breakpointsSessionId));
 		this.breakpoints = this.breakpoints.concat(newBreakpoints);
 		this.breakpointsActivated = true;
 		this.sortAndDeDup();
@@ -967,28 +1076,7 @@ export class Model implements IModel {
 		this.breakpoints.forEach(bp => {
 			const bpData = data[bp.getId()];
 			if (bpData) {
-				if (!isUndefinedOrNull(bpData.line)) {
-					bp.lineNumber = bpData.line;
-				}
-				bp.endLineNumber = bpData.endLine;
-				bp.column = bpData.column;
-				bp.endColumn = bpData.endColumn;
-				if (!isUndefinedOrNull(bpData.verified)) {
-					bp.verified = bpData.verified;
-				}
-				bp.idFromAdapter = bpData.id;
-				bp.message = bpData.message;
-				bp.adapterData = bpData.source ? bpData.source.adapterData : bp.adapterData;
-
-				if (!isUndefinedOrNull(bpData.condition)) {
-					bp.condition = bpData.condition;
-				}
-				if (!isUndefinedOrNull(bpData.hitCondition)) {
-					bp.hitCondition = bpData.hitCondition;
-				}
-				if (!isUndefinedOrNull(bpData.logMessage)) {
-					bp.logMessage = bpData.logMessage;
-				}
+				bp.update(bpData);
 				updated.push(bp);
 			}
 		});
@@ -996,8 +1084,33 @@ export class Model implements IModel {
 		this._onDidChangeBreakpoints.fire({ changed: updated });
 	}
 
-	public unverifyBreakpoints(): void {
-		this.breakpoints.forEach(bp => bp.verified = false);
+	public setBreakpointSessionData(sessionId: string, data: { [id: string]: DebugProtocol.Breakpoint }): void {
+		this.breakpoints.forEach(bp => {
+			const bpData = data[bp.getId()];
+			if (bpData) {
+				bp.setSessionData(sessionId, bpData);
+			}
+		});
+		this.functionBreakpoints.forEach(fbp => {
+			const fbpData = data[fbp.getId()];
+			if (fbpData) {
+				fbp.setSessionData(sessionId, fbpData);
+			}
+		});
+
+		this._onDidChangeBreakpoints.fire({
+			sessionOnly: true
+		});
+	}
+
+	public setBreakpointsSessionId(sessionId: string): void {
+		this.breakpointsSessionId = sessionId;
+		this.breakpoints.forEach(bp => bp.setSessionId(sessionId));
+		this.functionBreakpoints.forEach(fbp => fbp.setSessionId(sessionId));
+
+		this._onDidChangeBreakpoints.fire({
+			sessionOnly: true
+		});
 	}
 
 	private sortAndDeDup(): void {
@@ -1022,17 +1135,12 @@ export class Model implements IModel {
 			}
 
 			element.enabled = enable;
-			if (element instanceof Breakpoint && !element.enabled) {
-				const breakpoint = <Breakpoint>element;
-				breakpoint.verified = false;
-			}
 
 			this._onDidChangeBreakpoints.fire({ changed: changed });
 		}
 	}
 
 	public enableOrDisableAllBreakpoints(enable: boolean): void {
-
 		const changed: (IBreakpoint | IFunctionBreakpoint)[] = [];
 
 		this.breakpoints.forEach(bp => {
@@ -1040,9 +1148,6 @@ export class Model implements IModel {
 				changed.push(bp);
 			}
 			bp.enabled = enable;
-			if (!enable) {
-				bp.verified = false;
-			}
 		});
 		this.functionBreakpoints.forEach(fbp => {
 			if (fbp.enabled !== enable) {
@@ -1062,23 +1167,12 @@ export class Model implements IModel {
 		return newFunctionBreakpoint;
 	}
 
-	public updateFunctionBreakpoints(data: { [id: string]: { name?: string, verified?: boolean; id?: number; hitCondition?: string } }): void {
-
-		const changed: IFunctionBreakpoint[] = [];
-
-		this.functionBreakpoints.forEach(fbp => {
-			const fbpData = data[fbp.getId()];
-			if (fbpData) {
-				fbp.name = fbpData.name || fbp.name;
-				fbp.verified = fbpData.verified;
-				fbp.idFromAdapter = fbpData.id;
-				fbp.hitCondition = fbpData.hitCondition;
-
-				changed.push(fbp);
-			}
-		});
-
-		this._onDidChangeBreakpoints.fire({ changed: changed });
+	public renameFunctionBreakpoint(id: string, name: string): void {
+		const functionBreakpoint = this.functionBreakpoints.filter(fbp => fbp.getId() === id).pop();
+		if (functionBreakpoint) {
+			functionBreakpoint.name = name;
+			this._onDidChangeBreakpoints.fire({ changed: [functionBreakpoint] });
+		}
 	}
 
 	public removeFunctionBreakpoints(id?: string): void {

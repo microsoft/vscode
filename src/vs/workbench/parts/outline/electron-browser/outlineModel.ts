@@ -10,10 +10,12 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -74,6 +76,7 @@ export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
 	score: FuzzyScore = [0, []];
+	marker: { count: number, topSev: MarkerSeverity };
 
 	constructor(
 		readonly id: string,
@@ -134,6 +137,57 @@ export class OutlineGroup extends TreeElement {
 		}
 		return undefined;
 	}
+
+	updateMarker(marker: IMarker[]): void {
+		for (const key in this.children) {
+			this._updateMarker(marker, this.children[key]);
+		}
+	}
+
+	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+
+		item.marker = undefined;
+
+		// find the proper start index to check for item/marker overlap.
+		let idx = binarySearch<IRange>(markers, item.symbol.definingRange, Range.compareRangesUsingStarts);
+		let start: number;
+		if (idx < 0) {
+			start = ~idx;
+			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.definingRange)) {
+				start -= 1;
+			}
+		} else {
+			start = idx;
+		}
+
+		let myMarkers: IMarker[] = [];
+		let myTopSev: MarkerSeverity;
+
+		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.definingRange)) {
+			// remove markers intersecting with this outline element
+			// and store them in a 'private' array.
+			let marker = markers.splice(start, 1)[0];
+			myMarkers.push(marker);
+			if (!myTopSev || marker.severity > myTopSev) {
+				myTopSev = marker.severity;
+			}
+		}
+
+		// Recurse into children and let them match markers that have matched
+		// this outline element. This might remove markers from this element and
+		// therefore we remember that we have had markers. That allows us to render
+		// the dot, saying 'this element has children with markers'
+		for (const key in item.children) {
+			this._updateMarker(myMarkers, item.children[key]);
+		}
+
+		if (myTopSev) {
+			item.marker = {
+				count: myMarkers.length,
+				topSev: myTopSev
+			};
+		}
+	}
 }
 
 export class OutlineModel extends TreeElement {
@@ -153,7 +207,7 @@ export class OutlineModel extends TreeElement {
 				}
 				return group;
 			}, err => {
-				//todo@joh capture error in group
+				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
 				result._groups[id] = group;
@@ -247,5 +301,15 @@ export class OutlineModel extends TreeElement {
 
 	getItemById(id: string): TreeElement {
 		return TreeElement.getElementById(id, this);
+	}
+
+	updateMarker(marker: IMarker[]): void {
+		// sort markers by start range so that we can use
+		// outline element starts for quicker look up
+		marker.sort(Range.compareRangesUsingStarts);
+
+		for (const key in this._groups) {
+			this._groups[key].updateMarker(marker);
+		}
 	}
 }

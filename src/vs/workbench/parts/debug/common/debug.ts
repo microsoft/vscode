@@ -243,10 +243,12 @@ export interface IBreakpointData {
 	readonly hitCondition?: string;
 }
 
-export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
+export interface IBreakpointUpdateData {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
+	readonly lineNumber?: number;
+	readonly column?: number;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -335,6 +337,7 @@ export interface IBreakpointsChangeEvent {
 	added?: (IBreakpoint | IFunctionBreakpoint)[];
 	removed?: (IBreakpoint | IFunctionBreakpoint)[];
 	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	sessionOnly?: boolean;
 }
 
 // Debug enums

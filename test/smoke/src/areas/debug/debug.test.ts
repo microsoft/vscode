@@ -25,6 +25,8 @@ export function setup() {
 			config.configurations[0].protocol = 'inspector';
 			fs.writeFileSync(launchJsonPath, JSON.stringify(config, undefined, 4), 'utf8');
 
+			// force load from disk since file events are sometimes missing
+			await app.workbench.quickopen.runCommand('File: Revert File');
 			await app.workbench.editor.waitForEditorContents('launch.json', contents => /"protocol": "inspector"/.test(contents));
 
 			assert.equal(config.configurations[0].request, 'launch');

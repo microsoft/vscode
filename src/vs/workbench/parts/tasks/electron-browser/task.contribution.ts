@@ -40,7 +40,6 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
@@ -536,15 +535,15 @@ class TaskService implements ITaskService {
 
 	private registerCommands(): void {
 		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
-			this.runTaskCommand(accessor, arg);
+			this.runTaskCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
-			this.runRestartTaskCommand(accessor, arg);
+			this.runRestartTaskCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
-			this.runTerminateCommand();
+			this.runTerminateCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
@@ -1916,16 +1915,11 @@ class TaskService implements ITaskService {
 		return TPromise.as(undefined);
 	}
 
-	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
+	private runTaskCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		let identifier: string | KeyedTaskIdentifier = undefined;
-		if (Types.isString(arg)) {
-			identifier = arg;
-		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
-			identifier = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
-		}
+		let identifier = this.getTaskIdentifier(arg);
 		if (identifier !== void 0) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
@@ -2072,12 +2066,12 @@ class TaskService implements ITaskService {
 		this.progressService.withProgress(options, () => promise);
 	}
 
-	private runTerminateCommand(): void {
+	private runTerminateCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
+		let runQuickPick = (promise?: TPromise<Task[]>) => {
+			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
@@ -2090,6 +2084,24 @@ class TaskService implements ITaskService {
 				}
 				this.terminate(task);
 			});
+		};
+		if (this.inTerminal()) {
+			let identifier = this.getTaskIdentifier(arg);
+			let promise: TPromise<Task[]>;
+			if (identifier !== void 0) {
+				promise = this.getActiveTasks();
+				promise.then((tasks) => {
+					for (let task of tasks) {
+						if (Task.matches(task, identifier)) {
+							this.terminate(task);
+							return;
+						}
+					}
+					runQuickPick(promise);
+				});
+			} else {
+				runQuickPick();
+			}
 		} else {
 			this.isActive().then((active) => {
 				if (active) {
@@ -2110,12 +2122,12 @@ class TaskService implements ITaskService {
 		}
 	}
 
-	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
+	private runRestartTaskCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
+		let runQuickPick = (promise?: TPromise<Task[]>) => {
+			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
@@ -2128,6 +2140,24 @@ class TaskService implements ITaskService {
 				}
 				this.restart(task);
 			});
+		};
+		if (this.inTerminal()) {
+			let identifier = this.getTaskIdentifier(arg);
+			let promise: TPromise<Task[]>;
+			if (identifier !== void 0) {
+				promise = this.getActiveTasks();
+				promise.then((tasks) => {
+					for (let task of tasks) {
+						if (Task.matches(task, identifier)) {
+							this.restart(task);
+							return;
+						}
+					}
+					runQuickPick(promise);
+				});
+			} else {
+				runQuickPick();
+			}
 		} else {
 			this.getActiveTasks().then((activeTasks) => {
 				if (activeTasks.length === 0) {
@@ -2137,6 +2167,16 @@ class TaskService implements ITaskService {
 				this.restart(task);
 			});
 		}
+	}
+
+	private getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
+		let result: string | KeyedTaskIdentifier = undefined;
+		if (Types.isString(arg)) {
+			result = arg;
+		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
+			result = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
+		}
+		return result;
 	}
 
 	private runConfigureTasks(): void {

@@ -124,6 +124,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
+	margin: 4px;
 	padding: 1px 6px;
 }
 
@@ -133,7 +134,7 @@
 
 .extension-editor > .header.recommended > .details > .recommendation {
 	display: block;
-	margin-top: 10px;
+	margin-top: 2px;
 	font-size: 13px;
 }
 

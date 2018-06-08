@@ -7,7 +7,6 @@ import 'vs/css!./simpleFindWidget';
 import * as nls from 'vs/nls';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Delayer } from 'vs/base/common/async';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as dom from 'vs/base/browser/dom';
 import { FindInput } from 'vs/base/browser/ui/findinput/findInput';
@@ -15,6 +14,11 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
+import { ContextScopedFindInput, showDeprecatedWarning } from 'vs/platform/widget/browser/input';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");
 const NLS_FIND_INPUT_PLACEHOLDER = nls.localize('placeholder.find', "Find");
@@ -29,21 +33,23 @@ export abstract class SimpleFindWidget extends Widget {
 	private _isVisible: boolean;
 	private _focusTracker: dom.IFocusTracker;
 	private _findInputFocusTracker: dom.IFocusTracker;
-	private _findHistory: HistoryNavigator<string>;
 	private _updateHistoryDelayer: Delayer<void>;
 
 	constructor(
-		@IContextViewService private readonly _contextViewService: IContextViewService
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IKeybindingService private readonly _keybindingService: IKeybindingService,
+		@INotificationService private readonly _notificationService: INotificationService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		super();
 
-		this._findInput = this._register(new FindInput(null, this._contextViewService, {
+		this._findInput = this._register(new ContextScopedFindInput(null, this._contextViewService, {
 			label: NLS_FIND_INPUT_LABEL,
 			placeholder: NLS_FIND_INPUT_PLACEHOLDER,
-		}));
+		}, contextKeyService));
 
 		// Find History with update delayer
-		this._findHistory = new HistoryNavigator<string>();
 		this._updateHistoryDelayer = new Delayer<void>(500);
 
 		this.oninput(this._findInput.domNode, (e) => {
@@ -197,22 +203,18 @@ export abstract class SimpleFindWidget extends Widget {
 
 	protected _updateHistory() {
 		if (this.inputValue) {
-			this._findHistory.add(this._findInput.getValue());
+			this._findInput.inputBox.addToHistory(this._findInput.getValue());
 		}
 	}
 
 	public showNextFindTerm() {
-		const next = this._findHistory.next();
-		if (next) {
-			this._findInput.setValue(next);
-		}
+		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
+		this._findInput.inputBox.showNextValue();
 	}
 
 	public showPreviousFindTerm() {
-		const previous = this._findHistory.previous();
-		if (previous) {
-			this._findInput.setValue(previous);
-		}
+		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
+		this._findInput.inputBox.showPreviousValue();
 	}
 }
 

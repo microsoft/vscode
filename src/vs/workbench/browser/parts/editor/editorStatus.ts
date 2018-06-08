@@ -37,6 +37,7 @@ import { SUPPORTED_ENCODINGS, IFileService, FILES_ASSOCIATIONS_CONFIG } from 'vs
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
+import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -577,6 +578,14 @@ export class EditorStatus implements IStatusbarItem {
 			// Hook Listener for content changes
 			this.activeEditorListeners.push(activeCodeEditor.onDidChangeModelContent((e) => {
 				this.onEOLChange(activeCodeEditor);
+
+				let selections = activeCodeEditor.getSelections();
+				for (let i = 0; i < e.changes.length; i++) {
+					if (selections.some(selection => Range.areIntersecting(selection, e.changes[i].range))) {
+						this.onSelectionChange(activeCodeEditor);
+						break;
+					}
+				}
 			}));
 
 			// Hook Listener for content options changes

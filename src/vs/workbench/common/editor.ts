@@ -1063,13 +1063,15 @@ export class EditorViewStateMemento<T> {
 	public loadState(group: IEditorGroup, editor: EditorInput): T;
 	public loadState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
+		if (!resource || !group) {
+			return void 0; // we are not in a good state to load any viewstate for a resource
+		}
 
-			const viewStates = cache.get(resource.toString());
-			if (viewStates) {
-				return viewStates[group.id];
-			}
+		const cache = this.doLoad();
+
+		const viewStates = cache.get(resource.toString());
+		if (viewStates) {
+			return viewStates[group.id];
 		}
 
 		return void 0;

@@ -15,7 +15,7 @@ import { IAction } from 'vs/base/common/actions';
 import { Delayer } from 'vs/base/common/async';
 import * as errors from 'vs/base/common/errors';
 import { debounceEvent, Emitter } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import * as paths from 'vs/base/common/paths';
 import * as env from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
@@ -64,8 +64,6 @@ import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/un
 
 export class SearchView extends Viewlet implements IViewlet, IPanel {
 
-	private static readonly MAX_HISTORY_ITEMS = 100;
-
 	private static readonly MAX_TEXT_RESULTS = 10000;
 	private static readonly SHOW_REPLACE_STORAGE_KEY = 'vs.search.show.replace';
 
@@ -100,6 +98,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 	private searchWidget: SearchWidget;
 	private size: dom.Dimension;
 	private queryDetails: HTMLElement;
+	private toggleQueryDetailsButton: HTMLElement;
 	private inputPatternExcludes: ExcludePatternInputWidget;
 	private inputPatternIncludes: PatternInputWidget;
 	private results: Builder;
@@ -224,7 +223,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		}
 
 		this.queryDetails = this.searchWidgetsContainer.div({ 'class': ['query-details'] }, (builder) => {
-			builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
+			this.toggleQueryDetailsButton = builder.div({ 'class': 'more', 'tabindex': 0, 'role': 'button', 'title': nls.localize('moreSearch', "Toggle Search Details") })
 				.on(dom.EventType.CLICK, (e) => {
 					dom.EventHelper.stop(e);
 					this.toggleQueryDetails();
@@ -235,17 +234,27 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 						dom.EventHelper.stop(e);
 						this.toggleQueryDetails(false);
 					}
-				});
+				}).on(dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+					let event = new StandardKeyboardEvent(e);
+
+					if (event.equals(KeyMod.Shift | KeyCode.Tab)) {
+						if (this.searchWidget.isReplaceActive()) {
+							this.searchWidget.focusReplaceAllAction();
+						} else {
+							this.searchWidget.focusRegexAction();
+						}
+						dom.EventHelper.stop(e);
+					}
+				}).getHTMLElement();
 
 			//folder includes list
 			builder.div({ 'class': 'file-types includes' }, (builder) => {
 				let title = nls.localize('searchScope.includes', "files to include");
 				builder.element('h4', { text: title });
 
-				this.inputPatternIncludes = new PatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+				this.inputPatternIncludes = this.instantiationService.createInstance(PatternInputWidget, builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.includes', 'Search Include Patterns'),
 					history: patternIncludesHistory,
-					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternIncludes.setValue(patternIncludes);
@@ -265,10 +274,9 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				let title = nls.localize('searchScope.excludes', "files to exclude");
 				builder.element('h4', { text: title });
 
-				this.inputPatternExcludes = new ExcludePatternInputWidget(builder.getContainer(), this.contextViewService, this.themeService, {
+				this.inputPatternExcludes = this.instantiationService.createInstance(ExcludePatternInputWidget, builder.getContainer(), this.contextViewService, {
 					ariaLabel: nls.localize('label.excludes', 'Search Exclude Patterns'),
 					history: patternExclusionsHistory,
-					historyLimit: SearchView.MAX_HISTORY_ITEMS
 				});
 
 				this.inputPatternExcludes.setValue(patternExclusions);
@@ -341,8 +349,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 			isCaseSensitive: isCaseSensitive,
 			isWholeWords: isWholeWords,
 			searchHistory: searchHistory,
-			replaceHistory: replaceHistory,
-			historyLimit: SearchView.MAX_HISTORY_ITEMS
+			replaceHistory: replaceHistory
 		});
 
 		if (this.storageService.getBoolean(SearchView.SHOW_REPLACE_STORAGE_KEY, StorageScope.WORKSPACE, true)) {
@@ -363,6 +370,10 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		this.toUnbind.push(this.searchWidget.onReplaceValueChanged((value) => {
 			this.viewModel.replaceString = this.searchWidget.getReplaceValue();
 			this.delayedRefresh.trigger(() => this.tree.refresh());
+		}));
+
+		this.toUnbind.push(this.searchWidget.onBlur(() => {
+			this.toggleQueryDetailsButton.focus();
 		}));
 
 		this.toUnbind.push(this.searchWidget.onReplaceAll(() => this.replaceAll()));

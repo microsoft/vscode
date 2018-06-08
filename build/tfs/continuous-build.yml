@@ -44,6 +44,7 @@ phases:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
       ArtifactName: build-artifacts-win32
       publishLocation: Container
+    continueOnError: true
     condition: succeededOrFailed()
 
 - phase: Linux
@@ -136,4 +137,5 @@ phases:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
       ArtifactName: build-artifacts-darwin
       publishLocation: Container
+    continueOnError: true
     condition: succeededOrFailed()

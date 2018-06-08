@@ -98,9 +98,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.restorePreviousState();
 
 		// Create layout sashes
-		this.sashXOne = new Sash(this.workbenchContainer, this, { baseSize: 5 });
-		this.sashXTwo = new Sash(this.workbenchContainer, this, { baseSize: 5 });
-		this.sashY = new Sash(this.workbenchContainer, this, { baseSize: 4, orientation: Orientation.HORIZONTAL });
+		this.sashXOne = new Sash(this.workbenchContainer, this);
+		this.sashXTwo = new Sash(this.workbenchContainer, this);
+		this.sashY = new Sash(this.workbenchContainer, this, { orientation: Orientation.HORIZONTAL });
 
 		this.registerListeners();
 	}

@@ -1437,6 +1437,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 		}
 
 		this.removePanels(panelsToRemove);
+		dispose(panelsToRemove);
 	}
 
 	private saveContributedViewSizes(): void {
