@@ -141,7 +141,8 @@ export class CodeWindow implements ICodeWindow {
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
-				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				disableBlinkFeatures: 'Auxclick', // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				experimentalFeatures: true
 			}
 		};
 
