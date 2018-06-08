@@ -64,7 +64,7 @@ namespace Configuration {
 				}
 			}
 		}
-		return { extensionId, taskType, required: required.length >= 0 ? required : undefined, properties: value.properties ? Objects.deepClone(value.properties) : undefined };
+		return { extensionId, taskType, required: required, properties: value.properties ? Objects.deepClone(value.properties) : {} };
 	}
 }
 
@@ -86,6 +86,7 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	private taskTypes: IStringDictionary<Tasks.TaskDefinition>;
 	private readyPromise: TPromise<void>;
+	private _schema: IJSONSchema;
 
 	constructor() {
 		this.taskTypes = Object.create(null);
@@ -118,6 +119,27 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 
 	public all(): Tasks.TaskDefinition[] {
 		return Object.keys(this.taskTypes).map(key => this.taskTypes[key]);
+	}
+
+	public getJsonSchema(): IJSONSchema {
+		if (this._schema === void 0) {
+			let schemas: IJSONSchema[] = [];
+			for (let definition of this.all()) {
+				let schema: IJSONSchema = {
+					type: 'object',
+					additionalProperties: false
+				};
+				if (definition.required.length > 0) {
+					schema.required = definition.required.slice(0);
+				}
+				if (definition.properties !== void 0) {
+					schema.properties = Objects.deepClone(definition.properties);
+				}
+				schemas.push(schema);
+			}
+			this._schema = { oneOf: schemas };
+		}
+		return this._schema;
 	}
 }
 
