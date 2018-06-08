@@ -28,7 +28,7 @@ suite('OutlineModel', function () {
 		return { ...range, owner: 'ffff', message: 'test', severity: 0, resource: null };
 	}
 
-	test('OutlineElement - updateMarker', function () {
+	test.skip('OutlineElement - updateMarker', function () {
 
 		let e0 = new OutlineElement('foo1', null, fakeSymbolInformation(new Range(1, 1, 1, 10)));
 		let e1 = new OutlineElement('foo2', null, fakeSymbolInformation(new Range(2, 1, 5, 1)));
