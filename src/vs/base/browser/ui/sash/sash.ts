@@ -179,15 +179,15 @@ export class Sash {
 			let orthogonalSash: Sash | undefined;
 
 			if (this.orientation === Orientation.VERTICAL) {
-				if (e.offsetY <= 2) {
+				if (e.offsetY <= 4) {
 					orthogonalSash = this.orthogonalStartSash;
-				} else if (e.offsetY >= this.el.clientHeight - 2) {
+				} else if (e.offsetY >= this.el.clientHeight - 4) {
 					orthogonalSash = this.orthogonalEndSash;
 				}
 			} else {
-				if (e.offsetX <= 2) {
+				if (e.offsetX <= 4) {
 					orthogonalSash = this.orthogonalStartSash;
-				} else if (e.offsetX >= this.el.clientWidth - 2) {
+				} else if (e.offsetX >= this.el.clientWidth - 4) {
 					orthogonalSash = this.orthogonalEndSash;
 				}
 			}
