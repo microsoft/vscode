@@ -22,7 +22,7 @@ import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorP
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
+import { assign, equals } from 'vs/base/common/objects';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Scope } from 'vs/workbench/common/memento';
 import { ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
@@ -408,6 +408,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Restore Focus
 		if (gridHasFocus) {
 			this._activeGroup.focus();
+		}
+
+		// TODO@Joao: hack?
+		if (equals(layout, { groups: [{ groups: [{}, {}] }, { groups: [{}, {}] }] })) {
+			this.gridWidget.set2x2();
 		}
 	}
 

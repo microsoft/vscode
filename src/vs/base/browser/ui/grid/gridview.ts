@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
-import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -280,6 +280,19 @@ class BranchNode implements ISplitView, IDisposable {
 		this._onDidChange.fire();
 	}
 
+	// TODO@joao: hack?
+	set2x2(other: BranchNode): IDisposable {
+		if (this.children.length !== 2 || other.children.length !== 2) {
+			throw new Error('2x2 mode not allowed');
+		}
+
+		const mySash = this.splitview.sashes[0];
+		const otherSash = other.splitview.sashes[0];
+		mySash.linkedSash = otherSash;
+		otherSash.linkedSash = mySash;
+		return toDisposable(() => mySash.linkedSash = otherSash.linkedSash = undefined);
+	}
+
 	dispose(): void {
 		for (const child of this.children) {
 			child.dispose();
@@ -401,6 +414,13 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
+	// this should be IDisposable| undefined instead
+	// that way we can expose a `is2x2: boolean` which can be used
+	// to determine a better auto sizing default for `addView`
+	// the 2x2 disposable should only be disposed when the base 2x2 grid goes away,
+	// not when views are added
+	private disposable2x2: IDisposable = EmptyDisposable;
+
 	private get root(): BranchNode {
 		return this._root;
 	}
@@ -475,6 +495,9 @@ export class GridView implements IDisposable {
 	}
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -504,6 +527,9 @@ export class GridView implements IDisposable {
 	}
 
 	removeView(location: number[], sizing?: Sizing): IView {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -682,6 +708,21 @@ export class GridView implements IDisposable {
 		path.push(node);
 
 		return this.getNode(rest, child, path);
+	}
+
+	// TODO@joao: hack?
+	set2x2(): void {
+		if (this.root.children.length !== 2) {
+			throw new Error('2x2 mode not allowed');
+		}
+
+		const [first, second] = this.root.children;
+
+		if (!(first instanceof BranchNode) || !(second instanceof BranchNode)) {
+			throw new Error('2x2 mode not allowed');
+		}
+
+		this.disposable2x2 = first.set2x2(second);
 	}
 
 	dispose(): void {

@@ -343,6 +343,11 @@ export class Grid<T extends IView> implements IDisposable {
 		}
 	}
 
+	// TODO@joao: hack?
+	set2x2(): void {
+		this.gridview.set2x2();
+	}
+
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
 	}
