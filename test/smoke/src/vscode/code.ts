@@ -195,6 +195,10 @@ export class Code {
 	) {
 		this.driver = new Proxy(driver, {
 			get(target, prop, receiver) {
+				if (typeof prop === 'symbol') {
+					throw new Error('Invalid usage');
+				}
+
 				if (typeof target[prop] !== 'function') {
 					return target[prop];
 				}
