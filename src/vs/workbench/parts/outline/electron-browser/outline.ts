@@ -7,6 +7,7 @@
 
 
 export enum OutlineConfigKeys {
+	'filterOnType' = 'outline.filterOnType',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'

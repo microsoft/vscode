@@ -64,12 +64,21 @@ export class OutlineItemComparator implements ISorter {
 
 export class OutlineItemFilter implements IFilter {
 
+	enabled: boolean = true;
+
 	isVisible(tree: ITree, element: OutlineElement | any): boolean {
+		if (!this.enabled) {
+			return true;
+		}
 		return !(element instanceof OutlineElement) || Boolean(element.score);
 	}
 }
 
 export class OutlineDataSource implements IDataSource {
+
+	// this is a workaround for the tree showing twisties for items
+	// with only filtered children
+	filterOnScore: boolean = true;
 
 	getId(tree: ITree, element: TreeElement): string {
 		return element ? element.id : 'empty';
@@ -82,11 +91,11 @@ export class OutlineDataSource implements IDataSource {
 		if (element instanceof OutlineModel) {
 			return true;
 		}
-		if (element instanceof OutlineElement && !element.score) {
+		if (element instanceof OutlineElement && (this.filterOnScore && !element.score)) {
 			return false;
 		}
 		for (const id in element.children) {
-			if (element.children[id].score) {
+			if (!this.filterOnScore || element.children[id].score) {
 				return true;
 			}
 		}

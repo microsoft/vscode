@@ -217,6 +217,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _input: InputBox;
 	private _progressBar: ProgressBar;
 	private _tree: WorkbenchTree;
+	private _treeDataSource: OutlineDataSource;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
@@ -319,11 +320,11 @@ export class OutlinePanel extends ViewletPanel {
 				return false;
 			}
 		};
-		const dataSource = new OutlineDataSource();
 		const renderer = this._instantiationService.createInstance(OutlineRenderer);
+		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._treeFilter = new OutlineItemFilter();
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, dataSource, renderer, sorter: this._treeComparator, filter: this._treeFilter }, {});
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, renderer, dataSource: this._treeDataSource, sorter: this._treeComparator, filter: this._treeFilter }, {});
 
 		this._disposables.push(this._tree, this._input);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
@@ -461,6 +462,16 @@ export class OutlinePanel extends ViewletPanel {
 			OutlineTreeState.restore(this._tree, state);
 		}
 
+		// depending on the user setting we filter or find elements
+		if (this._configurationService.getValue(OutlineConfigKeys.filterOnType)) {
+			this._treeFilter.enabled = true;
+			this._treeDataSource.filterOnScore = true;
+			this._input.setPlaceHolder(localize('filter', "Filter"));
+		} else {
+			this._treeFilter.enabled = false;
+			this._treeDataSource.filterOnScore = false;
+			this._input.setPlaceHolder(localize('find', "Find"));
+		}
 		this._input.enable();
 		this.layoutBody();
 

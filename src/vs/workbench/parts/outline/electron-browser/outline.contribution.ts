@@ -44,32 +44,26 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'order': 117,
 	'type': 'object',
 	'properties': {
+		[OutlineConfigKeys.filterOnType]: {
+			'description': localize('outline.typeToFilter', "Defines if typing in the input-box filters or finds elements."),
+			'type': 'boolean',
+			'default': true
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',
 			'default': true
-		}
-	}
-});
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'id': 'outline',
-	'order': 117,
-	'type': 'object',
-	'properties': {
+		},
+		[OutlineConfigKeys.problemsEnabled]: {
+			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
+			'type': 'boolean',
+			'default': true
+		},
 		[OutlineConfigKeys.problemsColors]: {
 			'description': localize('outline.problem.colors', "Use colors for Errors & Warnings."),
 			'type': 'boolean',
 			'default': true
-		}
-	}
-});
-
-Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).registerConfiguration({
-	'id': 'outline',
-	'order': 117,
-	'type': 'object',
-	'properties': {
+		},
 		[OutlineConfigKeys.problemsBadges]: {
 			'description': localize('outline.problems.badges', "Use badges for Errors & Warnings."),
 			'type': 'boolean',
