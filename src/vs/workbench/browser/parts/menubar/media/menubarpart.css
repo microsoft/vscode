@@ -31,11 +31,13 @@
 	-webkit-app-region: no-drag;
 }
 
-.monaco-workbench > .part.menubar > .menubar-menu-button.open {
+.monaco-workbench > .part.menubar.light > .menubar-menu-button.open,
+.monaco-workbench > .part.menubar.light > .menubar-menu-button:hover {
 	background-color: rgba(255, 255, 255, 0.1);
 }
 
-.monaco-workbench > .part.menubar > .menubar-menu-button.open {
+.monaco-workbench > .part.menubar > .menubar-menu-button.open,
+.monaco-workbench > .part.menubar > .menubar-menu-button:hover {
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
@@ -53,9 +55,3 @@
 .vs-dark .menubar-menu-items-holder.monaco-menu-container {
 	box-shadow: 0 2px 8px #000;
 }
-
-/*
-.menubar-menu-items-holder-open {
-	display: flex;
-	flex-direction: column;
-} */
