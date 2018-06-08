@@ -27,8 +27,8 @@ const defaultStyles: ISplitViewStyles = {
 export interface ISplitViewOptions {
 	orientation?: Orientation; // default Orientation.VERTICAL
 	styles?: ISplitViewStyles;
-	linkedStartSash?: Sash;
-	linkedEndSash?: Sash;
+	orthogonalStartSash?: Sash;
+	orthogonalEndSash?: Sash;
 }
 
 export interface IView {
@@ -139,24 +139,24 @@ export class SplitView implements IDisposable {
 		return this.viewItems.length;
 	}
 
-	private _linkedStartSashes: Sash[] = [];
-	get linkedStartSashes(): Sash[] { return this._linkedStartSashes; }
-	set linkedStartSashes(sashes: Sash[]) {
+	private _orthogonalStartSash: Sash | undefined;
+	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
+	set orthogonalStartSash(sash: Sash | undefined) {
 		for (const sashItem of this.sashItems) {
-			sashItem.sash.linkedStartSashes = sashes;
+			sashItem.sash.orthogonalStartSash = sash;
 		}
 
-		this._linkedStartSashes = sashes;
+		this._orthogonalStartSash = sash;
 	}
 
-	private _linkedEndSashes: Sash[] = [];
-	get linkedEndSashes(): Sash[] { return this._linkedEndSashes; }
-	set linkedEndSashes(sashes: Sash[]) {
+	private _orthogonalEndSash: Sash | undefined;
+	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
+	set orthogonalEndSash(sash: Sash | undefined) {
 		for (const sashItem of this.sashItems) {
-			sashItem.sash.linkedEndSash = sashes;
+			sashItem.sash.orthogonalEndSash = sash;
 		}
 
-		this._linkedEndSashes = sashes;
+		this._orthogonalEndSash = sash;
 	}
 
 	get sashes(): Sash[] {
@@ -235,8 +235,8 @@ export class SplitView implements IDisposable {
 			const layoutProvider = this.orientation === Orientation.VERTICAL ? { getHorizontalSashTop: sash => this.getSashPosition(sash) } : { getVerticalSashLeft: sash => this.getSashPosition(sash) };
 			const sash = new Sash(this.sashContainer, layoutProvider, {
 				orientation,
-				linkedStartSashes: this.linkedStartSashes,
-				linkedEndSashes: this.linkedEndSashes
+				orthogonalStartSash: this.orthogonalStartSash,
+				orthogonalEndSash: this.orthogonalEndSash
 			});
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
 				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
