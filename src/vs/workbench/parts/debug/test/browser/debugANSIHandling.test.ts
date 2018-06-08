@@ -40,7 +40,7 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'class1'));
 			assert(dom.hasClass(child, 'class2'));
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 		}
 
 		child = root.lastChild;
@@ -49,7 +49,7 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'class2'));
 			assert(dom.hasClass(child, 'class3'));
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 		}
 	});
 
@@ -66,7 +66,7 @@ suite('Debug - ANSI Handling', () => {
 		if (child instanceof HTMLSpanElement) {
 			return child;
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 			return null;
 		}
 	}
@@ -170,7 +170,7 @@ suite('Debug - ANSI Handling', () => {
 			if (child instanceof HTMLSpanElement) {
 				assertions[i](child);
 			} else {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 		}
 	}
