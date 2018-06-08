@@ -463,7 +463,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionEnd) {
 			this._isDoingComposition = false;
-			return;
 		}
 
 		if (this._configuration.editor.readOnly) {
@@ -523,6 +522,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				case H.ExecuteCommands:
 					this._externalExecuteCommands(<editorCommon.ICommand[]>payload);
 					break;
+
+				case H.CompositionEnd:
+					this._interpretCompositionEnd(source);
+					break;
 			}
 		} catch (err) {
 			onUnexpectedError(err);
@@ -539,8 +542,16 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		}
 	}
 
+	private _interpretCompositionEnd(source: string) {
+		if (!this._isDoingComposition && source === 'keyboard') {
+			// composition finishes, let's check if we need to auto complete if necessary.
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections()));
+		}
+	}
+
 	private _type(source: string, text: string): void {
 		if (!this._isDoingComposition && source === 'keyboard') {
+			console.log('keyboard', source, text);
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			for (let i = 0, len = text.length; i < len; i++) {
