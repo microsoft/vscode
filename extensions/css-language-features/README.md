@@ -23,13 +23,17 @@ This extension offers CSS/SCSS/Less support in VS Code.
 
 However, within this extension, you can run a development version of `vscode-css-languageservice` to debug code or test language features interactively:
 
+#### Linking `vscode-css-languageservice` in `css-language-features/server/`
+
 - Clone [Microsoft/vscode-css-languageservice](https://github.com/Microsoft/vscode-css-languageservice)
-- Open both `vscode-css-languageservice` and this extension in a single workspace with [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
 - Run `yarn` in `vscode-css-languageservice`
 - Run `yarn link` in `vscode-css-languageservice`. This will compile and link `vscode-css-languageservice`
 - In `css-language-features/server/`, run `npm link vscode-css-languageservice`
+
+#### Testing the development version of `vscode-css-languageservice`
+
+- Open both `vscode-css-languageservice` and this extension in a single workspace with [multi-root workspace](https://code.visualstudio.com/docs/editor/multi-root-workspaces) feature
 - Run `yarn watch` at `css-languagefeatures/server/` to recompile this extension with the linked version of `vscode-css-languageservice`
-- Run `yarn watch` in `vscode-css-languageservice`
 - Make some changes in `vscode-css-languageservice`
 - Now when you run `Launch Extension` debug target, the launched instance will use your development version of `vscode-css-languageservice`. You can interactively test the language features.
 - You can also run the `Debug Extension and Language Server` debug target, which will launch the extension and attach the debugger to the language server. After successful attach, you should be able to hit breakpoints in both `vscode-css-languageservice` and `css-language-features/server/`
