@@ -92,6 +92,42 @@ export const FocusActiveEditorCommand = (accessor: ServicesAccessor) => {
 	return TPromise.as(true);
 };
 
+export class FocusNextInputAction extends Action {
+
+	public static readonly ID = 'search.focus.nextInputBox';
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		searchView.focusNextInputBox();
+		return TPromise.as(null);
+	}
+}
+
+export class FocusPreviousInputAction extends Action {
+
+	public static readonly ID = 'search.focus.previousInputBox';
+
+	constructor(id: string, label: string,
+		@IViewletService private viewletService: IViewletService,
+		@IPanelService private panelService: IPanelService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		const searchView = getSearchView(this.viewletService, this.panelService);
+		searchView.focusPreviousInputBox();
+		return TPromise.as(null);
+	}
+}
+
 export abstract class FindOrReplaceInFilesAction extends Action {
 
 	constructor(id: string, label: string, private viewletService: IViewletService, private panelService: IPanelService,
