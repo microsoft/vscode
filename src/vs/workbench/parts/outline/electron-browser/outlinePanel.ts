@@ -4,52 +4,55 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import { posix } from 'path';
 import * as dom from 'vs/base/browser/dom';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
+import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { Action, IAction, RadioGroup } from 'vs/base/common/actions';
+import { firstIndex } from 'vs/base/common/arrays';
+import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 import { Emitter } from 'vs/base/common/event';
 import { defaultGenerator } from 'vs/base/common/idGenerator';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { LRUCache } from 'vs/base/common/map';
 import { escape } from 'vs/base/common/strings';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./outlinePanel';
 import { ICodeEditor, isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
-import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { onUnexpectedError } from 'vs/base/common/errors';
-import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
-import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
-import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
-import { firstIndex } from 'vs/base/common/arrays';
-import URI from 'vs/base/common/uri';
-import { OutlineConfigKeys } from './outline';
-import { posix } from 'path';
+import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
+import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused } from './outline';
+import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
+import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 
 class RequestState {
 
@@ -205,6 +208,8 @@ class OutlineState {
 
 export class OutlinePanel extends ViewletPanel {
 
+	static InstanceHack: OutlinePanel;
+
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
@@ -222,6 +227,9 @@ export class OutlinePanel extends ViewletPanel {
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
 
+	private readonly _contextKeyFocused: IContextKey<boolean>;
+	private readonly _contextKeyFiltered: IContextKey<boolean>;
+
 	constructor(
 		options: IViewletViewOptions,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
@@ -232,14 +240,20 @@ export class OutlinePanel extends ViewletPanel {
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@IKeybindingService keybindingService: IKeybindingService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
-
+		OutlinePanel.InstanceHack = this;
 		this._outlineViewState.restore(this._storageService);
+		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
+		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
+		this._disposables.push(this.onDidFocus(_ => this._contextKeyFocused.set(true)));
+		this._disposables.push(this.onDidBlur(_ => this._contextKeyFocused.set(false)));
 	}
 
 	dispose(): void {
+		OutlinePanel.InstanceHack = undefined;
 		dispose(this._disposables);
 		dispose(this._requestOracle);
 		super.dispose();
@@ -481,6 +495,9 @@ export class OutlinePanel extends ViewletPanel {
 		// on erase -> restore captured tree state
 		let beforePatternState: OutlineTreeState;
 		this._editorDisposables.push(this._input.onDidChange(async pattern => {
+
+			this._contextKeyFiltered.set(pattern.length > 0);
+
 			if (!beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
@@ -498,6 +515,10 @@ export class OutlinePanel extends ViewletPanel {
 				beforePatternState = undefined;
 			}
 		}));
+
+		this._editorDisposables.push({
+			dispose: () => this._contextKeyFiltered.reset()
+		});
 
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
@@ -585,5 +606,45 @@ export class OutlinePanel extends ViewletPanel {
 			this._tree.setSelection([], this);
 		}
 	}
+
+	focusHighlightedElement(up: boolean): void {
+		if (!this._tree.getInput()) {
+			return;
+		}
+		if (!this._tree.isDOMFocused()) {
+			this._tree.domFocus();
+			return;
+		}
+		let navi = this._tree.getNavigator(this._tree.getFocus(), false);
+		let candidate: any;
+		while (candidate = up ? navi.previous() : navi.next()) {
+			if (candidate instanceof OutlineElement && candidate.score && candidate.score[1].length > 0) {
+				this._tree.setFocus(candidate, this);
+				this._tree.reveal(candidate).then(undefined, onUnexpectedError);
+				break;
+			}
+		}
+	}
 }
 
+function goUpOrDownToHighligthedElement(accessor: ServicesAccessor, prev: boolean) {
+	if (OutlinePanel.InstanceHack) {
+		OutlinePanel.InstanceHack.focusHighlightedElement(prev);
+	}
+}
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'outline.focusDownHighlighted',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	primary: KeyCode.DownArrow,
+	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused, ContextKeyExpr.equals(`config.${OutlineConfigKeys.navigateHighlights}`, true)),
+	handler: accessor => goUpOrDownToHighligthedElement(accessor, false)
+});
+
+KeybindingsRegistry.registerCommandAndKeybindingRule({
+	id: 'outline.focusUpHighlighted',
+	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
+	primary: KeyCode.UpArrow,
+	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused, ContextKeyExpr.equals(`config.${OutlineConfigKeys.navigateHighlights}`, true)),
+	handler: accessor => goUpOrDownToHighligthedElement(accessor, true)
+});

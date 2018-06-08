@@ -49,6 +49,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			'type': 'boolean',
 			'default': true
 		},
+		[OutlineConfigKeys.navigateHighlights]: {
+			'description': localize('outline.navigateHighlights', "Only select highlighted elements (via filter or find) when navigating the tree"),
+			'type': 'boolean',
+			'default': true
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',
