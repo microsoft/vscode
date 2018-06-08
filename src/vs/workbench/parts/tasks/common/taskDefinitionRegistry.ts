@@ -80,6 +80,7 @@ export interface ITaskDefinitionRegistry {
 
 	get(key: string): Tasks.TaskDefinition;
 	all(): Tasks.TaskDefinition[];
+	getJsonSchema(): IJSONSchema;
 }
 
 class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
@@ -134,7 +135,13 @@ class TaskDefinitionRegistryImpl implements ITaskDefinitionRegistry {
 				}
 				if (definition.properties !== void 0) {
 					schema.properties = Objects.deepClone(definition.properties);
+				} else {
+					schema.properties = Object.create(null);
 				}
+				schema.properties.type = {
+					type: 'string',
+					enum: [definition.taskType]
+				};
 				schemas.push(schema);
 			}
 			this._schema = { oneOf: schemas };
