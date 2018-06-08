@@ -15,6 +15,7 @@ import { first, size } from 'vs/base/common/collections';
 import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -206,7 +207,7 @@ export class OutlineModel extends TreeElement {
 				}
 				return group;
 			}, err => {
-				//todo@joh capture error in group
+				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
 				result._groups[id] = group;
