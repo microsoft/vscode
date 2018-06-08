@@ -47,24 +47,27 @@ export function setup() {
 		it('stages correctly', async function () {
 			const app = this.app as Application;
 
+			await app.workbench.quickopen.openFile('app.js');
+
 			await app.workbench.scm.openSCMViewlet();
-
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
-			await app.workbench.scm.stage('app.js');
 
+			await app.workbench.quickopen.runCommand('Git: Stage Changes');
 			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
-			await app.workbench.scm.unstage('app.js');
 
+			await app.workbench.quickopen.runCommand('Git: Unstage Changes');
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
 		});
 
 		it(`stages, commits changes and verifies outgoing change`, async function () {
 			const app = this.app as Application;
 
-			await app.workbench.scm.openSCMViewlet();
+			await app.workbench.quickopen.openFile('app.js');
 
+			await app.workbench.scm.openSCMViewlet();
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
-			await app.workbench.scm.stage('app.js');
+
+			await app.workbench.quickopen.runCommand('Git: Stage Changes');
 			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
 
 			await app.workbench.scm.commit('first commit');
@@ -75,7 +78,11 @@ export function setup() {
 
 			await app.workbench.scm.commit('second commit');
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 2↑');
+		});
 
+		after(function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout .', { cwd: app.workspacePath });
 			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});
 	});

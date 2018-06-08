@@ -8,12 +8,6 @@ import { Application } from '../../application';
 
 export function setup() {
 	describe('Search', () => {
-		after(function () {
-			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePath });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
-		});
-
 		it('searches for body & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
@@ -54,6 +48,12 @@ export function setup() {
 			await app.workbench.search.setReplaceText('body');
 			await app.workbench.search.replaceFileMatch('app.js');
 			await app.workbench.search.waitForNoResultText();
+		});
+
+		after(function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout .', { cwd: app.workspacePath });
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});
 	});
 }
