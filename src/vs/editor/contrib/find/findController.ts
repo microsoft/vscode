@@ -11,7 +11,7 @@ import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/con
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, ShowPreviousFindTermKeybinding, ShowNextFindTermKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -643,10 +643,7 @@ export class ShowNextFindTermAction extends MatchFindAction {
 			kbOpts: {
 				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
-				primary: ShowNextFindTermKeybinding.primary,
-				mac: ShowNextFindTermKeybinding.mac,
-				win: ShowNextFindTermKeybinding.win,
-				linux: ShowNextFindTermKeybinding.linux
+				primary: null
 			}
 		});
 	}
@@ -667,10 +664,7 @@ export class ShowPreviousFindTermAction extends MatchFindAction {
 			kbOpts: {
 				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
 				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
-				primary: ShowPreviousFindTermKeybinding.primary,
-				mac: ShowPreviousFindTermKeybinding.mac,
-				win: ShowPreviousFindTermKeybinding.win,
-				linux: ShowPreviousFindTermKeybinding.linux
+				primary: null
 			}
 		});
 	}

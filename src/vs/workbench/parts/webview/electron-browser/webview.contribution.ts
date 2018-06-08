@@ -51,18 +51,12 @@ KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindWdigetCommand.t
 const showNextFindTermCommand = new ShowWebViewEditorFindTermCommand({
 	id: 'editor.action.webvieweditor.showNextFindTerm',
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.DownArrow
-	}
 }, true);
 KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
 const showPreviousFindTermCommand = new ShowWebViewEditorFindTermCommand({
 	id: 'editor.action.webvieweditor.showPreviousFindTerm',
 	precondition: KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.UpArrow
-	}
 }, false);
 KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
 
