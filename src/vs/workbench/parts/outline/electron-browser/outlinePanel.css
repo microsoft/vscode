@@ -24,7 +24,7 @@
 
 .monaco-workbench .outline-panel .outline-input {
 	box-sizing: border-box;
-	padding: 2px 9px 12px 9px;
+	padding: 2px 9px 5px 9px;
 }
 
 .monaco-workbench .outline-panel .outline-input .monaco-inputbox {

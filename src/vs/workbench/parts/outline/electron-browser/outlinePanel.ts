@@ -332,7 +332,7 @@ export class OutlinePanel extends ViewletPanel {
 	protected layoutBody(height: number = this._cachedHeight): void {
 		this._cachedHeight = height;
 		this._input.layout();
-		this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 7 /*progressbar height, defined in outlinePanel.css*/));
+		this._tree.layout(height - (dom.getTotalHeight(this._inputContainer) + 5 /*progressbar height, defined in outlinePanel.css*/));
 	}
 
 	setVisible(visible: boolean): TPromise<void> {
