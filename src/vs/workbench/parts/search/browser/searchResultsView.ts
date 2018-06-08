@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as resources from 'vs/base/common/resources';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -148,7 +149,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		actionRunner: IActionRunner,
 		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -234,7 +236,11 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
+			const fileKind = resources.isEqual(this.contextService.getWorkspaceFolder(folderMatch.resource()).uri, folderMatch.resource()) ?
+				FileKind.ROOT_FOLDER :
+				FileKind.FOLDER;
+
+			templateData.label.setFile(folderMatch.resource(), { fileKind });
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
