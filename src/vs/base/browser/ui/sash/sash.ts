@@ -69,12 +69,15 @@ export class Sash {
 	private _state: SashState = SashState.Enabled;
 	get state(): SashState { return this._state; }
 	set state(state: SashState) {
-		this._state = state;
+		if (this._state === state) {
+			return;
+		}
 
 		toggleClass(this.el, 'disabled', state === SashState.Disabled);
 		toggleClass(this.el, 'minimum', state === SashState.Minimum);
 		toggleClass(this.el, 'maximum', state === SashState.Maximum);
 
+		this._state = state;
 		this._onDidEnablementChange.fire(state);
 	}
 
