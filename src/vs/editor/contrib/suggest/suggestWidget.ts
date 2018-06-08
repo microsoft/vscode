@@ -401,6 +401,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private storageServiceAvailable: boolean = true;
 	private expandSuggestionDocs: boolean = false;
 
+	private firstFocusInCurrentList: boolean = false;
+
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -566,6 +568,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const item = e.elements[0];
 		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 
+		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item === this.focusedItem) {
 			return;
 		}
@@ -1006,11 +1009,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private expandSideOrBelow() {
+		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
+			removeClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
+			return;
+		}
+
 		let matches = this.element.style.maxWidth.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
-		} else {
+		} else if (canExpandCompletionItem(this.focusedItem)) {
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 		}
