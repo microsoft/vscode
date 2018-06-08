@@ -56,7 +56,6 @@ export class Menubar {
 	private nativeTabMenuItems: Electron.MenuItem[];
 
 	private menubarMenus: IMenubarData = {};
-	private menubarWindowId: number;
 
 	constructor(
 		@IUpdateService private updateService: IUpdateService,
@@ -136,7 +135,6 @@ export class Menubar {
 
 	updateMenu(menus: IMenubarData, windowId: number) {
 		this.menubarMenus = menus;
-		this.menubarWindowId = windowId;
 		this.scheduleUpdateMenu();
 	}
 

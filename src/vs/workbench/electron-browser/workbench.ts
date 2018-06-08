@@ -1084,6 +1084,21 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Notifications Alerts
 		this._register(this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model));
+
+		// Notifications Status
+		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+
+		// Eventing
+		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
+			// Update status
+			notificationsStatus.update(this.notificationsCenter.isVisible);
+
+			// Update toasts
+			this.notificationsToasts.update(this.notificationsCenter.isVisible);
+
+			// Register commands
+			registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
+		}));
 	}
 
 	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
