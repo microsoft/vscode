@@ -612,6 +612,8 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+
 		resourceStates = resourceStates.filter(s => !!s);
 
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
@@ -651,6 +653,7 @@ export class CommandCenter {
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
 		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
 
+		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
 			return;
 		}
