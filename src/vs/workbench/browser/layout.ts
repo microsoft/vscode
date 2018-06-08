@@ -30,7 +30,7 @@ import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 
-const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 29;
+const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 
@@ -437,7 +437,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.menubarHeight = isMenubarHidden ? 0 : this.titlebarBaseHeight;
 		this.headingHeight = Math.max(this.menubarHeight, this.titlebarHeight);
 
-		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.titlebarHeight;
+		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.headingHeight;
 		let sidebarSize = new Dimension(this.sidebarWidth, this.sidebarHeight);
 
 		// Activity Bar
@@ -665,6 +665,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		// Propagate to Part Layouts
 		this.parts.titlebar.layout(new Dimension(this.workbenchSize.width, this.titlebarHeight));
+		this.parts.menubar.layout(new Dimension(undefined, this.menubarHeight));
 		this.parts.editor.layout(new Dimension(editorSize.width, editorSize.height));
 		this.parts.sidebar.layout(sidebarSize);
 		this.parts.panel.layout(panelDimension);
@@ -680,6 +681,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		} else {
 			this.titlebarBaseHeight = this.partLayoutInfo.titlebar.height;
 		}
+
+		this.layout();
 	}
 
 	getVerticalSashTop(sash: Sash): number {

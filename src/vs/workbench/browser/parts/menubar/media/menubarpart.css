@@ -6,7 +6,6 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	height: 29px;
 	order: 3;
 	box-sizing: border-box;
 	margin-left: 35px;
@@ -43,7 +42,6 @@
 .menubar-menu-items-holder {
 	/* display: none; */
 	position: absolute;
-	top: 29px;
 	left: 0px;
 	opacity: 1;
 }

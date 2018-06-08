@@ -169,12 +169,14 @@ export class BaseActionItem implements IActionItem {
 	public focus(): void {
 		if (this.builder) {
 			this.builder.domFocus();
+			this.builder.addClass('focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
 			this.builder.domBlur();
+			this.builder.removeClass('focused');
 		}
 	}
 

@@ -17,7 +17,7 @@ import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType } from 'vs/base/browser/dom';
-import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_FOREGROUND, TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
+import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
@@ -437,10 +437,11 @@ export class MenubarPart extends Part {
 
 		$(menuHolder.getHTMLElement().parentElement).addClass('open');
 
-		menuHolder.addClass('menubar-menu-items-holder-open');
+		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
-			'background-color': this.getColor(ACTIVITY_BAR_BACKGROUND),
-			'color': this.getColor(ACTIVITY_BAR_FOREGROUND)
+			// 'background-color': this.getColor(TITLE_BAR_ACTIVE_BACKGROUND),
+			// 'color': this.getColor(TITLE_BAR_ACTIVE_FOREGROUND),
+			'top': `${this.container.getClientArea().height}px`
 		});
 
 		let menuOptions: IMenuOptions = {
