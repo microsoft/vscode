@@ -1717,6 +1717,8 @@ export class CommandCenter {
 	private getSCMResource(uri?: Uri): Resource | undefined {
 		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
 
+		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+
 		if (!uri) {
 			return undefined;
 		}
