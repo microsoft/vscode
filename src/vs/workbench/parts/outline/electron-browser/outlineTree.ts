@@ -72,10 +72,13 @@ export class OutlineItemFilter implements IFilter {
 export class OutlineDataSource implements IDataSource {
 
 	getId(tree: ITree, element: TreeElement): string {
-		return element.id;
+		return element ? element.id : 'empty';
 	}
 
 	hasChildren(tree: ITree, element: OutlineModel | OutlineGroup | OutlineElement): boolean {
+		if (!element) {
+			return false;
+		}
 		if (element instanceof OutlineModel) {
 			return true;
 		}
@@ -97,11 +100,11 @@ export class OutlineDataSource implements IDataSource {
 	}
 
 	async getParent(tree: ITree, element: TreeElement | any): TPromise<TreeElement> {
-		return element.parent;
+		return element && element.parent;
 	}
 
 	shouldAutoexpand(tree: ITree, element: TreeElement): boolean {
-		return element instanceof OutlineModel || element.parent instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup;
+		return element && (element instanceof OutlineModel || element.parent instanceof OutlineModel || element instanceof OutlineGroup || element.parent instanceof OutlineGroup);
 	}
 }
 
