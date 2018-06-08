@@ -91,3 +91,14 @@
 .monaco-sash.touch.horizontal {
 	height: 20px;
 }
+
+/** Debug **/
+
+.monaco-sash.debug:not(.disabled) {
+	background: cyan;
+}
+
+.monaco-sash.debug:not(.disabled).orthogonal-start::before,
+.monaco-sash.debug:not(.disabled).orthogonal-end::after {
+	background: red;
+}

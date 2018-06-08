@@ -16,6 +16,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, Dimension, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 
+const DEBUG = false;
+
 export interface ISashLayoutProvider { }
 
 export interface IVerticalSashLayoutProvider extends ISashLayoutProvider {
@@ -148,6 +150,8 @@ export class Sash {
 
 		this.orthogonalStartSash = options.orthogonalStartSash;
 		this.orthogonalEndSash = options.orthogonalEndSash;
+
+		toggleClass(this.el, 'debug', DEBUG);
 	}
 
 	setOrientation(orientation: Orientation): void {
