@@ -115,9 +115,9 @@ export class Sash {
 	}
 
 	private linkedEndSashDisposables: IDisposable[] = [];
-	private _linkedEndSash: Sash[] = [];
-	get linkedEndSash(): Sash[] { return this._linkedEndSash; }
-	set linkedEndSash(sashes: Sash[]) {
+	private _linkedEndSashes: Sash[] = [];
+	get linkedEndSashes(): Sash[] { return this._linkedEndSashes; }
+	set linkedEndSashes(sashes: Sash[]) {
 		this.linkedEndSashDisposables = dispose(this.linkedEndSashDisposables);
 
 		if (sashes) {
@@ -129,7 +129,7 @@ export class Sash {
 			this.onLinkedEndSashEnablementChange([]);
 		}
 
-		this._linkedEndSash = sashes;
+		this._linkedEndSashes = sashes;
 	}
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
@@ -156,7 +156,7 @@ export class Sash {
 		this.layoutProvider = layoutProvider;
 
 		this.linkedStartSashes = options.linkedStartSashes || [];
-		this.linkedEndSash = options.linkedEndSashes || [];
+		this.linkedEndSashes = options.linkedEndSashes || [];
 
 		toggleClass(this.el, 'debug', DEBUG);
 	}
@@ -189,13 +189,13 @@ export class Sash {
 				if (e.offsetY <= 4) {
 					linkedSashes = this.linkedStartSashes;
 				} else if (e.offsetY >= this.el.clientHeight - 4) {
-					linkedSashes = this.linkedEndSash;
+					linkedSashes = this.linkedEndSashes;
 				}
 			} else {
 				if (e.offsetX <= 4) {
 					linkedSashes = this.linkedStartSashes;
 				} else if (e.offsetX >= this.el.clientWidth - 4) {
-					linkedSashes = this.linkedEndSash;
+					linkedSashes = this.linkedEndSashes;
 				}
 			}
 

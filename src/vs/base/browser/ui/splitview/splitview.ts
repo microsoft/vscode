@@ -153,7 +153,7 @@ export class SplitView implements IDisposable {
 	get linkedEndSashes(): Sash[] { return this._linkedEndSashes; }
 	set linkedEndSashes(sashes: Sash[]) {
 		for (const sashItem of this.sashItems) {
-			sashItem.sash.linkedEndSash = sashes;
+			sashItem.sash.linkedEndSashes = sashes;
 		}
 
 		this._linkedEndSashes = sashes;
