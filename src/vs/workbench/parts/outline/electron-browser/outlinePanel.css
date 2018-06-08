@@ -51,7 +51,8 @@
 }
 
 .vs-dark .monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox.action-filter {
-	background: url(./media/files_Filter_Filter_16x_vscode_inverse.svg);
+	background: url(./media/files_Filter_Filter_16x_vscode_inverse.svg) center center no-repeat;
+	background-size: 90%;
 }
 
 .monaco-workbench .outline-panel .outline-tree {
