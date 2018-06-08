@@ -578,6 +578,9 @@ export class Workbench extends Disposable implements IPartService {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
 		}
+
+		const newMenubarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
+		this.setMenubarHidden(newMenubarVisibility, skipLayout);
 	}
 
 	//#endregion
@@ -1177,13 +1180,12 @@ export class Workbench extends Disposable implements IPartService {
 		return container;
 	}
 
-
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return !this.menubarHidden;
+				return this.getCustomTitleBarStyle() && !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
