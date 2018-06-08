@@ -552,6 +552,33 @@ suite('QueryBuilder', () => {
 			cases.forEach(testIncludesDataItem);
 		});
 
+		test('include ./foldername', () => {
+			const ROOT_2 = '/project/root2';
+			const ROOT_1_FOLDERNAME = 'foldername';
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.configuration = uri.file(fixPath('config'));
+
+			const cases: [string, ISearchPathsResult][] = [
+				[
+					'./foldername',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(ROOT_1)
+						}]
+					}
+				],
+				[
+					'./foldername/foo',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(paths.join(ROOT_1, 'foo'))
+						}]
+					}
+				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
 		test('relative includes w/multiple ambiguous root folders', () => {
 			const ROOT_2 = '/project/rootB';
 			const ROOT_3 = '/otherproject/rootB';
