@@ -63,7 +63,7 @@ export interface ShellQuotingOptions {
 }
 
 export interface ShellConfiguration {
-	executable: string;
+	executable?: string;
 	args?: string[];
 	quoting?: ShellQuotingOptions;
 }
@@ -637,7 +637,7 @@ namespace ShellConfiguration {
 
 	export function is(value: any): value is ShellConfiguration {
 		let candidate: ShellConfiguration = value;
-		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+		return candidate && (Types.isString(candidate.executable) || (candidate.args === void 0 || Types.isStringArray(candidate.args)));
 	}
 
 	export function from(this: void, config: ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {

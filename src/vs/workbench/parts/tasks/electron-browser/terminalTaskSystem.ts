@@ -537,18 +537,19 @@ export class TerminalTaskSystem implements ITaskSystem {
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
+			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
-			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
-				shellSpecified = true;
+			if (shellOptions) {
+				if (shellOptions.executable) {
+					shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
+					shellSpecified = true;
+				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = this.resolveVariables(resolver, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
-			} else {
-				this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];

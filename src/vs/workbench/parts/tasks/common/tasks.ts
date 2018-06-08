@@ -72,7 +72,7 @@ export interface ShellConfiguration {
 	/**
 	 * The shell executable.
 	 */
-	executable: string;
+	executable?: string;
 
 	/**
 	 * The arguments to be passed to the shell executable.
