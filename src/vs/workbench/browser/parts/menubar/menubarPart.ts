@@ -217,7 +217,7 @@ export class MenubarPart extends Part {
 	}
 
 	private setupCustomMenubar(): void {
-		this.container.clearChildren();
+		this.container.empty();
 		this.container.attr('role', 'menubar');
 
 		this.customMenus = [];
