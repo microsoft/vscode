@@ -64,20 +64,21 @@ class Main {
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
 
+		let returnPromise: TPromise<any>;
 		if (argv['install-source']) {
-			return this.setInstallSource(argv['install-source']);
+			returnPromise = this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
-			return this.listExtensions(argv['show-versions']);
+			returnPromise = this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.installExtension(args);
+			returnPromise = this.installExtension(args);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.uninstallExtension(ids);
+			returnPromise = this.uninstallExtension(ids);
 		}
-		return undefined;
+		return returnPromise || TPromise.as(null);
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
@@ -242,7 +243,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			const instantiationService2 = instantiationService.createChild(services);
 			const main = instantiationService2.createInstance(Main);
 
-			return (main.run(argv) || TPromise.as(null)).then(() => {
+			return main.run(argv).then(() => {
 				// Dispose the AI adapter so that remaining data gets flushed.
 				return combinedAppender(...appenders).dispose();
 			});

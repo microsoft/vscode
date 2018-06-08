@@ -40,7 +40,7 @@ export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetry
 	};
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => null };
+export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => TPromise.as(null) };
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
