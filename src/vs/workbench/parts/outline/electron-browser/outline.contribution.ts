@@ -44,16 +44,6 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'order': 117,
 	'type': 'object',
 	'properties': {
-		[OutlineConfigKeys.filterOnType]: {
-			'description': localize('outline.typeToFilter', "Defines if typing in the input-box filters or finds elements."),
-			'type': 'boolean',
-			'default': true
-		},
-		[OutlineConfigKeys.navigateHighlights]: {
-			'description': localize('outline.navigateHighlights', "Only select highlighted elements (via filter or find) when navigating the tree"),
-			'type': 'boolean',
-			'default': true
-		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',

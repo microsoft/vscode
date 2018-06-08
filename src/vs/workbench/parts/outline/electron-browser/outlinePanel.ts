@@ -43,7 +43,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachProgressBarStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -54,6 +54,7 @@ import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineView
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { IViewsService } from 'vs/workbench/common/views';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 
 class RequestState {
 
@@ -147,8 +148,8 @@ class RequestOracle {
 
 class SimpleToggleAction extends Action {
 
-	constructor(label: string, checked: boolean, callback: (action: SimpleToggleAction) => any) {
-		super(`simple` + defaultGenerator.nextId(), label, undefined, true, _ => {
+	constructor(label: string, checked: boolean, callback: (action: SimpleToggleAction) => any, className?: string) {
+		super(`simple` + defaultGenerator.nextId(), label, className, true, _ => {
 			this.checked = !this.checked;
 			callback(this);
 			return undefined;
@@ -157,12 +158,14 @@ class SimpleToggleAction extends Action {
 	}
 }
 
-class OutlineState {
+
+class OutlineViewState {
 
 	private _followCursor = false;
+	private _filterOnType = true;
 	private _sortBy = OutlineItemCompareType.ByKind;
 
-	private _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean }>();
+	private _onDidChange = new Emitter<{ followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }>();
 	readonly onDidChange = this._onDidChange.event;
 
 	set followCursor(value: boolean) {
@@ -174,6 +177,17 @@ class OutlineState {
 
 	get followCursor(): boolean {
 		return this._followCursor;
+	}
+
+	get filterOnType() {
+		return this._filterOnType;
+	}
+
+	set filterOnType(value) {
+		if (value !== this._filterOnType) {
+			this._filterOnType = value;
+			this._onDidChange.fire({ filterOnType: true });
+		}
 	}
 
 	set sortBy(value: OutlineItemCompareType) {
@@ -212,7 +226,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
-	private _outlineViewState = new OutlineState();
+	private _outlineViewState = new OutlineViewState();
 	private _requestOracle: RequestOracle;
 	private _cachedHeight: number;
 	private _domNode: HTMLElement;
@@ -279,7 +293,9 @@ export class OutlinePanel extends ViewletPanel {
 			progressContainer, this._message, this._inputContainer, treeContainer
 		);
 
-		this._input = new InputBox(this._inputContainer, null, { placeholder: localize('filter', "Filter") });
+		this._input = new InputBox(this._inputContainer, null, {
+			placeholder: this._outlineViewState.filterOnType ? localize('filter', "Filter") : localize('find', "Find")
+		});
 		this._input.disable();
 
 		this.disposables.push(attachInputBoxStyler(this._input, this._themeService));
@@ -298,6 +314,17 @@ export class OutlinePanel extends ViewletPanel {
 				this._tree.domFocus();
 			}
 		}));
+
+		const checkBox = new Checkbox({
+			actionClassName: 'action-filter',
+			title: localize('checkboxFilter', "Filter element on type"),
+			isChecked: this._outlineViewState.filterOnType,
+			onChange: () => {
+				this._outlineViewState.filterOnType = !this._outlineViewState.filterOnType;
+			}
+		});
+		this._inputContainer.appendChild(checkBox.domNode);
+		this.disposables.push(attachCheckboxStyler(checkBox, this._themeService));
 
 		const $this = this;
 		const controller = new class extends OutlineController {
@@ -383,7 +410,7 @@ export class OutlinePanel extends ViewletPanel {
 		return result;
 	}
 
-	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean }) {
+	private _onDidChangeUserState(e: { followCursor?: boolean, sortBy?: boolean, filterOnType?: boolean }) {
 		this._outlineViewState.persist(this._storageService);
 		if (e.followCursor) {
 			// todo@joh update immediately
@@ -391,6 +418,9 @@ export class OutlinePanel extends ViewletPanel {
 		if (e.sortBy) {
 			this._treeComparator.type = this._outlineViewState.sortBy;
 			this._tree.refresh(undefined, true);
+		}
+		if (e.filterOnType) {
+			this._applyTypeToFilter();
 		}
 	}
 
@@ -473,16 +503,6 @@ export class OutlinePanel extends ViewletPanel {
 			OutlineTreeState.restore(this._tree, state);
 		}
 
-		// depending on the user setting we filter or find elements
-		if (this._configurationService.getValue(OutlineConfigKeys.filterOnType)) {
-			this._treeFilter.enabled = true;
-			this._treeDataSource.filterOnScore = true;
-			this._input.setPlaceHolder(localize('filter', "Filter"));
-		} else {
-			this._treeFilter.enabled = false;
-			this._treeDataSource.filterOnScore = false;
-			this._input.setPlaceHolder(localize('find', "Find"));
-		}
 		this._input.enable();
 		this.layoutBody();
 
@@ -581,6 +601,22 @@ export class OutlinePanel extends ViewletPanel {
 		}));
 	}
 
+	private _applyTypeToFilter(): void {
+		// depending on the user setting we filter or find elements
+		if (this._outlineViewState.filterOnType) {
+			this._treeFilter.enabled = true;
+			this._treeDataSource.filterOnScore = true;
+			this._input.setPlaceHolder(localize('filter', "Filter"));
+		} else {
+			this._treeFilter.enabled = false;
+			this._treeDataSource.filterOnScore = false;
+			this._input.setPlaceHolder(localize('find', "Find"));
+		}
+		if (this._tree.getInput()) {
+			this._tree.refresh(undefined, true);
+		}
+	}
+
 	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
 		let { range, uri } = element.symbol.location;
 		let input = this._editorService.createInput({ resource: uri });
@@ -636,7 +672,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusDownHighlighted',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyCode.DownArrow,
-	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused, ContextKeyExpr.equals(`config.${OutlineConfigKeys.navigateHighlights}`, true)),
+	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, false)
 });
 
@@ -644,6 +680,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: 'outline.focusUpHighlighted',
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	primary: KeyCode.UpArrow,
-	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused, ContextKeyExpr.equals(`config.${OutlineConfigKeys.navigateHighlights}`, true)),
+	when: ContextKeyExpr.and(OutlineViewFiltered, OutlineViewFocused),
 	handler: accessor => goUpOrDownToHighligthedElement(accessor, true)
 });

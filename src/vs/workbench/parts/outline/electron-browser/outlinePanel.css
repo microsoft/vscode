@@ -25,10 +25,33 @@
 .monaco-workbench .outline-panel .outline-input {
 	box-sizing: border-box;
 	padding: 2px 9px 5px 9px;
+	position: relative;
 }
 
 .monaco-workbench .outline-panel .outline-input .monaco-inputbox {
 	width: 100%;
+}
+
+.monaco-workbench .outline-panel .outline-input .monaco-inputbox .input {
+	padding-right: 22px;
+}
+
+.monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox {
+	position: absolute;
+	top: 5px;
+	right: 13px;
+	bottom: 0;
+	display: flex;
+	align-items: center;
+}
+
+.monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox.action-filter {
+	background: url(./media/files_Filter_Filter_16x_vscode.svg) center center no-repeat;
+	background-size: 90%;
+}
+
+.vs-dark .monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox.action-filter {
+	background: url(./media/files_Filter_Filter_16x_vscode_inverse.svg);
 }
 
 .monaco-workbench .outline-panel .outline-tree {
