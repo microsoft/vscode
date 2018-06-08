@@ -261,7 +261,7 @@ suite('Splitview', () => {
 		view1.dispose();
 	});
 
-	test.skip('sashes are properly enabled/disabled', () => {
+	test('sashes are properly enabled/disabled', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
@@ -274,8 +274,8 @@ suite('Splitview', () => {
 
 		let sashes = getSashes(splitview);
 		assert.equal(sashes.length, 2, 'there are two sashes');
-		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Maximum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Maximum, 'second sash is enabled');
 
 		splitview.layout(60);
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
@@ -286,22 +286,26 @@ suite('Splitview', () => {
 		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(200);
-		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view1.maximumSize = 20;
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view2.maximumSize = 20;
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
 		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		view1.maximumSize = 300;
-		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view2.maximumSize = 200;
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+
+		splitview.resizeView(0, 40);
 		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
 		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
