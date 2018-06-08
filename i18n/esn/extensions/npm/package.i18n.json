@@ -13,11 +13,14 @@
 	"config.npm.packageManager": "El administrador de paquetes utilizado para ejecutar secuencias de comandos. ",
 	"config.npm.exclude": "Configura patrones globales para carpetas que deben excluirse de la detección automática de scripts. ",
 	"config.npm.enableScriptExplorer": "Habilitar una vista de explorador para scripts de npm.",
+	"config.npm.scriptExplorerAction": "La acción de clic predeterminada utilizada en el explorador de secuencias de comandos: 'abrir' o 'ejecutar', el valor predeterminado es 'abrir'.",
 	"npm.parseError": "Detección de tareas de nueva gestión pública: no se pudo analizar el archivo {0}",
 	"taskdef.script": "Script npm que debe personalizarse.",
 	"taskdef.path": "La ruta de la carpeta del archivo package.json que proporciona la secuencia de comandos. Se puede omitir.",
 	"view.name": "Scripts Npm ",
 	"command.refresh": "Actualizar",
+	"command.run": "Ejecutar",
 	"command.debug": "Depurar",
-	"command.openScript": "Abrir"
+	"command.openScript": "Abrir",
+	"command.runInstall": "Ejecutar instalación"
 }

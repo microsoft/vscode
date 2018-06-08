@@ -35,7 +35,7 @@ export const modifiedItemForeground = registerColor('settings.modifiedItemForegr
 	light: '#019001',
 	dark: '#73C991',
 	hc: '#73C991'
-}, localize('modifiedItemForeground', "The foreground color for a modified setting."));
+}, localize('modifiedItemForeground', "(For settings editor preview) The foreground color for a modified setting."));
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
@@ -475,7 +475,7 @@ export class SettingsRenderer implements IRenderer {
 			this.renderBool(element, isSelected, template, onChange);
 		} else if (element.valueType === 'string') {
 			this.renderText(element, isSelected, template, onChange);
-		} else if (element.valueType === 'number') {
+		} else if (element.valueType === 'number' || element.valueType === 'integer') {
 			this.renderText(element, isSelected, template, value => onChange(parseInt(value)));
 		} else {
 			this.renderEditInSettingsJson(element, isSelected, template);
@@ -493,7 +493,8 @@ export class SettingsRenderer implements IRenderer {
 
 	private renderEnum(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: string) => void): void {
 		const idx = element.enum.indexOf(element.value);
-		const selectBox = new SelectBox(element.enum, idx, this.contextViewService);
+		const displayOptions = element.enum.map(escapeInvisibleChars);
+		const selectBox = new SelectBox(displayOptions, idx, this.contextViewService);
 		template.toDispose.push(selectBox);
 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
 		selectBox.render(template.valueElement);
@@ -534,6 +535,12 @@ export class SettingsRenderer implements IRenderer {
 	disposeTemplate(tree: ITree, templateId: string, template: IDisposableTemplate): void {
 		dispose(template.toDispose);
 	}
+}
+
+function escapeInvisibleChars(enumValue: string): string {
+	return enumValue
+		.replace(/\n/g, '\\n')
+		.replace(/\r/g, '\\r');
 }
 
 export class SettingsTreeFilter implements IFilter {

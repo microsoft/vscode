@@ -8,5 +8,7 @@
 	],
 	"prompt": "¿Actualizar automáticamente las importaciones del archivo movido: ' {0} '?",
 	"reject.title": "No",
-	"accept.title": "Sí"
+	"accept.title": "Sí",
+	"always.title": "Sí, siempre actualizar las importaciones",
+	"never.title": "No, nunca actualizar las importaciones"
 }

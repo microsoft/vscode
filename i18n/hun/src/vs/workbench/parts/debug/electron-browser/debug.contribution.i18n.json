@@ -21,6 +21,7 @@
 	"allowBreakpointsEverywhere": "Bármelyik fájlban helyezhető el töréspont",
 	"openExplorerOnEnd": "Hibakeresési munkamenet végén automatikusan nyíljon meg a fájlkezelő nézet",
 	"inlineValues": "Változók értékének megjelenítése a sorok között hibakeresés közben",
+	"toolBarLocation": "Meghatározza a hibakeresési eszköztár típusát: „float” esetén lebeg az összes nézet fölött, „docked” esetén rögzítve van a hibakeresési nézeten, „none” esetén pedig el van rejtve.",
 	"never": "Soha ne jelenjen meg a hibakeresés az állapotsoron",
 	"always": "Mindig jelenjen meg a hibakeresés az állapotsoron",
 	"onFirstSessionStart": "A hibakeresés csak akkor jelenjen meg az állapotsoron, miután először el lett indítva a hibakeresés",

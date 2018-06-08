@@ -119,7 +119,7 @@ async function goToProjectConfig(
 		return;
 	}
 
-	const file = client.normalizePath(resource);
+	const file = client.toPath(resource);
 	// TSServer errors when 'projectInfo' is invoked on a non js/ts file
 	if (!file || !clientHost.handles(resource)) {
 		vscode.window.showWarningMessage(

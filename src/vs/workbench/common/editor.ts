@@ -20,8 +20,10 @@ import { Schemas } from 'vs/base/common/network';
 import { LRUCache } from 'vs/base/common/map';
 import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
@@ -924,6 +926,19 @@ export interface IEditorCommandsContext {
 	editorIndex?: number;
 }
 
+export class EditorCommandsContextActionRunner extends ActionRunner {
+
+	constructor(
+		private context: IEditorCommandsContext
+	) {
+		super();
+	}
+
+	run(action: IAction, context?: any): TPromise<void> {
+		return super.run(action, this.context);
+	}
+}
+
 export interface IEditorCloseEvent extends IEditorIdentifier {
 	replaced: boolean;
 	index: number;
@@ -1048,13 +1063,15 @@ export class EditorViewStateMemento<T> {
 	public loadState(group: IEditorGroup, editor: EditorInput): T;
 	public loadState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
 		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
+		if (!resource || !group) {
+			return void 0; // we are not in a good state to load any viewstate for a resource
+		}
 
-			const viewStates = cache.get(resource.toString());
-			if (viewStates) {
-				return viewStates[group.id];
-			}
+		const cache = this.doLoad();
+
+		const viewStates = cache.get(resource.toString());
+		if (viewStates) {
+			return viewStates[group.id];
 		}
 
 		return void 0;

@@ -19,10 +19,10 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
+import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { VIEWLET_ID as SCM_VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -122,8 +122,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private getViewEntries(): ViewEntry[] {
 		const viewEntries: ViewEntry[] = [];
 
-		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewLocation: ViewLocation): ViewEntry[] => {
-			const views = ViewsRegistry.getViews(viewLocation);
+		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
+			const views = ViewsRegistry.getViews(viewContainer);
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
@@ -145,9 +145,9 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = viewlet.id === SCM_VIEWLET_ID ? ViewLocation.SCM : ViewLocation.get(viewlet.id);
-			if (viewLocation) {
-				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
+			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			if (viewContainer) {
+				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);
 			}
 		});

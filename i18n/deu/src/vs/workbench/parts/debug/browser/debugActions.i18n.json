@@ -41,6 +41,7 @@
 	"debugConsoleAction": "Debugging-Konsole",
 	"unreadOutput": "Neue Ausgabe in Debugging-Konsole",
 	"debugFocusConsole": "Focus-Debugging-Konsole",
+	"focusSession": "Fokus auf Sitzung",
 	"stepBackDebug": "Schritt zurück",
 	"reverseContinue": "Umkehren"
 }

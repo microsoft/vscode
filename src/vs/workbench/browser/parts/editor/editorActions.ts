@@ -1546,7 +1546,6 @@ export class EditorLayoutCenteredAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-
 		// Ensure we can enter centered editor layout even if there are more than 1 groups
 		if (this.editorGroupService.count > 1) {
 			mergeAllGroups(this.editorGroupService);
@@ -1558,7 +1557,6 @@ export class EditorLayoutCenteredAction extends Action {
 		return TPromise.as(true);
 	}
 }
-
 export class EditorToggleAutoSaveAction extends Action {
 	public static readonly ID = 'workbench.action.toggleAutoSave';
 	public static readonly LABEL = nls.localize('toggleAutoSave', "Toggle Auto Save");

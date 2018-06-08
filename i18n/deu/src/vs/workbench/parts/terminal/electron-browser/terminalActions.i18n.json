@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Zu vorherigem Befehl scrollen",
 	"workbench.action.terminal.scrollToNextCommand": "Zu nächstem Befehl scrollen",
 	"workbench.action.terminal.selectToPreviousCommand": "Auswählen bis zu vorherigem Befehl",
-	"workbench.action.terminal.selectToNextCommand": "Auswählen bis zu nächstem Befehl"
+	"workbench.action.terminal.selectToNextCommand": "Auswählen bis zu nächstem Befehl",
+	"workbench.action.terminal.selectToPreviousLine": " Auswählen bis zur vorherigen Zeile ",
+	"workbench.action.terminal.selectToNextLine": "Auswählen bis zur nächsten Zeile"
 }

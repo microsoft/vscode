@@ -19,6 +19,7 @@
 	"titleLengthValidation": "标题太长。",
 	"details": "请输入详细信息。",
 	"sendSystemInfo": "包含系统信息 ({0})",
+	"show": "显示",
 	"sendProcessInfo": "包含当前运行中的进程 ({0})",
 	"sendWorkspaceInfo": "包含工作区元数据 ({0})",
 	"sendExtensions": "包含已启用的扩展 ({0})",

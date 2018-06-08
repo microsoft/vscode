@@ -376,9 +376,9 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(toDisposable(() => this.panelPart.shutdown()));
 		serviceCollection.set(IPanelService, this.panelPart);
 
-		// Custom views service
-		const customViewsService = this.instantiationService.createInstance(ViewsService);
-		serviceCollection.set(IViewsService, customViewsService);
+		// views service
+		const viewsService = this.instantiationService.createInstance(ViewsService);
+		serviceCollection.set(IViewsService, viewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
@@ -404,7 +404,6 @@ export class Workbench extends Disposable implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this._register(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
@@ -579,9 +578,6 @@ export class Workbench extends Disposable implements IPartService {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
 		}
-
-		const newMenubarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
-		this.setMenubarHidden(newMenubarVisibility, skipLayout);
 	}
 
 	//#endregion
@@ -1088,22 +1084,25 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Notifications Alerts
 		this._register(this.instantiationService.createInstance(NotificationsAlerts, this.notificationService.model));
+	}
 
-		// Notifications Status
-		const notificationsStatus = this.instantiationService.createInstance(NotificationsStatus, this.notificationService.model);
+	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
+	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-		// Eventing
-		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
+	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
-			// Update status
-			notificationsStatus.update(this.notificationsCenter.isVisible);
+	isCreated(): boolean {
+		return this.workbenchCreated && this.workbenchStarted;
+	}
 
-			// Update toasts
-			this.notificationsToasts.update(this.notificationsCenter.isVisible);
-		}));
+	hasFocus(part: Parts): boolean {
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return false;
+		}
 
-		// Register Commands
-		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
+		const container = this.getContainer(part);
+		return DOM.isAncestor(activeElement, container);
 	}
 
 	getInstantiationService(): IInstantiationService {
@@ -1134,26 +1133,6 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	//#region IPartService
-
-	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
-	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
-
-	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
-
-	isCreated(): boolean {
-		return this.workbenchCreated && this.workbenchStarted;
-	}
-
-	hasFocus(part: Parts): boolean {
-		const activeElement = document.activeElement;
-		if (!activeElement) {
-			return false;
-		}
-
-		const container = this.getContainer(part);
-		return DOM.isAncestor(activeElement, container);
-	}
-
 	getContainer(part: Parts): HTMLElement {
 		let container: HTMLElement = null;
 		switch (part) {
@@ -1182,6 +1161,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		return container;
 	}
+
 
 	isVisible(part: Parts): boolean {
 		switch (part) {

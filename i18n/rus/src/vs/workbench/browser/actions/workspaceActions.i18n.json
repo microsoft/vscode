@@ -14,5 +14,6 @@
 	"save": "Сохранить",
 	"saveWorkspace": "Сохранить рабочую область",
 	"openWorkspaceAction": "Открыть рабочую область...",
-	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области"
+	"openWorkspaceConfigFile": "Открыть файл конфигурации рабочей области",
+	"duplicateWorkspaceInNewWindow": "Создать копию рабочей области в новом окне"
 }

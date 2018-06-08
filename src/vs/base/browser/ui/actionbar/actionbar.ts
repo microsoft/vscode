@@ -17,7 +17,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -42,8 +42,6 @@ export class BaseActionItem implements IActionItem {
 	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
-
-	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
 
 	private _actionRunner: IActionRunner;
 
@@ -169,14 +167,12 @@ export class BaseActionItem implements IActionItem {
 	public focus(): void {
 		if (this.builder) {
 			this.builder.domFocus();
-			this.builder.addClass('focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
 			this.builder.domBlur();
-			this.builder.removeClass('focused');
 		}
 	}
 
@@ -277,9 +273,7 @@ export class ActionItem extends BaseActionItem {
 
 	public _updateLabel(): void {
 		if (this.options.label) {
-			let label = this.getAction().label;
-			label = label.replace(BaseActionItem.MNEMONIC_REGEX, '<u>$1</u>');
-			this.$e.innerHtml(label);
+			this.$e.text(this.getAction().label);
 		}
 	}
 
@@ -378,9 +372,6 @@ export class ActionBar implements IActionRunner {
 
 	// Items
 	public items: IActionItem[];
-	private mnemonics: {
-		[index: number]: IAction;
-	} = {};
 
 	private focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
@@ -455,8 +446,6 @@ export class ActionBar implements IActionRunner {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
-			} else if (this.mnemonics[event.keyCode]) {
-				this.run(this.mnemonics[event.keyCode]);
 			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				// Nothing, just staying out of the else branch
 			} else {
@@ -498,7 +487,7 @@ export class ActionBar implements IActionRunner {
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
 		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menu');
+			this.actionsList.setAttribute('role', 'menubar');
 		} else {
 			this.actionsList.setAttribute('role', 'toolbar');
 		}
@@ -569,15 +558,6 @@ export class ActionBar implements IActionRunner {
 		return this.domNode;
 	}
 
-	private _addMnemonic(action: IAction): void {
-		let matches = BaseActionItem.MNEMONIC_REGEX.exec(action.label);
-		if (matches && matches.length === 2) {
-			let mnemonic = matches[1];
-
-			this.mnemonics[KeyCodeUtils.fromString(mnemonic)] = action;
-		}
-	}
-
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
 
 		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
@@ -594,8 +574,6 @@ export class ActionBar implements IActionRunner {
 				e.preventDefault();
 				e.stopPropagation();
 			});
-
-			this._addMnemonic(action);
 
 			let item: IActionItem = null;
 

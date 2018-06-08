@@ -18,7 +18,6 @@ export interface IMenuOptions {
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
-	ariaLabel?: string;
 }
 
 export class Menu {
@@ -28,11 +27,9 @@ export class Menu {
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
 		addClass(container, 'monaco-menu-container');
-		container.setAttribute('role', 'presentation');
 
 		let menuContainer = document.createElement('div');
 		addClass(menuContainer, 'monaco-menu');
-		menuContainer.setAttribute('role', 'presentation');
 		container.appendChild(menuContainer);
 
 		this.actionBar = new ActionBar(menuContainer, {
@@ -40,11 +37,10 @@ export class Menu {
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
 			actionRunner: options.actionRunner,
-			isMenu: true,
-			ariaLabel: options.ariaLabel
+			isMenu: true
 		});
 
-		this.actionBar.push(actions, { icon: true, label: true, isMenu: true });
+		this.actionBar.push(actions, { icon: true, label: true });
 	}
 
 	public get onDidCancel(): Event<void> {

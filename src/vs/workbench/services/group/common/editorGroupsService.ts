@@ -91,6 +91,7 @@ export enum MergeGroupMode {
 
 export interface IMergeGroupOptions {
 	mode?: MergeGroupMode;
+	index?: number;
 }
 
 export type ICloseEditorsFilter = {

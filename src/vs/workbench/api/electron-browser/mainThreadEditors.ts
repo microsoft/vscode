@@ -26,6 +26,8 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShowOptions, ITextEditorPositionData, MainThreadTextEditorsShape } from '../node/extHost.protocol';
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from './mainThreadEditor';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { IFileService } from 'vs/platform/files/common/files';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -250,10 +252,18 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorViewColumn]) {
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
+	const openerService = accessor.get(IOpenerService);
+	const fileService = accessor.get(IFileService);
 
 	const [resource, options, position] = args;
 
-	return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
+	if (fileService.canHandleResource(resource)) {
+		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
+	} else {
+		// http://, https://, command:id
+		//todo@ben make this proper
+		return openerService.open(resource).then(_ => void 0);
+	}
 });
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {

@@ -251,6 +251,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	search(filter: string): void {
 		this.searchWidget.focus();
+		this.searchWidget.setValue(filter);
 	}
 
 	clearSearchResults(): void {

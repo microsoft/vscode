@@ -24,8 +24,8 @@ export class ConfigureLocaleAction extends Action {
 		'{',
 		`\t// ${localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${localize('restart', 'Changing the value requires restarting VSCode.')}`,
-		`\t"locale":"${language}"`,
+		`\t`,
+		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VSCode has been restarted.')}`,
 		'}'
 	].join('\n');
 

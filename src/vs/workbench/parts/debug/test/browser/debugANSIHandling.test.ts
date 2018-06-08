@@ -40,7 +40,7 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'class1'));
 			assert(dom.hasClass(child, 'class2'));
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 		}
 
 		child = root.lastChild;
@@ -49,7 +49,7 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'class2'));
 			assert(dom.hasClass(child, 'class3'));
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 		}
 	});
 
@@ -66,7 +66,7 @@ suite('Debug - ANSI Handling', () => {
 		if (child instanceof HTMLSpanElement) {
 			return child;
 		} else {
-			assert.fail();
+			assert.fail('Unexpected assertion error');
 			return null;
 		}
 	}
@@ -111,6 +111,20 @@ suite('Debug - ANSI Handling', () => {
 			});
 		}
 
+		for (let i = 40; i <= 47; i++) {
+			const style: string = 'code-background-' + i;
+
+			// Foreground colour codes
+			assertSingleSequenceElement('\x1b[' + i + 'm', (child) => {
+				assert(dom.hasClass(child, style));
+			});
+
+			// Cancellation code removes colour code
+			assertSingleSequenceElement('\x1b[' + i + ';49m', (child) => {
+				assert(dom.hasClass(child, style) === false);
+			});
+		}
+
 		// Codes do not interfere
 		assertSingleSequenceElement('\x1b[1;4;30;31;32;33;34;35;36;37m', (child) => {
 			assert.equal(10, child.classList.length);
@@ -134,8 +148,8 @@ suite('Debug - ANSI Handling', () => {
 			assert(dom.hasClass(child, 'code-underline'));
 		});
 
-		// Cancellation code removes all codes
-		assertSingleSequenceElement('\x1b[1;4;30;31;32;33;34;35;36;37;0m', (child) => {
+		// Cancellation code removes multiple codes
+		assertSingleSequenceElement('\x1b[1;4;30;41;32;43;34;45;36;47;0m', (child) => {
 			assert.equal(0, child.classList.length);
 		});
 
@@ -156,7 +170,7 @@ suite('Debug - ANSI Handling', () => {
 			if (child instanceof HTMLSpanElement) {
 				assertions[i](child);
 			} else {
-				assert.fail();
+				assert.fail('Unexpected assertion error');
 			}
 		}
 	}
@@ -244,8 +258,8 @@ suite('Debug - ANSI Handling', () => {
 			'\x1b[1;;m',
 			'\x1b[m',
 			// Unsupported colour codes
-			'\x1b[30;40m',
-			'\x1b[100m'
+			'\x1b[30;50m',
+			'\x1b[99m'
 		];
 
 		sequences.forEach(sequence => {

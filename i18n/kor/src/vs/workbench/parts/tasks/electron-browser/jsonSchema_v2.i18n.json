@@ -28,6 +28,7 @@
 	"JsonSchema.tasks.group.none": "작업을 그룹에 할당 안 함",
 	"JsonSchema.tasks.group": "이 작업을 할당할 실행 그룹을 정의합니다. 빌드 그룹에 추가를 위한 \"build'와 테스트 그룹에 추가를 위한 \"test\"를 지원합니다.",
 	"JsonSchema.tasks.type": "작업이 프로세스로 실행되는지 또는 셸 내의 명령으로 실행되는지를 제어합니다.",
+	"JsonSchema.commandArray": "실행할 셸 명령입니다. 배열 항목은 공백 문자를 사용하여 연결됩니다.",
 	"JsonSchema.command.quotedString.value": "실제 명령 값",
 	"JsonSchema.tasks.quoting.escape": "셸의 이스케이프 문자를 사용하여 문자를 이스케이프합니다(예: ` under PowerShell 및 \\ under bash).",
 	"JsonSchema.tasks.quoting.strong": "셸의 강력한 따옴표 문자를 사용하여 인수를 따옴표 처리합니다(예: \" under PowerShell and bash).",

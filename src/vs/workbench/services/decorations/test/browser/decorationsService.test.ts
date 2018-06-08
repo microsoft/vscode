@@ -208,4 +208,32 @@ suite('DecorationsService', function () {
 
 		reg.dispose();
 	});
+
+	test('Decorations not bubbling... #48745', function () {
+
+		let resolve: Function;
+		let reg = service.registerDecorationsProvider({
+			label: 'Test',
+			onDidChange: Event.None,
+			provideDecorations(uri: URI) {
+				if (uri.path.match(/hello$/)) {
+					return { tooltip: 'FOO', weight: 17, bubble: true };
+				} else {
+					return new TPromise<IDecorationData>(_resolve => resolve = _resolve);
+				}
+			}
+		});
+
+		let data1 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(!data1);
+
+		let data2 = service.getDecoration(URI.parse('a:b/c.hello'), false);
+		assert.ok(data2.tooltip);
+
+		let data3 = service.getDecoration(URI.parse('a:b/'), true);
+		assert.ok(data3);
+
+
+		reg.dispose();
+	});
 });

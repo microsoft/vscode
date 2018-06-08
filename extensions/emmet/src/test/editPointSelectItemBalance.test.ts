@@ -19,7 +19,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 	margin: 20px 10px;
 	background-image: url('tryme.png');
 }
-		
+
 .boo .hoo {
 	margin: 10px;
 }
@@ -46,7 +46,7 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 </head>
 <body>
 	<div>
-		
+\t\t
 	</div>
 	<div class="header">
 		<ul class="nav main">
@@ -104,6 +104,43 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 			});
 
 			editor.selections = [new Selection(6, 15, 6, 15)];
+			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
+				fetchSelectItem('prev');
+				testSelection(editor.selection, colstart, line, colend);
+			});
+
+			return Promise.resolve();
+		});
+	});
+
+	test('Emmet Next/Prev Item in html template', function (): any {
+		const templateContents = `
+<script type="text/template">
+	<div class="header">
+		<ul class="nav main">
+		</ul>
+	</div>
+</script>
+`;
+		return withRandomFileEditor(templateContents, '.html', (editor, doc) => {
+			editor.selections = [new Selection(2, 2, 2, 2)];
+
+			let expectedNextItemPoints: [number, number, number][] = [
+				[2, 2, 5],  // div
+				[2, 6, 20], // class="header"
+				[2, 13, 19], // header
+				[3, 3, 5],   // ul
+				[3, 6, 22],   // class="nav main"
+				[3, 13, 21], // nav main
+				[3, 13, 16],   // nav
+				[3, 17, 21], // main
+			];
+			expectedNextItemPoints.forEach(([line, colstart, colend]) => {
+				fetchSelectItem('next');
+				testSelection(editor.selection, colstart, line, colend);
+			});
+
+			editor.selections = [new Selection(4, 1, 4, 1)];
 			expectedNextItemPoints.reverse().forEach(([line, colstart, colend]) => {
 				fetchSelectItem('prev');
 				testSelection(editor.selection, colstart, line, colend);
@@ -240,6 +277,42 @@ suite('Tests for Next/Previous Select/Edit point and Balance actions', () => {
 		});
 	});
 
+	test('Emmet Balance In/Out in html template', function (): any {
+		const htmlTemplate = `
+<script type="text/html">
+<div class="header">
+	<ul class="nav main">
+		<li class="item1">Item 1</li>
+		<li class="item2">Item 2</li>
+	</ul>
+</div>
+</script>`;
+
+		return withRandomFileEditor(htmlTemplate, 'html', (editor, doc) => {
+
+			editor.selections = [new Selection(5, 24, 5, 24)];
+			let expectedBalanceOutRanges: [number, number, number, number][] = [
+				[5, 20, 5, 26],	// <li class="item1">``Item 2''</li>
+				[5, 2, 5, 31],	// ``<li class="item1">Item 2</li>''
+				[3, 22, 6, 1],	// inner contents of ul
+				[3, 1, 6, 6],	// outer contents of ul
+				[2, 20, 7, 0],	// inner contents of div
+				[2, 0, 7, 6],	// outer contents of div
+			];
+			expectedBalanceOutRanges.forEach(([linestart, colstart, lineend, colend]) => {
+				balanceOut();
+				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			});
+
+			expectedBalanceOutRanges.pop();
+			expectedBalanceOutRanges.reverse().forEach(([linestart, colstart, lineend, colend]) => {
+				balanceIn();
+				testSelection(editor.selection, colstart, linestart, colend, lineend);
+			});
+
+			return Promise.resolve();
+		});
+	});
 });
 
 function testSelection(selection: Selection, startChar: number, startline: number, endChar?: number, endLine?: number) {

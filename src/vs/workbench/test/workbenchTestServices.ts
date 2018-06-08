@@ -15,7 +15,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { ConfirmResult, IEditorInputWithOptions, CloseDirection, IEditorIdentifier, IUntitledResourceInput, IResourceDiffInput, IResourceSideBySideInput, IEditorInput, IEditor, IEditorCloseEvent } from 'vs/workbench/common/editor';
-import { IEditorOpeningEvent, IEditorServiceImpl, IEditorGroupView, IEditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorOpeningEvent, EditorServiceImpl, IEditorGroupView, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 import Severity from 'vs/base/common/severity';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
@@ -494,7 +494,7 @@ export class TestStorageService implements IStorageService {
 	}
 }
 
-export class TestEditorGroupsService implements IEditorGroupsServiceImpl {
+export class TestEditorGroupsService implements EditorGroupsServiceImpl {
 	_serviceBrand: ServiceIdentifier<any>;
 
 	constructor(public groups: TestEditorGroup[] = []) { }
@@ -669,7 +669,7 @@ export class TestEditorGroup implements IEditorGroupView {
 	layout(width: number, height: number): void { }
 }
 
-export class TestEditorService implements IEditorServiceImpl {
+export class TestEditorService implements EditorServiceImpl {
 
 	_serviceBrand: ServiceIdentifier<any>;
 
@@ -958,7 +958,6 @@ export class TestWindowService implements IWindowService {
 	public _serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
-	onDidChangeMaximize: Event<boolean> = new Emitter<boolean>().event;
 
 	isFocused(): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1036,10 +1035,6 @@ export class TestWindowService implements IWindowService {
 		return TPromise.as(void 0);
 	}
 
-	isMaximized(): TPromise<boolean> {
-		return TPromise.as(void 0);
-	}
-
 	setDocumentEdited(flag: boolean): TPromise<void> {
 		return TPromise.as(void 0);
 	}
@@ -1054,18 +1049,6 @@ export class TestWindowService implements IWindowService {
 
 	showMessageBox(options: Electron.MessageBoxOptions): TPromise<IMessageBoxResult> {
 		return TPromise.wrap({ button: 0 });
-	}
-
-	maximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	unmaximizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	minimizeWindow(): TPromise<void> {
-		return TPromise.as(void 0);
 	}
 
 	showSaveDialog(options: Electron.SaveDialogOptions): TPromise<string> {
@@ -1121,8 +1104,6 @@ export class TestWindowsService implements IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
-	onWindowMaximize: Event<number>;
-	onWindowUnmaximize: Event<number>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1209,10 +1190,6 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	unmaximizeWindow(windowId: number): TPromise<void> {
-		return TPromise.as(void 0);
-	}
-
-	minimizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/workbench/browser/parts/editor/editor.contribution';
-import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
 import { Event, Emitter, once } from 'vs/base/common/event';
@@ -18,7 +18,7 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/com
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS, IEditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -33,6 +33,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
+import { Color } from 'vs/base/common/color';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -40,7 +41,7 @@ interface IEditorPartUIState {
 	mostRecentActiveGroups: GroupIdentifier[];
 }
 
-export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEditorGroupsAccessor {
+export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
 
 	_serviceBrand: any;
 
@@ -651,7 +652,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		const targetView = this.assertGroupView(target);
 
 		// Move/Copy editors over into target
-		let index = targetView.count;
+		let index = (options && typeof options.index === 'number') ? options.index : targetView.count;
 		sourceView.editors.forEach(editor => {
 			const inactive = !sourceView.isActive(editor);
 			const copyOptions: ICopyEditorOptions = { index, inactive, preserveFocus: inactive };
@@ -706,8 +707,14 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 		this._onDidPreferredSizeChange.fire();
 	}
 
+	private getGridSeparatorBorder(): Color {
+		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
+	}
+
 	protected updateStyles(): void {
 		this.container.style.backgroundColor = this.getColor(editorBackground);
+
+		this.gridWidget.style({ separatorBorder: this.getGridSeparatorBorder() });
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -768,7 +775,7 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 						return groupView;
 					}
-				}));
+				}, { styles: { separatorBorder: this.getGridSeparatorBorder() } }));
 
 				// Ensure last active group has focus
 				this._activeGroup.focus();
@@ -979,35 +986,3 @@ export class EditorPart extends Part implements IEditorGroupsServiceImpl, IEdito
 
 	//#endregion
 }
-
-// Group borders (TODO@ben this should be a color the GridView exposes)
-registerThemingParticipant((theme, collector) => {
-	const groupBorderColor = theme.getColor(EDITOR_GROUP_BORDER) || theme.getColor(contrastBorder);
-	if (groupBorderColor) {
-		collector.addRule(`
-			.monaco-workbench > .part.editor > .content .split-view-view {
-				position: relative;
-			}
-
-			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2 > .split-view-container > .split-view-view:not(:first-child)::before {
-				content: '';
-				position: absolute;
-				top: 0;
-				left: 0;
-				z-index: 5;
-				pointer-events: none;
-				background: ${groupBorderColor}
-			}
-
-			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2.horizontal > .split-view-container>.split-view-view:not(:first-child)::before {
-				height: 100%;
-				width: 1px;
-			}
-
-			.monaco-workbench > .part.editor > .content .monaco-grid-view .monaco-split-view2.vertical > .split-view-container > .split-view-view:not(:first-child)::before {
-				height: 1px;
-				width: 100%;
-			}
-		`);
-	}
-});

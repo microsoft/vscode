@@ -116,8 +116,8 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 			this.topmostLineMonitor,
 			this.contributions);
 
-		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, true);
-
+		this.setPreviewActiveContext(true);
+		this.activePreview = preview;
 		return this.registerPreview(preview);
 	}
 
@@ -127,22 +127,29 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 		this.previews.push(preview);
 
 		preview.onDispose(() => {
-			const existing = this.previews.indexOf(preview!);
-			if (existing >= 0) {
-				this.previews.splice(existing, 1);
+			const existing = this.previews.indexOf(preview);
+			if (existing === -1) {
+				return;
+			}
+
+			this.previews.splice(existing, 1);
+			if (this.activePreview === preview) {
+				this.setPreviewActiveContext(false);
+				this.activePreview = undefined;
 			}
 		});
 
 		preview.onDidChangeViewState(({ webviewPanel }) => {
 			disposeAll(this.previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
-
-			vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey,
-				webviewPanel.visible);
-
+			this.setPreviewActiveContext(webviewPanel.visible);
 			this.activePreview = webviewPanel.visible ? preview : undefined;
 		});
 
 		return preview;
+	}
+
+	private setPreviewActiveContext(value: boolean) {
+		vscode.commands.executeCommand('setContext', MarkdownPreviewManager.markdownPreviewActiveContextKey, value);
 	}
 }
 

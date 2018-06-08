@@ -6,7 +6,7 @@
 import * as assert from 'assert';
 import { Emitter } from 'vs/base/common/event';
 import { SplitView, IView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
-import { Sash } from 'vs/base/browser/ui/sash/sash';
+import { Sash, SashState } from 'vs/base/browser/ui/sash/sash';
 
 class TestView implements IView {
 
@@ -94,7 +94,7 @@ suite('Splitview', () => {
 		let viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 3, 'split view should have 3 views');
 
-		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
+		let sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.equal(sashQuery.length, 2, 'split view should have 2 sashes');
 
 		splitview.removeView(2);
@@ -102,7 +102,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 2, 'split view should have 2 views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.equal(sashQuery.length, 1, 'split view should have 1 sash');
 
 		splitview.removeView(0);
@@ -110,7 +110,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 1, 'split view should have 1 view');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.removeView(0);
@@ -118,7 +118,7 @@ suite('Splitview', () => {
 		viewQuery = container.querySelectorAll('.monaco-split-view2 > .split-view-container > .split-view-view');
 		assert.equal(viewQuery.length, 0, 'split view should have no views');
 
-		sashQuery = container.querySelectorAll('.monaco-split-view2 > .monaco-sash');
+		sashQuery = container.querySelectorAll('.monaco-split-view2 > .sash-container > .monaco-sash');
 		assert.equal(sashQuery.length, 0, 'split view should have no sashes');
 
 		splitview.dispose();
@@ -274,36 +274,40 @@ suite('Splitview', () => {
 
 		let sashes = getSashes(splitview);
 		assert.equal(sashes.length, 2, 'there are two sashes');
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Maximum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Maximum, 'second sash is enabled');
 
 		splitview.layout(60);
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(20);
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(200);
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view1.maximumSize = 20;
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view2.maximumSize = 20;
-		assert.equal(sashes[0].enabled, false, 'first sash is disabled');
-		assert.equal(sashes[1].enabled, false, 'second sash is disabled');
+		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
+		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		view1.maximumSize = 300;
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
 
 		view2.maximumSize = 200;
-		assert.equal(sashes[0].enabled, true, 'first sash is enabled');
-		assert.equal(sashes[1].enabled, true, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+
+		splitview.resizeView(0, 40);
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		splitview.dispose();
 		view3.dispose();

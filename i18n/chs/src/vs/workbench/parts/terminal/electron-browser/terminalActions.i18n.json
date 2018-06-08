@@ -44,6 +44,7 @@
 	"workbench.action.terminal.scrollUpPage": "向上滚动(页)",
 	"workbench.action.terminal.scrollToTop": "滚动到顶部",
 	"workbench.action.terminal.clear": "清除",
+	"workbench.action.terminal.clearSelection": "清除选定内容",
 	"workbench.action.terminal.allowWorkspaceShell": "允许配置工作区 Shell",
 	"workbench.action.terminal.disallowWorkspaceShell": "禁止配置工作区 Shell",
 	"workbench.action.terminal.rename": "重命名",

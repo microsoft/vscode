@@ -141,7 +141,8 @@ export class CodeWindow implements ICodeWindow {
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
-				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				disableBlinkFeatures: 'Auxclick', // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
+				experimentalFeatures: true
 			}
 		};
 
@@ -189,23 +190,6 @@ export class CodeWindow implements ICodeWindow {
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
-
-		// Bug in Electron (https://github.com/electron/electron/issues/10862). On multi-monitor setups,
-		// it can happen that the position we set to the window is not the correct one on the display.
-		// To workaround, we ask the window for its position and set it again if not matching.
-		// This only applies if the window is not fullscreen or maximized and multiple monitors are used.
-		if (isWindows && !isFullscreenOrMaximized) {
-			try {
-				if (screen.getAllDisplays().length > 1) {
-					const [x, y] = this._win.getPosition();
-					if (x !== this.windowState.x || y !== this.windowState.y) {
-						this._win.setPosition(this.windowState.x, this.windowState.y, false);
-					}
-				}
-			} catch (err) {
-				this.logService.warn(`Unexpected error fixing window position on windows with multiple windows: ${err}\n${err.stack}`);
-			}
-		}
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
@@ -500,7 +484,7 @@ export class CodeWindow implements ICodeWindow {
 		});
 	}
 
-	public load(config: IWindowConfiguration, isReload?: boolean): void {
+	public load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void {
 
 		// If this is the first time the window is loaded, we associate the paths
 		// directly with the window because we assume the loading will just work
@@ -515,6 +499,13 @@ export class CodeWindow implements ICodeWindow {
 		else {
 			this.pendingLoadConfig = config;
 			this._readyState = ReadyState.NAVIGATING;
+		}
+
+		// Add disable-extensions to the config, but do not preserve it on currentConfig or
+		// pendingLoadConfig so that it is applied only on this load
+		const configuration = objects.assign({}, config);
+		if (disableExtensions !== undefined) {
+			configuration['disable-extensions'] = disableExtensions;
 		}
 
 		// Clear Document Edited if needed
@@ -535,7 +526,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Load URL
 		mark('main:loadWindow');
-		this._win.loadURL(this.getUrl(config));
+		this._win.loadURL(this.getUrl(configuration));
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
@@ -573,14 +564,11 @@ export class CodeWindow implements ICodeWindow {
 			configuration['extensions-dir'] = cli['extensions-dir'];
 		}
 
-		if (cli) {
-			configuration['disable-extensions'] = cli['disable-extensions'];
-		}
-
 		configuration.isInitialStartup = false; // since this is a reload
 
 		// Load config
-		this.load(configuration, true);
+		const disableExtensions = cli ? cli['disable-extensions'] : undefined;
+		this.load(configuration, true, disableExtensions);
 	}
 
 	private getUrl(windowConfiguration: IWindowConfiguration): string {
@@ -962,11 +950,6 @@ export class CodeWindow implements ICodeWindow {
 			const groupTouchBar = this.createTouchBarGroup();
 			this.touchBarGroups.push(groupTouchBar);
 		}
-
-		// Ugly workaround for native crash on macOS 10.12.1. We are not
-		// leveraging the API for changing the ESC touch bar item.
-		// See https://github.com/electron/electron/issues/10442
-		(<any>this._win)._setEscapeTouchBarItem = () => { };
 
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}

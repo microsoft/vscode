@@ -374,31 +374,30 @@ export namespace SymbolInformation {
 	}
 }
 
-export namespace HierarchicalSymbolInformation {
-	export function from(info: vscode.Hierarchy<vscode.SymbolInformation2>): modes.SymbolInformation {
+export namespace SymbolInformation2 {
+	export function from(info: vscode.SymbolInformation2): modes.SymbolInformation {
 		let result: modes.SymbolInformation = {
-			name: info.parent.name,
-			detail: info.parent.detail,
-			location: location.from(info.parent.location),
-			definingRange: Range.from(info.parent.range),
-			kind: SymbolKind.from(info.parent.kind),
-			containerName: info.parent.containerName
+			name: info.name,
+			detail: undefined,
+			location: location.from(info.location),
+			definingRange: Range.from(info.definingRange),
+			kind: SymbolKind.from(info.kind),
+			containerName: info.containerName
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
 		}
 		return result;
 	}
-	export function to(info: modes.SymbolInformation): types.Hierarchy<vscode.SymbolInformation2> {
-		let result = new types.Hierarchy<vscode.SymbolInformation2>(new types.SymbolInformation2(
+	export function to(info: modes.SymbolInformation): vscode.SymbolInformation2 {
+		let result = new types.SymbolInformation2(
 			info.name,
-			info.detail,
 			SymbolKind.to(info.kind),
-			Range.to(info.definingRange),
+			info.containerName,
 			location.to(info.location),
-		));
+		);
 		if (info.children) {
-			result.children = info.children.map(to);
+			result.children = info.children.map(to) as any;
 		}
 		return result;
 	}

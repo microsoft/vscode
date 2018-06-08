@@ -399,7 +399,6 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: openPreviousEditorKeybinding.mac
 });
 
-
 // Editor Commands
 editorCommands.setup();
 
@@ -508,6 +507,97 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	when: ContextKeyExpr.not('config.workbench.editor.showTabs'),
 	order: 1000000 // towards the end
 });
+interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
+
+function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorToolItem, when: ContextKeyExpr, order: number): void {
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+		command: {
+			id: primary.id,
+			title: primary.title,
+			iconPath: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)).fsPath,
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`)).fsPath
+			}
+		},
+		alt: {
+			id: alternative.id,
+			title: alternative.title,
+			iconPath: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)).fsPath,
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`)).fsPath
+			}
+		},
+		group: 'navigation',
+		when,
+		order
+	});
+}
+
+// Editor Title Menu: Split Editor
+appendEditorToolItem(
+	{
+		id: SplitEditorAction.ID,
+		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
+	}, {
+		id: editorCommands.SPLIT_EDITOR_DOWN,
+		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
+	},
+	ContextKeyExpr.not('splitEditorsVertically'),
+	100000 /* towards the end */
+);
+
+appendEditorToolItem(
+	{
+		id: SplitEditorAction.ID,
+		title: nls.localize('splitEditorDown', "Split Editor Down"),
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
+	}, {
+		id: editorCommands.SPLIT_EDITOR_RIGHT,
+		title: nls.localize('splitEditorRight', "Split Editor Right"),
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
+	},
+	ContextKeyExpr.has('splitEditorsVertically'),
+	100000 // towards the end
+);
+
+// Editor Title Menu: Close Group (tabs disabled)
+appendEditorToolItem(
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		iconDark: 'close-editor-inverse.svg',
+		iconLight: 'close-editor.svg'
+	}, {
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
+
+appendEditorToolItem(
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		iconDark: 'close-dirty-inverse.svg',
+		iconLight: 'close-dirty.svg'
+	}, {
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
 
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepEditor', "Keep Editor"), category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });

@@ -8,12 +8,6 @@ import { Application } from '../../application';
 
 export function setup() {
 	describe('Search', () => {
-		after(function () {
-			const app = this.app as Application;
-			cp.execSync('git checkout .', { cwd: app.workspacePath });
-			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
-		});
-
 		it('searches for body & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.openSearchViewlet();
@@ -37,7 +31,7 @@ export function setup() {
 		it('dismisses result & checks for correct result number', async function () {
 			const app = this.app as Application;
 			await app.workbench.search.searchFor('body');
-			await app.workbench.search.removeFileMatch(1);
+			await app.workbench.search.removeFileMatch('app.js');
 			await app.workbench.search.waitForResultText('17 results in 5 files');
 		});
 
@@ -47,13 +41,19 @@ export function setup() {
 			await app.workbench.search.searchFor('body');
 			await app.workbench.search.expandReplace();
 			await app.workbench.search.setReplaceText('ydob');
-			await app.workbench.search.replaceFileMatch(1);
-
+			await app.workbench.search.replaceFileMatch('app.js');
 			await app.workbench.search.waitForResultText('17 results in 5 files');
 
 			await app.workbench.search.searchFor('ydob');
 			await app.workbench.search.setReplaceText('body');
-			await app.workbench.search.replaceFileMatch(1);
+			await app.workbench.search.replaceFileMatch('app.js');
+			await app.workbench.search.waitForNoResultText();
+		});
+
+		after(function () {
+			const app = this.app as Application;
+			cp.execSync('git checkout .', { cwd: app.workspacePath });
+			cp.execSync('git reset --hard origin/master', { cwd: app.workspacePath });
 		});
 	});
 }
