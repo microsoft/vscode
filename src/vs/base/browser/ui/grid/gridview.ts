@@ -191,10 +191,21 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid index');
 		}
 
+		const first = index === 0;
+		const last = index === this.splitview.length;
 		this.splitview.addView(node, size, index);
 		this.children.splice(index, 0, node);
 		node.orthogonalStartSash = this.splitview.sashes[index - 1];
 		node.orthogonalEndSash = this.splitview.sashes[index];
+
+		if (!first) {
+			this.children[index - 1].orthogonalEndSash = this.splitview.sashes[index - 1];
+		}
+
+		if (!last) {
+			this.children[index + 1].orthogonalStartSash = this.splitview.sashes[index];
+		}
+
 		this.onDidChildrenChange();
 	}
 
@@ -203,8 +214,19 @@ class BranchNode implements ISplitView, IDisposable {
 			throw new Error('Invalid index');
 		}
 
+		const first = index === 0;
+		const last = index === this.splitview.length - 1;
 		this.splitview.removeView(index, sizing);
 		this.children.splice(index, 1);
+
+		if (!first) {
+			this.children[index - 1].orthogonalEndSash = this.splitview.sashes[index - 1];
+		}
+
+		if (!last) { // [0,1,2,3] (2) => [0,1,3]
+			this.children[index].orthogonalStartSash = this.splitview.sashes[Math.max(index - 1, 0)];
+		}
+
 		this.onDidChildrenChange();
 	}
 
