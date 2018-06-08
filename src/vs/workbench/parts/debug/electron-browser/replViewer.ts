@@ -256,7 +256,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		let result = handleANSIOutput(element.value, this.linkDetector);
 		templateData.value.appendChild(result);
 
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
+		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? element.sourceData.source.uri.toString() : '';
 		templateData.getReplElementSource = () => element.sourceData;

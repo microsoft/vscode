@@ -674,6 +674,7 @@ export class DebugService implements debug.IDebugService {
 		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.model.removeReplExpressions();
+			this.model.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
 			value = value.substr(value.indexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
 
