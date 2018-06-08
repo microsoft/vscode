@@ -261,7 +261,7 @@ suite('Splitview', () => {
 		view1.dispose();
 	});
 
-	test('sashes are properly enabled/disabled', () => {
+	test.skip('sashes are properly enabled/disabled', () => {
 		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
 		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
