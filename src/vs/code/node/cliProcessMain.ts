@@ -221,16 +221,12 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
 			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
+			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
-				const appenders: AppInsightsAppender[] = [];
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 				}
-
-				// It is important to dispose the AI adapter properly because
-				// only then they flush remaining data.
-				process.once('exit', () => appenders.forEach(a => a.dispose()));
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
@@ -246,7 +242,10 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			const instantiationService2 = instantiationService.createChild(services);
 			const main = instantiationService2.createInstance(Main);
 
-			return main.run(argv);
+			return (main.run(argv) || TPromise.as(null)).then(() => {
+				// Dispose the AI adapter so that remaining data gets flushed.
+				return combinedAppender(...appenders).dispose();
+			});
 		});
 	});
 }
