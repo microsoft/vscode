@@ -1324,7 +1324,6 @@ suite('Tasks version 0.1.0', () => {
 		testConfiguration(external, builder);
 	});
 
-	/*
 	test('tasks: with command and args', () => {
 		let external: ExternalTaskRunnerConfiguration = {
 			version: '0.1.0',
@@ -1348,7 +1347,6 @@ suite('Tasks version 0.1.0', () => {
 			runtime(Tasks.RuntimeType.Shell).args(['arg']).options({ cwd: 'cwd', env: { env: 'env' } });
 		testConfiguration(external, builder);
 	});
-	*/
 
 	test('tasks: with command os specific', () => {
 		let name: string = Platform.isWindows ? 'tsc.win' : 'tsc';
