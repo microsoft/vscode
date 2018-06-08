@@ -47,7 +47,7 @@
             assignLabel: false
         },
         file-explorer: {
-            assignees: [ weinand ],
+            assignees: [ isidorn ],
             assignLabel: false
         },
         format: [],

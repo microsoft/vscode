@@ -23,12 +23,6 @@
 		const baseTheme = config.baseTheme || 'vs';
 		document.body.className = 'monaco-shell ' + baseTheme;
 
-		// makes the window draggable if there is no frame
-		if  (config.frameless) {
-			document.documentElement.style.webkitAppRegion = 'drag';
-			document.documentElement.style.height = '100%';
-		}
-
 		// adds a stylesheet with the backgrdound color
 		var backgroundColor = config.backgroundColor;
 		if (!backgroundColor) {
