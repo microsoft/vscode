@@ -50,9 +50,10 @@ import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewl
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
-import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused } from './outline';
+import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
+import { IViewsService } from 'vs/workbench/common/views';
 
 class RequestState {
 
@@ -208,8 +209,6 @@ class OutlineState {
 
 export class OutlinePanel extends ViewletPanel {
 
-	static InstanceHack: OutlinePanel;
-
 	private _disposables = new Array<IDisposable>();
 
 	private _editorDisposables = new Array<IDisposable>();
@@ -244,7 +243,6 @@ export class OutlinePanel extends ViewletPanel {
 		@IContextMenuService contextMenuService: IContextMenuService,
 	) {
 		super(options, keybindingService, contextMenuService, configurationService);
-		OutlinePanel.InstanceHack = this;
 		this._outlineViewState.restore(this._storageService);
 		this._contextKeyFocused = OutlineViewFocused.bindTo(contextKeyService);
 		this._contextKeyFiltered = OutlineViewFiltered.bindTo(contextKeyService);
@@ -253,7 +251,6 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	dispose(): void {
-		OutlinePanel.InstanceHack = undefined;
 		dispose(this._disposables);
 		dispose(this._requestOracle);
 		super.dispose();
@@ -627,9 +624,11 @@ export class OutlinePanel extends ViewletPanel {
 	}
 }
 
-function goUpOrDownToHighligthedElement(accessor: ServicesAccessor, prev: boolean) {
-	if (OutlinePanel.InstanceHack) {
-		OutlinePanel.InstanceHack.focusHighlightedElement(prev);
+async function goUpOrDownToHighligthedElement(accessor: ServicesAccessor, prev: boolean) {
+	const viewsService = accessor.get(IViewsService);
+	const view = await viewsService.openView(OutlineViewId);
+	if (view instanceof OutlinePanel) {
+		view.focusHighlightedElement(prev);
 	}
 }
 

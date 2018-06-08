@@ -6,6 +6,8 @@
 
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
+export const OutlineViewId = 'outline';
+
 export const OutlineViewFiltered = new RawContextKey('outlineFiltered', false);
 export const OutlineViewFocused = new RawContextKey('outlineFocused', false);
 

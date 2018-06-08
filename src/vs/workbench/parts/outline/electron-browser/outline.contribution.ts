@@ -12,10 +12,10 @@ import { MenuRegistry } from 'vs/platform/actions/common/actions';
 import { VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
-import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
+import { OutlineConfigKeys, OutlineViewId } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 const _outlineDesc = <IViewDescriptor>{
-	id: 'code.outline',
+	id: OutlineViewId,
 	name: localize('name', "Outline"),
 	ctor: OutlinePanel,
 	container: VIEW_CONTAINER,
@@ -30,7 +30,7 @@ ViewsRegistry.registerViews([_outlineDesc]);
 
 CommandsRegistry.registerCommand('outline.focus', accessor => {
 	let viewsService = accessor.get(IViewsService);
-	return viewsService.openView(_outlineDesc.id, true);
+	return viewsService.openView(OutlineViewId, true);
 });
 
 MenuRegistry.addCommand({
