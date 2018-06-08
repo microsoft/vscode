@@ -421,8 +421,8 @@ export class GridView implements IDisposable {
 
 	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
 		this.element = append(container, $('.monaco-grid-view'));
-		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 		this.styles = options.styles || defaultStyles;
+		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -649,5 +649,11 @@ export class GridView implements IDisposable {
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
+
+		if (this.element && this.element.parentElement) {
+			this.element.parentElement.removeChild(this.element);
+		}
+
+		this.element = null;
 	}
 }
