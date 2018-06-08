@@ -43,6 +43,7 @@ suite('OutlineModel', function () {
 		data.sort(Range.compareRangesUsingStarts); // model does this
 
 		group.updateMarker(data);
+		assert.equal(data.length, 0); // all 'stolen'
 		assert.equal(e0.marker.count, 1);
 		assert.equal(e1.marker, undefined);
 		assert.equal(e2.marker.count, 2);
@@ -53,4 +54,43 @@ suite('OutlineModel', function () {
 		assert.equal(e2.marker, undefined);
 	});
 
+	test('OutlineElement - updateMarker, 2', function () {
+
+		let p = new OutlineElement('A', null, fakeSymbolInformation(new Range(1, 1, 11, 1)));
+		let c1 = new OutlineElement('A/B', null, fakeSymbolInformation(new Range(2, 4, 5, 4)));
+		let c2 = new OutlineElement('A/C', null, fakeSymbolInformation(new Range(6, 4, 9, 4)));
+
+		let group = new OutlineGroup('group', null, null, 1);
+		group.children[p.id] = p;
+		p.children[c1.id] = c1;
+		p.children[c2.id] = c2;
+
+		let data = [
+			fakeMarker(new Range(2, 4, 5, 4))
+		];
+
+		group.updateMarker(data);
+		assert.equal(p.marker.count, 0);
+		assert.equal(c1.marker.count, 1);
+		assert.equal(c2.marker, undefined);
+
+		data = [
+			fakeMarker(new Range(2, 4, 5, 4)),
+			fakeMarker(new Range(2, 6, 2, 8)),
+			fakeMarker(new Range(7, 6, 7, 8)),
+		];
+		group.updateMarker(data);
+		assert.equal(p.marker.count, 0);
+		assert.equal(c1.marker.count, 2);
+		assert.equal(c2.marker.count, 1);
+
+		data = [
+			fakeMarker(new Range(1, 4, 1, 11)),
+			fakeMarker(new Range(7, 6, 7, 8)),
+		];
+		group.updateMarker(data);
+		assert.equal(p.marker.count, 1);
+		assert.equal(c1.marker, undefined);
+		assert.equal(c2.marker.count, 1);
+	});
 });

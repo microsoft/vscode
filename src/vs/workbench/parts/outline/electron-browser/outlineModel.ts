@@ -143,13 +143,16 @@ export class OutlineGroup extends TreeElement {
 		}
 	}
 
-	private _updateMarker(marker: IMarker[], item: OutlineElement): void {
-		let idx = binarySearch<IRange>(marker, item.symbol.definingRange, Range.compareRangesUsingStarts);
+	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+
+		item.marker = undefined;
+
+		// find the proper start index to check for item/marker overlap.
+		let idx = binarySearch<IRange>(markers, item.symbol.definingRange, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
-			// ~idx is the index at which the symbol should be... start search from there
 			start = ~idx;
-			if (start > 0 && Range.areIntersecting(marker[start - 1], item.symbol.definingRange)) {
+			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.definingRange)) {
 				start -= 1;
 			}
 		} else {
@@ -159,35 +162,30 @@ export class OutlineGroup extends TreeElement {
 		let myMarkers: IMarker[] = [];
 		let myTopSev: MarkerSeverity;
 
-		while (start < marker.length) {
-			if (!Range.areIntersecting(marker[start], item.symbol.definingRange)) {
-				break;
-			}
-			// this marker belongs to this element and it takes it away.
-			// children of this marker might take it away again tho...
-			let myMarker = marker.splice(start, 1)[0];
-			myMarkers.push(myMarker);
-			if (!myTopSev || myMarker.severity > myTopSev) {
-				myTopSev = myMarker.severity;
+		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.definingRange)) {
+			// remove markers intersecting with this outline element
+			// and store them in a 'private' array.
+			let marker = markers.splice(start, 1)[0];
+			myMarkers.push(marker);
+			if (!myTopSev || marker.severity > myTopSev) {
+				myTopSev = marker.severity;
 			}
 		}
 
-		// recursivion into children. this might cause myMarkers to become empty
-		// and because of that we store the top marker to which tell me what the
-		// most severe marker of my children is
+		// Recurse into children and let them match markers that have matched
+		// this outline element. This might remove markers from this element and
+		// therefore we remember that we have had markers. That allows us to render
+		// the dot, saying 'this element has children with markers'
 		for (const key in item.children) {
 			this._updateMarker(myMarkers, item.children[key]);
 		}
 
-		if (!myTopSev) {
-			item.marker = undefined;
-		} else {
+		if (myTopSev) {
 			item.marker = {
 				count: myMarkers.length,
 				topSev: myTopSev
 			};
 		}
-
 	}
 }
 
