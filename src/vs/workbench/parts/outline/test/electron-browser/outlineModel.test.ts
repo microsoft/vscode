@@ -10,7 +10,7 @@ import { OutlineElement, OutlineGroup } from 'vs/workbench/parts/outline/electro
 import { SymbolKind, SymbolInformation } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import URI from 'vs/base/common/uri';
-import { IMarker } from 'vs/platform/markers/common/markers';
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('OutlineModel', function () {
 
@@ -25,10 +25,10 @@ suite('OutlineModel', function () {
 	}
 
 	function fakeMarker(range: Range): IMarker {
-		return { ...range, owner: 'ffff', message: 'test', severity: 0, resource: null };
+		return { ...range, owner: 'ffff', message: 'test', severity: MarkerSeverity.Error, resource: null };
 	}
 
-	test.skip('OutlineElement - updateMarker', function () {
+	test('OutlineElement - updateMarker', function () {
 
 		let e0 = new OutlineElement('foo1', null, fakeSymbolInformation(new Range(1, 1, 1, 10)));
 		let e1 = new OutlineElement('foo2', null, fakeSymbolInformation(new Range(2, 1, 5, 1)));
@@ -44,13 +44,13 @@ suite('OutlineModel', function () {
 
 		group.updateMarker(data);
 		assert.equal(e0.marker.count, 1);
-		assert.equal(e1.marker.count, 0);
+		assert.equal(e1.marker, undefined);
 		assert.equal(e2.marker.count, 2);
 
 		group.updateMarker([]);
-		assert.equal(e0.marker.count, 0);
-		assert.equal(e1.marker.count, 0);
-		assert.equal(e2.marker.count, 0);
+		assert.equal(e0.marker, undefined);
+		assert.equal(e1.marker, undefined);
+		assert.equal(e2.marker, undefined);
 	});
 
 });
