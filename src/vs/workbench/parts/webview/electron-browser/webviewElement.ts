@@ -427,14 +427,6 @@ export class WebviewElement {
 		this._webviewFindWidget.hide();
 	}
 
-	public showNextFindTerm() {
-		this._webviewFindWidget.showNextFindTerm();
-	}
-
-	public showPreviousFindTerm() {
-		this._webviewFindWidget.showPreviousFindTerm();
-	}
-
 	public reload() {
 		this.contents = this._contents;
 	}

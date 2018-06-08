@@ -7,21 +7,15 @@ import { SimpleFindWidget } from 'vs/editor/contrib/find/simpleFindWidget';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WebviewElement } from './webviewElement';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService } from 'vs/platform/storage/common/storage';
 
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
 		private readonly webview: WebviewElement,
 		@IContextViewService contextViewService: IContextViewService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IKeybindingService keybindingService: IKeybindingService,
-		@INotificationService notificationService: INotificationService,
-		@IStorageService storageService: IStorageService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(contextViewService, contextKeyService, keybindingService, notificationService, storageService);
+		super(contextViewService, contextKeyService);
 	}
 
 	public find(previous: boolean) {

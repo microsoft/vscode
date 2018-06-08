@@ -7,11 +7,11 @@
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import * as strings from 'vs/base/common/strings';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorContribution, registerEditorAction, ServicesAccessor, EditorAction, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
-import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, CONTEXT_FIND_WIDGET_VISIBLE, CONTEXT_FIND_INPUT_FOCUSED } from 'vs/editor/contrib/find/findModel';
+import { FIND_IDS, FindModelBoundToEditorModel, ToggleCaseSensitiveKeybinding, ToggleRegexKeybinding, ToggleWholeWordKeybinding, ToggleSearchScopeKeybinding, CONTEXT_FIND_WIDGET_VISIBLE } from 'vs/editor/contrib/find/findModel';
 import { FindReplaceState, FindReplaceStateChangedEvent, INewFindReplaceState } from 'vs/editor/contrib/find/findState';
 import { Delayer } from 'vs/base/common/async';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
@@ -25,8 +25,6 @@ import { FindOptionsWidget } from 'vs/editor/contrib/find/findOptionsWidget';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
-import { INotificationService } from 'vs/platform/notification/common/notification';
-import { showDeprecatedWarning } from 'vs/platform/widget/browser/input';
 
 export function getSelectionSearchString(editor: ICodeEditor): string {
 	let selection = editor.getSelection();
@@ -310,16 +308,6 @@ export class CommonFindController extends Disposable implements editorCommon.IEd
 		return false;
 	}
 
-	public showPreviousFindTerm(): boolean {
-		// overwritten in subclass
-		return false;
-	}
-
-	public showNextFindTerm(): boolean {
-		// overwritten in subclass
-		return false;
-	}
-
 	public getGlobalBufferTerm(): string {
 		if (this._editor.getConfiguration().contribInfo.find.globalFindClipboard
 			&& this._clipboardService
@@ -352,7 +340,6 @@ export class FindController extends CommonFindController implements IFindControl
 		@IKeybindingService private readonly _keybindingService: IKeybindingService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IStorageService storageService: IStorageService,
-		@INotificationService private readonly _notificationService: INotificationService,
 		@optional(IClipboardService) clipboardService: IClipboardService
 	) {
 		super(editor, _contextKeyService, storageService, clipboardService);
@@ -386,18 +373,6 @@ export class FindController extends CommonFindController implements IFindControl
 	private _createFindWidget() {
 		this._widget = this._register(new FindWidget(this._editor, this, this._state, this._contextViewService, this._keybindingService, this._contextKeyService, this._themeService));
 		this._findOptionsWidget = this._register(new FindOptionsWidget(this._editor, this._state, this._keybindingService, this._themeService));
-	}
-
-	public showPreviousFindTerm(): boolean {
-		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
-		this._widget.showPreviousFindTerm();
-		return true;
-	}
-
-	public showNextFindTerm(): boolean {
-		showDeprecatedWarning(this._notificationService, this._keybindingService, this._storageService);
-		this._widget.showNextFindTerm();
-		return true;
 	}
 }
 
@@ -632,48 +607,6 @@ export class StartFindReplaceAction extends EditorAction {
 	}
 }
 
-export class ShowNextFindTermAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.ShowNextFindTermAction,
-			label: nls.localize('showNextFindTermAction', "Show Next Find Term"),
-			alias: 'Show Next Find Term',
-			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-			kbOpts: {
-				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
-				primary: null
-			}
-		});
-	}
-
-	protected _run(controller: CommonFindController): boolean {
-		return controller.showNextFindTerm();
-	}
-}
-
-export class ShowPreviousFindTermAction extends MatchFindAction {
-
-	constructor() {
-		super({
-			id: FIND_IDS.ShowPreviousFindTermAction,
-			label: nls.localize('showPreviousFindTermAction', "Show Previous Find Term"),
-			alias: 'Find Show Previous Find Term',
-			precondition: CONTEXT_FIND_WIDGET_VISIBLE,
-			kbOpts: {
-				weight: KeybindingsRegistry.WEIGHT.editorContrib(5),
-				kbExpr: ContextKeyExpr.and(CONTEXT_FIND_INPUT_FOCUSED, EditorContextKeys.focus),
-				primary: null
-			}
-		});
-	}
-
-	protected _run(controller: CommonFindController): boolean {
-		return controller.showPreviousFindTerm();
-	}
-}
-
 registerEditorContribution(FindController);
 
 registerEditorAction(StartFindAction);
@@ -683,8 +616,6 @@ registerEditorAction(PreviousMatchFindAction);
 registerEditorAction(NextSelectionMatchFindAction);
 registerEditorAction(PreviousSelectionMatchFindAction);
 registerEditorAction(StartFindReplaceAction);
-registerEditorAction(ShowNextFindTermAction);
-registerEditorAction(ShowPreviousFindTermAction);
 
 const FindCommand = EditorCommand.bindToContribution<CommonFindController>(CommonFindController.get);
 

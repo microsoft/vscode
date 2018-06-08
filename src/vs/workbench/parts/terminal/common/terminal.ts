@@ -203,8 +203,6 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
-	showNextFindTermFindWidget(): void;
-	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;

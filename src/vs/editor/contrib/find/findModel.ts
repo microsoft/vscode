@@ -62,11 +62,7 @@ export const FIND_IDS = {
 	ToggleSearchScopeCommand: 'toggleFindInSelection',
 	ReplaceOneAction: 'editor.action.replaceOne',
 	ReplaceAllAction: 'editor.action.replaceAll',
-	SelectAllMatchesAction: 'editor.action.selectAllMatches',
-	ShowPreviousFindTermAction: 'find.history.showPrevious',
-	ShowNextFindTermAction: 'find.history.showNext',
-	ShowPreviousReplaceTermAction: 'replace.history.showPrevious',
-	ShowNextReplaceTermAction: 'replace.history.showNext'
+	SelectAllMatchesAction: 'editor.action.selectAllMatches'
 };
 
 export const MATCHES_LIMIT = 19999;

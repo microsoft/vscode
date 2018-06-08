@@ -22,6 +22,9 @@ import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { HistoryNavigationKeybindingsChangedContribution } from 'vs/workbench/electron-browser/removedKeybindingsContribution';
 
 // Contribute Commands
 registerCommands();
@@ -501,3 +504,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(HistoryNavigationKeybindingsChangedContribution, LifecyclePhase.Eventually);
