@@ -12,11 +12,11 @@ import { isMacintosh } from 'vs/base/common/platform';
 import * as types from 'vs/base/common/types';
 import { EventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { Event, Emitter } from 'vs/base/common/event';
+import { Event, Emitter, anyEvent, mapEvent } from 'vs/base/common/event';
 import { getElementsByTagName, EventHelper, createStyleSheet, addDisposableListener, Dimension, append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { domEvent } from 'vs/base/browser/event';
 
-const DEBUG = false;
+const DEBUG = true;
 
 export interface ISashLayoutProvider { }
 
@@ -42,8 +42,8 @@ export interface ISashEvent {
 
 export interface ISashOptions {
 	orientation?: Orientation;
-	orthogonalStartSash?: Sash;
-	orthogonalEndSash?: Sash;
+	linkedStartSashes?: Sash[];
+	linkedEndSashes?: Sash[];
 }
 
 export enum Orientation {
@@ -96,36 +96,40 @@ export class Sash {
 	private readonly _onDidEnd = new Emitter<void>();
 	readonly onDidEnd: Event<void> = this._onDidEnd.event;
 
-	private orthogonalStartSashDisposables: IDisposable[] = [];
-	private _orthogonalStartSash: Sash | undefined;
-	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
-	set orthogonalStartSash(sash: Sash | undefined) {
-		this.orthogonalStartSashDisposables = dispose(this.orthogonalStartSashDisposables);
+	private linkedStartSashesDisposables: IDisposable[] = [];
+	private _linkedStartSashes: Sash[] = [];
+	get linkedStartSashes(): Sash[] { return this._linkedStartSashes; }
+	set linkedStartSashes(sashes: Sash[]) {
+		this.linkedStartSashesDisposables = dispose(this.linkedStartSashesDisposables);
 
-		if (sash) {
-			sash.onDidEnablementChange(this.onOrthogonalStartSashEnablementChange, this, this.orthogonalStartSashDisposables);
-			this.onOrthogonalStartSashEnablementChange(sash.state);
+		if (sashes.length > 0) {
+			mapEvent(anyEvent(...sashes.map(s => s.onDidEnablementChange)), () => sashes.map(s => s.state))
+				(this.onLinkedStartSashEnablementChange, this, this.linkedStartSashesDisposables);
+
+			this.onLinkedStartSashEnablementChange(sashes.map(s => s.state));
 		} else {
-			this.onOrthogonalStartSashEnablementChange(SashState.Disabled);
+			this.onLinkedStartSashEnablementChange([]);
 		}
 
-		this._orthogonalStartSash = sash;
+		this._linkedStartSashes = sashes;
 	}
 
-	private orthogonalEndSashDisposables: IDisposable[] = [];
-	private _orthogonalEndSash: Sash | undefined;
-	get orthogonalEndSash(): Sash | undefined { return this._orthogonalEndSash; }
-	set orthogonalEndSash(sash: Sash | undefined) {
-		this.orthogonalEndSashDisposables = dispose(this.orthogonalEndSashDisposables);
+	private linkedEndSashDisposables: IDisposable[] = [];
+	private _linkedEndSash: Sash[] = [];
+	get linkedEndSash(): Sash[] { return this._linkedEndSash; }
+	set linkedEndSash(sashes: Sash[]) {
+		this.linkedEndSashDisposables = dispose(this.linkedEndSashDisposables);
 
-		if (sash) {
-			sash.onDidEnablementChange(this.onOrthogonalEndSashEnablementChange, this, this.orthogonalEndSashDisposables);
-			this.onOrthogonalEndSashEnablementChange(sash.state);
+		if (sashes) {
+			mapEvent(anyEvent(...sashes.map(s => s.onDidEnablementChange)), () => sashes.map(s => s.state))
+				(this.onLinkedEndSashEnablementChange, this, this.linkedEndSashDisposables);
+
+			this.onLinkedEndSashEnablementChange(sashes.map(s => s.state));
 		} else {
-			this.onOrthogonalEndSashEnablementChange(SashState.Disabled);
+			this.onLinkedEndSashEnablementChange([]);
 		}
 
-		this._orthogonalEndSash = sash;
+		this._linkedEndSash = sashes;
 	}
 
 	constructor(container: HTMLElement, layoutProvider: ISashLayoutProvider, options: ISashOptions = {}) {
@@ -151,8 +155,8 @@ export class Sash {
 		this.hidden = false;
 		this.layoutProvider = layoutProvider;
 
-		this.orthogonalStartSash = options.orthogonalStartSash;
-		this.orthogonalEndSash = options.orthogonalEndSash;
+		this.linkedStartSashes = options.linkedStartSashes || [];
+		this.linkedEndSash = options.linkedEndSashes || [];
 
 		toggleClass(this.el, 'debug', DEBUG);
 	}
@@ -178,27 +182,29 @@ export class Sash {
 
 		let isMultisashResize = false;
 
-		if (!(e as any).__orthogonalSashEvent) {
-			let orthogonalSash: Sash | undefined;
+		if (!(e as any).__linkedSashEvent) {
+			let linkedSashes: Sash[] = [];
 
 			if (this.orientation === Orientation.VERTICAL) {
 				if (e.offsetY <= 4) {
-					orthogonalSash = this.orthogonalStartSash;
+					linkedSashes = this.linkedStartSashes;
 				} else if (e.offsetY >= this.el.clientHeight - 4) {
-					orthogonalSash = this.orthogonalEndSash;
+					linkedSashes = this.linkedEndSash;
 				}
 			} else {
 				if (e.offsetX <= 4) {
-					orthogonalSash = this.orthogonalStartSash;
+					linkedSashes = this.linkedStartSashes;
 				} else if (e.offsetX >= this.el.clientWidth - 4) {
-					orthogonalSash = this.orthogonalEndSash;
+					linkedSashes = this.linkedEndSash;
 				}
 			}
 
-			if (orthogonalSash) {
-				isMultisashResize = true;
-				(e as any).__orthogonalSashEvent = true;
-				orthogonalSash.onMouseDown(e);
+			if (linkedSashes.length > 0) {
+				for (const sash of linkedSashes) {
+					isMultisashResize = true;
+					(e as any).__linkedSashEvent = true;
+					sash.onMouseDown(e);
+				}
 			}
 		}
 
@@ -368,17 +374,17 @@ export class Sash {
 		return this.hidden;
 	}
 
-	private onOrthogonalStartSashEnablementChange(state: SashState): void {
-		toggleClass(this.el, 'orthogonal-start', state !== SashState.Disabled);
+	private onLinkedStartSashEnablementChange(states: SashState[]): void {
+		toggleClass(this.el, 'linked-start', states.some(state => state !== SashState.Disabled));
 	}
 
-	private onOrthogonalEndSashEnablementChange(state: SashState): void {
-		toggleClass(this.el, 'orthogonal-end', state !== SashState.Disabled);
+	private onLinkedEndSashEnablementChange(states: SashState[]): void {
+		toggleClass(this.el, 'linked-end', states.some(state => state !== SashState.Disabled));
 	}
 
 	dispose(): void {
-		this.orthogonalStartSashDisposables = dispose(this.orthogonalStartSashDisposables);
-		this.orthogonalEndSashDisposables = dispose(this.orthogonalEndSashDisposables);
+		this.linkedStartSashesDisposables = dispose(this.linkedStartSashesDisposables);
+		this.linkedEndSashDisposables = dispose(this.linkedEndSashDisposables);
 
 		if (this.el && this.el.parentElement) {
 			this.el.parentElement.removeChild(this.el);

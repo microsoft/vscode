@@ -72,6 +72,10 @@ export interface IGridViewOptions {
 	styles?: IGridViewStyles;
 }
 
+function arrayIdentity<T>(el: T): T[] {
+	return el ? [el] : [];
+}
+
 class BranchNode implements ISplitView, IDisposable {
 
 	readonly element: HTMLElement;
@@ -136,10 +140,10 @@ class BranchNode implements ISplitView, IDisposable {
 	private splitviewSashResetDisposable: IDisposable = EmptyDisposable;
 	private childrenSashResetDisposable: IDisposable = EmptyDisposable;
 
-	get orthogonalStartSash(): Sash | undefined { return this.splitview.orthogonalStartSash; }
-	set orthogonalStartSash(sash: Sash | undefined) { this.splitview.orthogonalStartSash = sash; }
-	get orthogonalEndSash(): Sash | undefined { return this.splitview.orthogonalEndSash; }
-	set orthogonalEndSash(sash: Sash | undefined) { this.splitview.orthogonalEndSash = sash; }
+	get linkedStartSashes(): Sash[] { return this.splitview.linkedStartSashes; }
+	set linkedStartSashes(sashes: Sash[]) { this.splitview.linkedStartSashes = sashes; }
+	get linkedEndSashes(): Sash[] { return this.splitview.linkedEndSashes; }
+	set linkedEndSashes(sashes: Sash[]) { this.splitview.linkedEndSashes = sashes; }
 
 	constructor(
 		readonly orientation: Orientation,
@@ -195,15 +199,15 @@ class BranchNode implements ISplitView, IDisposable {
 		const last = index === this.splitview.length;
 		this.splitview.addView(node, size, index);
 		this.children.splice(index, 0, node);
-		node.orthogonalStartSash = this.splitview.sashes[index - 1];
-		node.orthogonalEndSash = this.splitview.sashes[index];
+		node.linkedStartSashes = arrayIdentity(this.splitview.sashes[index - 1]);
+		node.linkedEndSashes = arrayIdentity(this.splitview.sashes[index]);
 
 		if (!first) {
-			this.children[index - 1].orthogonalEndSash = this.splitview.sashes[index - 1];
+			this.children[index - 1].linkedEndSashes = arrayIdentity(this.splitview.sashes[index - 1]);
 		}
 
 		if (!last) {
-			this.children[index + 1].orthogonalStartSash = this.splitview.sashes[index];
+			this.children[index + 1].linkedStartSashes = arrayIdentity(this.splitview.sashes[index]);
 		}
 
 		this.onDidChildrenChange();
@@ -220,11 +224,11 @@ class BranchNode implements ISplitView, IDisposable {
 		this.children.splice(index, 1);
 
 		if (!first) {
-			this.children[index - 1].orthogonalEndSash = this.splitview.sashes[index - 1];
+			this.children[index - 1].linkedEndSashes = arrayIdentity(this.splitview.sashes[index - 1]);
 		}
 
 		if (!last) { // [0,1,2,3] (2) => [0,1,3]
-			this.children[index].orthogonalStartSash = this.splitview.sashes[Math.max(index - 1, 0)];
+			this.children[index].linkedStartSashes = arrayIdentity(this.splitview.sashes[Math.max(index - 1, 0)]);
 		}
 
 		this.onDidChildrenChange();
@@ -244,7 +248,7 @@ class BranchNode implements ISplitView, IDisposable {
 		}
 
 		this.splitview.swapViews(from, to);
-		[this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash, this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash] = [this.children[to].orthogonalStartSash, this.children[to].orthogonalEndSash, this.children[from].orthogonalStartSash, this.children[from].orthogonalEndSash];
+		[this.children[from].linkedStartSashes, this.children[from].linkedEndSashes, this.children[to].linkedStartSashes, this.children[to].linkedEndSashes] = [this.children[to].linkedStartSashes, this.children[to].linkedEndSashes, this.children[from].linkedStartSashes, this.children[from].linkedEndSashes];
 		[this.children[from], this.children[to]] = [this.children[to], this.children[from]];
 	}
 
@@ -342,13 +346,10 @@ class LeafNode implements ISplitView, IDisposable {
 		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
 	}
 
-	set orthogonalStartSash(sash: Sash) {
-		// noop
-	}
-
-	set orthogonalEndSash(sash: Sash) {
-		// noop
-	}
+	get linkedStartSashes(): Sash[] { return []; }
+	set linkedStartSashes(sashes: Sash[]) { }
+	get linkedEndSashes(): Sash[] { return []; }
+	set linkedEndSashes(sashes: Sash[]) { }
 
 	layout(size: number): void {
 		this._size = size;
