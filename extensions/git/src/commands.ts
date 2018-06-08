@@ -1718,6 +1718,9 @@ export class CommandCenter {
 		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
 
 		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		for (const r of this.model.repositories.map(r => r.root)) {
+			this.outputChannel.appendLine(`repo root ${r}`);
+		}
 
 		if (!uri) {
 			return undefined;
