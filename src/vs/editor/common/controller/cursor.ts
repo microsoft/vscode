@@ -551,7 +551,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _type(source: string, text: string): void {
 		if (!this._isDoingComposition && source === 'keyboard') {
-			console.log('keyboard', source, text);
 			// If this event is coming straight from the keyboard, look for electric characters and enter
 
 			for (let i = 0, len = text.length; i < len; i++) {
