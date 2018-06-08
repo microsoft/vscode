@@ -168,7 +168,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 	editorGroupService.groups.forEach(g => {
 		g.editors.forEach(e => {
 			const resource = e.getResource();
-			if (untitledEditorService.isDirty(resource)) {
+			if (resource && untitledEditorService.isDirty(resource)) {
 				if (!groupIdToUntitledResourceInput.has(g.id)) {
 					groupIdToUntitledResourceInput.set(g.id, []);
 				}
