@@ -586,7 +586,11 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 	}
 
 	public run(): TPromise<any> {
-		let nextFocusElement = this.getElementToFocusAfterRemoved(this.viewer, this.element);
+		const currentFocusElement = this.viewer.getFocus();
+		const nextFocusElement = !currentFocusElement || currentFocusElement instanceof SearchResult || elementIsEqualOrParent(currentFocusElement, this.element) ?
+			this.getElementToFocusAfterRemoved(this.viewer, this.element) :
+			null;
+
 		if (nextFocusElement) {
 			this.viewer.reveal(nextFocusElement);
 			this.viewer.setFocus(nextFocusElement);
@@ -611,7 +615,16 @@ export class RemoveAction extends AbstractSearchAndReplaceAction {
 		this.viewer.domFocus();
 		return this.viewer.refresh(elementToRefresh);
 	}
+}
 
+function elementIsEqualOrParent(element: RenderableMatch, testParent: RenderableMatch | SearchResult): boolean {
+	do {
+		if (element === testParent) {
+			return true;
+		}
+	} while (!(element.parent() instanceof SearchResult) && (element = <RenderableMatch>element.parent()));
+
+	return false;
 }
 
 export class ReplaceAllAction extends AbstractSearchAndReplaceAction {
