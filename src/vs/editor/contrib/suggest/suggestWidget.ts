@@ -622,6 +622,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
+				this.focusedItem = null;
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
@@ -629,6 +630,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
+				this.focusedItem = null;
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
@@ -636,6 +638,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
+				this.focusedItem = null;
 				break;
 			case State.Open:
 				hide(this.messageElement);
@@ -679,7 +682,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		if (this.completionModel !== completionModel) {
 			this.completionModel = completionModel;
-			this.focusedItem = null;
 		}
 
 		if (isFrozen && this.state !== State.Empty && this.state !== State.Hidden) {
