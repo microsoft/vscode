@@ -4,21 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as pfs from 'vs/base/node/pfs';
-import * as extfs from 'vs/base/node/extfs';
 import * as path from 'path';
-import * as arrays from 'vs/base/common/arrays';
+import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import * as glob from 'vs/base/common/glob';
+import { joinPath } from 'vs/base/common/resources';
 import * as strings from 'vs/base/common/strings';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { IItemAccessor, ScorerCache, compareItemsByScore, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
-import { ICachedSearchStats, IFileMatch, IFolderQuery, IPatternInfo, IRawSearchQuery, ISearchQuery, ISearchCompleteStats, IRawFileMatch2 } from 'vs/platform/search/common/search';
+import * as extfs from 'vs/base/node/extfs';
+import * as pfs from 'vs/base/node/pfs';
+import { IFileMatch, IFolderQuery, IPatternInfo, IRawFileMatch2, IRawSearchQuery, ISearchCompleteStats, ISearchQuery } from 'vs/platform/search/common/search';
 import * as vscode from 'vscode';
 import { ExtHostSearchShape, IMainContext, MainContext, MainThreadSearchShape } from './extHost.protocol';
-import { CancellationTokenSource } from 'vs/base/common/cancellation';
-import { joinPath } from 'vs/base/common/resources';
 
 type OneOrMore<T> = T | T[];
 
@@ -36,9 +34,7 @@ export class ExtHostSearch implements ExtHostSearchShape {
 
 	constructor(mainContext: IMainContext, private _schemeTransformer: ISchemeTransformer, private _extfs = extfs, private _pfs = pfs) {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadSearch);
-		this._fileSearchManager = new FileSearchManager(
-			(eventName: string, data: any) => this._proxy.$handleTelemetry(eventName, data),
-			this._pfs);
+		this._fileSearchManager = new FileSearchManager(this._pfs);
 	}
 
 	private _transformScheme(scheme: string): string {
@@ -495,7 +491,8 @@ class TextSearchEngine {
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
 			followSymlinks: !this.config.ignoreSymlinks,
 			encoding: this.config.fileEncoding,
-			maxFileSize: this.config.maxFileSize
+			maxFileSize: this.config.maxFileSize,
+			maxResults: this.config.maxResults
 		};
 	}
 }
@@ -646,7 +643,11 @@ class FileSearchEngine {
 			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
-					return this.provider.provideFileSearchResults(options, { report: onProviderResult }, cancellation.token);
+					return this.provider.provideFileSearchResults(
+						{ cacheKey: this.config.cacheKey, pattern: this.config.filePattern },
+						options,
+						{ report: onProviderResult },
+						cancellation.token);
 				})
 				.then(() => {
 					this.activeCancellationTokens.delete(cancellation);
@@ -692,7 +693,8 @@ class FileSearchEngine {
 			excludes,
 			includes,
 			useIgnoreFiles: !this.config.disregardIgnoreFiles,
-			followSymlinks: !this.config.ignoreSymlinks
+			followSymlinks: !this.config.ignoreSymlinks,
+			maxResults: this.config.maxResults
 		};
 	}
 
@@ -855,51 +857,23 @@ class FileSearchManager {
 
 	private static readonly BATCH_SIZE = 512;
 
-	private caches: { [cacheKey: string]: Cache; } = Object.create(null);
-
-	constructor(private telemetryCallback: (eventName: string, data: any) => void, private _pfs: typeof pfs) { }
+	constructor(private _pfs: typeof pfs) { }
 
 	public fileSearch(config: ISearchQuery, provider: vscode.SearchProvider): PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>> {
-		if (config.sortByScore) {
-			let sortedSearch = this.trySortedSearchFromCache(config);
-			if (!sortedSearch) {
-				const engineConfig = config.maxResults ?
-					{
-						...config,
-						...{ maxResults: null }
-					} :
-					config;
-
-				const engine = new FileSearchEngine(engineConfig, provider, this._pfs);
-				sortedSearch = this.doSortedSearch(engine, provider, config);
-			}
-
-			return new PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>>((c, e, p) => {
-				process.nextTick(() => { // allow caller to register progress callback first
-					sortedSearch.then(([result, rawMatches]) => {
-						const serializedMatches = rawMatches.map(rawMatch => this.rawMatchToSearchItem(rawMatch));
-						this.sendProgress(serializedMatches, p, FileSearchManager.BATCH_SIZE);
-						c(result);
-					}, e, p);
-				});
-			}, () => {
-				sortedSearch.cancel();
-			});
-		}
-
-		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
+		let searchP: PPromise;
 		return new PPromise<ISearchCompleteStats, OneOrMore<IFileMatch>>((c, e, p) => {
 			const engine = new FileSearchEngine(config, provider, this._pfs);
-			searchPromise = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE)
-				.then(c, e, progress => {
-					if (Array.isArray(progress)) {
-						p(progress.map(m => this.rawMatchToSearchItem(m)));
-					} else if ((<IInternalFileMatch>progress).relativePath) {
-						p(this.rawMatchToSearchItem(<IInternalFileMatch>progress));
-					}
-				});
+			searchP = this.doSearch(engine, provider, FileSearchManager.BATCH_SIZE).then(c, e, progress => {
+				if (Array.isArray(progress)) {
+					p(progress.map(m => this.rawMatchToSearchItem(m)));
+				} else if ((<IInternalFileMatch>progress).relativePath) {
+					p(this.rawMatchToSearchItem(<IInternalFileMatch>progress));
+				}
+			});
 		}, () => {
-			searchPromise.cancel();
+			if (searchP) {
+				searchP.cancel();
+			}
 		});
 	}
 
@@ -907,193 +881,6 @@ class FileSearchManager {
 		return {
 			resource: joinPath(match.base, match.relativePath)
 		};
-	}
-
-	private doSortedSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, config: IRawSearchQuery): PPromise<[ISearchCompleteStats, IInternalFileMatch[]]> {
-		let searchPromise: PPromise<void, OneOrMore<IInternalFileMatch>>;
-		let allResultsPromise = new PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>((c, e, p) => {
-			let results: IInternalFileMatch[] = [];
-			searchPromise = this.doSearch(engine, provider, -1)
-				.then(result => {
-					c([result, results]);
-					this.telemetryCallback('fileSearch', null);
-				}, e, progress => {
-					if (Array.isArray(progress)) {
-						results = progress;
-					} else {
-						p(progress);
-					}
-				});
-		}, () => {
-			searchPromise.cancel();
-		});
-
-		let cache: Cache;
-		if (config.cacheKey) {
-			cache = this.getOrCreateCache(config.cacheKey);
-			cache.resultsToSearchCache[config.filePattern] = allResultsPromise;
-			allResultsPromise.then(null, err => {
-				delete cache.resultsToSearchCache[config.filePattern];
-			});
-			allResultsPromise = this.preventCancellation(allResultsPromise);
-		}
-
-		let chained: TPromise<void>;
-		return new PPromise<[ISearchCompleteStats, IInternalFileMatch[]]>((c, e, p) => {
-			chained = allResultsPromise.then(([result, results]) => {
-				const scorerCache: ScorerCache = cache ? cache.scorerCache : Object.create(null);
-				const unsortedResultTime = Date.now();
-				return this.sortResults(config, results, scorerCache)
-					.then(sortedResults => {
-						const sortedResultTime = Date.now();
-
-						c([{
-							stats: {
-								...result.stats,
-								...{ unsortedResultTime, sortedResultTime }
-							},
-							limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults
-						}, sortedResults]);
-					});
-			}, e, p);
-		}, () => {
-			chained.cancel();
-		});
-	}
-
-	private getOrCreateCache(cacheKey: string): Cache {
-		const existing = this.caches[cacheKey];
-		if (existing) {
-			return existing;
-		}
-		return this.caches[cacheKey] = new Cache();
-	}
-
-	private trySortedSearchFromCache(config: IRawSearchQuery): TPromise<[ISearchCompleteStats, IInternalFileMatch[]]> {
-		const cache = config.cacheKey && this.caches[config.cacheKey];
-		if (!cache) {
-			return undefined;
-		}
-
-		const cacheLookupStartTime = Date.now();
-		const cached = this.getResultsFromCache(cache, config.filePattern);
-		if (cached) {
-			let chained: TPromise<void>;
-			return new TPromise<[ISearchCompleteStats, IInternalFileMatch[]]>((c, e) => {
-				chained = cached.then(([result, results, cacheStats]) => {
-					const cacheLookupResultTime = Date.now();
-					return this.sortResults(config, results, cache.scorerCache)
-						.then(sortedResults => {
-							const sortedResultTime = Date.now();
-
-							const stats: ICachedSearchStats = {
-								fromCache: true,
-								cacheLookupStartTime: cacheLookupStartTime,
-								cacheFilterStartTime: cacheStats.cacheFilterStartTime,
-								cacheLookupResultTime: cacheLookupResultTime,
-								cacheEntryCount: cacheStats.cacheFilterResultCount,
-								resultCount: results.length
-							};
-							if (config.sortByScore) {
-								stats.unsortedResultTime = cacheLookupResultTime;
-								stats.sortedResultTime = sortedResultTime;
-							}
-							if (!cacheStats.cacheWasResolved) {
-								stats.joined = result.stats;
-							}
-							c([
-								{
-									limitHit: result.limitHit || typeof config.maxResults === 'number' && results.length > config.maxResults,
-									stats: stats
-								},
-								sortedResults
-							]);
-						});
-				}, e);
-			}, () => {
-				chained.cancel();
-			});
-		}
-		return undefined;
-	}
-
-	private sortResults(config: IRawSearchQuery, results: IInternalFileMatch[], scorerCache: ScorerCache): TPromise<IInternalFileMatch[]> {
-		// we use the same compare function that is used later when showing the results using fuzzy scoring
-		// this is very important because we are also limiting the number of results by config.maxResults
-		// and as such we want the top items to be included in this result set if the number of items
-		// exceeds config.maxResults.
-		const query = prepareQuery(config.filePattern);
-		const compare = (matchA: IInternalFileMatch, matchB: IInternalFileMatch) => compareItemsByScore(matchA, matchB, query, true, FileMatchItemAccessor, scorerCache);
-
-		return arrays.topAsync(results, compare, config.maxResults, 10000);
-	}
-
-	private sendProgress(results: IFileMatch[], progressCb: (batch: IFileMatch[]) => void, batchSize: number) {
-		if (batchSize && batchSize > 0) {
-			for (let i = 0; i < results.length; i += batchSize) {
-				progressCb(results.slice(i, i + batchSize));
-			}
-		} else {
-			progressCb(results);
-		}
-	}
-
-	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISearchCompleteStats, IInternalFileMatch[], CacheStats]> {
-		if (path.isAbsolute(searchValue)) {
-			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
-		}
-
-		// Find cache entries by prefix of search value
-		const hasPathSep = searchValue.indexOf(path.sep) >= 0;
-		let cached: PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>;
-		let wasResolved: boolean;
-		for (let previousSearch in cache.resultsToSearchCache) {
-
-			// If we narrow down, we might be able to reuse the cached results
-			if (strings.startsWith(searchValue, previousSearch)) {
-				if (hasPathSep && previousSearch.indexOf(path.sep) < 0) {
-					continue; // since a path character widens the search for potential more matches, require it in previous search too
-				}
-
-				const c = cache.resultsToSearchCache[previousSearch];
-				c.then(() => { wasResolved = false; });
-				wasResolved = true;
-				cached = this.preventCancellation(c);
-				break;
-			}
-		}
-
-		if (!cached) {
-			return null;
-		}
-
-		return new PPromise<[ISearchCompleteStats, IInternalFileMatch[], CacheStats]>((c, e, p) => {
-			cached.then(([complete, cachedEntries]) => {
-				const cacheFilterStartTime = Date.now();
-
-				// Pattern match on results
-				let results: IInternalFileMatch[] = [];
-				const normalizedSearchValueLowercase = strings.stripWildcards(searchValue).toLowerCase();
-				for (let i = 0; i < cachedEntries.length; i++) {
-					let entry = cachedEntries[i];
-
-					// Check if this entry is a match for the search value
-					if (!strings.fuzzyContains(entry.relativePath, normalizedSearchValueLowercase)) {
-						continue;
-					}
-
-					results.push(entry);
-				}
-
-				c([complete, results, {
-					cacheWasResolved: wasResolved,
-					cacheFilterStartTime: cacheFilterStartTime,
-					cacheFilterResultCount: cachedEntries.length
-				}]);
-			}, e, p);
-		}, () => {
-			cached.cancel();
-		});
 	}
 
 	private doSearch(engine: FileSearchEngine, provider: vscode.SearchProvider, batchSize?: number): PPromise<ISearchCompleteStats, OneOrMore<IInternalFileMatch>> {
@@ -1131,48 +918,4 @@ class FileSearchManager {
 			engine.cancel();
 		});
 	}
-
-	public clearCache(cacheKey: string): TPromise<void> {
-		delete this.caches[cacheKey];
-		return TPromise.as(undefined);
-	}
-
-	private preventCancellation<C, P>(promise: PPromise<C, P>): PPromise<C, P> {
-		return new PPromise<C, P>((c, e, p) => {
-			// Allow for piled up cancellations to come through first.
-			process.nextTick(() => {
-				promise.then(c, e, p);
-			});
-		}, () => {
-			// Do not propagate.
-		});
-	}
-}
-
-class Cache {
-
-	public resultsToSearchCache: { [searchValue: string]: PPromise<[ISearchCompleteStats, IInternalFileMatch[]], OneOrMore<IInternalFileMatch>>; } = Object.create(null);
-
-	public scorerCache: ScorerCache = Object.create(null);
-}
-
-const FileMatchItemAccessor = new class implements IItemAccessor<IInternalFileMatch> {
-
-	public getItemLabel(match: IInternalFileMatch): string {
-		return match.basename; // e.g. myFile.txt
-	}
-
-	public getItemDescription(match: IInternalFileMatch): string {
-		return match.relativePath.substr(0, match.relativePath.length - match.basename.length - 1); // e.g. some/path/to/file
-	}
-
-	public getItemPath(match: IInternalFileMatch): string {
-		return match.relativePath; // e.g. some/path/to/file/myFile.txt
-	}
-};
-
-interface CacheStats {
-	cacheWasResolved: boolean;
-	cacheFilterStartTime: number;
-	cacheFilterResultCount: number;
 }

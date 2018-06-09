@@ -17,7 +17,7 @@ const isMac = process.platform === 'darwin';
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
-export class RipgrepFileSearchEngine {
+export class RipgrepFileSearch {
 	private rgProc: cp.ChildProcess;
 	private killRgProcFn: (code?: number) => void;
 
@@ -30,7 +30,7 @@ export class RipgrepFileSearchEngine {
 		process.removeListener('exit', this.killRgProcFn);
 	}
 
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.FileSearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
 		this.outputChannel.appendLine(`provideFileSearchResults ${JSON.stringify({
 			...options,
 			...{

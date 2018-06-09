@@ -5,7 +5,8 @@
 
 import * as vscode from 'vscode';
 import { RipgrepTextSearchEngine } from './ripgrepTextSearch';
-import { RipgrepFileSearchEngine } from './ripgrepFileSearch';
+import { RipgrepFileSearch } from './ripgrepFileSearch';
+import { CachedSearchProvider } from './cachedSearchProvider';
 
 export function activate(): void {
 	if (vscode.workspace.getConfiguration('searchRipgrep').get('enable')) {
@@ -24,8 +25,9 @@ class RipgrepSearchProvider implements vscode.SearchProvider {
 		return engine.provideTextSearchResults(query, options, progress, token);
 	}
 
-	provideFileSearchResults(options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
-		const engine = new RipgrepFileSearchEngine(this.outputChannel);
-		return engine.provideFileSearchResults(options, progress, token);
+	provideFileSearchResults(query: vscode.FileSearchQuery, options: vscode.SearchOptions, progress: vscode.Progress<string>, token: vscode.CancellationToken): Thenable<void> {
+		const cachedProvider = new CachedSearchProvider(this.outputChannel);
+		const engine = new RipgrepFileSearch(this.outputChannel);
+		return cachedProvider.provideFileSearchResults(engine, query, options, progress, token);
 	}
 }

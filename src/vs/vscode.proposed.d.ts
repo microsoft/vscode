@@ -28,12 +28,18 @@ declare module 'vscode' {
 		excludes: string[];
 		useIgnoreFiles?: boolean;
 		followSymlinks?: boolean;
+		maxResults: number;
 	}
 
 	export interface TextSearchOptions extends SearchOptions {
 		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
 		maxFileSize?: number;
 		encoding?: string;
+	}
+
+	export interface FileSearchQuery {
+		pattern: string;
+		cacheKey?: string;
 	}
 
 	export interface FileSearchOptions extends SearchOptions { }
@@ -47,7 +53,7 @@ declare module 'vscode' {
 	}
 
 	export interface SearchProvider {
-		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
+		provideFileSearchResults?(query: FileSearchQuery, options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
