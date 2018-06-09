@@ -597,33 +597,23 @@ export class InstalledExtensionsView extends ExtensionsListView {
 
 export class EnabledExtensionsView extends ExtensionsListView {
 
-	public static isEnabledExtensionsQuery(query: string): boolean {
-		return ExtensionsListView.isEnabledExtensionsQuery(query);
-	}
-
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (EnabledExtensionsView.isEnabledExtensionsQuery(query)) {
-			return super.show(query);
+		const queryEnabled = '@enabled';
+		if (!query || ExtensionsListView.isEnabledExtensionsQuery(query)) {
+			return super.show(queryEnabled);
 		}
-		let searchEnabledQuery = '@enabled';
-		searchEnabledQuery = query ? searchEnabledQuery + ' ' + query : searchEnabledQuery;
-		return super.show(searchEnabledQuery);
+		return super.show(queryEnabled + ' ' + query);
 	}
 }
 
 export class DisabledExtensionsView extends ExtensionsListView {
 
-	public static isDisabledExtensionsQuery(query: string): boolean {
-		return ExtensionsListView.isDisabledExtensionsQuery(query);
-	}
-
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		if (DisabledExtensionsView.isDisabledExtensionsQuery(query)) {
-			return super.show(query);
+		const queryDisabled = '@disabled';
+		if (!query || ExtensionsListView.isDisabledExtensionsQuery(query)) {
+			return super.show(queryDisabled);
 		}
-		let searchDisabledQuery = '@disabled';
-		searchDisabledQuery = query ? searchDisabledQuery + ' ' + query : searchDisabledQuery;
-		return super.show(searchDisabledQuery);
+		return super.show(queryDisabled + ' ' + query);
 	}
 }
 
