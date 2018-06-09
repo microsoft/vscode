@@ -633,7 +633,8 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		if (this.countElement) {
+		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set. #50968
+		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
 			DOM.toggleClass(this.countElement, 'no-results', count === 0);
