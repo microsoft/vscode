@@ -109,7 +109,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions')),
 			order: 1,
-			weight: 30
+			weight: 30,
+			canToggleVisibility: true
 		};
 	}
 
