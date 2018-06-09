@@ -469,9 +469,8 @@ class PreferencesRenderersController extends Disposable {
 		if (!editableContentOnly) {
 			filterPs.push(
 				this._filterOrSearchPreferences(query, this.defaultPreferencesRenderer, searchProvider, groupId, groupLabel, groupOrder));
+			filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 		}
-
-		filterPs.push(this.searchAllSettingsTargets(query, searchProvider, groupId, groupLabel, groupOrder));
 
 		return TPromise.join(filterPs).then(results => {
 			let [editableFilterResult, defaultFilterResult] = results;
@@ -481,9 +480,7 @@ class PreferencesRenderersController extends Disposable {
 			}
 
 			this.consolidateAndUpdate(defaultFilterResult, editableFilterResult);
-			if (defaultFilterResult) {
-				this._lastFilterResult = defaultFilterResult;
-			}
+			this._lastFilterResult = defaultFilterResult;
 		});
 	}
 
