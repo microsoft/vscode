@@ -118,7 +118,7 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		this.updateCompositeSwitcher();
 	}
 
-	public addComposite({ id, name, order }: { id: string; name: string, order: number }, open: boolean): void {
+	public addComposite({ id, name, order }: { id: string; name: string, order: number }): void {
 		const state = this.storedState.filter(s => s.id === id)[0];
 		const pinned = state ? state.pinned : true;
 		let index = order >= 0 ? order : this.model.items.length;
@@ -139,8 +139,8 @@ export class CompositeBar extends Widget implements ICompositeBar {
 		// Add to the model
 		if (this.model.add(id, name, order, index)) {
 			this.computeSizes([this.model.findItem(id)]);
-			if (pinned || open) {
-				this.pin(id, open);
+			if (pinned) {
+				this.pin(id);
 			} else {
 				this.updateCompositeSwitcher();
 			}

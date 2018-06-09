@@ -12,5 +12,7 @@
 	"runToCursor": "运行到光标处",
 	"debugEvaluate": "调试: 求值",
 	"debugAddToWatch": "调试: 添加到监视",
-	"showDebugHover": "调试: 显示悬停"
+	"showDebugHover": "调试: 显示悬停",
+	"goToNextBreakpoint": "调试: 转到下一个断点",
+	"goToPreviousBreakpoint": "调试: 转到上一个断点"
 }

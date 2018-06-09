@@ -13,7 +13,7 @@ import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 
 import { IMarkerData } from 'vs/platform/markers/common/markers';
-import { Position as EditorPosition } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
@@ -48,7 +48,7 @@ import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import { IPatternInfo, IRawSearchQuery, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
-import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO } from 'vs/workbench/api/shared/tasks';
+import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -100,6 +100,14 @@ export interface MainThreadCommandsShape extends IDisposable {
 	$unregisterCommand(id: string): void;
 	$executeCommand<T>(id: string, args: any[]): Thenable<T>;
 	$getCommands(): Thenable<string[]>;
+}
+
+export interface MainThreadCommentsShape extends IDisposable {
+	$registerDocumentCommentProvider(handle: number): void;
+	$unregisterDocumentCommentProvider(handle: number): void;
+	$registerWorkspaceCommentProvider(handle: number): void;
+	$unregisterWorkspaceCommentProvider(handle: number): void;
+	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent): void;
 }
 
 export interface MainThreadConfigurationShape extends IDisposable {
@@ -181,7 +189,7 @@ export interface IApplyEditsOptions extends IUndoStopOptions {
 }
 
 export interface ITextDocumentShowOptions {
-	position?: EditorPosition;
+	position?: EditorViewColumn;
 	preserveFocus?: boolean;
 	pinned?: boolean;
 	selection?: IRange;
@@ -191,7 +199,7 @@ export interface MainThreadTextEditorsShape extends IDisposable {
 	$tryShowTextDocument(resource: UriComponents, options: ITextDocumentShowOptions): TPromise<string>;
 	$registerTextEditorDecorationType(key: string, options: editorCommon.IDecorationRenderOptions): void;
 	$removeTextEditorDecorationType(key: string): void;
-	$tryShowEditor(id: string, position: EditorPosition): TPromise<void>;
+	$tryShowEditor(id: string, position: EditorViewColumn): TPromise<void>;
 	$tryHideEditor(id: string): TPromise<void>;
 	$trySetOptions(id: string, options: ITextEditorConfigurationUpdate): TPromise<void>;
 	$trySetDecorations(id: string, key: string, ranges: editorCommon.IDecorationOptions[]): TPromise<void>;
@@ -356,9 +364,9 @@ export interface MainThreadTelemetryShape extends IDisposable {
 export type WebviewPanelHandle = string;
 
 export interface MainThreadWebviewsShape extends IDisposable {
-	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, viewOptions: { viewColumn: EditorPosition, preserveFocus: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionLocation: UriComponents): void;
+	$createWebviewPanel(handle: WebviewPanelHandle, viewType: string, title: string, viewOptions: { viewColumn: EditorViewColumn, preserveFocus: boolean }, options: vscode.WebviewPanelOptions & vscode.WebviewOptions, extensionLocation: UriComponents): void;
 	$disposeWebview(handle: WebviewPanelHandle): void;
-	$reveal(handle: WebviewPanelHandle, viewColumn: EditorPosition | null, preserveFocus: boolean): void;
+	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
@@ -369,9 +377,9 @@ export interface MainThreadWebviewsShape extends IDisposable {
 
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorPosition): void;
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorViewColumn): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
-	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorPosition, options: vscode.WebviewOptions): Thenable<void>;
+	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: vscode.WebviewOptions): Thenable<void>;
 }
 
 export interface MainThreadUrlsShape extends IDisposable {
@@ -410,10 +418,11 @@ export interface MainThreadSearchShape extends IDisposable {
 
 export interface MainThreadTaskShape extends IDisposable {
 	$registerTaskProvider(handle: number): TPromise<void>;
+	$unregisterTaskProvider(handle: number): TPromise<void>;
 	$fetchTasks(filter?: TaskFilterDTO): TPromise<TaskDTO[]>;
 	$executeTask(task: TaskHandleDTO | TaskDTO): TPromise<TaskExecutionDTO>;
 	$terminateTask(id: string): TPromise<void>;
-	$unregisterTaskProvider(handle: number): TPromise<void>;
+	$registerTaskSystem(scheme: string, info: TaskSystemInfoDTO): void;
 }
 
 export interface MainThreadExtensionServiceShape extends IDisposable {
@@ -543,10 +552,10 @@ export interface ITextEditorAddData {
 	options: IResolvedTextEditorConfiguration;
 	selections: ISelection[];
 	visibleRanges: IRange[];
-	editorPosition: EditorPosition;
+	editorPosition: EditorViewColumn;
 }
 export interface ITextEditorPositionData {
-	[id: string]: EditorPosition;
+	[id: string]: EditorViewColumn;
 }
 export interface IEditorPropertiesChangeData {
 	options: IResolvedTextEditorConfiguration | null;
@@ -783,6 +792,7 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
+	$resolveVariables(workspaceFolder: URI, variables: string[]): TPromise<any>;
 }
 
 export interface IBreakpointDto {
@@ -829,6 +839,8 @@ export interface ISourceMultiBreakpointDto {
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): TPromise<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
+	$isTerminalBusy(processId: number): TPromise<boolean>;
+	$prepareCommandForTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any>;
 	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): TPromise<void>;
 	$stopDASession(handle: number): TPromise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void>;
@@ -868,10 +880,18 @@ export interface ExtHostProgressShape {
 	$acceptProgressCanceled(handle: number): void;
 }
 
+export interface ExtHostCommentsShape {
+	$provideDocumentComments(handle: number, document: UriComponents): TPromise<modes.CommentInfo>;
+	$createNewCommentThread?(handle: number, document: UriComponents, range: IRange, text: string): TPromise<modes.CommentThread>;
+	$replyToCommentThread?(handle: number, document: UriComponents, range: IRange, commentThread: modes.CommentThread, text: string): TPromise<modes.CommentThread>;
+	$provideWorkspaceComments(handle: number): TPromise<modes.CommentThread[]>;
+}
+
 // --- proxy identifiers
 
 export const MainContext = {
 	MainThreadCommands: <ProxyIdentifier<MainThreadCommandsShape>>createMainId<MainThreadCommandsShape>('MainThreadCommands'),
+	MainThreadComments: createMainId<MainThreadCommentsShape>('MainThreadComments'),
 	MainThreadConfiguration: createMainId<MainThreadConfigurationShape>('MainThreadConfiguration'),
 	MainThreadDebugService: createMainId<MainThreadDebugServiceShape>('MainThreadDebugService'),
 	MainThreadDecorations: createMainId<MainThreadDecorationsShape>('MainThreadDecorations'),
@@ -929,6 +949,7 @@ export const ExtHostContext = {
 	ExtHostWorkspace: createExtId<ExtHostWorkspaceShape>('ExtHostWorkspace'),
 	ExtHostWindow: createExtId<ExtHostWindowShape>('ExtHostWindow'),
 	ExtHostWebviews: createExtId<ExtHostWebviewsShape>('ExtHostWebviews'),
-	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls'),
-	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress')
+	ExtHostProgress: createMainId<ExtHostProgressShape>('ExtHostProgress'),
+	ExtHostComments: createMainId<ExtHostCommentsShape>('ExtHostComments'),
+	ExtHostUrls: createExtId<ExtHostUrlsShape>('ExtHostUrls')
 };

@@ -57,7 +57,7 @@ export namespace WorkspaceEdit {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		for (const edit of edits) {
 			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(client.asUrl(edit.fileName),
+				workspaceEdit.replace(client.toResource(edit.fileName),
 					Range.fromTextSpan(textChange),
 					textChange.newText);
 			}

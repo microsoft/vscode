@@ -992,6 +992,15 @@
     },
     "colors": [
       {
+        "id": "gitDecoration.addedResourceForeground",
+        "description": "%colors.added%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#1b5225"
+        }
+      },
+      {
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
         "defaults": {
@@ -1082,6 +1091,17 @@
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "filenames": [
+          ".gitignore"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
     "grammars": [
@@ -1099,6 +1119,11 @@
         "language": "diff",
         "scopeName": "source.diff",
         "path": "./syntaxes/diff.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ],
     "configurationDefaults": {

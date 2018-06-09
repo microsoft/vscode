@@ -22,7 +22,7 @@ import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
 import { ExtHostExtensionService } from 'vs/workbench/api/node/extHostExtensionService';
 import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 import { IAdapterExecutable, ITerminalSettings, IDebuggerContribution, IConfig, IDebugAdapter } from 'vs/workbench/parts/debug/common/debug';
-import { getTerminalLauncher } from 'vs/workbench/parts/debug/node/terminals';
+import { getTerminalLauncher, hasChildprocesses, prepareCommand } from 'vs/workbench/parts/debug/node/terminals';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { IStringDictionary } from 'vs/base/common/collections';
@@ -68,7 +68,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 
 	constructor(mainContext: IMainContext,
-		private _workspace: ExtHostWorkspace,
+		private _workspaceService: ExtHostWorkspace,
 		private _extensionService: ExtHostExtensionService,
 		private _editorsService: ExtHostDocumentsAndEditors,
 		private _configurationService: ExtHostConfiguration
@@ -125,12 +125,28 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		return void 0;
 	}
 
+	public $isTerminalBusy(processId: number): TPromise<boolean> {
+		return asWinJsPromise(token => hasChildprocesses(processId));
+	}
+
+	public $prepareCommandForTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any> {
+		return asWinJsPromise(token => prepareCommand(args, config));
+	}
+
 	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): TPromise<IConfig> {
 		if (!this._variableResolver) {
-			this._variableResolver = new ExtHostVariableResolverService(this._workspace, this._editorsService, this._configurationService);
+			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, this._configurationService);
 		}
-		const folder = <IWorkspaceFolder>this.getFolder(folderUri);
-		return asWinJsPromise(token => DebugAdapter.substituteVariables(folder, config, this._variableResolver));
+		const folder = this.getFolder(folderUri);
+		let ws: IWorkspaceFolder = {
+			uri: folder.uri,
+			name: folder.name,
+			index: folder.index,
+			toResource: () => {
+				throw new Error('Not implemented');
+			}
+		};
+		return asWinJsPromise(token => DebugAdapter.substituteVariables(ws, config, this._variableResolver));
 	}
 
 	public $startDASession(handle: number, debugType: string, adpaterExecutable: IAdapterExecutable | null, debugPort: number): TPromise<void> {
@@ -479,14 +495,10 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 
-	private getFolder(_folderUri: UriComponents | undefined) {
+	private getFolder(_folderUri: UriComponents | undefined): vscode.WorkspaceFolder {
 		if (_folderUri) {
-			const folderUriString = URI.revive(_folderUri).toString();
-			const folders = this._workspace.getWorkspaceFolders();
-			const found = folders.filter(f => f.uri.toString() === folderUriString);
-			if (found && found.length > 0) {
-				return found[0];
-			}
+			const folderURI = URI.revive(_folderUri);
+			return this._workspaceService.resolveWorkspaceFolder(folderURI);
 		}
 		return undefined;
 	}

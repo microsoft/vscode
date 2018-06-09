@@ -89,6 +89,7 @@ export function toDecodeStream(readable: Readable, options: IDecodeStreamOptions
 					resolve({ detected, stream: this._decodeStream });
 
 				}, err => {
+					this.emit('error', err);
 					callback(err);
 				});
 			}

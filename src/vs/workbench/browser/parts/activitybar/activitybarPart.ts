@@ -20,14 +20,16 @@ import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/s
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { scheduleAtNextAnimationFrame, Dimension, createCSSRule } from 'vs/base/browser/dom';
+import { Color } from 'vs/base/common/color';
 import { ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
-import { ViewLocation, ViewsRegistry } from 'vs/workbench/common/views';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { Dimension, createCSSRule } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -57,7 +59,6 @@ export class ActivitybarPart extends Part {
 	private globalActivityIdToActions: { [globalActivityId: string]: GlobalActivityAction; };
 
 	private placeholderComposites: IPlaceholderComposite[] = [];
-	private extensionsRegistrationCompleted: boolean = false;
 	private compositeBar: CompositeBar;
 	private compositeActions: { [compositeId: string]: { activityAction: ViewletActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 
@@ -67,8 +68,9 @@ export class ActivitybarPart extends Part {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -101,7 +103,6 @@ export class ActivitybarPart extends Part {
 	}
 
 	private onDidRegisterExtensions(): void {
-		this.extensionsRegistrationCompleted = true;
 		this.removeNotExistingPlaceholderComposites();
 		this.updateCompositebar();
 	}
@@ -109,8 +110,6 @@ export class ActivitybarPart extends Part {
 	private registerListeners(): void {
 
 		this.toUnbind.push(this.viewletService.onDidViewletRegister(() => this.updateCompositebar()));
-		this.toUnbind.push(ViewsRegistry.onViewsRegistered(() => this.updateCompositebar()));
-		this.toUnbind.push(ViewsRegistry.onViewsDeregistered(() => this.updateCompositebar()));
 
 		// Activate viewlet action on opening of a viewlet
 		this.toUnbind.push(this.viewletService.onDidViewletOpen(viewlet => this.compositeBar.activateComposite(viewlet.getId())));
@@ -119,7 +118,7 @@ export class ActivitybarPart extends Part {
 		this.toUnbind.push(this.viewletService.onDidViewletClose(viewlet => this.compositeBar.deactivateComposite(viewlet.getId())));
 		this.toUnbind.push(this.viewletService.onDidViewletEnablementChange(({ id, enabled }) => {
 			if (enabled) {
-				this.compositeBar.addComposite(this.viewletService.getViewlet(id), true);
+				this.compositeBar.addComposite(this.viewletService.getViewlet(id));
 			} else {
 				this.removeComposite(id);
 			}
@@ -158,6 +157,27 @@ export class ActivitybarPart extends Part {
 
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
+
+		// TODO@Ben: workaround for https://github.com/Microsoft/vscode/issues/45700
+		// It looks like there are rendering glitches on macOS with Chrome 61 when
+		// using --webkit-mask with a background color that is different from the image
+		// The workaround is to promote the element onto its own drawing layer. We do
+		// this only after the workbench has loaded because otherwise there is ugly flicker.
+		if (isMacintosh) {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				scheduleAtNextAnimationFrame(() => { // another delay...
+					scheduleAtNextAnimationFrame(() => { // ...to prevent more flickering on startup
+						registerThemingParticipant((theme, collector) => {
+							const activityBarForeground = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+							if (activityBarForeground && !activityBarForeground.equals(Color.white)) {
+								// only apply this workaround if the color is different from the image one (white)
+								collector.addRule('.monaco-workbench .activitybar > .content .monaco-action-bar .action-label { will-change: transform; }');
+							}
+						});
+					});
+				});
+			});
+		}
 
 		return $result.getHTMLElement();
 	}
@@ -226,26 +246,18 @@ export class ActivitybarPart extends Part {
 	private updateCompositebar(): void {
 		const viewlets = this.viewletService.getViewlets();
 		for (const viewlet of viewlets) {
-			const hasPlaceholder = this.placeholderComposites.some(c => c.id === viewlet.id);
+			this.compositeBar.addComposite(viewlet);
 
-			// Add the composite if it has views registered or
-			// If it was existing before and the extensions registration is not yet completed.
-			if (this.hasRegisteredViews(viewlet)
-				|| (hasPlaceholder && !this.extensionsRegistrationCompleted)
-			) {
-				this.compositeBar.addComposite(viewlet, false);
-				// Pin it by default if it is new => it does not has a placeholder
-				if (!hasPlaceholder) {
-					this.compositeBar.pin(viewlet.id);
-				}
-				this.enableCompositeActions(viewlet);
-				const activeViewlet = this.viewletService.getActiveViewlet();
-				if (activeViewlet && activeViewlet.getId() === viewlet.id) {
-					this.compositeBar.pin(viewlet.id);
-					this.compositeBar.activateComposite(viewlet.id);
-				}
-			} else {
-				this.removeComposite(viewlet.id);
+			// Pin it by default if it is new => it does not has a placeholder
+			if (this.placeholderComposites.every(c => c.id !== viewlet.id)) {
+				this.compositeBar.pin(viewlet.id);
+			}
+
+			this.enableCompositeActions(viewlet);
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet && activeViewlet.getId() === viewlet.id) {
+				this.compositeBar.pin(viewlet.id);
+				this.compositeBar.activateComposite(viewlet.id);
 			}
 		}
 	}
@@ -254,7 +266,7 @@ export class ActivitybarPart extends Part {
 		const viewlets = this.viewletService.getViewlets();
 		for (const { id } of this.placeholderComposites) {
 			if (viewlets.every(viewlet => viewlet.id !== id)) {
-				this.compositeBar.addComposite({ id, name: id, order: void 0 }, false);
+				this.compositeBar.addComposite({ id, name: id, order: void 0 });
 			}
 		}
 	}
@@ -288,14 +300,6 @@ export class ActivitybarPart extends Part {
 		}
 	}
 
-	private hasRegisteredViews(viewlet: ViewletDescriptor): boolean {
-		const viewLocation = ViewLocation.get(viewlet.id);
-		if (viewLocation) {
-			return ViewsRegistry.getViews(viewLocation).length > 0;
-		}
-		return true;
-	}
-
 	public getPinned(): string[] {
 		return this.viewletService.getViewlets().map(v => v.id).filter(id => this.compositeBar.isPinned(id));
 	}
@@ -324,7 +328,7 @@ export class ActivitybarPart extends Part {
 	}
 
 	public shutdown(): void {
-		const state = this.viewletService.getViewlets().filter(viewlet => this.hasRegisteredViews(viewlet)).map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
+		const state = this.viewletService.getViewlets().map(viewlet => ({ id: viewlet.id, iconUrl: viewlet.iconUrl }));
 		this.storageService.store(ActivitybarPart.PLACEHOLDER_VIEWLETS, JSON.stringify(state), StorageScope.GLOBAL);
 		super.shutdown();
 	}

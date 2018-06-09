@@ -35,18 +35,16 @@ export class ResourceMarkers extends NodeWithId {
 	private _name: string = null;
 	private _path: string = null;
 
-	readonly markers: Marker[];
+	markers: Marker[] = [];
 	isExcluded: boolean = false;
 	isIncluded: boolean = false;
 	filteredCount: number;
 	uriMatches: IMatch[] = [];
 
 	constructor(
-		readonly uri: URI,
-		markers: Marker[]
+		readonly uri: URI
 	) {
 		super(uri.toString());
-		this.markers = markers.sort(Marker.compare);
 	}
 
 	public get path(): string {
@@ -271,8 +269,8 @@ export class MarkersModel {
 
 	private createResource(uri: URI, rawMarkers: IMarker[]): ResourceMarkers {
 
-		let markers: Marker[] = [];
-		const resource = new ResourceMarkers(uri, markers);
+		const markers: Marker[] = [];
+		const resource = new ResourceMarkers(uri);
 		this.updateResource(resource);
 
 		rawMarkers.forEach((rawMarker, index) => {
@@ -285,6 +283,7 @@ export class MarkersModel {
 			this.updateMarker(marker, resource);
 			markers.push(marker);
 		});
+		resource.markers = markers.sort(Marker.compare);
 
 		this.updateFilteredCount(resource);
 

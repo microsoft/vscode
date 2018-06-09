@@ -13,7 +13,7 @@ import * as which from 'which';
 import { EventEmitter } from 'events';
 import iconv = require('iconv-lite');
 import * as filetype from 'file-type';
-import { assign, uniqBy, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
+import { assign, groupBy, denodeify, IDisposable, toDisposable, dispose, mkdirp, readBytes, detectUnicodeEncoding, Encoding, onceEvent } from './util';
 import { CancellationToken } from 'vscode';
 import { detectEncoding } from './encoding';
 
@@ -33,7 +33,9 @@ export interface IFileStatus {
 
 export interface Remote {
 	name: string;
-	url: string;
+	fetchUrl?: string;
+	pushUrl?: string;
+	isReadOnly: boolean;
 }
 
 export interface Stash {
@@ -1226,14 +1228,34 @@ export class Repository {
 
 	async getRemotes(): Promise<Remote[]> {
 		const result = await this.run(['remote', '--verbose']);
-		const regex = /^([^\s]+)\s+([^\s]+)\s/;
-		const rawRemotes = result.stdout.trim().split('\n')
-			.filter(b => !!b)
-			.map(line => regex.exec(line) as RegExpExecArray)
-			.filter(g => !!g)
-			.map((groups: RegExpExecArray) => ({ name: groups[1], url: groups[2] }));
+		const lines = result.stdout.trim().split('\n').filter(l => !!l);
+		const remotes: Remote[] = [];
 
-		return uniqBy(rawRemotes, remote => remote.name);
+		for (const line of lines) {
+			const parts = line.split(/\s/);
+			const [name, url, type] = parts;
+
+			let remote = remotes.find(r => r.name === name);
+
+			if (!remote) {
+				remote = { name, isReadOnly: false };
+				remotes.push(remote);
+			}
+
+			if (/fetch/i.test(type)) {
+				remote.fetchUrl = url;
+			} else if (/push/i.test(type)) {
+				remote.pushUrl = url;
+			} else {
+				remote.fetchUrl = url;
+				remote.pushUrl = url;
+			}
+
+			// https://github.com/Microsoft/vscode/issues/45271
+			remote.isReadOnly = remote.pushUrl === undefined || remote.pushUrl === 'no_push';
+		}
+
+		return remotes;
 	}
 
 	async getBranch(name: string): Promise<Branch> {

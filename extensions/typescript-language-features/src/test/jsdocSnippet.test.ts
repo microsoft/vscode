@@ -5,7 +5,7 @@
 
 import * as assert from 'assert';
 import 'mocha';
-import { templateToSnippet } from '../features/jsDocCompletionProvider';
+import { templateToSnippet } from '../features/jsDocCompletions';
 
 suite('typescript.jsDocSnippet', () => {
 	test('Should do nothing for single line input', async () => {
@@ -70,7 +70,7 @@ suite('typescript.jsDocSnippet', () => {
 			[
 				'/**',
 				' * $0',
-				' * @param $arg ${1}',
+				' * @param \\$arg ${1}',
 				' */'
 			].join('\n'));
 	});

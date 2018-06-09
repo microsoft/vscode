@@ -32,6 +32,7 @@ import { ITextBufferFactory } from 'vs/editor/common/model';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { createTextBufferFactory } from 'vs/editor/common/model/textModel';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isLinux } from 'vs/base/common/platform';
 
 /**
  * The text file editor model listens to changes to its underlying code editor model and saves these changes through the file service back to the disk.
@@ -692,6 +693,16 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 		// mark the save participant as current pending save operation
 		return this.saveSequentializer.setPending(versionId, saveParticipantPromise.then(newVersionId => {
 
+			// We have to protect against being disposed at this point. It could be that the save() operation
+			// was triggerd followed by a dispose() operation right after without waiting. Typically we cannot
+			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
+			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
+			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
+			// To fix this issue, we will not store the contents to disk when we got disposed. 
+			if (this.disposed) {
+				return void 0;
+			}
+
 			// Under certain conditions we do a short-cut of flushing contents to disk when we can assume that
 			// the file has not changed and as such was not dirty before.
 			// The conditions are all of:
@@ -780,7 +791,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	private isSettingsFile(): boolean {
 
 		// Check for global settings file
-		if (this.resource.fsPath === this.environmentService.appSettingsPath) {
+		if (path.isEqual(this.resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
 			return true;
 		}
 

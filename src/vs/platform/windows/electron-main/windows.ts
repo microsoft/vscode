@@ -47,7 +47,7 @@ export interface ICodeWindow {
 	readyState: ReadyState;
 	ready(): TPromise<ICodeWindow>;
 
-	load(config: IWindowConfiguration, isReload?: boolean): void;
+	load(config: IWindowConfiguration, isReload?: boolean, disableExtensions?: boolean): void;
 	reload(configuration?: IWindowConfiguration, cli?: ParsedArgs): void;
 
 	focus(): void;
@@ -119,6 +119,7 @@ export interface IWindowsMainService {
 
 export interface IOpenConfiguration {
 	context: OpenContext;
+	contextWindowId?: number;
 	cli: ParsedArgs;
 	userEnv?: IProcessEnvironment;
 	pathsToOpen?: string[];

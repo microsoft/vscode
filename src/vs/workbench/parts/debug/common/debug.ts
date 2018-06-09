@@ -12,17 +12,22 @@ import { IJSONSchemaSnippet } from 'vs/base/common/jsonSchema';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ITextModel as EditorIModel } from 'vs/editor/common/model';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { Position } from 'vs/editor/common/core/position';
 import { ISuggestion } from 'vs/editor/common/modes';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 
 export const VIEWLET_ID = 'workbench.view.debug';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
+
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
@@ -222,7 +227,7 @@ export interface IStackFrame extends ITreeElement {
 	getSpecificSourceName(): string;
 	restart(): TPromise<any>;
 	toString(): string;
-	openInEditor(editorService: IWorkbenchEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
+	openInEditor(editorService: IEditorService, preserveFocus?: boolean, sideBySide?: boolean): TPromise<any>;
 }
 
 export interface IEnablement extends ITreeElement {
@@ -239,10 +244,12 @@ export interface IBreakpointData {
 	readonly hitCondition?: string;
 }
 
-export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
+export interface IBreakpointUpdateData {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
+	readonly lineNumber?: number;
+	readonly column?: number;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -311,7 +318,7 @@ export interface IViewModel extends ITreeElement {
 
 export interface IModel extends ITreeElement {
 	getSessions(): ReadonlyArray<ISession>;
-	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number }): ReadonlyArray<IBreakpoint>;
+	getBreakpoints(filter?: { uri?: uri, lineNumber?: number, column?: number, enabledOnly?: boolean }): ReadonlyArray<IBreakpoint>;
 	areBreakpointsActivated(): boolean;
 	getFunctionBreakpoints(): ReadonlyArray<IFunctionBreakpoint>;
 	getExceptionBreakpoints(): ReadonlyArray<IExceptionBreakpoint>;
@@ -331,6 +338,7 @@ export interface IBreakpointsChangeEvent {
 	added?: (IBreakpoint | IFunctionBreakpoint)[];
 	removed?: (IBreakpoint | IFunctionBreakpoint)[];
 	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	sessionOnly?: boolean;
 }
 
 // Debug enums
@@ -350,7 +358,7 @@ export interface IDebugConfiguration {
 	openExplorerOnEnd: boolean;
 	inlineValues: boolean;
 	hideActionBar: boolean;
-	toolbar: 'float' | 'dock' | 'hide';
+	toolBarLocation: 'floating' | 'docked' | 'hidden';
 	showInStatusBar: 'never' | 'always' | 'onFirstSessionStart';
 	internalConsoleOptions: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
 	extensionHostDebugAdapter: boolean;
@@ -365,11 +373,10 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preLaunchTask?: string;
-	postDebugTask?: string;
+	preLaunchTask?: string | TaskIdentifier;
+	postDebugTask?: string | TaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
-	logLevel?: string;
 }
 
 export interface IConfig extends IEnvConfig {
@@ -556,7 +563,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }>;
 }
 
 // Debug service interfaces

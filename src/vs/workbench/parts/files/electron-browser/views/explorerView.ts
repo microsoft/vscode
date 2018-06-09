@@ -20,12 +20,10 @@ import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/wo
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { toResource } from 'vs/workbench/common/editor';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import * as DOM from 'vs/base/browser/dom';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IViewletViewOptions, IViewOptions, TreeViewsViewletPanel, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, FileIconThemableWorkbenchTree, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { ExplorerItem, Model } from 'vs/workbench/parts/files/common/explorerModel';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ExplorerDecorationsProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerDecorationsProvider';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
@@ -43,6 +41,8 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { DelayedDragHandler } from 'vs/base/browser/dnd';
 import { Schemas } from 'vs/base/common/network';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 export interface IExplorerViewOptions extends IViewletViewOptions {
 	viewletState: FileViewletState;
@@ -84,10 +84,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		@INotificationService private notificationService: INotificationService,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IProgressService private progressService: IProgressService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IFileService private fileService: IFileService,
 		@IPartService private partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
@@ -95,7 +94,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		@IConfigurationService configurationService: IConfigurationService,
 		@IDecorationsService decorationService: IDecorationsService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('explorerSection', "Files Explorer Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.settings = options.viewletSettings;
 		this.viewletState = options.viewletState;
@@ -157,6 +156,31 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		// noop
 	}
 
+	public render(): void {
+
+		super.render();
+
+		// Update configuration
+		const configuration = this.configurationService.getValue<IFilesConfiguration>();
+		this.onConfigurationUpdated(configuration);
+
+		// Load and Fill Viewer
+		let targetsToExpand = [];
+		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
+			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
+		}
+		this.doRefresh(targetsToExpand).then(() => {
+
+			// When the explorer viewer is loaded, listen to changes to the editor input
+			this.disposables.push(this.editorService.onDidActiveEditorChange(() => this.revealActiveFile()));
+
+			// Also handle configuration updates
+			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
+
+			this.revealActiveFile();
+		});
+	}
+
 	public renderBody(container: HTMLElement): void {
 		this.treeContainer = DOM.append(container, DOM.$('.explorer-folders-view'));
 		this.tree = this.createViewer(this.treeContainer);
@@ -187,29 +211,6 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		return actions;
 	}
 
-	public create(): TPromise<void> {
-
-		// Update configuration
-		const configuration = this.configurationService.getValue<IFilesConfiguration>();
-		this.onConfigurationUpdated(configuration);
-
-		// Load and Fill Viewer
-		let targetsToExpand = [];
-		if (this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES]) {
-			targetsToExpand = this.settings[ExplorerView.MEMENTO_EXPANDED_FOLDER_RESOURCES].map((e: string) => URI.parse(e));
-		}
-		return this.doRefresh(targetsToExpand).then(() => {
-
-			// When the explorer viewer is loaded, listen to changes to the editor input
-			this.disposables.push(this.editorGroupService.onEditorsChanged(() => this.revealActiveFile()));
-
-			// Also handle configuration updates
-			this.disposables.push(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(this.configurationService.getValue<IFilesConfiguration>(), e)));
-
-			this.revealActiveFile();
-		});
-	}
-
 	private revealActiveFile(): void {
 		if (!this.autoReveal) {
 			return; // do not touch selection or focus if autoReveal === false
@@ -237,7 +238,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		}
 
 		// Handle closed or untitled file (convince explorer to not reopen any file when getting visible)
-		const activeInput = this.editorService.getActiveEditorInput();
+		const activeInput = this.editorService.activeEditor;
 		if (!activeInput || toResource(activeInput, { supportSideBySide: true, filter: Schemas.untitled })) {
 			this.settings[ExplorerView.MEMENTO_LAST_ACTIVE_FILE_RESOURCE] = void 0;
 			clearFocus = true;
@@ -347,7 +348,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 				}
 
 				if (lastActiveFileResource && this.isCreated && this.model.findClosest(lastActiveFileResource)) {
-					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+					this.editorService.openEditor({ resource: lastActiveFileResource, options: { revealIfVisible: true } });
 
 					return refreshPromise;
 				}
@@ -365,12 +366,12 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private openFocusedElement(preserveFocus?: boolean): void {
 		const stat: ExplorerItem = this.explorerViewer.getFocus();
 		if (stat && !stat.isDirectory) {
-			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } }).done(null, errors.onUnexpectedError);
+			this.editorService.openEditor({ resource: stat.resource, options: { preserveFocus, revealIfVisible: true } });
 		}
 	}
 
 	private getActiveFile(): URI {
-		const input = this.editorService.getActiveEditorInput();
+		const input = this.editorService.activeEditor;
 
 		// ignore diff editor inputs (helps to get out of diffing when returning to explorer)
 		if (input instanceof DiffEditorInput) {

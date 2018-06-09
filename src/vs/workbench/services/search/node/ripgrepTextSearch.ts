@@ -469,9 +469,11 @@ function getRgArgs(config: IRawSearch) {
 		args.push('--follow');
 	}
 
-	// Set default encoding if only one folder is opened
-	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {
-		args.push('--encoding', encoding.toCanonicalName(config.folderQueries[0].fileEncoding));
+	if (config.folderQueries[0]) {
+		const folder0Encoding = config.folderQueries[0].fileEncoding;
+		if (folder0Encoding && folder0Encoding !== 'utf8' && config.folderQueries.every(fq => fq.fileEncoding === folder0Encoding)) {
+			args.push('--encoding', encoding.toCanonicalName(folder0Encoding));
+		}
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
@@ -487,11 +489,13 @@ function getRgArgs(config: IRawSearch) {
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
-		args.push('--regexp', config.contentPattern.pattern);
+		args.push('--regexp', fixRegexEndingPattern(config.contentPattern.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		args.push('--fixed-strings');
 	}
+
+	args.push('--no-config');
 
 	// Folder to search
 	args.push('--');
@@ -538,4 +542,13 @@ function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
 	});
 
 	return universalExcludes;
+}
+
+// Exported for testing
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

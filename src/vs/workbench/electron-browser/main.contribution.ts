@@ -22,6 +22,9 @@ import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { HistoryNavigationKeybindingsChangedContribution } from 'vs/workbench/electron-browser/removedKeybindingsContribution';
 
 // Contribute Commands
 registerCommands();
@@ -216,6 +219,17 @@ configurationRegistry.registerConfiguration({
 			'default': 'right',
 			'description': nls.localize({ comment: ['This is the description for a setting. Values surrounded by single quotes are not to be translated.'], key: 'editorOpenPositioning' }, "Controls where editors open. Select 'left' or 'right' to open editors to the left or right of the currently active one. Select 'first' or 'last' to open editors independently from the currently active one.")
 		},
+		'workbench.editor.openSideBySideDirection': {
+			'type': 'string',
+			'enum': ['right', 'down'],
+			'default': 'right',
+			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the rigth hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
+		},
+		'workbench.editor.closeEmptyGroups': {
+			'type': 'boolean',
+			'description': nls.localize('closeEmptyGroups', "Controls the behavior of empty editor groups when the last tab in the group is closed. When enabled, empty groups will automatically close. When disabled, empty groups will remain part of the grid."),
+			'default': true
+		},
 		'workbench.editor.revealIfOpen': {
 			'type': 'boolean',
 			'description': nls.localize('revealIfOpen', "Controls if an editor is revealed in any of the visible groups if opened. If disabled, an editor will prefer to open in the currently active editor group. If enabled, an already opened editor will be revealed instead of opened again in the currently active editor group. Note that there are some cases where this setting is ignored, e.g. when forcing an editor to open in a specific group or to the side of the currently active group."),
@@ -257,7 +271,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['bottom', 'right'],
 			'default': 'bottom',
-			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel. It can either show at the bottom or on the right of the workbench.")
+			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
 		},
 		'workbench.statusBar.visible': {
 			'type': 'boolean',
@@ -490,3 +504,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(HistoryNavigationKeybindingsChangedContribution, LifecyclePhase.Eventually);

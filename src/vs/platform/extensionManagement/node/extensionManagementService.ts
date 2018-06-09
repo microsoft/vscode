@@ -246,7 +246,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						return this.downloadAndInstallExtensions(extensionsToInstall, operataions)
 							.then(
 								locals => this.onDidInstallExtensions(extensionsToInstall, locals, operataions, [])
-									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier)[0])),
+									.then(() => locals.filter(l => areSameExtensions({ id: getGalleryExtensionIdFromLocal(l), uuid: l.identifier.uuid }, extension.identifier))[0]),
 								errors => this.onDidInstallExtensions(extensionsToInstall, [], operataions, errors));
 					},
 					error => this.onDidInstallExtensions([extension], [], [this.getOperation(extension.identifier, installed)], [error])));

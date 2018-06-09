@@ -13,5 +13,6 @@
 	"indentUsingTabs": "탭을 사용한 들여쓰기",
 	"indentUsingSpaces": "공백을 사용한 들여쓰기",
 	"detectIndentation": "콘텐츠에서 들여쓰기 감지",
-	"editor.reindentlines": "줄 다시 들여쓰기"
+	"editor.reindentlines": "줄 다시 들여쓰기",
+	"editor.reindentselectedlines": "선택한 줄 다시 들여쓰기"
 }

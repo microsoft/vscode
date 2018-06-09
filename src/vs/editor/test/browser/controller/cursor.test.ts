@@ -4195,6 +4195,86 @@ suite('autoClosingPairs', () => {
 		mode.dispose();
 	});
 
+	test('issue #26820: auto close quotes when not used as accents', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				''
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+			assertCursor(cursor, new Position(1, 1));
+
+			// on the mac US intl kb layout
+
+			// Typing ` + space
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'\'');
+
+			// Typing " + space within string
+			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '"' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '"' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'""\'');
+
+			// Typing ' + space after '
+			model.setValue('\'');
+			cursor.setSelections('test', [new Selection(1, 2, 1, 2)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'\'');
+
+			// Typing ' as a closing tag
+			model.setValue('\'abc');
+			cursor.setSelections('test', [new Selection(1, 5, 1, 5)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'abc\'');
+
+			// quotes before the newly added character are all paired.
+			model.setValue('\'abc\'def ');
+			cursor.setSelections('test', [new Selection(1, 10, 1, 10)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), '\'abc\'def \'\'');
+
+			// No auto closing if there is non-whitespace character after the cursor
+			model.setValue('abc');
+			cursor.setSelections('test', [new Selection(1, 1, 1, 1)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			// No auto closing if it's after a word.
+			model.setValue('abc');
+			cursor.setSelections('test', [new Selection(1, 4, 1, 4)]);
+			cursorCommand(cursor, H.CompositionStart, null, 'keyboard');
+			cursorCommand(cursor, H.Type, { text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.ReplacePreviousChar, { replaceCharCnt: 1, text: '\'' }, 'keyboard');
+			cursorCommand(cursor, H.CompositionEnd, null, 'keyboard');
+
+			assert.equal(model.getValue(), 'abc\'');
+		});
+		mode.dispose();
+	});
+
 	test('issue #20891: All cursors should do the same thing', () => {
 		let mode = new AutoClosingMode();
 		usingCursor({

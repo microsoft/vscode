@@ -234,7 +234,7 @@ export class FileService implements IFileService {
 				const legacyWindowsWatcher = new WindowsWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
 				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyWindowsWatcher.startWatching());
 			} else {
-				const legacyUnixWatcher = new UnixWatcherService(this.contextService, watcherIgnoredPatterns, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
+				const legacyUnixWatcher = new UnixWatcherService(this.contextService, this.configurationService, e => this._onFileChanges.fire(e), err => this.handleError(err), this.environmentService.verbose);
 				this.activeWorkspaceFileChangeWatcher = toDisposable(legacyUnixWatcher.startWatching());
 			}
 		}

@@ -23,7 +23,7 @@
 		"onCommand:markdown.showLockedPreviewToSide",
 		"onCommand:markdown.showSource",
 		"onCommand:markdown.showPreviewSecuritySelector",
-		"onView:markdown.preview"
+		"onWebviewPanel:markdown.preview"
 	],
 	"contributes": {
 		"commands": [
@@ -278,7 +278,7 @@
 		],
 		"markdown.previewStyles": [
 			"./media/markdown.css",
-			"./media/tomorrow.css"
+			"./media/highlight.css"
 		],
 		"markdown.previewScripts": [
 			"./media/index.js"

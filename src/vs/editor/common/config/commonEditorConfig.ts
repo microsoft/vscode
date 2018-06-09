@@ -260,7 +260,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.scrollBeyondLastColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
-			'description': nls.localize('scrollBeyondLastColumn', "Controls if the editor will scroll beyond the last column")
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
 		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
@@ -353,9 +353,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
-			'enum': ['none', 'same', 'indent'],
+			'enum': ['none', 'same', 'indent', 'deepIndent'],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',

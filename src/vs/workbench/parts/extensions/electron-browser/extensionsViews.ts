@@ -24,10 +24,9 @@ import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
@@ -36,8 +35,9 @@ import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRe
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class ExtensionsListView extends ViewsViewletPanel {
+export class ExtensionsListView extends ViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
@@ -54,19 +54,18 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorInputService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IExtensionTipsService private tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {
 		const titleDiv = append(container, $('div.title'));
-		append(titleDiv, $('span')).textContent = this.options.name;
+		append(titleDiv, $('span')).textContent = this.options.title;
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
@@ -335,13 +334,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				return TPromise.join([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
-
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 						/* __GDPR__
 							"extensionAllRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionAllRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
+								};
+							})
+						});
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
@@ -373,13 +381,23 @@ export class ExtensionsListView extends ViewsViewletPanel {
 						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 
 						/* __GDPR__
 							"extensionRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
+								};
+							})
+						});
 
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
@@ -486,13 +504,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	private pin(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = this.editorService.getActiveEditorInput();
-
-		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
-		activeEditor.focus();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.group.pinEditor(activeControl.input);
+			activeControl.focus();
+		}
 	}
-
 
 	private onError(err: any): void {
 		if (isPromiseCanceledError(err)) {

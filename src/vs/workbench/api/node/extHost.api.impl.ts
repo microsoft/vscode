@@ -58,6 +58,7 @@ import { ExtensionActivatedByAPI } from 'vs/workbench/api/node/extHostExtensionA
 import { OverviewRulerLane } from 'vs/editor/common/model';
 import { ExtHostLogService } from 'vs/workbench/api/node/extHostLogService';
 import { ExtHostWebviews } from 'vs/workbench/api/node/extHostWebview';
+import { ExtHostComments } from './extHostComments';
 import { ExtHostSearch } from './extHostSearch';
 import { ExtHostUrls } from './extHostUrls';
 
@@ -121,10 +122,11 @@ export function createApiFactory(
 	const extHostTerminalService = rpcProtocol.set(ExtHostContext.ExtHostTerminalService, new ExtHostTerminalService(rpcProtocol, extHostConfiguration, extHostLogService));
 	const extHostSCM = rpcProtocol.set(ExtHostContext.ExtHostSCM, new ExtHostSCM(rpcProtocol, extHostCommands, extHostLogService));
 	const extHostSearch = rpcProtocol.set(ExtHostContext.ExtHostSearch, new ExtHostSearch(rpcProtocol, schemeTransformer));
-	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace));
+	const extHostTask = rpcProtocol.set(ExtHostContext.ExtHostTask, new ExtHostTask(rpcProtocol, extHostWorkspace, extHostDocumentsAndEditors, extHostConfiguration));
 	const extHostWindow = rpcProtocol.set(ExtHostContext.ExtHostWindow, new ExtHostWindow(rpcProtocol));
 	rpcProtocol.set(ExtHostContext.ExtHostExtensionService, extensionService);
 	const extHostProgress = rpcProtocol.set(ExtHostContext.ExtHostProgress, new ExtHostProgress(rpcProtocol.getProxy(MainContext.MainThreadProgress)));
+	const exthostCommentProviders = rpcProtocol.set(ExtHostContext.ExtHostComments, new ExtHostComments(rpcProtocol, extHostCommands.converter, extHostDocuments));
 
 	// Check that no named customers are missing
 	const expected: ProxyIdentifier<any>[] = Object.keys(ExtHostContext).map((key) => (<any>ExtHostContext)[key]);
@@ -138,7 +140,7 @@ export function createApiFactory(
 	const extHostLanguages = new ExtHostLanguages(rpcProtocol);
 
 	// Register API-ish commands
-	ExtHostApiCommands.register(extHostCommands, extHostTask);
+	ExtHostApiCommands.register(extHostCommands);
 
 	return function (extension: IExtensionDescription): typeof vscode {
 
@@ -394,9 +396,6 @@ export function createApiFactory(
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
 				return extHostQuickOpen.showInput(undefined, options, token);
 			},
-			multiStepInput<T>(handler: (input: vscode.QuickInput, token: vscode.CancellationToken) => Thenable<T>, token?: vscode.CancellationToken): Thenable<T> {
-				return extHostQuickOpen.multiStepInput(handler, token);
-			},
 			showOpenDialog(options) {
 				return extHostDialogs.showOpenDialog(options);
 			},
@@ -545,33 +544,21 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
-				return extHostTask.fetchTasks(filter);
-			}),
-			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
-				return extHostTask.executeTask(extension, task);
-			}),
-			get taskExecutions(): vscode.TaskExecution[] {
-				return extHostTask.taskExecutions;
-			},
-			onDidStartTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidStartTask(listeners, thisArgs, disposables);
-			},
-			onDidEndTask: (listeners, thisArgs?, disposables?) => {
-				return extHostTask.onDidEndTask(listeners, thisArgs, disposables);
-			},
 			registerFileSystemProvider(scheme, provider, options) {
 				return extHostFileSystem.registerFileSystemProvider(scheme, provider, options);
 			},
-			registerDeprecatedFileSystemProvider: proposedApiFunction(extension, (scheme, provider) => {
-				return extHostFileSystem.registerDeprecatedFileSystemProvider(scheme, provider);
-			}),
 			registerSearchProvider: proposedApiFunction(extension, (scheme, provider) => {
 				return extHostSearch.registerSearchProvider(scheme, provider);
 			}),
+			registerDocumentCommentProvider: proposedApiFunction(extension, (provider: vscode.DocumentCommentProvider) => {
+				return exthostCommentProviders.registerDocumentCommentProvider(provider);
+			}),
+			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
+				return exthostCommentProviders.registerWorkspaceCommentProvider(provider);
+			}),
 			onDidRenameResource: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostDocuments.onDidRenameResource(listener, thisArg, disposables);
-			}),
+			})
 		};
 
 		// namespace: scm
@@ -628,12 +615,12 @@ export function createApiFactory(
 			registerTaskProvider: (type: string, provider: vscode.TaskProvider) => {
 				return extHostTask.registerTaskProvider(extension, provider);
 			},
-			fetchTasks: proposedApiFunction(extension, (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
+			fetchTasks: (filter?: vscode.TaskFilter): Thenable<vscode.Task[]> => {
 				return extHostTask.fetchTasks(filter);
-			}),
-			executeTask: proposedApiFunction(extension, (task: vscode.Task): Thenable<vscode.TaskExecution> => {
+			},
+			executeTask: (task: vscode.Task): Thenable<vscode.TaskExecution> => {
 				return extHostTask.executeTask(extension, task);
-			}),
+			},
 			get taskExecutions(): vscode.TaskExecution[] {
 				return extHostTask.taskExecutions;
 			},
@@ -706,15 +693,9 @@ export function createApiFactory(
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
 			SymbolInformation2: class extends extHostTypes.SymbolInformation2 {
-				constructor(name, detail, kind, range, location) {
+				constructor(name, kind, containerName, location) {
 					checkProposedApiEnabled(extension);
-					super(name, detail, kind, range, location);
-				}
-			},
-			Hierarchy: class <T> extends extHostTypes.Hierarchy<T> {
-				constructor(parent: T) {
-					checkProposedApiEnabled(extension);
-					super(parent);
+					super(name, kind, containerName, location);
 				}
 			},
 			SymbolKind: extHostTypes.SymbolKind,
@@ -746,13 +727,13 @@ export function createApiFactory(
 			ConfigurationTarget: extHostTypes.ConfigurationTarget,
 			RelativePattern: extHostTypes.RelativePattern,
 
-			DeprecatedFileChangeType: extHostTypes.DeprecatedFileChangeType,
-			DeprecatedFileType: extHostTypes.DeprecatedFileType,
 			FileChangeType: extHostTypes.FileChangeType,
 			FileType: files.FileType,
 			FileSystemError: extHostTypes.FileSystemError,
 			FoldingRange: extHostTypes.FoldingRange,
-			FoldingRangeKind: extHostTypes.FoldingRangeKind
+			FoldingRangeKind: extHostTypes.FoldingRangeKind,
+
+			CommentThreadCollapsibleState: extHostTypes.CommentThreadCollapsibleState
 		};
 	};
 }

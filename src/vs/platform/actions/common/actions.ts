@@ -42,6 +42,7 @@ export class MenuId {
 	static readonly EditorTitle = new MenuId();
 	static readonly EditorTitleContext = new MenuId();
 	static readonly EditorContext = new MenuId();
+	static readonly EmptyEditorGroupContext = new MenuId();
 	static readonly ExplorerContext = new MenuId();
 	static readonly OpenEditorsContext = new MenuId();
 	static readonly ProblemsPanelContext = new MenuId();

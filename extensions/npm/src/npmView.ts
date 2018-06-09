@@ -8,10 +8,13 @@ import * as path from 'path';
 import {
 	DebugConfiguration, Event, EventEmitter, ExtensionContext, Task,
 	TextDocument, ThemeIcon, TreeDataProvider, TreeItem, TreeItemCollapsibleState, Uri,
-	WorkspaceFolder, commands, debug, window, workspace, Selection, TaskGroup
+	WorkspaceFolder, commands, debug, window, workspace, tasks, Selection, TaskGroup
 } from 'vscode';
 import { visit, JSONVisitor } from 'jsonc-parser';
-import { NpmTaskDefinition, getPackageJsonUriFromTask, getScripts, isWorkspaceFolder, getPackageManager, getTaskName } from './tasks';
+import {
+	NpmTaskDefinition, getPackageJsonUriFromTask, getScripts,
+	isWorkspaceFolder, getPackageManager, getTaskName, createTask
+} from './tasks';
 import * as nls from 'vscode-nls';
 
 const localize = nls.loadMessageBundle();
@@ -65,20 +68,36 @@ class PackageJSON extends TreeItem {
 	}
 }
 
+type ExplorerCommands = 'open' | 'run';
+
 class NpmScript extends TreeItem {
 	task: Task;
 	package: PackageJSON;
 
 	constructor(context: ExtensionContext, packageJson: PackageJSON, task: Task) {
 		super(task.name, TreeItemCollapsibleState.None);
+		const command: ExplorerCommands = workspace.getConfiguration('npm').get<ExplorerCommands>('scriptExplorerAction') || 'open';
+
+		const commandList = {
+			'open': {
+				title: 'Edit Script',
+				command: 'npm.openScript',
+				arguments: [this]
+			},
+			'run': {
+				title: 'Run Script',
+				command: 'npm.runScript',
+				arguments: [this]
+			}
+		};
 		this.contextValue = 'script';
+		if (task.group && task.group === TaskGroup.Rebuild) {
+			this.contextValue = 'debugScript';
+		}
 		this.package = packageJson;
 		this.task = task;
-		this.command = {
-			title: 'Run Script',
-			command: 'npm.openScript',
-			arguments: [this]
-		};
+		this.command = commandList[command];
+
 		if (task.group && task.group === TaskGroup.Clean) {
 			this.iconPath = {
 				light: context.asAbsolutePath(path.join('resources', 'light', 'prepostscript.svg')),
@@ -117,6 +136,7 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		subscriptions.push(commands.registerCommand('npm.debugScript', this.debugScript, this));
 		subscriptions.push(commands.registerCommand('npm.openScript', this.openScript, this));
 		subscriptions.push(commands.registerCommand('npm.refresh', this.refresh, this));
+		subscriptions.push(commands.registerCommand('npm.runInstall', this.runInstall, this));
 	}
 
 	private scriptIsValid(scripts: any, task: Task): boolean {
@@ -138,10 +158,10 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 			this.scriptNotValid(task);
 			return;
 		}
-		workspace.executeTask(script.task);
+		tasks.executeTask(script.task);
 	}
 
-	private async extractDebugArg(scripts: any, task: Task): Promise<[string, number] | undefined> {
+	private extractDebugArg(scripts: any, task: Task): [string, number] | undefined {
 		let script: string = scripts[task.name];
 
 		let match = script.match(/--(inspect|debug)(-brk)?(=(\d*))?/);
@@ -242,6 +262,19 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 		return scriptOffset;
 
 	}
+
+	private async runInstall(selection: PackageJSON) {
+		let uri: Uri | undefined = undefined;
+		if (selection instanceof PackageJSON) {
+			uri = selection.resourceUri;
+		}
+		if (!uri) {
+			return;
+		}
+		let task = createTask('install', 'install', selection.folder.workspaceFolder, uri, []);
+		tasks.executeTask(task);
+	}
+
 	private async openScript(selection: PackageJSON | NpmScript) {
 		let uri: Uri | undefined = undefined;
 		if (selection instanceof PackageJSON) {
@@ -285,9 +318,9 @@ export class NpmScriptsTreeDataProvider implements TreeDataProvider<TreeItem> {
 
 	async getChildren(element?: TreeItem): Promise<TreeItem[]> {
 		if (!this.taskTree) {
-			let tasks = await workspace.fetchTasks({ type: 'npm' });
-			if (tasks) {
-				this.taskTree = this.buildTaskTree(tasks);
+			let taskItems = await tasks.fetchTasks({ type: 'npm' });
+			if (taskItems) {
+				this.taskTree = this.buildTaskTree(taskItems);
 				if (this.taskTree.length === 0) {
 					this.taskTree = [new NoScripts()];
 				}

@@ -5,15 +5,14 @@
 
 'use strict';
 
-import * as vscode from 'vscode';
-
-import { EventEmitter } from 'events';
-import * as path from 'path';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-
 import * as cp from 'child_process';
+import { EventEmitter } from 'events';
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
-import { start } from 'repl';
+import { anchorGlob } from './ripgrepHelpers';
+
+
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -314,11 +313,12 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(query.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
-	// TODO@roblou
 	options.includes
+		.map(anchorGlob)
 		.forEach(globArg => args.push('-g', globArg));
 
 	options.excludes
+		.map(anchorGlob)
 		.forEach(rgGlob => args.push('-g', `!${rgGlob}`));
 
 	if (options.maxFileSize) {
@@ -353,11 +353,13 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		args.push('--regexp', query.pattern);
+		args.push('--regexp', fixRegexEndingPattern(query.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');
 	}
+
+	args.push('--no-config');
 
 	// Folder to search
 	args.push('--');
@@ -429,4 +431,12 @@ function startsWithUTF8BOM(str: string): boolean {
 
 function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+}
+
+function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

@@ -105,7 +105,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		});
 		this.toUnbind.push(this.compositeBar);
 		for (const panel of this.getPanels()) {
-			this.compositeBar.addComposite(panel, false);
+			this.compositeBar.addComposite(panel);
 		}
 		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
 		this.onDidPanelOpen(this._onDidPanelOpen, this, this.disposables);
@@ -116,7 +116,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	private registerListeners(): void {
 
-		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor, false)));
+		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
 
 		// Activate panel action on opening of a panel
 		this.toUnbind.push(this.onDidPanelOpen(panel => {
@@ -129,12 +129,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
 	}
 
-	private _onDidPanelOpen(viewlet: IPanel): void {
-		this.activePanelContextKey.set(viewlet.getId());
+	private _onDidPanelOpen(panel: IPanel): void {
+		this.activePanelContextKey.set(panel.getId());
 	}
 
-	private _onDidPanelClose(viewlet: IPanel): void {
-		const id = viewlet.getId();
+	private _onDidPanelClose(panel: IPanel): void {
+		const id = panel.getId();
 
 		if (this.activePanelContextKey.get() === id) {
 			this.activePanelContextKey.reset();
@@ -198,7 +198,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		if (descriptor && descriptor.enabled !== enabled) {
 			descriptor.enabled = enabled;
 			if (enabled) {
-				this.compositeBar.addComposite(descriptor, true);
+				this.compositeBar.addComposite(descriptor);
 			} else {
 				this.removeComposite(id);
 			}

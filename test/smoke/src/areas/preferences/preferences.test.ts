@@ -7,11 +7,11 @@ import { Application } from '../../application';
 import { ActivityBarPosition } from '../activitybar/activityBar';
 
 export function setup() {
-	describe.skip('Preferences', () => {
+	describe('Preferences', () => {
 		it('turns off editor line numbers and verifies the live change', async function () {
 			const app = this.app as Application;
 
-			await app.workbench.explorer.openFile('app.js');
+			await app.workbench.quickopen.openFile('app.js');
 			await app.code.waitForElements('.line-numbers', false, elements => !!elements.length);
 
 			await app.workbench.settingsEditor.addUserSetting('editor.lineNumbers', '"off"');

@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "只要將 '{0}' 解除安裝，或要包含其相依性?",
 	"uninstallOnly": "僅擴充功能",
 	"uninstallAll": "全部解除安裝",
-	"uninstallConfirmation": "確定要將 '{0}' 解除安裝嗎?",
-	"ok": "確定",
 	"singleDependentError": "無法將延伸模組 '{0}' 解除安裝。其為延伸模組 '{1}' 的相依對象。",
 	"twoDependentsError": "無法將延伸模組 '{0}' 解除安裝。其為延伸模組 '{1}' 及 '{2}' 的相依對象。",
 	"multipleDependentsError": "無法將延伸模組 '{0}' 解除安裝。其為 '{1}'、'{2}' 及其他延伸模組的相依對象。",

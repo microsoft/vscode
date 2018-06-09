@@ -9,7 +9,7 @@
 	"callstackSection": "Sección de la pila de llamadas",
 	"debugStopped": "En pausa en {0}",
 	"callStackAriaLabel": "Pila de llamadas de la depuración",
-	"process": "Proceso",
+	"session": "Sesión",
 	"paused": "En pausa",
 	"running": "En ejecución",
 	"thread": "Subproceso",

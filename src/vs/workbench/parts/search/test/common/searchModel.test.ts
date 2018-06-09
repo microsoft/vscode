@@ -136,12 +136,11 @@ suite('SearchModel', () => {
 		let testObject = instantiationService.createInstance(SearchModel);
 		const result = testObject.search({ contentPattern: { pattern: 'somestring' }, type: 1, folderQueries });
 
-		return timeout(1).then(() => {
-			return result.then(() => {
+		return result.then(() => {
+			return timeout(1).then(() => {
 				assert.ok(target1.calledWith('searchResultsFirstRender'));
 				assert.ok(target1.calledWith('searchResultsFinished'));
 			});
-
 		});
 	});
 

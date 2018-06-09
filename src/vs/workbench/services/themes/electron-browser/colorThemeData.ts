@@ -27,11 +27,11 @@ let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 const tokenGroupToScopesMap: { [setting: string]: string[] } = {
 	comments: ['comment'],
 	strings: ['string'],
-	keywords: ['keyword', 'keyword.control', 'storage', 'storage.type'],
+	keywords: ['keyword - keyword.operator', 'keyword.control', 'storage', 'storage.type'],
 	numbers: ['constant.numeric'],
 	types: ['entity.name.type', 'entity.name.class', 'support.type', 'support.class'],
 	functions: ['entity.name.function', 'support.function'],
-	variables: ['variable']
+	variables: ['variable', 'entity.name.variable']
 };
 
 export class ColorThemeData implements IColorTheme {

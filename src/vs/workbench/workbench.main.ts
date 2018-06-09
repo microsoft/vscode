@@ -15,6 +15,9 @@ import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
 // Editor
 import 'vs/editor/editor.all';
 
+// Platform
+import 'vs/platform/widget/browser/widget.contribution';
+
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
@@ -65,6 +68,7 @@ import 'vs/workbench/parts/debug/browser/debugEditorActions';
 import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
+import 'vs/workbench/parts/comments/electron-browser/comments.contribution';
 
 import 'vs/workbench/parts/html/electron-browser/html.contribution';
 

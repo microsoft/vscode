@@ -22,6 +22,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import uri from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 
 export class Debugger {
 
@@ -40,8 +41,7 @@ export class Debugger {
 
 	public createDebugAdapter(root: IWorkspaceFolder, outputService: IOutputService, debugPort?: number): TPromise<IDebugAdapter> {
 		return this.getAdapterExecutable(root).then(adapterExecutable => {
-			const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-			if (debugConfigs.extensionHostDebugAdapter) {
+			if (this.inEH()) {
 				return this.configurationManager.createDebugAdapter(this.type, adapterExecutable, debugPort);
 			} else {
 				if (debugPort) {
@@ -81,11 +81,8 @@ export class Debugger {
 				return null;
 			}
 
-			// optionally substitute in EH
-			const inEh = this.configurationService.getValue<IDebugConfiguration>('debug').extensionHostDebugAdapter;
-
 			// now substitute all other variables
-			return (inEh ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
+			return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
 				try {
 					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
 				} catch (e) {
@@ -96,10 +93,13 @@ export class Debugger {
 	}
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
-		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
 		const config = this.configurationService.getValue<ITerminalSettings>('terminal');
-		const type = debugConfigs.extensionHostDebugAdapter ? this.type : '*';
-		return this.configurationManager.runInTerminal(type, args, config);
+		return this.configurationManager.runInTerminal(this.inEH() ? this.type : '*', args, config);
+	}
+
+	private inEH(): boolean {
+		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
+		return debugConfigs.extensionHostDebugAdapter;
 	}
 
 	public get label(): string {
@@ -145,7 +145,8 @@ export class Debugger {
 			initialConfigurations = initialConfigurations.concat(initialConfigs);
 		}
 
-		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join('\n').trim();
+		const eol = this.configurationService.getValue<string>('files.eol') === '\r\n' ? '\r\n' : '\n';
+		const configs = JSON.stringify(initialConfigurations, null, '\t').split('\n').map(line => '\t' + line).join(eol).trim();
 		const comment1 = nls.localize('launch.config.comment1', "Use IntelliSense to learn about possible attributes.");
 		const comment2 = nls.localize('launch.config.comment2', "Hover to view descriptions of existing attributes.");
 		const comment3 = nls.localize('launch.config.comment3', "For more information, visit: {0}", 'https://go.microsoft.com/fwlink/?linkid=830387');
@@ -158,7 +159,7 @@ export class Debugger {
 			`\t"version": "0.2.0",`,
 			`\t"configurations": ${configs}`,
 			'}'
-		].join('\n');
+		].join(eol);
 
 		// fix formatting
 		const editorConfig = this.configurationService.getValue<any>();
@@ -207,6 +208,7 @@ export class Debugger {
 			return null;
 		}
 		// fill in the default configuration attributes shared by all adapters.
+		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
@@ -239,12 +241,16 @@ export class Debugger {
 				default: 4711
 			};
 			properties['preLaunchTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
 			properties['postDebugTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};

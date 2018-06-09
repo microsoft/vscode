@@ -17,19 +17,18 @@ import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
-import { ViewLocation } from 'vs/workbench/common/views';
-import { PersistentViewsViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { Extensions as ViewContainerExtensions, IViewContainersRegistry, TEST_VIEW_CONTAINER_ID } from 'vs/workbench/common/views';
+import { ViewContainerViewlet } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { forEach } from 'vs/base/common/collections';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
-
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
@@ -80,12 +79,11 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	}
 
 	private registerTestViewContainer(): void {
-		const id = 'test';
 		const title = localize('test', "Test");
-		const cssClass = `extensionViewlet-${id}`;
+		const cssClass = `extensionViewlet-test`;
 		const icon = require.toUrl('./media/test.svg');
 
-		this.registerCustomViewlet({ id, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
+		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
 
 	private handleAndRegisterCustomViewContainers() {
@@ -139,33 +137,33 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
 			// TODO@extensionLocation
 			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
-			this.registerCustomViewlet({ id: descriptor.id, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
+			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
 
 	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
+		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
-		const id = `workbench.view.extension.${descriptor.id}`;
+		const id = descriptor.id;
 
 		if (!viewletRegistry.getViewlet(id)) {
 
-			const location: ViewLocation = ViewLocation.register(id);
+			viewContainersRegistry.registerViewContainer(id);
 
 			// Register as viewlet
-			class CustomViewlet extends PersistentViewsViewlet {
+			class CustomViewlet extends ViewContainerViewlet {
 				constructor(
 					@IPartService partService: IPartService,
 					@ITelemetryService telemetryService: ITelemetryService,
 					@IWorkspaceContextService contextService: IWorkspaceContextService,
 					@IStorageService storageService: IStorageService,
-					@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+					@IEditorService editorService: IEditorService,
 					@IInstantiationService instantiationService: IInstantiationService,
-					@IContextKeyService contextKeyService: IContextKeyService,
 					@IThemeService themeService: IThemeService,
 					@IContextMenuService contextMenuService: IContextMenuService,
 					@IExtensionService extensionService: IExtensionService
 				) {
-					super(id, location, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
+					super(id, `${id}.state`, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
 				}
 			}
 			const viewletDescriptor = new ViewletDescriptor(
@@ -184,9 +182,9 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				constructor(
 					id: string, label: string,
 					@IViewletService viewletService: IViewletService,
-					@IWorkbenchEditorService editorService: IWorkbenchEditorService
+					@IEditorGroupsService editorGroupService: IEditorGroupsService
 				) {
-					super(id, label, id, viewletService, editorService);
+					super(id, label, id, viewletService, editorGroupService);
 				}
 			}
 			const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);

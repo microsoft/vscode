@@ -10,7 +10,7 @@ import * as fs from 'fs';
 import * as electron from './utils/electron';
 import { Reader, ICallback } from './utils/wireProtocol';
 
-import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, Event, commands, env } from 'vscode';
+import { workspace, window, Uri, CancellationToken, Disposable, Memento, MessageItem, EventEmitter, commands, env } from 'vscode';
 import * as Proto from './protocol';
 import { ITypeScriptServiceClient } from './typescriptService';
 import { TypeScriptServerPlugin } from './utils/plugins';
@@ -31,6 +31,7 @@ import LogDirectoryProvider from './utils/logDirectoryProvider';
 import { disposeAll } from './utils/dispose';
 import { DiagnosticKind } from './features/diagnostics';
 import { TypeScriptPluginPathsProvider } from './utils/pluginPathsProvider';
+import BufferSyncSupport from './features/bufferSyncSupport';
 
 const localize = nls.loadMessageBundle();
 
@@ -183,12 +184,6 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	private requestQueue: RequestQueue;
 	private callbacks: CallbackMap;
 
-	private readonly _onTsServerStarted = new EventEmitter<API>();
-	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
-	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
-	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
-	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
-
 	public readonly telemetryReporter: TelemetryReporter;
 	/**
 	 * API version obtained from the version picker after checking the corresponding path exists.
@@ -201,11 +196,14 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 
 	private readonly disposables: Disposable[] = [];
 
+	public readonly bufferSyncSupport: BufferSyncSupport;
+
 	constructor(
 		private readonly workspaceState: Memento,
 		private readonly onDidChangeTypeScriptVersion: (version: TypeScriptVersion) => void,
 		public readonly plugins: TypeScriptServerPlugin[],
-		private readonly logDirectoryProvider: LogDirectoryProvider
+		private readonly logDirectoryProvider: LogDirectoryProvider,
+		allModeIds: string[]
 	) {
 		this.pathSeparator = path.sep;
 		this.lastStart = Date.now();
@@ -229,6 +227,9 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this._apiVersion = API.defaultVersion;
 		this._tsserverVersion = undefined;
 		this.tracer = new Tracer(this.logger);
+
+		this.bufferSyncSupport = new BufferSyncSupport(this, allModeIds);
+		this.onReady(() => { this.bufferSyncSupport.listen(); });
 
 		workspace.onDidChangeConfiguration(() => {
 			const oldConfiguration = this._configuration;
@@ -254,20 +255,12 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		this.disposables.push(this.telemetryReporter);
 	}
 
-	private _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
-	public get onDiagnosticsReceived(): Event<TsDiagnostics> { return this._onDiagnosticsReceived.event; }
-
-	private _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
-	public get onConfigDiagnosticsReceived(): Event<Proto.ConfigFileDiagnosticEvent> { return this._onConfigDiagnosticsReceived.event; }
-
-	private _onResendModelsRequested = new EventEmitter<void>();
-	public get onResendModelsRequested(): Event<void> { return this._onResendModelsRequested.event; }
-
 	public get configuration() {
 		return this._configuration;
 	}
 
 	public dispose() {
+		this.bufferSyncSupport.dispose();
 		this._onTsServerStarted.dispose();
 		this._onDidBeginInstallTypings.dispose();
 		this._onDidEndInstallTypings.dispose();
@@ -303,25 +296,29 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	get onTsServerStarted(): Event<API> {
-		return this._onTsServerStarted.event;
-	}
+	private readonly _onTsServerStarted = new EventEmitter<API>();
+	public readonly onTsServerStarted = this._onTsServerStarted.event;
 
-	get onProjectLanguageServiceStateChanged(): Event<Proto.ProjectLanguageServiceStateEventBody> {
-		return this._onProjectLanguageServiceStateChanged.event;
-	}
+	private readonly _onDiagnosticsReceived = new EventEmitter<TsDiagnostics>();
+	public readonly onDiagnosticsReceived = this._onDiagnosticsReceived.event;
 
-	get onDidBeginInstallTypings(): Event<Proto.BeginInstallTypesEventBody> {
-		return this._onDidBeginInstallTypings.event;
-	}
+	private readonly _onConfigDiagnosticsReceived = new EventEmitter<Proto.ConfigFileDiagnosticEvent>();
+	public readonly onConfigDiagnosticsReceived = this._onConfigDiagnosticsReceived.event;
 
-	get onDidEndInstallTypings(): Event<Proto.EndInstallTypesEventBody> {
-		return this._onDidEndInstallTypings.event;
-	}
+	private readonly _onResendModelsRequested = new EventEmitter<void>();
+	public readonly onResendModelsRequested = this._onResendModelsRequested.event;
 
-	get onTypesInstallerInitializationFailed(): Event<Proto.TypesInstallerInitializationFailedEventBody> {
-		return this._onTypesInstallerInitializationFailed.event;
-	}
+	private readonly _onProjectLanguageServiceStateChanged = new EventEmitter<Proto.ProjectLanguageServiceStateEventBody>();
+	public readonly onProjectLanguageServiceStateChanged = this._onProjectLanguageServiceStateChanged.event;
+
+	private readonly _onDidBeginInstallTypings = new EventEmitter<Proto.BeginInstallTypesEventBody>();
+	public readonly onDidBeginInstallTypings = this._onDidBeginInstallTypings.event;
+
+	private readonly _onDidEndInstallTypings = new EventEmitter<Proto.EndInstallTypesEventBody>();
+	public readonly onDidEndInstallTypings = this._onDidEndInstallTypings.event;
+
+	private readonly _onTypesInstallerInitializationFailed = new EventEmitter<Proto.TypesInstallerInitializationFailedEventBody>();
+	public readonly onTypesInstallerInitializationFailed = this._onTypesInstallerInitializationFailed.event;
 
 	public get apiVersion(): API {
 		return this._apiVersion;
@@ -478,7 +475,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	public async openTsServerLogFile(): Promise<boolean> {
-		if (!this.apiVersion.has222Features()) {
+		if (!this.apiVersion.gte(API.v222)) {
 			window.showErrorMessage(
 				localize(
 					'typescript.openTsServerLog.notSupported',
@@ -537,7 +534,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	}
 
 	private setCompilerOptionsForInferredProjects(configuration: TypeScriptServiceConfiguration): void {
-		if (!this.apiVersion.has206Features()) {
+		if (!this.apiVersion.gte(API.v206)) {
 			return;
 		}
 
@@ -621,8 +618,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		}
 	}
 
-	public normalizePath(resource: Uri): string | null {
-		if (this._apiVersion.has213Features()) {
+	public normalizedPath(resource: Uri): string | null {
+		if (this._apiVersion.gte(API.v213)) {
 			if (resource.scheme === fileSchemes.walkThroughSnippet || resource.scheme === fileSchemes.untitled) {
 				const dirName = path.dirname(resource.path);
 				const fileName = this.inMemoryResourcePrefix + path.basename(resource.path);
@@ -643,12 +640,16 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 		return result.replace(new RegExp('\\' + this.pathSeparator, 'g'), '/');
 	}
 
-	private get inMemoryResourcePrefix(): string {
-		return this._apiVersion.has270Features() ? '^' : '';
+	public toPath(resource: Uri): string | null {
+		return this.normalizedPath(resource);
 	}
 
-	public asUrl(filepath: string): Uri {
-		if (this._apiVersion.has213Features()) {
+	private get inMemoryResourcePrefix(): string {
+		return this._apiVersion.gte(API.v270) ? '^' : '';
+	}
+
+	public toResource(filepath: string): Uri {
+		if (this._apiVersion.gte(API.v213)) {
 			if (filepath.startsWith(TypeScriptServiceClient.WALK_THROUGH_SNIPPET_SCHEME_COLON) || (filepath.startsWith(fileSchemes.untitled + ':'))
 			) {
 				let resource = Uri.parse(filepath);
@@ -662,7 +663,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				return resource;
 			}
 		}
-		return Uri.file(filepath);
+		return this.bufferSyncSupport.toResource(filepath);
 	}
 
 	public getWorkspaceRootForResource(resource: Uri): string | undefined {
@@ -791,7 +792,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				return true;
 			}
 
-			if (this.apiVersion.has222Features() && this.cancellationPipeName) {
+			if (this.apiVersion.gte(API.v222) && this.cancellationPipeName) {
 				this.tracer.logTrace(`TypeScript Service: trying to cancel ongoing request with sequence number ${seq}`);
 				try {
 					fs.writeFileSync(this.cancellationPipeName + seq, '');
@@ -854,7 +855,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 				if (diagnosticEvent.body && diagnosticEvent.body.diagnostics) {
 					this._onDiagnosticsReceived.fire({
 						kind: getDignosticsKind(event),
-						resource: this.asUrl(diagnosticEvent.body.file),
+						resource: this.toResource(diagnosticEvent.body.file),
 						diagnostics: diagnosticEvent.body.diagnostics
 					});
 				}
@@ -872,6 +873,14 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			case 'projectLanguageServiceState':
 				if (event.body) {
 					this._onProjectLanguageServiceStateChanged.fire((event as Proto.ProjectLanguageServiceStateEvent).body);
+				}
+				break;
+
+			case 'projectsUpdatedInBackground':
+				if (event.body) {
+					const body = (event as Proto.ProjectsUpdatedInBackgroundEvent).body;
+					const resources = body.openFiles.map(Uri.file);
+					this.bufferSyncSupport.getErr(resources);
 				}
 				break;
 
@@ -948,8 +957,8 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 	): Promise<string[]> {
 		const args: string[] = [];
 
-		if (this.apiVersion.has206Features()) {
-			if (this.apiVersion.has250Features()) {
+		if (this.apiVersion.gte(API.v206)) {
+			if (this.apiVersion.gte(API.v250)) {
 				args.push('--useInferredProjectPerProjectRoot');
 			} else {
 				args.push('--useSingleInferredProject');
@@ -960,16 +969,16 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has208Features()) {
+		if (this.apiVersion.gte(API.v208)) {
 			args.push('--enableTelemetry');
 		}
 
-		if (this.apiVersion.has222Features()) {
-			this.cancellationPipeName = electron.getTempFile(`tscancellation-${electron.makeRandomHexString(20)}`);
+		if (this.apiVersion.gte(API.v222)) {
+			this.cancellationPipeName = electron.getTempSock('tscancellation');
 			args.push('--cancellationPipeName', this.cancellationPipeName + '*');
 		}
 
-		if (this.apiVersion.has222Features()) {
+		if (this.apiVersion.gte(API.v222)) {
 			if (this._configuration.tsServerLogLevel !== TsServerLogLevel.Off) {
 				const logDir = await this.logDirectoryProvider.getNewLogDirectory();
 				if (logDir) {
@@ -987,7 +996,7 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has230Features()) {
+		if (this.apiVersion.gte(API.v230)) {
 			const pluginPaths = this.pluginPathsProvider.getPluginPaths();
 
 			if (this.plugins.length) {
@@ -1003,18 +1012,23 @@ export default class TypeScriptServiceClient implements ITypeScriptServiceClient
 			}
 		}
 
-		if (this.apiVersion.has234Features()) {
+		if (this.apiVersion.gte(API.v234)) {
 			if (this._configuration.npmLocation) {
 				args.push('--npmLocation', `"${this._configuration.npmLocation}"`);
 			}
 		}
 
-		if (this.apiVersion.has260Features()) {
+		if (this.apiVersion.gte(API.v260)) {
 			const tsLocale = getTsLocale(this._configuration);
 			if (tsLocale) {
 				args.push('--locale', tsLocale);
 			}
 		}
+
+		if (this.apiVersion.gte(API.v291)) {
+			args.push('--noGetErrOnBackgroundUpdate');
+		}
+
 		return args;
 	}
 

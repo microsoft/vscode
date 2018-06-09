@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as resources from 'vs/base/common/resources';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -26,7 +27,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { fillInActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 
 export class SearchDataSource implements IDataSource {
 
@@ -123,6 +124,7 @@ interface IFolderMatchTemplate {
 }
 
 interface IFileMatchTemplate {
+	el: HTMLElement;
 	label: FileLabel;
 	badge: CountBadge;
 	actions: ActionBar;
@@ -147,7 +149,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		actionRunner: IActionRunner,
 		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -208,7 +211,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
 		const actions = new ActionBar(fileMatchElement, { animated: false });
-		return { label, badge, actions };
+		return { el: fileMatchElement, label, badge, actions };
 	}
 
 	private renderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IMatchTemplate {
@@ -233,7 +236,11 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
+			const fileKind = resources.isEqual(this.contextService.getWorkspaceFolder(folderMatch.resource()).uri, folderMatch.resource()) ?
+				FileKind.ROOT_FOLDER :
+				FileKind.FOLDER;
+
+			templateData.label.setFile(folderMatch.resource(), { fileKind });
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
@@ -256,6 +263,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
 		const folderMatch = fileMatch.parent();
 		const root = folderMatch.hasRoot() ? folderMatch.resource() : undefined;
+		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
 		templateData.label.setFile(fileMatch.resource(), { root });
 		let count = fileMatch.count();
 		templateData.badge.setCount(count);
@@ -372,7 +380,7 @@ export class SearchTreeController extends WorkbenchTreeController {
 
 			getActions: () => {
 				const actions: IAction[] = [];
-				fillInActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
+				fillInContextMenuActions(this.contextMenu, { shouldForwardArgs: true }, actions, this.contextMenuService);
 				return TPromise.as(actions);
 			},
 

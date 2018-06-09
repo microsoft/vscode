@@ -24,20 +24,22 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IDelegate, IListContextMenuEvent, IRenderer } from 'vs/base/browser/ui/list/list';
-import { IEditorService, IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
-import { ViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { attachInputBoxStyler } from 'vs/platform/theme/common/styler';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 const $ = dom.$;
 
-export class BreakpointsView extends ViewsViewletPanel {
+export class BreakpointsView extends ViewletPanel {
 
 	private static readonly MAX_VISIBLE_FILES = 9;
 	private static readonly MEMENTO = 'breakopintsview.memento';
@@ -124,7 +126,7 @@ export class BreakpointsView extends ViewsViewletPanel {
 		const actions: IAction[] = [];
 		const element = e.element;
 
-		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('logPoint', "Logpoint") : nls.localize('breakpoint', "Breakpoint");
+		const breakpointType = element instanceof Breakpoint && element.logMessage ? nls.localize('Logpoint', "Logpoint") : nls.localize('Breakpoint', "Breakpoint");
 		if (element instanceof Breakpoint || element instanceof FunctionBreakpoint) {
 			actions.push(new Action('workbench.action.debug.openEditorAndEditBreakpoint', nls.localize('editBreakpoint', "Edit {0}...", breakpointType), undefined, true, () => {
 				if (element instanceof Breakpoint) {
@@ -519,7 +521,7 @@ class FunctionBreakpointInputRenderer implements IRenderer<IFunctionBreakpoint, 
 	}
 }
 
-export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
+export function openBreakpointSource(breakpoint: IBreakpoint, sideBySide: boolean, preserveFocus: boolean, debugService: IDebugService, editorService: IEditorService): TPromise<IEditor> {
 	if (breakpoint.uri.scheme === DEBUG_SCHEME && debugService.state === State.Inactive) {
 		return TPromise.as(null);
 	}
@@ -545,7 +547,7 @@ export function openBreakpointSource(breakpoint: Breakpoint, sideBySide: boolean
 			revealInCenterIfOutsideViewport: true,
 			pinned: !preserveFocus
 		}
-	}, sideBySide);
+	}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 }
 
 export function getBreakpointMessageAndClassName(debugService: IDebugService, textFileService: ITextFileService, breakpoint: IBreakpoint | FunctionBreakpoint): { message?: string, className: string } {
@@ -555,7 +557,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (!breakpoint.enabled || !debugService.getModel().areBreakpointsActivated()) {
 		return {
 			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-disabled' : breakpoint.logMessage ? 'debug-breakpoint-log-disabled' : 'debug-breakpoint-disabled',
-			message: nls.localize('breakpointDisabledHover', "Disabled breakpoint"),
+			message: breakpoint.logMessage ? nls.localize('disabledLogpoint', "Disabled logpoint") : nls.localize('disabledBreakpoint', "Disabled breakpoint"),
 		};
 	}
 
@@ -565,7 +567,7 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 	if (debugActive && !breakpoint.verified) {
 		return {
 			className: breakpoint instanceof FunctionBreakpoint ? 'debug-function-breakpoint-unverified' : breakpoint.logMessage ? 'debug-breakpoint-log-unverified' : 'debug-breakpoint-unverified',
-			message: appendMessage(nls.localize('breakpointUnverifieddHover', "Unverified breakpoint")),
+			message: breakpoint.logMessage ? nls.localize('unverifiedLogpoint', "Unverified logpoint") : nls.localize('unverifiedBreakopint', "Unverified breakpoint"),
 		};
 	}
 

@@ -205,7 +205,7 @@ declare module 'vscode' {
 
 		/**
 		 * Get a word-range at the given position. By default words are defined by
-		 * common separators, like space, -, _, etc. In addition, per languge custom
+		 * common separators, like space, -, _, etc. In addition, per language custom
 		 * [word definitions](#LanguageConfiguration.wordPattern) can be defined. It
 		 * is also possible to provide a custom regular expression.
 		 *
@@ -483,7 +483,7 @@ declare module 'vscode' {
 		active: Position;
 
 		/**
-		 * Create a selection from two postions.
+		 * Create a selection from two positions.
 		 *
 		 * @param anchor A position.
 		 * @param active A position.
@@ -576,7 +576,7 @@ declare module 'vscode' {
 	 */
 	export interface TextEditorViewColumnChangeEvent {
 		/**
-		 * The [text editor](#TextEditor) for which the options have changed.
+		 * The [text editor](#TextEditor) for which the view column has changed.
 		 */
 		textEditor: TextEditor;
 		/**
@@ -752,7 +752,7 @@ declare module 'vscode' {
 	export interface TextDocumentShowOptions {
 		/**
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
-		 * The default is the [one](#ViewColumn.One), other values are adjusted to
+		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
 		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 */
@@ -1038,7 +1038,7 @@ declare module 'vscode' {
 
 		/**
 		 * Render options applied to the current decoration. For performance reasons, keep the
-		 * number of decoration specific options small, and use decoration types whereever possible.
+		 * number of decoration specific options small, and use decoration types wherever possible.
 		 */
 		renderOptions?: DecorationInstanceRenderOptions;
 	}
@@ -1100,7 +1100,8 @@ declare module 'vscode' {
 
 		/**
 		 * The column in which this editor shows. Will be `undefined` in case this
-		 * isn't one of the three main editors, e.g an embedded editor.
+		 * isn't one of the main editors, e.g an embedded editor, or when the editor
+		 * column is larger than three.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -1119,7 +1120,7 @@ declare module 'vscode' {
 
 		/**
 		 * Insert a [snippet](#SnippetString) and put the editor into snippet mode. "Snippet mode"
-		 * means the editor adds placeholders and additionals cursors so that the user can complete
+		 * means the editor adds placeholders and additional cursors so that the user can complete
 		 * or accept the snippet.
 		 *
 		 * @param snippet The snippet to insert in this edit.
@@ -1152,10 +1153,10 @@ declare module 'vscode' {
 		/**
 		 * ~~Show the text editor.~~
 		 *
-		 * @deprecated Use [window.showTextDocument](#window.showTextDocument)
+		 * @deprecated Use [window.showTextDocument](#window.showTextDocument) instead.
 		 *
 		 * @param column The [column](#ViewColumn) in which to show this editor.
-		 * instead. This method shows unexpected behavior and will be removed in the next major update.
+		 * This method shows unexpected behavior and will be removed in the next major update.
 		 */
 		show(column?: ViewColumn): void;
 
@@ -1310,7 +1311,7 @@ declare module 'vscode' {
 		 * [Uri.parse](#Uri.parse).
 		 *
 		 * @param skipEncoding Do not percentage-encode the result, defaults to `false`. Note that
-		 *	the `#` and `?` characters occuring in the path will always be encoded.
+		 *	the `#` and `?` characters occurring in the path will always be encoded.
 		 * @returns A string representation of this Uri.
 		 */
 		toString(skipEncoding?: boolean): string;
@@ -1605,7 +1606,7 @@ declare module 'vscode' {
 	 *
 	 * * Note 1: A dialog can select files, folders, or both. This is not true for Windows
 	 * which enforces to open either files or folder, but *not both*.
-	 * * Note 2: Explictly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
+	 * * Note 2: Explicitly setting `canSelectFiles` and `canSelectFolders` to `false` is futile
 	 * and the editor then silently adjusts the options to select files.
 	 */
 	export interface OpenDialogOptions {
@@ -1855,7 +1856,7 @@ declare module 'vscode' {
 	 * to that type `T`. In addition, `null` and `undefined` can be returned - either directly or from a
 	 * thenable.
 	 *
-	 * The snippets below are all valid implementions of the [`HoverProvider`](#HoverProvider):
+	 * The snippets below are all valid implementations of the [`HoverProvider`](#HoverProvider):
 	 *
 	 * ```ts
 	 * let a: HoverProvider = {
@@ -2181,7 +2182,7 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The implemenetation provider interface defines the contract between extensions and
+	 * The implementation provider interface defines the contract between extensions and
 	 * the go to implementation feature.
 	 */
 	export interface ImplementationProvider {
@@ -2718,7 +2719,7 @@ declare module 'vscode' {
 		 * Builder-function that appends a tabstop (`$1`, `$2` etc) to
 		 * the [`value`](#SnippetString.value) of this snippet string.
 		 *
-		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * @param number The number of this tabstop, defaults to an auto-increment
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
@@ -2730,7 +2731,7 @@ declare module 'vscode' {
 		 *
 		 * @param value The value of this placeholder - either a string or a function
 		 * with which a nested snippet can be created.
-		 * @param number The number of this tabstop, defaults to an auto-incremet
+		 * @param number The number of this tabstop, defaults to an auto-increment
 		 * value starting at 1.
 		 * @return This snippet string.
 		 */
@@ -3001,7 +3002,7 @@ declare module 'vscode' {
 	/**
 	 * A completion item represents a text snippet that is proposed to complete text that is being typed.
 	 *
-	 * It is suffient to create a completion item from just a [label](#CompletionItem.label). In that
+	 * It is sufficient to create a completion item from just a [label](#CompletionItem.label). In that
 	 * case the completion item will replace the [word](#TextDocument.getWordRangeAtPosition)
 	 * until the cursor with the given label or [insertText](#CompletionItem.insertText). Otherwise the
 	 * the given [edit](#CompletionItem.textEdit) is used.
@@ -3187,7 +3188,7 @@ declare module 'vscode' {
 	 * Providers can delay the computation of the [`detail`](#CompletionItem.detail)
 	 * and [`documentation`](#CompletionItem.documentation) properties by implementing the
 	 * [`resolveCompletionItem`](#CompletionItemProvider.resolveCompletionItem)-function. However, properties that
-	 * are needed for the inital sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
+	 * are needed for the initial sorting and filtering, like `sortText`, `filterText`, `insertText`, and `range`, must
 	 * not be changed during resolve.
 	 *
 	 * Providers are asked for completions either explicitly by a user gesture or -depending on the configuration-
@@ -3267,7 +3268,7 @@ declare module 'vscode' {
 
 		/**
 		 * Given a link fill in its [target](#DocumentLink.target). This method is called when an incomplete
-		 * link is selected in the UI. Providers can implement this method and return incomple links
+		 * link is selected in the UI. Providers can implement this method and return incomplete links
 		 * (without target) from the [`provideDocumentLinks`](#DocumentLinkProvider.provideDocumentLinks) method which
 		 * often helps to improve performance.
 		 *
@@ -3307,7 +3308,7 @@ declare module 'vscode' {
 		 *
 		 * @param red The red component.
 		 * @param green The green component.
-		 * @param blue The bluew component.
+		 * @param blue The blue component.
 		 * @param alpha The alpha component.
 		 */
 		constructor(red: number, green: number, blue: number, alpha: number);
@@ -3319,7 +3320,7 @@ declare module 'vscode' {
 	export class ColorInformation {
 
 		/**
-		 * The range in the document where this color appers.
+		 * The range in the document where this color appears.
 		 */
 		range: Range;
 
@@ -3387,7 +3388,7 @@ declare module 'vscode' {
 		 *
 		 * @param document The document in which the command was invoked.
 		 * @param token A cancellation token.
-		 * @return An array of [color informations](#ColorInformation) or a thenable that resolves to such. The lack of a result
+		 * @return An array of [color information](#ColorInformation) or a thenable that resolves to such. The lack of a result
 		 * can be signaled by returning `undefined`, `null`, or an empty array.
 		 */
 		provideDocumentColors(document: TextDocument, token: CancellationToken): ProviderResult<ColorInformation[]>;
@@ -3506,7 +3507,7 @@ declare module 'vscode' {
 	 */
 	export interface IndentationRule {
 		/**
-		 * If a line matches this pattern, then all the lines after it should be unindendented once (until another rule matches).
+		 * If a line matches this pattern, then all the lines after it should be unindented once (until another rule matches).
 		 */
 		decreaseIndentPattern: RegExp;
 		/**
@@ -3737,7 +3738,7 @@ declare module 'vscode' {
 		 * The *effective* value (returned by [`get`](#WorkspaceConfiguration.get))
 		 * is computed like this: `defaultValue` overwritten by `globalValue`,
 		 * `globalValue` overwritten by `workspaceValue`. `workspaceValue` overwritten by `workspaceFolderValue`.
-		 * Refer to [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings)
+		 * Refer to [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings)
 		 * for more information.
 		 *
 		 * *Note:* The configuration name must denote a leaf in the configuration tree
@@ -3762,7 +3763,7 @@ declare module 'vscode' {
 		 * has no observable effect in that workspace, but in others. Setting a workspace value
 		 * in the presence of a more specific folder value has no observable effect for the resources
 		 * under respective [folder](#workspace.workspaceFolders), but in others. Refer to
-		 * [Settings Inheritence](https://code.visualstudio.com/docs/getstarted/settings) for more information.
+		 * [Settings Inheritance](https://code.visualstudio.com/docs/getstarted/settings) for more information.
 		 *
 		 * *Note 2:* To remove a configuration value use `undefined`, like so: `config.update('somekey', undefined)`
 		 *
@@ -4027,15 +4028,15 @@ declare module 'vscode' {
 		 */
 		Active = -1,
 		/**
-		 * The left most editor column.
+		 * The first editor column.
 		 */
 		One = 1,
 		/**
-		 * The center editor column.
+		 * The second editor column.
 		 */
 		Two = 2,
 		/**
-		 * The right most editor column.
+		 * The third editor column.
 		 */
 		Three = 3
 	}
@@ -4429,6 +4430,11 @@ declare module 'vscode' {
 		 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 		 */
 		panel?: TaskPanelKind;
+
+		/**
+		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+		 */
+		showReuseMessage?: boolean;
 	}
 
 	/**
@@ -4614,7 +4620,7 @@ declare module 'vscode' {
 
 	/**
 	 * Defines how an argument should be quoted if it contains
-	 * spaces or unsuppoerted characters.
+	 * spaces or unsupported characters.
 	 */
 	export enum ShellQuoting {
 
@@ -4803,7 +4809,7 @@ declare module 'vscode' {
 
 	/**
 	 * A task provider allows to add tasks to the task service.
-	 * A task provider is registered via #workspace.registerTaskProvider.
+	 * A task provider is registered via #tasks.registerTaskProvider.
 	 */
 	export interface TaskProvider {
 		/**
@@ -4827,6 +4833,158 @@ declare module 'vscode' {
 		 * @return The resolved task
 		 */
 		resolveTask(task: Task, token?: CancellationToken): ProviderResult<Task>;
+	}
+
+	/**
+	 * An object representing an executed Task. It can be used
+	 * to terminate a task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	export interface TaskExecution {
+		/**
+		 * The task that got started.
+		 */
+		task: Task;
+
+		/**
+		 * Terminates the task execution.
+		 */
+		terminate(): void;
+	}
+
+	/**
+	 * An event signaling the start of a task execution.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskStartEvent {
+		/**
+		 * The task item representing the task that got started.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the end of an executed task.
+	 *
+	 * This interface is not intended to be implemented.
+	 */
+	interface TaskEndEvent {
+		/**
+		 * The task item representing the task that finished.
+		 */
+		execution: TaskExecution;
+	}
+
+	/**
+	 * An event signaling the start of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessStartEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The underlying process id.
+		 */
+		processId: number;
+	}
+
+	/**
+	 * An event signaling the end of a process execution
+	 * triggered through a task
+	 */
+	export interface TaskProcessEndEvent {
+
+		/**
+		 * The task execution for which the process got started.
+		 */
+		execution: TaskExecution;
+
+		/**
+		 * The process's exit code.
+		 */
+		exitCode: number;
+	}
+
+	export interface TaskFilter {
+		/**
+		 * The task version as used in the tasks.json file.
+		 * The string support the package.json semver notation.
+		 */
+		version?: string;
+
+		/**
+		 * The task type to return;
+		 */
+		type?: string;
+	}
+
+	/**
+	 * Namespace for tasks functionality.
+	 */
+	export namespace tasks {
+
+		/**
+		 * Register a task provider.
+		 *
+		 * @param type The task kind type this provider is registered for.
+		 * @param provider A task provider.
+		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 */
+		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
+
+		/**
+		 * Fetches all tasks available in the systems. This includes tasks
+		 * from `tasks.json` files as well as tasks from task providers
+		 * contributed through extensions.
+		 *
+		 * @param filter a filter to filter the return tasks.
+		 */
+		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
+
+		/**
+		 * Executes a task that is managed by VS Code. The returned
+		 * task execution can be used to terminate the task.
+		 *
+		 * @param task the task to execute
+		 */
+		export function executeTask(task: Task): Thenable<TaskExecution>;
+
+		/**
+		 * The currently active task executions or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let taskExecutions: ReadonlyArray<TaskExecution>;
+
+		/**
+		 * Fires when a task starts.
+		 */
+		export const onDidStartTask: Event<TaskStartEvent>;
+
+		/**
+		 * Fires when a task ends.
+		 */
+		export const onDidEndTask: Event<TaskEndEvent>;
+
+		/**
+		 * Fires when the underlying process has been started.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidStartTaskProcess: Event<TaskProcessStartEvent>;
+
+		/**
+		 * Fires when the underlying process has ended.
+		 * This event will not fire for tasks that don't
+		 * execute an underlying process.
+		 */
+		export const onDidEndTaskProcess: Event<TaskProcessEndEvent>;
 	}
 
 	/**
@@ -5070,7 +5228,7 @@ declare module 'vscode' {
 		 *
 		 * @param oldUri The existing file.
 		 * @param newUri The new location.
-		 * @param options Defines if existing files should be overwriten.
+		 * @param options Defines if existing files should be overwritten.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when `oldUri` doesn't exist.
 		 * @throws [`FileNotFound`](#FileSystemError.FileNotFound) when parent of `newUri` doesn't exist, e.g. no mkdirp-logic required.
 		 * @throws [`FileExists`](#FileSystemError.FileExists) when `newUri` exists and when the `overwrite` option is not `true`.
@@ -5145,7 +5303,7 @@ declare module 'vscode' {
 		/**
 		 * Post a message to the webview content.
 		 *
-		 * Messages are only develivered if the webview is visible.
+		 * Messages are only delivered if the webview is visible.
 		 *
 		 * @param message Body of the message.
 		 */
@@ -5208,7 +5366,7 @@ declare module 'vscode' {
 
 		/**
 		 * Editor position of the panel. This property is only set if the webview is in
-		 * one of the three editor view columns.
+		 * one of the editor view columns.
 		 *
 		 * @deprecated
 		 */
@@ -5487,7 +5645,7 @@ declare module 'vscode' {
 		 * to control where the editor is being shown. Might change the [active editor](#window.activeTextEditor).
 		 *
 		 * @param document A text document to be shown.
-		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [one](#ViewColumn.One), other values
+		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [active](#ViewColumn.Active), other values
 		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
 		 * not adjusted.
 		 * @param preserveFocus When `true` the editor will not take focus.
@@ -5799,7 +5957,7 @@ declare module 'vscode' {
 		 *
 		 * @param task A callback returning a promise. Progress increments can be reported with
 		 * the provided [progress](#Progress)-object.
-		 * @return The thenable the task did rseturn.
+		 * @return The thenable the task did return.
 		 */
 		export function withScmProgress<R>(task: (progress: Progress<number>) => Thenable<R>): Thenable<R>;
 
@@ -5874,6 +6032,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when an element in the [TreeView](#TreeView) is expanded or collapsed
+	 */
+	export interface TreeViewExpansionEvent<T> {
+
+		/**
+		 * Element that is expanded or collapsed.
+		 */
+		element: T;
+
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -5881,12 +6051,12 @@ declare module 'vscode' {
 		/**
 		 * Event that is fired when an element is expanded
 		 */
-		readonly onDidExpandElement: Event<T>;
+		readonly onDidExpandElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Event that is fired when an element is collapsed
 		 */
-		readonly onDidCollapseElement: Event<T>;
+		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
 		 * Currently selected elements.
@@ -6085,7 +6255,7 @@ declare module 'vscode' {
 		Window = 10,
 
 		/**
-		 * Show progress as notifiation with an optional cancel button. Supports to show infinite and discrete progress.
+		 * Show progress as notification with an optional cancel button. Supports to show infinite and discrete progress.
 		 */
 		Notification = 15
 	}
@@ -6562,6 +6732,8 @@ declare module 'vscode' {
 		 * @param type The task kind type this provider is registered for.
 		 * @param provider A task provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
+		 *
+		 * @deprecated Use the corresponding function on the `tasks` namespace instead
 		 */
 		export function registerTaskProvider(type: string, provider: TaskProvider): Disposable;
 
@@ -6576,7 +6748,7 @@ declare module 'vscode' {
 		 * @param options Immutable metadata about the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options: { isCaseSensitive?: boolean }): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { isCaseSensitive?: boolean }): Disposable;
 	}
 
 	/**
@@ -6641,7 +6813,7 @@ declare module 'vscode' {
 		 *  1. When the `DocumentFilter` is empty (`{}`) the result is `0`
 		 *  2. When `scheme`, `language`, or `pattern` are defined but one doesn’t match, the result is `0`
 		 *  3. Matching against `*` gives a score of `5`, matching via equality or via a glob-pattern gives a score of `10`
-		 *  4. The result is the maximun value of each match
+		 *  4. The result is the maximum value of each match
 		 *
 		 * Samples:
 		 * ```js
@@ -6680,7 +6852,7 @@ declare module 'vscode' {
 		 * all extensions but *not yet* from the task framework.
 		 *
 		 * @param resource A resource
-		 * @returns An arrary of [diagnostics](#Diagnostic) objects or an empty array.
+		 * @returns An array of [diagnostics](#Diagnostic) objects or an empty array.
 		 */
 		export function getDiagnostics(resource: Uri): Diagnostic[];
 
@@ -7447,7 +7619,7 @@ declare module 'vscode' {
 
 
 		/**
-		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specifc debug type.
+		 * Register a [debug configuration provider](#DebugConfigurationProvider) for a specific debug type.
 		 * More than one provider can be registered for the same type.
 		 *
 		 * @param type The debug type for which the provider is registered.
@@ -7540,7 +7712,7 @@ declare module 'vscode' {
 
 /**
  * Thenable is a common denominator between ES6 promises, Q, jquery.Deferred, WinJS.Promise,
- * and others. This API makes no assumption about what promise libary is being used which
+ * and others. This API makes no assumption about what promise library is being used which
  * enables reusing existing code without migrating to a specific promise implementation. Still,
  * we recommend the use of native promises which are available in this editor.
  */

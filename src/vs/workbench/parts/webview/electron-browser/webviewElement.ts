@@ -11,12 +11,12 @@ import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -44,8 +44,8 @@ export class WebviewElement {
 		private _options: WebviewOptions,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IFileService private readonly _fileService: IFileService,
+		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
@@ -188,7 +188,7 @@ export class WebviewElement {
 			}),
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
+		this._webviewFindWidget = this._instantiationService.createInstance(WebviewFindWidget, this);
 		this._disposables.push(this._webviewFindWidget);
 
 		this.style(this._themeService.getTheme());
@@ -427,14 +427,6 @@ export class WebviewElement {
 		this._webviewFindWidget.hide();
 	}
 
-	public showNextFindTerm() {
-		this._webviewFindWidget.showNextFindTerm();
-	}
-
-	public showPreviousFindTerm() {
-		this._webviewFindWidget.showPreviousFindTerm();
-	}
-
 	public reload() {
 		this.contents = this._contents;
 	}
@@ -477,7 +469,7 @@ function registerFileProtocol(
 						mimeType: mime
 					});
 				}, () => {
-					callback({ error: -1 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+					callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
 				});
 				return;
 			}

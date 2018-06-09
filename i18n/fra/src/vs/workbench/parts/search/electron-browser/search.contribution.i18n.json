@@ -31,5 +31,5 @@
 	"search.followSymlinks": "Contrôle s'il faut suivre les symlinks pendant la recherche.",
 	"search.smartCase": "Recherches de manière non case-sensitive si le modèle est entièrement en minuscules, dans le cas contraire, recherche de manière case-sensitive",
 	"search.globalFindClipboard": "Contrôle si la vue de recherche doit lire ou modifier le presse-papiers partagé sur macOS",
-	"search.location": "Contrôle si la recherche s’affichera comme une vue dans la barre latérale ou comme un panneau dans la zone de panneau pour plus d'espace horizontal. La prochaine version de la Recherche dans le panneau aura une meilleure présentation horizontale et cela ne sera plus une preview."
+	"search.location": "Contrôle si la recherche s’affichera comme une vue dans la barre latérale ou comme un panneau dans la zone de panneau pour plus d'espace horizontal."
 }

@@ -30,12 +30,16 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		}
 	}
 
+	const { left, top } = getTopLeftOffset(element as HTMLElement);
+
 	return {
 		tagName: element.tagName,
 		className: element.className,
 		textContent: element.textContent || '',
 		attributes,
-		children
+		children,
+		left,
+		top
 	};
 }
 
@@ -81,16 +85,10 @@ class WindowDriver implements IWindowDriver {
 	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
 		const webContents = electron.remote.getCurrentWebContents();
+
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await TPromise.timeout(10);
 		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
-
-		await TPromise.timeout(100);
-	}
-
-	async move(selector: string): TPromise<void> {
-		const { x, y } = await this._getElementXY(selector);
-		const webContents = electron.remote.getCurrentWebContents();
-		webContents.sendInputEvent({ type: 'mouseMove', x, y } as any);
 
 		await TPromise.timeout(100);
 	}
@@ -117,13 +115,19 @@ class WindowDriver implements IWindowDriver {
 		const element = document.querySelector(selector);
 
 		if (element !== document.activeElement) {
-			const el = document.activeElement;
-			const tagName = el.tagName;
-			const id = el.id ? `#${el.id}` : '';
-			const classes = el.className.split(/\W+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
-			const current = `${tagName}${id}${classes}`;
+			const chain = [];
+			let el = document.activeElement;
 
-			throw new Error(`Active element not found. Current active element is '${current}'`);
+			while (el) {
+				const tagName = el.tagName;
+				const id = el.id ? `#${el.id}` : '';
+				const classes = el.className.split(/\s+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+				chain.unshift(`${tagName}${id}${classes}`);
+
+				el = el.parentElement;
+			}
+
+			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`);
 		}
 
 		return true;

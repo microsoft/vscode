@@ -12,15 +12,15 @@
 	"config.npm.runSilent": "`--silent` オプションを使用して npm コマンドを実行する。",
 	"config.npm.packageManager": "スクリプトを実行するために使用するパッケージ マネージャー。",
 	"config.npm.exclude": "自動スクリプト検出から除外するフォルダーの glob パターンを構成します。",
-	"config.npm.enableScriptExplorer": "'package.json' ファイルがワークスペースに含まれている場合、npm スクリプトのエクスプ ローラー ビューを有効にします。",
+	"config.npm.enableScriptExplorer": "npm スクリプトのエクスプ ローラー ビューを有効にします。",
+	"config.npm.scriptExplorerAction": "スクリプトエクスプローラーで使用される規定のクリックアクション： 'open' または 'run' 、規定値は 'open' です。",
 	"npm.parseError": "npmタスク検出: ファイル {0} の解析に失敗しました",
 	"taskdef.script": "カスタマイズする npm スクリプト。",
-	"taskdef.path": "スクリプトを提供する package.json ファイルのフォルダーへのパス。省略をすることができます。",
+	"taskdef.path": "スクリプトを提供する package.json ファイルのフォルダー パス。省略できます。",
 	"view.name": "Npm スクリプト",
 	"command.refresh": "最新の情報に更新",
 	"command.run": "実行",
 	"command.debug": "デバッグ",
 	"command.openScript": "Open",
-	"npm.scriptInvalid": "スクリプト '{0}' が見つかりませんでした。ビューを更新してください。",
-	"npm.noDebugOptions": "スクリプトの Node デバッグ オプションが不足しているため、\"{0}\" をデバッグ起動できません。例: --inspect-brk\"。"
+	"command.runInstall": "インストールを実行"
 }

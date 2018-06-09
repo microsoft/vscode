@@ -298,7 +298,7 @@ suite('Filters', () => {
 		assertMatches('ob', 'foobar', undefined, fuzzyScore);
 		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
 		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
-		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', undefined, fuzzyScore);
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
 		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
@@ -307,6 +307,14 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
+	});
+
+	test('fuzzyScore (first match can be weak)', function () {
+		let fuzzyScoreWeak = (pattern, word) => fuzzyScore(pattern, word, undefined, true);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScoreWeak);
+		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScoreWeak);
+		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScoreWeak);
+		assertTopScore(fuzzyScoreWeak, 'tor', 2, 'constructor', 'Thor', 'cTor');
 	});
 
 	test('fuzzyScore, many matches', function () {

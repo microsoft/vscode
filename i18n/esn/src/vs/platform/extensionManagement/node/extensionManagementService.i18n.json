@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "¿Quiere desinstalar solo '{0}' o también sus dependencias?",
 	"uninstallOnly": "Sólo extensión",
 	"uninstallAll": "Desinstalar todo",
-	"uninstallConfirmation": "¿Seguro que quiere desinstalar '{0}'?",
-	"ok": "Aceptar",
 	"singleDependentError": "No se puede desinstalar la extensión '{0}'. La extensión '{1}' depende de esta.",
 	"twoDependentsError": "No se puede desinstalar la extensión '{0}'. Las extensiones '{1}' y '{2}' dependen de esta.",
 	"multipleDependentsError": "No se puede desinstalar la extensión '{0}'. Las extensiones '{1}' y '{2}', entre otras, dependen de esta.",

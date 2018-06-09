@@ -16,8 +16,6 @@ export function fixDriveC(_path: string): string {
 		_path;
 }
 
-function trimTrailingSlash(str: string): string {
-	return str
-		.replace(/\/$/, '')
-		.replace(/\\$/, '');
+export function anchorGlob(glob: string): string {
+	return glob.startsWith('**') || glob.startsWith('/') ? glob : `/${glob}`;
 }

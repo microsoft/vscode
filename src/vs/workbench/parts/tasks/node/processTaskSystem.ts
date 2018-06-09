@@ -122,7 +122,7 @@ export class ProcessTaskSystem implements ITaskSystem {
 		if (!this.activeTask || Task.getMapKey(this.activeTask) !== Task.getMapKey(task)) {
 			return TPromise.as<TaskTerminateResponse>({ success: false, task: undefined });
 		}
-		return this.terminateAll()[0];
+		return this.terminateAll().then(values => values[0]);
 	}
 
 	public terminateAll(): TPromise<TaskTerminateResponse[]> {

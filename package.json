@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.24.0",
-  "distro": "fa0e16f4dec2b82b096e9b877572b5a19f294aa7",
+  "version": "1.25.0",
+  "distro": "680459b2b8617926a325b0e74e96429c21969bf5",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -28,13 +28,13 @@
     "applicationinsights": "0.18.0",
     "fast-plist": "0.1.2",
     "gc-signals": "^0.0.1",
-    "getmac": "1.0.7",
+    "getmac": "1.4.1",
     "graceful-fs": "4.1.11",
     "http-proxy-agent": "^2.1.0",
     "https-proxy-agent": "^2.2.1",
     "iconv-lite": "0.4.23",
     "jschardet": "1.6.0",
-    "keytar": "^4.0.5",
+    "keytar": "4.2.1",
     "minimist": "1.2.0",
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
@@ -47,7 +47,7 @@
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
-    "vscode-ripgrep": "^0.8.1",
+    "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^3.3.3",
     "vscode-xterm": "3.5.0-beta8",
     "yauzl": "^2.9.1"
@@ -115,7 +115,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
-    "typescript": "2.8.3",
+    "typescript": "2.9.1",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",

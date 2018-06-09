@@ -24,14 +24,15 @@ import { Position, IPosition } from 'vs/editor/common/core/position';
 import URI from 'vs/base/common/uri';
 import { Location } from 'vs/editor/common/modes';
 import { provideReferences, defaultReferenceSearchOptions } from 'vs/editor/contrib/referenceSearch/referenceSearch';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class WorkbenchReferencesController extends ReferencesController {
 
 	public constructor(
 		editor: ICodeEditor,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorService editorService: IEditorService,
+		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@INotificationService notificationService: INotificationService,
 		@IInstantiationService instantiationService: IInstantiationService,
@@ -45,7 +46,7 @@ export class WorkbenchReferencesController extends ReferencesController {
 			false,
 			editor,
 			contextKeyService,
-			editorService,
+			codeEditorService,
 			textModelResolverService,
 			notificationService,
 			instantiationService,

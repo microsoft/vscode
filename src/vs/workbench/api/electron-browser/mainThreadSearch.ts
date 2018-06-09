@@ -100,6 +100,9 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		}
 
 		const folderQueriesForScheme = query.folderQueries.filter(fq => fq.folder.scheme === this._scheme);
+		if (!folderQueriesForScheme.length) {
+			return TPromise.wrap(null);
+		}
 
 		query = {
 			...query,

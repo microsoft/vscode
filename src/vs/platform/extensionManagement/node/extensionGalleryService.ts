@@ -9,7 +9,7 @@ import * as path from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { distinct } from 'vs/base/common/arrays';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { StatisticType, IGalleryExtension, IExtensionGalleryService, IGalleryExtensionAsset, IQueryOptions, SortBy, SortOrder, IExtensionManifest, IExtensionIdentifier, IReportedExtension, InstallOperation, ITranslation } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId, getGalleryExtensionTelemetryData, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { assign, getOrDefault } from 'vs/base/common/objects';
 import { IRequestService } from 'vs/platform/request/node/request';
@@ -201,6 +201,15 @@ function getStatistic(statistics: IRawGalleryExtensionStatistics[], name: string
 	return result ? result.value : 0;
 }
 
+function getCoreTranslationAssets(version: IRawGalleryExtensionVersion): { [languageId: string]: IGalleryExtensionAsset } {
+	const coreTranslationAssetPrefix = 'Microsoft.VisualStudio.Code.Translation.';
+	const result = version.files.filter(f => f.assetType.indexOf(coreTranslationAssetPrefix) === 0);
+	return result.reduce((result, file) => {
+		result[file.assetType.substring(coreTranslationAssetPrefix.length)] = getVersionAsset(version, file.assetType);
+		return result;
+	}, {});
+}
+
 function getVersionAsset(version: IRawGalleryExtensionVersion, type: string): IGalleryExtensionAsset {
 	const result = version.files.filter(f => f.assetType === type)[0];
 
@@ -278,6 +287,7 @@ function toExtension(galleryExtension: IRawGalleryExtension, extensionsGalleryUr
 		icon: getVersionAsset(version, AssetType.Icon),
 		license: getVersionAsset(version, AssetType.License),
 		repository: getVersionAsset(version, AssetType.Repository),
+		coreTranslations: getCoreTranslationAssets(version)
 	};
 
 	return {
@@ -362,7 +372,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		/* __GDPR__
 			"galleryService:query" : {
 				"type" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-				"text": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+				"text": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
 			}
 		*/
 		this.telemetryService.publicLog('galleryService:query', { type, text });
@@ -371,8 +381,7 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 			.withFlags(Flags.IncludeLatestVersionOnly, Flags.IncludeAssetUri, Flags.IncludeStatistics, Flags.IncludeFiles, Flags.IncludeVersionProperties)
 			.withPage(1, pageSize)
 			.withFilter(FilterType.Target, 'Microsoft.VisualStudio.Code')
-			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished))
-			.withAssetTypes(AssetType.Icon, AssetType.License, AssetType.Details, AssetType.Manifest, AssetType.VSIX, AssetType.Changelog);
+			.withFilter(FilterType.ExcludeWithFlags, flagsToString(Flags.Unpublished));
 
 		if (text) {
 			// Use category filter instead of "category:themes"
@@ -514,6 +523,16 @@ export class ExtensionGalleryService implements IExtensionGalleryService {
 		return this.getAsset(extension.assets.manifest)
 			.then(asText)
 			.then(JSON.parse);
+	}
+
+	getCoreTranslation(extension: IGalleryExtension, languageId: string): TPromise<ITranslation> {
+		const asset = extension.assets.coreTranslations[languageId.toUpperCase()];
+		if (asset) {
+			return this.getAsset(asset)
+				.then(asText)
+				.then(JSON.parse);
+		}
+		return TPromise.as(null);
 	}
 
 	getChangelog(extension: IGalleryExtension): TPromise<string> {
