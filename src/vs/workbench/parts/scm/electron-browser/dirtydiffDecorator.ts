@@ -469,7 +469,7 @@ export class MoveToPreviousChangeAction extends EditorAction {
 
 		const position = new Position(change.modifiedStartLineNumber, 1);
 		outerEditor.setPosition(position);
-		outerEditor.revealPosition(position);
+		outerEditor.revealPositionInCenter(position);
 	}
 }
 registerEditorAction(MoveToPreviousChangeAction);
