@@ -236,9 +236,7 @@ export class ExtensionsListView extends ViewletPanel {
 
 			const result = local
 				.sort((e1, e2) => e1.displayName.localeCompare(e2.displayName))
-				.filter(e => e.type === LocalExtensionType.User	// exclude disabled builtin extensions
-					&& runningExtensions.every(r => !areSameExtensions(r, e))
-					&& (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
+				.filter(e => runningExtensions.every(r => !areSameExtensions(r, e)) && (e.name.toLowerCase().indexOf(value) > -1 || e.displayName.toLowerCase().indexOf(value) > -1));
 
 			return new PagedModel(this.sortExtensions(result, options));
 		}
