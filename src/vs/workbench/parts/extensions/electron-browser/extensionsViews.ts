@@ -598,22 +598,14 @@ export class InstalledExtensionsView extends ExtensionsListView {
 export class EnabledExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		const queryEnabled = '@enabled';
-		if (!query || ExtensionsListView.isEnabledExtensionsQuery(query)) {
-			return super.show(queryEnabled);
-		}
-		return super.show(queryEnabled + ' ' + query);
+		return super.show('@enabled');
 	}
 }
 
 export class DisabledExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		const queryDisabled = '@disabled';
-		if (!query || ExtensionsListView.isDisabledExtensionsQuery(query)) {
-			return super.show(queryDisabled);
-		}
-		return super.show(queryDisabled + ' ' + query);
+		return super.show('@disabled');
 	}
 }
 
