@@ -4498,6 +4498,10 @@ declare namespace monaco.languages {
 		 */
 		afterText?: RegExp;
 		/**
+		 * This rule will only execute if the text above the this line matches this regular expression.
+		 */
+		oneLineAboveText?: RegExp;
+		/**
 		 * The action to execute.
 		 */
 		action: EnterAction;

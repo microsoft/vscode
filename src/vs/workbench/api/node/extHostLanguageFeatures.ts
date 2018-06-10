@@ -1216,6 +1216,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return {
 			beforeText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.beforeText),
 			afterText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.afterText),
+			oneLineAboveText: ExtHostLanguageFeatures._serializeRegExp(onEnterRule.oneLineAboveText),
 			action: onEnterRule.action
 		};
 	}
