@@ -7,6 +7,7 @@ import { localize } from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as path from 'path';
+import * as semver from 'semver';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
@@ -113,13 +114,6 @@ class Main {
 			.filter(e => !/\.vsix$/i.test(e))
 			.map(id => () => {
 				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					const isInstalled = installed.some(e => getId(e.manifest) === id);
-
-					if (isInstalled) {
-						console.log(localize('alreadyInstalled', "Extension '{0}' is already installed.", id));
-						return TPromise.as(null);
-					}
-
 					return this.extensionGalleryService.query({ names: [id], source: 'cli' })
 						.then<IPager<IGalleryExtension>>(null, err => {
 							if (err.responseText) {
@@ -143,7 +137,7 @@ class Main {
 							const installedExtension = installed.filter(e => getId(e.manifest) === id)[0];
 							const installedVersion = installedExtension.manifest.version;
 							const newestVersion = extension.version;
-							const shouldUpdate = installedVersion !== newestVersion;
+							const shouldUpdate = semver.gt(newestVersion, installedVersion);
 
 							if (shouldUpdate) {
 								console.log(localize('foundNewerVersion', "Installed version is '{0}', found newer version '{1}' in the marketplace.", installedVersion, newestVersion));
