@@ -198,9 +198,6 @@ export class CodeWindow implements ICodeWindow {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		this._win.on('maximize', (e) => app.emit('browser-window-maximize', e, this._win));
-		this._win.on('unmaximize', (e) => app.emit('browser-window-unmaximize', e, this._win));
-
 		if (isFullscreenOrMaximized) {
 			this._win.maximize();
 
@@ -386,6 +383,10 @@ export class CodeWindow implements ICodeWindow {
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
 		});
+
+		// Window (Un)Maximize
+		this._win.on('maximize', (e) => app.emit('browser-window-maximize', e, this._win));
+		this._win.on('unmaximize', (e) => app.emit('browser-window-unmaximize', e, this._win));
 
 		// Window Fullscreen
 		this._win.on('enter-full-screen', () => {
