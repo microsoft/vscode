@@ -107,14 +107,14 @@ export class MenubarPart extends Part {
 		this.topLevelMenus = {
 			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
 			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
-			// 'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
-			// 'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
-			// 'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
-			// 'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
-			// 'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
-			// 'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
+			'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
+			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
+			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
+			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
+			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
+			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
 			'Preferences': this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService),
-			// 'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
+			'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
 		};
 
 		if (isMacintosh) {
@@ -216,6 +216,21 @@ export class MenubarPart extends Part {
 		});
 	}
 
+	private setCheckedStatus(action: IAction) {
+		switch (action.id) {
+			case 'workbench.action.toggleAutoSave':
+				action.checked = this.currentAutoSaveSetting !== 'off';
+				break;
+
+			default:
+				break;
+		}
+	}
+
+	private calculateActionLabel(label: string): string {
+		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
+	}
+
 	private setupCustomMenubar(): void {
 		this.container.empty();
 		this.container.attr('role', 'menubar');
@@ -254,14 +269,8 @@ export class MenubarPart extends Part {
 					const [, actions] = group;
 
 					actions.map((action: IAction) => {
-						let cleansed = action.label.replace(/&&(.)/g, '$1');
-						if (!this.currentEnableMenuBarMnemonics) {
-							action.label = cleansed;
-						}
-
-						if (cleansed === 'Auto Save') {
-							action.checked = this.currentAutoSaveSetting !== 'off';
-						}
+						action.label = this.calculateActionLabel(action.label);
+						this.setCheckedStatus(action);
 					});
 
 					this.customMenus[menuIndex].actions.push(...actions);

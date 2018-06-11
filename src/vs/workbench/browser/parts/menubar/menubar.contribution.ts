@@ -427,22 +427,706 @@ function selectionMenuRegistration() {
 }
 
 function recentMenuRegistration() {
+	// Editor
+	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+		group: '1_editor',
+		command: {
+			id: 'workbench.action.reopenClosedEditor',
+			title: nls.localize({ key: 'miReopenClosedEditor', comment: ['&& denotes a mnemonic'] }, "&&Reopen Closed Editor")
+		},
+		order: 1
+	});
+
+	// More
+	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+		group: 'y_more',
+		command: {
+			id: 'workbench.action.openRecent',
+			title: nls.localize({ key: 'miMore', comment: ['&& denotes a mnemonic'] }, "&&More...")
+		},
+		order: 1
+	});
+
+	// Clear
+	MenuRegistry.appendMenuItem(MenuId.MenubarRecentMenu, {
+		group: 'z_clear',
+		command: {
+			id: 'workbench.action.clearRecentFiles',
+			title: nls.localize({ key: 'miClearRecentOpen', comment: ['&& denotes a mnemonic'] }, "&&Clear Recently Opened")
+		},
+		order: 1
+	});
 
 }
 
 function viewMenuRegistration() {
 
+	// Command Palette
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '1_open',
+		command: {
+			id: 'workbench.action.showCommands',
+			title: nls.localize({ key: 'miCommandPalette', comment: ['&& denotes a mnemonic'] }, "&&Command Palette...")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '1_open',
+		command: {
+			id: 'workbench.action.openView',
+			title: nls.localize({ key: 'miOpenView', comment: ['&& denotes a mnemonic'] }, "&&Open View...")
+		},
+		order: 2
+	});
+
+	// Viewlets
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_views',
+		command: {
+			id: 'workbench.view.explorer',
+			title: nls.localize({ key: 'miViewExplorer', comment: ['&& denotes a mnemonic'] }, "&&Explorer")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_views',
+		command: {
+			id: 'workbench.view.search',
+			title: nls.localize({ key: 'miViewSearch', comment: ['&& denotes a mnemonic'] }, "&&Search")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_views',
+		command: {
+			id: 'workbench.view.scm',
+			title: nls.localize({ key: 'miViewSCM', comment: ['&& denotes a mnemonic'] }, "S&&CM")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_views',
+		command: {
+			id: 'workbench.view.debug',
+			title: nls.localize({ key: 'miViewDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_views',
+		command: {
+			id: 'workbench.view.extensions',
+			title: nls.localize({ key: 'miViewExtensions', comment: ['&& denotes a mnemonic'] }, "E&&xtensions")
+		},
+		order: 5
+	});
+
+	// Panels
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '3_panels',
+		command: {
+			id: 'workbench.action.output.toggleOutput',
+			title: nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '3_panels',
+		command: {
+			id: 'workbench.debug.action.toggleRepl',
+			title: nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '3_panels',
+		command: {
+			id: 'workbench.action.terminal.toggleTerminal',
+			title: nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '3_panels',
+		command: {
+			id: 'workbench.actions.view.problems',
+			title: nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems")
+		},
+		order: 4
+	});
+
+	// Toggle View
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_toggle_view',
+		command: {
+			id: 'workbench.action.toggleFullScreen',
+			title: nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_toggle_view',
+		command: {
+			id: 'workbench.action.toggleZenMode',
+			title: nls.localize('miToggleZenMode', "Toggle Zen Mode")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_toggle_view',
+		command: {
+			id: 'workbench.action.toggleCenteredLayout',
+			title: nls.localize('miToggleCenteredLayout', "Toggle Centered Layout")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '4_toggle_view',
+		command: {
+			id: 'workbench.action.toggleMenuBar',
+			title: nls.localize({ key: 'miToggleMenuBar', comment: ['&& denotes a mnemonic'] }, "Toggle Menu &&Bar")
+		},
+		order: 4
+	});
+
+	// TODO: Editor Layout Submenu
+
+	// Workbench Layout
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_workbench_layout',
+		command: {
+			id: 'workbench.action.toggleSidebarVisibility',
+			title: nls.localize({ key: 'miToggleSidebar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Side Bar")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_workbench_layout',
+		command: {
+			id: 'workbench.action.toggleSidebarPosition',
+			title: nls.localize({ key: 'miMoveSidebarLeftRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left/Right")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_workbench_layout',
+		command: {
+			id: 'workbench.action.toggleStatusbarVisibility',
+			title: nls.localize({ key: 'miToggleStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Toggle Status Bar")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_workbench_layout',
+		command: {
+			id: 'workbench.action.toggleActivityBarVisibility',
+			title: nls.localize({ key: 'miToggleActivityBar', comment: ['&& denotes a mnemonic'] }, "Toggle &&Activity Bar")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '6_workbench_layout',
+		command: {
+			id: 'workbench.action.togglePanel',
+			title: nls.localize({ key: 'miTogglePanel', comment: ['&& denotes a mnemonic'] }, "Toggle &&Panel")
+		},
+		order: 5
+	});
+
+	// Toggle Editor Settings
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '8_editor',
+		command: {
+			id: 'workbench.action.toggleWordWrap',
+			title: nls.localize({ key: 'miToggleWordWrap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Word Wrap")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '8_editor',
+		command: {
+			id: 'workbench.action.toggleMinimap',
+			title: nls.localize({ key: 'miToggleMinimap', comment: ['&& denotes a mnemonic'] }, "Toggle &&Minimap")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '8_editor',
+		command: {
+			id: 'workbench.action.toggleRenderWhitespace',
+			title: nls.localize({ key: 'miToggleRenderWhitespace', comment: ['&& denotes a mnemonic'] }, "Toggle &&Render Whitespace")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '8_editor',
+		command: {
+			id: 'workbench.action.toggleRenderControlCharacters',
+			title: nls.localize({ key: 'miToggleRenderControlCharacters', comment: ['&& denotes a mnemonic'] }, "Toggle &&Control Characters")
+		},
+		order: 4
+	});
+
+	// Zoom
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '9_zoom',
+		command: {
+			id: 'workbench.action.zoomIn',
+			title: nls.localize({ key: 'miZoomIn', comment: ['&& denotes a mnemonic'] }, "&&Zoom In")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '9_zoom',
+		command: {
+			id: 'workbench.action.zoomOut',
+			title: nls.localize({ key: 'miZoomOut', comment: ['&& denotes a mnemonic'] }, "&&Zoom Out")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '9_zoom',
+		command: {
+			id: 'workbench.action.zoomReset',
+			title: nls.localize({ key: 'miZoomReset', comment: ['&& denotes a mnemonic'] }, "&&Reset Zoom")
+		},
+		order: 3
+	});
 }
 
 function goMenuRegistration() {
+	// Forward/Back
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '1_fwd_back',
+		command: {
+			id: 'workbench.action.navigateBack',
+			title: nls.localize({ key: 'miBack', comment: ['&& denotes a mnemonic'] }, "&&Back")
+		},
+		order: 1
+	});
 
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '1_fwd_back',
+		command: {
+			id: 'workbench.action.navigateForward',
+			title: nls.localize({ key: 'miForward', comment: ['&& denotes a mnemonic'] }, "&&Forward")
+		},
+		order: 2
+	});
+
+	// Switch Editor
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '2_switch_editor',
+		command: {
+			id: 'workbench.action.nextEditor',
+			title: nls.localize({ key: 'miNextEditor', comment: ['&& denotes a mnemonic'] }, "&&Next Editor")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '2_switch_editor',
+		command: {
+			id: 'workbench.action.previousEditor',
+			title: nls.localize({ key: 'miPreviousEditor', comment: ['&& denotes a mnemonic'] }, "&&Previous Editor")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '2_switch_editor',
+		command: {
+			id: 'workbench.action.openNextRecentlyUsedEditorInGroup',
+			title: nls.localize({ key: 'miNextEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Used Editor in Group")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '2_switch_editor',
+		command: {
+			id: 'workbench.action.openPreviousRecentlyUsedEditorInGroup',
+			title: nls.localize({ key: 'miPreviousEditorInGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Used Editor in Group")
+		},
+		order: 4
+	});
+
+	// Switch Group
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusNextGroup',
+			title: nls.localize({ key: 'miNextGroup', comment: ['&& denotes a mnemonic'] }, "&&Next Group")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusPreviousGroup',
+			title: nls.localize({ key: 'miPreviousGroup', comment: ['&& denotes a mnemonic'] }, "&&Previous Group")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusLeftGroup',
+			title: nls.localize({ key: 'miFocusLeftGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Left")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusRightGroup',
+			title: nls.localize({ key: 'miFocusRightGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Right")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusAboveGroup',
+			title: nls.localize({ key: 'miFocusAboveGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Above")
+		},
+		order: 5
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: '3_switch_group',
+		command: {
+			id: 'workbench.action.focusBelowGroup',
+			title: nls.localize({ key: 'miFocusBelowGroup', comment: ['&& denotes a mnemonic'] }, "Group &&Below")
+		},
+		order: 6
+	});
+
+	// Go to
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'workbench.action.quickOpen',
+			title: nls.localize({ key: 'miGotoFile', comment: ['&& denotes a mnemonic'] }, "Go to &&File...")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'workbench.action.gotoSymbol',
+			title: nls.localize({ key: 'miGotoSymbolInFile', comment: ['&& denotes a mnemonic'] }, "Go to &&Symbol in File...")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'workbench.action.showAllSymbols',
+			title: nls.localize({ key: 'miGotoSymbolInWorkspace', comment: ['&& denotes a mnemonic'] }, "Go to Symbol in &&Workspace...")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'editor.action.goToDeclaration',
+			title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'editor.action.goToTypeDefinition',
+			title: nls.localize({ key: 'miGotoDefinition', comment: ['&& denotes a mnemonic'] }, "Go to &&Definition")
+		},
+		order: 5
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'editor.action.goToImplementation',
+			title: nls.localize({ key: 'miGotoImplementation', comment: ['&& denotes a mnemonic'] }, "Go to &&Implementation")
+		},
+		order: 6
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarGoMenu, {
+		group: 'z_go_to',
+		command: {
+			id: 'workbench.action.gotoLine',
+			title: nls.localize({ key: 'miGotoLine', comment: ['&& denotes a mnemonic'] }, "Go to &&Line...")
+		},
+		order: 7
+	});
 }
 
 function debugMenuRegistration() {
+	// Start/Stop Debug
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '1_debug',
+		command: {
+			id: 'workbench.action.debug.start',
+			title: nls.localize({ key: 'miStartDebugging', comment: ['&& denotes a mnemonic'] }, "&&Start Debugging")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '1_debug',
+		command: {
+			id: 'workbench.action.debug.run',
+			title: nls.localize({ key: 'miStartWithoutDebugging', comment: ['&& denotes a mnemonic'] }, "Start &&Without Debugging")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '1_debug',
+		command: {
+			id: 'workbench.action.debug.stop',
+			title: nls.localize({ key: 'miStopDebugging', comment: ['&& denotes a mnemonic'] }, "&&Stop Debugging")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '1_debug',
+		command: {
+			id: 'workbench.action.debug.restart',
+			title: nls.localize({ key: 'miRestart Debugging', comment: ['&& denotes a mnemonic'] }, "&&Restart Debugging")
+		},
+		order: 4
+	});
+
+	// Configuration
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '2_configuration',
+		command: {
+			id: 'workbench.action.debug.configure',
+			title: nls.localize({ key: 'miOpenConfigurations', comment: ['&& denotes a mnemonic'] }, "Open &&Configurations")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '2_configuration',
+		command: {
+			id: 'debug.addConfiguration',
+			title: nls.localize({ key: 'miAddConfiguration', comment: ['&& denotes a mnemonic'] }, "Add Configuration...")
+		},
+		order: 2
+	});
+
+	// Step Commands
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '3_step',
+		command: {
+			id: 'workbench.action.debug.stepOver',
+			title: nls.localize({ key: 'miStepOver', comment: ['&& denotes a mnemonic'] }, "Step &&Over")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '3_step',
+		command: {
+			id: 'workbench.action.debug.stepInto',
+			title: nls.localize({ key: 'miStepInto', comment: ['&& denotes a mnemonic'] }, "Step &&Into")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '3_step',
+		command: {
+			id: 'workbench.action.debug.stepOut',
+			title: nls.localize({ key: 'miStepOut', comment: ['&& denotes a mnemonic'] }, "Step O&&ut")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '3_step',
+		command: {
+			id: 'workbench.action.debug.continue',
+			title: nls.localize({ key: 'miContinue', comment: ['&& denotes a mnemonic'] }, "&&Continue")
+		},
+		order: 4
+	});
+
+	// New Breakpoints
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '4_new_breakpoint',
+		command: {
+			id: 'editor.debug.action.toggleBreakpoint',
+			title: nls.localize({ key: 'miToggleBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Breakpoint")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '4_new_breakpoint',
+		command: {
+			id: 'editor.debug.action.conditionalBreakpoint',
+			title: nls.localize({ key: 'miConditionalBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Conditional Breakpoint...")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '4_new_breakpoint',
+		command: {
+			id: 'editor.debug.action.toggleInlineBreakpoint',
+			title: nls.localize({ key: 'miInlineBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle Inline Breakp&&oint")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '4_new_breakpoint',
+		command: {
+			id: 'workbench.debug.viewlet.action.addFunctionBreakpointAction',
+			title: nls.localize({ key: 'miFunctionBreakpoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Function Breakpoint...")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '4_new_breakpoint',
+		command: {
+			id: 'editor.debug.action.toggleLogPoint',
+			title: nls.localize({ key: 'miLogPoint', comment: ['&& denotes a mnemonic'] }, "Toggle &&Logpoint...")
+		},
+		order: 5
+	});
+
+	// Modify Breakpoints
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '5_breakpoints',
+		command: {
+			id: 'workbench.debug.viewlet.action.enableAllBreakpoints',
+			title: nls.localize({ key: 'miEnableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Enable All Breakpoints")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '5_breakpoints',
+		command: {
+			id: 'workbench.debug.viewlet.action.disableAllBreakpoints',
+			title: nls.localize({ key: 'miDisableAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Disable A&&ll Breakpoints")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarDebugMenu, {
+		group: '5_breakpoints',
+		command: {
+			id: 'workbench.debug.viewlet.action.removeAllBreakpoints',
+			title: nls.localize({ key: 'miRemoveAllBreakpoints', comment: ['&& denotes a mnemonic'] }, "Remove &&All Breakpoints")
+		},
+		order: 3
+	});
 
 }
 
 function tasksMenuRegistration() {
+	// Run Tasks
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '1_run',
+		command: {
+			id: 'workbench.action.tasks.runTask',
+			title: nls.localize({ key: 'miRunTask', comment: ['&& denotes a mnemonic'] }, "&&Run Task...")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '1_run',
+		command: {
+			id: 'workbench.action.tasks.build',
+			title: nls.localize({ key: 'miBuildTask', comment: ['&& denotes a mnemonic'] }, "Run &&Build Task...")
+		},
+		order: 2
+	});
+
+	// Manage Tasks
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '2_manage',
+		command: {
+			id: 'workbench.action.tasks.showTasks',
+			title: nls.localize({ key: 'miRunningTask', comment: ['&& denotes a mnemonic'] }, "Show Runnin&&g Tasks...")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '2_manage',
+		command: {
+			id: 'workbench.action.tasks.restartTask',
+			title: nls.localize({ key: 'miRestartTask', comment: ['&& denotes a mnemonic'] }, "R&&estart Running Task...")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '2_manage',
+		command: {
+			id: 'workbench.action.tasks.terminate',
+			title: nls.localize({ key: 'miTerminateTask', comment: ['&& denotes a mnemonic'] }, "&&Terminate Task...")
+		},
+		order: 3
+	});
+
+	// Configure Tasks
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '3_configure',
+		command: {
+			id: 'workbench.action.tasks.configureTaskRunner',
+			title: nls.localize({ key: 'miConfigureTask', comment: ['&& denotes a mnemonic'] }, "&&Configure Tasks...")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarTasksMenu, {
+		group: '3_configure',
+		command: {
+			id: 'workbench.action.tasks.configureDefaultBuildTask',
+			title: nls.localize({ key: 'miConfigureBuildTask', comment: ['&& denotes a mnemonic'] }, "Configure De&&fault Build Task...")
+		},
+		order: 2
+	});
 
 }
 
@@ -507,14 +1191,153 @@ function preferencesMenuRegistration() {
 }
 
 function helpMenuRegistration() {
+	// Welcome
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '1_welcome',
+		command: {
+			id: 'workbench.action.showWelcomePage',
+			title: nls.localize({ key: 'miWelcome', comment: ['&& denotes a mnemonic'] }, "&&Welcome")
+		},
+		order: 1
+	});
 
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '1_welcome',
+		command: {
+			id: 'workbench.action.showInteractivePlayground',
+			title: nls.localize({ key: 'miInteractivePlayground', comment: ['&& denotes a mnemonic'] }, "&&Interactive Playground")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '1_welcome',
+		command: {
+			id: 'workbench.action.openDocumentationUrl',
+			title: nls.localize({ key: 'miDocumentation', comment: ['&& denotes a mnemonic'] }, "&&Documentation")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '1_welcome',
+		command: {
+			id: 'workbench.action.showCurrentReleaseNotes',
+			title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
+		},
+		order: 4
+	});
+
+	// Reference
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '2_reference',
+		command: {
+			id: 'workbench.action.keybindingsReference',
+			title: nls.localize({ key: 'miKeyboardShortcuts', comment: ['&& denotes a mnemonic'] }, "&&Keyboard Shortcuts Reference")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '2_reference',
+		command: {
+			id: 'workbench.action.openIntroductoryVideosUrl',
+			title: nls.localize({ key: 'miIntroductoryVideos', comment: ['&& denotes a mnemonic'] }, "Introductory &&Videos")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '2_reference',
+		command: {
+			id: 'workbench.action.openTipsAndTricksUrl',
+			title: nls.localize({ key: 'miTipsAndTricks', comment: ['&& denotes a mnemonic'] }, "&&Tips and Tricks")
+		},
+		order: 3
+	});
+
+	// Feedback
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '3_feedback',
+		command: {
+			id: 'openTwitterUrl',
+			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '3_feedback',
+		command: {
+			id: 'openUserVoiceUrl',
+			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '3_feedback',
+		command: {
+			id: 'openReportIssues',
+			title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
+		},
+		order: 3
+	});
+
+	// Legal
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '4_legal',
+		command: {
+			id: 'openLicenseUrl',
+			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '4_legal',
+		command: {
+			id: 'openPrivacyStatement',
+			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
+		},
+		order: 2
+	});
+
+	// Tools
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '5_tools',
+		command: {
+			id: 'workbench.action.toggleDevTools',
+			title: nls.localize({ key: 'miToggleDevTools', comment: ['&& denotes a mnemonic'] }, "&&Toggle Developer Tools")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '5_tools',
+		command: {
+			id: 'workbench.action.openProcessExplorer',
+			title: nls.localize({ key: 'miOpenProcessExplorerer', comment: ['&& denotes a mnemonic'] }, "Open &&Process Explorer")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: '5_tools',
+		command: {
+			id: 'accessibilityOptions',
+			title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
+		},
+		order: 3
+	});
+
+	// About
+	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
+		group: 'z_about',
+		command: {
+			id: 'workbench.action.showAboutDialog',
+			title: nls.localize({ key: 'miAbout', comment: ['&& denotes a mnemonic'] }, "&&About")
+		},
+		order: 1
+	});
 }
-
-// MenuRegistry.appendMenuItem(MenuId.MenubarEditMenu, {
-// 	group: '3_workspace',
-// 	command: {
-// 		id: '',
-// 		title: ''
-// 	},
-// 	order: 1
-// });
