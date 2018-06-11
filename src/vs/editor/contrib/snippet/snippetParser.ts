@@ -246,6 +246,15 @@ export class Placeholder extends Marker {
 			: undefined;
 	}
 
+	get transform(): Transform {
+		for (const child of this._children) {
+			if (child instanceof Transform) {
+				return child as Transform;
+			}
+		}
+		return undefined;
+	}
+
 	toTextmateString(): string {
 		if (this.children.length === 0) {
 			return `\$${this.index}`;
@@ -482,6 +491,9 @@ export class TextmateSnippet extends Marker {
 		let ret = 0;
 		walk([marker], marker => {
 			ret += marker.len();
+			if (marker instanceof Transform) {
+				return false;
+			}
 			return true;
 		});
 		return ret;
@@ -690,10 +702,17 @@ export class SnippetParser {
 			// ${1:<children>}
 			while (true) {
 
-				// ...} -> done
+
 				if (this._accept(TokenType.CurlyClose)) {
+					// ...} -> done
 					parent.appendChild(placeholder);
 					return true;
+				} else if (this._accept(TokenType.Forwardslash)) {
+					//../<regex>/<format>/<options>} -> transform
+					if (this._parseTransform(placeholder)) {
+						parent.appendChild(placeholder);
+						return true;
+					}
 				}
 
 				if (this._parse(placeholder)) {
@@ -722,12 +741,28 @@ export class SnippetParser {
 						placeholder.appendChild(choice);
 						parent.appendChild(placeholder);
 						return true;
+					} else if (this._accept(TokenType.Forwardslash)) {
+						// ...|/<regex>/<format>/<options>} -> transform
+						if (this._parseTransform(placeholder)) {
+							parent.appendChild(placeholder);
+							return true;
+						}
 					}
 				}
 
 				this._backTo(token);
 				return false;
 			}
+
+		} else if (this._accept(TokenType.Forwardslash)) {
+			// ${1/<regex>/<format>/<options>}
+			if (this._parseTransform(placeholder)) {
+				parent.appendChild(placeholder);
+				return true;
+			}
+
+			this._backTo(token);
+			return false;
 
 		} else if (this._accept(TokenType.CurlyClose)) {
 			// ${1}
@@ -829,7 +864,7 @@ export class SnippetParser {
 		}
 	}
 
-	private _parseTransform(parent: Variable): boolean {
+	private _parseTransform(parent: Variable | Placeholder): boolean {
 		// ...<regex>/<format>/<options>}
 
 		let transform = new Transform();
