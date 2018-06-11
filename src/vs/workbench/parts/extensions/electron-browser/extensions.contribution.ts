@@ -220,7 +220,7 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 			},
 			'extensions.closeExtensionDetailsOnViewChange': {
 				type: 'boolean',
-				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, extension information tabs will be automatically closed upon navigating away from the Extensions View."),
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
 				default: false
 			}
 		}
