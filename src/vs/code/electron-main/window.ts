@@ -167,12 +167,14 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if ((!isMacintosh && windowConfig && windowConfig.titleBarStyle === 'custom') ||
-			(isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'))) {
-			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (!isMacintosh || !isDev) {
-				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
-			}
+
+		const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
+		if (isDev) {
+			useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+		} else if (isMacintosh) {
+			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on macOS
+		} else {
+			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
 		}
 
 		if (useNativeTabs) {
