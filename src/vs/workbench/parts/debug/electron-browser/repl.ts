@@ -31,7 +31,6 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { ReplExpressionsRenderer, ReplExpressionsController, ReplExpressionsDataSource, ReplExpressionsActionProvider, ReplExpressionsAccessibilityProvider } from 'vs/workbench/parts/debug/electron-browser/replViewer';
 import { SimpleDebugEditor } from 'vs/workbench/parts/debug/electron-browser/simpleDebugEditor';
 import { ClearReplAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { ReplHistory } from 'vs/workbench/parts/debug/common/replHistory';
 import { Panel } from 'vs/workbench/browser/panel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -44,6 +43,7 @@ import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
 import { IDebugService, REPL_ID, DEBUG_SCHEME, CONTEXT_ON_FIRST_DEBUG_REPL_LINE, CONTEXT_IN_DEBUG_REPL, CONTEXT_ON_LAST_DEBUG_REPL_LINE } from 'vs/workbench/parts/debug/common/debug';
+import { HistoryNavigator } from 'vs/base/common/history';
 
 const $ = dom.$;
 
@@ -67,7 +67,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	private static readonly HALF_WIDTH_TYPICAL = 'n';
 
-	private static HISTORY: ReplHistory;
+	private history: HistoryNavigator<string>;
 	private static readonly REFRESH_DELAY = 500; // delay in ms to refresh the repl for new elements to show
 	private static readonly REPL_INPUT_INITIAL_HEIGHT = 19;
 	private static readonly REPL_INPUT_MAX_HEIGHT = 170;
@@ -97,6 +97,7 @@ export class Repl extends Panel implements IPrivateReplService {
 		super(REPL_ID, telemetryService, themeService);
 
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
+		this.history = new HistoryNavigator(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')), 50);
 		this.registerListeners();
 	}
 
@@ -143,10 +144,6 @@ export class Repl extends Panel implements IPrivateReplService {
 			accessibilityProvider: new ReplExpressionsAccessibilityProvider(),
 			controller
 		}, replTreeOptions);
-
-		if (!Repl.HISTORY) {
-			Repl.HISTORY = new ReplHistory(JSON.parse(this.storageService.get(HISTORY_STORAGE_KEY, StorageScope.WORKSPACE, '[]')));
-		}
 
 		return this.tree.setInput(this.debugService.getModel());
 	}
@@ -210,9 +207,8 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public navigateHistory(previous: boolean): void {
-		const historyInput = previous ? Repl.HISTORY.previous() : Repl.HISTORY.next();
+		const historyInput = previous ? this.history.previous() : this.history.next();
 		if (historyInput) {
-			Repl.HISTORY.remember(this.replInput.getValue(), previous);
 			this.replInput.setValue(historyInput);
 			// always leave cursor at the end.
 			this.replInput.setPosition({ lineNumber: 1, column: historyInput.length + 1 });
@@ -221,7 +217,7 @@ export class Repl extends Panel implements IPrivateReplService {
 
 	public acceptReplInput(): void {
 		this.debugService.addReplExpression(this.replInput.getValue());
-		Repl.HISTORY.evaluated(this.replInput.getValue());
+		this.history.add(this.replInput.getValue());
 		this.replInput.setValue('');
 		// Trigger a layout to shrink a potential multi line input
 		this.replInputHeight = Repl.REPL_INPUT_INITIAL_HEIGHT;
@@ -286,7 +282,7 @@ export class Repl extends Panel implements IPrivateReplService {
 	}
 
 	public shutdown(): void {
-		const replHistory = Repl.HISTORY.save();
+		const replHistory = this.history.getHistory();
 		if (replHistory.length) {
 			this.storageService.store(HISTORY_STORAGE_KEY, JSON.stringify(replHistory), StorageScope.WORKSPACE);
 		} else {
