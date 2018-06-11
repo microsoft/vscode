@@ -87,6 +87,28 @@ export class OneSnippet {
 
 		this._initDecorations();
 
+		// Transform placeholder text if necessary
+		if (this._placeholderGroupsIdx >= 0) {
+			const firstPlaceholder = this._placeholderGroups[this._placeholderGroupsIdx][0];
+
+			// Check if the placeholder has a transformation
+			if (firstPlaceholder.transform) {
+				const id = this._placeholderDecorations.get(firstPlaceholder);
+				const range = this._editor.getModel().getDecorationRange(id);
+				const currentValue = this._editor.getModel().getValueInRange(range);
+				let operations: IIdentifiedSingleEditOperation[] = [];
+
+				// Apply the transformed text on every placeholder occurence
+				for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+					const id = this._placeholderDecorations.get(placeholder);
+					const range = this._editor.getModel().getDecorationRange(id);
+
+					operations.push({ range: range, text: firstPlaceholder.transform.resolve(currentValue) });
+				}
+				this._editor.getModel().applyEdits(operations);
+			}
+		}
+
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
 
