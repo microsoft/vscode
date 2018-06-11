@@ -134,13 +134,12 @@ app.on('ready', () => {
 
 	if (argv.tfs) {
 		new TFSReporter(runner);
-
-		if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
-			const mochaFile = path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/unit-test-results.xml');
-			new MochaJUnitReporter(runner, { reporterOptions: { mochaFile } });
-		} else {
-			console.warn('BUILD_ARTIFACTSTAGINGDIRECTORY not defined')
-		}
+		new MochaJUnitReporter(runner, {
+			reporterOptions: {
+				testsuitesTitle: `Unit Tests ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/unit-test-results.xml') : undefined
+			}
+		});
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;
