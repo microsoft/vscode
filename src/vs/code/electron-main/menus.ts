@@ -1137,7 +1137,10 @@ export class CodeMenu {
 			width: 450,
 			height: 300,
 			show: true,
-			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options"),
+			webPreferences: {
+				disableBlinkFeatures: 'Auxclick'
+			}
 		});
 
 		win.setMenuBarVisibility(false);
