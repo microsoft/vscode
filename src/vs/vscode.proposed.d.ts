@@ -256,6 +256,19 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region scm
+	export namespace scm {
+		/**
+		 * The currently active [source control](#SourceControl).
+		 */
+		export let activeSourceControl: SourceControl | undefined;
+		/**
+		 * An [event](#Event) which fires when the active [source control](#SourceControl) has changed.
+		 */
+		export const onDidChangeActiveSourceControl: Event<SourceControl>;
+	}
+	//#endregion
+
 	//#region Comments
 	/**
 	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.

@@ -566,6 +566,12 @@ export function createApiFactory(
 			get inputBox() {
 				return extHostSCM.getLastInputBox(extension);
 			},
+			get activeSourceControl() {
+				return extHostSCM.activeSourceControl;
+			},
+			get onDidChangeActiveSourceControl() {
+				return extHostSCM.onDidChangeActiveSourceControl;
+			},
 			createSourceControl(id: string, label: string, rootUri?: vscode.Uri) {
 				return extHostSCM.createSourceControl(extension, id, label, rootUri);
 			}
