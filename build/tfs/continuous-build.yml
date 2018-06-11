@@ -35,6 +35,7 @@ phases:
   - powershell: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
     displayName: Run Smoke Tests
+    continueOnError: true
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
@@ -120,6 +121,7 @@ phases:
   - script: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
     displayName: Run Smoke Tests
+    continueOnError: true
   - task: PublishBuildArtifacts@1
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
