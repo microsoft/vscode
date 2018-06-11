@@ -14,11 +14,11 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { ContextAwareMenuItemActionItem, fillInActionBarActions, fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry } from 'vs/workbench/common/views';
+import { IViewsService, ITreeViewer, ITreeItem, TreeItemCollapsibleState, ITreeViewDataProvider, TreeViewItemHandleArg, ICustomViewDescriptor, ViewsRegistry, ViewContainer } from 'vs/workbench/common/views';
 import { IViewletViewOptions, FileIconThemableWorkbenchTree } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ProgressLocation, IProgressService2 } from 'vs/platform/progress/common/progress';
+import { IProgressService2 } from 'vs/workbench/services/progress/common/progress';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
@@ -194,7 +194,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 
 	constructor(
 		private id: string,
-		private progressLocation: ProgressLocation,
+		private container: ViewContainer,
 		@IExtensionService private extensionService: IExtensionService,
 		@IWorkbenchThemeService private themeService: IWorkbenchThemeService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -292,7 +292,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		this.treeContainer = DOM.$('.tree-explorer-viewlet-tree-view');
 		const actionItemProvider = (action: IAction) => action instanceof MenuItemAction ? this.instantiationService.createInstance(ContextAwareMenuItemActionItem, action) : undefined;
 		const menus = this.instantiationService.createInstance(TreeMenus, this.id);
-		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.progressLocation);
+		const dataSource = this.instantiationService.createInstance(TreeDataSource, this, this.container);
 		const renderer = this.instantiationService.createInstance(TreeRenderer, this.id, menus, actionItemProvider);
 		const controller = this.instantiationService.createInstance(TreeController, this.id, menus);
 		this.tree = this.instantiationService.createInstance(FileIconThemableWorkbenchTree, this.treeContainer, { dataSource, renderer, controller }, {});
@@ -395,7 +395,7 @@ class TreeDataSource implements IDataSource {
 
 	constructor(
 		private treeView: ITreeViewer,
-		private location: ProgressLocation,
+		private container: ViewContainer,
 		@IProgressService2 private progressService: IProgressService2
 	) {
 	}
@@ -410,7 +410,7 @@ class TreeDataSource implements IDataSource {
 
 	public getChildren(tree: ITree, node: ITreeItem): TPromise<any[]> {
 		if (this.treeView.dataProvider) {
-			return this.location ? this.progressService.withProgress({ location: this.location }, () => this.treeView.dataProvider.getChildren(node)) : this.treeView.dataProvider.getChildren(node);
+			return this.progressService.withProgress({ location: this.container }, () => this.treeView.dataProvider.getChildren(node));
 		}
 		return TPromise.as([]);
 	}

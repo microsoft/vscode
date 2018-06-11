@@ -14,7 +14,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { registerThemingParticipant, ITheme } from 'vs/platform/theme/common/themeService';
 import { inputBackground, inputActiveOptionBorder, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, editorWidgetBackground, widgetShadow } from 'vs/platform/theme/common/colorRegistry';
 import { SimpleButton } from './findWidget';
-import { ContextScopedFindInput } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const NLS_FIND_INPUT_LABEL = nls.localize('label.find', "Find");

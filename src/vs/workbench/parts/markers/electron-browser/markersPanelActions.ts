@@ -29,7 +29,7 @@ import { badgeBackground, contrastBorder } from 'vs/platform/theme/common/colorR
 import { localize } from 'vs/nls';
 import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 
 export class ToggleMarkersPanelAction extends TogglePanelAction {
 

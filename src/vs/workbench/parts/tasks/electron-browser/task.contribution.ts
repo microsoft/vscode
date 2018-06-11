@@ -42,7 +42,8 @@ import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';

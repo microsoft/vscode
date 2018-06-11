@@ -18,7 +18,7 @@ import { IExtensionDescription } from 'vs/workbench/services/extensions/common/e
 import { StatusbarAlignment as MainThreadStatusBarAlignment } from 'vs/platform/statusbar/common/statusbar';
 import { ITelemetryInfo } from 'vs/platform/telemetry/common/telemetry';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
-import { IProgressOptions, IProgressStep } from 'vs/platform/progress/common/progress';
+import { IProgressOptions, IProgressStep } from 'vs/workbench/services/progress/common/progress';
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import * as modes from 'vs/editor/common/modes';
