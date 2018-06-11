@@ -28,7 +28,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	options.reporter = 'mocha-junit-reporter';
 	options.reporterOptions = {
 		testsuitesTitle: `Integration Markdown Tests ${process.platform}`,
-		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/integration-markdown-test-results.xml')
+		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-integration-markdown-test-results.xml`)
 	};
 }
 

@@ -30,7 +30,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	options.reporter = 'mocha-junit-reporter';
 	options.reporterOptions = {
 		testsuitesTitle: `Integration Single Folder Tests ${process.platform}`,
-		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/integration-singlefolder-test-results.xml')
+		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-integration-singlefolder-test-results.xml`)
 	};
 }
 

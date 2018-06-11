@@ -28,7 +28,7 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	options.reporter = 'mocha-junit-reporter';
 	options.reporterOptions = {
 		testsuitesTitle: `Integration Colorize Tests ${process.platform}`,
-		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/integration-colorize-test-results.xml')
+		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}integration-colorize-test-results.xml`)
 	};
 }
 
