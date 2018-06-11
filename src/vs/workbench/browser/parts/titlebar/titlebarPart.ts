@@ -5,7 +5,6 @@
 
 'use strict';
 
-import * as path from 'path';
 import 'vs/css!./media/titlebarpart';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
@@ -233,7 +232,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (!isMacintosh) {
 			$(this.titleContainer).img({
 				class: 'window-appicon',
-				src: path.join(this.environmentService.appRoot, 'resources/win32/code.ico')
+				src: paths.join(this.environmentService.appRoot, 'resources/linux/code.png')
 			}).on(EventType.DBLCLICK, (e) => {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
@@ -269,23 +268,15 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			this.windowService.isMaximized().then((maximized) => {
-				let builder;
-				if (maximized) {
-					builder = $(windowControls).div({ class: 'window-icon window-unmaximize' });
-				} else {
-					builder = $(windowControls).div({ class: 'window-icon window-maximize' });
-				}
-
-				builder.on(EventType.CLICK, (e, builder) => {
-					this.windowService.isMaximized().then((maximized) => {
-						if (maximized) {
-							return this.windowService.unmaximizeWindow();
-						} else {
-							return this.windowService.maximizeWindow();
-						}
-					}).then(null, errors.onUnexpectedError);
-				});
+			let maxRestore = $(windowControls).div({ class: 'window-icon window-max-restore' });
+			maxRestore.on(EventType.CLICK, (e, builder) => {
+				this.windowService.isMaximized().then((maximized) => {
+					if (maximized) {
+						return this.windowService.unmaximizeWindow();
+					} else {
+						return this.windowService.maximizeWindow();
+					}
+				}).then(null, errors.onUnexpectedError);
 			});
 
 			$(windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
@@ -315,28 +306,18 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		if (maximized) {
-			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-maximize');
-			if (!element) {
-				return;
-			}
+		let element = $(this.titleContainer).getHTMLElement().querySelector('.window-max-restore');
+		if (!element) {
+			return;
+		}
 
+		if (maximized) {
 			element.classList.remove('window-maximize');
 			element.classList.add('window-unmaximize');
 		} else {
-			let element = $(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize');
-			if (!element) {
-				return;
-			}
-
 			element.classList.remove('window-unmaximize');
 			element.classList.add('window-maximize');
 		}
-
-		// ($(this.titleContainer).getHTMLElement().querySelector('.window-maximize') as SVGElement).style.display = maximized ? 'none' : 'inline';
-		// ($(this.titleContainer).getHTMLElement().querySelector('.window-unmaximize') as SVGElement).style.display = maximized ? 'inline' : 'none';
-		// $(this.titleContainer).getHTMLElement().style.paddingLeft = maximized ? '0.15em' : '0.5em';
-		// $(this.titleContainer).getHTMLElement().style.paddingRight = maximized ? 'calc(2em / 12)' : '0';
 	}
 
 	protected updateStyles(): void {
@@ -347,7 +328,11 @@ export class TitlebarPart extends Part implements ITitleService {
 			const bgColor = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
 			this.titleContainer.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
 			this.titleContainer.style('background-color', bgColor);
-			this.titleContainer.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
+			if (Color.fromHex(bgColor).isLighter()) {
+				this.titleContainer.addClass('light');
+			} else {
+				this.titleContainer.removeClass('light');
+			}
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.titleContainer.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
