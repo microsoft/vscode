@@ -114,6 +114,8 @@ import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -246,7 +248,8 @@ export class Workbench extends Disposable implements IPartService {
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService,
-		@IContextViewService private contextViewService: ContextViewService
+		@IContextViewService private contextViewService: ContextViewService,
+		@ITelemetryService private telemetryService: TelemetryService
 	) {
 		super();
 
@@ -354,8 +357,8 @@ export class Workbench extends Disposable implements IPartService {
 		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
 
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (isWindows && hasCustomTitle) {
-			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, undefined, undefined, this.notificationService, this.contextViewService));
+		if (!isMacintosh && hasCustomTitle) {
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
 		}
@@ -510,8 +513,6 @@ export class Workbench extends Disposable implements IPartService {
 				this.toggleZenMode();
 			}
 		}
-
-		this.menubarPart.updateStyles();
 
 		// Changing fullscreen state of the window has an impact on custom title bar visibility, so we need to update
 		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';

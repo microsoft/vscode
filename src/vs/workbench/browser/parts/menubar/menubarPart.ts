@@ -7,6 +7,7 @@
 
 import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import 'vs/css!./media/menubarpart';
+import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
@@ -27,7 +28,6 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Color } from 'vs/base/common/color';
-import { isFullscreen } from 'vs/base/browser/browser';
 
 interface CustomMenu {
 	title: string;
@@ -152,6 +152,10 @@ export class MenubarPart extends Part {
 		return this.configurationService.getValue<string>('files.autoSave');
 	}
 
+	private onDidChangeFullscreen(): void {
+		this.updateStyles();
+	}
+
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupCustomMenubar();
@@ -171,6 +175,8 @@ export class MenubarPart extends Part {
 		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
 		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
 		// this.windowsMainService.onWindowClose(() => this.updateWorkspaceMenuItems());
+
+		browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen());
 
 		// Listen to extension viewlets
 		// ipc.on('vscode:extensionViewlets', (event: any, rawExtensionViewlets: string) => {
@@ -491,7 +497,7 @@ export class MenubarPart extends Part {
 			const bgColor = this.getColor(TITLE_BAR_ACTIVE_BACKGROUND);
 
 			this.container.style('color', fgColor);
-			if (isFullscreen()) {
+			if (browser.isFullscreen()) {
 				this.container.style('background-color', bgColor);
 			} else {
 				this.container.style('background-color', null);
