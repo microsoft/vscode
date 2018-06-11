@@ -503,8 +503,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-editor-inverse.svg',
-		iconLight: 'close-editor.svg'
+		iconDark: 'close-big-inverse-alt.svg',
+		iconLight: 'close-big-alt.svg'
 	}, {
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
@@ -519,8 +519,8 @@ appendEditorToolItem(
 	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconDark: 'close-dirty-inverse.svg',
-		iconLight: 'close-dirty.svg'
+		iconDark: 'close-dirty-inverse-alt.svg',
+		iconLight: 'close-dirty-alt.svg'
 	}, {
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
