@@ -22,20 +22,25 @@ export interface IResourceCommentThreadEvent {
 	commentInfos: CommentInfo[];
 }
 
+export interface IWorkspaceCommentThreadsEvent {
+	ownerId: number;
+	commentThreads: CommentThread[];
+}
+
 export interface ICommentService {
 	_serviceBrand: any;
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent>;
-	readonly onDidSetAllCommentThreads: Event<CommentThread[]>;
+	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent>;
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent>;
 	readonly onDidSetDataProvider: Event<void>;
 	readonly onDidDeleteDataProvider: Event<number>;
-	setComments(resource: URI, commentInfos: CommentInfo[]): void;
-	setAllComments(commentsByResource: CommentThread[]): void;
-	removeAllComments(): void;
+	setDocumentComments(resource: URI, commentInfos: CommentInfo[]): void;
+	setWorkspaceComments(owner: number, commentsByResource: CommentThread[]): void;
+	removeWorkspaceComments(owner: number): void;
 	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider | WorkspaceCommentProvider): void;
 	unregisterDataProvider(owner: number): void;
 	updateComments(event: CommentThreadChangedEvent): void;
-	createNewCommenThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
+	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread>;
 	replyToCommentThread(owner: number, resource: URI, range: Range, thread: CommentThread, text: string): TPromise<CommentThread>;
 	getComments(resource: URI): TPromise<CommentInfo[]>;
 }
@@ -52,31 +57,31 @@ export class CommentService extends Disposable implements ICommentService {
 	private readonly _onDidSetResourceCommentInfos: Emitter<IResourceCommentThreadEvent> = this._register(new Emitter<IResourceCommentThreadEvent>());
 	readonly onDidSetResourceCommentInfos: Event<IResourceCommentThreadEvent> = this._onDidSetResourceCommentInfos.event;
 
-	private readonly _onDidSetAllCommentThreads: Emitter<CommentThread[]> = this._register(new Emitter<CommentThread[]>());
-	readonly onDidSetAllCommentThreads: Event<CommentThread[]> = this._onDidSetAllCommentThreads.event;
+	private readonly _onDidSetAllCommentThreads: Emitter<IWorkspaceCommentThreadsEvent> = this._register(new Emitter<IWorkspaceCommentThreadsEvent>());
+	readonly onDidSetAllCommentThreads: Event<IWorkspaceCommentThreadsEvent> = this._onDidSetAllCommentThreads.event;
 
 	private readonly _onDidUpdateCommentThreads: Emitter<CommentThreadChangedEvent> = this._register(new Emitter<CommentThreadChangedEvent>());
 	readonly onDidUpdateCommentThreads: Event<CommentThreadChangedEvent> = this._onDidUpdateCommentThreads.event;
 
-	private _commentProviders = new Map<number, (DocumentCommentProvider | WorkspaceCommentProvider)>();
+	private _commentProviders = new Map<number, DocumentCommentProvider>();
 
 	constructor() {
 		super();
 	}
 
-	setComments(resource: URI, commentInfos: CommentInfo[]): void {
+	setDocumentComments(resource: URI, commentInfos: CommentInfo[]): void {
 		this._onDidSetResourceCommentInfos.fire({ resource, commentInfos });
 	}
 
-	setAllComments(commentsByResource: CommentThread[]): void {
-		this._onDidSetAllCommentThreads.fire(commentsByResource);
+	setWorkspaceComments(owner: number, commentsByResource: CommentThread[]): void {
+		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: commentsByResource });
 	}
 
-	removeAllComments(): void {
-		this._onDidSetAllCommentThreads.fire([]);
+	removeWorkspaceComments(owner: number): void {
+		this._onDidSetAllCommentThreads.fire({ ownerId: owner, commentThreads: [] });
 	}
 
-	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider | WorkspaceCommentProvider) {
+	registerDataProvider(owner: number, commentProvider: DocumentCommentProvider) {
 		this._commentProviders.set(owner, commentProvider);
 		this._onDidSetDataProvider.fire();
 	}
@@ -90,7 +95,7 @@ export class CommentService extends Disposable implements ICommentService {
 		this._onDidUpdateCommentThreads.fire(event);
 	}
 
-	createNewCommenThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread> {
+	createNewCommentThread(owner: number, resource: URI, range: Range, text: string): TPromise<CommentThread> {
 		const commentProvider = this._commentProviders.get(owner);
 
 		if (commentProvider) {

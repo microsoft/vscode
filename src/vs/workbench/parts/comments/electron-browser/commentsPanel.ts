@@ -10,7 +10,7 @@ import { debounceEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CollapseAllAction, DefaultAccessibilityProvider, DefaultController, DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { isCodeEditor, isDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { CommentThread, CommentThreadChangedEvent } from 'vs/editor/common/modes';
+import { CommentThreadChangedEvent } from 'vs/editor/common/modes';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -19,7 +19,7 @@ import { Panel } from 'vs/workbench/browser/panel';
 import { CommentNode, CommentsModel, ResourceWithCommentThreads } from 'vs/workbench/parts/comments/common/commentModel';
 import { ReviewController } from 'vs/workbench/parts/comments/electron-browser/commentsEditorContribution';
 import { CommentsDataFilter, CommentsDataSource, CommentsModelRenderer } from 'vs/workbench/parts/comments/electron-browser/commentsTreeViewer';
-import { ICommentService } from 'vs/workbench/parts/comments/electron-browser/commentService';
+import { ICommentService, IWorkspaceCommentThreadsEvent } from 'vs/workbench/parts/comments/electron-browser/commentService';
 import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 
@@ -225,8 +225,8 @@ export class CommentsPanel extends Panel {
 		}
 	}
 
-	private onAllCommentsChanged(e: CommentThread[]): void {
-		this.commentsModel.setCommentThreads(e);
+	private onAllCommentsChanged(e: IWorkspaceCommentThreadsEvent): void {
+		this.commentsModel.setCommentThreads(e.ownerId, e.commentThreads);
 		this.refresh();
 	}
 

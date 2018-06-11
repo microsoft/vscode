@@ -53,7 +53,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			const outerEditorURI = outerEditor.getModel().uri;
 			this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-				this._commentService.setComments(outerEditorURI, commentInfos.filter(info => info !== null));
+				this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
 			});
 		}));
 	}
@@ -84,7 +84,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._panelService.openPanel(COMMENTS_PANEL_ID);
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
-				this._commentService.setAllComments(commentThreads);
+				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
 		});
 	}
@@ -96,8 +96,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
-		this._commentService.removeAllComments();
+		if (this._workspaceProviders.size === 0) {
+			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+		}
+		this._commentService.removeWorkspaceComments(handle);
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
