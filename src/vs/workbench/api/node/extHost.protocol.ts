@@ -839,8 +839,6 @@ export interface ISourceMultiBreakpointDto {
 export interface ExtHostDebugServiceShape {
 	$substituteVariables(folder: UriComponents | undefined, config: IConfig): TPromise<IConfig>;
 	$runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void>;
-	$isTerminalBusy(processId: number): TPromise<boolean>;
-	$prepareCommandForTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any>;
 	$startDASession(handle: number, debugType: string, adapterExecutableInfo: IAdapterExecutable | null, debugPort: number): TPromise<void>;
 	$stopDASession(handle: number): TPromise<void>;
 	$sendDAMessage(handle: number, message: DebugProtocol.ProtocolMessage): TPromise<void>;

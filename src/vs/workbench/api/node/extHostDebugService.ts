@@ -10,6 +10,7 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import { asWinJsPromise } from 'vs/base/common/async';
+import * as nls from 'vs/nls';
 import {
 	MainContext, MainThreadDebugServiceShape, ExtHostDebugServiceShape, DebugSessionUUID,
 	IMainContext, IBreakpointsDeltaDto, ISourceMultiBreakpointDto, IFunctionBreakpointDto
@@ -29,6 +30,8 @@ import { IStringDictionary } from 'vs/base/common/collections';
 import { ExtHostConfiguration } from './extHostConfiguration';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
+import { ExtHostTerminalService } from 'vs/workbench/api/node/extHostTerminalService';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 
 export class ExtHostDebugService implements ExtHostDebugServiceShape {
@@ -66,12 +69,16 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 
 	private _variableResolver: IConfigurationResolverService;
 
+	private _integratedTerminalInstance: vscode.Terminal;
+	private _terminalDisposedListener: IDisposable;
+
 
 	constructor(mainContext: IMainContext,
 		private _workspaceService: ExtHostWorkspace,
 		private _extensionService: ExtHostExtensionService,
 		private _editorsService: ExtHostDocumentsAndEditors,
-		private _configurationService: ExtHostConfiguration
+		private _configurationService: ExtHostConfiguration,
+		private _terminalService: ExtHostTerminalService
 	) {
 
 		this._handleCounter = 0;
@@ -117,20 +124,43 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		}
 	}
 
-	public $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		const terminalLauncher = getTerminalLauncher();
-		if (terminalLauncher) {
-			return terminalLauncher.runInTerminal(args, config);
+	public async $runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
+
+		if (args.kind === 'integrated') {
+
+			if (!this._terminalDisposedListener) {
+				// React on terminal disposed and check if that is the debug terminal #12956
+				this._terminalDisposedListener = this._terminalService.onDidCloseTerminal(terminal => {
+					if (this._integratedTerminalInstance && this._integratedTerminalInstance === terminal) {
+						this._integratedTerminalInstance = null;
+					}
+				});
+			}
+
+			let t = this._integratedTerminalInstance;
+
+			if ((t && hasChildprocesses(await t.processId)) || !t) {
+				t = this._terminalService.createTerminal(args.title || nls.localize('debug.terminal.title', "debuggee"));
+				this._integratedTerminalInstance = t;
+			}
+			t.show();
+
+			return new TPromise((resolve, error) => {
+				setTimeout(_ => {
+					const command = prepareCommand(args, config);
+					t.sendText(command, true);
+					resolve(void 0);
+				}, 500);
+			});
+
+		} else if (args.kind === 'external') {
+
+			const terminalLauncher = getTerminalLauncher();
+			if (terminalLauncher) {
+				return terminalLauncher.runInTerminal(args, config);
+			}
 		}
 		return void 0;
-	}
-
-	public $isTerminalBusy(processId: number): TPromise<boolean> {
-		return asWinJsPromise(token => hasChildprocesses(processId));
-	}
-
-	public $prepareCommandForTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any> {
-		return asWinJsPromise(token => prepareCommand(args, config));
 	}
 
 	public $substituteVariables(folderUri: UriComponents | undefined, config: IConfig): TPromise<IConfig> {
