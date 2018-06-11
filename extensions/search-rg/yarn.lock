@@ -1549,9 +1549,9 @@ vscode-nls@^3.2.1:
   version "3.2.2"
   resolved "https://registry.yarnpkg.com/vscode-nls/-/vscode-nls-3.2.2.tgz#3817eca5b985c2393de325197cf4e15eb2aa5350"
 
-vscode-ripgrep@^1.0.0:
-  version "1.0.0"
-  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.0.0.tgz#99d81e96cc2437a1bc20f28facbcca72516e9c73"
+vscode-ripgrep@^1.0.1:
+  version "1.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.0.1.tgz#eff2f2b2a49921ac0acd3ff8dfecaaeebf0184cf"
 
 vscode@^1.1.17:
   version "1.1.17"

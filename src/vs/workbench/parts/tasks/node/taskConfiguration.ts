@@ -63,7 +63,7 @@ export interface ShellQuotingOptions {
 }
 
 export interface ShellConfiguration {
-	executable: string;
+	executable?: string;
 	args?: string[];
 	quoting?: ShellQuotingOptions;
 }
@@ -108,6 +108,11 @@ export interface PresentationOptions {
 	 * Controls whether the task runs in a new terminal
 	 */
 	panel?: string;
+
+	/**
+	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 */
+	showReuseMessage?: boolean;
 }
 
 export interface TaskIdentifier {
@@ -632,14 +637,17 @@ namespace ShellConfiguration {
 
 	export function is(value: any): value is ShellConfiguration {
 		let candidate: ShellConfiguration = value;
-		return candidate && Types.isString(candidate.executable) && (candidate.args === void 0 || Types.isStringArray(candidate.args));
+		return candidate && (Types.isString(candidate.executable) || Types.isStringArray(candidate.args));
 	}
 
 	export function from(this: void, config: ShellConfiguration, context: ParseContext): Tasks.ShellConfiguration {
 		if (!is(config)) {
 			return undefined;
 		}
-		let result: ShellConfiguration = { executable: config.executable };
+		let result: ShellConfiguration = {};
+		if (config.executable !== void 0) {
+			result.executable = config.executable;
+		}
 		if (config.args !== void 0) {
 			result.args = config.args.slice();
 		}
@@ -735,7 +743,7 @@ namespace CommandOptions {
 namespace CommandConfiguration {
 
 	export namespace PresentationOptions {
-		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }];
+		const properties: MetaData<Tasks.PresentationOptions, void>[] = [{ property: 'echo' }, { property: 'reveal' }, { property: 'focus' }, { property: 'panel' }, { property: 'showReuseMessage' }];
 
 		interface PresentationOptionsShape extends LegacyCommandProperties {
 			presentation?: PresentationOptions;
@@ -746,6 +754,7 @@ namespace CommandConfiguration {
 			let reveal: Tasks.RevealKind;
 			let focus: boolean;
 			let panel: Tasks.PanelKind;
+			let showReuseMessage: boolean;
 			if (Types.isBoolean(config.echoCommand)) {
 				echo = config.echoCommand;
 			}
@@ -766,11 +775,14 @@ namespace CommandConfiguration {
 				if (Types.isString(presentation.panel)) {
 					panel = Tasks.PanelKind.fromString(presentation.panel);
 				}
+				if (Types.isBoolean(presentation.showReuseMessage)) {
+					showReuseMessage = presentation.showReuseMessage;
+				}
 			}
-			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0) {
+			if (echo === void 0 && reveal === void 0 && focus === void 0 && panel === void 0 && showReuseMessage === void 0) {
 				return undefined;
 			}
-			return { echo, reveal, focus, panel };
+			return { echo, reveal, focus, panel, showReuseMessage };
 		}
 
 		export function assignProperties(target: Tasks.PresentationOptions, source: Tasks.PresentationOptions): Tasks.PresentationOptions {
@@ -783,7 +795,7 @@ namespace CommandConfiguration {
 
 		export function fillDefaults(value: Tasks.PresentationOptions, context: ParseContext): Tasks.PresentationOptions {
 			let defaultEcho = context.engine === Tasks.ExecutionEngine.Terminal ? true : false;
-			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared }, properties, context);
+			return _fillDefaults(value, { echo: defaultEcho, reveal: Tasks.RevealKind.Always, focus: false, panel: Tasks.PanelKind.Shared, showReuseMessage: true }, properties, context);
 		}
 
 		export function freeze(value: Tasks.PresentationOptions): Readonly<Tasks.PresentationOptions> {

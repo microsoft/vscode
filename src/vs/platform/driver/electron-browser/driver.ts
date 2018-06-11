@@ -85,7 +85,9 @@ class WindowDriver implements IWindowDriver {
 	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
 		const webContents = electron.remote.getCurrentWebContents();
+
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await TPromise.timeout(10);
 		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
 
 		await TPromise.timeout(100);

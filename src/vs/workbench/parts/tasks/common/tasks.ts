@@ -72,7 +72,7 @@ export interface ShellConfiguration {
 	/**
 	 * The shell executable.
 	 */
-	executable: string;
+	executable?: string;
 
 	/**
 	 * The arguments to be passed to the shell executable.
@@ -196,6 +196,11 @@ export interface PresentationOptions {
 	 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 	 */
 	panel: PanelKind;
+
+	/**
+	 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+	 */
+	showReuseMessage: boolean;
 }
 
 export enum RuntimeType {
@@ -616,7 +621,7 @@ export namespace Task {
 		if (Types.isString(key)) {
 			return key === task._label || key === task.identifier || (compareId && key === task._id);
 		}
-		let identifier = Task.getTaskDefinition(task);
+		let identifier = Task.getTaskDefinition(task, true);
 		return identifier !== void 0 && identifier._key === key._key;
 	}
 

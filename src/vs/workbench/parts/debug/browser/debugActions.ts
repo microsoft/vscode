@@ -156,19 +156,11 @@ export class StartAction extends AbstractDebugAction {
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
 		const sessions = debugService.getModel().getSessions();
-		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
 		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
-			return false;
-		}
-		if (sessions.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.raw.root || p.raw.root.uri.toString() === launch.workspace.uri.toString()))) {
-			return false;
-		}
-		const compound = launch && launch.getCompound(configName);
-		if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
 

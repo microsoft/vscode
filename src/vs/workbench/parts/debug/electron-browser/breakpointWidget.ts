@@ -173,8 +173,6 @@ export class BreakpointWidget extends ZoneWidget implements IPrivateBreakpointWi
 					[this.breakpoint.getId()]: {
 						condition,
 						hitCondition,
-						verified: this.breakpoint.verified,
-						column: this.breakpoint.column,
 						logMessage
 					}
 				}, false);

@@ -22,6 +22,7 @@ import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService'
 import uri from 'vs/base/common/uri';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { memoize } from 'vs/base/common/decorators';
+import { TaskDefinitionRegistry } from 'vs/workbench/parts/tasks/common/taskDefinitionRegistry';
 
 export class Debugger {
 
@@ -207,6 +208,7 @@ export class Debugger {
 			return null;
 		}
 		// fill in the default configuration attributes shared by all adapters.
+		const taskSchema = TaskDefinitionRegistry.getJsonSchema();
 		return Object.keys(this.debuggerContribution.configurationAttributes).map(request => {
 			const attributes: IJSONSchema = this.debuggerContribution.configurationAttributes[request];
 			const defaultRequired = ['name', 'type', 'request'];
@@ -239,12 +241,16 @@ export class Debugger {
 				default: 4711
 			};
 			properties['preLaunchTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPrelaunchTask', "Task to run before debug session starts.")
 			};
 			properties['postDebugTask'] = {
-				type: ['string', 'null'],
+				anyOf: [taskSchema, {
+					type: ['string', 'null'],
+				}],
 				default: '',
 				description: nls.localize('debugPostDebugTask', "Task to run after debug session ends.")
 			};

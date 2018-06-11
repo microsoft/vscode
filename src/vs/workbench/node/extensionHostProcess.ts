@@ -13,6 +13,24 @@ import { Protocol } from 'vs/base/parts/ipc/node/ipc.net';
 import { createConnection } from 'net';
 import { Event, filterEvent } from 'vs/base/common/event';
 
+// TODO@ben: with Electron 2.x and node.js 8.x the "natives" module
+// can cause a native crash (see https://github.com/nodejs/node/issues/19891 and
+// https://github.com/electron/electron/issues/10905). To prevent this from
+// happening we essentially blocklist this module from getting loaded in any
+// extension by patching the node require() function.
+(function () {
+	const Module = require.__$__nodeRequire('module') as any;
+	const originalLoad = Module._load;
+
+	Module._load = function (request) {
+		if (request === 'natives') {
+			throw new Error('Either the extension or a NPM dependency is using the "natives" node module which is unsupported as it can cause a crash of the extension host. Click [here](https://go.microsoft.com/fwlink/?linkid=871887) to find out more');
+		}
+
+		return originalLoad.apply(this, arguments);
+	};
+})();
+
 interface IRendererConnection {
 	protocol: IMessagePassingProtocol;
 	initData: IInitData;
@@ -127,8 +145,6 @@ createExtHostProtocol().then(protocol => {
 	onTerminate = () => extensionHostMain.terminate();
 	return extensionHostMain.start();
 }).catch(err => console.error(err));
-
-
 
 function patchExecArgv() {
 	// when encountering the prevent-inspect flag we delete this

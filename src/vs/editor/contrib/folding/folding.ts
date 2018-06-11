@@ -31,12 +31,14 @@ import { IPosition } from 'vs/editor/common/core/position';
 import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
 import { SyntaxRangeProvider } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { InitializingRangeProvider } from 'vs/editor/contrib/folding/intializingRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 
 export interface RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions>;
 	readonly id: string;
+	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions>;
+	dispose(): void;
 }
 
 interface FoldingStateMemento {
@@ -153,13 +155,15 @@ export class FoldingController implements IEditorContribution {
 			return;
 		}
 
+		if (state.provider !== 'indent') {
+			this.foldingStateMemento = state;
+		}
+
 		// set the hidden ranges right away, before waiting for the folding model.
 		if (this.hiddenRangeModel.applyMemento(state.collapsedRegions)) {
 			this.getFoldingModel().then(foldingModel => {
-				if (foldingModel && this.rangeProvider && this.rangeProvider.id === state.provider) {
+				if (foldingModel) {
 					foldingModel.applyMemento(state.collapsedRegions);
-				} else if (state.provider) {
-					this.foldingStateMemento = state;
 				}
 			});
 		}
@@ -202,39 +206,44 @@ export class FoldingController implements IEditorContribution {
 				this.foldingModelPromise = null;
 				this.hiddenRangeModel = null;
 				this.cursorChangedScheduler = null;
-				this.rangeProvider = null;
 				this.foldingStateMemento = null;
-
+				if (this.rangeProvider) {
+					this.rangeProvider.dispose();
+				}
+				this.rangeProvider = null;
 			}
 		});
 		this.onModelContentChanged();
 	}
 
 	private onFoldingStrategyChanged() {
+		if (this.rangeProvider) {
+			this.rangeProvider.dispose();
+		}
 		this.rangeProvider = null;
 		this.onModelContentChanged();
-		if (this.foldingStateMemento) {
-			this.getFoldingModel().then(model => {
-				if (this.foldingStateMemento) {
-					let provider = this.getRangeProvider();
-					if (model && provider && provider.id === this.foldingStateMemento.provider && model.textModel.getLineCount() === this.foldingStateMemento.lineCount) {
-						model.applyMemento(this.foldingStateMemento.collapsedRegions);
-						this.foldingStateMemento = null;
-					}
-				}
-			});
-		}
 	}
 
-	private getRangeProvider(): RangeProvider {
-		if (!this.rangeProvider) {
-			if (this._useFoldingProviders) {
-				let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
-				this.rangeProvider = foldingProviders.length ? new SyntaxRangeProvider(foldingProviders) : new IndentRangeProvider();
-			} else {
-				this.rangeProvider = new IndentRangeProvider();
+	private getRangeProvider(editorModel: ITextModel): RangeProvider {
+		if (this.rangeProvider) {
+			return this.rangeProvider;
+		}
+		this.rangeProvider = new IndentRangeProvider(editorModel); // fallback
+
+		if (this._useFoldingProviders) {
+			let foldingProviders = FoldingRangeProviderRegistry.ordered(this.foldingModel.textModel);
+			if (foldingProviders.length === 0 && this.foldingStateMemento) {
+				this.rangeProvider = new InitializingRangeProvider(editorModel, this.foldingStateMemento.collapsedRegions, () => {
+					// if after 30 the InitializingRangeProvider is still not replaced, force a refresh
+					this.foldingStateMemento = null;
+					this.onFoldingStrategyChanged();
+				}, 30000);
+				return this.rangeProvider; // keep memento in case there are still no foldingProviders on the next request.
+			} else if (foldingProviders.length > 0) {
+				this.rangeProvider = new SyntaxRangeProvider(editorModel, foldingProviders);
 			}
 		}
+		this.foldingStateMemento = null;
 		return this.rangeProvider;
 	}
 
@@ -252,7 +261,7 @@ export class FoldingController implements IEditorContribution {
 				if (!this.foldingModel) { // null if editor has been disposed, or folding turned off
 					return null;
 				}
-				let foldingRegionPromise = this.foldingRegionPromise = asWinJsPromise<FoldingRegions>(token => this.getRangeProvider().compute(this.foldingModel.textModel, token));
+				let foldingRegionPromise = this.foldingRegionPromise = asWinJsPromise<FoldingRegions>(token => this.getRangeProvider(this.foldingModel.textModel).compute(token));
 				return foldingRegionPromise.then(foldingRanges => {
 					if (foldingRanges && foldingRegionPromise === this.foldingRegionPromise) { // new request or cancelled in the meantime?
 						// some cursors might have moved into hidden regions, make sure they are in expanded regions
