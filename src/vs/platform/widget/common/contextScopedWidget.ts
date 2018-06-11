@@ -6,11 +6,12 @@
 
 import { IContextKeyService, RawContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 
-export function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): IContextKeyService {
-	const result = contextKeyService.createScoped(widget.target);
-	const widgetContext = new RawContextKey<IContextScopedWidget>(contextKey, widget);
-	widgetContext.bindTo(result);
-	return result;
+export function bindContextScopedWidget(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): void {
+	new RawContextKey<IContextScopedWidget>(contextKey, widget).bindTo(contextKeyService);
+}
+
+export function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedWidget): IContextKeyService {
+	return contextKeyService.createScoped(widget.target);
 }
 
 export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T {
