@@ -42,7 +42,7 @@ phases:
       ArtifactName: build-artifacts-win32
       publishLocation: Container
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
 
 - phase: Linux
   queue: Hosted Linux Preview
@@ -128,4 +128,4 @@ phases:
       ArtifactName: build-artifacts-darwin
       publishLocation: Container
     continueOnError: true
-    condition: succeededOrFailed()
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
