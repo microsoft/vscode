@@ -8,13 +8,9 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
-    displayName: Yarn
-    inputs:
-      customRegistry: useFeed
-      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  # - task: npmAuthenticate@0
-  #   displayName: NPM Authenticate
+  - powershell: |
+      yarn
+    displayName: Install Dependencies
   - powershell: |
       yarn gulp electron
     displayName: Download Electron
@@ -66,13 +62,9 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
-    displayName: Yarn
-    inputs:
-      customRegistry: useFeed
-      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  # - task: npmAuthenticate@0
-  #   displayName: NPM Authenticate
+  - script: |
+      yarn
+    displayName: Install Dependencies
   - script: |
       yarn gulp electron-x64
     displayName: Download Electron
@@ -101,13 +93,9 @@ phases:
   - task: geeklearningio.gl-vsts-tasks-yarn.yarn-installer-task.YarnInstaller@2
     inputs:
       versionSpec: "1.3.2"
-  - task: geeklearningio.gl-vsts-tasks-yarn.yarn-task.Yarn@2
-    displayName: Yarn
-    inputs:
-      customRegistry: useFeed
-      customFeed: 'd28dd4e6-8e53-406e-8887-22f7c4dffd0c'
-  # - task: npmAuthenticate@0
-  #   displayName: NPM Authenticate
+  - script: |
+      yarn
+    displayName: Install Dependencies
   - script: |
       yarn gulp electron-x64
     displayName: Download Electron
