@@ -17,7 +17,6 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { VIEWLET_ID as EXPLORER } from 'vs/workbench/parts/files/common/files';
 import { VIEWLET_ID as SCM } from 'vs/workbench/parts/scm/common/scm';
 import { VIEWLET_ID as DEBUG } from 'vs/workbench/parts/debug/common/debug';
@@ -133,7 +132,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 							when: ContextKeyExpr.deserialize(item.when),
 							canToggleVisibility: true,
 							collapsed: this.showCollapsed(container),
-							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, this.getProgressLocation(container))
+							treeViewer: this.instantiationService.createInstance(CustomTreeViewer, item.id, container)
 						};
 
 						viewIds.push(viewDescriptor.id);
@@ -143,18 +142,6 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 				});
 			}
 		});
-	}
-
-	private getProgressLocation(container: ViewContainer): ProgressLocation {
-		switch (container.id) {
-			case EXPLORER:
-				return ProgressLocation.Explorer;
-			case SCM:
-				return ProgressLocation.Scm;
-			case DEBUG:
-				return null /* No debug progress location yet */;
-		}
-		return null;
 	}
 
 	private isValidViewDescriptors(viewDescriptors: IUserFriendlyViewDescriptor[], collector: ExtensionMessageCollector): boolean {

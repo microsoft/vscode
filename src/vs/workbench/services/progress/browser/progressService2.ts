@@ -20,6 +20,7 @@ import { ProgressBadge, IActivityService } from 'vs/workbench/services/activity/
 import { INotificationService, Severity, INotificationHandle, INotificationActions } from 'vs/platform/notification/common/notification';
 import { Action } from 'vs/base/common/actions';
 import { once } from 'vs/base/common/event';
+import { ViewContainer } from 'vs/workbench/common/views';
 
 class WindowProgressItem implements IStatusbarItem {
 
@@ -91,6 +92,15 @@ export class ProgressService2 implements IProgressService2 {
 	withProgress<P extends Thenable<R>, R=any>(options: IProgressOptions, task: (progress: IProgress<IProgressStep>) => P, onDidCancel?: () => void): P {
 
 		const { location } = options;
+		if (location instanceof ViewContainer) {
+			const viewlet = this._viewletService.getViewlet(location.id);
+			if (viewlet) {
+				return this._withViewletProgress(location.id, task);
+			}
+			console.warn(`Bad progress location: ${location.id}`);
+			return undefined;
+		}
+
 		switch (location) {
 			case ProgressLocation.Notification:
 				return this._withNotificationProgress(options, task, onDidCancel);

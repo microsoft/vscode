@@ -6,6 +6,7 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProgress } from 'vs/platform/progress/common/progress';
+import { ViewContainer } from 'vs/workbench/common/views';
 
 export enum ProgressLocation {
 	Explorer = 1,
@@ -16,7 +17,7 @@ export enum ProgressLocation {
 }
 
 export interface IProgressOptions {
-	location: ProgressLocation;
+	location: ProgressLocation | ViewContainer;
 	title?: string;
 	source?: string;
 	total?: number;
