@@ -334,29 +334,29 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		const gridHasFocus = isAncestor(document.activeElement, this.container);
 
 		// Determine how many groups we need overall
-		let groupsInLayout = 0;
+		let layoutGroupsCount = 0;
 		function countGroups(groups: GroupLayoutArgument[]): void {
 			groups.forEach(group => {
 				if (Array.isArray(group.groups)) {
 					countGroups(group.groups);
 				} else {
-					groupsInLayout++;
+					layoutGroupsCount++;
 				}
 			});
 		}
 		countGroups(layout.groups);
 
 		// If we currently have too many groups, merge them into the last one
-		let groupsInGridOrder = this.getGroups(GroupsOrder.GRID_APPEARANCE);
-		if (groupsInLayout < groupsInGridOrder.length) {
-			const lastGroupInLayout = groupsInGridOrder[groupsInLayout - 1];
-			groupsInGridOrder.forEach((group, index) => {
-				if (index >= groupsInLayout) {
+		let currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+		if (layoutGroupsCount < currentGroupViews.length) {
+			const lastGroupInLayout = currentGroupViews[layoutGroupsCount - 1];
+			currentGroupViews.forEach((group, index) => {
+				if (index >= layoutGroupsCount) {
 					this.mergeGroup(group, lastGroupInLayout);
 				}
 			});
 
-			groupsInGridOrder = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+			currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		}
 
 		const activeGroup = this.activeGroup;
@@ -368,10 +368,23 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		});
 
 		// Recreate gridwidget with descriptor
-		this.doCreateGridControlWithState(this.container, gridDescriptor, activeGroup.id, groupsInGridOrder);
+		this.doCreateGridControlWithState(this.container, gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
 		this.doLayout(this.dimension);
+
+		// Update container
+		this.updateContainer();
+
+		// Mark preferred size as changed
+		this.resetPreferredSize();
+
+		// Events for groupd that got added
+		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
+			if (currentGroupViews.indexOf(groupView) === -1) {
+				this._onDidAddGroup.fire(groupView);
+			}
+		});
 
 		// Restore focus as needed
 		if (gridHasFocus) {
