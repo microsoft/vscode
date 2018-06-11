@@ -22,7 +22,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ITemplateData {
 	root: HTMLElement;
