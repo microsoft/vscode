@@ -738,6 +738,18 @@ export function createApiFactory(
 	};
 }
 
+/**
+ * Returns the original fs path (using the original casing for the drive letter)
+ */
+export function originalFSPath(uri: URI): string {
+	const result = uri.fsPath;
+	if (/^[a-zA-Z]:/.test(result) && uri.path.charAt(1).toLowerCase() === result.charAt(0)) {
+		// Restore original drive letter casing
+		return uri.path.charAt(1) + result.substr(1);
+	}
+	return result;
+}
+
 class Extension<T> implements vscode.Extension<T> {
 
 	private _extensionService: ExtHostExtensionService;
@@ -749,7 +761,7 @@ class Extension<T> implements vscode.Extension<T> {
 	constructor(extensionService: ExtHostExtensionService, description: IExtensionDescription) {
 		this._extensionService = extensionService;
 		this.id = description.id;
-		this.extensionPath = paths.normalize(description.extensionLocation.fsPath, true);
+		this.extensionPath = paths.normalize(originalFSPath(description.extensionLocation), true);
 		this.packageJSON = description;
 	}
 
