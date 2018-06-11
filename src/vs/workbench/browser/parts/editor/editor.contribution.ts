@@ -38,7 +38,7 @@ import {
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, EditorLayoutCenteredAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
-	NewEditorGroupAboveAction, NewEditorGroupBelowAction, EditorToggleAutoSaveAction
+	NewEditorGroupAboveAction, NewEditorGroupBelowAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -371,7 +371,6 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoByTwoGr
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsRightAction, EditorLayoutTwoColumnsRightAction.ID, EditorLayoutTwoColumnsRightAction.LABEL), 'View: Two Columns Right Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsBottomAction.ID, EditorLayoutTwoColumnsBottomAction.LABEL), 'View: Two Columns Bottom Editor Layout', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(EditorLayoutCenteredAction, EditorLayoutCenteredAction.ID, EditorLayoutCenteredAction.LABEL), 'View: Centered Editor Layout', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(EditorToggleAutoSaveAction, EditorToggleAutoSaveAction.ID, EditorToggleAutoSaveAction.LABEL), 'Toggle Auto Save', category);
 
 // Register Editor Picker Actions including quick navigate support
 const openNextEditorKeybinding = { primary: KeyMod.CtrlCmd | KeyCode.Tab, mac: { primary: KeyMod.WinCtrl | KeyCode.Tab } };
