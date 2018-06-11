@@ -29,9 +29,9 @@ import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageCo
 import { IndentRangeProvider } from 'vs/editor/contrib/folding/indentRangeProvider';
 import { IPosition } from 'vs/editor/common/core/position';
 import { FoldingRangeProviderRegistry, FoldingRangeKind } from 'vs/editor/common/modes';
-import { SyntaxRangeProvider } from './syntaxRangeProvider';
+import { SyntaxRangeProvider, ID_SYNTAX_PROVIDER } from './syntaxRangeProvider';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { InitializingRangeProvider } from 'vs/editor/contrib/folding/intializingRangeProvider';
+import { InitializingRangeProvider, ID_INIT_PROVIDER } from 'vs/editor/contrib/folding/intializingRangeProvider';
 
 export const ID = 'editor.contrib.folding';
 
@@ -155,7 +155,7 @@ export class FoldingController implements IEditorContribution {
 			return;
 		}
 
-		if (state.provider !== 'indent') {
+		if (state.provider === ID_SYNTAX_PROVIDER || state.provider === ID_INIT_PROVIDER) {
 			this.foldingStateMemento = state;
 		}
 
