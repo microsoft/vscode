@@ -13,7 +13,7 @@ import { Event, Emitter, once } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -332,80 +332,61 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	applyLayout(layout: EditorGroupLayout): void {
 		const gridHasFocus = isAncestor(document.activeElement, this.container);
-		const groupsInGridOrder = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 
 		// Determine how many groups we need overall
-		let groupsInLayout = 0;
+		let layoutGroupsCount = 0;
 		function countGroups(groups: GroupLayoutArgument[]): void {
 			groups.forEach(group => {
 				if (Array.isArray(group.groups)) {
 					countGroups(group.groups);
 				} else {
-					groupsInLayout++;
+					layoutGroupsCount++;
 				}
 			});
 		}
 		countGroups(layout.groups);
 
 		// If we currently have too many groups, merge them into the last one
-		if (groupsInLayout < groupsInGridOrder.length) {
-			const lastGroupInLayout = groupsInGridOrder[groupsInLayout - 1];
-			groupsInGridOrder.forEach((group, index) => {
-				if (index >= groupsInLayout) {
+		let currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
+		if (layoutGroupsCount < currentGroupViews.length) {
+			const lastGroupInLayout = currentGroupViews[layoutGroupsCount - 1];
+			currentGroupViews.forEach((group, index) => {
+				if (index >= layoutGroupsCount) {
 					this.mergeGroup(group, lastGroupInLayout);
 				}
 			});
+
+			currentGroupViews = this.getGroups(GroupsOrder.GRID_APPEARANCE);
 		}
 
-		// Apply orientation
-		if (typeof layout.orientation === 'number') {
-			this.setGroupOrientation(layout.orientation);
-		}
+		const activeGroup = this.activeGroup;
 
-		// Build layout
-		let currentGroupIndex = 0;
-		const buildLayout = (groups: IEditorGroupView[], descriptions: GroupLayoutArgument[], direction: GroupDirection) => {
-			if (descriptions.length === 0) {
-				return; // we need at least one group to layout
+		// Prepare grid descriptor to create new grid from
+		const gridDescriptor = createSerializedGrid({
+			orientation: this.toGridViewOrientation(layout.orientation, this.gridWidget.orientation),
+			groups: layout.groups
+		});
+
+		// Recreate gridwidget with descriptor
+		this.doCreateGridControlWithState(this.container, gridDescriptor, activeGroup.id, currentGroupViews);
+
+		// Layout
+		this.doLayout(this.dimension);
+
+		// Update container
+		this.updateContainer();
+
+		// Mark preferred size as changed
+		this.resetPreferredSize();
+
+		// Events for groupd that got added
+		this.getGroups(GroupsOrder.GRID_APPEARANCE).forEach(groupView => {
+			if (currentGroupViews.indexOf(groupView) === -1) {
+				this._onDidAddGroup.fire(groupView);
 			}
+		});
 
-			// Either move existing or add a new group for each item in the description
-			let totalProportions = 0;
-			descriptions.forEach((description, index) => {
-				if (index > 0) {
-					currentGroupIndex++;
-					const existingGroup = groupsInGridOrder[currentGroupIndex];
-					if (existingGroup) {
-						groups.push(this.moveGroup(existingGroup, groups[index - 1], direction));
-					} else {
-						groups.push(this.addGroup(groups[index - 1], direction));
-					}
-				}
-
-				if (typeof description.size === 'number') {
-					totalProportions += description.size;
-				}
-			});
-
-			// Apply proportions if they are valid (sum() === 1)
-			if (totalProportions === 1) {
-				const totalSize = groups.map(group => this.getSize(group)).reduce(((prev, cur) => prev + cur));
-				descriptions.forEach((description, index) => {
-					this.setSize(groups[index], totalSize * description.size);
-				});
-			}
-
-			// Continue building layout if description.groups is array-type
-			descriptions.forEach((description, index) => {
-				if (Array.isArray(description.groups)) {
-					buildLayout([groups[index]], description.groups, direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT);
-				}
-			});
-		};
-
-		buildLayout([groupsInGridOrder[0]], layout.groups, this.orientation === GroupOrientation.HORIZONTAL ? GroupDirection.RIGHT : GroupDirection.DOWN);
-
-		// Restore Focus
+		// Restore focus as needed
 		if (gridHasFocus) {
 			this._activeGroup.focus();
 		}
@@ -531,6 +512,14 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			case GroupDirection.LEFT: return Direction.Left;
 			case GroupDirection.RIGHT: return Direction.Right;
 		}
+	}
+
+	private toGridViewOrientation(orientation: GroupOrientation, fallback?: Orientation): Orientation {
+		if (typeof orientation === 'number') {
+			return orientation === GroupOrientation.HORIZONTAL ? Orientation.HORIZONTAL : Orientation.VERTICAL;
+		}
+
+		return fallback;
 	}
 
 	removeGroup(group: IEditorGroupView | GroupIdentifier): void {
@@ -707,14 +696,14 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this._onDidPreferredSizeChange.fire();
 	}
 
-	private getGridSeparatorBorder(): Color {
+	private get gridSeparatorBorder(): Color {
 		return this.theme.getColor(EDITOR_GROUP_BORDER) || this.theme.getColor(contrastBorder) || Color.transparent;
 	}
 
 	protected updateStyles(): void {
 		this.container.style.backgroundColor = this.getColor(editorBackground);
 
-		this.gridWidget.style({ separatorBorder: this.getGridSeparatorBorder() });
+		this.gridWidget.style({ separatorBorder: this.gridSeparatorBorder });
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -743,7 +732,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {
 			const initialGroup = this.doCreateGroupView();
-			this.gridWidget = this._register(new SerializableGrid(container, initialGroup));
+			this.gridWidget = new SerializableGrid(container, initialGroup);
 
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
@@ -766,16 +755,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
 				// Grid Widget
-				this.gridWidget = this._register(SerializableGrid.deserialize(container, uiState.serializedGrid, {
-					fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
-						const groupView = this.doCreateGroupView(serializedEditorGroup);
-						if (groupView.id === uiState.activeGroup) {
-							this.doSetGroupActive(groupView);
-						}
-
-						return groupView;
-					}
-				}, { styles: { separatorBorder: this.getGridSeparatorBorder() } }));
+				this.doCreateGridControlWithState(container, uiState.serializedGrid, uiState.activeGroup);
 
 				// Ensure last active group has focus
 				this._activeGroup.focus();
@@ -794,6 +774,40 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this.gridError(error); // TODO@ben remove this safe guard once the grid is stable
 			}
 		}
+	}
+
+	private doCreateGridControlWithState(container: HTMLElement, serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+
+		// Dispose old
+		if (this.gridWidget) {
+			this.gridWidget.dispose();
+		}
+
+		// Determine group views to reuse if any
+		let reuseGroupViews: IEditorGroupView[];
+		if (editorGroupViewsToReuse) {
+			reuseGroupViews = editorGroupViewsToReuse.slice(0); // do not modify original array
+		} else {
+			reuseGroupViews = [];
+		}
+
+		// Create new
+		this.gridWidget = SerializableGrid.deserialize(container, serializedGrid, {
+			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
+				let groupView: IEditorGroupView;
+				if (reuseGroupViews.length > 0) {
+					groupView = reuseGroupViews.shift();
+				} else {
+					groupView = this.doCreateGroupView(serializedEditorGroup);
+				}
+
+				if (groupView.id === activeGroupId) {
+					this.doSetGroupActive(groupView);
+				}
+
+				return groupView;
+			}
+		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
 	}
 
 	private doGetPreviousState(): IEditorPartUIState {
@@ -937,7 +951,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	layout(dimension: Dimension): Dimension[] {
 		const sizes = super.layout(dimension);
 
-		this.dimension = sizes[1];
+		this.doLayout(sizes[1]);
+
+		return sizes;
+	}
+
+	private doLayout(dimension: Dimension): void {
+		this.dimension = dimension;
 
 		// Layout Grid
 		try {
@@ -948,8 +968,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Event
 		this._onDidLayout.fire(dimension);
-
-		return sizes;
 	}
 
 	shutdown(): void {
@@ -980,6 +998,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Forward to all groups
 		this.groupViews.forEach(group => group.dispose());
 		this.groupViews.clear();
+
+		// Grid widget
+		if (this.gridWidget) {
+			this.gridWidget = dispose(this.gridWidget);
+		}
 
 		super.dispose();
 	}

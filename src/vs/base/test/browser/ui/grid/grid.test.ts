@@ -4,8 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode } from 'vs/base/browser/ui/grid/grid';
+import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, ISerializableView, IViewDeserializer, GridNode, Sizing, isGridBranchNode, sanitizeGridNodeDescriptor, GridNodeDescriptor, createSerializedGrid } from 'vs/base/browser/ui/grid/grid';
 import { TestView, nodesToArrays } from './util';
+import { deepClone } from 'vs/base/common/objects';
 
 suite('Grid', function () {
 	let container: HTMLElement;
@@ -736,5 +737,36 @@ suite('SerializableGrid', function () {
 
 		assert.deepEqual(view2Copy.size, [800, 300]);
 		assert.deepEqual(view3Copy.size, [800, 300]);
+	});
+
+	test('sanitizeGridNodeDescriptor', function () {
+		const nodeDescriptor = { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
+		const nodeDescriptorCopy = deepClone<GridNodeDescriptor>(nodeDescriptor);
+		sanitizeGridNodeDescriptor(nodeDescriptorCopy);
+		assert.deepEqual(nodeDescriptorCopy, { groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{ size: 0.5 }, { size: 0.5 }] }] });
+	});
+
+	test('createSerializedGrid', function () {
+		const gridDescriptor = { orientation: Orientation.VERTICAL, groups: [{ size: 0.2 }, { size: 0.2 }, { size: 0.6, groups: [{}, {}] }] };
+		const serializedGrid = createSerializedGrid(gridDescriptor);
+		assert.deepEqual(serializedGrid, {
+			root: {
+				type: 'branch',
+				size: undefined,
+				data: [
+					{ type: 'leaf', size: 0.2, data: null },
+					{ type: 'leaf', size: 0.2, data: null },
+					{
+						type: 'branch', size: 0.6, data: [
+							{ type: 'leaf', size: 0.5, data: null },
+							{ type: 'leaf', size: 0.5, data: null }
+						]
+					}
+				]
+			},
+			orientation: Orientation.VERTICAL,
+			width: 1,
+			height: 1
+		});
 	});
 });
