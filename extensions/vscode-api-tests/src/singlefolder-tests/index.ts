@@ -15,14 +15,25 @@
 // to report the results back to the caller. When the tests are finished, return
 // a possible error to the callback or null if none.
 
+const path = require('path');
 const testRunner = require('vscode/lib/testrunner');
 
 // You can directly control Mocha options by uncommenting the following lines
 // See https://github.com/mochajs/mocha/wiki/Using-mocha-programmatically#set-options for more info
-testRunner.configure({
+const options: any = {
 	ui: 'tdd', 		// the TDD UI is being used in extension.test.ts (suite, test, etc.)
 	useColors: process.platform !== 'win32', // colored output from test results (only windows cannot handle)
 	timeout: 60000
-});
+};
+
+if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
+	options.reporter = 'mocha-junit-reporter';
+	options.reporterOptions = {
+		testsuitesTitle: `Integration Single Folder Tests ${process.platform}`,
+		mochaFile: path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, 'test-results/integration-singlefolder-test-results.xml')
+	};
+}
+
+testRunner.configure(options);
 
 export = testRunner;
