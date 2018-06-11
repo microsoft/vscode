@@ -35,8 +35,7 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
-		const { scopedContextKeyService } = createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.element, historyNavigator: this });
-		this._register(scopedContextKeyService);
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.element, historyNavigator: this }).scopedContextKeyService);
 	}
 
 }
@@ -47,8 +46,7 @@ export class ContextScopedFindInput extends FindInput {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
-		const { scopedContextKeyService } = createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox });
-		this._register(scopedContextKeyService);
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 
 }
