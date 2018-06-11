@@ -12,7 +12,7 @@
 	align-items: center;
 	justify-content: center;
 	user-select: none;
-	-webkit-app-region: drag;
+	-webkit-app-region: no-drag;
 	zoom: 1; /* prevent zooming */
 	height: 22px;
 	display: flex;
@@ -25,19 +25,23 @@
 	white-space: nowrap;
 	text-overflow: ellipsis;
 	zoom: 1; /* prevent zooming */
+	-webkit-app-region: drag;
 }
 
 /***********************\
 | Windows and Linux CSS |
 \***********************/
 
-.monaco-workbench.windows > .part.titlebar, .monaco-workbench.linux > .part.titlebar {
+.monaco-workbench.windows > .part.titlebar,
+.monaco-workbench.linux > .part.titlebar {
 	padding: 0;
 }
 
-.monaco-workbench.windows > .part.titlebar > .window-title, .monaco-workbench.linux > .part.titlebar > .window-title  {
+.monaco-workbench.windows > .part.titlebar > .window-title,
+.monaco-workbench.linux > .part.titlebar > .window-title  {
 	text-align: center;
 	position: fixed;
+	margin: 1px 2px;
 	width: 100vw;
 	left: calc(-100vw + 100%);
 }
@@ -62,10 +66,6 @@
 	background-size: 10px;
 	background-position: center center;
 	background-repeat: no-repeat;
-}
-
-.window-unmaximize {
-	display: none;
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container {
