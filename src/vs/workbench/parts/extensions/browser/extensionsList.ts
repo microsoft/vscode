@@ -165,7 +165,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id.toLowerCase()].reasonText);
 			addClass(data.root, 'recommended');
 			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 		}
