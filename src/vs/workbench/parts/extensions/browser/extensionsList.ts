@@ -187,8 +187,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		return extension.getManifest().then(manifest => {
 			if (manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName) {
 				const name = manifest.contributes.localizations[0].localizedLanguageName;
-				let capitalized = name[0].toLocaleUpperCase() + name.slice(1); // This might not be a 100% correct way of capitalizing across all languages.
-				return capitalized;
+				return name[0].toLocaleUpperCase() + name.slice(1);
 			}
 			return undefined;
 		});
