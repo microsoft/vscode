@@ -783,12 +783,20 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this.gridWidget.dispose();
 		}
 
+		// Determine group views to reuse if any
+		let reuseGroupViews: IEditorGroupView[];
+		if (editorGroupViewsToReuse) {
+			reuseGroupViews = editorGroupViewsToReuse.slice(0); // do not modify original array
+		} else {
+			reuseGroupViews = [];
+		}
+
 		// Create new
 		this.gridWidget = SerializableGrid.deserialize(container, serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
-				if (editorGroupViewsToReuse && editorGroupViewsToReuse.length > 0) {
-					groupView = editorGroupViewsToReuse.shift();
+				if (reuseGroupViews.length > 0) {
+					groupView = reuseGroupViews.shift();
 				} else {
 					groupView = this.doCreateGroupView(serializedEditorGroup);
 				}
