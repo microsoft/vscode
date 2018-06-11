@@ -304,10 +304,6 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('minimizeWindow', windowId);
 	}
 
-	addMaximizeListener(windowId: number, listener: (maximized: boolean) => void): TPromise<void> {
-		return TPromise.as(null);
-	}
-
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
