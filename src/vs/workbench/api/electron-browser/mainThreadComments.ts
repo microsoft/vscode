@@ -122,10 +122,13 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 			 * 1. ICodeEditor extends editorCommon.IEditor
 			 * 2. IDiffEditor extends editorCommon.IEditor
 			 */
-			if ((this._editorService.activeTextEditorWidget as ICodeEditor).getContribution) {
-				return this._editorService.activeTextEditorWidget as ICodeEditor;
-			} else {
-				return (this._editorService.activeTextEditorWidget as IDiffEditor).getModifiedEditor();
+			const activeTextEditorWidget = this._editorService.activeTextEditorWidget;
+			if (activeTextEditorWidget) {
+				if ((activeTextEditorWidget as ICodeEditor).getContribution) {
+					return activeTextEditorWidget as ICodeEditor;
+				} else {
+					return (activeTextEditorWidget as IDiffEditor).getModifiedEditor();
+				}
 			}
 		}
 
