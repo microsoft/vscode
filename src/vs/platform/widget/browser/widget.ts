@@ -4,17 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKeyServiceTarget } from 'vs/platform/contextkey/common/contextkey';
 
-export function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IWidget, contextKey: string): IContextKeyService {
-	const result = contextKeyService.createScoped(widget.element);
-	const widgetContext = new RawContextKey<IWidget>(contextKey, widget);
+export function createWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedWidget, contextKey: string): IContextKeyService {
+	const result = contextKeyService.createScoped(widget.target);
+	const widgetContext = new RawContextKey<IContextScopedWidget>(contextKey, widget);
 	widgetContext.bindTo(result);
 	return result;
 }
 
-export interface IWidget {
+export function getContextScopedWidget<T extends IContextScopedWidget>(contextKeyService: IContextKeyService, contextKey: string): T {
+	return contextKeyService.getContext(document.activeElement).getValue(contextKey);
+}
 
-	readonly element: HTMLElement;
+export interface IContextScopedWidget {
+
+	readonly target: IContextKeyServiceTarget;
 
 }
