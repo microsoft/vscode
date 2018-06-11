@@ -30,7 +30,7 @@ import { ITheme, registerThemingParticipant, IThemeService } from 'vs/platform/t
 import { Color } from 'vs/base/common/color';
 import { IConfigurationChangedEvent } from 'vs/editor/common/config/editorOptions';
 import { editorFindRangeHighlight, editorFindMatch, editorFindMatchHighlight, contrastBorder, inputBackground, editorWidgetBackground, inputActiveOptionBorder, widgetShadow, inputForeground, inputBorder, inputValidationInfoBackground, inputValidationInfoBorder, inputValidationWarningBackground, inputValidationWarningBorder, inputValidationErrorBackground, inputValidationErrorBorder, errorForeground, editorWidgetBorder, editorFindMatchBorder, editorFindMatchHighlightBorder, editorFindRangeHighlightBorder, editorWidgetResizeBorder } from 'vs/platform/theme/common/colorRegistry';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 
 
 export interface IFindController {

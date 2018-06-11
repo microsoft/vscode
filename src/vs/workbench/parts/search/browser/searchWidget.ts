@@ -31,7 +31,7 @@ import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
-import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/input';
+import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
 
 export interface ISearchWidgetOptions {
 	value?: string;
