@@ -22,6 +22,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -176,6 +177,21 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
+
+		this.getLanguagePackLanguageNameIfPresent(extension).then(name => {
+			if (name) { data.description.textContent = name; }
+		});
+	}
+
+	private getLanguagePackLanguageNameIfPresent(extension: IExtension): TPromise<string | undefined> {
+		return extension.getManifest().then(manifest => {
+			if (manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName) {
+				const name = manifest.contributes.localizations[0].localizedLanguageName;
+				let capitalized = name[0].toLocaleUpperCase() + name.slice(1); // This might not be a 100% correct way of capitalizing across all languages.
+				return capitalized;
+			}
+			return undefined;
+		});
 	}
 
 	disposeTemplate(data: ITemplateData): void {
