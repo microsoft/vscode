@@ -84,6 +84,12 @@ export class EmptyView extends ViewletPanel {
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_LEAVE, () => {
 			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
 		}));
+		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, () => {
+			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+		}));
+		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
+			e.dataTransfer.dropEffect = 'copy';
+		}));
 
 		this.setLabels();
 	}
