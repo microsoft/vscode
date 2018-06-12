@@ -792,7 +792,7 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 export class MinimizeOtherGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.minimizeOtherEditors';
-	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
+	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Maximize Editor Group");
 
 	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
 		super(id, label);
