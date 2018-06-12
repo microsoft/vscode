@@ -170,7 +170,7 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 		}
 
 		// Always allow [] args as it would lead to an odd error message and should not be dangerous
-		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace.length === 0) {
+		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace && shellArgsConfigValue.workspace.length === 0) {
 			isWorkspaceShellAllowed = true;
 		}
 
