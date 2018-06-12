@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -53,7 +53,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 			const outerEditorURI = outerEditor.getModel().uri;
 			this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-				this._commentService.setComments(outerEditorURI, commentInfos.filter(info => info !== null));
+				this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
 			});
 		}));
 	}
@@ -84,7 +84,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._panelService.openPanel(COMMENTS_PANEL_ID);
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
-				this._commentService.setAllComments(commentThreads);
+				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
 		});
 	}
@@ -96,8 +96,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
-		this._commentService.removeAllComments();
+		if (this._workspaceProviders.size === 0) {
+			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+		}
+		this._commentService.removeWorkspaceComments(handle);
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
@@ -114,25 +116,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 	}
 
 	getFocusedEditor(): ICodeEditor {
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-		if (!editor) {
-			/* please note that the type of `this._editorService.activeTextEditorWidget` is  `{ IEditor as ICodeEditor } from 'vs/editor/common/editorCommon'`
-			 * It's `IEditor` but renamed to `ICodeEditor`. The `ICodeEditor` in current context is `import { ICodeEditor } from 'vs/editor/browser/editorBrowser'`
-			 * this._editorService.activeTextEditorWidget is
-			 * 1. ICodeEditor extends editorCommon.IEditor
-			 * 2. IDiffEditor extends editorCommon.IEditor
-			 */
-			const activeTextEditorWidget = this._editorService.activeTextEditorWidget;
-			if (activeTextEditorWidget) {
-				if ((activeTextEditorWidget as ICodeEditor).getContribution) {
-					return activeTextEditorWidget as ICodeEditor;
-				} else {
-					return (activeTextEditorWidget as IDiffEditor).getModifiedEditor();
-				}
-			}
-		}
-
-		return editor;
+		return this._codeEditorService.getFocusedCodeEditor() || getCodeEditor(this._editorService.activeControl);
 	}
 
 	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {

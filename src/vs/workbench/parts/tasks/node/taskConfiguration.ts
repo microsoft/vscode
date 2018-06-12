@@ -1180,7 +1180,7 @@ namespace ConfigurationProperties {
 			if (Types.isArray(external.dependsOn)) {
 				result.dependsOn = external.dependsOn.map(item => TaskDependency.from(item, context));
 			} else {
-				result.dependsOn = [TaskDependency.from(external, context)];
+				result.dependsOn = [TaskDependency.from(external.dependsOn, context)];
 			}
 		}
 		if (includeCommandOptions && (external.presentation !== void 0 || (external as LegacyCommandProperties).terminal !== void 0)) {

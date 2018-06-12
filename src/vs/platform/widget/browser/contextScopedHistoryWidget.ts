@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, ContextKeyDefinedExpr, ContextKeyExpr, ContextKeyAndExpr, ContextKeyEqualsExpr, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { HistoryInputBox, IHistoryInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { FindInput, IFindInputOptions } from 'vs/base/browser/ui/findinput/findInput';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import { IContextScopedWidget, getContextScopedWidget, createWidgetScopedContextKeyService } from 'vs/platform/widget/common/contextScopedWidget';
+import { IContextScopedWidget, getContextScopedWidget, createWidgetScopedContextKeyService, bindContextScopedWidget } from 'vs/platform/widget/common/contextScopedWidget';
 import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
@@ -22,11 +22,11 @@ export interface IContextScopedHistoryNavigationWidget extends IContextScopedWid
 
 }
 
-export function createHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): IContextKeyService {
-	const scopedContextKeyService = createWidgetScopedContextKeyService(contextKeyService, widget, HistoryNavigationWidgetContext);
-	const enablementContext = new RawContextKey<boolean>(HistoryNavigationEnablementContext, true);
-	enablementContext.bindTo(scopedContextKeyService);
-	return scopedContextKeyService;
+export function createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService: IContextKeyService, widget: IContextScopedHistoryNavigationWidget): { scopedContextKeyService: IContextKeyService, historyNavigationEnablement: IContextKey<boolean> } {
+	const scopedContextKeyService = createWidgetScopedContextKeyService(contextKeyService, widget);
+	bindContextScopedWidget(scopedContextKeyService, widget, HistoryNavigationWidgetContext);
+	const historyNavigationEnablement = new RawContextKey<boolean>(HistoryNavigationEnablementContext, true).bindTo(scopedContextKeyService);
+	return { scopedContextKeyService, historyNavigationEnablement };
 }
 
 export class ContextScopedHistoryInputBox extends HistoryInputBox {
@@ -35,7 +35,7 @@ export class ContextScopedHistoryInputBox extends HistoryInputBox {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
-		this._register(createHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.element, historyNavigator: this }));
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.element, historyNavigator: this }).scopedContextKeyService);
 	}
 
 }
@@ -46,7 +46,7 @@ export class ContextScopedFindInput extends FindInput {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(container, contextViewProvider, options);
-		this._register(createHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }));
+		this._register(createAndBindHistoryNavigationWidgetScopedContextKeyService(contextKeyService, <IContextScopedHistoryNavigationWidget>{ target: this.inputBox.element, historyNavigator: this.inputBox }).scopedContextKeyService);
 	}
 
 }

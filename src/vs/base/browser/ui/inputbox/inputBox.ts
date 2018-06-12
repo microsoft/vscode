@@ -531,13 +531,10 @@ export class HistoryInputBox extends InputBox implements IHistoryNavigationWidge
 	}
 
 	public showPreviousValue(): void {
-		let previous;
-		if (this.value.length === 0) {
-			previous = this.history.current();
-		} else {
+		if (this.value.length !== 0) {
 			this.history.addIfNotPresent(this.value);
-			previous = this.history.previous();
 		}
+		const previous = this.history.previous();
 		if (previous) {
 			this.value = previous;
 		}

@@ -24,7 +24,7 @@ import { append, $, addStandardDisposableListener, EventType, addClass, removeCl
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, VIEW_CONTAINER } from '../common/extensions';
+import { IExtensionsWorkbenchService, IExtensionsViewlet, VIEWLET_ID, ExtensionState, AutoUpdateConfigurationKey, ShowRecommendationsOnlyOnDemandKey, CloseExtensionDetailsOnViewChangeKey, VIEW_CONTAINER } from '../common/extensions';
 import {
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowRecommendedExtensionsAction, ShowPopularExtensionsAction, ShowDisabledExtensionsAction,
 	ShowOutdatedExtensionsAction, ClearExtensionsInputAction, ChangeSortAction, UpdateAllAction, CheckForUpdatesAction, DisableAllAction, EnableAllAction,
@@ -32,7 +32,7 @@ import {
 } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { LocalExtensionType, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
-import { ExtensionsListView, InstalledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView } from './extensionsViews';
+import { ExtensionsListView, InstalledExtensionsView, EnabledExtensionsView, DisabledExtensionsView, RecommendedExtensionsView, WorkspaceRecommendedExtensionsView, BuiltInExtensionsView, BuiltInThemesExtensionsView, BuiltInBasicsExtensionsView } from './extensionsViews';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
 import { IProgressService } from 'vs/platform/progress/common/progress';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -78,6 +78,8 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 		let viewDescriptors = [];
 		viewDescriptors.push(this.createMarketPlaceExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createInstalledExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createEnabledExtensionsListViewDescriptor());
+		viewDescriptors.push(this.createDisabledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchInstalledExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchBuiltInExtensionsListViewDescriptor());
 		viewDescriptors.push(this.createSearchBuiltInBasicsExtensionsListViewDescriptor());
@@ -107,7 +109,36 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions')),
 			order: 1,
-			weight: 30
+			weight: 30,
+			canToggleVisibility: true
+		};
+	}
+
+	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.enabledList',
+			name: localize('enabledExtensions', "Enabled"),
+			container: VIEW_CONTAINER,
+			ctor: EnabledExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
+			weight: 30,
+			canToggleVisibility: true,
+			order: 30,
+			collapsed: true
+		};
+	}
+
+	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
+		return {
+			id: 'extensions.disabledList',
+			name: localize('disabledExtensions', "Disabled"),
+			container: VIEW_CONTAINER,
+			ctor: DisabledExtensionsView,
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
+			weight: 30,
+			canToggleVisibility: true,
+			order: 40,
+			collapsed: true
 		};
 	}
 
@@ -414,14 +445,16 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 			return;
 		}
 
-		const promises = this.editorGroupService.groups.map(group => {
-			const editors = group.editors.filter(input => input instanceof ExtensionsInput);
-			const promises = editors.map(editor => group.closeEditor(editor));
+		if (this.configurationService.getValue<boolean>(CloseExtensionDetailsOnViewChangeKey)) {
+			const promises = this.editorGroupService.groups.map(group => {
+				const editors = group.editors.filter(input => input instanceof ExtensionsInput);
+				const promises = editors.map(editor => group.closeEditor(editor));
 
-			return TPromise.join(promises);
-		});
+				return TPromise.join(promises);
+			});
 
-		TPromise.join(promises).done(null, onUnexpectedError);
+			TPromise.join(promises).done(null, onUnexpectedError);
+		}
 	}
 
 	private progress<T>(promise: TPromise<T>): TPromise<T> {

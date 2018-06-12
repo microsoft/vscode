@@ -35,12 +35,19 @@ phases:
   - powershell: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
     displayName: Run Smoke Tests
+    continueOnError: true
   - task: PublishBuildArtifacts@1
+    displayName: Publish Smoketest Artifacts
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
       ArtifactName: build-artifacts-win32
       publishLocation: Container
-    continueOnError: true
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: '*-test-results.xml'
+      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
     condition: succeededOrFailed()
 
 - phase: Linux
@@ -83,6 +90,12 @@ phases:
   - script: |
       DISPLAY=:10 ./scripts/test.sh --tfs
     displayName: Run Unit Tests
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: '*-test-results.xml'
+      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
+    condition: succeededOrFailed()
 
 - phase: macOS
   queue: Hosted macOS Preview
@@ -120,10 +133,17 @@ phases:
   - script: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"
     displayName: Run Smoke Tests
+    continueOnError: true
   - task: PublishBuildArtifacts@1
+    displayName: Publish Smoketest Artifacts
     inputs:
       PathtoPublish: '$(Build.ArtifactStagingDirectory)/artifacts'
       ArtifactName: build-artifacts-darwin
       publishLocation: Container
-    continueOnError: true
+    condition: eq(variables['System.PullRequest.IsFork'], 'False')
+  - task: PublishTestResults@2
+    displayName: Publish Tests Results
+    inputs:
+      testResultsFiles: '*-test-results.xml'
+      searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
     condition: succeededOrFailed()

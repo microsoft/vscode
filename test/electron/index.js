@@ -9,6 +9,7 @@ const { join } = require('path');
 const path = require('path');
 const mocha = require('mocha');
 const events = require('events');
+const MochaJUnitReporter = require('mocha-junit-reporter');
 
 const defaultReporterName = process.platform === 'win32' ? 'list' : 'spec';
 
@@ -101,18 +102,9 @@ class TFSReporter extends mocha.reporters.Base {
 	constructor(runner) {
 		super(runner);
 
-		runner.on('pending', test => {
-			console.log('PEND', test.fullTitle());
-		});
-		runner.on('pass', test => {
-			console.log('OK  ', test.fullTitle(), `(${test.duration}ms)`);
-		});
-		runner.on('fail', test => {
-			console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`);
-		});
-		runner.once('end', () => {
-			this.epilogue();
-		});
+		runner.on('pending', test => console.log('PEND', test.fullTitle()));
+		runner.on('fail', test => console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`));
+		runner.once('end', () => this.epilogue());
 	}
 }
 
@@ -142,6 +134,12 @@ app.on('ready', () => {
 
 	if (argv.tfs) {
 		new TFSReporter(runner);
+		new MochaJUnitReporter(runner, {
+			reporterOptions: {
+				testsuitesTitle: `Unit Tests ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-unit-test-results.xml`) : undefined
+			}
+		});
 	} else {
 		const reporterPath = path.join(path.dirname(require.resolve('mocha')), 'lib', 'reporters', argv.reporter);
 		let Reporter;
