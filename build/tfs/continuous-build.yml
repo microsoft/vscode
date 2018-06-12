@@ -46,7 +46,7 @@ phases:
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
-      testResultsFiles: '*-test-results.xml'
+      testResultsFiles: '*-results.xml'
       searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
     condition: succeededOrFailed()
 
@@ -93,7 +93,7 @@ phases:
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
-      testResultsFiles: '*-test-results.xml'
+      testResultsFiles: '*-results.xml'
       searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
     condition: succeededOrFailed()
 
@@ -144,6 +144,6 @@ phases:
   - task: PublishTestResults@2
     displayName: Publish Tests Results
     inputs:
-      testResultsFiles: '*-test-results.xml'
+      testResultsFiles: '*-results.xml'
       searchFolder: '$(Build.ArtifactStagingDirectory)/test-results'
     condition: succeededOrFailed()
