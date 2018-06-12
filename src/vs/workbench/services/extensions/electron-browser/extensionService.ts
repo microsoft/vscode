@@ -486,24 +486,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _scanAndHandleExtensions(): void {
 
-		this._getRuntimeExtensions()
-			.then(runtimeExtensons => {
-				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
+		this._getRuntimeExtensions().then(allExtensions => {
+			this._registry = new ExtensionDescriptionRegistry(allExtensions);
 
-				let availableExtensions = this._registry.getAllExtensionDescriptions();
-				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+			let availableExtensions = this._registry.getAllExtensionDescriptions();
+			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
 
-				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
-				for (let i = 0, len = extensionPoints.length; i < len; i++) {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				}
+			for (let i = 0, len = extensionPoints.length; i < len; i++) {
+				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+			}
 
-				mark('extensionHostReady');
-				this._installedExtensionsReady.open();
-				this._onDidRegisterExtensions.fire(void 0);
-				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
-			});
+			mark('extensionHostReady');
+			this._installedExtensionsReady.open();
+			this._onDidRegisterExtensions.fire(void 0);
+			this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
+		});
 	}
 
 	private _getRuntimeExtensions(): TPromise<IExtensionDescription[]> {
