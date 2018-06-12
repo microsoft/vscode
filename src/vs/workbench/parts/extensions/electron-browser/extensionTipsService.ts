@@ -167,11 +167,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		return this.fetchCombinedExtensionRecommendationConfig().then(this.processWorkspaceRecommendations);
+		return this.fetchCombinedExtensionRecommendationConfig().then(content => this.processWorkspaceRecommendations(content));
 	}
 
 	getWorkspaceIgnores(): TPromise<string[]> {
-		return this.fetchCombinedExtensionRecommendationConfig().then(this.processWorkspaceIgnores);
+		return this.fetchCombinedExtensionRecommendationConfig().then(content => this.processWorkspaceIgnores(content));
 	}
 
 	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsContent> {
@@ -179,7 +179,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 		}
 		const workspace = this.contextService.getWorkspace();
-		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))]).then(this.mergeExtensionRecommendationConfigs);
+		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))])
+			.then(this.mergeExtensionRecommendationConfigs);
 	}
 
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsContent> {
@@ -201,8 +202,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private mergeExtensionRecommendationConfigs(configs: IExtensionsContent[]): IExtensionsContent {
 		return {
-			recommendations: distinct(flatten(configs.map(config => config.recommendations))),
-			recommendationsToIgnore: distinct(flatten(configs.map(config => config.recommendationsToIgnore)))
+			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
+			recommendationsToIgnore: distinct(flatten(configs.map(config => config.recommendationsToIgnore || [])))
 		};
 	}
 
@@ -297,7 +298,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			if (event.added.length) {
 				TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder)))
 					.then(this.mergeExtensionRecommendationConfigs)
-					.then(this.processWorkspaceRecommendations)
+					.then(content => this.processWorkspaceRecommendations(content))
 					.then(result => {
 						// Suggest only if atleast one of the newly added recommendtations was not suggested before
 						if (result.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
