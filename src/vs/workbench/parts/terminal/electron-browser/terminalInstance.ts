@@ -65,7 +65,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
-	private _onDataListeners: ((data: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
@@ -120,7 +119,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];
-		this._onDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
@@ -686,13 +684,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			this._xterm.write(data);
 		}
-		this._onDataListeners.forEach(listener => {
-			try {
-				listener(data);
-			} catch (err) {
-				console.error(`onData listener threw`, err);
-			}
-		});
 	}
 
 	private _onProcessExit(exitCode: number): void {
@@ -799,15 +790,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onData(listener: (data: string) => void): lifecycle.IDisposable {
-		this._onDataListeners.push(listener);
-		return {
-			dispose: () => {
-				const i = this._onDataListeners.indexOf(listener);
-				if (i >= 0) {
-					this._onDataListeners.splice(i, 1);
-				}
-			}
-		};
+		return this._processManager.onProcessData(data => listener(data));
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
