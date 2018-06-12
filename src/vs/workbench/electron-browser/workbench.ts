@@ -1099,29 +1099,10 @@ export class Workbench extends Disposable implements IPartService {
 
 			// Update toasts
 			this.notificationsToasts.update(this.notificationsCenter.isVisible);
-
-			// Register commands
-			registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 		}));
-	}
 
-	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
-	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
-
-	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
-
-	isCreated(): boolean {
-		return this.workbenchCreated && this.workbenchStarted;
-	}
-
-	hasFocus(part: Parts): boolean {
-		const activeElement = document.activeElement;
-		if (!activeElement) {
-			return false;
-		}
-
-		const container = this.getContainer(part);
-		return DOM.isAncestor(activeElement, container);
+		// Register commands
+		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
 	getInstantiationService(): IInstantiationService {
@@ -1152,6 +1133,26 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	//#region IPartService
+
+	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
+	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
+
+	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
+
+	isCreated(): boolean {
+		return this.workbenchCreated && this.workbenchStarted;
+	}
+
+	hasFocus(part: Parts): boolean {
+		const activeElement = document.activeElement;
+		if (!activeElement) {
+			return false;
+		}
+
+		const container = this.getContainer(part);
+		return DOM.isAncestor(activeElement, container);
+	}
+
 	getContainer(part: Parts): HTMLElement {
 		let container: HTMLElement = null;
 		switch (part) {
@@ -1480,7 +1481,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
-	setMenubarHidden(visibility: string, skipLayout: boolean): void {
+	setMenubarHidden(visibility: 'default' | 'visible' | 'toggle' | 'hidden' | string, skipLayout: boolean): void {
 		this.menubarHidden = !(visibility === 'visible' || (visibility === 'default' && !browser.isFullscreen()));
 
 		if (!skipLayout) {
