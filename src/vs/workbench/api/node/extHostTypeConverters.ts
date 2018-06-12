@@ -376,25 +376,24 @@ export namespace WorkspaceSymbol {
 }
 
 export namespace DocumentSymbol {
-	export function from(info: vscode.SymbolInformation2): modes.DocumentSymbol {
+	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
 		let result: modes.DocumentSymbol = {
 			name: info.name,
-			fullRange: Range.from(info.definingRange),
-			identifierRange: Range.from(info.location.range),
-			kind: SymbolKind.from(info.kind),
-			containerName: info.containerName
+			fullRange: Range.from(info.fullRange),
+			identifierRange: Range.from(info.gotoRange),
+			kind: SymbolKind.from(info.kind)
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
 		}
 		return result;
 	}
-	export function to(info: modes.DocumentSymbol): vscode.SymbolInformation2 {
-		let result = new types.SymbolInformation2(
+	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
+		let result = new types.DocumentSymbol(
 			info.name,
 			SymbolKind.to(info.kind),
-			info.containerName,
-			new types.Location(undefined, Range.to(info.identifierRange))
+			Range.to(info.fullRange),
+			Range.to(info.identifierRange),
 		);
 		if (info.children) {
 			result.children = info.children.map(to) as any;

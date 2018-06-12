@@ -692,12 +692,7 @@ export function createApiFactory(
 			SourceBreakpoint: extHostTypes.SourceBreakpoint,
 			StatusBarAlignment: extHostTypes.StatusBarAlignment,
 			SymbolInformation: extHostTypes.SymbolInformation,
-			SymbolInformation2: class extends extHostTypes.SymbolInformation2 {
-				constructor(name, kind, containerName, location) {
-					checkProposedApiEnabled(extension);
-					super(name, kind, containerName, location);
-				}
-			},
+			DocumentSymbol: extHostTypes.DocumentSymbol,
 			SymbolKind: extHostTypes.SymbolKind,
 			SourceControlInputBoxValidationType: extHostTypes.SourceControlInputBoxValidationType,
 			TextDocumentSaveReason: extHostTypes.TextDocumentSaveReason,

@@ -403,7 +403,7 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.SymbolInformation2[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.DocumentSymbol[]> {
 		const args = {
 			resource
 		};

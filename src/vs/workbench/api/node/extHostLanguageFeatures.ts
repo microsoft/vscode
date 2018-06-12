@@ -9,7 +9,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { mixin } from 'vs/base/common/objects';
 import * as vscode from 'vscode';
 import * as typeConvert from 'vs/workbench/api/node/extHostTypeConverters';
-import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, SymbolInformation2 } from 'vs/workbench/api/node/extHostTypes';
+import { Range, Disposable, CompletionList, SnippetString, CodeActionKind, SymbolInformation, DocumentSymbol } from 'vs/workbench/api/node/extHostTypes';
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
 import { ExtHostHeapService } from 'vs/workbench/api/node/extHostHeapService';
@@ -20,7 +20,7 @@ import { asWinJsPromise } from 'vs/base/common/async';
 import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
-import { IRange } from 'vs/editor/common/core/range';
+import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
@@ -43,15 +43,15 @@ class OutlineAdapter {
 			if (isFalsyOrEmpty(value)) {
 				return undefined;
 			}
-			let [probe] = value;
-			if (!(probe instanceof SymbolInformation2)) {
-				value = OutlineAdapter._asSymbolHierarchy(resource, <SymbolInformation[]>value);
+			if (value[0] instanceof DocumentSymbol) {
+				return (<DocumentSymbol[]>value).map(typeConvert.DocumentSymbol.from);
+			} else {
+				return OutlineAdapter._asDocumentSymbolTree(resource, <SymbolInformation[]>value);
 			}
-			return (<SymbolInformation2[]>value).map(typeConvert.DocumentSymbol.from);
 		});
 	}
 
-	private static _asSymbolHierarchy(resource: URI, info: SymbolInformation[]): vscode.SymbolInformation2[] {
+	private static _asDocumentSymbolTree(resource: URI, info: SymbolInformation[]): modes.DocumentSymbol[] {
 		// first sort by start (and end) and then loop over all elements
 		// and build a tree based on containment.
 		info = info.slice(0).sort((a, b) => {
@@ -61,13 +61,17 @@ class OutlineAdapter {
 			}
 			return res;
 		});
-		let res: SymbolInformation2[] = [];
-		let parentStack: SymbolInformation2[] = [];
+		let res: modes.DocumentSymbol[] = [];
+		let parentStack: modes.DocumentSymbol[] = [];
 		for (let i = 0; i < info.length; i++) {
-			let element = new SymbolInformation2(info[i].name, info[i].kind, '', info[i].location);
-			element.containerName = info[i].containerName;
-			element.location = info[i].location; // todo@joh make this proper
-			element.location.uri = element.location.uri || resource;
+			let element = <modes.DocumentSymbol>{
+				name: info[i].name,
+				kind: typeConvert.SymbolKind.from(info[i].kind),
+				containerName: info[i].containerName,
+				fullRange: typeConvert.Range.from(info[i].location.range),
+				identifierRange: typeConvert.Range.from(info[i].location.range),
+				children: []
+			};
 
 			while (true) {
 				if (parentStack.length === 0) {
@@ -76,7 +80,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (parent.definingRange.contains(element.definingRange) && !parent.definingRange.isEqual(element.definingRange)) {
+				if (EditorRange.containsRange(parent.fullRange, element.fullRange) && !EditorRange.equalsRange(parent.fullRange, element.fullRange)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;
