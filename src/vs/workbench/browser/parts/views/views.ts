@@ -316,26 +316,17 @@ export class ContributableViewsModel extends Disposable {
 	}
 
 	private compareViewDescriptors(a: IViewDescriptor, b: IViewDescriptor): number {
-		const viewStateA = this.viewStates.get(a.id);
-		const viewStateB = this.viewStates.get(b.id);
-
-		let orderA = viewStateA && viewStateA.order;
-		orderA = typeof orderA === 'number' ? orderA : a.order;
-		orderA = typeof orderA === 'number' ? orderA : Number.POSITIVE_INFINITY;
-
-		let orderB = viewStateB && viewStateB.order;
-		orderB = typeof orderB === 'number' ? orderB : b.order;
-		orderB = typeof orderB === 'number' ? orderB : Number.POSITIVE_INFINITY;
-
-		if (orderA !== orderB) {
-			return orderA - orderB;
-		}
-
 		if (a.id === b.id) {
 			return 0;
 		}
 
-		return a.id < b.id ? -1 : 1;
+		return (this.getViewOrder(a) - this.getViewOrder(b)) || (a.id < b.id ? -1 : 1);
+	}
+
+	private getViewOrder(viewDescriptor: IViewDescriptor): number {
+		const viewState = this.viewStates.get(viewDescriptor.id);
+		const viewOrder = viewState && typeof viewState.order === 'number' ? viewState.order : viewDescriptor.order;
+		return typeof viewOrder === 'number' ? viewOrder : Number.MAX_VALUE;
 	}
 
 	private onDidChangeViewDescriptors(viewDescriptors: IViewDescriptor[]): void {
