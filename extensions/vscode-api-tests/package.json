@@ -4,9 +4,12 @@
 	"version": "0.0.1",
 	"publisher": "vscode",
 	"enableProposedApi": true,
-	"private": true,
+  "private": true,
+  "main": "horse",
+  "activationEvents": [
+  ],
 	"engines": {
-		"vscode": "*"
+		"vscode": "1.25.0"
 	},
 	"contributes": {
 		"configuration": {

@@ -7,7 +7,7 @@
 
 import 'vs/css!./quickInput';
 import { Component } from 'vs/workbench/common/component';
-import { IQuickInputService, IPickOpenEntry, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickInputService, IQuickPickItem, IPickOptions, IInputOptions, IQuickNavigateConfiguration, IQuickPick, IQuickInput, IQuickInputButton, IInputBox } from 'vs/platform/quickinput/common/quickInput';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import * as dom from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -16,7 +16,7 @@ import { contrastBorder, widgetShadow } from 'vs/platform/theme/common/colorRegi
 import { SIDE_BAR_BACKGROUND, SIDE_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { QuickInputList } from './quickInputList';
 import { QuickInputBox } from './quickInputBox';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -28,10 +28,9 @@ import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { attachBadgeStyler, attachProgressBarStyler, attachButtonStyler } from 'vs/platform/theme/common/styler';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ProgressBar } from 'vs/base/browser/ui/progressbar/progressbar';
-import { chain, debounceEvent } from 'vs/base/common/event';
+import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { onUnexpectedError, canceled } from 'vs/base/common/errors';
 import Severity from 'vs/base/common/severity';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
@@ -40,114 +39,332 @@ import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickop
 
 const $ = dom.$;
 
-type InputParameters = PickOneParameters | PickManyParameters | TextInputParameters;
-
-export interface BaseInputParameters {
-	readonly type: 'pickOne' | 'pickMany' | 'textInput';
-	readonly ignoreFocusLost?: boolean;
-}
-
-export interface PickParameters<T extends IPickOpenEntry = IPickOpenEntry> extends BaseInputParameters {
-	readonly type: 'pickOne' | 'pickMany';
-	readonly picks: TPromise<T[]>;
-	readonly matchOnDescription?: boolean;
-	readonly matchOnDetail?: boolean;
-	readonly placeHolder?: string;
-}
-
-export interface PickOneParameters<T extends IPickOpenEntry = IPickOpenEntry> extends PickParameters<T> {
-	readonly type: 'pickOne';
-}
-
-export interface PickManyParameters<T extends IPickOpenEntry = IPickOpenEntry> extends PickParameters<T> {
-	readonly type: 'pickMany';
-}
-
-export interface TextInputParameters extends BaseInputParameters {
-	readonly type: 'textInput';
-	readonly value?: string;
-	readonly valueSelection?: [number, number];
-	readonly prompt?: string;
-	readonly placeHolder?: string;
-	readonly password?: boolean;
-	readonly validateInput?: (input: string) => TPromise<string>;
-}
-
 interface QuickInputUI {
 	container: HTMLElement;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
 	message: HTMLElement;
+	progressBar: ProgressBar;
 	list: QuickInputList;
-	close: (ok?: true | Thenable<never>) => void;
+	onDidAccept: Event<void>;
+	ignoreFocusOut: boolean;
+	show(controller: QuickInput): void;
+	setVisibilities(visibilities: Visibilities): void;
+	hide(): void;
 }
 
-interface InputController<R> {
-	readonly showUI: { [k in keyof QuickInputUI]?: boolean; } & { ok?: boolean; };
-	readonly result: TPromise<R>;
-	readonly ready: TPromise<void>;
-	readonly resolve: (ok?: true | Thenable<never>) => void | TPromise<void>;
+type Visibilities = {
+	checkAll?: boolean;
+	inputBox?: boolean;
+	count?: boolean;
+	message?: boolean;
+	list?: boolean;
+	ok?: boolean;
+};
+
+class QuickInput implements IQuickInput {
+
+	protected visible = false;
+	private _enabled = true;
+	private _busy = false;
+	private _ignoreFocusOut = false;
+	private onDidHideEmitter = new Emitter<void>();
+
+	protected visibleDisposables: IDisposable[] = [];
+	protected disposables: IDisposable[] = [];
+
+	private busyDelay: TPromise<void>;
+
+	constructor(protected ui: QuickInputUI) {
+		this.disposables.push(this.onDidHideEmitter);
+	}
+
+	get enabled() {
+		return this._enabled;
+	}
+
+	set enabled(enabled: boolean) {
+		this._enabled = enabled;
+		this.update(); // TODO
+	}
+
+	get busy() {
+		return this._busy;
+	}
+
+	set busy(busy: boolean) {
+		this._busy = busy;
+		this.update();
+	}
+
+	get ignoreFocusOut() {
+		return this._ignoreFocusOut;
+	}
+
+	set ignoreFocusOut(ignoreFocusOut: boolean) {
+		this._ignoreFocusOut = ignoreFocusOut;
+		this.update();
+	}
+
+	show(): void {
+		if (this.visible) {
+			return;
+		}
+		this.ui.show(this);
+		this.visible = true;
+		this.update();
+	}
+
+	hide(): void {
+		if (!this.visible) {
+			return;
+		}
+		this.ui.hide();
+	}
+
+	didHide(): void {
+		this.visible = false;
+		this.visibleDisposables = dispose(this.visibleDisposables);
+		this.onDidHideEmitter.fire();
+	}
+
+	onDidHide = this.onDidHideEmitter.event;
+
+	protected update() {
+		if (!this.visible) {
+			return;
+		}
+		if (this.busy && !this.busyDelay) {
+			this.busyDelay = TPromise.timeout(800);
+			this.busyDelay.then(() => {
+				this.ui.progressBar.infinite();
+			}, () => { /* ignore */ });
+		}
+		if (!this.busy && this.busyDelay) {
+			this.ui.progressBar.stop();
+			this.busyDelay.cancel();
+			this.busyDelay = null;
+		}
+	}
+
+	public dispose(): void {
+		this.hide();
+		this.disposables = dispose(this.disposables);
+	}
 }
 
-class PickOneController<T extends IPickOpenEntry> implements InputController<T> {
-	public showUI = { inputBox: true, list: true };
-	public result: TPromise<T>;
-	public ready: TPromise<void>;
-	public resolve: (ok?: true | Thenable<never>) => void;
-	public progress: (value: T) => void;
-	private closed = false;
+class QuickPick extends QuickInput implements IQuickPick {
+
+	private _value = '';
+	private _placeholder = '';
+	private onDidChangeValueEmitter = new Emitter<string>();
+	private onDidAcceptEmitter = new Emitter<string>();
+	private _commands: IQuickInputButton[] = [];
+	private onDidTriggerCommandEmitter = new Emitter<IQuickInputButton>();
+	private _items: IQuickPickItem[] = [];
+	private itemsUpdated = false;
+	private _canSelectMany = false;
+	private _matchOnDescription = true;
+	private _matchOnDetail = true;
+	private _activeItems: IQuickPickItem[] = [];
+	private onDidChangeActiveEmitter = new Emitter<IQuickPickItem[]>();
+	private _selectedItems: IQuickPickItem[] = [];
+	private onDidChangeSelectionEmitter = new Emitter<IQuickPickItem[]>();
 	private quickNavigate = false;
-	private disposables: IDisposable[] = [];
 
-	constructor(private ui: QuickInputUI, parameters: PickOneParameters<T>) {
-		this.result = new TPromise<T>((resolve, reject, progress) => {
-			this.resolve = ok => resolve(ok === true ? <T>ui.list.getFocusedElements()[0] : ok);
-			this.progress = progress;
-		});
-		this.result.then(() => this.dispose());
+	constructor(ui: QuickInputUI) {
+		super(ui);
+		this.disposables.push(
+			this.onDidChangeValueEmitter,
+			this.onDidAcceptEmitter,
+			this.onDidTriggerCommandEmitter,
+			this.onDidChangeActiveEmitter,
+			this.onDidChangeSelectionEmitter,
+		);
+	}
 
-		ui.inputBox.value = '';
-		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		ui.list.matchOnDescription = parameters.matchOnDescription;
-		ui.list.matchOnDetail = parameters.matchOnDetail;
-		ui.list.setElements([]);
+	get value() {
+		return this._value;
+	}
 
-		this.ready = parameters.picks.then(elements => {
-			if (this.closed) {
-				return;
-			}
+	set value(value: string) {
+		this._value = value || '';
+		this.update();
+	}
 
-			ui.list.setElements(elements);
-			ui.list.filter(ui.inputBox.value);
-			ui.list.focus('First');
+	get placeholder() {
+		return this._placeholder;
+	}
 
-			this.disposables.push(
-				ui.list.onSelectionChange(elements => {
-					if (elements[0]) {
-						ui.close(true);
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder || '';
+		this.update();
+	}
+
+	onDidValueChange = this.onDidChangeValueEmitter.event;
+
+	onDidAccept = this.onDidAcceptEmitter.event;
+
+	get buttons() {
+		return this._commands;
+	}
+
+	set buttons(commands: IQuickInputButton[]) {
+		this._commands = commands;
+		this.update(); // TODO
+	}
+
+	onDidTriggerCommand = this.onDidTriggerCommandEmitter.event;
+
+	get items() {
+		return this._items;
+	}
+
+	set items(items: IQuickPickItem[]) {
+		this._items = items;
+		this.itemsUpdated = true;
+		this.update();
+	}
+
+	get canSelectMany() {
+		return this._canSelectMany;
+	}
+
+	set canSelectMany(canSelectMany: boolean) {
+		this._canSelectMany = canSelectMany;
+		this.update();
+	}
+
+	get matchOnDescription() {
+		return this._matchOnDescription;
+	}
+
+	set matchOnDescription(matchOnDescription: boolean) {
+		this._matchOnDescription = matchOnDescription;
+		this.update();
+	}
+
+	get matchOnDetail() {
+		return this._matchOnDetail;
+	}
+
+	set matchOnDetail(matchOnDetail: boolean) {
+		this._matchOnDetail = matchOnDetail;
+		this.update();
+	}
+
+	get activeItems() {
+		return this._activeItems;
+	}
+
+	onDidChangeActive = this.onDidChangeActiveEmitter.event;
+
+	get selectedItems() {
+		return this._selectedItems;
+	}
+
+	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
+
+	show() {
+		if (!this.visible) {
+			// TODO: this.onDidTriggerCommandEmitter,
+			this.visibleDisposables.push(
+				this.ui.inputBox.onDidChange(value => {
+					if (value === this.value) {
+						return;
 					}
+					this._value = value;
+					this.ui.list.filter(this.ui.inputBox.value);
+					if (!this.canSelectMany) {
+						this.ui.list.focus('First');
+					}
+					this.onDidChangeValueEmitter.fire(value);
 				}),
-				ui.inputBox.onDidChange(value => {
-					ui.list.filter(value);
-					ui.list.focus('First');
-				}),
-				ui.inputBox.onKeyDown(event => {
+				this.ui.inputBox.onKeyDown(event => {
 					switch (event.keyCode) {
 						case KeyCode.DownArrow:
-							ui.list.focus('Next');
+							this.ui.list.focus('Next');
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
 							break;
 						case KeyCode.UpArrow:
-							ui.list.focus('Previous');
+							this.ui.list.focus('Previous');
+							if (this.canSelectMany) {
+								this.ui.list.domFocus();
+							}
 							break;
 					}
-				})
+				}),
+				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()),
+				this.ui.list.onDidChangeFocus(focusedItems => {
+					// Drop initial event.
+					if (!focusedItems.length && !this._activeItems.length) {
+						return;
+					}
+					this._activeItems = focusedItems;
+					this.onDidChangeActiveEmitter.fire(focusedItems);
+				}),
+				this.ui.list.onDidChangeSelection(selectedItems => {
+					if (this.canSelectMany) {
+						return;
+					}
+					// Drop initial event.
+					if (!selectedItems.length && !this._selectedItems.length) {
+						return;
+					}
+					this._selectedItems = selectedItems;
+					this.onDidChangeSelectionEmitter.fire(selectedItems);
+				}),
+				this.ui.list.onChangedCheckedElements(checkedItems => {
+					if (!this.canSelectMany) {
+						return;
+					}
+					this._selectedItems = checkedItems;
+					this.onDidChangeSelectionEmitter.fire(checkedItems);
+				}),
 			);
-		});
+		}
+		super.show();
+	}
+
+	protected update() {
+		super.update();
+		if (!this.visible) {
+			return;
+		}
+		if (this.ui.inputBox.value !== this.value) {
+			this.ui.inputBox.value = this.value;
+		}
+		if (this.ui.inputBox.placeholder !== this.placeholder) {
+			this.ui.inputBox.placeholder = this.placeholder;
+		}
+		if (this.itemsUpdated) {
+			this.ui.list.setElements(this.items);
+			this.ui.list.filter(this.ui.inputBox.value);
+			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
+			this.ui.count.setCount(this.ui.list.getCheckedCount());
+			if (!this.canSelectMany) {
+				this.ui.list.focus('First');
+			}
+			this.itemsUpdated = false;
+		}
+		if (this.ui.container.classList.contains('show-checkboxes') !== this.canSelectMany) {
+			if (this.canSelectMany) {
+				this.ui.list.clearFocus();
+			} else {
+				this.ui.list.focus('First');
+			}
+		}
+		this.ui.ignoreFocusOut = this.ignoreFocusOut;
+		this.ui.list.matchOnDescription = this.matchOnDescription;
+		this.ui.list.matchOnDetail = this.matchOnDetail;
+		this.ui.setVisibilities(this.canSelectMany ? { checkAll: true, inputBox: true, count: true, ok: true, list: true } : { inputBox: true, list: true });
 	}
 
 	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
-		if (this.quickNavigate) {
+		if (this.canSelectMany || this.quickNavigate) {
 			return;
 		}
 		this.quickNavigate = true;
@@ -188,158 +405,151 @@ class PickOneController<T extends IPickOpenEntry> implements InputController<T> 
 			});
 
 			if (wasTriggerKeyPressed) {
-				this.ui.close(true);
+				this.onDidAcceptEmitter.fire();
 			}
 		}));
 	}
-
-	private dispose() {
-		this.closed = true;
-		this.disposables = dispose(this.disposables);
-	}
 }
 
-class PickManyController<T extends IPickOpenEntry> implements InputController<T[]> {
-	public showUI = { checkAll: true, inputBox: true, count: true, ok: true, list: true };
-	public result: TPromise<T[]>;
-	public ready: TPromise<void>;
-	public resolve: (ok?: true | Thenable<never>) => void;
-	public progress: (value: T) => void;
-	private closed = false;
-	private disposables: IDisposable[] = [];
+class InputBox extends QuickInput implements IInputBox {
 
-	constructor(ui: QuickInputUI, parameters: PickManyParameters<T>) {
-		this.result = new TPromise<T[]>((resolve, reject, progress) => {
-			this.resolve = ok => resolve(ok === true ? <T[]>ui.list.getCheckedElements() : ok);
-			this.progress = progress;
-		});
-		this.result.then(() => this.dispose());
+	private static noPromptMessage = localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
 
-		ui.inputBox.value = '';
-		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		ui.list.matchOnDescription = parameters.matchOnDescription;
-		ui.list.matchOnDetail = parameters.matchOnDetail;
-		ui.list.setElements([]);
-		ui.checkAll.checked = ui.list.getAllVisibleChecked();
-		ui.count.setCount(ui.list.getCheckedCount());
+	private _value = '';
+	private _valueSelection: Readonly<[number, number]>;
+	private valueSelectionUpdated = true;
+	private _placeholder = '';
+	private _password = false;
+	private _prompt = '';
+	private noValidationMessage = InputBox.noPromptMessage;
+	private _validationMessage = '';
+	private onDidValueChangeEmitter = new Emitter<string>();
+	private onDidAcceptEmitter = new Emitter<string>();
+	private _commands: IQuickInputButton[] = [];
+	private onDidTriggerCommandEmitter = new Emitter<IQuickInputButton>();
 
-		this.ready = parameters.picks.then(elements => {
-			if (this.closed) {
-				return;
-			}
+	constructor(ui: QuickInputUI) {
+		super(ui);
+		this.disposables.push(
+			this.onDidValueChangeEmitter,
+			this.onDidAcceptEmitter,
+			this.onDidTriggerCommandEmitter,
+		);
+	}
 
-			ui.list.setElements(elements, true);
-			ui.list.filter(ui.inputBox.value);
-			ui.checkAll.checked = ui.list.getAllVisibleChecked();
-			ui.count.setCount(ui.list.getCheckedCount());
+	get value() {
+		return this._value;
+	}
 
-			this.disposables.push(
-				ui.inputBox.onDidChange(value => {
-					ui.list.filter(value);
+	set value(value: string) {
+		this._value = value || '';
+		this.update();
+	}
+
+	set valueSelection(valueSelection: Readonly<[number, number]>) {
+		this._valueSelection = valueSelection;
+		this.valueSelectionUpdated = true;
+		this.update();
+	}
+
+	get placeholder() {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder || '';
+		this.update();
+	}
+
+	get password() {
+		return this._password;
+	}
+
+	set password(password: boolean) {
+		this._password = password || false;
+		this.update();
+	}
+
+	get prompt() {
+		return this._prompt;
+	}
+
+	set prompt(prompt: string) {
+		this._prompt = prompt || '';
+		this.noValidationMessage = prompt
+			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
+			: InputBox.noPromptMessage;
+		this.update();
+	}
+
+	get validationMessage() {
+		return this._validationMessage;
+	}
+
+	set validationMessage(validationMessage: string) {
+		this._validationMessage = validationMessage || '';
+		this.update();
+	}
+
+	onDidChangeValue = this.onDidValueChangeEmitter.event;
+
+	onDidAccept = this.onDidAcceptEmitter.event;
+
+	get buttons() {
+		return this._commands;
+	}
+
+	set buttons(commands: IQuickInputButton[]) {
+		this._commands = commands;
+		this.update(); // TODO
+	}
+
+	onDidTriggerButton = this.onDidTriggerCommandEmitter.event;
+
+	show() {
+		if (!this.visible) {
+			// TODO: this.onDidTriggerCommandEmitter,
+			this.visibleDisposables.push(
+				this.ui.inputBox.onDidChange(value => {
+					if (value === this.value) {
+						return;
+					}
+					this._value = value;
+					this.onDidValueChangeEmitter.fire(value);
 				}),
-				ui.inputBox.onKeyDown(event => {
-					switch (event.keyCode) {
-						case KeyCode.DownArrow:
-							ui.list.focus('First');
-							ui.list.domFocus();
-							break;
-						case KeyCode.UpArrow:
-							ui.list.focus('Last');
-							ui.list.domFocus();
-							break;
-					}
-				})
+				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()),
 			);
-		});
-	}
-
-	private dispose() {
-		this.closed = true;
-		this.disposables = dispose(this.disposables);
-	}
-}
-
-class TextInputController implements InputController<string> {
-	public showUI = { inputBox: true, message: true };
-	public result: TPromise<string>;
-	public ready = TPromise.as(null);
-	public resolveResult: (string) => void;
-	private validationValue: string;
-	private validation: TPromise<string>;
-	private defaultMessage: string;
-	private disposables: IDisposable[] = [];
-
-	constructor(private ui: QuickInputUI, private parameters: TextInputParameters) {
-		this.result = new TPromise<string>((resolve, reject, progress) => {
-			this.resolveResult = resolve;
-		});
-		this.result.then(() => this.dispose());
-
-		ui.inputBox.value = parameters.value || '';
-		const selection = parameters.valueSelection;
-		ui.inputBox.select(selection && { start: selection[0], end: selection[1] });
-		ui.inputBox.setPlaceholder(parameters.placeHolder || '');
-		this.defaultMessage = parameters.prompt
-			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", parameters.prompt)
-			: localize('inputModeEntry', "Press 'Enter' to confirm your input or 'Escape' to cancel");
-		ui.message.textContent = this.defaultMessage;
-		ui.inputBox.setPassword(parameters.password);
-
-		if (parameters.validateInput) {
-			const onDidChange = debounceEvent(ui.inputBox.onDidChange, (last, cur) => cur, 100);
-			this.disposables.push(onDidChange(() => this.didChange()));
-			if (ui.inputBox.value) {
-				// Replicating old behavior: only fire if value is not empty.
-				this.didChange();
-			}
 		}
+		super.show();
 	}
 
-	didChange() {
-		this.updatedValidation()
-			.then(validationError => {
-				this.ui.message.textContent = validationError || this.defaultMessage;
-				this.ui.inputBox.showDecoration(validationError ? Severity.Error : Severity.Ignore);
-			})
-			.then(null, onUnexpectedError);
-	}
-
-	resolve(ok?: true | Thenable<never>) {
-		if (ok === true) {
-			return this.updatedValidation()
-				.then(validationError => {
-					if (validationError) {
-						throw canceled();
-					}
-					this.resolveResult(this.ui.inputBox.value);
-				});
-		} else {
-			this.resolveResult(ok);
+	protected update() {
+		super.update();
+		if (!this.visible) {
+			return;
 		}
-		return null;
-	}
-
-	private updatedValidation() {
-		if (this.parameters.validateInput) {
-			const value = this.ui.inputBox.value;
-			if (value !== this.validationValue) {
-				this.validationValue = value;
-				this.validation = this.parameters.validateInput(value)
-					.then(validationError => {
-						if (this.validationValue !== value) {
-							throw canceled();
-						}
-						return validationError;
-					});
-			}
-		} else if (!this.validation) {
-			this.validation = TPromise.as(null);
+		if (this.ui.inputBox.value !== this.value) {
+			this.ui.inputBox.value = this.value;
 		}
-		return this.validation;
-	}
-
-	private dispose() {
-		this.disposables = dispose(this.disposables);
+		if (this.valueSelectionUpdated) {
+			this.valueSelectionUpdated = false;
+			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
+		}
+		if (this.ui.inputBox.placeholder !== this.placeholder) {
+			this.ui.inputBox.placeholder = this.placeholder;
+		}
+		if (this.ui.inputBox.password !== this.password) {
+			this.ui.inputBox.password = this.password;
+		}
+		if (!this.validationMessage && this.ui.message.textContent !== this.noValidationMessage) {
+			this.ui.message.textContent = this.noValidationMessage;
+			this.ui.inputBox.showDecoration(Severity.Ignore);
+		}
+		if (this.validationMessage && this.ui.message.textContent !== this.validationMessage) {
+			this.ui.message.textContent = this.validationMessage;
+			this.ui.inputBox.showDecoration(Severity.Error);
+		}
+		this.ui.setVisibilities({ inputBox: true, message: true });
 	}
 }
 
@@ -355,14 +565,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
 	private ui: QuickInputUI;
-	private ready = false;
-	private progressBar: ProgressBar;
-	private ignoreFocusLost = false;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
+	private onDidAcceptEmitter = new Emitter<void>();
 
-	private controller: InputController<any>;
-	private multiStepHandle: CancellationTokenSource;
+	private controller: QuickInput;
 
 	constructor(
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -376,8 +583,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 	) {
 		super(QuickInputService.ID, themeService);
 		this.inQuickOpenContext = new RawContextKey<boolean>('inQuickOpen', false).bindTo(contextKeyService);
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)));
-		this.toUnbind.push(this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)));
+		this.toUnbind.push(
+			this.quickOpenService.onShow(() => this.inQuickOpen('quickOpen', true)),
+			this.quickOpenService.onHide(() => this.inQuickOpen('quickOpen', false)),
+			this.onDidAcceptEmitter
+		);
 	}
 
 	private inQuickOpen(widget: 'quickInput' | 'quickOpen', open: boolean) {
@@ -435,23 +645,21 @@ export class QuickInputService extends Component implements IQuickInputService {
 		attachButtonStyler(ok, this.themeService);
 		ok.label = localize('ok', "OK");
 		this.toUnbind.push(ok.onDidClick(e => {
-			if (this.ready) {
-				this.close(true);
-			}
+			this.onDidAcceptEmitter.fire(); // TODO: make single-select QuickPick exclusively use Accept?
 		}));
 
 		const message = dom.append(container, $('.quick-input-message'));
 
-		this.progressBar = new ProgressBar(container);
-		dom.addClass(this.progressBar.getContainer(), 'quick-input-progress');
-		this.toUnbind.push(attachProgressBarStyler(this.progressBar, this.themeService));
+		const progressBar = new ProgressBar(container);
+		dom.addClass(progressBar.getContainer(), 'quick-input-progress');
+		this.toUnbind.push(attachProgressBarStyler(progressBar, this.themeService));
 
 		const list = this.instantiationService.createInstance(QuickInputList, container);
 		this.toUnbind.push(list);
-		this.toUnbind.push(list.onAllVisibleCheckedChanged(checked => {
+		this.toUnbind.push(list.onChangedAllVisibleChecked(checked => {
 			checkAll.checked = checked;
 		}));
-		this.toUnbind.push(list.onCheckedCountChanged(c => {
+		this.toUnbind.push(list.onChangedCheckedCount(c => {
 			count.setCount(c);
 		}));
 		this.toUnbind.push(list.onLeave(() => {
@@ -461,18 +669,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 				list.clearFocus();
 			}, 0);
 		}));
-		this.toUnbind.push(
-			chain(list.onFocusChange)
-				.map(e => e[0])
-				.filter(e => !!e)
-				.latch()
-				.on(e => {
-					// TODO
-					if (this.controller instanceof PickOneController || this.controller instanceof PickManyController) {
-						this.controller.progress(e);
-					}
-				})
-		);
 
 		this.toUnbind.push(dom.addDisposableListener(container, 'focusout', (e: FocusEvent) => {
 			if (e.relatedTarget === container) {
@@ -484,22 +680,20 @@ export class QuickInputService extends Component implements IQuickInputService {
 					return;
 				}
 			}
-			if (!this.ignoreFocusLost && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
-				this.close(undefined, true);
+			if (!this.ui.ignoreFocusOut && !this.environmentService.args['sticky-quickopen'] && this.configurationService.getValue(CLOSE_ON_FOCUS_LOST_CONFIG)) {
+				this.hide(true);
 			}
 		}));
 		this.toUnbind.push(dom.addDisposableListener(container, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
 			switch (event.keyCode) {
 				case KeyCode.Enter:
-					if (this.ready) {
-						dom.EventHelper.stop(e, true);
-						this.close(true);
-					}
+					dom.EventHelper.stop(e, true);
+					this.onDidAcceptEmitter.fire();
 					break;
 				case KeyCode.Escape:
 					dom.EventHelper.stop(e, true);
-					this.close();
+					this.hide();
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
@@ -517,158 +711,199 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.close()));
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.hide()));
 
-		this.ui = { container, checkAll, inputBox, count, message, list, close: ok => this.close(ok) };
+		this.ui = {
+			container,
+			checkAll,
+			inputBox,
+			count,
+			message,
+			progressBar,
+			list,
+			onDidAccept: this.onDidAcceptEmitter.event,
+			ignoreFocusOut: false,
+			show: controller => this.show(controller),
+			hide: () => this.hide(),
+			setVisibilities: visibilities => this.setVisibilities(visibilities)
+		};
 		this.updateStyles();
 	}
 
-	private close(ok?: true | Thenable<never>, focusLost?: boolean) {
-		if (!this.isDisplayed()) {
-			return TPromise.as(undefined);
-		}
-		if (this.controller) {
-			const resolved = this.controller.resolve(ok);
-			if (resolved) {
-				const result = resolved
-					.then(() => {
-						this.inQuickOpen('quickInput', false);
-						this.ui.container.style.display = 'none';
-						if (!focusLost) {
-							this.editorGroupService.activeGroup.focus();
+	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token: CancellationToken = CancellationToken.None): TPromise<O extends { canPickMany: true } ? T[] : T> {
+		return new TPromise<O extends { canPickMany: true } ? T[] : T>((resolve, reject, progress) => {
+			if (token.isCancellationRequested) {
+				resolve(undefined);
+				return;
+			}
+			const input = this.createQuickPick();
+			const disposables = [
+				input,
+				input.onDidAccept(() => {
+					if (input.canSelectMany) {
+						resolve(<any>input.selectedItems); // TODO: generify interface to use T extends IQuickPickItem
+						input.hide();
+					} else {
+						const result = input.activeItems[0];
+						if (result) {
+							resolve(<any>result);
+							input.hide();
+						}
+					}
+				}),
+				input.onDidChangeActive(items => {
+					const focused = items[0];
+					if (focused) {
+						progress(focused);
+					}
+				}),
+				input.onDidChangeSelection(items => {
+					if (!input.canSelectMany) {
+						const result = items[0];
+						if (result) {
+							resolve(<any>result);
+							input.hide();
+						}
+					}
+				}),
+				token.onCancellationRequested(() => {
+					input.hide();
+				}),
+				input.onDidHide(() => {
+					dispose(disposables);
+					resolve(undefined);
+				}),
+			];
+			input.canSelectMany = options.canPickMany;
+			input.placeholder = options.placeHolder;
+			input.ignoreFocusOut = options.ignoreFocusLost;
+			input.matchOnDescription = options.matchOnDescription;
+			input.matchOnDetail = options.matchOnDetail;
+			input.busy = true;
+			picks.then(items => {
+				input.busy = false;
+				input.items = items;
+			});
+			input.show();
+			picks.then(null, err => {
+				reject(err);
+				input.hide();
+			});
+		});
+	}
+
+	input(options: IInputOptions = {}, token: CancellationToken = CancellationToken.None): TPromise<string> {
+		return new TPromise<string>((resolve, reject) => {
+			if (token.isCancellationRequested) {
+				resolve(undefined);
+				return;
+			}
+			const input = this.createInputBox();
+			const validateInput = options.validateInput || (() => TPromise.as(undefined));
+			const onDidValueChange = debounceEvent(input.onDidChangeValue, (last, cur) => cur, 100);
+			let validationValue: string;
+			let validation = TPromise.as('');
+			const disposables = [
+				input,
+				onDidValueChange(value => {
+					if (value !== validationValue) {
+						validation = TPromise.wrap(validateInput(value));
+					}
+					validation.then(result => {
+						input.validationMessage = result;
+					});
+				}),
+				input.onDidAccept(() => {
+					const value = input.value;
+					if (value !== validationValue) {
+						validation = TPromise.wrap(validateInput(value));
+					}
+					validation.then(result => {
+						if (!result) {
+							resolve(value);
+							input.hide();
 						}
 					});
-				result.then(null, onUnexpectedError);
-				return result;
-			}
-		}
-		this.inQuickOpen('quickInput', false);
-		this.ui.container.style.display = 'none';
-		if (!focusLost) {
-			this.editorGroupService.activeGroup.focus();
-		}
-		return TPromise.as(undefined);
+				}),
+				token.onCancellationRequested(() => {
+					input.hide();
+				}),
+				input.onDidHide(() => {
+					dispose(disposables);
+					resolve(undefined);
+				}),
+			];
+			input.value = options.value;
+			input.valueSelection = options.valueSelection;
+			input.prompt = options.prompt;
+			input.placeholder = options.placeHolder;
+			input.password = options.password;
+			input.ignoreFocusOut = options.ignoreFocusLost;
+			input.show();
+		});
 	}
 
-	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return this._pick(undefined, picks, options, token);
+	createQuickPick(): IQuickPick {
+		this.create();
+		return new QuickPick(this.ui);
 	}
 
-	private _pick<T extends IPickOpenEntry, O extends IPickOptions>(handle: CancellationTokenSource | undefined, picks: TPromise<T[]>, options: O = <O>{}, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T> {
-		return <any>this._show(handle, <any>{
-			type: options.canPickMany ? 'pickMany' : 'pickOne',
-			picks,
-			placeHolder: options.placeHolder,
-			matchOnDescription: options.matchOnDescription,
-			matchOnDetail: options.matchOnDetail,
-			ignoreFocusLost: options.ignoreFocusLost
-		}, token);
+	createInputBox(): IInputBox {
+		this.create();
+		return new InputBox(this.ui);
 	}
 
-	input(options: IInputOptions = {}, token?: CancellationToken): TPromise<string> {
-		return this._input(undefined, options, token);
-	}
-
-	private _input(handle: CancellationTokenSource | undefined, options: IInputOptions = {}, token?: CancellationToken): TPromise<string> {
-		return this._show(handle, {
-			type: 'textInput',
-			value: options.value,
-			valueSelection: options.valueSelection,
-			prompt: options.prompt,
-			placeHolder: options.placeHolder,
-			password: options.password,
-			ignoreFocusLost: options.ignoreFocusLost,
-			validateInput: options.validateInput,
-		}, token);
-	}
-
-	private _show<T extends IPickOpenEntry, P extends PickOneParameters<T> | PickManyParameters<T>>(multiStepHandle: CancellationTokenSource | undefined, parameters: P, token?: CancellationToken): TPromise<P extends PickManyParameters<T> ? T[] : T>;
-	private _show(multiStepHandle: CancellationTokenSource | undefined, parameters: TextInputParameters, token?: CancellationToken): TPromise<string>;
-	private _show<R>(multiStepHandle: CancellationTokenSource | undefined, parameters: InputParameters, token: CancellationToken = CancellationToken.None): TPromise<R> {
-		if (multiStepHandle && multiStepHandle !== this.multiStepHandle) {
-			multiStepHandle.cancel();
-			return TPromise.as(undefined);
-		}
-		if (!multiStepHandle && this.multiStepHandle) {
-			this.multiStepHandle.cancel();
-		}
-
+	private show(controller: QuickInput) {
 		this.create();
 		this.quickOpenService.close();
-		if (this.controller) {
-			this.controller.resolve();
+		const oldController = this.controller;
+		this.controller = controller;
+		if (oldController) {
+			oldController.didHide();
 		}
 
-		this.ui.container.setAttribute('data-type', parameters.type);
-
-		this.ignoreFocusLost = parameters.ignoreFocusLost;
-
-		this.progressBar.stop();
-		this.ready = false;
-
-		this.controller = this.createController(parameters);
-		this.ui.checkAll.style.display = this.controller.showUI.checkAll ? '' : 'none';
-		this.filterContainer.style.display = this.controller.showUI.inputBox ? '' : 'none';
+		this.ui.checkAll.checked = false;
+		// this.ui.inputBox.value = ''; Avoid triggering an event.
+		this.ui.inputBox.placeholder = '';
+		this.ui.inputBox.password = false;
 		this.ui.inputBox.showDecoration(Severity.Ignore);
-		this.countContainer.style.display = this.controller.showUI.count ? '' : 'none';
-		this.okContainer.style.display = this.controller.showUI.ok ? '' : 'none';
-		this.ui.message.style.display = this.controller.showUI.message ? '' : 'none';
-		this.ui.list.display(this.controller.showUI.list);
+		this.ui.count.setCount(0);
+		this.ui.message.textContent = '';
+		this.ui.progressBar.stop();
+		this.ui.list.setElements([]);
+		this.ui.list.matchOnDescription = false;
+		this.ui.list.matchOnDetail = false;
+		this.ui.ignoreFocusOut = false;
 
-		if (this.ui.container.style.display === 'none') {
-			this.inQuickOpen('quickInput', true);
-		}
+		this.inQuickOpen('quickInput', true);
+
 		this.ui.container.style.display = '';
 		this.updateLayout();
 		this.ui.inputBox.setFocus();
-
-		const d = token.onCancellationRequested(() => this.close());
-		this.controller.result.then(() => d.dispose(), () => d.dispose());
-
-		const wasController = this.controller;
-
-		const delay = TPromise.timeout(800);
-		delay.then(() => {
-			if (this.controller === wasController) {
-				this.progressBar.infinite();
-			}
-		}, () => { /* ignore */ });
-
-		this.controller.ready.then(() => {
-			delay.cancel();
-			if (this.controller !== wasController) {
-				return;
-			}
-
-			this.progressBar.stop();
-			this.ready = true;
-
-			this.updateLayout();
-		}).then(null, reason => this.close(TPromise.wrapError(reason)));
-
-		return this.controller.result;
 	}
 
-	private createController(parameters: InputParameters) {
-		switch (parameters.type) {
-			case 'pickOne': return new PickOneController(this.ui, parameters);
-			case 'pickMany': return new PickManyController(this.ui, parameters);
-			case 'textInput': return new TextInputController(this.ui, parameters);
-			default: ((p: never) => {
-				throw new Error(`Unknown input type: ${(<any>p).type}`);
-			})(parameters);
-		}
+	private setVisibilities(visibilities: Visibilities) {
+		this.ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
+		this.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
+		this.countContainer.style.display = visibilities.count ? '' : 'none';
+		this.okContainer.style.display = visibilities.ok ? '' : 'none';
+		this.ui.message.style.display = visibilities.message ? '' : 'none';
+		this.ui.list.display(visibilities.list);
+		this.ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
+		this.updateLayout(); // TODO
 	}
 
-	multiStepInput<T>(handler: (input: IQuickInput, token: CancellationToken) => Thenable<T>, token = CancellationToken.None): Thenable<T> {
-		if (this.multiStepHandle) {
-			this.multiStepHandle.cancel();
+	private hide(focusLost?: boolean) {
+		const controller = this.controller;
+		if (controller) {
+			this.controller = null;
+			this.inQuickOpen('quickInput', false);
+			this.ui.container.style.display = 'none';
+			if (!focusLost) {
+				this.editorGroupService.activeGroup.focus();
+			}
+			controller.didHide();
 		}
-		this.multiStepHandle = new CancellationTokenSource();
-		return TPromise.wrap(handler({
-			pick: this._pick.bind(this, this.multiStepHandle),
-			input: this._input.bind(this, this.multiStepHandle)
-		}, this.multiStepHandle.token));
 	}
 
 	focus() {
@@ -678,7 +913,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	toggle() {
-		if (this.isDisplayed() && this.controller instanceof PickManyController) {
+		if (this.isDisplayed() && this.controller instanceof QuickPick && this.controller.canSelectMany) {
 			this.ui.list.toggleCheckbox();
 		}
 	}
@@ -686,18 +921,20 @@ export class QuickInputService extends Component implements IQuickInputService {
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration) {
 		if (this.isDisplayed() && this.ui.list.isDisplayed()) {
 			this.ui.list.focus(next ? 'Next' : 'Previous');
-			if (quickNavigate && this.controller instanceof PickOneController) {
+			if (quickNavigate && this.controller instanceof QuickPick) {
 				this.controller.configureQuickNavigate(quickNavigate);
 			}
 		}
 	}
 
 	accept() {
-		return this.close(true);
+		this.onDidAcceptEmitter.fire();
+		return TPromise.as(undefined);
 	}
 
 	cancel() {
-		return this.close();
+		this.hide();
+		return TPromise.as(undefined);
 	}
 
 	layout(dimension: dom.Dimension): void {

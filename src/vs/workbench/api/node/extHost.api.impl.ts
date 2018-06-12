@@ -80,7 +80,7 @@ function proposedApiFunction<T>(extension: IExtensionDescription, fn: T): T {
 	if (extension.enableProposedApi) {
 		return fn;
 	} else {
-		return <any>throwProposedApiError;
+		return throwProposedApiError.bind(null, extension);
 	}
 }
 
@@ -388,13 +388,13 @@ export function createApiFactory(
 				return extHostMessageService.showMessage(extension, Severity.Error, message, first, rest);
 			},
 			showQuickPick(items: any, options: vscode.QuickPickOptions, token?: vscode.CancellationToken): any {
-				return extHostQuickOpen.showQuickPick(undefined, items, options, token);
+				return extHostQuickOpen.showQuickPick(items, options, token);
 			},
 			showWorkspaceFolderPick(options: vscode.WorkspaceFolderPickOptions) {
 				return extHostQuickOpen.showWorkspaceFolderPick(options);
 			},
 			showInputBox(options?: vscode.InputBoxOptions, token?: vscode.CancellationToken) {
-				return extHostQuickOpen.showInput(undefined, options, token);
+				return extHostQuickOpen.showInput(options, token);
 			},
 			showOpenDialog(options) {
 				return extHostDialogs.showOpenDialog(options);
@@ -445,7 +445,13 @@ export function createApiFactory(
 			}),
 			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
 				return extHostUrls.registerProtocolHandler(extension.id, handler);
-			})
+			}),
+			createQuickPick: proposedApiFunction(extension, (): vscode.QuickPick => {
+				return extHostQuickOpen.createQuickPick(extension.id);
+			}),
+			createInputBox: proposedApiFunction(extension, (): vscode.InputBox => {
+				return extHostQuickOpen.createInputBox(extension.id);
+			}),
 		};
 
 		// namespace: workspace

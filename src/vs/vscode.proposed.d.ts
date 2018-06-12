@@ -5,6 +5,8 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
@@ -426,6 +428,97 @@ declare module 'vscode' {
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region QuickInput API
+
+	export namespace window {
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createQuickPick(): QuickPick;
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createInputBox(): InputBox;
+	}
+
+	export interface QuickInput {
+
+		enabled: boolean;
+
+		busy: boolean;
+
+		ignoreFocusOut: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onDidHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<void>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		items: ReadonlyArray<QuickPickItem>;
+
+		canSelectMany: boolean;
+
+		matchOnDescription: boolean;
+
+		matchOnDetail: boolean;
+
+		readonly activeItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeActive: Event<QuickPickItem[]>;
+
+		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+	}
+
+	export interface InputBox extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		password: boolean;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<string>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		prompt: string;
+
+		validationMessage: string;
+	}
+
+	export interface QuickInputButton {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
 	}
 
 	//#endregion
