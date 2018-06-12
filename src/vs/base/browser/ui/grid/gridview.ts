@@ -288,10 +288,13 @@ class BranchNode implements ISplitView, IDisposable {
 		this._onDidChange.fire();
 	}
 
-	// TODO@joao: hack?
-	set2x2(other: BranchNode): IDisposable {
+	trySet2x2(other: BranchNode): IDisposable {
 		if (this.children.length !== 2 || other.children.length !== 2) {
-			throw new Error('2x2 mode not allowed');
+			return EmptyDisposable;
+		}
+
+		if (this.getChildSize(0) !== other.getChildSize(0)) {
+			return EmptyDisposable;
 		}
 
 		const mySash = this.splitview.sashes[0];
@@ -422,11 +425,6 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
-	// this should be IDisposable| undefined instead
-	// that way we can expose a `is2x2: boolean` which can be used
-	// to determine a better auto sizing default for `addView`
-	// the 2x2 disposable should only be disposed when the base 2x2 grid goes away,
-	// not when views are added
 	private disposable2x2: IDisposable = EmptyDisposable;
 
 	private get root(): BranchNode {
@@ -735,19 +733,21 @@ export class GridView implements IDisposable {
 		return this.getNode(rest, child, path);
 	}
 
-	// TODO@joao: hack?
-	set2x2(): void {
+	trySet2x2(): void {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
 		if (this.root.children.length !== 2) {
-			throw new Error('2x2 mode not allowed');
+			return;
 		}
 
 		const [first, second] = this.root.children;
 
 		if (!(first instanceof BranchNode) || !(second instanceof BranchNode)) {
-			throw new Error('2x2 mode not allowed');
+			return;
 		}
 
-		this.disposable2x2 = first.set2x2(second);
+		this.disposable2x2 = first.trySet2x2(second);
 	}
 
 	dispose(): void {
