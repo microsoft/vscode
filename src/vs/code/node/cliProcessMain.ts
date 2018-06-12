@@ -134,15 +134,23 @@ class Main {
 								return TPromise.wrapError(new Error(`${notFound(id)}\n${useId}`));
 							}
 
-							const installedExtension = installed.filter(e => getId(e.manifest) === id)[0];
-							const installedVersion = installedExtension.manifest.version;
-							const newestVersion = extension.version;
-							const shouldUpdate = semver.gt(newestVersion, installedVersion);
+							const isInstalled = installed.some(e => getId(e.manifest) === id);
+							if (isInstalled) {
+								const installedExtension = installed.filter(e => getId(e.manifest) === id)[0];
+								const installedVersion = installedExtension.manifest.version;
+								const newestVersion = extension.version;
+								const shouldUpdate = semver.gt(newestVersion, installedVersion);
 
-							if (shouldUpdate) {
-								console.log(localize('foundNewerVersion', "Installed version is '{0}', found newer version '{1}' in the marketplace.", installedVersion, newestVersion));
-								console.log(localize('updating', "Updating..."));
-							} else {
+								if (shouldUpdate) {
+									console.log(localize('foundNewerVersion', "Installed version is '{0}', found newer version '{1}' in the marketplace.", installedVersion, newestVersion));
+									console.log(localize('updating', "Updating..."));
+								} else {
+									console.log(localize('alreadyUpdated', "Installed version is the latest version."));
+									return TPromise.as(null);
+								}
+							}
+
+							else {
 								console.log(localize('foundExtension', "Found '{0}' in the marketplace.", id));
 								console.log(localize('installing', "Installing..."));
 							}
