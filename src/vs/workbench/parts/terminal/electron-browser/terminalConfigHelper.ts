@@ -169,6 +169,11 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 			isWorkspaceShellAllowed = this._storageService.getBoolean(IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY, StorageScope.WORKSPACE, undefined);
 		}
 
+		// Always allow [] args as it would lead to an odd error message and should not be dangerous
+		if (shellConfigValue.workspace === undefined && shellArgsConfigValue.workspace.length === 0) {
+			isWorkspaceShellAllowed = true;
+		}
+
 		// Check if the value is neither blacklisted (false) or whitelisted (true) and ask for
 		// permission
 		if (isWorkspaceShellAllowed === undefined) {
