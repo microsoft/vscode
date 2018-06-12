@@ -166,69 +166,44 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return output;
 	}
 
-	private refreshAllIgnoredRecommendations(): TPromise<void> {
-		const globallyIgnored = Promise.resolve(<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')));
-		const workspaceIgnored = this.getWorkspaceIgnores(); // get stuff from our .code-workspace file, if present
-		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => {
-			this._allIgnoredRecommendations = distinct(flatten(ignored)).map(id => id.toLowerCase());
-		});
-	}
-
-	private isExtensionAllowedToBeRecommended(id: string): boolean {
-		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
-	}
-
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		if (!this.isEnabled()) {
-			return TPromise.as([]);
-		}
-		const workspace = this.contextService.getWorkspace();
-		return TPromise.join([this.resolveWorkspaceRecommendations(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder))])
-			.then(recommendations => {
-				this._allWorkspaceRecommendedExtensions = distinct(flatten(recommendations));
-				return this._allWorkspaceRecommendedExtensions;
-			});
+		return this.fetchCombinedExtensionRecommendationConfig().then(this.processWorkspaceRecommendations);
 	}
 
 	getWorkspaceIgnores(): TPromise<string[]> {
+		return this.fetchCombinedExtensionRecommendationConfig().then(this.processWorkspaceIgnores);
+	}
+
+	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsContent> {
 		if (!this.isEnabled()) {
-			return TPromise.as([]);
+			return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 		}
 		const workspace = this.contextService.getWorkspace();
-		return TPromise.join([this.resolveWorkspaceIgnores(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderIgnores(workspaceFolder))])
-			.then(ignores => distinct(flatten(ignores)));
+		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))]).then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private resolveWorkspaceRecommendations(workspace: IWorkspace): TPromise<string[]> {
+	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsContent> {
 		if (workspace.configuration) {
 			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])['extensions']), err => []);
+				.then(content => [<IExtensionsContent>json.parse(content.value, [])['extensions']], err => []).then(this.mergeExtensionRecommendationConfigs);
 		}
-		return TPromise.as([]);
+		return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private resolveWorkspaceIgnores(workspace: IWorkspace): TPromise<string[]> {
-		if (workspace.configuration) {
-			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => this.processWorkspaceIgnores(json.parse(content.value, [])['extensions']), err => []);
-		}
-		return TPromise.as([]);
-	}
-
-	private resolveWorkspaceFolderRecommendations(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
+	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsContent> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
+
 		return this.fileService.resolveFile(extensionsJsonUri).then(() => {
 			return this.fileService.resolveContent(extensionsJsonUri)
-				.then(content => this.processWorkspaceRecommendations(json.parse(content.value, [])), err => []);
-		}, err => []);
+				.then(content => [<IExtensionsContent>json.parse(content.value, [])], err => []);
+		}, err => []).then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private resolveWorkspaceFolderIgnores(workspaceFolder: IWorkspaceFolder): TPromise<string[]> {
-		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
-		return this.fileService.resolveFile(extensionsJsonUri).then(() => {
-			return this.fileService.resolveContent(extensionsJsonUri)
-				.then(content => this.processWorkspaceIgnores(json.parse(content.value, [])), err => []);
-		}, err => []);
+	private mergeExtensionRecommendationConfigs(configs: IExtensionsContent[]): IExtensionsContent {
+		return {
+			recommendations: distinct(flatten(configs.map(config => config.recommendations))),
+			recommendationsToIgnore: distinct(flatten(configs.map(config => config.recommendationsToIgnore)))
+		};
 	}
 
 	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
@@ -274,55 +249,58 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						badRecommendationsString
 					);
 				}
-
 				return validRecommendations;
 			});
 		}
-
 		return TPromise.as([]);
-
 	}
 
-	private processWorkspaceIgnores(extensionsContent: IExtensionsContent): TPromise<string[]> {
+	private processWorkspaceIgnores(extensionsContent: IExtensionsContent): string[] {
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
-		if (extensionsContent && extensionsContent.recommendationsToIgnore && extensionsContent.recommendationsToIgnore.length) {
-			let countBadRecommendations = 0;
-			let badRecommendationsString = '';
-			let cleansedRecommendations = extensionsContent.recommendationsToIgnore.filter((element, position) => {
-				if (!regEx.test(element)) {
-					countBadRecommendations++;
-					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
-					return false;
-				}
-				return true;
-			});
-
-
-			if (countBadRecommendations > 0 && this.notificationService) {
-				this.notificationService.warn(
-					'The below ' +
-					countBadRecommendations +
-					' extension(s) in workspace ignored recommendations have issues:\n' +
-					badRecommendationsString
-				);
+		let countBadIDs = 0;
+		let badIDsString = '';
+		let cleansedIDs = extensionsContent.recommendationsToIgnore.filter(element => {
+			if (!regEx.test(element)) {
+				countBadIDs++;
+				badIDsString += `${element} (bad format) Expected: <provider>.<name>\n`;
+				return false;
 			}
+			return true;
+		});
 
-			return TPromise.as(cleansedRecommendations);
+		if (countBadIDs > 0 && this.notificationService) {
+			this.notificationService.warn(
+				'The below ' +
+				countBadIDs +
+				' extension(s) in workspace ignored recommendations have formatting issues:\n' +
+				badIDsString
+			);
 		}
+		return cleansedIDs;
+	}
 
-		return TPromise.as([]);
+	private refreshAllIgnoredRecommendations(): TPromise<void> {
+		const globallyIgnored = Promise.resolve(<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')));
+		const workspaceIgnored = this.getWorkspaceIgnores();
+		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => {
+			this._allIgnoredRecommendations = distinct(flatten(ignored)).map(id => id.toLowerCase());
+		});
+	}
 
+	private isExtensionAllowedToBeRecommended(id: string): boolean {
+		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
 	}
 
 	private onWorkspaceFoldersChanged(event: IWorkspaceFoldersChangeEvent): void {
 		this.refreshAllIgnoredRecommendations().then(() => {
 			if (event.added.length) {
-				TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderRecommendations(workspaceFolder)))
+				TPromise.join(event.added.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder)))
+					.then(this.mergeExtensionRecommendationConfigs)
+					.then(this.processWorkspaceRecommendations)
 					.then(result => {
-						const newRecommendations = flatten(result);
 						// Suggest only if atleast one of the newly added recommendtations was not suggested before
-						if (newRecommendations.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
+						if (result.some(e => this._allWorkspaceRecommendedExtensions.indexOf(e) === -1)) {
 							this._suggestWorkspaceRecommendations();
 						}
 					});
