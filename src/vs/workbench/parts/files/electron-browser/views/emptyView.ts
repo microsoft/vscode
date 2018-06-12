@@ -24,6 +24,8 @@ import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 export class EmptyView extends ViewletPanel {
 
@@ -75,6 +77,12 @@ export class EmptyView extends ViewletPanel {
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, (e: DragEvent) => {
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 			dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
+		}));
+		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_ENTER, () => {
+			container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
+		}));
+		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_LEAVE, () => {
+			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
 		}));
 
 		this.setLabels();
