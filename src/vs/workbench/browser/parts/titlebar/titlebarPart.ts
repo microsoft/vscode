@@ -293,7 +293,8 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			this.windowService.isMaximized().then((max) => this.onDidChangeMaximized(max), errors.onUnexpectedError);
+			let isMaximized = this.windowService.getConfiguration().maximized ? true : false;
+			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
 		}
 

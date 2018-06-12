@@ -385,8 +385,15 @@ export class CodeWindow implements ICodeWindow {
 		});
 
 		// Window (Un)Maximize
-		this._win.on('maximize', (e) => app.emit('browser-window-maximize', e, this._win));
-		this._win.on('unmaximize', (e) => app.emit('browser-window-unmaximize', e, this._win));
+		this._win.on('maximize', (e) => {
+			this.currentConfig.maximized = true;
+			app.emit('browser-window-maximize', e, this._win);
+		});
+
+		this._win.on('unmaximize', (e) => {
+			this.currentConfig.maximized = false;
+			app.emit('browser-window-unmaximize', e, this._win);
+		});
 
 		// Window Fullscreen
 		this._win.on('enter-full-screen', () => {
@@ -531,6 +538,9 @@ export class CodeWindow implements ICodeWindow {
 		// Load URL
 		mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(configuration));
+
+		// Window Maximized
+		config.maximized = this._win.isMaximized();
 
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests

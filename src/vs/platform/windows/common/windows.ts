@@ -334,6 +334,7 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
+	maximized?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
 	backgroundColor?: string;
