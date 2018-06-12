@@ -127,7 +127,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+		action.onDidChangeBadge(this.updateBadge, this, this._callOnDispose);
 	}
 
 	protected get activity(): IActivity {
@@ -200,16 +200,21 @@ export class ActivityActionItem extends BaseActionItem {
 		this.$badge.hide();
 
 		this.updateStyles();
+		this.updateBadge();
 	}
 
 	private onThemeChange(theme: ITheme): void {
 		this.updateStyles();
 	}
 
-	protected updateBadge(badge: IBadge, clazz?: string): void {
-		if (!this.$badge || !this.$badgeContent) {
+	protected updateBadge(): void {
+		const action = this.getAction();
+		if (!this.$badge || !this.$badgeContent || !(action instanceof ActivityAction)) {
 			return;
 		}
+
+		const badge = action.getBadge();
+		const clazz = action.getClass();
 
 		this.badgeDisposable.dispose();
 		this.badgeDisposable = empty;
@@ -273,13 +278,6 @@ export class ActivityActionItem extends BaseActionItem {
 				b.title(title);
 			}
 		});
-	}
-
-	private handleBadgeChangeEvenet(): void {
-		const action = this.getAction();
-		if (action instanceof ActivityAction) {
-			this.updateBadge(action.getBadge(), action.getClass());
-		}
 	}
 
 	public dispose(): void {
