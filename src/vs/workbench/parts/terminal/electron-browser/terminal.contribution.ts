@@ -341,6 +341,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.experimentalTextureCachingStrategy': {
+			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. Changes to this setting will only apply to new terminals."),
+			'type': 'string',
+			'enum': ['static', 'dynamic'],
+			'default': 'static'
+		},
 	}
 });
 

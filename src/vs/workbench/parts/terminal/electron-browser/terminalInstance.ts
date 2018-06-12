@@ -271,7 +271,8 @@ export class TerminalInstance implements ITerminalInstance {
 			macOptionIsMeta: config.macOptionIsMeta,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
+			experimentalCharAtlas: config.experimentalTextureCachingStrategy
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
