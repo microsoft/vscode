@@ -1094,6 +1094,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Eventing
 		this._register(this.notificationsCenter.onDidChangeVisibility(() => {
+
 			// Update status
 			notificationsStatus.update(this.notificationsCenter.isVisible);
 
@@ -1101,7 +1102,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.notificationsToasts.update(this.notificationsCenter.isVisible);
 		}));
 
-		// Register commands
+		// Register Commands
 		registerNotificationCommands(this.notificationsCenter, this.notificationsToasts);
 	}
 
