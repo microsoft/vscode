@@ -206,7 +206,7 @@ suite('Workbench base editor', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorMemento<TestViewState>(editorGroupService, rawMemento, 'key', 3);
+		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, editorGroupService);
 
 		let res = memento.loadState(testGroup0, URI.file('/A'));
 		assert.ok(!res);
@@ -241,7 +241,7 @@ suite('Workbench base editor', () => {
 
 		memento.shutdown();
 
-		memento = new EditorMemento(editorGroupService, rawMemento, 'key', 3);
+		memento = new EditorMemento('id', 'key', rawMemento, 3, editorGroupService);
 		assert.ok(memento.loadState(testGroup0, URI.file('/C')));
 		assert.ok(memento.loadState(testGroup0, URI.file('/D')));
 		assert.ok(memento.loadState(testGroup0, URI.file('/E')));
@@ -282,7 +282,7 @@ suite('Workbench base editor', () => {
 		}
 
 		const rawMemento = Object.create(null);
-		let memento = new EditorMemento<TestViewState>(new TestEditorGroupsService(), rawMemento, 'key', 3);
+		let memento = new EditorMemento<TestViewState>('id', 'key', rawMemento, 3, new TestEditorGroupsService());
 
 		const testInputA = new TestEditorInput(URI.file('/A'));
 

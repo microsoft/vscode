@@ -147,7 +147,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 		let editorMemento = BaseEditor.EDITOR_MEMENTOS.get(mementoKey);
 		if (!editorMemento) {
-			editorMemento = new EditorMemento(editorGroupService, this.getMemento(storageService), key, limit);
+			editorMemento = new EditorMemento(this.getId(), key, this.getMemento(storageService), limit, editorGroupService);
 			BaseEditor.EDITOR_MEMENTOS.set(mementoKey, editorMemento);
 		}
 
@@ -156,8 +156,12 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	shutdown(): void {
 
-		// Save all editor mementos
-		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => editorMemento.shutdown());
+		// Shutdown all editor memento for this editor type
+		BaseEditor.EDITOR_MEMENTOS.forEach(editorMemento => {
+			if (editorMemento.id === this.getId()) {
+				editorMemento.shutdown();
+			}
+		});
 
 		super.shutdown();
 	}
@@ -177,14 +181,19 @@ interface MapGroupToMemento<T> {
 
 export class EditorMemento<T> implements IEditorMemento<T> {
 	private cache: LRUCache<string, MapGroupToMemento<T>>;
-	private isShutdown: boolean;
+	private cleanedUp = false;
 
 	constructor(
-		private editorGroupService: IEditorGroupsService,
-		private memento: object,
+		private _id: string,
 		private key: string,
-		private limit: number
+		private memento: object,
+		private limit: number,
+		private editorGroupService: IEditorGroupsService
 	) { }
+
+	get id(): string {
+		return this._id;
+	}
 
 	saveState(group: IEditorGroup, resource: URI, state: T): void;
 	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
@@ -263,10 +272,18 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 	}
 
 	shutdown(): void {
-		if (this.isShutdown) {
-			return; // only shutdown once
+		const cache = this.doLoad();
+
+		// Cleanup once during shutdown
+		if (!this.cleanedUp) {
+			this.cleanUp();
+			this.cleanedUp = true;
 		}
 
+		this.memento[this.key] = cache.toJSON();
+	}
+
+	private cleanUp(): void {
 		const cache = this.doLoad();
 
 		// Remove groups from states that no longer exist
@@ -282,8 +299,5 @@ export class EditorMemento<T> implements IEditorMemento<T> {
 				}
 			});
 		});
-
-		this.memento[this.key] = cache.toJSON();
-		this.isShutdown = true;
 	}
 }

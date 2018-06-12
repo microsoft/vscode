@@ -72,7 +72,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	}
 
 	protected getEditorMemento<T>(storageService: IStorageService, editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
-		return new EditorMemento(editorGroupService, Object.create(null), key, limit); // do not persist in storage as diff editors are never persisted
+		return new EditorMemento(this.getId(), key, Object.create(null), limit, editorGroupService); // do not persist in storage as diff editors are never persisted
 	}
 
 	public getTitle(): string {
