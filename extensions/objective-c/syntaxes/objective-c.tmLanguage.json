@@ -5,16 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/atom/language-objective-c/commit/0727e04544f3414c1c339cf15a39a05ea3938cb4",
-	"scopeName": "source.objc",
-	"fileTypes": [
-		"m",
-		"h",
-		"pch",
-		"x",
-		"xm",
-		"xmi"
-	],
 	"name": "Objective-C",
+	"scopeName": "source.objc",
 	"patterns": [
 		{
 			"begin": "((@)(interface|protocol))(?!.+;)\\s+([A-Za-z_][A-Za-z0-9_]*)\\s*((:)(?:\\s*)([A-Za-z][A-Za-z0-9]*))?(\\s|\\n)?",

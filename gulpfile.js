@@ -28,8 +28,8 @@ gulp.task('default', ['compile']);
 
 // All
 gulp.task('clean', ['clean-client', 'clean-extensions']);
-gulp.task('compile', ['compile-client', 'compile-extensions']);
-gulp.task('watch', ['watch-client', 'watch-extensions']);
+gulp.task('compile', ['monaco-typecheck', 'compile-client', 'compile-extensions']);
+gulp.task('watch', [/* 'monaco-typecheck-watch', */ 'watch-client', 'watch-extensions']);
 
 // All Build
 gulp.task('clean-build', ['clean-client-build', 'clean-extensions-build']);

@@ -30,14 +30,14 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ConfigurationService } from 'vs/platform/configuration/node/configurationService';
 import { AppInsightsAppender } from 'vs/platform/telemetry/node/appInsightsAppender';
 import { mkdirp, writeFile } from 'vs/base/node/pfs';
-import { IChoiceService } from 'vs/platform/message/common/message';
-import { ChoiceCliService } from 'vs/platform/message/node/messageCli';
 import { getBaseLabel } from 'vs/base/common/labels';
 import { IStateService } from 'vs/platform/state/common/state';
 import { StateService } from 'vs/platform/state/node/stateService';
-import { createLogService } from 'vs/platform/log/node/spdlogService';
-import { ILogService } from 'vs/platform/log/common/log';
+import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
+import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
+import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
+import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -64,20 +64,21 @@ class Main {
 	run(argv: ParsedArgs): TPromise<any> {
 		// TODO@joao - make this contributable
 
+		let returnPromise: TPromise<any>;
 		if (argv['install-source']) {
-			return this.setInstallSource(argv['install-source']);
+			returnPromise = this.setInstallSource(argv['install-source']);
 		} else if (argv['list-extensions']) {
-			return this.listExtensions(argv['show-versions']);
+			returnPromise = this.listExtensions(argv['show-versions']);
 		} else if (argv['install-extension']) {
 			const arg = argv['install-extension'];
 			const args: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.installExtension(args);
+			returnPromise = this.installExtension(args);
 		} else if (argv['uninstall-extension']) {
 			const arg = argv['uninstall-extension'];
 			const ids: string[] = typeof arg === 'string' ? [arg] : arg;
-			return this.uninstallExtension(ids);
+			returnPromise = this.uninstallExtension(ids);
 		}
-		return undefined;
+		return returnPromise || TPromise.as(null);
 	}
 
 	private setInstallSource(installSource: string): TPromise<any> {
@@ -144,15 +145,15 @@ class Main {
 
 							return this.extensionManagementService.installFromGallery(extension)
 								.then(
-								() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
-								error => {
-									if (isPromiseCanceledError(error)) {
-										console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
-										return null;
-									} else {
-										return TPromise.wrapError(error);
-									}
-								});
+									() => console.log(localize('successInstall', "Extension '{0}' v{1} was successfully installed!", id, extension.version)),
+									error => {
+										if (isPromiseCanceledError(error)) {
+											console.log(localize('cancelVsixInstall', "Cancelled installing Extension '{0}'.", id));
+											return null;
+										} else {
+											return TPromise.wrapError(error);
+										}
+									});
 						});
 				});
 			});
@@ -196,7 +197,7 @@ export function main(argv: ParsedArgs): TPromise<void> {
 	const services = new ServiceCollection();
 
 	const environmentService = new EnvironmentService(argv, process.execPath);
-	const logService = createLogService('cli', environmentService);
+	const logService = createSpdLogService('cli', getLogLevel(environmentService), environmentService.logsPath);
 	process.once('exit', () => logService.dispose());
 
 	logService.info('main', argv);
@@ -219,18 +220,14 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			services.set(IRequestService, new SyncDescriptor(RequestService));
 			services.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementService));
 			services.set(IExtensionGalleryService, new SyncDescriptor(ExtensionGalleryService));
-			services.set(IChoiceService, new SyncDescriptor(ChoiceCliService));
+			services.set(IDialogService, new SyncDescriptor(CommandLineDialogService));
 
+			const appenders: AppInsightsAppender[] = [];
 			if (isBuilt && !extensionDevelopmentPath && !envService.args['disable-telemetry'] && product.enableTelemetry) {
-				const appenders: AppInsightsAppender[] = [];
 
 				if (product.aiConfig && product.aiConfig.asimovKey) {
 					appenders.push(new AppInsightsAppender(eventPrefix, null, product.aiConfig.asimovKey));
 				}
-
-				// It is important to dispose the AI adapter properly because
-				// only then they flush remaining data.
-				process.once('exit', () => appenders.forEach(a => a.dispose()));
 
 				const config: ITelemetryServiceConfig = {
 					appender: combinedAppender(...appenders),
@@ -246,7 +243,10 @@ export function main(argv: ParsedArgs): TPromise<void> {
 			const instantiationService2 = instantiationService.createChild(services);
 			const main = instantiationService2.createInstance(Main);
 
-			return main.run(argv);
+			return main.run(argv).then(() => {
+				// Dispose the AI adapter so that remaining data gets flushed.
+				return combinedAppender(...appenders).dispose();
+			});
 		});
 	});
 }

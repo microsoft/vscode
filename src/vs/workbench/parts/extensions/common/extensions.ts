@@ -5,12 +5,15 @@
 
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEWLET_ID = 'workbench.view.extensions';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
 
 export interface IExtensionsViewlet extends IViewlet {
 	search(text: string): void;
@@ -36,6 +39,7 @@ export interface IExtension {
 	latestVersion: string;
 	description: string;
 	url: string;
+	downloadUrl: string;
 	repository: string;
 	iconUrl: string;
 	iconUrlFallback: string;
@@ -51,6 +55,8 @@ export interface IExtension {
 	getManifest(): TPromise<IExtensionManifest>;
 	getReadme(): TPromise<string>;
 	getChangelog(): TPromise<string>;
+	local?: ILocalExtension;
+	isMalicious: boolean;
 }
 
 export interface IExtensionDependencies {
@@ -75,7 +81,8 @@ export interface IExtensionsWorkbenchService {
 	install(vsix: string): TPromise<void>;
 	install(extension: IExtension, promptToInstallDependencies?: boolean): TPromise<void>;
 	uninstall(extension: IExtension): TPromise<void>;
-	setEnablement(extension: IExtension, enablementState: EnablementState): TPromise<void>;
+	reinstall(extension: IExtension): TPromise<void>;
+	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
@@ -84,8 +91,12 @@ export interface IExtensionsWorkbenchService {
 
 export const ConfigurationKey = 'extensions';
 export const AutoUpdateConfigurationKey = 'extensions.autoUpdate';
+export const ShowRecommendationsOnlyOnDemandKey = 'extensions.showRecommendationsOnlyOnDemand';
+export const CloseExtensionDetailsOnViewChangeKey = 'extensions.closeExtensionDetailsOnViewChange';
 
 export interface IExtensionsConfiguration {
 	autoUpdate: boolean;
 	ignoreRecommendations: boolean;
+	showRecommendationsOnlyOnDemand: boolean;
+	closeExtensionDetailsOnViewChange: boolean;
 }

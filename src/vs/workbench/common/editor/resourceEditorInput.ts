@@ -19,7 +19,7 @@ import { IHashService } from 'vs/workbench/services/hash/common/hashService';
  */
 export class ResourceEditorInput extends EditorInput {
 
-	static ID: string = 'workbench.editors.resourceEditorInput';
+	static readonly ID: string = 'workbench.editors.resourceEditorInput';
 
 	private modelReference: TPromise<IReference<ITextEditorModel>>;
 	private resource: URI;

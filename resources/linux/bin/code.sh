@@ -7,7 +7,7 @@
 if [ "$(id -u)" = "0" ]; then
 	for i in $@
 	do
-		if [[ $i == --user-data-dir=* || $i == --file-write ]]; then
+		if [[ $i == --user-data-dir || $i == --user-data-dir=* || $i == --file-write ]]; then
 			CAN_LAUNCH_AS_ROOT=1
 		fi
 	done

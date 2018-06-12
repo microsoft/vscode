@@ -12,7 +12,7 @@ import { workbenchInstantiationService } from 'vs/workbench/test/workbenchTestSe
 import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInput';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 
-suite('Workbench - DataUriEditorInput', () => {
+suite('DataUriEditorInput', () => {
 
 	let instantiationService: IInstantiationService;
 

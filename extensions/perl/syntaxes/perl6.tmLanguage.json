@@ -5,15 +5,8 @@
 		"Once accepted there, we are happy to receive an update request."
 	],
 	"version": "https://github.com/textmate/perl.tmbundle/commit/d9841a0878239fa43f88c640f8d458590f97e8f5",
-	"fileTypes": [
-		"p6",
-		"pl6",
-		"pm6",
-		"nqp"
-	],
-	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/|(?<=!)\\b)(?:perl6|nqp)(?:$|\\s)\n|\n# Perl 6 pragma\n\\buse\\s+v6\\b\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:(?:(?!mode\\s*:)[^:;]+:[^:;]+;)*\\s*mode\\s*:)?\\s*\n\tperl6\n  \\s*(?:;[^:;]+:[^:;]+?)*;?\\s*-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|(?!^)\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n\tperl6\n  (?=\\s|:|$)\n)",
-	"keyEquivalent": "^~P",
 	"name": "Perl 6",
+	"scopeName": "source.perl.6",
 	"patterns": [
 		{
 			"begin": "^=begin",
@@ -318,7 +311,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "source.perl.6",
-	"uuid": "E685440C-0E20-4424-9693-864D5240A269"
+	}
 }

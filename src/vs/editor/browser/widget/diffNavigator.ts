@@ -11,7 +11,7 @@ import { ILineChange, ScrollType } from 'vs/editor/common/editorCommon';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 
 interface IDiffRange {
@@ -25,7 +25,7 @@ export interface Options {
 	alwaysRevealFirst?: boolean;
 }
 
-var defaultOptions: Options = {
+const defaultOptions: Options = {
 	followsCaret: true,
 	ignoreCharChanges: true,
 	alwaysRevealFirst: true
@@ -84,7 +84,7 @@ export class DiffNavigator {
 	}
 
 	private _init(): void {
-		var changes = this._editor.getLineChanges();
+		let changes = this._editor.getLineChanges();
 		if (!changes) {
 			return;
 		}
@@ -99,7 +99,7 @@ export class DiffNavigator {
 			if (this._editor.getLineChanges() !== null) {
 				this.revealFirst = false;
 				this.nextIdx = -1;
-				this.next();
+				this.next(ScrollType.Immediate);
 			}
 		}
 	}
@@ -149,10 +149,10 @@ export class DiffNavigator {
 	}
 
 	private _initIdx(fwd: boolean): void {
-		var found = false;
-		var position = this._editor.getPosition();
-		for (var i = 0, len = this.ranges.length; i < len && !found; i++) {
-			var range = this.ranges[i].range;
+		let found = false;
+		let position = this._editor.getPosition();
+		for (let i = 0, len = this.ranges.length; i < len && !found; i++) {
+			let range = this.ranges[i].range;
 			if (position.isBeforeOrEqual(range.getStartPosition())) {
 				this.nextIdx = i + (fwd ? 0 : -1);
 				found = true;
@@ -167,7 +167,7 @@ export class DiffNavigator {
 		}
 	}
 
-	private _move(fwd: boolean): void {
+	private _move(fwd: boolean, scrollType: ScrollType): void {
 		assert.ok(!this.disposed, 'Illegal State - diff navigator has been disposed');
 
 		if (!this.canNavigate()) {
@@ -189,12 +189,12 @@ export class DiffNavigator {
 			}
 		}
 
-		var info = this.ranges[this.nextIdx];
+		let info = this.ranges[this.nextIdx];
 		this.ignoreSelectionChange = true;
 		try {
-			var pos = info.range.getStartPosition();
+			let pos = info.range.getStartPosition();
 			this._editor.setPosition(pos);
-			this._editor.revealPositionInCenter(pos, ScrollType.Smooth);
+			this._editor.revealPositionInCenter(pos, scrollType);
 		} finally {
 			this.ignoreSelectionChange = false;
 		}
@@ -204,12 +204,12 @@ export class DiffNavigator {
 		return this.ranges && this.ranges.length > 0;
 	}
 
-	next(): void {
-		this._move(true);
+	next(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(true, scrollType);
 	}
 
-	previous(): void {
-		this._move(false);
+	previous(scrollType: ScrollType = ScrollType.Smooth): void {
+		this._move(false, scrollType);
 	}
 
 	dispose(): void {

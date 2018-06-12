@@ -15,7 +15,7 @@ export function setFileNameComparer(collator: Intl.Collator): void {
 	intlFileNameCollatorIsNumeric = collator.resolvedOptions().numeric;
 }
 
-export function compareFileNames(one: string, other: string): number {
+export function compareFileNames(one: string, other: string, caseSensitive = false): number {
 	if (intlFileNameCollator) {
 		const a = one || '';
 		const b = other || '';
@@ -30,14 +30,19 @@ export function compareFileNames(one: string, other: string): number {
 		return result;
 	}
 
-	return noIntlCompareFileNames(one, other);
+	return noIntlCompareFileNames(one, other, caseSensitive);
 }
 
 const FileNameMatch = /^(.*?)(\.([^.]*))?$/;
 
-export function noIntlCompareFileNames(one: string, other: string): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one, true);
-	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+export function noIntlCompareFileNames(one: string, other: string, caseSensitive = false): number {
+	if (!caseSensitive) {
+		one = one && one.toLowerCase();
+		other = other && other.toLowerCase();
+	}
+
+	const [oneName, oneExtension] = extractNameAndExtension(one);
+	const [otherName, otherExtension] = extractNameAndExtension(other);
 
 	if (oneName !== otherName) {
 		return oneName < otherName ? -1 : 1;
@@ -79,8 +84,8 @@ export function compareFileExtensions(one: string, other: string): number {
 }
 
 function noIntlCompareFileExtensions(one: string, other: string): number {
-	const [oneName, oneExtension] = extractNameAndExtension(one, true);
-	const [otherName, otherExtension] = extractNameAndExtension(other, true);
+	const [oneName, oneExtension] = extractNameAndExtension(one && one.toLowerCase());
+	const [otherName, otherExtension] = extractNameAndExtension(other && other.toLowerCase());
 
 	if (oneExtension !== otherExtension) {
 		return oneExtension < otherExtension ? -1 : 1;
@@ -93,32 +98,49 @@ function noIntlCompareFileExtensions(one: string, other: string): number {
 	return oneName < otherName ? -1 : 1;
 }
 
-function extractNameAndExtension(str?: string, lowercase?: boolean): [string, string] {
-	const match = str ? FileNameMatch.exec(lowercase ? str.toLowerCase() : str) : [] as RegExpExecArray;
+function extractNameAndExtension(str?: string): [string, string] {
+	const match = str ? FileNameMatch.exec(str) : [] as RegExpExecArray;
 
 	return [(match && match[1]) || '', (match && match[3]) || ''];
 }
 
-export function comparePaths(one: string, other: string): number {
+function comparePathComponents(one: string, other: string, caseSensitive = false): number {
+	if (!caseSensitive) {
+		one = one && one.toLowerCase();
+		other = other && other.toLowerCase();
+	}
+
+	if (one === other) {
+		return 0;
+	}
+
+	return one < other ? -1 : 1;
+}
+
+export function comparePaths(one: string, other: string, caseSensitive = false): number {
 	const oneParts = one.split(paths.nativeSep);
 	const otherParts = other.split(paths.nativeSep);
 
 	const lastOne = oneParts.length - 1;
 	const lastOther = otherParts.length - 1;
-	let endOne: boolean, endOther: boolean, onePart: string, otherPart: string;
+	let endOne: boolean, endOther: boolean;
 
 	for (let i = 0; ; i++) {
 		endOne = lastOne === i;
 		endOther = lastOther === i;
 
 		if (endOne && endOther) {
-			return compareFileNames(oneParts[i], otherParts[i]);
+			return compareFileNames(oneParts[i], otherParts[i], caseSensitive);
 		} else if (endOne) {
 			return -1;
 		} else if (endOther) {
 			return 1;
-		} else if ((onePart = oneParts[i].toLowerCase()) !== (otherPart = otherParts[i].toLowerCase())) {
-			return onePart < otherPart ? -1 : 1;
+		}
+
+		const result = comparePathComponents(oneParts[i], otherParts[i], caseSensitive);
+
+		if (result !== 0) {
+			return result;
 		}
 	}
 }

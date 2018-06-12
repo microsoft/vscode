@@ -6,8 +6,7 @@
 'use strict';
 
 import URI from 'vs/base/common/uri';
-import paths = require('vs/base/common/paths');
-import { basename } from 'vs/base/common/paths';
+import * as paths from 'vs/base/common/paths';
 import { RawContextKey, IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
@@ -32,8 +31,8 @@ export class ResourceContextKey implements IContextKey<URI> {
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IModeService private _modeService: IModeService,
-		@IFileService private _fileService: IFileService
+		@IModeService private readonly _modeService: IModeService,
+		@IFileService private readonly _fileService: IFileService
 	) {
 		this._schemeKey = ResourceContextKey.Scheme.bindTo(contextKeyService);
 		this._filenameKey = ResourceContextKey.Filename.bindTo(contextKeyService);
@@ -47,7 +46,7 @@ export class ResourceContextKey implements IContextKey<URI> {
 	set(value: URI) {
 		this._resourceKey.set(value);
 		this._schemeKey.set(value && value.scheme);
-		this._filenameKey.set(value && basename(value.fsPath));
+		this._filenameKey.set(value && paths.basename(value.fsPath));
 		this._langIdKey.set(value && this._modeService.getModeIdByFilenameOrFirstLine(value.fsPath));
 		this._extensionKey.set(value && paths.extname(value.fsPath));
 		this._hasResource.set(!!value);

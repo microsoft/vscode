@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import Event, { filterEvent, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
+import { Event, filterEvent, mapEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IPCServer, ClientConnectionEvent } from 'vs/base/parts/ipc/common/ipc';
 import { Protocol } from 'vs/base/parts/ipc/common/ipc.electron';
 import { ipcMain } from 'electron';

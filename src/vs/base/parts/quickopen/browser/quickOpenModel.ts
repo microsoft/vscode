@@ -5,18 +5,18 @@
 
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import types = require('vs/base/common/types');
+import * as types from 'vs/base/common/types';
 import URI from 'vs/base/common/uri';
 import { ITree, IActionProvider } from 'vs/base/parts/tree/browser/tree';
-import { IconLabel, IIconLabelOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
+import { IconLabel, IIconLabelValueOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IQuickNavigateConfiguration, IModel, IDataSource, IFilter, IAccessiblityProvider, IRenderer, IRunner, Mode } from 'vs/base/parts/quickopen/common/quickOpen';
 import { Action, IAction, IActionRunner } from 'vs/base/common/actions';
 import { compareAnything } from 'vs/base/common/comparers';
 import { ActionBar, IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { IQuickOpenStyles } from 'vs/base/parts/quickopen/browser/quickOpenWidget';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { OS } from 'vs/base/common/platform';
@@ -84,7 +84,7 @@ export class QuickOpenEntry {
 	/**
 	 * The options for the label to use for this entry
 	 */
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return null;
 	}
 
@@ -113,6 +113,20 @@ export class QuickOpenEntry {
 	 * A secondary description that is optional and can be shown right to the label
 	 */
 	public getDescription(): string {
+		return null;
+	}
+
+	/**
+	 * A tooltip to show when hovering over the entry.
+	 */
+	public getTooltip(): string {
+		return null;
+	}
+
+	/**
+	 * A tooltip to show when hovering over the description portion of the entry.
+	 */
+	public getDescriptionTooltip(): string {
 		return null;
 	}
 
@@ -220,7 +234,7 @@ export class QuickOpenEntryGroup extends QuickOpenEntry {
 		return this.entry ? this.entry.getLabel() : super.getLabel();
 	}
 
-	public getLabelOptions(): IIconLabelOptions {
+	public getLabelOptions(): IIconLabelValueOptions {
 		return this.entry ? this.entry.getLabelOptions() : super.getLabelOptions();
 	}
 
@@ -298,7 +312,6 @@ export interface IQuickOpenEntryTemplateData {
 	icon: HTMLSpanElement;
 	label: IconLabel;
 	detail: HighlightedLabel;
-	description: HighlightedLabel;
 	keybinding: KeybindingLabel;
 	actionBar: ActionBar;
 }
@@ -352,13 +365,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		row1.appendChild(icon);
 
 		// Label
-		const label = new IconLabel(row1, { supportHighlights: true });
-
-		// Description
-		const descriptionContainer = document.createElement('span');
-		row1.appendChild(descriptionContainer);
-		DOM.addClass(descriptionContainer, 'quick-open-entry-description');
-		const description = new HighlightedLabel(descriptionContainer);
+		const label = new IconLabel(row1, { supportHighlights: true, supportDescriptionHighlights: true });
 
 		// Keybinding
 		const keybindingContainer = document.createElement('span');
@@ -397,15 +404,13 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			icon,
 			label,
 			detail,
-			description,
 			keybinding,
 			group,
 			actionBar
 		};
 	}
 
-	public renderElement(entry: QuickOpenEntry, templateId: string, templateData: any, styles: IQuickOpenStyles): void {
-		const data: IQuickOpenEntryTemplateData = templateData;
+	public renderElement(entry: QuickOpenEntry, templateId: string, data: IQuickOpenEntryGroupTemplateData, styles: IQuickOpenStyles): void {
 
 		// Action Bar
 		if (this.actionProvider.hasActions(null, entry)) {
@@ -434,7 +439,7 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 		// Entry group
 		if (entry instanceof QuickOpenEntryGroup) {
 			const group = <QuickOpenEntryGroup>entry;
-			const groupData = <IQuickOpenEntryGroupTemplateData>templateData;
+			const groupData = data;
 
 			// Border
 			if (group.showBorder()) {
@@ -460,30 +465,27 @@ class Renderer implements IRenderer<QuickOpenEntry> {
 			data.icon.className = iconClass;
 
 			// Label
-			const options: IIconLabelOptions = entry.getLabelOptions() || Object.create(null);
+			const options: IIconLabelValueOptions = entry.getLabelOptions() || Object.create(null);
 			options.matches = labelHighlights || [];
-			data.label.setValue(entry.getLabel(), null, options);
+			options.title = entry.getTooltip();
+			options.descriptionTitle = entry.getDescriptionTooltip() || entry.getDescription(); // tooltip over description because it could overflow
+			options.descriptionMatches = descriptionHighlights || [];
+			data.label.setValue(entry.getLabel(), entry.getDescription(), options);
 
 			// Meta
 			data.detail.set(entry.getDetail(), detailHighlights);
-
-			// Description
-			data.description.set(entry.getDescription(), descriptionHighlights || []);
-			data.description.element.title = entry.getDescription();
 
 			// Keybinding
 			data.keybinding.set(entry.getKeybinding(), null);
 		}
 	}
 
-	public disposeTemplate(templateId: string, templateData: any): void {
+	public disposeTemplate(templateId: string, templateData: IQuickOpenEntryGroupTemplateData): void {
 		const data = templateData as IQuickOpenEntryGroupTemplateData;
 		data.actionBar.dispose();
 		data.actionBar = null;
 		data.container = null;
 		data.entry = null;
-		data.description.dispose();
-		data.description = null;
 		data.keybinding.dispose();
 		data.keybinding = null;
 		data.detail.dispose();

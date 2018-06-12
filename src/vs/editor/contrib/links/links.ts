@@ -9,9 +9,7 @@ import 'vs/css!./links';
 import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as platform from 'vs/base/common/platform';
-import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, registerEditorContribution, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
@@ -22,9 +20,11 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegistry';
 import { Position } from 'vs/editor/common/core/position';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
-import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDeclaration/clickLinkGesture';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
+import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
 import { MarkdownString } from 'vs/base/common/htmlContent';
+import { TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const HOVER_MESSAGE_GENERAL_META = new MarkdownString().appendText(
 	platform.isMacintosh
@@ -38,47 +38,56 @@ const HOVER_MESSAGE_COMMAND_META = new MarkdownString().appendText(
 		: nls.localize('links.command', "Ctrl + click to execute command")
 );
 
-const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(nls.localize('links.navigate.al', "Alt + click to follow link"));
-const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(nls.localize('links.command.al', "Alt + click to execute command"));
+const HOVER_MESSAGE_GENERAL_ALT = new MarkdownString().appendText(
+	platform.isMacintosh
+		? nls.localize('links.navigate.al.mac', "Option + click to follow link")
+		: nls.localize('links.navigate.al', "Alt + click to follow link")
+);
+
+const HOVER_MESSAGE_COMMAND_ALT = new MarkdownString().appendText(
+	platform.isMacintosh
+		? nls.localize('links.command.al.mac', "Option + click to execute command")
+		: nls.localize('links.command.al', "Alt + click to execute command")
+);
 
 const decoration = {
 	meta: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	metaActive: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_META
 	}),
 	alt: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altActive: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_GENERAL_ALT
 	}),
 	altCommand: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	altCommandActive: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_ALT
 	}),
 	metaCommand: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
 	metaCommandActive: ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		inlineClassName: 'detected-link-active',
 		hoverMessage: HOVER_MESSAGE_COMMAND_META
 	}),
@@ -87,7 +96,7 @@ const decoration = {
 
 class LinkOccurrence {
 
-	public static decoration(link: Link, useMetaKey: boolean): editorCommon.IModelDeltaDecoration {
+	public static decoration(link: Link, useMetaKey: boolean): IModelDeltaDecoration {
 		return {
 			range: link.range,
 			options: LinkOccurrence._getOptions(link, useMetaKey, false)
@@ -118,18 +127,18 @@ class LinkOccurrence {
 		this.decorationId = decorationId;
 	}
 
-	public activate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+	public activate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
 		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, true));
 	}
 
-	public deactivate(changeAccessor: editorCommon.IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
+	public deactivate(changeAccessor: IModelDecorationsChangeAccessor, useMetaKey: boolean): void {
 		changeAccessor.changeDecorationOptions(this.decorationId, LinkOccurrence._getOptions(this.link, useMetaKey, false));
 	}
 }
 
 class LinkDetector implements editorCommon.IEditorContribution {
 
-	private static ID: string = 'editor.linkDetector';
+	private static readonly ID: string = 'editor.linkDetector';
 
 	public static get(editor: ICodeEditor): LinkDetector {
 		return editor.getContribution<LinkDetector>(LinkDetector.ID);
@@ -144,17 +153,17 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private computePromise: TPromise<void>;
 	private activeLinkDecorationId: string;
 	private openerService: IOpenerService;
-	private messageService: IMessageService;
+	private notificationService: INotificationService;
 	private currentOccurrences: { [decorationId: string]: LinkOccurrence; };
 
 	constructor(
 		editor: ICodeEditor,
 		@IOpenerService openerService: IOpenerService,
-		@IMessageService messageService: IMessageService
+		@INotificationService notificationService: INotificationService
 	) {
 		this.editor = editor;
 		this.openerService = openerService;
-		this.messageService = messageService;
+		this.notificationService = notificationService;
 		this.listenersToRemove = [];
 
 		let clickLinkGesture = new ClickLinkGesture(editor);
@@ -242,39 +251,37 @@ class LinkDetector implements editorCommon.IEditorContribution {
 
 	private updateDecorations(links: Link[]): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
-		this.editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
-			var oldDecorations: string[] = [];
-			let keys = Object.keys(this.currentOccurrences);
-			for (let i = 0, len = keys.length; i < len; i++) {
-				let decorationId = keys[i];
-				let occurance = this.currentOccurrences[decorationId];
-				oldDecorations.push(occurance.decorationId);
-			}
+		let oldDecorations: string[] = [];
+		let keys = Object.keys(this.currentOccurrences);
+		for (let i = 0, len = keys.length; i < len; i++) {
+			let decorationId = keys[i];
+			let occurance = this.currentOccurrences[decorationId];
+			oldDecorations.push(occurance.decorationId);
+		}
 
-			var newDecorations: editorCommon.IModelDeltaDecoration[] = [];
-			if (links) {
-				// Not sure why this is sometimes null
-				for (var i = 0; i < links.length; i++) {
-					newDecorations.push(LinkOccurrence.decoration(links[i], useMetaKey));
-				}
+		let newDecorations: IModelDeltaDecoration[] = [];
+		if (links) {
+			// Not sure why this is sometimes null
+			for (let i = 0; i < links.length; i++) {
+				newDecorations.push(LinkOccurrence.decoration(links[i], useMetaKey));
 			}
+		}
 
-			var decorations = changeAccessor.deltaDecorations(oldDecorations, newDecorations);
+		let decorations = this.editor.deltaDecorations(oldDecorations, newDecorations);
 
-			this.currentOccurrences = {};
-			this.activeLinkDecorationId = null;
-			for (let i = 0, len = decorations.length; i < len; i++) {
-				var occurance = new LinkOccurrence(links[i], decorations[i]);
-				this.currentOccurrences[occurance.decorationId] = occurance;
-			}
-		});
+		this.currentOccurrences = {};
+		this.activeLinkDecorationId = null;
+		for (let i = 0, len = decorations.length; i < len; i++) {
+			let occurance = new LinkOccurrence(links[i], decorations[i]);
+			this.currentOccurrences[occurance.decorationId] = occurance;
+		}
 	}
 
 	private _onEditorMouseMove(mouseEvent: ClickLinkMouseEvent, withKey?: ClickLinkKeyboardEvent): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.isEnabled(mouseEvent, withKey)) {
 			this.cleanUpActiveLinkDecoration(); // always remove previous link decoration as their can only be one
-			var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+			const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.activate(changeAccessor, useMetaKey);
@@ -289,7 +296,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	private cleanUpActiveLinkDecoration(): void {
 		const useMetaKey = (this.editor.getConfiguration().multiCursorModifier === 'altKey');
 		if (this.activeLinkDecorationId) {
-			var occurrence = this.currentOccurrences[this.activeLinkDecorationId];
+			const occurrence = this.currentOccurrences[this.activeLinkDecorationId];
 			if (occurrence) {
 				this.editor.changeDecorations((changeAccessor) => {
 					occurrence.deactivate(changeAccessor, useMetaKey);
@@ -304,7 +311,7 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		if (!this.isEnabled(mouseEvent)) {
 			return;
 		}
-		var occurrence = this.getLinkOccurrence(mouseEvent.target.position);
+		const occurrence = this.getLinkOccurrence(mouseEvent.target.position);
 		if (!occurrence) {
 			return;
 		}
@@ -326,9 +333,9 @@ class LinkDetector implements editorCommon.IEditorContribution {
 		}, err => {
 			// different error cases
 			if (err === 'invalid') {
-				this.messageService.show(Severity.Warning, nls.localize('invalid.url', 'Sorry, failed to open this link because it is not well-formed: {0}', link.url));
+				this.notificationService.warn(nls.localize('invalid.url', 'Failed to open this link because it is not well-formed: {0}', link.url));
 			} else if (err === 'missing') {
-				this.messageService.show(Severity.Warning, nls.localize('missing.url', 'Sorry, failed to open this link because its target is missing.'));
+				this.notificationService.warn(nls.localize('missing.url', 'Failed to open this link because its target is missing.'));
 			} else {
 				onUnexpectedError(err);
 			}
@@ -336,16 +343,16 @@ class LinkDetector implements editorCommon.IEditorContribution {
 	}
 
 	public getLinkOccurrence(position: Position): LinkOccurrence {
-		var decorations = this.editor.getModel().getDecorationsInRange({
+		const decorations = this.editor.getModel().getDecorationsInRange({
 			startLineNumber: position.lineNumber,
 			startColumn: position.column,
 			endLineNumber: position.lineNumber,
 			endColumn: position.column
 		}, 0, true);
 
-		for (var i = 0; i < decorations.length; i++) {
-			var decoration = decorations[i];
-			var currentOccurrence = this.currentOccurrences[decoration.id];
+		for (let i = 0; i < decorations.length; i++) {
+			const decoration = decorations[i];
+			const currentOccurrence = this.currentOccurrences[decoration.id];
 			if (currentOccurrence) {
 				return currentOccurrence;
 			}
@@ -395,9 +402,14 @@ class OpenLinkAction extends EditorAction {
 			return;
 		}
 
-		let link = linkDetector.getLinkOccurrence(editor.getPosition());
-		if (link) {
-			linkDetector.openLinkOccurrence(link, false);
+		let selections = editor.getSelections();
+
+		for (let sel of selections) {
+			let link = linkDetector.getLinkOccurrence(sel.getEndPosition());
+
+			if (link) {
+				linkDetector.openLinkOccurrence(link, false);
+			}
 		}
 	}
 }

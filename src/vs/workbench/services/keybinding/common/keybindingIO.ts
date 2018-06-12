@@ -42,7 +42,7 @@ export class KeybindingIO {
 		const [firstPart, chordPart] = (typeof input.key === 'string' ? this._readUserBinding(input.key) : [null, null]);
 		const when = (typeof input.when === 'string' ? ContextKeyExpr.deserialize(input.when) : null);
 		const command = (typeof input.command === 'string' ? input.command : null);
-		const commandArgs = (typeof input.args !== 'undefined' ? input.args : null);
+		const commandArgs = (typeof input.args !== 'undefined' ? input.args : undefined);
 		return {
 			firstPart: firstPart,
 			chordPart: chordPart,

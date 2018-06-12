@@ -52,6 +52,7 @@
 }
 .monaco-scrollable-element > .invisible {
 	opacity: 0;
+	pointer-events: none;
 }
 .monaco-scrollable-element > .invisible.fade {
 	-webkit-transition: opacity 800ms linear;

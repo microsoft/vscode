@@ -52,7 +52,7 @@ suite('ExtHostDocumentsAndEditors', () => {
 			});
 
 			editors.$acceptDocumentsAndEditorsDelta({
-				removedDocuments: ['foo:bar']
+				removedDocuments: [URI.parse('foo:bar')]
 			});
 
 		});

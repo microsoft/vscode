@@ -6,7 +6,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import uri from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IQuickNavigateConfiguration, IAutoFocus, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -27,6 +27,7 @@ export interface IPickOpenEntry {
 	label: string;
 	description?: string;
 	detail?: string;
+	tooltip?: string;
 	separator?: ISeparator;
 	alwaysShow?: boolean;
 	run?: (context: IEntryRunContext) => void;
@@ -85,41 +86,6 @@ export interface IPickOptions {
 	contextKey?: string;
 }
 
-export interface IInputOptions {
-
-	/**
-	 * the value to prefill in the input box
-	 */
-	value?: string;
-
-	/**
-	 * the selection of value, default to the whole word
-	 */
-	valueSelection?: [number, number];
-
-	/**
-	 * the text to display underneath the input box
-	 */
-	prompt?: string;
-
-	/**
-	 * an optional string to show as place holder in the input box to guide the user what to type
-	 */
-	placeHolder?: string;
-
-	/**
-	 * set to true to show a password prompt that will not show the typed value
-	 */
-	password?: boolean;
-
-	ignoreFocusLost?: boolean;
-
-	/**
-	 * an optional function that is used to validate user input.
-	 */
-	validateInput?: (input: string) => TPromise<string>;
-}
-
 export interface IShowOptions {
 	quickNavigateConfiguration?: IQuickNavigateConfiguration;
 	inputSelection?: { start: number; end: number; };
@@ -157,11 +123,6 @@ export interface IQuickOpenService {
 	 * Allows to navigate from the outside in an opened picker.
 	 */
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
-
-	/**
-	 * Opens the quick open box for user input and returns a promise with the user typed value if any.
-	 */
-	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
 	/**
 	 * Accepts the selected value in quick open if visible.

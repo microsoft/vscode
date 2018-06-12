@@ -4,21 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import 'vs/css!./media/codeEditor';
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import { IEditorContribution, IModel } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution } from 'vs/editor/browser/editorExtensions';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Disposable } from 'vs/base/common/lifecycle';
-import { IMessageService } from 'vs/platform/message/common/message';
-import Severity from 'vs/base/common/severity';
 import URI from 'vs/base/common/uri';
 import { InternalEditorOptions, EDITOR_DEFAULTS } from 'vs/editor/common/config/editorOptions';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 const transientWordWrapState = 'transientWordWrapState';
 const isWordWrapMinifiedKey = 'isWordWrapMinified';
@@ -42,18 +41,18 @@ interface IWordWrapState {
 /**
  * Store (in memory) the word wrap state for a particular model.
  */
-function writeTransientState(model: IModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
+function writeTransientState(model: ITextModel, state: IWordWrapTransientState, codeEditorService: ICodeEditorService): void {
 	codeEditorService.setTransientModelProperty(model, transientWordWrapState, state);
 }
 
 /**
  * Read (in memory) the word wrap state for a particular model.
  */
-function readTransientState(model: IModel, codeEditorService: ICodeEditorService): IWordWrapTransientState {
+function readTransientState(model: ITextModel, codeEditorService: ICodeEditorService): IWordWrapTransientState {
 	return codeEditorService.getTransientModelProperty(model, transientWordWrapState);
 }
 
-function readWordWrapState(model: IModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
+function readWordWrapState(model: ITextModel, configurationService: ITextResourceConfigurationService, codeEditorService: ICodeEditorService): IWordWrapState {
 	const editorConfig = configurationService.getValue(model.uri, 'editor') as { wordWrap: 'on' | 'off' | 'wordWrapColumn' | 'bounded'; wordWrapMinified: boolean };
 	let _configuredWordWrap = editorConfig && (typeof editorConfig.wordWrap === 'string' || typeof editorConfig.wordWrap === 'boolean') ? editorConfig.wordWrap : void 0;
 
@@ -150,8 +149,8 @@ class ToggleWordWrapAction extends EditorAction {
 		const editorConfiguration = editor.getConfiguration();
 		if (editorConfiguration.wrappingInfo.inDiffEditor) {
 			// Cannot change wrapping settings inside the diff editor
-			const messageService = accessor.get(IMessageService);
-			messageService.show(Severity.Info, nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
+			const notificationService = accessor.get(INotificationService);
+			notificationService.info(nls.localize('wordWrap.notInDiffEditor', "Cannot toggle word wrap in a diff editor."));
 			return;
 		}
 
@@ -258,7 +257,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('unwrapMinified', "Disable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,
@@ -272,7 +271,7 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
 	command: {
 		id: 'editor.action.toggleWordWrap',
 		title: nls.localize('wrapMinified', "Enable wrapping for this file"),
-		iconClass: 'toggle-word-wrap-action'
+		iconPath: { dark: URI.parse(require.toUrl('vs/workbench/parts/codeEditor/electron-browser/media/WordWrap_16x.svg')).fsPath }
 	},
 	group: 'navigation',
 	order: 1,

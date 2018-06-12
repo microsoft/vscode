@@ -6,6 +6,42 @@
 	],
 	"version": "https://github.com/daaain/Handlebars/commit/790f2b0222098a3a236bd9e91bb9a039eeca4d8e",
 	"name": "Handlebars",
+	"scopeName": "text.html.handlebars",
+	"patterns": [
+		{
+			"include": "#yfm"
+		},
+		{
+			"include": "#extends"
+		},
+		{
+			"include": "#block_comments"
+		},
+		{
+			"include": "#comments"
+		},
+		{
+			"include": "#block_helper"
+		},
+		{
+			"include": "#end_block"
+		},
+		{
+			"include": "#else_token"
+		},
+		{
+			"include": "#partial_and_var"
+		},
+		{
+			"include": "#inline_script"
+		},
+		{
+			"include": "#html_tags"
+		},
+		{
+			"include": "text.html.basic"
+		}
+	],
 	"repository": {
 		"html_tags": {
 			"patterns": [
@@ -812,57 +848,5 @@
 				}
 			]
 		}
-	},
-	"scopeName": "text.html.handlebars",
-	"patterns": [
-		{
-			"include": "#yfm"
-		},
-		{
-			"include": "#extends"
-		},
-		{
-			"include": "#block_comments"
-		},
-		{
-			"include": "#comments"
-		},
-		{
-			"include": "#block_helper"
-		},
-		{
-			"include": "#end_block"
-		},
-		{
-			"include": "#else_token"
-		},
-		{
-			"include": "#partial_and_var"
-		},
-		{
-			"include": "#inline_script"
-		},
-		{
-			"include": "#html_tags"
-		},
-		{
-			"include": "text.html.basic"
-		}
-	],
-	"fileTypes": [
-		"handlebars",
-		"handlebars.html",
-		"hbr",
-		"hbrs",
-		"hbs",
-		"hdbs",
-		"hjs",
-		"mu",
-		"mustache",
-		"rac",
-		"stache",
-		"template",
-		"tmpl"
-	],
-	"uuid": "70E91676-DE0A-4266-A2B9-3AD2E535E484"
+	}
 }

@@ -5,20 +5,24 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import errors = require('vs/base/common/errors');
+import * as nls from 'vs/nls';
+import * as errors from 'vs/base/common/errors';
 import { Mode, IEntryRunContext, IAutoFocus, IQuickNavigateConfiguration, IModel } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenModel, QuickOpenEntryGroup, QuickOpenEntry } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { QuickOpenHandler, QuickOpenAction } from 'vs/workbench/browser/quickopen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IOutputService, OUTPUT_PANEL_ID } from 'vs/workbench/parts/output/common/output';
-import { ITerminalService, TERMINAL_PANEL_ID } from 'vs/workbench/parts/terminal/common/terminal';
+import { IOutputService } from 'vs/workbench/parts/output/common/output';
+import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
+import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -67,9 +71,11 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 	constructor(
 		@IViewletService private viewletService: IViewletService,
+		@IViewsService private viewsService: IViewsService,
 		@IOutputService private outputService: IOutputService,
 		@ITerminalService private terminalService: ITerminalService,
-		@IPanelService private panelService: IPanelService
+		@IPanelService private panelService: IPanelService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
 	}
@@ -116,45 +122,49 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private getViewEntries(): ViewEntry[] {
 		const viewEntries: ViewEntry[] = [];
 
+		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
+			const views = ViewsRegistry.getViews(viewContainer);
+			const result: ViewEntry[] = [];
+			if (views.length) {
+				for (const view of views) {
+					if (this.contextKeyService.contextMatchesRules(view.when)) {
+						result.push(new ViewEntry(view.name, viewlet.name, () => this.viewsService.openView(view.id, true)));
+					}
+				}
+			}
+			return result;
+		};
+
 		// Viewlets
 		const viewlets = this.viewletService.getViewlets();
-		viewlets.forEach((viewlet, index) => {
-			const viewsCategory = nls.localize('views', "Views");
-			const entry = new ViewEntry(viewlet.name, viewsCategory, () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError));
-			viewEntries.push(entry);
-		});
-
-		const terminals = this.terminalService.terminalInstances;
+		viewlets.forEach((viewlet, index) => viewEntries.push(new ViewEntry(viewlet.name, nls.localize('views', "Views"), () => this.viewletService.openViewlet(viewlet.id, true).done(null, errors.onUnexpectedError))));
 
 		// Panels
-		const panels = this.panelService.getPanels().filter(p => {
-			if (p.id === OUTPUT_PANEL_ID) {
-				return false; // since we already show output channels below
+		const panels = this.panelService.getPanels();
+		panels.forEach((panel, index) => viewEntries.push(new ViewEntry(panel.name, nls.localize('panels', "Panels"), () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError))));
+
+		// Viewlet Views
+		viewlets.forEach((viewlet, index) => {
+			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			if (viewContainer) {
+				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
+				viewEntries.push(...viewEntriesForViewlet);
 			}
-
-			if (p.id === TERMINAL_PANEL_ID && terminals.length > 0) {
-				return false; // since we already show terminal instances below
-			}
-
-			return true;
-		});
-		panels.forEach((panel, index) => {
-			const panelsCategory = nls.localize('panels', "Panels");
-			const entry = new ViewEntry(panel.name, panelsCategory, () => this.panelService.openPanel(panel.id, true).done(null, errors.onUnexpectedError));
-
-			viewEntries.push(entry);
 		});
 
 		// Terminals
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstance(terminal);
-				}, errors.onUnexpectedError);
-			});
+		const terminalsCategory = nls.localize('terminals', "Terminal");
+		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
+			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
+				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
+					this.terminalService.showPanel(true).done(() => {
+						this.terminalService.setActiveInstance(terminal);
+					}, errors.onUnexpectedError);
+				});
 
-			viewEntries.push(entry);
+				viewEntries.push(entry);
+			});
 		});
 
 		// Output Channels

@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { EndOfLinePreference, IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel, ITextBufferFactory } from 'vs/editor/common/model';
 import { IMode } from 'vs/editor/common/modes';
 import { EditorModel } from 'vs/workbench/common/editor';
 import URI from 'vs/base/common/uri';
@@ -13,7 +13,7 @@ import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IRawTextSource } from 'vs/editor/common/model/textSource';
+import { ITextSnapshot } from 'vs/platform/files/common/files';
 
 /**
  * The base text editor model leverages the code editor model. This class is only intended to be subclassed and not instantiated.
@@ -49,7 +49,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.registerModelDisposeListener(model);
 	}
 
-	private registerModelDisposeListener(model: IModel): void {
+	private registerModelDisposeListener(model: ITextModel): void {
 		if (this.modelDisposeListener) {
 			this.modelDisposeListener.dispose();
 		}
@@ -60,20 +60,20 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		});
 	}
 
-	public get textEditorModel(): IModel {
+	public get textEditorModel(): ITextModel {
 		return this.textEditorModelHandle ? this.modelService.getModel(this.textEditorModelHandle) : null;
 	}
 
 	/**
 	 * Creates the text editor model with the provided value, modeId (can be comma separated for multiple values) and optional resource URL.
 	 */
-	protected createTextEditorModel(value: string | IRawTextSource, resource?: URI, modeId?: string): TPromise<EditorModel> {
+	protected createTextEditorModel(value: ITextBufferFactory, resource?: URI, modeId?: string): TPromise<EditorModel> {
 		const firstLineText = this.getFirstLineText(value);
 		const mode = this.getOrCreateMode(this.modeService, modeId, firstLineText);
 		return TPromise.as(this.doCreateTextEditorModel(value, mode, resource));
 	}
 
-	private doCreateTextEditorModel(value: string | IRawTextSource, mode: TPromise<IMode>, resource: URI): EditorModel {
+	private doCreateTextEditorModel(value: ITextBufferFactory, mode: TPromise<IMode>, resource: URI): EditorModel {
 		let model = resource && this.modelService.getModel(resource);
 		if (!model) {
 			model = this.modelService.createModel(value, mode, resource);
@@ -91,24 +91,17 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return this;
 	}
 
-	protected getFirstLineText(value: string | IRawTextSource): string {
-		if (typeof value === 'string') {
-			const firstLineText = value.substr(0, 100);
+	protected getFirstLineText(value: ITextBufferFactory | ITextModel): string {
 
-			let crIndex = firstLineText.indexOf('\r');
-			if (crIndex < 0) {
-				crIndex = firstLineText.length;
-			}
-
-			let lfIndex = firstLineText.indexOf('\n');
-			if (lfIndex < 0) {
-				lfIndex = firstLineText.length;
-			}
-
-			return firstLineText.substr(0, Math.min(crIndex, lfIndex));
-		} else {
-			return value.lines[0].substr(0, 100);
+		// text buffer factory
+		const textBufferFactory = value as ITextBufferFactory;
+		if (typeof textBufferFactory.getFirstLineText === 'function') {
+			return textBufferFactory.getFirstLineText(100);
 		}
+
+		// text model
+		const textSnapshot = value as ITextModel;
+		return textSnapshot.getLineContent(1).substr(0, 100);
 	}
 
 	/**
@@ -123,7 +116,7 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 	/**
 	 * Updates the text editor model with the provided value. If the value is the same as the model has, this is a no-op.
 	 */
-	protected updateTextEditorModel(newValue: string | IRawTextSource): void {
+	protected updateTextEditorModel(newValue: ITextBufferFactory): void {
 		if (!this.textEditorModel) {
 			return;
 		}
@@ -131,13 +124,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		this.modelService.updateModel(this.textEditorModel, newValue);
 	}
 
-	/**
-	 * Returns the textual value of this editor model or null if it has not yet been created.
-	 */
-	public getValue(): string {
+	public createSnapshot(): ITextSnapshot {
 		const model = this.textEditorModel;
 		if (model) {
-			return model.getValue(EndOfLinePreference.TextDefined, true /* Preserve BOM */);
+			return model.createSnapshot(true /* Preserve BOM */);
 		}
 
 		return null;

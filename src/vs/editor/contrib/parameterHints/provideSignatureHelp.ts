@@ -7,7 +7,7 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { SignatureHelp, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise, sequence } from 'vs/base/common/async';
@@ -19,7 +19,7 @@ export const Context = {
 	MultipleSignatures: new RawContextKey<boolean>('parameterHintsMultipleSignatures', false),
 };
 
-export function provideSignatureHelp(model: IReadOnlyModel, position: Position): TPromise<SignatureHelp> {
+export function provideSignatureHelp(model: ITextModel, position: Position): TPromise<SignatureHelp> {
 
 	const supports = SignatureHelpProviderRegistry.ordered(model);
 	let result: SignatureHelp;

@@ -7,17 +7,17 @@
 
 import 'vs/css!./media/fileactions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
-import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
+import { isWindows, isLinux } from 'vs/base/common/platform';
 import { sequence, ITask, always } from 'vs/base/common/async';
-import paths = require('vs/base/common/paths');
-import resources = require('vs/base/common/resources');
+import * as paths from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import URI from 'vs/base/common/uri';
-import errors = require('vs/base/common/errors');
+import { posix } from 'path';
+import * as errors from 'vs/base/common/errors';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
-import strings = require('vs/base/common/strings');
-import severity from 'vs/base/common/severity';
-import diagnostics = require('vs/base/common/diagnostics');
+import * as strings from 'vs/base/common/strings';
+import * as diagnostics from 'vs/base/common/diagnostics';
 import { Action, IAction } from 'vs/base/common/actions';
 import { MessageType, IInputValidator } from 'vs/base/browser/ui/inputbox/inputBox';
 import { ITree, IHighlightEvent } from 'vs/base/parts/tree/browser/tree';
@@ -25,55 +25,49 @@ import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { VIEWLET_ID } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { toResource } from 'vs/workbench/common/editor';
-import { FileStat, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
+import { toResource, IUntitledResourceInput } from 'vs/workbench/common/editor';
+import { ExplorerItem, Model, NewStatPlaceholder } from 'vs/workbench/parts/files/common/explorerModel';
 import { ExplorerView } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
 import { ExplorerViewlet } from 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IUntitledResourceInput } from 'vs/platform/editor/common/editor';
-import { IInstantiationService, IConstructorSignature2, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
-import { IMessageService, IMessageWithAction, IConfirmation, Severity, CancelAction, IConfirmationResult } from 'vs/platform/message/common/message';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
+import { ITextModel } from 'vs/editor/common/model';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
-import { IWindowsService } from 'vs/platform/windows/common/windows';
-import { REVEAL_IN_OS_COMMAND_ID, COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_FILES_COMMAND_ID, SAVE_FILES_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { once } from 'vs/base/common/event';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ICommandService, CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IListService, ListWidget } from 'vs/platform/list/browser/listService';
-import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IEvent } from 'vs/platform/contextview/browser/contextView';
+import { RawContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Schemas } from 'vs/base/common/network';
+import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage } from 'vs/platform/dialogs/common/dialogs';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Constants } from 'vs/editor/common/core/uint';
+import { CLOSE_EDITORS_AND_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 
 export interface IEditableData {
 	action: IAction;
 	validator: IInputValidator;
 }
 
-export interface IExplorerContext {
-	viewletState: IFileViewletState;
-	event?: IEvent;
-	stat: FileStat;
-}
-
 export interface IFileViewletState {
-	getEditableData(stat: IFileStat): IEditableData;
-	setEditable(stat: IFileStat, editableData: IEditableData): void;
-	clearEditable(stat: IFileStat): void;
+	getEditableData(stat: ExplorerItem): IEditableData;
+	setEditable(stat: ExplorerItem, editableData: IEditableData): void;
+	clearEditable(stat: ExplorerItem): void;
 }
 
-export const NEW_FILE_COMMAND_ID = 'workbench.command.files.newFile';
+export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize('newFile', "New File");
 
-export const NEW_FOLDER_COMMAND_ID = 'workbench.command.files.newFolder';
+export const NEW_FOLDER_COMMAND_ID = 'explorer.newFolder';
 export const NEW_FOLDER_LABEL = nls.localize('newFolder', "New Folder");
 
 export const TRIGGER_RENAME_LABEL = nls.localize('rename', "Rename");
@@ -91,13 +85,13 @@ export class BaseErrorReportingAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private _messageService: IMessageService
+		private _notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
-	public get messageService() {
-		return this._messageService;
+	public get notificationService() {
+		return this._notificationService;
 	}
 
 	protected onError(error: any): void {
@@ -105,39 +99,30 @@ export class BaseErrorReportingAction extends Action {
 			error = error.message;
 		}
 
-		this._messageService.show(Severity.Error, toErrorMessage(error, false));
+		this._notificationService.error(toErrorMessage(error, false));
 	}
 
-	protected onErrorWithRetry(error: any, retry: () => TPromise<any>, extraAction?: Action): void {
-		const actions = [
-			new Action(this.id, nls.localize('retry', "Retry"), null, true, () => retry()),
-			CancelAction
-		];
-
-		if (extraAction) {
-			actions.unshift(extraAction);
-		}
-
-		const errorWithRetry: IMessageWithAction = {
-			actions,
-			message: toErrorMessage(error, false)
-		};
-
-		this._messageService.show(Severity.Error, errorWithRetry);
+	protected onErrorWithRetry(error: any, retry: () => TPromise<any>): void {
+		this._notificationService.prompt(Severity.Error, toErrorMessage(error, false),
+			[{
+				label: nls.localize('retry', "Retry"),
+				run: () => retry()
+			}]
+		);
 	}
 }
 
 export class BaseFileAction extends BaseErrorReportingAction {
-	public element: FileStat;
+	public element: ExplorerItem;
 
 	constructor(
 		id: string,
 		label: string,
 		@IFileService protected fileService: IFileService,
-		@IMessageService _messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService protected textFileService: ITextFileService
 	) {
-		super(id, label, _messageService);
+		super(id, label, notificationService);
 
 		this.enabled = false;
 	}
@@ -160,13 +145,13 @@ class TriggerRenameFileAction extends BaseFileAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, messageService, textFileService);
+		super(TriggerRenameFileAction.ID, TRIGGER_RENAME_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -174,7 +159,15 @@ class TriggerRenameFileAction extends BaseFileAction {
 		this._updateEnablement();
 	}
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(name: string): string {
+		const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+		if (names.length > 1) {	// error only occurs on multi-path
+			const comparer = isLinux ? strings.compare : strings.compareIgnoreCase;
+			if (comparer(names[0], this.element.name) === 0) {
+				return nls.localize('renameWhenSourcePathIsParentOfTargetError', "Please use the 'New Folder' or 'New File' command to add children to an existing folder");
+			}
+		}
+
 		return this.renameAction.validateFileName(this.element.parent, name);
 	}
 
@@ -188,7 +181,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 			return TPromise.wrapError(new Error('Invalid viewlet state provided to BaseEnableFileRenameAction.'));
 		}
 
-		const stat = <IFileStat>context.stat;
+		const stat = <ExplorerItem>context.stat;
 		if (!stat) {
 			return TPromise.wrapError(new Error('Invalid stat provided to BaseEnableFileRenameAction.'));
 		}
@@ -196,7 +189,7 @@ class TriggerRenameFileAction extends BaseFileAction {
 		viewletState.setEditable(stat, {
 			action: this.renameAction,
 			validator: (value) => {
-				const message = this.validateFileName(this.element.parent, value);
+				const message = this.validateFileName(value);
 
 				if (!message) {
 					return null;
@@ -231,12 +224,12 @@ export abstract class BaseRenameAction extends BaseFileAction {
 	constructor(
 		id: string,
 		label: string,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, fileService, messageService, textFileService);
+		super(id, label, fileService, notificationService, textFileService);
 
 		this.element = element;
 	}
@@ -268,7 +261,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		return promise;
 	}
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): string {
 		let source = this.element.name;
 		let target = name;
 
@@ -281,7 +274,7 @@ export abstract class BaseRenameAction extends BaseFileAction {
 			return null;
 		}
 
-		return validateFileName(parent, name, false);
+		return validateFileName(parent, name);
 	}
 
 	public abstract runAction(newName: string): TPromise<any>;
@@ -292,13 +285,13 @@ class RenameFileAction extends BaseRenameAction {
 	public static readonly ID = 'workbench.files.action.renameFile';
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IBackupFileService private backupFileService: IBackupFileService
 	) {
-		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, messageService, textFileService);
+		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -324,7 +317,7 @@ class RenameFileAction extends BaseRenameAction {
 
 			const model = this.textFileService.models.get(d);
 
-			return this.backupFileService.backupResource(renamed, model.getValue(), model.getVersionId());
+			return this.backupFileService.backupResource(renamed, model.createSnapshot(), model.getVersionId());
 		}))
 
 			// 2. soft revert all dirty since we have backed up their contents
@@ -346,7 +339,7 @@ class RenameFileAction extends BaseRenameAction {
 
 /* Base New File/Folder Action */
 export class BaseNewAction extends BaseFileAction {
-	private presetFolder: FileStat;
+	private presetFolder: ExplorerItem;
 	private tree: ITree;
 	private isFile: boolean;
 	private renameAction: BaseRenameAction;
@@ -357,12 +350,12 @@ export class BaseNewAction extends BaseFileAction {
 		tree: ITree,
 		isFile: boolean,
 		editableAction: BaseRenameAction,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(id, label, fileService, messageService, textFileService);
+		super(id, label, fileService, notificationService, textFileService);
 
 		if (element) {
 			this.presetFolder = element.isDirectory ? element : element.parent;
@@ -385,17 +378,21 @@ export class BaseNewAction extends BaseFileAction {
 
 		let folder = this.presetFolder;
 		if (!folder) {
-			const focus = <FileStat>this.tree.getFocus();
+			const focus = <ExplorerItem>this.tree.getFocus();
 			if (focus) {
 				folder = focus.isDirectory ? focus : focus.parent;
 			} else {
-				const input: FileStat | Model = this.tree.getInput();
+				const input: ExplorerItem | Model = this.tree.getInput();
 				folder = input instanceof Model ? input.roots[0] : input;
 			}
 		}
 
 		if (!folder) {
 			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
+		}
+		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
+			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606
+			return TPromise.as(new Error('Parent folder is already in the process of creating a file'));
 		}
 
 		return this.tree.reveal(folder, 0.5).then(() => {
@@ -446,13 +443,13 @@ export class NewFileAction extends BaseNewAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFile', NEW_FILE_LABEL, tree, true, instantiationService.createInstance(CreateFileAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-file';
 		this._updateEnablement();
@@ -464,65 +461,16 @@ export class NewFolderAction extends BaseNewAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, messageService, textFileService);
+		super('explorer.newFolder', NEW_FOLDER_LABEL, tree, false, instantiationService.createInstance(CreateFolderAction, element), null, fileService, notificationService, textFileService);
 
 		this.class = 'explorer-action new-folder';
 		this._updateEnablement();
-	}
-}
-
-export abstract class BaseGlobalNewAction extends Action {
-	private toDispose: Action;
-
-	constructor(
-		id: string,
-		label: string,
-		@IViewletService private viewletService: IViewletService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IMessageService private messageService: IMessageService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.viewletService.openViewlet(VIEWLET_ID, true).then((viewlet) => {
-			return TPromise.timeout(100).then(() => { // use a timeout to prevent the explorer from revealing the active file
-				viewlet.focus();
-
-				const explorer = <ExplorerViewlet>viewlet;
-				const explorerView = explorer.getExplorerView();
-
-				// Not having a folder opened
-				if (!explorerView) {
-					return this.messageService.show(Severity.Info, nls.localize('openFolderFirst', "Open a folder first to create files or folders within."));
-				}
-
-				if (!explorerView.isExpanded()) {
-					explorerView.setExpanded(true);
-				}
-
-				const action = this.toDispose = this.instantiationService.createInstance(this.getAction(), explorerView.getViewer(), null);
-
-				return explorer.getActionRunner().run(action);
-			});
-		});
-	}
-
-	protected abstract getAction(): IConstructorSignature2<ITree, IFileStat, Action>;
-
-	public dispose(): void {
-		super.dispose();
-
-		if (this.toDispose) {
-			this.toDispose.dispose();
-			this.toDispose = null;
-		}
 	}
 }
 
@@ -534,7 +482,7 @@ export class GlobalNewUntitledFileAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -544,32 +492,12 @@ export class GlobalNewUntitledFileAction extends Action {
 	}
 }
 
-/* Create new file from anywhere */
-export class GlobalNewFileAction extends BaseGlobalNewAction {
-	public static readonly ID = 'explorer.newFile';
-	public static readonly LABEL = nls.localize('newFile', "New File");
-
-	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
-		return NewFileAction;
-	}
-}
-
-/* Create new folder from anywhere */
-export class GlobalNewFolderAction extends BaseGlobalNewAction {
-	public static readonly ID = 'explorer.newFolder';
-	public static readonly LABEL = nls.localize('newFolder', "New Folder");
-
-	protected getAction(): IConstructorSignature2<ITree, IFileStat, Action> {
-		return NewFolderAction;
-	}
-}
-
 /* Create New File/Folder (only used internally by explorerViewer) */
 export abstract class BaseCreateAction extends BaseRenameAction {
 
-	public validateFileName(parent: IFileStat, name: string): string {
+	public validateFileName(parent: ExplorerItem, name: string): string {
 		if (this.element instanceof NewStatPlaceholder) {
-			return validateFileName(parent, name, false);
+			return validateFileName(parent, name);
 		}
 
 		return super.validateFileName(parent, name);
@@ -583,13 +511,13 @@ class CreateFileAction extends BaseCreateAction {
 	public static readonly LABEL = nls.localize('createNewFile', "New File");
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService messageService: IMessageService,
+		@IEditorService private editorService: IEditorService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFileAction.ID, CreateFileAction.LABEL, element, fileService, messageService, textFileService);
+		super(CreateFileAction.ID, CreateFileAction.LABEL, element, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -611,12 +539,12 @@ class CreateFolderAction extends BaseCreateAction {
 	public static readonly LABEL = nls.localize('createNewFolder', "New Folder");
 
 	constructor(
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, fileService, messageService, textFileService);
+		super(CreateFolderAction.ID, CreateFolderAction.LABEL, null, fileService, notificationService, textFileService);
 
 		this._updateEnablement();
 	}
@@ -633,45 +561,31 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 	private static readonly CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 
-	private tree: ITree;
-	private useTrash: boolean;
 	private skipConfirm: boolean;
 
 	constructor(
-		tree: ITree,
-		element: FileStat,
-		useTrash: boolean,
+		private tree: ITree,
+		private elements: ExplorerItem[],
+		private useTrash: boolean,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
+		@IDialogService private dialogService: IDialogService,
 		@ITextFileService textFileService: ITextFileService,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, messageService, textFileService);
+		super('moveFileToTrash', MOVE_FILE_TO_TRASH_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
-		this.useTrash = useTrash && !paths.isUNC(element.resource.fsPath); // on UNC shares there is no trash
+		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
 
 		this._updateEnablement();
 	}
 
-	public run(context?: any): TPromise<any> {
+	public run(): TPromise<any> {
 
 		// Remove highlight
 		if (this.tree) {
 			this.tree.clearHighlight();
-		}
-
-		// Read context
-		if (context) {
-			if (context.event) {
-				const bypassTrash = (isMacintosh && context.event.altKey) || (!isMacintosh && context.event.shiftKey);
-				if (bypassTrash) {
-					this.useTrash = false;
-				}
-			} else if (typeof context.useTrash === 'boolean') {
-				this.useTrash = context.useTrash;
-			}
 		}
 
 		let primaryButton: string;
@@ -681,12 +595,16 @@ class BaseDeleteFileAction extends BaseFileAction {
 			primaryButton = nls.localize({ key: 'deleteButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete");
 		}
 
+		const distinctElements = resources.distinctParents(this.elements, e => e.resource);
+
 		// Handle dirty
 		let confirmDirtyPromise: TPromise<boolean> = TPromise.as(true);
-		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
+		const dirty = this.textFileService.getDirty().filter(d => distinctElements.some(e => resources.isEqualOrParent(d, e.resource, !isLinux /* ignorecase */)));
 		if (dirty.length) {
 			let message: string;
-			if (this.element.isDirectory) {
+			if (distinctElements.length > 1) {
+				message = nls.localize('dirtyMessageFilesDelete', "You are deleting files with unsaved changes. Do you want to continue?");
+			} else if (distinctElements[0].isDirectory) {
 				if (dirty.length === 1) {
 					message = nls.localize('dirtyMessageFolderOneDelete', "You are deleting a folder with unsaved changes in 1 file. Do you want to continue?");
 				} else {
@@ -696,13 +614,13 @@ class BaseDeleteFileAction extends BaseFileAction {
 				message = nls.localize('dirtyMessageFileDelete', "You are deleting a file with unsaved changes. Do you want to continue?");
 			}
 
-			confirmDirtyPromise = this.messageService.confirm({
+			confirmDirtyPromise = this.dialogService.confirm({
 				message,
 				type: 'warning',
 				detail: nls.localize('dirtyWarning', "Your changes will be lost if you don't save them."),
 				primaryButton
-			}).then(confirmed => {
-				if (!confirmed) {
+			}).then(res => {
+				if (!res.confirmed) {
 					return false;
 				}
 
@@ -726,9 +644,11 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for moving to trash
 			else if (this.useTrash) {
-				confirmDeletePromise = this.messageService.confirmWithCheckbox({
-					message: this.element.isDirectory ? nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", this.element.name) : nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", this.element.name),
-					detail: isWindows ? nls.localize('undoBin', "You can restore from the recycle bin.") : nls.localize('undoTrash', "You can restore from the trash."),
+				const message = this.getMoveToTrashMessage(distinctElements);
+
+				confirmDeletePromise = this.dialogService.confirm({
+					message,
+					detail: isWindows ? nls.localize('undoBin', "You can restore from the Recycle Bin.") : nls.localize('undoTrash', "You can restore from the Trash."),
 					primaryButton,
 					checkbox: {
 						label: nls.localize('doNotAskAgain', "Do not ask me again")
@@ -739,8 +659,9 @@ class BaseDeleteFileAction extends BaseFileAction {
 
 			// Confirm for deleting permanently
 			else {
-				confirmDeletePromise = this.messageService.confirmWithCheckbox({
-					message: this.element.isDirectory ? nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", this.element.name) : nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", this.element.name),
+				const message = this.getDeleteMessage(distinctElements);
+				confirmDeletePromise = this.dialogService.confirm({
+					message,
 					detail: nls.localize('irreversible', "This action is irreversible!"),
 					primaryButton,
 					type: 'warning'
@@ -763,22 +684,47 @@ class BaseDeleteFileAction extends BaseFileAction {
 					}
 
 					// Call function
-					const servicePromise = this.fileService.del(this.element.resource, this.useTrash).then(() => {
-						if (this.element.parent) {
-							this.tree.setFocus(this.element.parent); // move focus to parent
+					const servicePromise = TPromise.join(distinctElements.map(e => this.fileService.del(e.resource, this.useTrash))).then(() => {
+						if (distinctElements[0].parent) {
+							this.tree.setFocus(distinctElements[0].parent); // move focus to parent
 						}
 					}, (error: any) => {
 
-						// Allow to retry
-						let extraAction: Action;
+						// Handle error to delete file(s) from a modal confirmation dialog
+						let errorMessage: string;
+						let detailMessage: string;
+						let primaryButton: string;
 						if (this.useTrash) {
-							extraAction = new Action('permanentDelete', nls.localize('permDelete', "Delete Permanently"), null, true, () => { this.useTrash = false; this.skipConfirm = true; return this.run(); });
+							errorMessage = isWindows ? nls.localize('binFailed', "Failed to delete using the Recycle Bin. Do you want to permanently delete instead?") : nls.localize('trashFailed', "Failed to delete using the Trash. Do you want to permanently delete instead?");
+							detailMessage = nls.localize('irreversible', "This action is irreversible!");
+							primaryButton = nls.localize({ key: 'deletePermanentlyButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Delete Permanently");
+						} else {
+							errorMessage = toErrorMessage(error, false);
+							primaryButton = nls.localize({ key: 'retryButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Retry");
 						}
 
-						this.onErrorWithRetry(error, () => this.run(), extraAction);
+						return this.dialogService.confirm({
+							message: errorMessage,
+							detail: detailMessage,
+							type: 'warning',
+							primaryButton
+						}).then(res => {
 
-						// Focus back to tree
-						this.tree.DOMFocus();
+							// Focus back to tree
+							this.tree.domFocus();
+
+							if (res.confirmed) {
+								if (this.useTrash) {
+									this.useTrash = false; // Delete Permanently
+								}
+
+								this.skipConfirm = true;
+
+								return this.run();
+							}
+
+							return TPromise.as(void 0);
+						});
 					});
 
 					return servicePromise;
@@ -786,23 +732,71 @@ class BaseDeleteFileAction extends BaseFileAction {
 			});
 		});
 	}
+
+	private getMoveToTrashMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageFilesAndDirectories', "Are you sure you want to delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultipleDirectories', "Are you sure you want to delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmMoveTrashMessageMultiple', "Are you sure you want to delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmMoveTrashMessageFolder', "Are you sure you want to delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmMoveTrashMessageFile', "Are you sure you want to delete '{0}'?", distinctElements[0].name);
+	}
+
+	private getDeleteMessage(distinctElements: ExplorerItem[]): string {
+		if (this.containsBothDirectoryAndFile(distinctElements)) {
+			return getConfirmMessage(nls.localize('confirmDeleteMessageFilesAndDirectories', "Are you sure you want to permanently delete the following {0} files/directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements.length > 1) {
+			if (distinctElements[0].isDirectory) {
+				return getConfirmMessage(nls.localize('confirmDeleteMessageMultipleDirectories', "Are you sure you want to permanently delete the following {0} directories and their contents?", distinctElements.length), distinctElements.map(e => e.resource));
+			}
+
+			return getConfirmMessage(nls.localize('confirmDeleteMessageMultiple', "Are you sure you want to permanently delete the following {0} files?", distinctElements.length), distinctElements.map(e => e.resource));
+		}
+
+		if (distinctElements[0].isDirectory) {
+			return nls.localize('confirmDeleteMessageFolder', "Are you sure you want to permanently delete '{0}' and its contents?", distinctElements[0].name);
+		}
+
+		return nls.localize('confirmDeleteMessageFile', "Are you sure you want to permanently delete '{0}'?", distinctElements[0].name);
+	}
+
+	private containsBothDirectoryAndFile(distinctElements: ExplorerItem[]): boolean {
+		const directories = distinctElements.filter(element => element.isDirectory);
+		const files = distinctElements.filter(element => !element.isDirectory);
+
+		return directories.length > 0 && files.length > 0;
+	}
 }
 
-/* Import File */
-export class ImportFileAction extends BaseFileAction {
+/* Add File */
+export class AddFilesAction extends BaseFileAction {
 
 	private tree: ITree;
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		clazz: string,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService messageService: IMessageService,
+		@IEditorService private editorService: IEditorService,
+		@IDialogService private dialogService: IDialogService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.importFile', nls.localize('importFiles', "Import Files"), fileService, messageService, textFileService);
+		super('workbench.files.action.addFile', nls.localize('addFiles', "Add Files"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
@@ -815,15 +809,15 @@ export class ImportFileAction extends BaseFileAction {
 	}
 
 	public run(resources: URI[]): TPromise<any> {
-		const importPromise = TPromise.as(null).then(() => {
+		const addPromise = TPromise.as(null).then(() => {
 			if (resources && resources.length > 0) {
 
-				// Find parent for import
-				let targetElement: FileStat;
+				// Find parent to add to
+				let targetElement: ExplorerItem;
 				if (this.element) {
 					targetElement = this.element;
 				} else {
-					const input: FileStat | Model = this.tree.getInput();
+					const input: ExplorerItem | Model = this.tree.getInput();
 					targetElement = this.tree.getFocus() || (input instanceof Model ? input.roots[0] : input);
 				}
 
@@ -835,14 +829,14 @@ export class ImportFileAction extends BaseFileAction {
 				return this.fileService.resolveFile(targetElement.resource).then((targetStat: IFileStat) => {
 
 					// Check for name collisions
-					const targetNames: { [name: string]: IFileStat } = {};
+					const targetNames = new Set<string>();
 					targetStat.children.forEach((child) => {
-						targetNames[isLinux ? child.name : child.name.toLowerCase()] = child;
+						targetNames.add(isLinux ? child.name : child.name.toLowerCase());
 					});
 
-					let overwritePromise = TPromise.as(true);
+					let overwritePromise: TPromise<IConfirmationResult> = TPromise.as({ confirmed: true });
 					if (resources.some(resource => {
-						return !!targetNames[isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase()];
+						return targetNames.has(isLinux ? paths.basename(resource.fsPath) : paths.basename(resource.fsPath).toLowerCase());
 					})) {
 						const confirm: IConfirmation = {
 							message: nls.localize('confirmOverwrite', "A file or folder with the same name already exists in the destination folder. Do you want to replace it?"),
@@ -851,23 +845,23 @@ export class ImportFileAction extends BaseFileAction {
 							type: 'warning'
 						};
 
-						overwritePromise = this.messageService.confirm(confirm);
+						overwritePromise = this.dialogService.confirm(confirm);
 					}
 
-					return overwritePromise.then(overwrite => {
-						if (!overwrite) {
+					return overwritePromise.then(res => {
+						if (!res.confirmed) {
 							return void 0;
 						}
 
-						// Run import in sequence
-						const importPromisesFactory: ITask<TPromise<void>>[] = [];
+						// Run add in sequence
+						const addPromisesFactory: ITask<TPromise<void>>[] = [];
 						resources.forEach(resource => {
-							importPromisesFactory.push(() => {
+							addPromisesFactory.push(() => {
 								const sourceFile = resource;
 								const targetFile = targetElement.resource.with({ path: paths.join(targetElement.resource.path, paths.basename(sourceFile.path)) });
 
 								// if the target exists and is dirty, make sure to revert it. otherwise the dirty contents
-								// of the target file would replace the contents of the imported file. since we already
+								// of the target file would replace the contents of the added file. since we already
 								// confirmed the overwrite before, this is OK.
 								let revertPromise = TPromise.wrap(null);
 								if (this.textFileService.isDirty(targetFile)) {
@@ -875,18 +869,19 @@ export class ImportFileAction extends BaseFileAction {
 								}
 
 								return revertPromise.then(() => {
-									return this.fileService.importFile(sourceFile, targetElement.resource).then(res => {
+									const target = targetElement.resource.with({ path: posix.join(targetElement.resource.path, posix.basename(sourceFile.path)) });
+									return this.fileService.copyFile(sourceFile, target, true).then(stat => {
 
-										// if we only import one file, just open it directly
+										// if we only add one file, just open it directly
 										if (resources.length === 1) {
-											this.editorService.openEditor({ resource: res.stat.resource, options: { pinned: true } }).done(null, errors.onUnexpectedError);
+											this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 										}
 									}, error => this.onError(error));
 								});
 							});
 						});
 
-						return sequence(importPromisesFactory);
+						return sequence(addPromisesFactory);
 					});
 				});
 			}
@@ -894,7 +889,7 @@ export class ImportFileAction extends BaseFileAction {
 			return void 0;
 		});
 
-		return importPromise.then(() => {
+		return addPromise.then(() => {
 			this.tree.clearHighlight();
 		}, (error: any) => {
 			this.onError(error);
@@ -904,42 +899,35 @@ export class ImportFileAction extends BaseFileAction {
 }
 
 // Copy File/Folder
-let fileToCopy: FileStat;
-let fileCopiedContextKey: IContextKey<boolean>;
-
 class CopyFileAction extends BaseFileAction {
 
 	private tree: ITree;
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		private elements: ExplorerItem[],
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IContextKeyService contextKeyService: IContextKeyService
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IClipboardService private clipboardService: IClipboardService
 	) {
-		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, messageService, textFileService);
+		super('filesExplorer.copy', COPY_FILE_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
-		if (!fileCopiedContextKey) {
-			fileCopiedContextKey = FileCopiedContext.bindTo(contextKeyService);
-		}
 		this._updateEnablement();
 	}
 
 	public run(): TPromise<any> {
 
-		// Remember as file/folder to copy
-		fileToCopy = this.element;
-		fileCopiedContextKey.set(!!this.element);
+		// Write to clipboard as file/folder to copy
+		this.clipboardService.writeResources(this.elements.map(e => e.resource));
 
 		// Remove highlight
 		if (this.tree) {
 			this.tree.clearHighlight();
 		}
 
-		this.tree.DOMFocus();
+		this.tree.domFocus();
 
 		return TPromise.as(null);
 	}
@@ -954,50 +942,59 @@ class PasteFileAction extends BaseFileAction {
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
+		element: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IEditorService private editorService: IEditorService
 	) {
-		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, messageService, textFileService);
+		super(PasteFileAction.ID, PASTE_FILE_LABEL, fileService, notificationService, textFileService);
 
 		this.tree = tree;
 		this.element = element;
 		if (!this.element) {
-			const input: FileStat | Model = this.tree.getInput();
+			const input: ExplorerItem | Model = this.tree.getInput();
 			this.element = input instanceof Model ? input.roots[0] : input;
 		}
 		this._updateEnablement();
 	}
 
-	public run(): TPromise<any> {
-
-		const exists = fileToCopy.root.find(fileToCopy.resource);
-		if (!exists) {
-			fileToCopy = null;
-			fileCopiedContextKey.set(false);
-			throw new Error(nls.localize('fileDeleted', "File was deleted or moved meanwhile"));
-		}
+	public run(fileToPaste: URI): TPromise<any> {
 
 		// Check if target is ancestor of pasted folder
-		if (this.element.resource.toString() !== fileToCopy.resource.toString() && resources.isEqualOrParent(this.element.resource, fileToCopy.resource, !isLinux /* ignorecase */)) {
-			throw new Error(nls.localize('fileIsAncestor', "File to copy is an ancestor of the desitnation folder"));
+		if (this.element.resource.toString() !== fileToPaste.toString() && resources.isEqualOrParent(this.element.resource, fileToPaste, !isLinux /* ignorecase */)) {
+			throw new Error(nls.localize('fileIsAncestor', "File to paste is an ancestor of the destination folder"));
 		}
 
-		// Find target
-		let target: FileStat;
-		if (this.element.resource.toString() === fileToCopy.resource.toString()) {
-			target = this.element.parent;
-		} else {
-			target = this.element.isDirectory ? this.element : this.element.parent;
-		}
+		return this.fileService.resolveFile(fileToPaste).then(fileToPasteStat => {
 
-		// Reuse duplicate action
-		const pasteAction = this.instantiationService.createInstance(DuplicateFileAction, this.tree, fileToCopy, target);
+			// Remove highlight
+			if (this.tree) {
+				this.tree.clearHighlight();
+			}
 
-		return pasteAction.run().then(() => {
-			this.tree.DOMFocus();
+			// Find target
+			let target: ExplorerItem;
+			if (this.element.resource.toString() === fileToPaste.toString()) {
+				target = this.element.parent;
+			} else {
+				target = this.element.isDirectory ? this.element : this.element.parent;
+			}
+
+			const targetFile = findValidPasteFileTarget(target, { resource: fileToPaste, isDirectory: fileToPasteStat.isDirectory });
+
+			// Copy File
+			return this.fileService.copyFile(fileToPaste, targetFile).then(stat => {
+				if (!stat.isDirectory) {
+					return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
+				}
+
+				return void 0;
+			}, error => this.onError(error)).then(() => {
+				this.tree.domFocus();
+			});
+		}, error => {
+			this.onError(new Error(nls.localize('fileDeleted', "File to paste was deleted or moved meanwhile")));
 		});
 	}
 }
@@ -1005,22 +1002,22 @@ class PasteFileAction extends BaseFileAction {
 // Duplicate File/Folder
 export class DuplicateFileAction extends BaseFileAction {
 	private tree: ITree;
-	private target: IFileStat;
+	private target: ExplorerItem;
 
 	constructor(
 		tree: ITree,
-		element: FileStat,
-		target: FileStat,
+		fileToDuplicate: ExplorerItem,
+		target: ExplorerItem,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService messageService: IMessageService,
+		@IEditorService private editorService: IEditorService,
+		@INotificationService notificationService: INotificationService,
 		@ITextFileService textFileService: ITextFileService
 	) {
-		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, messageService, textFileService);
+		super('workbench.files.action.duplicateFile', nls.localize('duplicateFile', "Duplicate"), fileService, notificationService, textFileService);
 
 		this.tree = tree;
-		this.element = element;
-		this.target = (target && target.isDirectory) ? target : element.parent;
+		this.element = fileToDuplicate;
+		this.target = (target && target.isDirectory) ? target : fileToDuplicate.parent;
 		this._updateEnablement();
 	}
 
@@ -1032,7 +1029,7 @@ export class DuplicateFileAction extends BaseFileAction {
 		}
 
 		// Copy File
-		const result = this.fileService.copyFile(this.element.resource, this.findTarget()).then(stat => {
+		const result = this.fileService.copyFile(this.element.resource, findValidPasteFileTarget(this.target, { resource: this.element.resource, isDirectory: this.element.isDirectory })).then(stat => {
 			if (!stat.isDirectory) {
 				return this.editorService.openEditor({ resource: stat.resource, options: { pinned: true } });
 			}
@@ -1042,44 +1039,89 @@ export class DuplicateFileAction extends BaseFileAction {
 
 		return result;
 	}
+}
 
-	private findTarget(): URI {
-		let name = this.element.name;
+function findValidPasteFileTarget(targetFolder: ExplorerItem, fileToPaste: { resource: URI, isDirectory?: boolean }): URI {
+	let name = resources.basenameOrAuthority(fileToPaste.resource);
 
-		let candidate = this.target.resource.with({ path: paths.join(this.target.resource.path, name) });
-		while (true) {
-			if (!this.element.root.find(candidate)) {
-				break;
-			}
-
-			name = this.toCopyName(name, this.element.isDirectory);
-			candidate = this.target.resource.with({ path: paths.join(this.target.resource.path, name) });
+	let candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
+	while (true) {
+		if (!targetFolder.root.find(candidate)) {
+			break;
 		}
 
-		return candidate;
+		name = incrementFileName(name, fileToPaste.isDirectory);
+		candidate = targetFolder.resource.with({ path: paths.join(targetFolder.resource.path, name) });
 	}
 
-	private toCopyName(name: string, isFolder: boolean): string {
+	return candidate;
+}
 
-		// file.1.txt=>file.2.txt
-		if (!isFolder && name.match(/(.*\.)(\d+)(\..*)$/)) {
-			return name.replace(/(.*\.)(\d+)(\..*)$/, (match, g1?, g2?, g3?) => { return g1 + (parseInt(g2) + 1) + g3; });
-		}
+export function incrementFileName(name: string, isFolder: boolean): string {
+	const separators = '[\\.\\-_]';
+	const maxNumber = Constants.MAX_SAFE_SMALL_INTEGER;
 
-		// file.txt=>file.1.txt
-		const lastIndexOfDot = name.lastIndexOf('.');
-		if (!isFolder && lastIndexOfDot >= 0) {
-			return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
-		}
-
-		// folder.1=>folder.2
-		if (isFolder && name.match(/(\d+)$/)) {
-			return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => { return String(parseInt(groups[0]) + 1); });
-		}
-
-		// file/folder=>file.1/folder.1
-		return strings.format('{0}.1', name);
+	// file.1.txt=>file.2.txt
+	let suffixFileRegex = RegExp('(.*' + separators + ')(\\d+)(\\..*)$');
+	if (!isFolder && name.match(suffixFileRegex)) {
+		return name.replace(suffixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g2);
+			return number < maxNumber
+				? g1 + strings.pad(number + 1, g2.length) + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
 	}
+
+	// 1.file.txt=>2.file.txt
+	let prefixFileRegex = RegExp('(\\d+)(' + separators + '.*)(\\..*)$');
+	if (!isFolder && name.match(prefixFileRegex)) {
+		return name.replace(prefixFileRegex, (match, g1?, g2?, g3?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? strings.pad(number + 1, g1.length) + g2 + g3
+				: strings.format('{0}{1}.1{2}', g1, g2, g3);
+		});
+	}
+
+	// 1.txt=>2.txt
+	let prefixFileNoNameRegex = RegExp('(\\d+)(\\..*)$');
+	if (!isFolder && name.match(prefixFileNoNameRegex)) {
+		return name.replace(prefixFileNoNameRegex, (match, g1?, g2?) => {
+			let number = parseInt(g1);
+			return number < maxNumber
+				? strings.pad(number + 1, g1.length) + g2
+				: strings.format('{0}.1{1}', g1, g2);
+		});
+	}
+
+	// file.txt=>file.1.txt
+	const lastIndexOfDot = name.lastIndexOf('.');
+	if (!isFolder && lastIndexOfDot >= 0) {
+		return strings.format('{0}.1{1}', name.substr(0, lastIndexOfDot), name.substr(lastIndexOfDot));
+	}
+
+	// folder.1=>folder.2
+	if (isFolder && name.match(/(\d+)$/)) {
+		return name.replace(/(\d+)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length)
+				: strings.format('{0}.1', groups[0]);
+		});
+	}
+
+	// 1.folder=>2.folder
+	if (isFolder && name.match(/^(\d+)/)) {
+		return name.replace(/^(\d+)(.*)$/, (match: string, ...groups: any[]) => {
+			let number = parseInt(groups[0]);
+			return number < maxNumber
+				? strings.pad(number + 1, groups[0].length) + groups[1]
+				: strings.format('{0}{1}.1', groups[0], groups[1]);
+		});
+	}
+
+	// file/folder=>file.1/folder.1
+	return strings.format('{0}.1', name);
 }
 
 // Global Compare with
@@ -1092,37 +1134,43 @@ export class GlobalCompareResourcesAction extends Action {
 		id: string,
 		label: string,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService
+		@IEditorService private editorService: IEditorService,
+		@INotificationService private notificationService: INotificationService,
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const activeInput = this.editorService.getActiveEditorInput();
+		const activeInput = this.editorService.activeEditor;
 		const activeResource = activeInput ? activeInput.getResource() : void 0;
 		if (activeResource) {
 
 			// Compare with next editor that opens
-			const unbind = once(this.editorGroupService.onEditorOpening)(e => {
-				const resource = e.input.getResource();
+			const toDispose = this.editorService.overrideOpenEditor((editor, options, group) => {
+
+				// Only once!
+				toDispose.dispose();
+
+				// Open editor as diff
+				const resource = editor.getResource();
 				if (resource) {
-					e.prevent(() => {
-						return this.editorService.openEditor({
+					return {
+						override: this.editorService.openEditor({
 							leftResource: activeResource,
 							rightResource: resource
-						});
-					});
+						}).then(() => void 0)
+					};
 				}
+
+				return void 0;
 			});
 
 			// Bring up quick open
 			this.quickOpenService.show('', { autoFocus: { autoFocusSecondEntry: true } }).then(() => {
-				unbind.dispose(); // make sure to unbind if quick open is closing
+				toDispose.dispose(); // make sure to unbind if quick open is closing
 			});
 		} else {
-			this.messageService.show(Severity.Info, nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
+			this.notificationService.info(nls.localize('openFileToCompare', "Open a file first to compare it with another file."));
 		}
 
 		return TPromise.as(true);
@@ -1147,9 +1195,9 @@ export abstract class BaseSaveAllAction extends BaseErrorReportingAction {
 		@ITextFileService private textFileService: ITextFileService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@ICommandService protected commandService: ICommandService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 	) {
-		super(id, label, messageService);
+		super(id, label, notificationService);
 
 		this.toDispose = [];
 		this.lastIsDirty = this.textFileService.isDirty();
@@ -1223,7 +1271,7 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	}
 
 	protected doRun(context: any): TPromise<any> {
-		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID);
+		return this.commandService.executeCommand(SAVE_ALL_IN_GROUP_COMMAND_ID, {}, context);
 	}
 
 	protected includeUntitled(): boolean {
@@ -1231,17 +1279,17 @@ export class SaveAllInGroupAction extends BaseSaveAllAction {
 	}
 }
 
-export class SaveFilesAction extends BaseSaveAllAction {
+export class CloseGroupAction extends Action {
 
-	public static readonly ID = 'workbench.action.files.saveFiles';
-	public static readonly LABEL = SAVE_FILES_LABEL;
+	public static readonly ID = 'workbench.files.action.closeGroup';
+	public static readonly LABEL = nls.localize('closeGroup', "Close Group");
 
-	protected doRun(context: any): TPromise<any> {
-		return this.commandService.executeCommand(SAVE_FILES_COMMAND_ID, false);
+	constructor(id: string, label: string, @ICommandService private commandService: ICommandService) {
+		super(id, label, 'action-close-all-files');
 	}
 
-	protected includeUntitled(): boolean {
-		return false;
+	public run(context?: any): TPromise<any> {
+		return this.commandService.executeCommand(CLOSE_EDITORS_AND_GROUP_COMMAND_ID, {}, context);
 	}
 }
 
@@ -1287,7 +1335,7 @@ export class FocusFilesExplorer extends Action {
 			const view = viewlet.getExplorerView();
 			if (view) {
 				view.setExpanded(true);
-				view.getViewer().DOMFocus();
+				view.getViewer().domFocus();
 			}
 		});
 	}
@@ -1299,19 +1347,19 @@ export abstract class BaseActiveFileInExplorer extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService,
+		@IEditorService private editorService: IEditorService,
+		@INotificationService private notificationService: INotificationService,
 		@ICommandService private commandService: ICommandService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const resource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true });
+		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
 			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource, this.focusSelected);
 		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
+			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 
 		return TPromise.as(true);
@@ -1388,40 +1436,22 @@ export class ShowOpenedFileInNewWindow extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService private windowsService: IWindowsService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IMessageService private messageService: IMessageService
+		@IEditorService private editorService: IEditorService,
+		@IWindowService private windowService: IWindowService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super(id, label);
 	}
 
 	public run(): TPromise<any> {
-		const fileResource = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
+		const fileResource = toResource(this.editorService.activeEditor, { supportSideBySide: true, filter: Schemas.file /* todo@remote */ });
 		if (fileResource) {
-			this.windowsService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
+			this.windowService.openWindow([fileResource.fsPath], { forceNewWindow: true, forceOpenWorkspaceAsFile: true });
 		} else {
-			this.messageService.show(severity.Info, nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
+			this.notificationService.info(nls.localize('openFileToShowInNewWindow', "Open a file first to open in new window"));
 		}
 
 		return TPromise.as(true);
-	}
-}
-
-export class GlobalRevealInOSAction extends Action {
-
-	public static readonly ID = 'workbench.action.files.revealActiveFileInWindows';
-	public static readonly LABEL = isWindows ? nls.localize('revealActiveFileInWindows', "Reveal Active File in Windows Explorer") : (isMacintosh ? nls.localize('revealActiveFileInMac', "Reveal Active File in Finder") : nls.localize('openActiveFileContainer', "Open Containing Folder of Active File"));
-
-	constructor(
-		id: string,
-		label: string,
-		@ICommandService private commandService: ICommandService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-		return this.commandService.executeCommand(REVEAL_IN_OS_COMMAND_ID);
 	}
 }
 
@@ -1443,7 +1473,7 @@ export class CopyPathAction extends Action {
 	}
 }
 
-export function validateFileName(parent: IFileStat, name: string, allowOverwriting: boolean = false): string {
+export function validateFileName(parent: ExplorerItem, name: string): string {
 
 	// Produce a well formed file name
 	name = getWellFormedFileName(name);
@@ -1453,21 +1483,21 @@ export function validateFileName(parent: IFileStat, name: string, allowOverwriti
 		return nls.localize('emptyFileNameError', "A file or folder name must be provided.");
 	}
 
-	// Do not allow to overwrite existing file
-	if (!allowOverwriting) {
-		if (parent.children && parent.children.some((c) => {
-			if (isLinux) {
-				return c.name === name;
-			}
+	// Relative paths only
+	if (name[0] === '/' || name[0] === '\\') {
+		return nls.localize('fileNameStartsWithSlashError', "A file or folder name cannot start with a slash.");
+	}
 
-			return c.name.toLowerCase() === name.toLowerCase();
-		})) {
-			return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
-		}
+	const names: string[] = name.split(/[\\/]/).filter(part => !!part);
+
+	// Do not allow to overwrite existing file
+	const childExists = !!parent.getChild(name);
+	if (childExists) {
+		return nls.localize('fileNameExistsError', "A file or folder **{0}** already exists at this location. Please choose a different name.", name);
 	}
 
 	// Invalid File name
-	if (!paths.isValidBasename(name)) {
+	if (names.some((folderName) => !paths.isValidBasename(folderName))) {
 		return nls.localize('invalidFileNameError', "The name **{0}** is not valid as a file or folder name. Please choose a different name.", trimLongName(name));
 	}
 
@@ -1495,11 +1525,13 @@ export function getWellFormedFileName(filename: string): string {
 		return filename;
 	}
 
-	// Trim whitespaces
-	filename = strings.trim(strings.trim(filename, ' '), '\t');
+	// Trim tabs
+	filename = strings.trim(filename, '\t');
 
-	// Remove trailing dots
+	// Remove trailing dots, slashes, and spaces
 	filename = strings.rtrim(filename, '.');
+	filename = strings.rtrim(filename, '/');
+	filename = strings.rtrim(filename, '\\');
 
 	return filename;
 }
@@ -1516,9 +1548,10 @@ export class CompareWithClipboardAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@ITextModelService private textModelService: ITextModelService,
+		@IFileService private fileService: IFileService
 	) {
 		super(id, label);
 
@@ -1526,11 +1559,10 @@ export class CompareWithClipboardAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		const resource: URI = toResource(this.editorService.getActiveEditorInput(), { supportSideBySide: true, filter: 'file' });
-		const provider = this.instantiationService.createInstance(ClipboardContentProvider);
-
-		if (resource) {
+		const resource: URI = toResource(this.editorService.activeEditor, { supportSideBySide: true });
+		if (resource && (this.fileService.canHandleResource(resource) || resource.scheme === Schemas.untitled)) {
 			if (!this.registrationDisposal) {
+				const provider = this.instantiationService.createInstance(ClipboardContentProvider);
 				this.registrationDisposal = this.textModelService.registerTextModelContentProvider(CompareWithClipboardAction.SCHEME, provider);
 			}
 
@@ -1561,7 +1593,7 @@ class ClipboardContentProvider implements ITextModelContentProvider {
 		@IModelService private modelService: IModelService
 	) { }
 
-	provideTextContent(resource: URI): TPromise<IModel> {
+	provideTextContent(resource: URI): TPromise<ITextModel> {
 		const model = this.modelService.createModel(this.clipboardService.readText(), this.modeService.getOrCreateMode('text/plain'), resource);
 
 		return TPromise.as(model);
@@ -1576,85 +1608,109 @@ if (!diag) {
 	});
 }
 
+interface IExplorerContext {
+	viewletState: IFileViewletState;
+	stat: ExplorerItem;
+	selection: ExplorerItem[];
+}
+
+function getContext(listWidget: ListWidget, viewletService: IViewletService): IExplorerContext {
+	// These commands can only be triggered when explorer viewlet is visible so get it using the active viewlet
+	const tree = <ITree>listWidget;
+	const stat = tree.getFocus();
+	const selection = tree.getSelection();
+
+	// Only respect the selection if user clicked inside it (focus belongs to it)
+	return { stat, selection: selection && selection.indexOf(stat) >= 0 ? selection : [], viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
+}
+
 // TODO@isidor these commands are calling into actions due to the complex inheritance action structure.
 // It should be the other way around, that actions call into commands.
+function openExplorerAndRunAction(accessor: ServicesAccessor, constructor: IConstructorSignature2<ITree, ExplorerItem, Action>): TPromise<any> {
+	const instantationService = accessor.get(IInstantiationService);
+	const listService = accessor.get(IListService);
+	const viewletService = accessor.get(IViewletService);
+	const activeViewlet = viewletService.getActiveViewlet();
+	let explorerPromise = TPromise.as(activeViewlet);
+	if (!activeViewlet || activeViewlet.getId() !== VIEWLET_ID) {
+		explorerPromise = viewletService.openViewlet(VIEWLET_ID, true);
+	}
+
+	return explorerPromise.then((explorer: ExplorerViewlet) => {
+		const explorerView = explorer.getExplorerView();
+		if (explorerView && explorerView.isVisible() && explorerView.isExpanded()) {
+			explorerView.focus();
+			const explorerContext = getContext(listService.lastFocusedList, viewletService);
+			const action = instantationService.createInstance(constructor, listService.lastFocusedList, explorerContext.stat);
+
+			return action.run(explorerContext);
+		}
+
+		return undefined;
+	});
+}
+
 CommandsRegistry.registerCommand({
 	id: NEW_FILE_COMMAND_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const newFileAction = instantationService.createInstance(NewFileAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFileAction.run(explorerContext);
+	handler: (accessor) => {
+		return openExplorerAndRunAction(accessor, NewFileAction);
 	}
 });
 
 CommandsRegistry.registerCommand({
 	id: NEW_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI, explorerContext: IExplorerContext) => {
-		const instantationService = accessor.get(IInstantiationService);
-		const listService = accessor.get(IListService);
-		const newFolderAction = instantationService.createInstance(NewFolderAction, listService.lastFocusedList, explorerContext.stat);
-
-		return newFolderAction.run(explorerContext);
+	handler: (accessor) => {
+		return openExplorerAndRunAction(accessor, NewFolderAction);
 	}
 });
 
-function getContext(tree: ListWidget, viewletService: IViewletService): IExplorerContext {
-	return { stat: tree.getFocus(), viewletState: (<ExplorerViewlet>viewletService.getActiveViewlet()).getViewletState() };
-}
-
-export const renameHandler = (accessor: ServicesAccessor, resource: URI, explorerContext: IExplorerContext) => {
+export const renameHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
 	const renameAction = instantationService.createInstance(TriggerRenameFileAction, listService.lastFocusedList, explorerContext.stat);
 	return renameAction.run(explorerContext);
 };
 
-export const moveFileToTrashHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const moveFileToTrashHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, true);
-	return moveFileToTrashAction.run(explorerContext);
+	const moveFileToTrashAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, true);
+	return moveFileToTrashAction.run();
 };
 
-export const deleteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const deleteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, explorerContext.stat, false);
-	return deleteFileAction.run(explorerContext);
+	const deleteFileAction = instantationService.createInstance(BaseDeleteFileAction, listService.lastFocusedList, stats, false);
+	return deleteFileAction.run();
 };
 
-export const copyFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const copyFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
+	const stats = explorerContext.selection.length > 1 ? explorerContext.selection : [explorerContext.stat];
 
-	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, explorerContext.stat);
+	const copyFileAction = instantationService.createInstance(CopyFileAction, listService.lastFocusedList, stats);
 	return copyFileAction.run();
 };
 
-export const pasteFileHandler = (accessor, resource: URI, explorerContext: IExplorerContext) => {
+export const pasteFileHandler = (accessor: ServicesAccessor) => {
 	const instantationService = accessor.get(IInstantiationService);
 	const listService = accessor.get(IListService);
-	if (!explorerContext) {
-		explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
-	}
+	const clipboardService = accessor.get(IClipboardService);
+	const explorerContext = getContext(listService.lastFocusedList, accessor.get(IViewletService));
 
-	const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
-	return pasteFileAction.run();
+	return TPromise.join(resources.distinctParents(clipboardService.readResources(), r => r).map(toCopy => {
+		const pasteFileAction = instantationService.createInstance(PasteFileAction, listService.lastFocusedList, explorerContext.stat);
+		return pasteFileAction.run(toCopy);
+	}));
 };

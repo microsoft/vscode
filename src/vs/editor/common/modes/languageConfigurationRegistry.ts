@@ -9,8 +9,8 @@ import { BracketElectricCharacterSupport, IElectricAction } from 'vs/editor/comm
 import { IOnEnterSupportOptions, OnEnterSupport } from 'vs/editor/common/modes/supports/onEnter';
 import { IndentRulesSupport, IndentConsts } from 'vs/editor/common/modes/supports/indentRules';
 import { RichEditBrackets } from 'vs/editor/common/modes/supports/richEditBrackets';
-import Event, { Emitter } from 'vs/base/common/event';
-import { ITokenizedModel } from 'vs/editor/common/editorCommon';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ITextModel } from 'vs/editor/common/model';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as strings from 'vs/base/common/strings';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -177,8 +177,8 @@ export class LanguageConfigurationRegistryImpl {
 
 	private _entries: RichEditSupport[];
 
-	private _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
-	public onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
+	private readonly _onDidChange: Emitter<LanguageConfigurationChangeEvent> = new Emitter<LanguageConfigurationChangeEvent>();
+	public readonly onDidChange: Event<LanguageConfigurationChangeEvent> = this._onDidChange.event;
 
 	constructor() {
 		this._entries = [];
@@ -544,7 +544,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentForEnter(model: ITokenizedModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } {
+	public getIndentForEnter(model: ITextModel, range: Range, indentConverter: IIndentConverter, autoIndent: boolean): { beforeEnter: string, afterEnter: string } {
 		model.forceTokenization(range.startLineNumber);
 		let lineTokens = model.getLineTokens(range.startLineNumber);
 
@@ -642,7 +642,7 @@ export class LanguageConfigurationRegistryImpl {
 	 * We should always allow intentional indentation. It means, if users change the indentation of `lineNumber` and the content of
 	 * this line doesn't match decreaseIndentPattern, we should not adjust the indentation.
 	 */
-	public getIndentActionForType(model: ITokenizedModel, range: Range, ch: string, indentConverter: IIndentConverter): string {
+	public getIndentActionForType(model: ITextModel, range: Range, ch: string, indentConverter: IIndentConverter): string {
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
 		let indentRulesSupport = this.getIndentRulesSupport(scopedLineTokens.languageId);
 		if (!indentRulesSupport) {
@@ -683,7 +683,7 @@ export class LanguageConfigurationRegistryImpl {
 		return null;
 	}
 
-	public getIndentMetadata(model: ITokenizedModel, lineNumber: number): number {
+	public getIndentMetadata(model: ITextModel, lineNumber: number): number {
 		let indentRulesSupport = this.getIndentRulesSupport(model.getLanguageIdentifier().id);
 		if (!indentRulesSupport) {
 			return null;
@@ -708,13 +708,13 @@ export class LanguageConfigurationRegistryImpl {
 		return value.onEnter || null;
 	}
 
-	public getRawEnterActionAtPosition(model: ITokenizedModel, lineNumber: number, column: number): EnterAction {
+	public getRawEnterActionAtPosition(model: ITextModel, lineNumber: number, column: number): EnterAction {
 		let r = this.getEnterAction(model, new Range(lineNumber, column, lineNumber, column));
 
 		return r ? r.enterAction : null;
 	}
 
-	public getEnterAction(model: ITokenizedModel, range: Range): { enterAction: EnterAction; indentation: string; } {
+	public getEnterAction(model: ITextModel, range: Range): { enterAction: EnterAction; indentation: string; } {
 		let indentation = this.getIndentationAtPosition(model, range.startLineNumber, range.startColumn);
 
 		let scopedLineTokens = this.getScopedLineTokens(model, range.startLineNumber, range.startColumn);
@@ -780,7 +780,7 @@ export class LanguageConfigurationRegistryImpl {
 		};
 	}
 
-	public getIndentationAtPosition(model: ITokenizedModel, lineNumber: number, column: number): string {
+	public getIndentationAtPosition(model: ITextModel, lineNumber: number, column: number): string {
 		let lineText = model.getLineContent(lineNumber);
 		let indentation = strings.getLeadingWhitespace(lineText);
 		if (indentation.length > column - 1) {
@@ -790,7 +790,7 @@ export class LanguageConfigurationRegistryImpl {
 		return indentation;
 	}
 
-	private getScopedLineTokens(model: ITokenizedModel, lineNumber: number, columnNumber?: number) {
+	private getScopedLineTokens(model: ITextModel, lineNumber: number, columnNumber?: number) {
 		model.forceTokenization(lineNumber);
 		let lineTokens = model.getLineTokens(lineNumber);
 		let column = isNaN(columnNumber) ? model.getLineMaxColumn(lineNumber) - 1 : columnNumber - 1;

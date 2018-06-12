@@ -1,8 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" version="1.1" width="16px" height="32px" fill="#999">
-  <circle cx="5px" cy="11px" r="1.2"/>
-  <circle cx="10px" cy="11px" r="1.2"/>
-  <circle cx="5px" cy="16px" r="1.2"/>
-  <circle cx="10px" cy="16px" r="1.2"/>
-  <circle cx="5px" cy="21px" r="1.2"/>
-  <circle cx="10px" cy="21px" r="1.2"/>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><defs><style>.icon-canvas-transparent{fill:#f6f6f6;opacity:0;}.icon-disabled-grey{fill:#848484;}</style></defs><title>drag</title><g id="canvas"><path class="icon-canvas-transparent" d="M16,0V16H0V0Z"/></g><g id="iconBg"><path class="icon-disabled-grey" d="M7,4A1,1,0,1,1,6,3,1,1,0,0,1,7,4Zm3,1A1,1,0,1,0,9,4,1,1,0,0,0,10,5ZM6,7A1,1,0,1,0,7,8,1,1,0,0,0,6,7Zm4,0a1,1,0,1,0,1,1A1,1,0,0,0,10,7ZM6,11a1,1,0,1,0,1,1A1,1,0,0,0,6,11Zm4,0a1,1,0,1,0,1,1A1,1,0,0,0,10,11Z"/></g></svg>

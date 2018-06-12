@@ -21,7 +21,7 @@ export interface IStringBuilder {
 
 export let createStringBuilder: (capacity: number) => IStringBuilder;
 
-if ((<any>self).TextDecoder) {
+if (typeof TextDecoder !== 'undefined') {
 	createStringBuilder = (capacity) => new StringBuilder(capacity);
 } else {
 	createStringBuilder = (capacity) => new CompatStringBuilder();

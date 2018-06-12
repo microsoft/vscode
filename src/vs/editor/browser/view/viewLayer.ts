@@ -80,7 +80,7 @@ export class RenderedLinesCollection<T extends ILine> {
 	public getLine(lineNumber: number): T {
 		let lineIndex = lineNumber - this._rendLineNumberStart;
 		if (lineIndex < 0 || lineIndex >= this._lines.length) {
-			throw new Error('Illegal value for lineNumber: ' + lineNumber);
+			throw new Error('Illegal value for lineNumber');
 		}
 		return this._lines[lineIndex];
 	}

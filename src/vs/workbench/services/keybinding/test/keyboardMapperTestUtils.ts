@@ -62,20 +62,16 @@ export function readRawMapping<T>(file: string): TPromise<T> {
 	});
 }
 
-export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string, done: (err?: any) => void): void {
+export function assertMapping(writeFileIfDifferent: boolean, mapper: IKeyboardMapper, file: string): TPromise<void> {
 	const filePath = require.toUrl(`vs/workbench/services/keybinding/test/${file}`);
 
-	readFile(filePath).then((buff) => {
+	return readFile(filePath).then((buff) => {
 		let expected = buff.toString();
 		const actual = mapper.dumpDebugInfo();
 		if (actual !== expected && writeFileIfDifferent) {
 			writeFile(filePath, actual);
 		}
-		try {
-			assert.deepEqual(actual, expected);
-		} catch (err) {
-			return done(err);
-		}
-		done();
-	}, done);
+
+		assert.deepEqual(actual.split(/\r\n|\n/), expected.split(/\r\n|\n/));
+	});
 }

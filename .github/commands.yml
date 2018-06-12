@@ -56,5 +56,11 @@
             action: 'updateLabels',
             addLabel: 'confirmed'
         },
+        {
+            type: 'comment',
+            name: 'findDuplicates',
+            action: 'comment',
+            comment: "Potential duplicates:\n${potentialDuplicates}"
+        },
     ]
 }

@@ -6,18 +6,20 @@
 
 import 'vs/css!./inputBox';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import * as Bal from 'vs/base/browser/browser';
 import * as dom from 'vs/base/browser/dom';
 import { RenderOptions, renderFormattedText, renderText } from 'vs/base/browser/htmlContentRenderer';
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { IAction } from 'vs/base/common/actions';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextViewProvider, AnchorAlignment } from 'vs/base/browser/ui/contextview/contextview';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 
 const $ = dom.$;
 
@@ -80,7 +82,7 @@ const defaultOpts = {
 
 export class InputBox extends Widget {
 	private contextViewProvider: IContextViewProvider;
-	private element: HTMLElement;
+	element: HTMLElement;
 	private input: HTMLInputElement;
 	private mirror: HTMLElement;
 	private actionbar: ActionBar;
@@ -104,10 +106,10 @@ export class InputBox extends Widget {
 	private inputValidationErrorBackground: Color;
 
 	private _onDidChange = this._register(new Emitter<string>());
-	public onDidChange: Event<string> = this._onDidChange.event;
+	public readonly onDidChange: Event<string> = this._onDidChange.event;
 
 	private _onDidHeightChange = this._register(new Emitter<number>());
-	public onDidHeightChange: Event<number> = this._onDidHeightChange.event;
+	public readonly onDidHeightChange: Event<number> = this._onDidHeightChange.event;
 
 	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options?: IInputOptions) {
 		super();
@@ -160,8 +162,7 @@ export class InputBox extends Widget {
 		}
 
 		if (this.placeholder) {
-			this.input.setAttribute('placeholder', this.placeholder);
-			this.input.title = this.placeholder;
+			this.setPlaceHolder(this.placeholder);
 		}
 
 		this.oninput(this.input, () => this.onValueChange());
@@ -204,6 +205,7 @@ export class InputBox extends Widget {
 	public setPlaceHolder(placeHolder: string): void {
 		if (this.input) {
 			this.input.setAttribute('placeholder', placeHolder);
+			this.input.title = placeHolder;
 		}
 	}
 
@@ -329,21 +331,22 @@ export class InputBox extends Widget {
 	}
 
 	public validate(): boolean {
-		let result: IMessage = null;
+		let errorMsg: IMessage = null;
 
 		if (this.validation) {
-			result = this.validation(this.value);
+			errorMsg = this.validation(this.value);
 
-			if (!result) {
+			if (errorMsg) {
+				this.inputElement.setAttribute('aria-invalid', 'true');
+				this.showMessage(errorMsg);
+			}
+			else if (this.inputElement.hasAttribute('aria-invalid')) {
 				this.inputElement.removeAttribute('aria-invalid');
 				this.hideMessage();
-			} else {
-				this.inputElement.setAttribute('aria-invalid', 'true');
-				this.showMessage(result);
 			}
 		}
 
-		return !result;
+		return !errorMsg;
 	}
 
 	private stylesForType(type: MessageType): { border: Color; background: Color } {
@@ -494,5 +497,50 @@ export class InputBox extends Widget {
 		this.actionbar = null;
 
 		super.dispose();
+	}
+}
+
+export interface IHistoryInputOptions extends IInputOptions {
+	history: string[];
+}
+
+export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
+
+	private readonly history: HistoryNavigator<string>;
+
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions) {
+		super(container, contextViewProvider, options);
+		this.history = new HistoryNavigator<string>(options.history, 100);
+	}
+
+	public addToHistory(value: string): void {
+		if (value !== this.history.current()) {
+			this.history.add(value);
+		}
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public showNextValue(): void {
+		let next = this.history.next();
+		if (next) {
+			this.value = next;
+		}
+	}
+
+	public showPreviousValue(): void {
+		if (this.value.length !== 0) {
+			this.history.addIfNotPresent(this.value);
+		}
+		const previous = this.history.previous();
+		if (previous) {
+			this.value = previous;
+		}
+	}
+
+	public clearHistory(): void {
+		this.history.clear();
 	}
 }

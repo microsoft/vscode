@@ -5,26 +5,29 @@
 
 import { assign } from 'vs/base/common/objects';
 import { memoize } from 'vs/base/common/decorators';
-import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { BrowserWindow, ipcMain } from 'electron';
 import { ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { Barrier } from 'vs/base/common/async';
+import { ILogService } from 'vs/platform/log/common/log';
+import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
 
 export class SharedProcess implements ISharedProcess {
 
 	private barrier = new Barrier();
 
 	private window: Electron.BrowserWindow;
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		private environmentService: IEnvironmentService,
+		private readonly environmentService: IEnvironmentService,
+		private readonly lifecycleService: ILifecycleService,
+		private readonly logService: ILogService,
 		private readonly machineId: string,
-		private readonly userEnv: IProcessEnvironment
-	) { }
+		private readonly userEnv: IProcessEnvironment,
+	) {
+	}
 
 	@memoize
 	private get _whenReady(): TPromise<void> {
@@ -48,16 +51,27 @@ export class SharedProcess implements ISharedProcess {
 
 		// Prevent the window from dying
 		const onClose = (e: Event) => {
+			this.logService.trace('SharedProcess#close prevented');
+
+			// We never allow to close the shared process unless we get explicitly disposed()
+			e.preventDefault();
+
+			// Still hide the window though if visible
 			if (this.window.isVisible()) {
-				e.preventDefault();
 				this.window.hide();
 			}
 		};
 
 		this.window.on('close', onClose);
-		this.disposables.push(toDisposable(() => this.window.removeListener('close', onClose)));
 
-		this.disposables.push(toDisposable(() => {
+		this.lifecycleService.onShutdown(() => {
+			// Shut the shared process down when we are quitting
+			//
+			// Note: because we veto the window close, we must first remove our veto.
+			// Otherwise the application would never quit because the shared process
+			// window is refusing to close!
+			//
+			this.window.removeListener('close', onClose);
 
 			// Electron seems to crash on Windows without this setTimeout :|
 			setTimeout(() => {
@@ -69,13 +83,14 @@ export class SharedProcess implements ISharedProcess {
 
 				this.window = null;
 			}, 0);
-		}));
+		});
 
 		return new TPromise<void>((c, e) => {
 			ipcMain.once('handshake:hello', ({ sender }: { sender: any }) => {
 				sender.send('handshake:hey there', {
 					sharedIPCHandle: this.environmentService.sharedIPCHandle,
-					args: this.environmentService.args
+					args: this.environmentService.args,
+					logLevel: this.logService.getLevel()
 				});
 
 				ipcMain.once('handshake:im ready', () => c(null));
@@ -107,9 +122,5 @@ export class SharedProcess implements ISharedProcess {
 	hide(): void {
 		this.window.webContents.closeDevTools();
 		this.window.hide();
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
 	}
 }

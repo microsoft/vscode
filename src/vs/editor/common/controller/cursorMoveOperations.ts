@@ -96,7 +96,7 @@ export class MoveOperations {
 		const currentVisibleColumn = CursorColumns.visibleColumnFromColumn(model.getLineContent(lineNumber), column, config.tabSize) + leftoverVisibleColumns;
 
 		lineNumber = lineNumber + count;
-		var lineCount = model.getLineCount();
+		let lineCount = model.getLineCount();
 		if (lineNumber > lineCount) {
 			lineNumber = lineCount;
 			if (allowMoveOnLastLine) {

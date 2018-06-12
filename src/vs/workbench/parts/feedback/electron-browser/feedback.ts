@@ -6,20 +6,25 @@
 'use strict';
 
 import 'vs/css!./media/feedback';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Dropdown } from 'vs/base/browser/ui/dropdown/dropdown';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import product from 'vs/platform/node/product';
 import * as dom from 'vs/base/browser/dom';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import * as errors from 'vs/base/common/errors';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { attachStylerCallback } from 'vs/platform/theme/common/styler';
-import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { attachButtonStyler, attachStylerCallback } from 'vs/platform/theme/common/styler';
+import { editorWidgetBackground, widgetShadow, inputBorder, inputForeground, inputBackground, inputActiveOptionBorder, editorBackground, buttonBackground, contrastBorder, darken } from 'vs/platform/theme/common/colorRegistry';
+import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
+import { IAnchor } from 'vs/base/browser/ui/contextview/contextview';
+import { Button } from 'vs/base/browser/ui/button/button';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+
+export const FEEDBACK_VISIBLE_CONFIG = 'workbench.statusBar.feedback.visible';
 
 export interface IFeedback {
 	feedback: string;
@@ -34,6 +39,7 @@ export interface IFeedbackService {
 export interface IFeedbackDropdownOptions {
 	contextViewProvider: IContextViewService;
 	feedbackService?: IFeedbackService;
+	onFeedbackVisibilityChange?: (visible: boolean) => void;
 }
 
 enum FormEvent {
@@ -43,35 +49,36 @@ enum FormEvent {
 }
 
 export class FeedbackDropdown extends Dropdown {
-	protected maxFeedbackCharacters: number;
+	private maxFeedbackCharacters: number;
 
-	protected feedback: string;
-	protected sentiment: number;
-	protected aliasEnabled: boolean;
-	protected isSendingFeedback: boolean;
-	protected autoHideTimeout: number;
+	private feedback: string;
+	private sentiment: number;
+	private isSendingFeedback: boolean;
+	private autoHideTimeout: number;
 
-	protected feedbackService: IFeedbackService;
+	private feedbackService: IFeedbackService;
 
-	protected feedbackForm: HTMLFormElement;
-	protected feedbackDescriptionInput: HTMLTextAreaElement;
-	protected smileyInput: Builder;
-	protected frownyInput: Builder;
-	protected sendButton: Builder;
-	protected remainingCharacterCount: Builder;
+	private feedbackForm: HTMLFormElement;
+	private feedbackDescriptionInput: HTMLTextAreaElement;
+	private smileyInput: Builder;
+	private frownyInput: Builder;
+	private sendButton: Button;
+	private $sendButton: Builder;
+	private hideButton: HTMLInputElement;
+	private remainingCharacterCount: Builder;
 
-	protected requestFeatureLink: string;
-	protected reportIssueLink: string;
+	private requestFeatureLink: string;
 
 	private _isPure: boolean;
 
 	constructor(
 		container: HTMLElement,
-		options: IFeedbackDropdownOptions,
-		@ITelemetryService protected telemetryService: ITelemetryService,
+		private options: IFeedbackDropdownOptions,
 		@ICommandService private commandService: ICommandService,
-		@IIntegrityService protected integrityService: IIntegrityService,
-		@IThemeService private themeService: IThemeService
+		@ITelemetryService private telemetryService: ITelemetryService,
+		@IIntegrityService private integrityService: IIntegrityService,
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceConfigurationService private configurationService: IWorkspaceConfigurationService
 	) {
 		super(container, {
 			contextViewProvider: options.contextViewProvider,
@@ -89,8 +96,8 @@ export class FeedbackDropdown extends Dropdown {
 			}
 		});
 
-		this.element.addClass('send-feedback');
-		this.element.title(nls.localize('sendFeedback', "Tweet Feedback"));
+		dom.addClass(this.element, 'send-feedback');
+		this.element.title = nls.localize('sendFeedback', "Tweet Feedback");
 
 		this.feedbackService = options.feedbackService;
 
@@ -105,15 +112,25 @@ export class FeedbackDropdown extends Dropdown {
 		this.frownyInput = null;
 
 		this.sendButton = null;
+		this.$sendButton = null;
 
-		this.reportIssueLink = product.reportIssueUrl;
-		this.requestFeatureLink = product.requestFeatureUrl;
+		this.requestFeatureLink = product.sendASmile.requestFeatureUrl;
+	}
+
+	protected getAnchor(): HTMLElement | IAnchor {
+		const res = dom.getDomNodePagePosition(this.element);
+
+		return {
+			x: res.left,
+			y: res.top - 9, /* above the status bar */
+			width: res.width,
+			height: res.height
+		} as IAnchor;
 	}
 
 	protected renderContents(container: HTMLElement): IDisposable {
 		const $form = $('form.feedback-form').attr({
-			action: 'javascript:void(0);',
-			tabIndex: '-1'
+			action: 'javascript:void(0);'
 		}).appendTo(container);
 
 		$(container).addClass('monaco-menu-container');
@@ -122,7 +139,27 @@ export class FeedbackDropdown extends Dropdown {
 
 		$('h2.title').text(nls.localize("label.sendASmile", "Tweet us your feedback.")).appendTo($form);
 
-		this.invoke($('div.cancel').attr('tabindex', '0'), () => {
+		const cancelBtn = $('div.cancel').attr('tabindex', '0');
+		cancelBtn.on(dom.EventType.MOUSE_OVER, () => {
+			const theme = this.themeService.getTheme();
+			let darkenFactor: number;
+			switch (theme.type) {
+				case 'light':
+					darkenFactor = 0.1;
+					break;
+				case 'dark':
+					darkenFactor = 0.2;
+					break;
+			}
+
+			if (darkenFactor) {
+				cancelBtn.getHTMLElement().style.backgroundColor = darken(theme.getColor(editorWidgetBackground), darkenFactor)(theme).toString();
+			}
+		});
+		cancelBtn.on(dom.EventType.MOUSE_OUT, () => {
+			cancelBtn.getHTMLElement().style.backgroundColor = null;
+		});
+		this.invoke(cancelBtn, () => {
 			this.hide();
 		}).appendTo($form);
 
@@ -171,7 +208,16 @@ export class FeedbackDropdown extends Dropdown {
 		$('div').append($('a').attr('target', '_blank').attr('href', '#').text(nls.localize("submit a bug", "Submit a bug")).attr('tabindex', '0'))
 			.on('click', event => {
 				dom.EventHelper.stop(event);
-				this.commandService.executeCommand('workbench.action.reportIssues').done(null, errors.onUnexpectedError);
+				const actionId = 'workbench.action.openIssueReporter';
+				this.commandService.executeCommand(actionId).done(null, errors.onUnexpectedError);
+
+				/* __GDPR__
+					"workbenchActionExecuted" : {
+						"id" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+						"from": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					}
+				*/
+				this.telemetryService.publicLog('workbenchActionExecuted', { id: actionId, from: 'feedback' });
 			})
 			.appendTo($contactUsContainer);
 
@@ -197,7 +243,20 @@ export class FeedbackDropdown extends Dropdown {
 
 		const $buttons = $('div.form-buttons').appendTo($form);
 
-		this.sendButton = this.invoke($('input.send').type('submit').attr('disabled', '').value(nls.localize('tweet', "Tweet")).appendTo($buttons), () => {
+		const $hideButtonContainer = $('div.hide-button-container').appendTo($buttons);
+
+		this.hideButton = $('input.hide-button').type('checkbox').attr('checked', '').id('hide-button').appendTo($hideButtonContainer).getHTMLElement() as HTMLInputElement;
+
+		$('label').attr('for', 'hide-button').text(nls.localize('showFeedback', "Show Feedback Smiley in Status Bar")).appendTo($hideButtonContainer);
+
+		this.sendButton = new Button($buttons.getHTMLElement());
+		this.sendButton.enabled = false;
+		this.sendButton.label = nls.localize('tweet', "Tweet");
+		this.$sendButton = new Builder(this.sendButton.element);
+		this.$sendButton.addClass('send');
+		this.toDispose.push(attachButtonStyler(this.sendButton, this.themeService));
+
+		this.invoke(this.$sendButton, () => {
 			if (this.isSendingFeedback) {
 				return;
 			}
@@ -205,16 +264,16 @@ export class FeedbackDropdown extends Dropdown {
 		});
 
 		this.toDispose.push(attachStylerCallback(this.themeService, { widgetShadow, editorWidgetBackground, inputBackground, inputForeground, inputBorder, editorBackground, contrastBorder }, colors => {
-			$form.style('background-color', colors.editorWidgetBackground);
-			$form.style('box-shadow', colors.widgetShadow ? `0 2px 8px ${colors.widgetShadow}` : null);
+			$form.style('background-color', colors.editorWidgetBackground ? colors.editorWidgetBackground.toString() : null);
+			$form.style('box-shadow', colors.widgetShadow ? `0 0 8px ${colors.widgetShadow}` : null);
 
 			if (this.feedbackDescriptionInput) {
-				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground;
-				this.feedbackDescriptionInput.style.color = colors.inputForeground;
+				this.feedbackDescriptionInput.style.backgroundColor = colors.inputBackground ? colors.inputBackground.toString() : null;
+				this.feedbackDescriptionInput.style.color = colors.inputForeground ? colors.inputForeground.toString() : null;
 				this.feedbackDescriptionInput.style.border = `1px solid ${colors.inputBorder || 'transparent'}`;
 			}
 
-			$contactUs.style('background-color', colors.editorBackground);
+			$contactUs.style('background-color', colors.editorBackground ? colors.editorBackground.toString() : null);
 			$contactUs.style('border', `1px solid ${colors.contrastBorder || 'transparent'}`);
 		}));
 
@@ -239,10 +298,10 @@ export class FeedbackDropdown extends Dropdown {
 
 	private updateCharCountText(): void {
 		this.remainingCharacterCount.text(this.getCharCountText(this.feedbackDescriptionInput.value.length));
-		this.feedbackDescriptionInput.value ? this.sendButton.removeAttribute('disabled') : this.sendButton.attr('disabled', '');
+		this.sendButton.enabled = this.feedbackDescriptionInput.value.length > 0;
 	}
 
-	protected setSentiment(smile: boolean): void {
+	private setSentiment(smile: boolean): void {
 		if (smile) {
 			this.smileyInput.addClass('checked');
 			this.smileyInput.attr('aria-checked', 'true');
@@ -254,14 +313,16 @@ export class FeedbackDropdown extends Dropdown {
 			this.smileyInput.removeClass('checked');
 			this.smileyInput.attr('aria-checked', 'false');
 		}
+
 		this.sentiment = smile ? 1 : 0;
 		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
 		this.updateCharCountText();
 		$(this.feedbackDescriptionInput).attr({ maxlength: this.maxFeedbackCharacters });
 	}
 
-	protected invoke(element: Builder, callback: () => void): Builder {
+	private invoke(element: Builder, callback: () => void): Builder {
 		element.on('click', callback);
+
 		element.on('keypress', (e) => {
 			if (e instanceof KeyboardEvent) {
 				const keyboardEvent = <KeyboardEvent>e;
@@ -270,7 +331,22 @@ export class FeedbackDropdown extends Dropdown {
 				}
 			}
 		});
+
 		return element;
+	}
+
+	public show(): void {
+		super.show();
+
+		if (this.options.onFeedbackVisibilityChange) {
+			this.options.onFeedbackVisibilityChange(true);
+		}
+	}
+
+	protected onHide(): void {
+		if (this.options.onFeedbackVisibilityChange) {
+			this.options.onFeedbackVisibilityChange(false);
+		}
 	}
 
 	public hide(): void {
@@ -281,6 +357,10 @@ export class FeedbackDropdown extends Dropdown {
 		if (this.autoHideTimeout) {
 			clearTimeout(this.autoHideTimeout);
 			this.autoHideTimeout = null;
+		}
+
+		if (this.hideButton && !this.hideButton.checked) {
+			this.configurationService.updateValue(FEEDBACK_VISIBLE_CONFIG, false).done(null, errors.onUnexpectedError);
 		}
 
 		super.hide();
@@ -295,7 +375,7 @@ export class FeedbackDropdown extends Dropdown {
 		}
 	}
 
-	protected onSubmit(): void {
+	private onSubmit(): void {
 		if ((this.feedbackForm.checkValidity && !this.feedbackForm.checkValidity())) {
 			return;
 		}
@@ -315,36 +395,39 @@ export class FeedbackDropdown extends Dropdown {
 		switch (event) {
 			case FormEvent.SENDING:
 				this.isSendingFeedback = true;
-				this.sendButton.setClass('send in-progress');
-				this.sendButton.value(nls.localize('feedbackSending', "Sending"));
+				this.sendButton.label = nls.localize('feedbackSending', "Sending");
+				this.$sendButton.addClass('in-progress');
 				break;
 			case FormEvent.SENT:
 				this.isSendingFeedback = false;
-				this.sendButton.setClass('send success').value(nls.localize('feedbackSent', "Thanks"));
+				this.sendButton.label = nls.localize('feedbackSent', "Thanks");
+				this.$sendButton.addClass('success');
 				this.resetForm();
 				this.autoHideTimeout = setTimeout(() => {
 					this.hide();
 				}, 1000);
-				this.sendButton.off(['click', 'keypress']);
-				this.invoke(this.sendButton, () => {
+				this.$sendButton.off(['click', 'keypress']);
+				this.invoke(this.$sendButton, () => {
 					this.hide();
-					this.sendButton.off(['click', 'keypress']);
+					this.$sendButton.off(['click', 'keypress']);
+					this.$sendButton.removeClass('in-progress');
 				});
 				break;
 			case FormEvent.SEND_ERROR:
 				this.isSendingFeedback = false;
-				this.sendButton.setClass('send error').value(nls.localize('feedbackSendingError', "Try again"));
+				this.$sendButton.addClass('error');
+				this.sendButton.label = nls.localize('feedbackSendingError', "Try again");
 				break;
 		}
 	}
 
-	protected resetForm(): void {
+	private resetForm(): void {
 		if (this.feedbackDescriptionInput) {
 			this.feedbackDescriptionInput.value = '';
 		}
+
 		this.sentiment = 1;
 		this.maxFeedbackCharacters = this.feedbackService.getCharacterLimit(this.sentiment);
-		this.aliasEnabled = false;
 	}
 }
 

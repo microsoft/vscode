@@ -13,10 +13,9 @@ export const IConfigurationResolverService = createDecorator<IConfigurationResol
 export interface IConfigurationResolverService {
 	_serviceBrand: any;
 
-	// TODO@Isidor improve this API
 	resolve(root: IWorkspaceFolder, value: string): string;
 	resolve(root: IWorkspaceFolder, value: string[]): string[];
 	resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
-	resolveAny<T>(root: IWorkspaceFolder, value: T): T;
-	resolveInteractiveVariables(configuration: any, interactiveVariablesMap: { [key: string]: string }): TPromise<any>;
+	resolveAny<T>(root: IWorkspaceFolder, value: T, commandMapping?: IStringDictionary<string>): T;
+	executeCommandVariables(value: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>>;
 }

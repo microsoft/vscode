@@ -3,12 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.builder-hidden {
+.monaco-builder-hidden {
 	display: none !important;
-	visibility: hidden !important;
-}
-
-.builder-visible {
-	display: inherit;
-	visibility: visible;
 }

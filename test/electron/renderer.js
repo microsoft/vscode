@@ -187,6 +187,9 @@ function loadTests(opts) {
 
 function serializeSuite(suite) {
 	return {
+		root: suite.root,
+		suites: suite.suites.map(serializeSuite),
+		tests: suite.tests.map(serializeRunnable),
 		title: suite.title,
 		fullTitle: suite.fullTitle(),
 		timeout: suite.timeout(),
@@ -267,5 +270,5 @@ function runTests(opts) {
 
 ipcRenderer.on('run', (e, opts) => {
 	initLoader(opts);
-	runTests(opts).catch(err => console.error(err));
+	runTests(opts).catch(err => console.error(typeof err === 'string' ? err : JSON.stringify(err)));
 });

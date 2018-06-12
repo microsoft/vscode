@@ -298,7 +298,7 @@ suite('Filters', () => {
 		assertMatches('ob', 'foobar', undefined, fuzzyScore);
 		assertMatches('sl', 'SVisualLoggerLogsList', '^SVisual^LoggerLogsList', fuzzyScore);
 		assertMatches('sllll', 'SVisualLoggerLogsList', '^SVisua^l^Logger^Logs^List', fuzzyScore);
-		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScore);
+		assertMatches('Three', 'HTMLHRElement', undefined, fuzzyScore);
 		assertMatches('Three', 'Three', '^T^h^r^e^e', fuzzyScore);
 		assertMatches('fo', 'barfoo', undefined, fuzzyScore);
 		assertMatches('fo', 'bar_foo', 'bar_^f^oo', fuzzyScore);
@@ -307,6 +307,14 @@ suite('Filters', () => {
 		assertMatches('fo', 'bar.foo', 'bar.^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar/foo', 'bar/^f^oo', fuzzyScore);
 		assertMatches('fo', 'bar\\foo', 'bar\\^f^oo', fuzzyScore);
+	});
+
+	test('fuzzyScore (first match can be weak)', function () {
+		let fuzzyScoreWeak = (pattern, word) => fuzzyScore(pattern, word, undefined, true);
+		assertMatches('Three', 'HTMLHRElement', 'H^TML^H^R^El^ement', fuzzyScoreWeak);
+		assertMatches('tor', 'constructor', 'construc^t^o^r', fuzzyScoreWeak);
+		assertMatches('ur', 'constructor', 'constr^ucto^r', fuzzyScoreWeak);
+		assertTopScore(fuzzyScoreWeak, 'tor', 2, 'constructor', 'Thor', 'cTor');
 	});
 
 	test('fuzzyScore, many matches', function () {
@@ -393,11 +401,11 @@ suite('Filters', () => {
 
 		// issue #17836
 		// assertTopScore(fuzzyScore, 'TEdit', 1, 'TextEditorDecorationType', 'TextEdit', 'TextEditor');
-		assertTopScore(fuzzyScore, 'p', 0, 'parse', 'posix', 'pafdsa', 'path', 'p');
+		assertTopScore(fuzzyScore, 'p', 4, 'parse', 'posix', 'pafdsa', 'path', 'p');
 		assertTopScore(fuzzyScore, 'pa', 0, 'parse', 'pafdsa', 'path');
 
 		// issue #14583
-		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log');
+		assertTopScore(fuzzyScore, 'log', 3, 'HTMLOptGroupElement', 'ScrollLogicalPosition', 'SVGFEMorphologyElement', 'log', 'logger');
 		assertTopScore(fuzzyScore, 'e', 2, 'AbstractWorker', 'ActiveXObject', 'else');
 
 		// issue #14446
@@ -415,6 +423,8 @@ suite('Filters', () => {
 		assertTopScore(fuzzyScore, 'is', 0, 'isValidViewletId', 'import statement');
 
 		assertTopScore(fuzzyScore, 'title', 1, 'files.trimTrailingWhitespace', 'window.title');
+
+		assertTopScore(fuzzyScore, 'const', 1, 'constructor', 'const', 'cuOnstrul');
 	});
 
 	test('Unexpected suggestion scoring, #28791', function () {

@@ -8,10 +8,10 @@ import * as nls from 'vs/nls';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
-import mime = require('vs/base/common/mime');
+import * as mime from 'vs/base/common/mime';
 import { IFilesConfiguration, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/files';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
-import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionPointUser, ExtensionMessageCollector, IExtensionPoint, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ILanguageExtensionPoint, IValidLanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
@@ -106,7 +106,8 @@ export class WorkbenchModeServiceImpl extends ModeServiceImpl {
 				for (let j = 0, lenJ = extension.value.length; j < lenJ; j++) {
 					let ext = extension.value[j];
 					if (isValidLanguageExtensionPoint(ext, extension.collector)) {
-						let configuration = (ext.configuration ? paths.join(extension.description.extensionFolderPath, ext.configuration) : ext.configuration);
+						// TODO@extensionLocation
+						let configuration = (ext.configuration ? paths.join(extension.description.extensionLocation.fsPath, ext.configuration) : ext.configuration);
 						allValidLanguages.push({
 							id: ext.id,
 							extensions: ext.extensions,

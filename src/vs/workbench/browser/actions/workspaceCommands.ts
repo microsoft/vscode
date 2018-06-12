@@ -6,7 +6,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
@@ -24,11 +24,8 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { isLinux } from 'vs/base/common/platform';
 
-export const ADD_ROOT_FOLDER_COMMAND_ID = 'workbench.command.addRootFolder';
+export const ADD_ROOT_FOLDER_COMMAND_ID = 'addRootFolder';
 export const ADD_ROOT_FOLDER_LABEL = nls.localize('addFolderToWorkspace', "Add Folder to Workspace...");
-
-export const REMOVE_ROOT_FOLDER_COMMAND_ID = 'workbench.command.removeRootFolder';
-export const REMOVE_ROOT_FOLDER_LABEL = nls.localize('removeFolderFromWorkspace', "Remove Folder from Workspace");
 
 export const PICK_WORKSPACE_FOLDER_COMMAND_ID = '_workbench.pickWorkspaceFolder';
 
@@ -153,16 +150,10 @@ CommandsRegistry.registerCommand({
 				}
 
 				// Add and show Files Explorer viewlet
-				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) }))).then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true));
+				return workspaceEditingService.addFolders(folders.map(folder => ({ uri: URI.file(folder) })))
+					.then(() => viewletService.openViewlet(viewletService.getDefaultViewletId(), true))
+					.then(() => void 0);
 			});
-	}
-});
-
-CommandsRegistry.registerCommand({
-	id: REMOVE_ROOT_FOLDER_COMMAND_ID,
-	handler: (accessor, resource: URI) => {
-		const workspaceEditingService = accessor.get(IWorkspaceEditingService);
-		return workspaceEditingService.removeFolders([resource]);
 	}
 });
 

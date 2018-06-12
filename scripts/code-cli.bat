@@ -29,7 +29,7 @@ set ELECTRON_ENABLE_LOGGING=1
 set ELECTRON_ENABLE_STACK_DUMPING=1
 
 :: Launch Code
-%CODE% --debug=5874 out\cli.js . %*
+%CODE% --inspect=5874 out\cli.js . %*
 popd
 
 endlocal

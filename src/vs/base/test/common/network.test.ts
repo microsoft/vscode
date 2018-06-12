@@ -36,7 +36,7 @@ suite('Network', () => {
 		);
 
 		assertUrl('http://www.test.com:8000#hash',
-			'http', 'www.test.com', '8000', '', '', 'hash'
+			'http', 'www.test.com', '8000', '/', '', 'hash'
 		);
 
 		assertUrl('http://www.test.com/#hash',
@@ -44,7 +44,7 @@ suite('Network', () => {
 		);
 
 		assertUrl('http://www.test.com#hash',
-			'http', 'www.test.com', '', '', '', 'hash'
+			'http', 'www.test.com', '', '/', '', 'hash'
 		);
 
 		assertUrl('http://www.test.com:8000/this/that/theother.html',
@@ -56,7 +56,7 @@ suite('Network', () => {
 		);
 
 		assertUrl('http://www.test.com:8000',
-			'http', 'www.test.com', '8000', '', '', ''
+			'http', 'www.test.com', '8000', '/', '', ''
 		);
 
 		assertUrl('http://www.test.com/',

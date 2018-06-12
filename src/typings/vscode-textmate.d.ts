@@ -37,11 +37,21 @@ declare module "vscode-textmate" {
 	export interface IEmbeddedLanguagesMap {
 		[scopeName: string]: number;
 	}
+	/**
+	 * A map from scope name to a token type.
+	 */
+	export interface ITokenTypeMap {
+		[scopeName: string]: StandardTokenType;
+	}
 	export const enum StandardTokenType {
 		Other = 0,
 		Comment = 1,
 		String = 2,
 		RegEx = 4,
+	}
+	export interface IGrammarConfiguration {
+		embeddedLanguages?: IEmbeddedLanguagesMap;
+		tokenTypes?: ITokenTypeMap;
 	}
 	/**
 	 * The registry that will hold all grammars.
@@ -65,6 +75,11 @@ declare module "vscode-textmate" {
 		loadGrammarWithEmbeddedLanguages(initialScopeName: string, initialLanguage: number, embeddedLanguages: IEmbeddedLanguagesMap, callback: (err: any, grammar: IGrammar) => void): void;
 		/**
 		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
+		 * Please do not use language id 0.
+		 */
+		loadGrammarWithConfiguration(initialScopeName: string, initialLanguage: number, configuration: IGrammarConfiguration, callback: (err: any, grammar: IGrammar) => void): void;
+		/**
+		 * Load the grammar for `scopeName` and all referenced included grammars asynchronously.
 		 */
 		loadGrammar(initialScopeName: string, callback: (err: any, grammar: IGrammar) => void): void;
 		private _loadGrammar(initialScopeName, callback);
@@ -75,7 +90,7 @@ declare module "vscode-textmate" {
 		/**
 		 * Get the grammar for `scopeName`. The grammar must first be created via `loadGrammar` or `loadGrammarFromPathSync`.
 		 */
-		grammarForScopeName(scopeName: string, initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap): IGrammar;
+		grammarForScopeName(scopeName: string, initialLanguage?: number, embeddedLanguages?: IEmbeddedLanguagesMap, tokenTypes?: ITokenTypeMap): IGrammar;
 	}
 	/**
 	 * A grammar

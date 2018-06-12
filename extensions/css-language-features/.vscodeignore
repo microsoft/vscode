@@ -1,0 +1,5 @@
+client/src/**
+client/tsconfig.json
+server/src/**
+server/tsconfig.json
+server/node_modules/@types/**

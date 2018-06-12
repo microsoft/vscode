@@ -31,6 +31,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -55,8 +56,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 99,
+				viewportColumn: 98,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -87,6 +89,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 13,
 			verticalScrollbarHasArrows: true,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -111,6 +114,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
 				viewportColumn: 97,
 
@@ -143,6 +147,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -167,8 +172,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 89,
+				viewportColumn: 88,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -199,6 +205,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -223,8 +230,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 89,
+				viewportColumn: 88,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -255,6 +263,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -279,8 +288,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 89,
+				viewportColumn: 88,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -311,6 +321,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -335,8 +346,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 84,
+				viewportColumn: 83,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -367,6 +379,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -391,8 +404,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 84,
+				viewportColumn: 83,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -423,6 +437,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -447,8 +462,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 83,
+				viewportColumn: 82,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -479,6 +495,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -503,8 +520,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 172,
+				viewportColumn: 171,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -535,6 +553,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: false,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -559,8 +578,9 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 900,
 
 				renderMinimap: RenderMinimap.None,
+				minimapLeft: 0,
 				minimapWidth: 0,
-				viewportColumn: 170,
+				viewportColumn: 169,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -591,6 +611,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 1,
@@ -611,12 +632,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
-				contentWidth: 900,
+				contentWidth: 901,
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Small,
-				minimapWidth: 90,
-				viewportColumn: 90,
+				minimapLeft: 911,
+				minimapWidth: 89,
+				viewportColumn: 89,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -647,6 +669,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 2,
@@ -667,12 +690,13 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				decorationsHeight: 800,
 
 				contentLeft: 10,
-				contentWidth: 900,
+				contentWidth: 901,
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Large,
-				minimapWidth: 90,
-				viewportColumn: 90,
+				minimapLeft: 911,
+				minimapWidth: 89,
+				viewportColumn: 89,
 
 				verticalScrollbarWidth: 0,
 				horizontalScrollbarHeight: 0,
@@ -703,6 +727,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 			scrollbarArrowSize: 0,
 			verticalScrollbarHasArrows: false,
 			minimap: true,
+			minimapSide: 'right',
 			minimapRenderCharacters: true,
 			minimapMaxColumn: 150,
 			pixelRatio: 4,
@@ -727,6 +752,7 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 				contentHeight: 800,
 
 				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 953,
 				minimapWidth: 47,
 				viewportColumn: 94,
 
@@ -740,5 +766,122 @@ suite('Editor ViewLayout - EditorLayoutProvider', () => {
 					right: 0
 				}
 			});
+	});
+
+	test('EditorLayoutProvider 10 - render minimap to left', () => {
+		doTest({
+			outerWidth: 1000,
+			outerHeight: 800,
+			showGlyphMargin: false,
+			lineHeight: 16,
+			showLineNumbers: false,
+			lineNumbersMinChars: 0,
+			lineNumbersDigitCount: 1,
+			lineDecorationsWidth: 10,
+			typicalHalfwidthCharacterWidth: 10,
+			maxDigitWidth: 10,
+			verticalScrollbarWidth: 0,
+			horizontalScrollbarHeight: 0,
+			scrollbarArrowSize: 0,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapSide: 'left',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 150,
+			pixelRatio: 4,
+		}, {
+				width: 1000,
+				height: 800,
+
+				glyphMarginLeft: 47,
+				glyphMarginWidth: 0,
+				glyphMarginHeight: 800,
+
+				lineNumbersLeft: 47,
+				lineNumbersWidth: 0,
+				lineNumbersHeight: 800,
+
+				decorationsLeft: 47,
+				decorationsWidth: 10,
+				decorationsHeight: 800,
+
+				contentLeft: 57,
+				contentWidth: 943,
+				contentHeight: 800,
+
+				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 0,
+				minimapWidth: 47,
+				viewportColumn: 94,
+
+				verticalScrollbarWidth: 0,
+				horizontalScrollbarHeight: 0,
+
+				overviewRuler: {
+					top: 0,
+					width: 0,
+					height: 800,
+					right: 0
+				}
+			});
+	});
+
+	test('issue #31312: When wrapping, leave 2px for the cursor', () => {
+		doTest({
+			outerWidth: 1201,
+			outerHeight: 422,
+			showGlyphMargin: true,
+			lineHeight: 30,
+			showLineNumbers: true,
+			lineNumbersMinChars: 3,
+			lineNumbersDigitCount: 1,
+			lineDecorationsWidth: 26,
+			typicalHalfwidthCharacterWidth: 12.04296875,
+			maxDigitWidth: 12.04296875,
+			verticalScrollbarWidth: 14,
+			horizontalScrollbarHeight: 10,
+			scrollbarArrowSize: 11,
+			verticalScrollbarHasArrows: false,
+			minimap: true,
+			minimapSide: 'right',
+			minimapRenderCharacters: true,
+			minimapMaxColumn: 120,
+			pixelRatio: 2
+		}, {
+				width: 1201,
+				height: 422,
+
+				glyphMarginLeft: 0,
+				glyphMarginWidth: 30,
+				glyphMarginHeight: 422,
+
+				lineNumbersLeft: 30,
+				lineNumbersWidth: 36,
+				lineNumbersHeight: 422,
+
+				decorationsLeft: 66,
+				decorationsWidth: 26,
+				decorationsHeight: 422,
+
+				contentLeft: 92,
+				contentWidth: 1026,
+				contentHeight: 422,
+
+				renderMinimap: RenderMinimap.Large,
+				minimapLeft: 1104,
+				minimapWidth: 83,
+				viewportColumn: 83,
+
+				verticalScrollbarWidth: 14,
+				horizontalScrollbarHeight: 10,
+
+				overviewRuler: {
+					top: 0,
+					width: 14,
+					height: 422,
+					right: 0
+				}
+			});
+
 	});
 });

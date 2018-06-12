@@ -7,15 +7,15 @@
 
 import * as path from 'path';
 import * as crypto from 'crypto';
-import pfs = require('vs/base/node/pfs');
+import * as pfs from 'vs/base/node/pfs';
 import Uri from 'vs/base/common/uri';
 import { ResourceQueue } from 'vs/base/common/async';
-import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
-import { IFileService } from 'vs/platform/files/common/files';
+import { IBackupFileService, BACKUP_FILE_UPDATE_OPTIONS, BACKUP_FILE_RESOLVE_OPTIONS } from 'vs/workbench/services/backup/common/backup';
+import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
-import { TextSource, IRawTextSource } from 'vs/editor/common/model/textSource';
-import { DefaultEndOfLine } from 'vs/editor/common/editorCommon';
+import { ITextBufferFactory } from 'vs/editor/common/model';
+import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -26,6 +26,28 @@ export interface IBackupFilesModel {
 	remove(resource: Uri): void;
 	count(): number;
 	clear(): void;
+}
+
+export class BackupSnapshot implements ITextSnapshot {
+	private preambleHandled: boolean;
+
+	constructor(private snapshot: ITextSnapshot, private preamble: string) {
+	}
+
+	public read(): string {
+		let value = this.snapshot.read();
+		if (!this.preambleHandled) {
+			this.preambleHandled = true;
+
+			if (typeof value === 'string') {
+				value = this.preamble + value;
+			} else {
+				value = this.preamble;
+			}
+		}
+
+		return value;
+	}
 }
 
 export class BackupFilesModel implements IBackupFilesModel {
@@ -149,7 +171,7 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public backupResource(resource: Uri, content: string, versionId?: number): TPromise<void> {
+	public backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
 		if (this.isShuttingDown) {
 			return TPromise.as(void 0);
 		}
@@ -164,11 +186,11 @@ export class BackupFileService implements IBackupFileService {
 				return void 0; // return early if backup version id matches requested one
 			}
 
-			// Add metadata to top of file
-			content = `${resource.toString()}${BackupFileService.META_MARKER}${content}`;
-
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
-				return this.fileService.updateContent(backupResource, content, BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
+				const preamble = `${resource.toString()}${BackupFileService.META_MARKER}`;
+
+				// Update content with value
+				return this.fileService.updateContent(backupResource, new BackupSnapshot(content, preamble), BACKUP_FILE_UPDATE_OPTIONS).then(() => model.add(backupResource, versionId));
 			});
 		});
 	}
@@ -213,9 +235,27 @@ export class BackupFileService implements IBackupFileService {
 		});
 	}
 
-	public parseBackupContent(rawTextSource: IRawTextSource): string {
-		const textSource = TextSource.fromRawTextSource(rawTextSource, DefaultEndOfLine.LF);
-		return textSource.lines.slice(1).join(textSource.EOL); // The first line of a backup text file is the file name
+	public resolveBackupContent(backup: Uri): TPromise<ITextBufferFactory> {
+		return this.fileService.resolveStreamContent(backup, BACKUP_FILE_RESOLVE_OPTIONS).then(content => {
+
+			// Add a filter method to filter out everything until the meta marker
+			let metaFound = false;
+			const metaPreambleFilter = (chunk: string) => {
+				if (!metaFound && chunk) {
+					const metaIndex = chunk.indexOf(BackupFileService.META_MARKER);
+					if (metaIndex === -1) {
+						return ''; // meta not yet found, return empty string
+					}
+
+					metaFound = true;
+					return chunk.substr(metaIndex + 1); // meta found, return everything after
+				}
+
+				return chunk;
+			};
+
+			return createTextBufferFactoryFromStream(content.value, metaPreambleFilter);
+		});
 	}
 
 	public toBackupResource(resource: Uri): Uri {

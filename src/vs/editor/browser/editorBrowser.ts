@@ -18,6 +18,7 @@ import { ICursorPositionChangedEvent, ICursorSelectionChangedEvent } from 'vs/ed
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ICursors, CursorConfiguration } from 'vs/editor/common/controller/cursorCommon';
 import { IEditorWhitespace } from 'vs/editor/common/viewLayout/whitespaceComputer';
+import { ITextModel, IIdentifiedSingleEditOperation, IModelDecoration, IModelDeltaDecoration } from 'vs/editor/common/model';
 
 /**
  * A view zone is a full horizontal rectangle that 'pushes' text down.
@@ -52,6 +53,11 @@ export interface IViewZone {
 	 * If neither `heightInPx` nor `heightInLines` is specified, a default of `heightInLines` = 1 will be chosen.
 	 */
 	heightInPx?: number;
+	/**
+	 * The minimum width in px of the view zone.
+	 * If this is set, the editor will ensure that the scroll width is >= than this value.
+	 */
+	minWidthInPx?: number;
 	/**
 	 * The dom node of the view zone
 	 */
@@ -309,6 +315,11 @@ export interface IOverviewRuler {
  */
 export interface ICodeEditor extends editorCommon.IEditor {
 	/**
+	 * This editor is used as an alternative to an <input> box, i.e. as a simple widget.
+	 * @internal
+	 */
+	readonly isSimpleWidget: boolean;
+	/**
 	 * An event emitted when the content of the current model has changed.
 	 * @event
 	 */
@@ -354,12 +365,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 */
 	onDidChangeModelDecorations(listener: (e: IModelDecorationsChangedEvent) => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor gained focus (i.e. cursor blinking).
+	 * An event emitted when the text inside this editor gained focus (i.e. cursor starts blinking).
 	 * @event
 	 */
 	onDidFocusEditorText(listener: () => void): IDisposable;
 	/**
-	 * An event emitted when the text inside this editor lost focus.
+	 * An event emitted when the text inside this editor lost focus (i.e. cursor stops blinking).
 	 * @event
 	 */
 	onDidBlurEditorText(listener: () => void): IDisposable;
@@ -367,12 +378,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * An event emitted when the text inside this editor or an editor widget gained focus.
 	 * @event
 	 */
-	onDidFocusEditor(listener: () => void): IDisposable;
+	onDidFocusEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when the text inside this editor or an editor widget lost focus.
 	 * @event
 	 */
-	onDidBlurEditor(listener: () => void): IDisposable;
+	onDidBlurEditorWidget(listener: () => void): IDisposable;
 	/**
 	 * An event emitted before interpreting typed characters (on the keyboard).
 	 * @event
@@ -385,6 +396,12 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @internal
 	 */
 	onDidType(listener: (text: string) => void): IDisposable;
+	/**
+	 * An event emitted when editing failed because the editor is read-only.
+	 * @event
+	 * @internal
+	 */
+	onDidAttemptReadOnlyEdit(listener: () => void): IDisposable;
 	/**
 	 * An event emitted when users paste text in the editor.
 	 * @event
@@ -460,7 +477,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	restoreViewState(state: editorCommon.ICodeEditorViewState): void;
 
 	/**
-	 * Returns true if this editor or one of its widgets has keyboard focus.
+	 * Returns true if the text inside this editor or an editor widget has focus.
 	 */
 	hasWidgetFocus(): boolean;
 
@@ -480,7 +497,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Type the getModel() of IEditor.
 	 */
-	getModel(): editorCommon.IModel;
+	getModel(): ITextModel;
 
 	/**
 	 * Returns the current editor's configuration
@@ -495,13 +512,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 
 	/**
 	 * Get value of the current model attached to this editor.
-	 * @see IModel.getValue
+	 * @see `ITextModel.getValue`
 	 */
 	getValue(options?: { preserveBOM: boolean; lineEnding: string; }): string;
 
 	/**
 	 * Set the value of the current model attached to this editor.
-	 * @see IModel.setValue
+	 * @see `ITextModel.setValue`
 	 */
 	setValue(newValue: string): void;
 
@@ -563,7 +580,7 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	 * @param edits The edits to execute.
 	 * @param endCursoState Cursor state after the edits were applied.
 	 */
-	executeEdits(source: string, edits: editorCommon.IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
+	executeEdits(source: string, edits: IIdentifiedSingleEditOperation[], endCursoState?: Selection[]): boolean;
 
 	/**
 	 * Execute multiple (concommitent) commands on the editor.
@@ -585,13 +602,13 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	/**
 	 * Get all the decorations on a line (filtering out decorations from other editors).
 	 */
-	getLineDecorations(lineNumber: number): editorCommon.IModelDecoration[];
+	getLineDecorations(lineNumber: number): IModelDecoration[];
 
 	/**
 	 * All decorations added through this call will get the ownerId of this editor.
-	 * @see IModel.deltaDecorations
+	 * @see `ITextModel.deltaDecorations`
 	 */
-	deltaDecorations(oldDecorations: string[], newDecorations: editorCommon.IModelDeltaDecoration[]): string[];
+	deltaDecorations(oldDecorations: string[], newDecorations: IModelDeltaDecoration[]): string[];
 
 	/**
 	 * @internal
@@ -614,9 +631,10 @@ export interface ICodeEditor extends editorCommon.IEditor {
 	getLayoutInfo(): editorOptions.EditorLayoutInfo;
 
 	/**
-	 * Returns the range that is currently centered in the view port.
+	 * Returns the ranges that are currently visible.
+	 * Does not account for horizontal scrolling.
 	 */
-	getCenteredRangeInViewport(): Range;
+	getVisibleRanges(): Range[];
 
 	/**
 	 * Get the view zones.
@@ -820,4 +838,19 @@ export function isDiffEditor(thing: any): thing is IDiffEditor {
 	} else {
 		return false;
 	}
+}
+
+/**
+ *@internal
+ */
+export function getCodeEditor(thing: any): ICodeEditor {
+	if (isCodeEditor(thing)) {
+		return thing;
+	}
+
+	if (isDiffEditor(thing)) {
+		return thing.getModifiedEditor();
+	}
+
+	return null;
 }

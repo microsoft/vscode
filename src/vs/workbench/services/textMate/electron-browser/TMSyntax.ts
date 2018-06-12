@@ -7,38 +7,49 @@
 import * as nls from 'vs/nls';
 import * as dom from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { join, normalize } from 'path';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
-import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId } from 'vs/editor/common/modes';
+import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
+import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId, TokenMetadata } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2 } from 'vscode-textmate';
+import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, ITokenTypeMap, StandardTokenType } from 'vscode-textmate';
 import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
-import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
+import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
 import { TokenizationResult, TokenizationResult2 } from 'vs/editor/common/core/token';
-import { TokenMetadata } from 'vs/editor/common/model/tokensBinaryEncoding';
 import { nullTokenize2 } from 'vs/editor/common/modes/nullMode';
 import { generateTokensCSSForColorMap } from 'vs/editor/common/modes/supports/tokenization';
 import { Color } from 'vs/base/common/color';
+import { INotificationService } from 'vs/platform/notification/common/notification';
+import URI from 'vs/base/common/uri';
 
 export class TMScopeRegistry {
 
 	private _scopeNameToLanguageRegistration: { [scopeName: string]: TMLanguageRegistration; };
 	private _encounteredLanguages: boolean[];
 
-	private _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
-	public onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
+	private readonly _onDidEncounterLanguage: Emitter<LanguageId> = new Emitter<LanguageId>();
+	public readonly onDidEncounterLanguage: Event<LanguageId> = this._onDidEncounterLanguage.event;
 
 	constructor() {
 		this._scopeNameToLanguageRegistration = Object.create(null);
 		this._encounteredLanguages = [];
 	}
 
-	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap): void {
-		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(scopeName, filePath, embeddedLanguages);
+	public register(scopeName: string, filePath: string, embeddedLanguages?: IEmbeddedLanguagesMap, tokenTypes?: TokenTypesContribution): void {
+		if (this._scopeNameToLanguageRegistration[scopeName]) {
+			const existingRegistration = this._scopeNameToLanguageRegistration[scopeName];
+			if (existingRegistration.grammarFilePath !== filePath) {
+				console.warn(
+					`Overwriting grammar scope name to file mapping for scope ${scopeName}.\n` +
+					`Old grammar file: ${existingRegistration.grammarFilePath}.\n` +
+					`New grammar file: ${filePath}`
+				);
+			}
+		}
+		this._scopeNameToLanguageRegistration[scopeName] = new TMLanguageRegistration(scopeName, filePath, embeddedLanguages, tokenTypes);
 	}
 
 	public getLanguageRegistration(scopeName: string): TMLanguageRegistration {
@@ -67,8 +78,9 @@ export class TMLanguageRegistration {
 	readonly scopeName: string;
 	readonly grammarFilePath: string;
 	readonly embeddedLanguages: IEmbeddedLanguagesMap;
+	readonly tokenTypes: ITokenTypeMap;
 
-	constructor(scopeName: string, grammarFilePath: string, embeddedLanguages: IEmbeddedLanguagesMap) {
+	constructor(scopeName: string, grammarFilePath: string, embeddedLanguages: IEmbeddedLanguagesMap, tokenTypes: TokenTypesContribution | undefined) {
 		this.scopeName = scopeName;
 		this.grammarFilePath = grammarFilePath;
 
@@ -86,6 +98,27 @@ export class TMLanguageRegistration {
 					continue;
 				}
 				this.embeddedLanguages[scope] = language;
+			}
+		}
+
+		this.tokenTypes = Object.create(null);
+		if (tokenTypes) {
+			// If tokenTypes is configured, fill in `this._tokenTypes`
+			const scopes = Object.keys(tokenTypes);
+			for (let i = 0, len = scopes.length; i < len; i++) {
+				const scope = scopes[i];
+				const tokenType = tokenTypes[scope];
+				switch (tokenType) {
+					case 'string':
+						this.tokenTypes[scope] = StandardTokenType.String;
+						break;
+					case 'other':
+						this.tokenTypes[scope] = StandardTokenType.Other;
+						break;
+					case 'comment':
+						this.tokenTypes[scope] = StandardTokenType.Comment;
+						break;
+				}
 			}
 		}
 	}
@@ -107,17 +140,19 @@ export class TextMateService implements ITextMateService {
 	private _scopeRegistry: TMScopeRegistry;
 	private _injections: { [scopeName: string]: string[]; };
 	private _injectedEmbeddedLanguages: { [scopeName: string]: IEmbeddedLanguagesMap[]; };
+	private _notificationService: INotificationService;
 
 	private _languageToScope: Map<string, string>;
 	private _styleElement: HTMLStyleElement;
 
 	private _currentTokenColors: ITokenColorizationRule[];
 
-	public onDidEncounterLanguage: Event<LanguageId>;
+	public readonly onDidEncounterLanguage: Event<LanguageId>;
 
 	constructor(
 		@IModeService modeService: IModeService,
-		@IWorkbenchThemeService themeService: IWorkbenchThemeService
+		@IWorkbenchThemeService themeService: IWorkbenchThemeService,
+		@INotificationService notificationService: INotificationService
 	) {
 		this._styleElement = dom.createStyleSheet();
 		this._styleElement.className = 'vscode-tokens-styles';
@@ -128,6 +163,7 @@ export class TextMateService implements ITextMateService {
 		this._injections = {};
 		this._injectedEmbeddedLanguages = {};
 		this._languageToScope = new Map<string, string>();
+		this._notificationService = notificationService;
 
 		this._grammarRegistry = null;
 
@@ -135,7 +171,7 @@ export class TextMateService implements ITextMateService {
 			for (let i = 0; i < extensions.length; i++) {
 				let grammars = extensions[i].value;
 				for (let j = 0; j < grammars.length; j++) {
-					this._handleGrammarExtensionPointUser(extensions[i].description.extensionFolderPath, grammars[j], extensions[i].collector);
+					this._handleGrammarExtensionPointUser(extensions[i].description.extensionLocation, grammars[j], extensions[i].collector);
 				}
 			}
 		});
@@ -146,7 +182,7 @@ export class TextMateService implements ITextMateService {
 		let defaultBackground: Color = Color.transparent;
 		for (let i = 0, len = colorTheme.tokenColors.length; i < len; i++) {
 			let rule = colorTheme.tokenColors[i];
-			if (!rule.scope) {
+			if (!rule.scope && rule.settings) {
 				if (rule.settings.foreground) {
 					defaultForeground = Color.fromHex(rule.settings.foreground);
 				}
@@ -231,7 +267,7 @@ export class TextMateService implements ITextMateService {
 	}
 
 
-	private _handleGrammarExtensionPointUser(extensionFolderPath: string, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
+	private _handleGrammarExtensionPointUser(extensionLocation: URI, syntax: ITMSyntaxExtensionPoint, collector: ExtensionMessageCollector): void {
 		if (syntax.language && ((typeof syntax.language !== 'string') || !this._modeService.isRegisteredMode(syntax.language))) {
 			collector.error(nls.localize('invalid.language', "Unknown language in `contributes.{0}.language`. Provided value: {1}", grammarsExtPoint.name, String(syntax.language)));
 			return;
@@ -253,13 +289,19 @@ export class TextMateService implements ITextMateService {
 			return;
 		}
 
-		let normalizedAbsolutePath = normalize(join(extensionFolderPath, syntax.path));
-
-		if (normalizedAbsolutePath.indexOf(extensionFolderPath) !== 0) {
-			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+		if (syntax.tokenTypes && !types.isObject(syntax.tokenTypes)) {
+			collector.error(nls.localize('invalid.tokenTypes', "Invalid value in `contributes.{0}.tokenTypes`. Must be an object map from scope name to token type. Provided value: {1}", grammarsExtPoint.name, JSON.stringify(syntax.tokenTypes)));
+			return;
 		}
 
-		this._scopeRegistry.register(syntax.scopeName, normalizedAbsolutePath, syntax.embeddedLanguages);
+		//TODO@extensionLocation
+		let normalizedAbsolutePath = normalize(join(extensionLocation.fsPath, syntax.path));
+
+		if (normalizedAbsolutePath.indexOf(extensionLocation.fsPath) !== 0) {
+			collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", grammarsExtPoint.name, normalizedAbsolutePath, extensionLocation.fsPath));
+		}
+
+		this._scopeRegistry.register(syntax.scopeName, normalizedAbsolutePath, syntax.embeddedLanguages, syntax.tokenTypes);
 
 		if (syntax.injectTo) {
 			for (let injectScope of syntax.injectTo) {
@@ -313,9 +355,10 @@ export class TextMateService implements ITextMateService {
 			return TPromise.wrapError<ICreateGrammarResult>(new Error(nls.localize('no-tm-grammar', "No TM Grammar registered for this language.")));
 		}
 		let embeddedLanguages = this._resolveEmbeddedLanguages(languageRegistration.embeddedLanguages);
-		let injectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
-		if (injectedEmbeddedLanguages) {
-			for (const injected of injectedEmbeddedLanguages.map(this._resolveEmbeddedLanguages.bind(this))) {
+		let rawInjectedEmbeddedLanguages = this._injectedEmbeddedLanguages[scopeName];
+		if (rawInjectedEmbeddedLanguages) {
+			let injectedEmbeddedLanguages: IEmbeddedLanguagesMap2[] = rawInjectedEmbeddedLanguages.map(this._resolveEmbeddedLanguages.bind(this));
+			for (const injected of injectedEmbeddedLanguages) {
 				for (const scope of Object.keys(injected)) {
 					embeddedLanguages[scope] = injected[scope];
 				}
@@ -327,7 +370,7 @@ export class TextMateService implements ITextMateService {
 		return this._getOrCreateGrammarRegistry().then((_res) => {
 			const [grammarRegistry, initialState] = _res;
 			return new TPromise<ICreateGrammarResult>((c, e, p) => {
-				grammarRegistry.loadGrammarWithEmbeddedLanguages(scopeName, languageId, embeddedLanguages, (err, grammar) => {
+				grammarRegistry.loadGrammarWithConfiguration(scopeName, languageId, { embeddedLanguages, tokenTypes: languageRegistration.tokenTypes }, (err, grammar) => {
 					if (err) {
 						return e(err);
 					}
@@ -344,7 +387,7 @@ export class TextMateService implements ITextMateService {
 
 	private registerDefinition(modeId: string): void {
 		this._createGrammar(modeId).then((r) => {
-			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages));
+			TokenizationRegistry.register(modeId, new TMTokenization(this._scopeRegistry, r.languageId, r.grammar, r.initialState, r.containsEmbeddedLanguages, this._notificationService));
 		}, onUnexpectedError);
 	}
 }
@@ -357,8 +400,9 @@ class TMTokenization implements ITokenizationSupport {
 	private readonly _containsEmbeddedLanguages: boolean;
 	private readonly _seenLanguages: boolean[];
 	private readonly _initialState: StackElement;
+	private _tokenizationWarningAlreadyShown: boolean;
 
-	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean) {
+	constructor(scopeRegistry: TMScopeRegistry, languageId: LanguageId, grammar: IGrammar, initialState: StackElement, containsEmbeddedLanguages: boolean, @INotificationService private notificationService: INotificationService) {
 		this._scopeRegistry = scopeRegistry;
 		this._languageId = languageId;
 		this._grammar = grammar;
@@ -382,6 +426,10 @@ class TMTokenization implements ITokenizationSupport {
 
 		// Do not attempt to tokenize if a line has over 20k
 		if (line.length >= 20000) {
+			if (!this._tokenizationWarningAlreadyShown) {
+				this._tokenizationWarningAlreadyShown = true;
+				this.notificationService.warn(nls.localize('too many characters', "Tokenization is skipped for lines longer than 20k characters for performance reasons."));
+			}
 			console.log(`Line (${line.substr(0, 15)}...): longer than 20k characters, tokenization skipped.`);
 			return nullTokenize2(this._languageId, line, state, offsetDelta);
 		}

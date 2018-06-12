@@ -5,10 +5,10 @@
 
 'use strict';
 
-import { fuzzyScore, fuzzyScoreGracefulAggressive } from 'vs/base/common/filters';
-import { ISuggestSupport, ISuggestResult } from 'vs/editor/common/modes';
-import { ISuggestionItem, SnippetConfig } from './suggest';
+import { fuzzyScore, fuzzyScoreGracefulAggressive, anyScore } from 'vs/base/common/filters';
 import { isDisposable } from 'vs/base/common/lifecycle';
+import { ISuggestResult, ISuggestSupport } from 'vs/editor/common/modes';
+import { ISuggestionItem, SnippetConfig } from './suggest';
 
 export interface ICompletionItem extends ISuggestionItem {
 	matches?: number[];
@@ -20,9 +20,9 @@ export interface ICompletionItem extends ISuggestionItem {
 
 /* __GDPR__FRAGMENT__
 	"ICompletionStats" : {
-		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"suggestionCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"snippetCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"textCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 // __GDPR__TODO__: This is a dynamically extensible structure which can not be declared statically.
@@ -53,7 +53,7 @@ export class CompletionModel {
 	private _lineContext: LineContext;
 	private _refilterKind: Refilter;
 	private _filteredItems: ICompletionItem[];
-	private _isIncomplete: boolean;
+	private _isIncomplete: Set<ISuggestSupport>;
 	private _stats: ICompletionStats;
 
 	constructor(items: ISuggestionItem[], column: number, lineContext: LineContext, snippetConfig?: SnippetConfig) {
@@ -99,24 +99,27 @@ export class CompletionModel {
 		return this._filteredItems;
 	}
 
-	get incomplete(): boolean {
+	get incomplete(): Set<ISuggestSupport> {
 		this._ensureCachedState();
 		return this._isIncomplete;
 	}
 
-	resolveIncompleteInfo(): { incomplete: ISuggestSupport[], complete: ISuggestionItem[] } {
-		const incomplete: ISuggestSupport[] = [];
-		const complete: ISuggestionItem[] = [];
+	adopt(except: Set<ISuggestSupport>): ISuggestionItem[] {
+		let res = new Array<ISuggestionItem>();
+		for (let i = 0; i < this._items.length;) {
+			if (!except.has(this._items[i].support)) {
+				res.push(this._items[i]);
 
-		for (const item of this._items) {
-			if (!item.container.incomplete) {
-				complete.push(item);
-			} else if (incomplete.indexOf(item.support) < 0) {
-				incomplete.push(item.support);
+				// unordered removed
+				this._items[i] = this._items[this._items.length - 1];
+				this._items.pop();
+			} else {
+				// continue with next item
+				i++;
 			}
 		}
-
-		return { incomplete, complete };
+		this._refilterKind = Refilter.All;
+		return res;
 	}
 
 	get stats(): ICompletionStats {
@@ -132,7 +135,7 @@ export class CompletionModel {
 
 	private _createCachedState(): void {
 
-		this._isIncomplete = false;
+		this._isIncomplete = new Set();
 		this._stats = { suggestionCount: 0, snippetCount: 0, textCount: 0 };
 
 		const { leadingLineContent, characterCountDelta } = this._lineContext;
@@ -153,7 +156,9 @@ export class CompletionModel {
 
 			// collect those supports that signaled having
 			// an incomplete result
-			this._isIncomplete = this._isIncomplete || container.incomplete;
+			if (container.incomplete) {
+				this._isIncomplete.add(item.support);
+			}
 
 			// 'word' is that remainder of the current line that we
 			// filter and score against. In theory each suggestion uses a
@@ -174,6 +179,7 @@ export class CompletionModel {
 				// use a score of `-100` because that is out of the
 				// bound of values `fuzzyScore` will return
 				item.score = -100;
+				item.matches = undefined;
 
 			} else if (typeof suggestion.filterText === 'string') {
 				// when there is a `filterText` it must match the `word`.
@@ -185,11 +191,8 @@ export class CompletionModel {
 					continue;
 				}
 				item.score = match[0];
-				item.matches = [];
-				match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);
-				if (match) {
-					item.matches = match[1];
-				}
+				item.matches = (fuzzyScore(word, suggestion.label) || anyScore(word, suggestion.label))[1];
+
 			} else {
 				// by default match `word` against the `label`
 				let match = scoreFn(word, suggestion.label, suggestion.overwriteBefore);

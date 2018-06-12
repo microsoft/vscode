@@ -42,7 +42,7 @@ export class Label implements IDisposable {
 	}
 }
 
-export class InstallWidget implements IDisposable {
+export class InstallCountWidget implements IDisposable {
 
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;

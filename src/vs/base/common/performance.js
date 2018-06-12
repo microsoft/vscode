@@ -11,7 +11,6 @@
 // Because we want both instances to use the same perf-data
 // we store them globally
 // stores data as 'type','name','startTime','duration'
-global._performanceEntries = global._performanceEntries || [];
 
 if (typeof define !== "function" && typeof module === "object" && typeof module.exports === "object") {
 	// this is commonjs, fake amd
@@ -22,6 +21,12 @@ if (typeof define !== "function" && typeof module === "object" && typeof module.
 }
 
 define([], function () {
+
+	var _global = this;
+	if (typeof global !== 'undefined') {
+		_global = global;
+	}
+	_global._performanceEntries = _global._performanceEntries || [];
 
 	// const _now = global.performance && performance.now ? performance.now : Date.now
 	const _now = Date.now;
@@ -93,12 +98,6 @@ define([], function () {
 		}
 	}
 
-	function time(name) {
-		let from = `${name}/start`;
-		mark(from);
-		return { stop() { measure(name, from); } };
-	}
-
 	function measure(name, from, to) {
 
 		let startTime;
@@ -134,7 +133,6 @@ define([], function () {
 	var exports = {
 		mark: mark,
 		measure: measure,
-		time: time,
 		getEntries: getEntries,
 		getEntry: getEntry,
 		getDuration: getDuration,

@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { guessMimeTypes } from 'vs/base/common/mime';
-import paths = require('vs/base/common/paths');
+import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IKeybindingService, KeybindingSource } from 'vs/platform/keybinding/common/keybinding';
@@ -30,19 +30,23 @@ export const NullTelemetryService = new class implements ITelemetryService {
 
 export interface ITelemetryAppender {
 	log(eventName: string, data: any): void;
+	dispose(): TPromise<any>;
 }
 
 export function combinedAppender(...appenders: ITelemetryAppender[]): ITelemetryAppender {
-	return { log: (e, d) => appenders.forEach(a => a.log(e, d)) };
+	return {
+		log: (e, d) => appenders.forEach(a => a.log(e, d)),
+		dispose: () => TPromise.join(appenders.map(a => a.dispose()))
+	};
 }
 
-export const NullAppender: ITelemetryAppender = { log: () => null };
+export const NullAppender: ITelemetryAppender = { log: () => null, dispose: () => TPromise.as(null) };
 
 /* __GDPR__FRAGMENT__
 	"URIDescriptor" : {
 		"mimeType" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 		"ext": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"path": { "classification": "CustomerContent", "purpose": "FeatureInsight" }
+		"path": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 	}
 */
 export interface URIDescriptor {
@@ -75,6 +79,7 @@ const configurationValueWhitelist = [
 	'editor.roundedSelection',
 	'editor.scrollBeyondLastLine',
 	'editor.minimap.enabled',
+	'editor.minimap.side',
 	'editor.minimap.renderCharacters',
 	'editor.minimap.maxColumn',
 	'editor.find.seedSearchStringFromSelection',
@@ -97,6 +102,7 @@ const configurationValueWhitelist = [
 	'editor.snippetSuggestions',
 	'editor.emptySelectionClipboard',
 	'editor.wordBasedSuggestions',
+	'editor.suggestSelection',
 	'editor.suggestFontSize',
 	'editor.suggestLineHeight',
 	'editor.selectionHighlight',

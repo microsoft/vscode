@@ -9,7 +9,8 @@ import { withTestCodeEditor, TestCodeEditor } from 'vs/editor/test/browser/testC
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import { InsertCursorAbove, InsertCursorBelow, MultiCursorSelectionController, SelectHighlightsAction, AddSelectionToNextFindMatchAction } from 'vs/editor/contrib/multicursor/multicursor';
-import { Handler, EndOfLineSequence } from 'vs/editor/common/editorCommon';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { EndOfLineSequence } from 'vs/editor/common/model';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { CommonFindController } from 'vs/editor/contrib/find/findController';
@@ -105,8 +106,6 @@ suite('Multicursor selection', () => {
 			let findController = editor.registerAndInstantiateContribution<CommonFindController>(CommonFindController);
 			let multiCursorSelectController = editor.registerAndInstantiateContribution<MultiCursorSelectionController>(MultiCursorSelectionController);
 			let selectHighlightsAction = new SelectHighlightsAction();
-
-			editor._isFocused = false;
 
 			editor.setSelection(new Selection(1, 1, 1, 1));
 			findController.getState().change({ searchString: 'some+thing', isRegex: true, isRevealed: true }, false);

@@ -5,8 +5,8 @@
 'use strict';
 
 import * as assert from 'assert';
-import paths = require('vs/base/common/paths');
-import platform = require('vs/base/common/platform');
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
 
 suite('Paths', () => {
 
@@ -20,6 +20,7 @@ suite('Paths', () => {
 		assert.equal(paths.dirname('/'), '/');
 		assert.equal(paths.dirname('\\'), '\\');
 		assert.equal(paths.dirname('foo'), '.');
+		assert.equal(paths.dirname('/folder/'), '/');
 		if (platform.isWindows) {
 			assert.equal(paths.dirname('c:\\some\\file.txt'), 'c:\\some');
 			assert.equal(paths.dirname('c:\\some'), 'c:\\');

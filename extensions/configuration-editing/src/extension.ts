@@ -2,16 +2,14 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-
 'use strict';
 
+import * as nls from 'vscode-nls';
+const localize = nls.loadMessageBundle();
 import * as vscode from 'vscode';
-import { getLocation, visit, parse } from 'jsonc-parser';
+import { getLocation, visit, parse, ParseErrorCode } from 'jsonc-parser';
 import * as path from 'path';
 import { SettingsDocument } from './settingsDocumentHelper';
-import * as nls from 'vscode-nls';
-
-const localize = nls.loadMessageBundle();
 
 const decoration = vscode.window.createTextEditorDecorationType({
 	color: '#9e9e9e'
@@ -20,7 +18,6 @@ const decoration = vscode.window.createTextEditorDecorationType({
 let pendingLaunchJsonDecoration: NodeJS.Timer;
 
 export function activate(context: vscode.ExtensionContext): void {
-
 	//keybindings.json command-suggestions
 	context.subscriptions.push(registerKeybindingsCompletions());
 
@@ -29,6 +26,12 @@ export function activate(context: vscode.ExtensionContext): void {
 
 	//extensions suggestions
 	context.subscriptions.push(...registerExtensionsCompletions());
+
+	// launch.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/launch.json'));
+
+	// task.json variable suggestions
+	context.subscriptions.push(registerVariableCompletions('**/tasks.json'));
 
 	// launch.json decorations
 	context.subscriptions.push(vscode.window.onDidChangeActiveTextEditor(editor => updateLaunchJsonDecorations(editor), null, context.subscriptions));
@@ -41,6 +44,50 @@ export function activate(context: vscode.ExtensionContext): void {
 		}
 	}, null, context.subscriptions));
 	updateLaunchJsonDecorations(vscode.window.activeTextEditor);
+
+	context.subscriptions.push(vscode.workspace.onWillSaveTextDocument(e => {
+		if (!e.document.fileName.endsWith('/settings.json')) {
+			return;
+		}
+
+		autoFixSettingsJSON(e);
+	}));
+}
+
+function autoFixSettingsJSON(willSaveEvent: vscode.TextDocumentWillSaveEvent): void {
+	const document = willSaveEvent.document;
+	const text = document.getText();
+	const edit = new vscode.WorkspaceEdit();
+
+	let lastEndOfSomething = -1;
+	visit(text, {
+		onArrayEnd(offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onLiteralValue(value: any, offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onObjectEnd(offset: number, length: number): void {
+			lastEndOfSomething = offset + length;
+		},
+
+		onError(error: ParseErrorCode, offset: number, length: number): void {
+			if (error === ParseErrorCode.CommaExpected && lastEndOfSomething > -1) {
+				const fixPosition = document.positionAt(lastEndOfSomething);
+
+				// Don't insert a comma immediately before a : or ' :'
+				const colonRange = document.getWordRangeAtPosition(fixPosition, / *:/);
+				if (!colonRange) {
+					edit.insert(document.uri, fixPosition, ',');
+				}
+			}
+		}
+	});
+
+	willSaveEvent.waitUntil(
+		vscode.workspace.applyEdit(edit));
 }
 
 function registerKeybindingsCompletions(): vscode.Disposable {
@@ -63,6 +110,30 @@ function registerSettingsCompletions(): vscode.Disposable {
 	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern: '**/settings.json' }, {
 		provideCompletionItems(document, position, token) {
 			return new SettingsDocument(document).provideCompletionItems(position, token);
+		}
+	});
+}
+
+function registerVariableCompletions(pattern: string): vscode.Disposable {
+	return vscode.languages.registerCompletionItemProvider({ language: 'jsonc', pattern }, {
+		provideCompletionItems(document, position, token) {
+			const location = getLocation(document.getText(), document.offsetAt(position));
+			if (!location.isAtPropertyKey && location.previousNode && location.previousNode.type === 'string') {
+				const indexOf$ = document.lineAt(position.line).text.indexOf('$');
+				const startPosition = indexOf$ >= 0 ? new vscode.Position(position.line, indexOf$) : position;
+
+				return [{ label: 'workspaceFolder', detail: localize('workspaceFolder', "The path of the folder opened in VS Code") }, { label: 'workspaceFolderBasename', detail: localize('workspaceFolderBasename', "The name of the folder opened in VS Code without any slashes (/)") },
+				{ label: 'relativeFile', detail: localize('relativeFile', "The current opened file relative to ${workspaceFolder}") }, { label: 'file', detail: localize('file', "The current opened file") }, { label: 'cwd', detail: localize('cwd', "The task runner's current working directory on startup") },
+				{ label: 'lineNumber', detail: localize('lineNumber', "The current selected line number in the active file") }, { label: 'selectedText', detail: localize('selectedText', "The current selected text in the active file") },
+				{ label: 'fileDirname', detail: localize('fileDirname', "The current opened file's dirname") }, { label: 'fileExtname', detail: localize('fileExtname', "The current opened file's extension") }, { label: 'fileBasename', detail: localize('fileBasename', "The current opened file's basename") },
+				{ label: 'fileBasenameNoExtension', detail: localize('fileBasenameNoExtension', "The current opened file's basename with no file extension") }].map(variable => ({
+					label: '${' + variable.label + '}',
+					range: new vscode.Range(startPosition, position),
+					detail: variable.detail
+				}));
+			}
+
+			return [];
 		}
 	});
 }

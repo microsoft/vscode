@@ -7,138 +7,55 @@
 
 declare module 'vscode' {
 
-	// export enum FileErrorCodes {
-	// 	/**
-	// 	 * Not owner.
-	// 	 */
-	// 	EPERM = 1,
-	// 	/**
-	// 	 * No such file or directory.
-	// 	 */
-	// 	ENOENT = 2,
-	// 	/**
-	// 	 * I/O error.
-	// 	 */
-	// 	EIO = 5,
-	// 	/**
-	// 	 * Permission denied.
-	// 	 */
-	// 	EACCES = 13,
-	// 	/**
-	// 	 * File exists.
-	// 	 */
-	// 	EEXIST = 17,
-	// 	/**
-	// 	 * Not a directory.
-	// 	 */
-	// 	ENOTDIR = 20,
-	// 	/**
-	// 	 * Is a directory.
-	// 	 */
-	// 	EISDIR = 21,
-	// 	/**
-	// 	 *  File too large.
-	// 	 */
-	// 	EFBIG = 27,
-	// 	/**
-	// 	 * No space left on device.
-	// 	 */
-	// 	ENOSPC = 28,
-	// 	/**
-	// 	 * Directory is not empty.
-	// 	 */
-	// 	ENOTEMPTY = 66,
-	// 	/**
-	// 	 * Invalid file handle.
-	// 	 */
-	// 	ESTALE = 70,
-	// 	/**
-	// 	 * Illegal NFS file handle.
-	// 	 */
-	// 	EBADHANDLE = 10001,
-	// }
-
-	export enum FileChangeType {
-		Updated = 0,
-		Added = 1,
-		Deleted = 2
+	export namespace window {
+		export function sampleFunction(): Thenable<any>;
 	}
 
-	export interface FileChange {
-		type: FileChangeType;
-		resource: Uri;
+	//#region Joh: remote, search provider
+
+	export interface TextSearchQuery {
+		pattern: string;
+		isRegExp: boolean;
+		isCaseSensitive: boolean;
+		isWordMatch: boolean;
 	}
 
-	export enum FileType {
-		File = 0,
-		Dir = 1,
-		Symlink = 2
+	export interface SearchOptions {
+		folder: Uri;
+		includes: string[]; // paths relative to folder
+		excludes: string[];
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
 	}
 
-	export interface FileStat {
-		id: number | string;
-		mtime: number;
-		// atime: number;
-		size: number;
-		type: FileType;
+	export interface TextSearchOptions extends SearchOptions {
+		previewOptions?: any; // total length? # of context lines? leading and trailing # of chars?
+		maxFileSize?: number;
+		encoding?: string;
 	}
 
-	// todo@joh discover files etc
-	export interface FileSystemProvider {
+	export interface FileSearchOptions extends SearchOptions { }
 
-		readonly onDidChange?: Event<FileChange[]>;
+	export interface TextSearchResult {
+		path: string;
+		range: Range;
 
-		readonly root: Uri;
+		// For now, preview must be a single line of text
+		preview: { text: string, match: Range };
+	}
 
-		// more...
-		//
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<FileStat>;
-
-		stat(resource: Uri): Thenable<FileStat>;
-
-		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-
-		// todo@remote
-		// offset - byte offset to start
-		// count - number of bytes to write
-		// Thenable<number> - number of bytes actually written
-		write(resource: Uri, content: Uint8Array): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		move(resource: Uri, target: Uri): Thenable<FileStat>;
-
-		// todo@remote
-		// helps with performance bigly
-		// copy?(from: Uri, to: Uri): Thenable<void>;
-
-		// todo@remote
-		// Thenable<FileStat>
-		mkdir(resource: Uri): Thenable<FileStat>;
-
-		readdir(resource: Uri): Thenable<[Uri, FileStat][]>;
-
-		// todo@remote
-		// ? merge both
-		// ? recursive del
-		rmdir(resource: Uri): Thenable<void>;
-		unlink(resource: Uri): Thenable<void>;
-
-		// todo@remote
-		// create(resource: Uri): Thenable<FileStat>;
-
-		// find files by names
-		findFiles?(query: string, progress: Progress<Uri>, token: CancellationToken): Thenable<void>;
+	export interface SearchProvider {
+		provideFileSearchResults?(options: FileSearchOptions, progress: Progress<string>, token: CancellationToken): Thenable<void>;
+		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
 	export namespace workspace {
-		export function registerFileSystemProvider(authority: string, provider: FileSystemProvider): Disposable;
+		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
 	}
 
-	export namespace window {
+	//#endregion
 
-		export function sampleFunction(): Thenable<any>;
-	}
+	//#region Joao: diff command
 
 	/**
 	 * The contiguous set of modified lines in a diff.
@@ -169,7 +86,9 @@ declare module 'vscode' {
 		export function registerDiffInformationCommand(command: string, callback: (diff: LineChange[], ...args: any[]) => any, thisArg?: any): Disposable;
 	}
 
-	//#region decorations
+	//#endregion
+
+	//#region Joh: decorations
 
 	//todo@joh -> make class
 	export interface DecorationData {
@@ -198,143 +117,44 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region André: debug
+
 	/**
-	 * A code action represents a change that can be performed in code, e.g. to fix a problem or
-	 * to refactor code.
+	 * Represents a debug adapter executable and optional arguments passed to it.
 	 */
-	export class CodeAction {
+	export class DebugAdapterExecutable {
+		/**
+		 * The command path of the debug adapter executable.
+		 * A command must be either an absolute path or the name of an executable looked up via the PATH environment variable.
+		 * The special value 'node' will be mapped to VS Code's built-in node runtime.
+		 */
+		readonly command: string;
 
 		/**
-		 * A short, human-readanle, title for this code action.
+		 * Optional arguments passed to the debug adapter executable.
 		 */
-		title: string;
+		readonly args: string[];
 
 		/**
-		 * A workspace edit this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
+		 * Create a new debug adapter specification.
 		 */
-		edit?: WorkspaceEdit;
-
-		/**
-		 * Diagnostics that this code action resolves.
-		 */
-		diagnostics?: Diagnostic[];
-
-		/**
-		 * A command this code action performs.
-		 *
-		 * *Note* that either an [`edit`](CodeAction#edit) or a [`command`](CodeAction#command) must be supplied.
-		 */
-		command?: Command;
-
-		/**
-		 * Creates a new code action.
-		 *
-		 * A code action must have at least a [title](#CodeAction.title) and either [edits](#CodeAction.edits)
-		 * or a [command](#CodeAction.command).
-		 *
-		 * @param title The title of the code action.
-		 * @param edits The edit of the code action.
-		 */
-		constructor(title: string, edit?: WorkspaceEdit);
+		constructor(command: string, args?: string[]);
 	}
 
-	export interface CodeActionProvider {
-
+	export interface DebugConfigurationProvider {
 		/**
-		 * Provide commands for the given document and range.
-		 *
-		 * If implemented, overrides `provideCodeActions`
-		 *
-		 * @param document The document in which the command was invoked.
-		 * @param range The range for which the command was invoked.
-		 * @param context Context carrying additional information.
+		 * This optional method is called just before a debug adapter is started to determine its executable path and arguments.
+		 * Registering more than one debugAdapterExecutable for a type results in an error.
+		 * @param folder The workspace folder from which the configuration originates from or undefined for a folderless setup.
 		 * @param token A cancellation token.
-		 * @return An array of commands, quick fixes, or refactorings or a thenable of such. The lack of a result can be
-		 * signaled by returning `undefined`, `null`, or an empty array.
+		 * @return a [debug adapter's executable and optional arguments](#DebugAdapterExecutable) or undefined.
 		 */
-		provideCodeActions2?(document: TextDocument, range: Range, context: CodeActionContext, token: CancellationToken): ProviderResult<(Command | CodeAction)[]>;
+		debugAdapterExecutable?(folder: WorkspaceFolder | undefined, token?: CancellationToken): ProviderResult<DebugAdapterExecutable>;
 	}
 
-	export namespace debug {
+	//#endregion
 
-		/**
-		 * List of breakpoints.
-		 *
-		 * @readonly
-		 */
-		export let breakpoints: Breakpoint[];
-
-		/**
-		 * An event that is emitted when a breakpoint is added, removed, or changed.
-		 */
-		export const onDidChangeBreakpoints: Event<BreakpointsChangeEvent>;
-	}
-
-	/**
-	 * An event describing a change to the set of [breakpoints](#debug.Breakpoint).
-	 */
-	export interface BreakpointsChangeEvent {
-		/**
-		 * Added breakpoints.
-		 */
-		readonly added: Breakpoint[];
-
-		/**
-		 * Removed breakpoints.
-		 */
-		readonly removed: Breakpoint[];
-
-		/**
-		 * Changed breakpoints.
-		 */
-		readonly changed: Breakpoint[];
-	}
-
-	/**
-	 * The base class of all breakpoint types.
-	 */
-	export class Breakpoint {
-		/**
-		 * Is breakpoint enabled.
-		 */
-		readonly enabled: boolean;
-		/**
-		 * An optional expression for conditional breakpoints.
-		 */
-		readonly condition?: string;
-		/**
-		 * An optional expression that controls how many hits of the breakpoint are ignored.
-		 */
-		readonly hitCondition?: string;
-
-		protected constructor(enabled: boolean, condition: string, hitCondition: string);
-	}
-
-	/**
-	 * A breakpoint specified by a source location.
-	 */
-	export class SourceBreakpoint extends Breakpoint {
-		/**
-		 * The source and line position of this breakpoint.
-		 */
-		readonly location: Location;
-
-		private constructor(enabled: boolean, condition: string, hitCondition: string, location: Location);
-	}
-
-	/**
-	 * A breakpoint specified by a function name.
-	 */
-	export class FunctionBreakpoint extends Breakpoint {
-		/**
-		 * The name of the function to which this breakpoint is attached.
-		 */
-		readonly functionName: string;
-
-		private constructor(enabled: boolean, condition: string, hitCondition: string, functionName: string);
-	}
+	//#region Rob, Matt: logging
 
 	/**
 	 * The severity level of a log message
@@ -353,10 +173,6 @@ declare module 'vscode' {
 	 * A logger for writing to an extension's log file, and accessing its dedicated log directory.
 	 */
 	export interface Logger {
-		readonly onDidChangeLogLevel: Event<LogLevel>;
-		readonly currentLevel: LogLevel;
-		readonly logDirectory: Thenable<string>;
-
 		trace(message: string, ...args: any[]): void;
 		debug(message: string, ...args: any[]): void;
 		info(message: string, ...args: any[]): void;
@@ -370,5 +186,341 @@ declare module 'vscode' {
 		 * This extension's logger
 		 */
 		logger: Logger;
+
+		/**
+		 * Path where an extension can write log files.
+		 *
+		 * Extensions must create this directory before writing to it. The parent directory will always exist.
+		 */
+		readonly logDirectory: string;
 	}
+
+	export namespace env {
+		/**
+		 * Current logging level.
+		 *
+		 * @readonly
+		 */
+		export const logLevel: LogLevel;
+	}
+
+	//#endregion
+
+	//#region Joao: SCM validation
+
+	/**
+	 * Represents the validation type of the Source Control input.
+	 */
+	export enum SourceControlInputBoxValidationType {
+
+		/**
+		 * Something not allowed by the rules of a language or other means.
+		 */
+		Error = 0,
+
+		/**
+		 * Something suspicious but allowed.
+		 */
+		Warning = 1,
+
+		/**
+		 * Something to inform about but not a problem.
+		 */
+		Information = 2
+	}
+
+	export interface SourceControlInputBoxValidation {
+
+		/**
+		 * The validation message to display.
+		 */
+		readonly message: string;
+
+		/**
+		 * The validation type.
+		 */
+		readonly type: SourceControlInputBoxValidationType;
+	}
+
+	/**
+	 * Represents the input box in the Source Control viewlet.
+	 */
+	export interface SourceControlInputBox {
+
+		/**
+		 * A validation function for the input box. It's possible to change
+		 * the validation provider simply by setting this property to a different function.
+		 */
+		validateInput?(value: string, cursorPosition: number): ProviderResult<SourceControlInputBoxValidation | undefined | null>;
+	}
+
+	//#endregion
+
+	//#region Comments
+	/**
+	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
+	 */
+
+	interface CommentInfo {
+		threads: CommentThread[];
+		commentingRanges?: Range[];
+	}
+
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
+
+	interface CommentThread {
+		threadId: string;
+		resource: Uri;
+		range: Range;
+		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
+	}
+
+	interface Comment {
+		commentId: string;
+		body: MarkdownString;
+		userName: string;
+		gravatar: string;
+		command?: Command;
+	}
+
+	export interface CommentThreadChangedEvent {
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
+	interface DocumentCommentProvider {
+		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	namespace workspace {
+		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+	}
+	//#endregion
+
+	//#region Terminal
+
+	export interface Terminal {
+		/**
+		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
+		 * provides access to the raw data stream from the process running within the terminal,
+		 * including ANSI sequences.
+		 */
+		onData: Event<string>;
+	}
+
+	export namespace window {
+		/**
+		 * The currently opened terminals or an empty array.
+		 *
+		 * @readonly
+		 */
+		export let terminals: Terminal[];
+
+		/**
+		 * An [event](#Event) which fires when a terminal has been created, either through the
+		 * [createTerminal](#window.createTerminal) API or commands.
+		 */
+		export const onDidOpenTerminal: Event<Terminal>;
+	}
+
+	//#endregion
+
+	//#region URLs
+
+	export interface ProtocolHandler {
+		handleUri(uri: Uri): void;
+	}
+
+	export namespace window {
+
+		/**
+		 * Registers a protocol handler capable of handling system-wide URIs.
+		 */
+		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+	}
+
+	//#endregion
+
+	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
+
+	export class DocumentSymbol {
+
+		/**
+		 * The name of this symbol.
+		 */
+		name: string;
+
+		/**
+		 * The kind of this symbol.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * The full range of this symbol not including leading/trailing whitespace but everything else.
+		 */
+		fullRange: Range;
+
+		/**
+		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
+		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
+		 */
+		gotoRange: Range;
+
+		/**
+		 * Children of this symbol, e.g. properties of a class.
+		 */
+		children: DocumentSymbol[];
+
+		/**
+		 * Creates a new document symbol.
+		 *
+		 * @param name The name of the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param fullRange The full range of the symbol.
+		 * @param gotoRange The range that should be reveal.
+		 */
+		constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
+	}
+
+	export interface DocumentSymbolProvider {
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
+	}
+
+	//#endregion
+
+	//#region Joh -> exclusive document filters
+
+	export interface DocumentFilter {
+		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region mjbvz: Unused diagnostics
+	/**
+	 * Additional metadata about the type of diagnostic.
+	 */
+	export enum DiagnosticTag {
+		/**
+		 * Unused or unnecessary code.
+		 */
+		Unnecessary = 1,
+	}
+
+	export interface Diagnostic {
+		/**
+		 * Additional metadata about the type of the diagnostic.
+		 */
+		customTags?: DiagnosticTag[];
+	}
+
+	//#endregion
+
+	//#region mjbvz: File rename events
+	export interface ResourceRenamedEvent {
+		readonly oldResource: Uri;
+		readonly newResource: Uri;
+	}
+
+	export namespace workspace {
+		export const onDidRenameResource: Event<ResourceRenamedEvent>;
+	}
+	//#endregion
+
+	//#region mjbvz: Code action trigger
+
+	/**
+	 * How a [code action provider](#CodeActionProvider) was triggered
+	 */
+	export enum CodeActionTrigger {
+		/**
+		 * Provider was triggered automatically by VS Code.
+		 */
+		Automatic = 1,
+
+		/**
+		 * User requested code actions.
+		 */
+		Manual = 2,
+	}
+
+	interface CodeActionContext {
+		/**
+		 * How the code action provider was triggered.
+		 */
+		triggerKind?: CodeActionTrigger;
+	}
+
+	//#endregion
+
+
+	//#region Matt: WebView Serializer
+
+	/**
+	 * Restore webview panels that have been persisted when vscode shuts down.
+	 */
+	interface WebviewPanelSerializer {
+		/**
+		 * Restore a webview panel from its seriailzed `state`.
+		 *
+		 * Called when a serialized webview first becomes visible.
+		 *
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
+		 * @param state Persisted state.
+		 *
+		 * @return Thanble indicating that the webview has been fully restored.
+		 */
+		deserializeWebviewPanel(webviewPanel: WebviewPanel, state: any): Thenable<void>;
+	}
+
+	namespace window {
+		/**
+		 * Registers a webview panel serializer.
+		 *
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
+		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
+		 *
+		 * Only a single serializer may be registered at a time for a given `viewType`.
+		 *
+		 * @param viewType Type of the webview panel that can be serialized.
+		 * @param serializer Webview serializer.
+		 */
+		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
+	}
+
+	//#endregion
 }

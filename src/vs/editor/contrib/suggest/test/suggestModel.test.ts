@@ -5,69 +5,126 @@
 'use strict';
 
 import * as assert from 'assert';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { Model } from 'vs/editor/common/model/model';
-import { Handler } from 'vs/editor/common/editorCommon';
-import { ISuggestSupport, ISuggestResult, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
-import { SuggestModel, LineContext } from 'vs/editor/contrib/suggest/suggestModel';
-import { TestCodeEditor, MockScopeLocation } from 'vs/editor/test/browser/testCodeEditor';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { MockContextKeyService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
+import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
-import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
-import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
-import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { Selection } from 'vs/editor/common/core/selection';
+import { TokenizationResult2 } from 'vs/editor/common/core/token';
+import { Handler } from 'vs/editor/common/editorCommon';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { IState, ISuggestResult, ISuggestSupport, LanguageIdentifier, MetadataConsts, SuggestRegistry, SuggestTriggerKind, TokenizationRegistry } from 'vs/editor/common/modes';
+import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
+import { NULL_STATE } from 'vs/editor/common/modes/nullMode';
 import { SnippetController2 } from 'vs/editor/contrib/snippet/snippetController2';
+import { SuggestController } from 'vs/editor/contrib/suggest/suggestController';
+import { LineContext, SuggestModel } from 'vs/editor/contrib/suggest/suggestModel';
+import { ISelectedSuggestion } from 'vs/editor/contrib/suggest/suggestWidget';
+import { TestCodeEditor, createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
+import { MockMode } from 'vs/editor/test/common/mocks/mockMode';
+import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
+import { IStorageService, NullStorageService } from 'vs/platform/storage/common/storage';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 
-function createMockEditor(model: Model): TestCodeEditor {
-	const contextKeyService = new MockContextKeyService();
-	const telemetryService = NullTelemetryService;
-	const instantiationService = new InstantiationService(new ServiceCollection(
-		[IContextKeyService, contextKeyService],
-		[ITelemetryService, telemetryService],
-		[IStorageService, NullStorageService]
-	));
-
-	const editor = new TestCodeEditor(new MockScopeLocation(), {}, instantiationService, contextKeyService);
-	editor.setModel(model);
-	return editor;
+function createMockEditor(model: TextModel): TestCodeEditor {
+	return createTestCodeEditor({
+		model: model,
+		serviceCollection: new ServiceCollection(
+			[ITelemetryService, NullTelemetryService],
+			[IStorageService, NullStorageService]
+		)
+	});
 }
 
 suite('SuggestModel - Context', function () {
+	const OUTER_LANGUAGE_ID = new LanguageIdentifier('outerMode', 3);
+	const INNER_LANGUAGE_ID = new LanguageIdentifier('innerMode', 4);
 
-	let model: Model;
+	class OuterMode extends MockMode {
+		constructor() {
+			super(OUTER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
 
-	setup(function () {
-		model = Model.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+			this._register(TokenizationRegistry.register(this.getLanguageIdentifier().language, {
+				getInitialState: (): IState => NULL_STATE,
+				tokenize: undefined,
+				tokenize2: (line: string, state: IState): TokenizationResult2 => {
+					const tokensArr: number[] = [];
+					let prevLanguageId: LanguageIdentifier = undefined;
+					for (let i = 0; i < line.length; i++) {
+						const languageId = (line.charAt(i) === 'x' ? INNER_LANGUAGE_ID : OUTER_LANGUAGE_ID);
+						if (prevLanguageId !== languageId) {
+							tokensArr.push(i);
+							tokensArr.push((languageId.id << MetadataConsts.LANGUAGEID_OFFSET));
+						}
+						prevLanguageId = languageId;
+					}
+
+					const tokens = new Uint32Array(tokensArr.length);
+					for (let i = 0; i < tokens.length; i++) {
+						tokens[i] = tokensArr[i];
+					}
+					return new TokenizationResult2(tokens, state);
+				}
+			}));
+		}
+	}
+
+	class InnerMode extends MockMode {
+		constructor() {
+			super(INNER_LANGUAGE_ID);
+			this._register(LanguageConfigurationRegistry.register(this.getLanguageIdentifier(), {}));
+		}
+	}
+
+	const assertAutoTrigger = (model: TextModel, offset: number, expected: boolean, message?: string): void => {
+		const pos = model.getPositionAt(offset);
+		const editor = createMockEditor(model);
+		editor.setPosition(pos);
+		assert.equal(LineContext.shouldAutoTrigger(editor), expected, message);
+		editor.dispose();
+	};
+
+	let disposables: Disposable[] = [];
+
+	setup(() => {
+		disposables = [];
 	});
 
 	teardown(function () {
-		model.dispose();
+		dispose(disposables);
+		disposables = [];
 	});
 
 	test('Context - shouldAutoTrigger', function () {
+		const model = TextModel.createFromString('Das Pferd frisst keinen Gurkensalat - Philipp Reis 1861.\nWer hat\'s erfunden?');
+		disposables.push(model);
 
-		function assertAutoTrigger(offset: number, expected: boolean): void {
-			const pos = model.getPositionAt(offset);
-			const editor = createMockEditor(model);
-			editor.setPosition(pos);
-			assert.equal(LineContext.shouldAutoTrigger(editor), expected);
-			editor.dispose();
-		}
-
-		assertAutoTrigger(3, true); // end of word, Das|
-		assertAutoTrigger(4, false); // no word Das |
-		assertAutoTrigger(1, false); // middle of word D|as
-		assertAutoTrigger(55, false); // number, 1861|
+		assertAutoTrigger(model, 3, true, 'end of word, Das|');
+		assertAutoTrigger(model, 4, false, 'no word Das |');
+		assertAutoTrigger(model, 1, false, 'middle of word D|as');
+		assertAutoTrigger(model, 55, false, 'number, 1861|');
 	});
 
+	test('shouldAutoTrigger at embedded language boundaries', () => {
+		const outerMode = new OuterMode();
+		const innerMode = new InnerMode();
+		disposables.push(outerMode, innerMode);
+
+		const model = TextModel.createFromString('a<xx>a<x>', undefined, outerMode.getLanguageIdentifier());
+		disposables.push(model);
+
+		assertAutoTrigger(model, 1, true, 'a|<x — should trigger at end of word');
+		assertAutoTrigger(model, 2, false, 'a<|x — should NOT trigger at start of word');
+		assertAutoTrigger(model, 3, false, 'a<x|x —  should NOT trigger in middle of word');
+		assertAutoTrigger(model, 4, true, 'a<xx|> — should trigger at boundary between languages');
+		assertAutoTrigger(model, 5, false, 'a<xx>|a — should NOT trigger at start of word');
+		assertAutoTrigger(model, 6, true, 'a<xx>a|< — should trigger at end of word');
+		assertAutoTrigger(model, 8, true, 'a<xx>a<x|> — should trigger at end of word at boundary');
+	});
 });
 
 suite('SuggestModel - TriggerAndCancelOracle', function () {
@@ -96,11 +153,11 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 	};
 
 	let disposables: IDisposable[] = [];
-	let model: Model;
+	let model: TextModel;
 
 	setup(function () {
 		disposables = dispose(disposables);
-		model = Model.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
+		model = TextModel.createFromString('abc def', undefined, undefined, URI.parse('test:somefile.ttt'));
 		disposables.push(model);
 	});
 
@@ -406,7 +463,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
-				assert.equal(event.completionModel.incomplete, true);
+				assert.equal(event.completionModel.incomplete.size, 1);
 				assert.equal(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidCancel, () => {
@@ -443,7 +500,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				model.trigger({ auto: false });
 			}, event => {
 				assert.equal(event.auto, false);
-				assert.equal(event.completionModel.incomplete, true);
+				assert.equal(event.completionModel.incomplete.size, 1);
 				assert.equal(event.completionModel.items.length, 1);
 
 				return assertEvent(model.onDidSuggest, () => {
@@ -453,7 +510,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 					editor.trigger('keyboard', Handler.Type, { text: ';' });
 				}, event => {
 					assert.equal(event.auto, false);
-					assert.equal(event.completionModel.incomplete, true);
+					assert.equal(event.completionModel.incomplete.size, 1);
 					assert.equal(event.completionModel.items.length, 1);
 
 				});
@@ -590,7 +647,7 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 
 		return withOracle(async (sugget, editor) => {
 			class TestCtrl extends SuggestController {
-				_onDidSelectItem(item) {
+				_onDidSelectItem(item: ISelectedSuggestion) {
 					super._onDidSelectItem(item);
 				}
 			}
@@ -606,13 +663,86 @@ suite('SuggestModel - TriggerAndCancelOracle', function () {
 				const [first] = event.completionModel.items;
 				assert.equal(first.suggestion.label, 'bar');
 
-				ctrl._onDidSelectItem(first);
+				ctrl._onDidSelectItem({ item: first, index: 0, model: event.completionModel });
 			});
 
 			assert.equal(
 				model.getValue(),
 				'bar; import { foo, bar } from "./b"'
 			);
+		});
+	});
+
+	test('Completion unexpectedly triggers on second keypress of an edit group in a snippet #43523', function () {
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, alwaysSomethingSupport));
+
+		return withOracle((model, editor) => {
+			return assertEvent(model.onDidSuggest, () => {
+				editor.setValue('d');
+				editor.setSelection(new Selection(1, 1, 1, 2));
+				editor.trigger('keyboard', Handler.Type, { text: 'e' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 1);
+				const [first] = event.completionModel.items;
+
+				assert.equal(first.support, alwaysSomethingSupport);
+			});
+		});
+	});
+
+
+	test('Fails to render completion details #47988', function () {
+
+		let disposeA = 0;
+		let disposeB = 0;
+
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: true,
+					suggestions: [{ type: 'folder', label: 'CompleteNot', insertText: 'Incomplete', sortText: 'a', overwriteBefore: pos.column - 1 }],
+					dispose() { disposeA += 1; }
+				};
+			}
+		}));
+		disposables.push(SuggestRegistry.register({ scheme: 'test' }, {
+			provideCompletionItems(doc, pos) {
+				return {
+					incomplete: false,
+					suggestions: [{ type: 'folder', label: 'Complete', insertText: 'Complete', sortText: 'z', overwriteBefore: pos.column - 1 }],
+					dispose() { disposeB += 1; }
+				};
+			},
+			resolveCompletionItem(doc, pos, item) {
+				return item;
+			},
+		}));
+
+		return withOracle(async (model, editor) => {
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.setValue('');
+				editor.setSelection(new Selection(1, 1, 1, 1));
+				editor.trigger('keyboard', Handler.Type, { text: 'c' });
+
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(disposeA, 0);
+				assert.equal(disposeB, 0);
+			});
+
+			await assertEvent(model.onDidSuggest, () => {
+				editor.trigger('keyboard', Handler.Type, { text: 'o' });
+			}, event => {
+				assert.equal(event.auto, true);
+				assert.equal(event.completionModel.items.length, 2);
+				assert.equal(disposeA, 1);
+				assert.equal(disposeB, 0);
+			});
 		});
 	});
 });

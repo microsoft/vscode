@@ -73,7 +73,7 @@ export interface MarkedStatic {
 
 export interface Renderer {
 	prototype: MarkedRenderer;
-	new (): MarkedRenderer;
+	new(): MarkedRenderer;
 }
 
 export interface MarkedRenderer {

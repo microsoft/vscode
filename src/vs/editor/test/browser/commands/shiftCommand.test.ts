@@ -8,7 +8,7 @@ import * as assert from 'assert';
 import { ShiftCommand } from 'vs/editor/common/commands/shiftCommand';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
-import { IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { IndentAction } from 'vs/editor/common/modes/languageConfiguration';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { getEditOperation, testCommand } from 'vs/editor/test/browser/testCommand';
@@ -21,10 +21,8 @@ import { LanguageIdentifier } from 'vs/editor/common/modes';
  */
 export function createSingleEditOp(text: string, positionLineNumber: number, positionColumn: number, selectionLineNumber: number = positionLineNumber, selectionColumn: number = positionColumn): IIdentifiedSingleEditOperation {
 	return {
-		identifier: null,
 		range: new Range(selectionLineNumber, selectionColumn, positionLineNumber, positionColumn),
-		text: text,
-		forceMoveMarkers: false
+		text: text
 	};
 }
 
@@ -876,16 +874,16 @@ suite('Editor Commands - ShiftCommand', () => {
 
 	test('bug #16815:Shift+Tab doesn\'t go back to tabstop', () => {
 
-		var repeatStr = (str: string, cnt: number): string => {
-			var r = '';
-			for (var i = 0; i < cnt; i++) {
+		let repeatStr = (str: string, cnt: number): string => {
+			let r = '';
+			for (let i = 0; i < cnt; i++) {
 				r += str;
 			}
 			return r;
 		};
 
-		var testOutdent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
-			var expectedIndent = repeatStr(oneIndent, expectedIndents);
+		let testOutdent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
+			let expectedIndent = repeatStr(oneIndent, expectedIndents);
 			if (lineText.length > 0) {
 				_assertUnshiftCommand(tabSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 			} else {
@@ -893,14 +891,14 @@ suite('Editor Commands - ShiftCommand', () => {
 			}
 		};
 
-		var testIndent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
-			var expectedIndent = repeatStr(oneIndent, expectedIndents);
+		let testIndent = (tabSize: number, oneIndent: string, lineText: string, expectedIndents: number) => {
+			let expectedIndent = repeatStr(oneIndent, expectedIndents);
 			_assertShiftCommand(tabSize, oneIndent, [lineText + 'aaa'], [createSingleEditOp(expectedIndent, 1, 1, 1, lineText.length + 1)]);
 		};
 
-		var testIndentation = (tabSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
-			var spaceIndent = '';
-			for (var i = 0; i < tabSize; i++) {
+		let testIndentation = (tabSize: number, lineText: string, expectedOnOutdent: number, expectedOnIndent: number) => {
+			let spaceIndent = '';
+			for (let i = 0; i < tabSize; i++) {
 				spaceIndent += ' ';
 			}
 
@@ -972,26 +970,26 @@ suite('Editor Commands - ShiftCommand', () => {
 
 		function _assertUnshiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
-				var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: true,
 					tabSize: tabSize,
 					oneIndent: oneIndent,
 					useTabStops: true
 				});
-				var actual = getEditOperation(model, op);
+				let actual = getEditOperation(model, op);
 				assert.deepEqual(actual, expected);
 			});
 		}
 
 		function _assertShiftCommand(tabSize: number, oneIndent: string, text: string[], expected: IIdentifiedSingleEditOperation[]): void {
 			return withEditorModel(text, (model) => {
-				var op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
+				let op = new ShiftCommand(new Selection(1, 1, text.length + 1, 1), {
 					isUnshift: false,
 					tabSize: tabSize,
 					oneIndent: oneIndent,
 					useTabStops: true
 				});
-				var actual = getEditOperation(model, op);
+				let actual = getEditOperation(model, op);
 				assert.deepEqual(actual, expected);
 			});
 		}

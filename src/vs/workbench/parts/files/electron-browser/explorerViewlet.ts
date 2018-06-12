@@ -10,9 +10,8 @@ import { localize } from 'vs/nls';
 import { IActionRunner } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as DOM from 'vs/base/browser/dom';
-import { Builder } from 'vs/base/browser/builder';
-import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet } from 'vs/workbench/parts/files/common/files';
-import { PersistentViewsViewlet, IViewletViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { VIEWLET_ID, ExplorerViewletVisibleContext, IFilesConfiguration, OpenEditorsVisibleContext, OpenEditorsVisibleCondition, IExplorerViewlet, VIEW_CONTAINER } from 'vs/workbench/parts/files/common/files';
+import { ViewContainerViewlet, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { ActionRunner, FileViewletState } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
 import { ExplorerView, IExplorerViewOptions } from 'vs/workbench/parts/files/electron-browser/views/explorerView';
@@ -20,64 +19,48 @@ import { EmptyView } from 'vs/workbench/parts/files/electron-browser/views/empty
 import { OpenEditorsView } from 'vs/workbench/parts/files/electron-browser/views/openEditorsView';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
-import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
-import { IWorkbenchEditorService, DelegatingWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { ViewsRegistry, ViewLocation, IViewDescriptor } from 'vs/workbench/browser/parts/views/viewsRegistry';
+import { ViewsRegistry, IViewDescriptor } from 'vs/workbench/common/views';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { Disposable } from 'vs/base/common/lifecycle';
+import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { DelegatingEditorService } from 'vs/workbench/services/editor/browser/editorService';
+import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
+import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorerViewlet {
+export class ExplorerViewletViewsContribution extends Disposable implements IWorkbenchContribution {
 
-	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
-
-	private viewletState: FileViewletState;
-	private viewletVisibleContextKey: IContextKey<boolean>;
 	private openEditorsVisibleContextKey: IContextKey<boolean>;
 
 	constructor(
-		@ITelemetryService telemetryService: ITelemetryService,
-		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
-		@IStorageService protected storageService: IStorageService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
-		@IInstantiationService protected instantiationService: IInstantiationService,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IThemeService themeService: IThemeService,
-		@IContextMenuService contextMenuService: IContextMenuService,
-		@IExtensionService extensionService: IExtensionService
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super(VIEWLET_ID, ViewLocation.Explorer, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, telemetryService, storageService, instantiationService, themeService, contextService, contextKeyService, contextMenuService, extensionService);
-
-		this.viewletState = new FileViewletState();
-		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
-		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
+		super();
 
 		this.registerViews();
+
+		this.openEditorsVisibleContextKey = OpenEditorsVisibleContext.bindTo(contextKeyService);
 		this.updateOpenEditorsVisibility();
 
+		this._register(workspaceContextService.onDidChangeWorkbenchState(() => this.registerViews()));
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
 		this._register(this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e)));
-		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
-		this._register(this.contextService.onDidChangeWorkbenchState(() => this.registerViews()));
-		this._register(this.contextService.onDidChangeWorkspaceFolders(() => this.registerViews()));
-	}
-
-	async create(parent: Builder): TPromise<void> {
-		await super.create(parent);
-
-		const el = parent.getHTMLElement();
-		DOM.addClass(el, 'explorer-viewlet');
 	}
 
 	private registerViews(): void {
-		const viewDescriptors = ViewsRegistry.getViews(ViewLocation.Explorer);
+		const viewDescriptors = ViewsRegistry.getViews(VIEW_CONTAINER);
 
 		let viewDescriptorsToRegister = [];
 		let viewDescriptorsToDeregister: string[] = [];
@@ -92,7 +75,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		if (!openEditorsViewDescriptorExists) {
 			viewDescriptorsToRegister.push(openEditorsViewDescriptor);
 		}
-		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.contextService.getWorkspace().folders.length === 0) {
+		if (this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.workspaceContextService.getWorkspace().folders.length === 0) {
 			if (explorerViewDescriptorExists) {
 				viewDescriptorsToDeregister.push(explorerViewDescriptor.id);
 			}
@@ -112,7 +95,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 			ViewsRegistry.registerViews(viewDescriptorsToRegister);
 		}
 		if (viewDescriptorsToDeregister.length) {
-			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, ViewLocation.Explorer);
+			ViewsRegistry.deregisterViews(viewDescriptorsToDeregister, VIEW_CONTAINER);
 		}
 	}
 
@@ -120,7 +103,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return {
 			id: OpenEditorsView.ID,
 			name: OpenEditorsView.NAME,
-			location: ViewLocation.Explorer,
+			container: VIEW_CONTAINER,
 			ctor: OpenEditorsView,
 			order: 0,
 			when: OpenEditorsVisibleCondition,
@@ -132,7 +115,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return {
 			id: EmptyView.ID,
 			name: EmptyView.NAME,
-			location: ViewLocation.Explorer,
+			container: VIEW_CONTAINER,
 			ctor: EmptyView,
 			order: 1,
 			canToggleVisibility: false
@@ -143,7 +126,7 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return {
 			id: ExplorerView.ID,
 			name: localize('folders', "Folders"),
-			location: ViewLocation.Explorer,
+			container: VIEW_CONTAINER,
 			ctor: ExplorerView,
 			order: 1,
 			canToggleVisibility: false
@@ -157,35 +140,64 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 	}
 
 	private updateOpenEditorsVisibility(): void {
-		this.openEditorsVisibleContextKey.set(this.isOpenEditorsVisible());
+		this.openEditorsVisibleContextKey.set(this.workspaceContextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0);
+	}
+}
+
+export class ExplorerViewlet extends ViewContainerViewlet implements IExplorerViewlet {
+
+	private static readonly EXPLORER_VIEWS_STATE = 'workbench.explorer.views.state';
+
+	private viewletState: FileViewletState;
+	private viewletVisibleContextKey: IContextKey<boolean>;
+
+	constructor(
+		@IPartService partService: IPartService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
+		@IStorageService protected storageService: IStorageService,
+		@IEditorService private editorService: IEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IInstantiationService protected instantiationService: IInstantiationService,
+		@IContextKeyService contextKeyService: IContextKeyService,
+		@IThemeService themeService: IThemeService,
+		@IContextMenuService contextMenuService: IContextMenuService,
+		@IExtensionService extensionService: IExtensionService
+	) {
+		super(VIEWLET_ID, ExplorerViewlet.EXPLORER_VIEWS_STATE, true, partService, telemetryService, storageService, instantiationService, themeService, contextMenuService, extensionService, contextService);
+
+		this.viewletState = new FileViewletState();
+		this.viewletVisibleContextKey = ExplorerViewletVisibleContext.bindTo(contextKeyService);
+
+		this._register(this.contextService.onDidChangeWorkspaceName(e => this.updateTitleArea()));
 	}
 
-	private isOpenEditorsVisible(): boolean {
-		return this.contextService.getWorkbenchState() === WorkbenchState.EMPTY || this.configurationService.getValue('explorer.openEditors.visible') !== 0;
+	async create(parent: HTMLElement): TPromise<void> {
+		await super.create(parent);
+
+		DOM.addClass(parent, 'explorer-viewlet');
 	}
 
-	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewsViewletPanel {
+	protected createView(viewDescriptor: IViewDescriptor, options: IViewletViewOptions): ViewletPanel {
 		if (viewDescriptor.id === ExplorerView.ID) {
 			// Create a delegating editor service for the explorer to be able to delay the refresh in the opened
 			// editors view above. This is a workaround for being able to double click on a file to make it pinned
 			// without causing the animation in the opened editors view to kick in and change scroll position.
 			// We try to be smart and only use the delay if we recognize that the user action is likely to cause
 			// a new entry in the opened editors view.
-			const delegatingEditorService = this.instantiationService.createInstance(DelegatingWorkbenchEditorService);
-			delegatingEditorService.setEditorOpenHandler((input: EditorInput, options?: EditorOptions, arg3?: any) => {
+			const delegatingEditorService = this.instantiationService.createInstance(DelegatingEditorService);
+			delegatingEditorService.setEditorOpenHandler((group: IEditorGroup, editor: IEditorInput, options?: IEditorOptions) => {
 				let openEditorsView = this.getOpenEditorsView();
 				if (openEditorsView) {
 					let delay = 0;
 
 					const config = this.configurationService.getValue<IFilesConfiguration>();
-					// No need to delay if preview is disabled
-					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview;
+					const delayEditorOpeningInOpenedEditors = !!config.workbench.editor.enablePreview; // No need to delay if preview is disabled
 
-					if (delayEditorOpeningInOpenedEditors && (arg3 === false /* not side by side */ || typeof arg3 !== 'number' /* no explicit position */)) {
-						const activeGroup = this.editorGroupService.getStacksModel().activeGroup;
-						if (!activeGroup || !activeGroup.previewEditor) {
-							delay = 250; // a new editor entry is likely because there is either no group or no preview in group
-						}
+					const activeGroup = this.editorGroupService.activeGroup;
+					if (delayEditorOpeningInOpenedEditors && group === activeGroup && !activeGroup.previewEditor) {
+						delay = 250; // a new editor entry is likely because there is either no group or no preview in group
 					}
 
 					openEditorsView.setStructuralRefreshDelay(delay);
@@ -200,10 +212,10 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 					return editor;
 				};
 
-				return this.editorService.openEditor(input, options, arg3).then(onSuccessOrError, onSuccessOrError);
+				return this.editorService.openEditor(editor, options, group).then(onSuccessOrError, onSuccessOrError);
 			});
 
-			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IWorkbenchEditorService, delegatingEditorService]));
+			const explorerInstantiator = this.instantiationService.createChild(new ServiceCollection([IEditorService, delegatingEditorService]));
 			return explorerInstantiator.createInstance(ExplorerView, <IExplorerViewOptions>{ ...options, viewletState: this.viewletState });
 		}
 		return super.createView(viewDescriptor, options);
@@ -226,67 +238,6 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return super.setVisible(visible);
 	}
 
-	public focus(): void {
-		const hasOpenedEditors = !!this.editorGroupService.getStacksModel().activeGroup;
-
-		let openEditorsView = this.getOpenEditorsView();
-		if (this.lastFocusedPanel && this.lastFocusedPanel.isExpanded() && this.hasSelectionOrFocus(this.lastFocusedPanel as ViewsViewletPanel)) {
-			if (this.lastFocusedPanel !== openEditorsView || hasOpenedEditors) {
-				this.lastFocusedPanel.focus();
-				return;
-			}
-		}
-
-		if (this.hasSelectionOrFocus(openEditorsView) && hasOpenedEditors) {
-			return openEditorsView.focus();
-		}
-
-		let explorerView = this.getExplorerView();
-		if (this.hasSelectionOrFocus(explorerView)) {
-			return explorerView.focus();
-		}
-
-		if (openEditorsView && openEditorsView.isExpanded() && hasOpenedEditors) {
-			return openEditorsView.focus(); // we have entries in the opened editors view to focus on
-		}
-
-		if (explorerView && explorerView.isExpanded()) {
-			return explorerView.focus();
-		}
-
-		let emptyView = this.getEmptyView();
-		if (emptyView && emptyView.isExpanded()) {
-			return emptyView.focusBody();
-		}
-
-		super.focus();
-	}
-
-	private hasSelectionOrFocus(view: ViewsViewletPanel): boolean {
-		if (!view) {
-			return false;
-		}
-
-		if (!view.isExpanded()) {
-			return false;
-		}
-
-		if (view instanceof ExplorerView) {
-			const viewer = view.getViewer();
-			if (!viewer) {
-				return false;
-			}
-
-			return !!viewer.getFocus() || (viewer.getSelection() && viewer.getSelection().length > 0);
-
-		}
-		if (view instanceof OpenEditorsView && !!view.getList()) {
-			return view.getList().isDOMFocused();
-		}
-
-		return false;
-	}
-
 	public getActionRunner(): IActionRunner {
 		if (!this.actionRunner) {
 			this.actionRunner = new ActionRunner(this.viewletState);
@@ -298,12 +249,12 @@ export class ExplorerViewlet extends PersistentViewsViewlet implements IExplorer
 		return this.viewletState;
 	}
 
-	protected loadViewsStates(): void {
-		super.loadViewsStates();
-
-		// Remove the open editors view state if it is removed globally
-		if (!this.isOpenEditorsVisible()) {
-			this.viewsStates.delete(OpenEditorsView.ID);
+	focus(): void {
+		const explorerView = this.getExplorerView();
+		if (explorerView && explorerView.isExpanded()) {
+			explorerView.focus();
+		} else {
+			super.focus();
 		}
 	}
 }

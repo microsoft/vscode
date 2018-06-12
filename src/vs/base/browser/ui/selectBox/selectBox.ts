@@ -6,7 +6,7 @@
 import 'vs/css!./selectBox';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { deepClone, mixin } from 'vs/base/common/objects';
@@ -34,8 +34,13 @@ export interface ISelectBoxDelegate {
 	applyStyles(): void;
 }
 
+export interface ISelectBoxOptions {
+	minBottomMargin?: number;
+}
+
 export interface ISelectBoxStyles extends IListStyles {
 	selectBackground?: Color;
+	selectListBackground?: Color;
 	selectForeground?: Color;
 	selectBorder?: Color;
 	focusBorder?: Color;
@@ -57,7 +62,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 	private styles: ISelectBoxStyles;
 	private selectBoxDelegate: ISelectBoxDelegate;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles)) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles = deepClone(defaultStyles), selectBoxOptions?: ISelectBoxOptions) {
 		super();
 
 		this.toDispose = [];
@@ -68,7 +73,7 @@ export class SelectBox extends Widget implements ISelectBoxDelegate {
 		if (isMacintosh) {
 			this.selectBoxDelegate = new SelectBoxNative(options, selected, styles);
 		} else {
-			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles);
+			this.selectBoxDelegate = new SelectBoxList(options, selected, contextViewProvider, styles, selectBoxOptions);
 		}
 
 		this.toDispose.push(this.selectBoxDelegate);

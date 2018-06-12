@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Assert = require('vs/base/common/assert');
+import * as Assert from 'vs/base/common/assert';
 import { onUnexpectedError } from 'vs/base/common/errors';
 import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
-import arrays = require('vs/base/common/arrays');
+import * as arrays from 'vs/base/common/arrays';
 import { INavigator } from 'vs/base/common/iterator';
-import WinJS = require('vs/base/common/winjs.base');
-import _ = require('./tree');
-import Event, { Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
+import * as WinJS from 'vs/base/common/winjs.base';
+import * as _ from './tree';
+import { Event, Emitter, once, EventMultiplexer, Relay } from 'vs/base/common/event';
 
 interface IMap<T> { [id: string]: T; }
 interface IItemMap extends IMap<Item> { }
@@ -507,6 +507,7 @@ export class Item {
 						return child.doRefresh(recursive, true);
 					}));
 				} else {
+					this.mapEachChild(child => child.updateVisibility());
 					return WinJS.TPromise.as(null);
 				}
 			});
@@ -522,11 +523,15 @@ export class Item {
 	private doRefresh(recursive: boolean, safe: boolean = false): WinJS.Promise {
 		this.doesHaveChildren = this.context.dataSource.hasChildren(this.context.tree, this.element);
 		this.height = this._getHeight();
-		this.setVisible(this._isVisible());
+		this.updateVisibility();
 
 		this._onDidRefresh.fire(this);
 
 		return this.refreshChildren(recursive, safe);
+	}
+
+	private updateVisibility(): void {
+		this.setVisible(this._isVisible());
 	}
 
 	public refresh(recursive: boolean): WinJS.Promise {
