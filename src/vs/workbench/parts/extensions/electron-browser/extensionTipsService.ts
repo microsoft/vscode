@@ -167,7 +167,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		return this.fetchCombinedExtensionRecommendationConfig().then(content => this.processWorkspaceRecommendations(content));
+		return this.fetchCombinedExtensionRecommendationConfig()
+			.then(content => this.processWorkspaceRecommendations(content))
+			.then(recommendations => recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)))
+			.then(reccomendations => this._allWorkspaceRecommendedExtensions = distinct(reccomendations));
 	}
 
 	getWorkspaceIgnores(): TPromise<string[]> {
@@ -186,7 +189,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsContent> {
 		if (workspace.configuration) {
 			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => [<IExtensionsContent>json.parse(content.value, [])['extensions']], err => []).then(this.mergeExtensionRecommendationConfigs);
+				.then(content => [<IExtensionsContent>json.parse(content.value, [])['extensions']], err => [])
+				.then(this.mergeExtensionRecommendationConfigs);
 		}
 		return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 	}
@@ -194,10 +198,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsContent> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 
-		return this.fileService.resolveFile(extensionsJsonUri).then(() => {
-			return this.fileService.resolveContent(extensionsJsonUri)
-				.then(content => [<IExtensionsContent>json.parse(content.value, [])], err => []);
-		}, err => []).then(this.mergeExtensionRecommendationConfigs);
+		return this.fileService.resolveFile(extensionsJsonUri)
+			.then(() => this.fileService.resolveContent(extensionsJsonUri))
+			.then(content => [<IExtensionsContent>json.parse(content.value, [])], err => [])
+			.then(this.mergeExtensionRecommendationConfigs);
 	}
 
 	private mergeExtensionRecommendationConfigs(configs: IExtensionsContent[]): IExtensionsContent {
@@ -778,7 +782,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			&& isNumber(storedRecommendationsJson['timestamp'])
 			&& storedRecommendationsJson['timestamp'] > 0
 			&& (Date.now() - storedRecommendationsJson['timestamp']) / milliSecondsInADay < 14) {
-			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'].filter(this.isExtensionAllowedToBeRecommended);
+			this._dynamicWorkspaceRecommendations = storedRecommendationsJson['recommendations'].filter(id => this.isExtensionAllowedToBeRecommended(id));
 			/* __GDPR__
 				"dynamicWorkspaceRecommendations" : {
 					"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
