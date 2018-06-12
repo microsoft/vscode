@@ -464,6 +464,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		result.orientation = orientation;
 		result.restoreViews(firstLeaf.view, orientation, root);
 		result.initialLayoutContext = { width, height, root };
+		result.gridview.trySet2x2();
 
 		return result;
 	}
