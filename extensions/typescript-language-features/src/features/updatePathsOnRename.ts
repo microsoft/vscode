@@ -32,6 +32,7 @@ export class UpdateImportsOnFileRenameHandler {
 		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
 		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
+			console.log(e.newResource);
 			this.doRename(e.oldResource, e.newResource);
 		});
 	}
@@ -48,9 +49,12 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		if (!await this.handles(newResource)) {
+		const handles = await this.handles(newResource);
+		console.log(handles);
+		if (!handles) {
 			return;
 		}
+
 
 		const newFile = this.client.toPath(newResource);
 		if (!newFile) {
@@ -79,6 +83,7 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
+		console.log('x');
 		if (await this.confirmActionWithUser(document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
