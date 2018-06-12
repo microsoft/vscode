@@ -17,7 +17,7 @@ import { ExtHostDocuments } from 'vs/workbench/api/node/extHostDocuments';
 import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostDiagnostics } from 'vs/workbench/api/node/extHostDiagnostics';
 import { asWinJsPromise } from 'vs/base/common/async';
-import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, SymbolInformationDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter } from './extHost.protocol';
+import { MainContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, ObjectIdentifier, IRawColorInfo, IMainContext, IdObject, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, ISerializedLanguageConfiguration, WorkspaceSymbolDto, SuggestResultDto, WorkspaceSymbolsDto, SuggestionDto, CodeActionDto, ISerializedDocumentFilter } from './extHost.protocol';
 import { regExpLeadsToEndlessLoop } from 'vs/base/common/strings';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -37,7 +37,7 @@ class OutlineAdapter {
 		this._provider = provider;
 	}
 
-	provideDocumentSymbols(resource: URI): TPromise<SymbolInformationDto[]> {
+	provideDocumentSymbols(resource: URI): TPromise<modes.DocumentSymbol[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		return asWinJsPromise(token => this._provider.provideDocumentSymbols(doc, token)).then(value => {
 			if (isFalsyOrEmpty(value)) {
@@ -47,7 +47,7 @@ class OutlineAdapter {
 			if (!(probe instanceof SymbolInformation2)) {
 				value = OutlineAdapter._asSymbolHierarchy(resource, <SymbolInformation[]>value);
 			}
-			return (<SymbolInformation2[]>value).map(typeConvert.SymbolInformation2.from);
+			return (<SymbolInformation2[]>value).map(typeConvert.DocumentSymbol.from);
 		});
 	}
 
@@ -429,7 +429,7 @@ class NavigateTypeAdapter {
 						console.warn('INVALID SymbolInformation, lacks name', item);
 						continue;
 					}
-					const symbol = IdObject.mixin(typeConvert.SymbolInformation.from(item));
+					const symbol = IdObject.mixin(typeConvert.WorkspaceSymbol.from(item));
 					this._symbolCache[symbol._id] = item;
 					result.symbols.push(symbol);
 				}
@@ -442,7 +442,7 @@ class NavigateTypeAdapter {
 		});
 	}
 
-	resolveWorkspaceSymbol(symbol: SymbolInformationDto): TPromise<SymbolInformationDto> {
+	resolveWorkspaceSymbol(symbol: WorkspaceSymbolDto): TPromise<WorkspaceSymbolDto> {
 
 		if (typeof this._provider.resolveWorkspaceSymbol !== 'function') {
 			return TPromise.as(symbol);
@@ -451,7 +451,7 @@ class NavigateTypeAdapter {
 		const item = this._symbolCache[symbol._id];
 		if (item) {
 			return asWinJsPromise(token => this._provider.resolveWorkspaceSymbol(item, token)).then(value => {
-				return value && mixin(symbol, typeConvert.SymbolInformation.from(value), true);
+				return value && mixin(symbol, typeConvert.WorkspaceSymbol.from(value), true);
 			});
 		}
 		return undefined;
@@ -931,7 +931,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<SymbolInformationDto[]> {
+	$provideDocumentSymbols(handle: number, resource: UriComponents): TPromise<modes.DocumentSymbol[]> {
 		return this._withAdapter(handle, OutlineAdapter, adapter => adapter.provideDocumentSymbols(URI.revive(resource)));
 	}
 
@@ -1086,7 +1086,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.provideWorkspaceSymbols(search));
 	}
 
-	$resolveWorkspaceSymbol(handle: number, symbol: SymbolInformationDto): TPromise<SymbolInformationDto> {
+	$resolveWorkspaceSymbol(handle: number, symbol: WorkspaceSymbolDto): TPromise<WorkspaceSymbolDto> {
 		return this._withAdapter(handle, NavigateTypeAdapter, adapter => adapter.resolveWorkspaceSymbol(symbol));
 	}
 

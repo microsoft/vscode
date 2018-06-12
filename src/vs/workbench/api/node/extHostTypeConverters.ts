@@ -6,6 +6,7 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
+import * as search from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
@@ -355,16 +356,16 @@ export namespace SymbolKind {
 	}
 }
 
-export namespace SymbolInformation {
-	export function from(info: vscode.SymbolInformation): modes.SymbolInformation {
-		return <modes.SymbolInformation>{
+export namespace WorkspaceSymbol {
+	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
+		return <search.IWorkspaceSymbol>{
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
 			containerName: info.containerName,
 			location: location.from(info.location)
 		};
 	}
-	export function to(info: modes.SymbolInformation): types.SymbolInformation {
+	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
 		return new types.SymbolInformation(
 			info.name,
 			SymbolKind.to(info.kind),
@@ -374,13 +375,12 @@ export namespace SymbolInformation {
 	}
 }
 
-export namespace SymbolInformation2 {
-	export function from(info: vscode.SymbolInformation2): modes.SymbolInformation {
-		let result: modes.SymbolInformation = {
+export namespace DocumentSymbol {
+	export function from(info: vscode.SymbolInformation2): modes.DocumentSymbol {
+		let result: modes.DocumentSymbol = {
 			name: info.name,
-			detail: undefined,
-			location: location.from(info.location),
-			definingRange: Range.from(info.definingRange),
+			fullRange: Range.from(info.definingRange),
+			identifierRange: Range.from(info.location.range),
 			kind: SymbolKind.from(info.kind),
 			containerName: info.containerName
 		};
@@ -389,12 +389,12 @@ export namespace SymbolInformation2 {
 		}
 		return result;
 	}
-	export function to(info: modes.SymbolInformation): vscode.SymbolInformation2 {
+	export function to(info: modes.DocumentSymbol): vscode.SymbolInformation2 {
 		let result = new types.SymbolInformation2(
 			info.name,
 			SymbolKind.to(info.kind),
 			info.containerName,
-			location.to(info.location),
+			new types.Location(undefined, Range.to(info.identifierRange))
 		);
 		if (info.children) {
 			result.children = info.children.map(to) as any;

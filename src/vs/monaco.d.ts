@@ -4866,36 +4866,13 @@ declare namespace monaco.languages {
 		TypeParameter = 25
 	}
 
-	/**
-	 * Represents information about programming constructs like variables, classes,
-	 * interfaces etc.
-	 */
-	export interface SymbolInformation {
-		/**
-		 * The name of this symbol.
-		 */
+	export interface DocumentSymbol {
 		name: string;
-		/**
-		 * The detail of this symbol.
-		 */
-		detail?: string;
-		/**
-		 * The name of the symbol containing this symbol.
-		 */
-		containerName?: string;
-		/**
-		 * The kind of this symbol.
-		 */
 		kind: SymbolKind;
-		/**
-		 * The location of this symbol.
-		 */
-		location: Location;
-		/**
-		 * The defining range of this symbol.
-		 */
-		definingRange: IRange;
-		children?: SymbolInformation[];
+		containerName?: string;
+		fullRange: IRange;
+		identifierRange: IRange;
+		children?: DocumentSymbol[];
 	}
 
 	/**
@@ -4907,7 +4884,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide symbol information for the given document.
 		 */
-		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): DocumentSymbol[] | Thenable<DocumentSymbol[]>;
 	}
 
 	export interface TextEdit {

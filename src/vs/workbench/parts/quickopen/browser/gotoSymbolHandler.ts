@@ -19,7 +19,7 @@ import { IModelDecorationsChangeAccessor, OverviewRulerLane, IModelDeltaDecorati
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { getDocumentSymbols } from 'vs/editor/contrib/quickOpen/quickOpen';
-import { DocumentSymbolProviderRegistry, SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbol, symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IRange } from 'vs/editor/common/core/range';
 import { themeColorFromId } from 'vs/platform/theme/common/themeService';
 import { overviewRulerRangeHighlight } from 'vs/editor/common/view/editorColorRegistry';
@@ -41,13 +41,6 @@ export class GotoSymbolAction extends QuickOpenAction {
 }
 
 class OutlineModel extends QuickOpenModel {
-	private outline: Outline;
-
-	constructor(outline: Outline, entries: SymbolEntry[]) {
-		super(entries);
-
-		this.outline = outline;
-	}
 
 	public applyFilter(searchValue: string): void {
 
@@ -107,7 +100,7 @@ class OutlineModel extends QuickOpenModel {
 
 					// Update previous result with count
 					if (currentResult) {
-						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter, this.outline));
+						currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
 					}
 
 					currentType = result.getType();
@@ -125,7 +118,7 @@ class OutlineModel extends QuickOpenModel {
 
 			// Update previous result with count
 			if (currentResult) {
-				currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter, this.outline));
+				currentResult.setGroupLabel(this.renderGroupLabel(currentType, typeCounter));
 			}
 		}
 
@@ -203,7 +196,7 @@ class OutlineModel extends QuickOpenModel {
 		return elementARange.startLineNumber - elementBRange.startLineNumber;
 	}
 
-	private renderGroupLabel(type: string, count: number, outline: Outline): string {
+	private renderGroupLabel(type: string, count: number): string {
 
 		const pattern = OutlineModel.getDefaultGroupLabelPatterns()[type];
 		if (pattern) {
@@ -357,10 +350,6 @@ class SymbolEntry extends EditorQuickOpenEntryGroup {
 	}
 }
 
-interface Outline {
-	entries: SymbolInformation[];
-}
-
 interface IEditorLineDecoration {
 	groupId: GroupIdentifier;
 	rangeHighlightId: string;
@@ -447,7 +436,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 		};
 	}
 
-	private toQuickOpenEntries(flattened: SymbolInformation[]): SymbolEntry[] {
+	private toQuickOpenEntries(flattened: DocumentSymbol[]): SymbolEntry[] {
 		const results: SymbolEntry[] = [];
 
 		for (let i = 0; i < flattened.length; i++) {
@@ -461,7 +450,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			// Add
 			results.push(new SymbolEntry(i,
 				label, icon, description, icon,
-				element.location.range, null, this.editorService, this
+				element.fullRange, null, this.editorService, this
 			));
 		}
 
@@ -492,9 +481,9 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 					return TPromise.as(this.outlineToModelCache[modelId]);
 				}
 
-				return getDocumentSymbols(<ITextModel>model).then(outline => {
+				return getDocumentSymbols(<ITextModel>model).then(entries => {
 
-					const model = new OutlineModel(outline, this.toQuickOpenEntries(outline.entries));
+					const model = new OutlineModel(this.toQuickOpenEntries(entries));
 
 					this.outlineToModelCache = {}; // Clear cache, only keep 1 outline
 					this.outlineToModelCache[modelId] = model;
