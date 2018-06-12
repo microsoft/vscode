@@ -281,14 +281,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup): TPromise<IEditor> {
 		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 			.then(toInput => {
-				const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
+				return group.openEditor(input).then(() => {
+					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
 
-				return group.replaceEditors([{
-					editor: input,
-					replacement: replaceWith
-				}]).then(() => {
-					this.lastOpenedSettingsInput = replaceWith;
-					return group.activeControl;
+					return group.replaceEditors([{
+						editor: input,
+						replacement: replaceWith
+					}]).then(() => {
+						this.lastOpenedSettingsInput = replaceWith;
+						return group.activeControl;
+					});
 				});
 			});
 	}

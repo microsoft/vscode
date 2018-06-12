@@ -72,6 +72,9 @@ function toExtractError(err: Error): ExtractError {
 function extractEntry(stream: Readable, fileName: string, mode: number, targetPath: string, options: IOptions): TPromise<void> {
 	const dirName = path.dirname(fileName);
 	const targetDirName = path.join(targetPath, dirName);
+	if (targetDirName.indexOf(targetPath) !== 0) {
+		return TPromise.wrapError(new Error(nls.localize('invalid file', "Error extracting {0}. Invalid file.", fileName)));
+	}
 	const targetFileName = path.join(targetPath, fileName);
 
 	let istream: WriteStream;

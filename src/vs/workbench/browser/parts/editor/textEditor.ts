@@ -12,14 +12,13 @@ import * as types from 'vs/base/common/types';
 import * as errors from 'vs/base/common/errors';
 import * as DOM from 'vs/base/browser/dom';
 import { CodeEditorWidget } from 'vs/editor/browser/widget/codeEditorWidget';
-import { EditorInput, EditorOptions, EditorViewStateMemento, ITextEditor } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, IEditorMemento, ITextEditor } from 'vs/workbench/common/editor';
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IEditorViewState, IEditor } from 'vs/editor/common/editorCommon';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { Scope } from 'vs/workbench/common/memento';
 import { ITextFileService, SaveReason, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
@@ -44,13 +43,13 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	private _editorContainer: HTMLElement;
 	private hasPendingConfigurationChange: boolean;
 	private lastAppliedEditorOptions: IEditorOptions;
-	private editorViewStateMemento: EditorViewStateMemento<IEditorViewState>;
+	private editorMemento: IEditorMemento<IEditorViewState>;
 
 	constructor(
 		id: string,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
-		@IStorageService private storageService: IStorageService,
+		@IStorageService storageService: IStorageService,
 		@ITextResourceConfigurationService private readonly _configurationService: ITextResourceConfigurationService,
 		@IThemeService protected themeService: IThemeService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -59,13 +58,9 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	) {
 		super(id, telemetryService, themeService);
 
-		this.editorViewStateMemento = new EditorViewStateMemento<IEditorViewState>(editorGroupService, this.getEditorViewStateStorage(), TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
+		this.editorMemento = this.getEditorMemento<IEditorViewState>(storageService, editorGroupService, TEXT_EDITOR_VIEW_STATE_PREFERENCE_KEY, 100);
 
 		this.toUnbind.push(this.configurationService.onDidChangeConfiguration(e => this.handleConfigurationChangeEvent(this.configurationService.getValue<IEditorConfiguration>(this.getResource()))));
-	}
-
-	protected getEditorViewStateStorage(): object {
-		return this.getMemento(this.storageService, Scope.WORKSPACE);
 	}
 
 	protected get instantiationService(): IInstantiationService {
@@ -237,7 +232,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 			return;
 		}
 
-		this.editorViewStateMemento.saveState(this.group, resource, editorViewState);
+		this.editorMemento.saveState(this.group, resource, editorViewState);
 	}
 
 	protected retrieveTextEditorViewState(resource: URI): IEditorViewState {
@@ -264,7 +259,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	 */
 	protected clearTextEditorViewState(resources: URI[]): void {
 		resources.forEach(resource => {
-			this.editorViewStateMemento.clearState(resource);
+			this.editorMemento.clearState(resource);
 		});
 	}
 
@@ -272,7 +267,7 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	 * Loads the text editor view state for the given resource and returns it.
 	 */
 	protected loadTextEditorViewState(resource: URI): IEditorViewState {
-		return this.editorViewStateMemento.loadState(this.group, resource);
+		return this.editorMemento.loadState(this.group, resource);
 	}
 
 	private updateEditorConfiguration(configuration = this.configurationService.getValue<IEditorConfiguration>(this.getResource())): void {
@@ -313,14 +308,6 @@ export abstract class BaseTextEditor extends BaseEditor implements ITextEditor {
 	}
 
 	protected abstract getAriaLabel(): string;
-
-	protected saveMemento(): void {
-
-		// ensure to first save our view state memento
-		this.editorViewStateMemento.save();
-
-		super.saveMemento();
-	}
 
 	public dispose(): void {
 		this.lastAppliedEditorOptions = void 0;

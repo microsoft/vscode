@@ -10,7 +10,9 @@
 import * as path from 'path';
 import * as fs from 'fs';
 
-const reAbsolute = /^\/+/;
+const reAbsolutePosix = /^\/+/;
+const reAbsoluteWin32 = /^\\+/;
+const reAbsolute = path.sep === '/' ? reAbsolutePosix : reAbsoluteWin32;
 
 /**
  * Locates given `filePath` on user’s file system and returns absolute path to it.

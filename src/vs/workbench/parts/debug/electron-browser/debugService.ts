@@ -670,7 +670,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public logToRepl(value: string | debug.IExpression, sev = severity.Info, source?: debug.IReplElementSource): void {
-		const clearAnsiSequence = '\\u001b[2J';
+		const clearAnsiSequence = '\u001b[2J';
 		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.model.removeReplExpressions();
@@ -859,30 +859,9 @@ export class DebugService implements debug.IDebugService {
 				this.toDisposeOnSessionEnd.set(sessionId, []);
 
 				const workspace = launch ? launch.workspace : undefined;
-				const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
-				});
-
-				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
-					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-					const successExitCode = taskSummary && taskSummary.exitCode === 0;
-					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
-					}
-
-					const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
-
-					const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-						return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
-					});
-
-					return this.showError(message, [debugAnywayAction, showErrorsAction]);
-				}, (err: TaskError) => {
-					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
-				});
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig,
+					() => this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId)
+				);
 			}, err => {
 				if (err && err.message) {
 					return this.showError(err.message);
@@ -1029,7 +1008,34 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: debug.IConfig, unresolvedConfig: debug.IConfig, onSuccess: () => TPromise<any>): TPromise<any> {
+		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
+			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig }, sessionId);
+		});
+
+		return this.doRunTask(sessionId, root, taskId).then((taskSummary: ITaskSummary) => {
+			const errorCount = config.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+			const successExitCode = taskSummary && taskSummary.exitCode === 0;
+			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+				return onSuccess();
+			}
+
+			const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
+				errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
+					nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", config.preLaunchTask, taskSummary.exitCode);
+
+			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
+				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+			});
+
+			return this.showError(message, [debugAnywayAction, showErrorsAction]);
+		}, (err: TaskError) => {
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
+		});
+	}
+
+	private doRunTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
 		if (!taskId || this.skipRunningTask) {
 			this.skipRunningTask = false;
 			return TPromise.as(null);
@@ -1095,11 +1101,12 @@ export class DebugService implements debug.IDebugService {
 
 	public restartSession(session: debug.ISession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
+			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
-				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask)
-					.then(() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask))
-					.then(() => <TPromise>session.raw.custom('restart', null));
+				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
+					() => session.raw.custom('restart', null));
 			}
+
 			const focusedSession = this.viewModel.focusedSession;
 			const preserveFocus = focusedSession && session.getId() === focusedSession.getId();
 			// Do not run preLaunch and postDebug tasks for automatic restarts
@@ -1119,7 +1126,6 @@ export class DebugService implements debug.IDebugService {
 						let configToUse = session.configuration;
 
 						const launch = session.raw.root ? this.configurationManager.getLaunch(session.raw.root.uri) : undefined;
-						const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 						if (launch) {
 							const config = launch.getConfiguration(session.configuration.name);
 							if (config && !equals(config, unresolvedConfiguration)) {
@@ -1185,7 +1191,7 @@ export class DebugService implements debug.IDebugService {
 		if (session) {
 			this._onDidEndSession.fire(session);
 			if (session.configuration.postDebugTask) {
-				this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>
+				this.doRunTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}

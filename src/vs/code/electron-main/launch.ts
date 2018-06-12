@@ -19,6 +19,7 @@ import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
+import { BrowserWindow } from 'electron';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -245,12 +246,20 @@ export class LaunchService implements ILaunchService {
 	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
+		const windows: IWindowInfo[] = [];
+		BrowserWindow.getAllWindows().forEach(window => {
+			const codeWindow = this.windowsMainService.getWindowById(window.id);
+			if (codeWindow) {
+				windows.push(this.codeWindowToInfo(codeWindow));
+			} else {
+				windows.push(this.browserWindowToInfo(window));
+			}
+		});
+
 		return TPromise.wrap({
 			mainPID: process.pid,
 			mainArguments: process.argv,
-			windows: this.windowsMainService.getWindows().map(window => {
-				return this.getWindowInfo(window);
-			})
+			windows
 		} as IMainProcessInfo);
 	}
 
@@ -260,7 +269,7 @@ export class LaunchService implements ILaunchService {
 		return TPromise.as(this.environmentService.logsPath);
 	}
 
-	private getWindowInfo(window: ICodeWindow): IWindowInfo {
+	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folders: string[] = [];
 
 		if (window.openedFolderPath) {
@@ -274,9 +283,13 @@ export class LaunchService implements ILaunchService {
 			});
 		}
 
+		return this.browserWindowToInfo(window.win, folders);
+	}
+
+	private browserWindowToInfo(win: BrowserWindow, folders: string[] = []): IWindowInfo {
 		return {
-			pid: window.win.webContents.getOSProcessId(),
-			title: window.win.getTitle(),
+			pid: win.webContents.getOSProcessId(),
+			title: win.getTitle(),
 			folders
 		} as IWindowInfo;
 	}

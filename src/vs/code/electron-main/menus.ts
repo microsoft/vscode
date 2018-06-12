@@ -239,6 +239,11 @@ export class CodeMenu {
 		const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });
 		this.setGotoMenu(gotoMenu);
 
+		// Terminal
+		const terminalMenu = new Menu();
+		const terminalMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal")), submenu: terminalMenu });
+		this.setTerminalMenu(terminalMenu);
+
 		// Debug
 		const debugMenu = new Menu();
 		const debugMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug")), submenu: debugMenu });
@@ -272,6 +277,7 @@ export class CodeMenu {
 		menubar.append(selectionMenuItem);
 		menubar.append(viewMenuItem);
 		menubar.append(gotoMenuItem);
+		menubar.append(terminalMenuItem);
 		menubar.append(debugMenuItem);
 		menubar.append(taskMenuItem);
 
@@ -679,7 +685,7 @@ export class CodeMenu {
 		const twoColumnsRightEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right"), 'workbench.action.editorLayoutTwoColumnsRight');
 		const twoColumnsBottomEditorLayout = this.createMenuItem(nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom"), 'workbench.action.editorLayoutTwoColumnsBottom');
 
-		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout"), 'workbench.action.toggleEditorGroupLayout');
+		const toggleEditorLayout = this.createMenuItem(nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Toggle Vertical/Horizontal &&Layout"), 'workbench.action.toggleEditorGroupLayout');
 
 		[
 			splitEditorUp,
@@ -858,6 +864,72 @@ export class CodeMenu {
 			goToImplementation,
 			gotoLine
 		].forEach(item => gotoMenu.append(item));
+	}
+
+	private setTerminalMenu(terminalMenu: Electron.Menu): void {
+		const newTerminal = this.createMenuItem(nls.localize({ key: 'miNewTerminal', comment: ['&& denotes a mnemonic'] }, "&&New Terminal"), 'workbench.action.terminal.new');
+		const splitTerminal = this.createMenuItem(nls.localize({ key: 'miSplitTerminal', comment: ['&& denotes a mnemonic'] }, "&&Split Terminal"), 'workbench.action.terminal.split');
+		const killTerminal = this.createMenuItem(nls.localize({ key: 'miKillTerminal', comment: ['&& denotes a mnemonic'] }, "&&Kill Terminal"), 'workbench.action.terminal.kill');
+
+		const clear = this.createMenuItem(nls.localize({ key: 'miClear', comment: ['&& denotes a mnemonic'] }, "&&Clear"), 'workbench.action.terminal.clear');
+		// const deleteWordLeft = this.createMenuItem(nls.localize({ key: 'miDeleteWordLeft', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Left"), 'workbench.action.terminal.deleteWordLeft');
+		// const deleteWordRight = this.createMenuItem(nls.localize({ key: 'miDeleteWordRight', comment: ['&& denotes a mnemonic'] }, "Delete Word To &&Right"), 'workbench.action.terminal.deleteWordRight');
+		// const moveToLineStart = this.createMenuItem(nls.localize({ key: 'miMoveToLineStart', comment: ['&& denotes a mnemonic'] }, "Move to Line Start"), 'workbench.action.terminal.moveToLineStart');
+		// const moveToLineEnd = this.createMenuItem(nls.localize({ key: 'miMoveToLineEnd', comment: ['&& denotes a mnemonic'] }, "Move to Line &&End"), 'workbench.action.terminal.moveToLineEnd');
+
+		const runActiveFile = this.createMenuItem(nls.localize({ key: 'miRunActiveFile', comment: ['&& denotes a mnemonic'] }, "Run &&Active File"), 'workbench.action.terminal.runActiveFile');
+		const runSelectedText = this.createMenuItem(nls.localize({ key: 'miRunSelectedText', comment: ['&& denotes a mnemonic'] }, "Run &&Selected Text"), 'workbench.action.terminal.runSelectedText');
+
+		// const scrollUp = this.createMenuItem(nls.localize({ key: 'miScrollUp', comment: ['&& denotes a mnemonic'] }, "Scroll Up"), 'workbench.action.terminal.scrollUp');
+		// const scrollDown = this.createMenuItem(nls.localize({ key: 'miScrollDown', comment: ['&& denotes a mnemonic'] }, "Scroll Down"), 'workbench.action.terminal.scrollDown');
+		// const scrollUpPage = this.createMenuItem(nls.localize({ key: 'miScrollUpPage', comment: ['&& denotes a mnemonic'] }, "Scroll Up Page"), 'workbench.action.terminal.scrollUpPage');
+		// const scrollDownPage = this.createMenuItem(nls.localize({ key: 'miScrollDownPage', comment: ['&& denotes a mnemonic'] }, "Scroll Down Page"), 'workbench.action.terminal.scrollDownPage');
+		// const scrollToTop = this.createMenuItem(nls.localize({ key: 'miScrollToTop', comment: ['&& denotes a mnemonic'] }, "Scroll To Top"), 'workbench.action.terminal.scrollToTop');
+		// const scrollToBottom = this.createMenuItem(nls.localize({ key: 'miScrollToBottom', comment: ['&& denotes a mnemonic'] }, "Scroll To Bottom"), 'workbench.action.terminal.scrollToBottom');
+		const scrollToPreviousCommand = this.createMenuItem(nls.localize({ key: 'miScrollToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Previous Command"), 'workbench.action.terminal.scrollToPreviousCommand');
+		const scrollToNextCommand = this.createMenuItem(nls.localize({ key: 'miScrollToNextCommand', comment: ['&& denotes a mnemonic'] }, "Scroll To Next Command"), 'workbench.action.terminal.scrollToNextCommand');
+
+		const selectToPreviousCommand = this.createMenuItem(nls.localize({ key: 'miSelectToPreviousCommand', comment: ['&& denotes a mnemonic'] }, "Select To Previous Command"), 'workbench.action.terminal.selectToPreviousCommand');
+		const selectToNextCommand = this.createMenuItem(nls.localize({ key: 'miSelectToNextCommand', comment: ['&& denotes a mnemonic'] }, "Select To Next Command"), 'workbench.action.terminal.selectToNextCommand');
+
+		const menuItems: MenuItem[] = [
+			newTerminal,
+			splitTerminal,
+			killTerminal,
+			__separator__(),
+			clear,
+		];
+		// if (!isWindows) {
+		// 	menuItems.push(
+		// 		deleteWordLeft,
+		// 		deleteWordRight,
+		// 	);
+
+		// }
+		// if (isMacintosh) {
+		// 	menuItems.push(
+		// 		moveToLineStart,
+		// 		moveToLineEnd
+		// 	);
+		// }
+		menuItems.push(
+			runActiveFile,
+			runSelectedText,
+			__separator__(),
+			// scrollUp,
+			// scrollDown,
+			// scrollUpPage,
+			// scrollDownPage,
+			// scrollToTop,
+			// scrollToBottom,
+			scrollToPreviousCommand,
+			scrollToNextCommand,
+			// __separator__(),
+			selectToPreviousCommand,
+			selectToNextCommand
+		);
+
+		menuItems.forEach(item => terminalMenu.append(item));
 	}
 
 	private setDebugMenu(debugMenu: Electron.Menu): void {
@@ -1065,7 +1137,10 @@ export class CodeMenu {
 			width: 450,
 			height: 300,
 			show: true,
-			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options")
+			title: nls.localize('accessibilityOptionsWindowTitle', "Accessibility Options"),
+			webPreferences: {
+				disableBlinkFeatures: 'Auxclick'
+			}
 		});
 
 		win.setMenuBarVisibility(false);

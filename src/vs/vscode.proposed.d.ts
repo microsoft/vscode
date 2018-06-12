@@ -377,13 +377,47 @@ declare module 'vscode' {
 
 	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
 
-	export class SymbolInformation2 extends SymbolInformation {
-		definingRange: Range;
-		children: SymbolInformation2[];
+	export class DocumentSymbol {
+
+		/**
+		 * The name of this symbol.
+		 */
+		name: string;
+
+		/**
+		 * The kind of this symbol.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * The full range of this symbol not including leading/trailing whitespace but everything else.
+		 */
+		fullRange: Range;
+
+		/**
+		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
+		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
+		 */
+		gotoRange: Range;
+
+		/**
+		 * Children of this symbol, e.g. properties of a class.
+		 */
+		children: DocumentSymbol[];
+
+		/**
+		 * Creates a new document symbol.
+		 *
+		 * @param name The name of the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param fullRange The full range of the symbol.
+		 * @param gotoRange The range that should be reveal.
+		 */
+		constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | SymbolInformation2[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
 	}
 
 	//#endregion

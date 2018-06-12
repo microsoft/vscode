@@ -12,8 +12,6 @@ import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob } from './ripgrepHelpers';
 
-
-
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
@@ -118,7 +116,7 @@ export class RipgrepTextSearchEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0];
+	const firstLine = msg.split('\n')[0].trim();
 
 	if (firstLine.startsWith('Error parsing regex')) {
 		return firstLine;
@@ -130,8 +128,13 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
 	if (firstLine.startsWith('Literal ')) {
-		// e.g. "Literal \n not allowed"
+		// Other unsupported chars
 		return firstLine;
 	}
 
