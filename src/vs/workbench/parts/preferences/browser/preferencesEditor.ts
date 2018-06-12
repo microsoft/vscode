@@ -787,10 +787,7 @@ class SideBySidePreferencesWidget extends Widget {
 		}, Sizing.Distribute);
 
 		this.editablePreferencesEditorContainer = DOM.$('.editable-preferences-editor-container');
-		this.editablePreferencesEditorContainer.style.position = 'absolute';
 		const editablePreferencesHeaderContainer = DOM.append(this.editablePreferencesEditorContainer, DOM.$('.preferences-header-container'));
-		editablePreferencesHeaderContainer.style.height = '30px';
-		editablePreferencesHeaderContainer.style.marginBottom = '4px';
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, editablePreferencesHeaderContainer));
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this._onDidSettingsTargetChange.fire(target)));
 
@@ -849,7 +846,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.settingsTargetsWidget.setResultCount(settingsTarget, count);
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	public layout(dimension: DOM.Dimension = this.dimension): void {
 		this.dimension = dimension;
 		this.splitview.layout(dimension.width);
 	}
@@ -892,6 +889,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
+		this.layout();
 
 		return editor;
 	}
