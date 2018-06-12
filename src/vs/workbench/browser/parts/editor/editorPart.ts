@@ -18,7 +18,7 @@ import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/com
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
 import { distinct } from 'vs/base/common/arrays';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EDITOR_MAX_DIMENSIONS, EDITOR_MIN_DIMENSIONS, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptions, getEditorPartOptions, impactsEditorPartOptions, IEditorPartOptionsChangeEvent, EditorGroupsServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 import { EditorGroupView } from 'vs/workbench/browser/parts/editor/editorGroupView';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
@@ -294,25 +294,12 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Even all group sizes
 		if (arrangement === GroupsArrangement.EVEN) {
-			this.groups.forEach(group => {
-				this.gridWidget.resetViewSize(group);
-			});
+			this.gridWidget.distributeViewSizes();
 		}
 
 		// Maximize the current active group
 		else {
-			this.groups.forEach(group => {
-				const orientation = this.gridWidget.getOrientation(group);
-
-				let newSize: number;
-				if (this.activeGroup === group) {
-					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MAX_DIMENSIONS.width : EDITOR_MAX_DIMENSIONS.height;
-				} else {
-					newSize = orientation === Orientation.HORIZONTAL ? EDITOR_MIN_DIMENSIONS.width : EDITOR_MIN_DIMENSIONS.height;
-				}
-
-				this.gridWidget.resizeView(group, newSize);
-			});
+			this.gridWidget.maximizeViewSize(this.activeGroup);
 		}
 	}
 

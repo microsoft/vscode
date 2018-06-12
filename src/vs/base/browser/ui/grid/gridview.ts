@@ -256,8 +256,16 @@ class BranchNode implements ISplitView, IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
-	distributeViewSizes(): void {
+	distributeViewSizes(recursive = false): void {
 		this.splitview.distributeViewSizes();
+
+		if (recursive) {
+			for (const child of this.children) {
+				if (child instanceof BranchNode) {
+					child.distributeViewSizes(true);
+				}
+			}
+		}
 	}
 
 	getChildSize(index: number): number {
@@ -622,7 +630,29 @@ export class GridView implements IDisposable {
 		parent.resizeChild(index, size);
 	}
 
-	distributeViewSizes(location: number[]): void {
+	getViewSize(location: number[]): { width: number; height: number; } {
+		const [, node] = this.getNode(location);
+		return { width: node.width, height: node.height };
+	}
+
+	maximizeViewSize(location: number[]): void {
+		const [ancestors, node] = this.getNode(location);
+
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Invalid location');
+		}
+
+		for (let i = 0; i < ancestors.length; i++) {
+			ancestors[i].resizeChild(location[i], Number.POSITIVE_INFINITY);
+		}
+	}
+
+	distributeViewSizes(location?: number[]): void {
+		if (!location) {
+			this.root.distributeViewSizes(true);
+			return;
+		}
+
 		const [, node] = this.getNode(location);
 
 		if (!(node instanceof BranchNode)) {
@@ -630,11 +660,6 @@ export class GridView implements IDisposable {
 		}
 
 		node.distributeViewSizes();
-	}
-
-	getViewSize(location: number[]): { width: number; height: number; } {
-		const [, node] = this.getNode(location);
-		return { width: node.width, height: node.height };
 	}
 
 	getViews(): GridBranchNode {
