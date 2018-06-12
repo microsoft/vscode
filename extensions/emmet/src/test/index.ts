@@ -9,8 +9,8 @@ const testRunner = require('vscode/lib/testrunner');
 const suite = 'Integration Emmet Tests';
 
 const options: any = {
-	ui: 'tdd', 		// the TDD UI is being used in extension.test.ts (suite, test, etc.)
-	useColors: true, // colored output from test results (only windows cannot handle)
+	ui: 'tdd',
+	useColors: true,
 	timeout: 60000
 };
 
