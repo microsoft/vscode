@@ -738,9 +738,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (exists && !foundExecutables.has(exeName)) {
 					foundExecutables.add(exeName);
 					(product.exeBasedExtensionTips[exeName]['recommendations'] || [])
-						.forEach(x => {
-							if (product.exeBasedExtensionTips[exeName]['friendlyName'] && this.isExtensionAllowedToBeRecommended(x.key)) {
-								this._exeBasedRecommendations[x] = product.exeBasedExtensionTips[exeName]['friendlyName'];
+						.forEach(extensionId => {
+							if (product.exeBasedExtensionTips[exeName]['friendlyName'] && this.isExtensionAllowedToBeRecommended(extensionId)) {
+								this._exeBasedRecommendations[extensionId] = product.exeBasedExtensionTips[exeName]['friendlyName'];
 							}
 						});
 				}
