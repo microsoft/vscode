@@ -841,10 +841,10 @@ export class TerminalInstance implements ITerminalInstance {
 		this._setCursorBlink(config.cursorBlinking);
 		this._setCursorStyle(config.cursorStyle);
 		this._setCommandsToSkipShell(config.commandsToSkipShell);
-		this._setScrollback(config.scrollback);
 		this._setEnableBell(config.enableBell);
-		this._setMacOptionIsMeta(config.macOptionIsMeta);
-		this._setRightClickSelectsWord(config.rightClickBehavior === 'selectWord');
+		this._safeSetOption('scrollback', config.scrollback);
+		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -871,24 +871,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._skipTerminalCommands = commands;
 	}
 
-	private _setScrollback(lineCount: number): void {
-		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
-			this._xterm.setOption('scrollback', lineCount);
-		}
-	}
-
-	private _setMacOptionIsMeta(value: boolean): void {
-		if (this._xterm && this._xterm.getOption('macOptionIsMeta') !== value) {
-			this._xterm.setOption('macOptionIsMeta', value);
-		}
-	}
-
-	private _setRightClickSelectsWord(value: boolean): void {
-		if (this._xterm && this._xterm.getOption('rightClickSelectsWord') !== value) {
-			this._xterm.setOption('rightClickSelectsWord', value);
-		}
-	}
-
 	private _setEnableBell(isEnabled: boolean): void {
 		if (this._xterm) {
 			if (this._xterm.getOption('bellStyle') === 'sound') {
@@ -900,6 +882,16 @@ export class TerminalInstance implements ITerminalInstance {
 					this._xterm.setOption('bellStyle', 'sound');
 				}
 			}
+		}
+	}
+
+	private _safeSetOption(key: string, value: any): void {
+		if (!this._xterm) {
+			return;
+		}
+
+		if (this._xterm.getOption(key) !== value) {
+			this._xterm.setOption(key, value);
 		}
 	}
 
@@ -919,28 +911,14 @@ export class TerminalInstance implements ITerminalInstance {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
-				if (this._xterm.getOption('letterSpacing') !== font.letterSpacing) {
-					this._xterm.setOption('letterSpacing', font.letterSpacing);
-				}
-				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-					this._xterm.setOption('lineHeight', font.lineHeight);
-				}
-				if (this._xterm.getOption('fontSize') !== font.fontSize) {
-					this._xterm.setOption('fontSize', font.fontSize);
-				}
-				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-					this._xterm.setOption('fontFamily', font.fontFamily);
-				}
-				if (this._xterm.getOption('fontWeight') !== this._configHelper.config.fontWeight) {
-					this._xterm.setOption('fontWeight', this._configHelper.config.fontWeight);
-				}
-				if (this._xterm.getOption('fontWeightBold') !== this._configHelper.config.fontWeightBold) {
-					this._xterm.setOption('fontWeightBold', this._configHelper.config.fontWeightBold);
-				}
-				if (this._xterm.getOption('drawBoldTextInBrightColors') !== this._configHelper.config.drawBoldTextInBrightColors) {
-					console.log('set', this._configHelper.config.drawBoldTextInBrightColors);
-					this._xterm.setOption('drawBoldTextInBrightColors', this._configHelper.config.drawBoldTextInBrightColors);
-				}
+				const config = this._configHelper.config;
+				this._safeSetOption('letterSpacing', font.letterSpacing);
+				this._safeSetOption('lineHeight', font.lineHeight);
+				this._safeSetOption('fontSize', font.fontSize);
+				this._safeSetOption('fontFamily', font.fontFamily);
+				this._safeSetOption('fontWeight', config.fontWeight);
+				this._safeSetOption('fontWeightBold', config.fontWeightBold);
+				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
 			this._xterm.resize(this._cols, this._rows);
