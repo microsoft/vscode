@@ -14,7 +14,7 @@ import * as types from 'vs/base/common/types';
 import { IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDiffEditorOptions, IEditorOptions as ICodeEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { BaseTextEditor, IEditorConfiguration } from 'vs/workbench/browser/parts/editor/textEditor';
-import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor } from 'vs/workbench/common/editor';
+import { TextEditorOptions, EditorInput, EditorOptions, TEXT_DIFF_EDITOR_ID, IEditorInputFactoryRegistry, Extensions as EditorInputExtensions, ITextDiffEditor, IEditorMemento } from 'vs/workbench/common/editor';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { DiffNavigator } from 'vs/editor/browser/widget/diffNavigator';
@@ -36,6 +36,7 @@ import { once } from 'vs/base/common/event';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { EditorMemento } from 'vs/workbench/browser/parts/editor/baseEditor';
 
 /**
  * The text editor that leverages the diff text editor for the editing experience.
@@ -45,7 +46,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	public static readonly ID = TEXT_DIFF_EDITOR_ID;
 
 	private diffNavigator: DiffNavigator;
-	private diffNavigatorDisposables: IDisposable[];
+	private diffNavigatorDisposables: IDisposable[] = [];
 	private nextDiffAction: NavigateAction;
 	private previousDiffAction: NavigateAction;
 	private toggleIgnoreTrimWhitespaceAction: ToggleIgnoreTrimWhitespaceAction;
@@ -63,7 +64,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 	) {
 		super(TextDiffEditor.ID, telemetryService, instantiationService, storageService, configurationService, themeService, textFileService, editorService, editorGroupService);
 
-		this.diffNavigatorDisposables = [];
 		this.toUnbind.push(this._actualConfigurationService.onDidChangeConfiguration((e) => {
 			if (e.affectsConfiguration('diffEditor.ignoreTrimWhitespace')) {
 				this.updateIgnoreTrimWhitespaceAction();
@@ -71,8 +71,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		}));
 	}
 
-	protected getEditorViewStateStorage(): object {
-		return Object.create(null); // do not persist in storage as diff editors are never persisted
+	protected getEditorMemento<T>(storageService: IStorageService, editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
+		return new EditorMemento(editorGroupService, Object.create(null), key, limit); // do not persist in storage as diff editors are never persisted
 	}
 
 	public getTitle(): string {
