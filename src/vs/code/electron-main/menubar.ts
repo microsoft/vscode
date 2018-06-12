@@ -259,6 +259,15 @@ export class Menubar {
 			menubar.append(viewMenuItem);
 		}
 
+		// Layout
+		const layoutMenu = new Menu();
+		const layoutMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mLayout', comment: ['&& denotes a mnemonic'] }, "&&Layout")), submenu: layoutMenu });
+
+		if (this.shouldDrawMenu('Layout')) {
+			this.setMenuById(layoutMenu, 'Layout');
+			menubar.append(layoutMenuItem);
+		}
+
 		// Go
 		const gotoMenu = new Menu();
 		const gotoMenuItem = new MenuItem({ label: this.mnemonicLabel(nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go")), submenu: gotoMenu });

@@ -8,12 +8,14 @@ import * as menubarCommands from 'vs/workbench/browser/parts/menubar/menubarComm
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { isMacintosh } from 'vs/base/common/platform';
 
+// TODO: Add submenu support to remove layout, preferences, and recent top level
 menubarCommands.setup();
 fileMenuRegistration();
 editMenuRegistration();
 recentMenuRegistration();
 selectionMenuRegistration();
 viewMenuRegistration();
+layoutMenuRegistration();
 goMenuRegistration();
 debugMenuRegistration();
 tasksMenuRegistration();
@@ -712,6 +714,138 @@ function viewMenuRegistration() {
 		},
 		order: 3
 	});
+}
+
+function layoutMenuRegistration() {
+	// Split
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '1_split',
+		command: {
+			id: 'workbench.action.splitEditorUp',
+			title: nls.localize({ key: 'miSplitEditorUp', comment: ['&& denotes a mnemonic'] }, "Split &&Up")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '1_split',
+		command: {
+			id: 'workbench.action.splitEditorDown',
+			title: nls.localize({ key: 'miSplitEditorDown', comment: ['&& denotes a mnemonic'] }, "Split &&Down")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '1_split',
+		command: {
+			id: 'workbench.action.splitEditorLeft',
+			title: nls.localize({ key: 'miSplitEditorLeft', comment: ['&& denotes a mnemonic'] }, "Split &&Left")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '1_split',
+		command: {
+			id: 'workbench.action.splitEditorRight',
+			title: nls.localize({ key: 'miSplitEditorRight', comment: ['&& denotes a mnemonic'] }, "Split &&Right")
+		},
+		order: 4
+	});
+
+	// Layouts
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutSingle',
+			title: nls.localize({ key: 'miSingleColumnEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Single")
+		},
+		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutCentered',
+			title: nls.localize({ key: 'miCenteredEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Centered")
+		},
+		order: 2
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutTwoColumns',
+			title: nls.localize({ key: 'miTwoColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Two Columns")
+		},
+		order: 3
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutThreeColumns',
+			title: nls.localize({ key: 'miThreeColumnsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&hree Columns")
+		},
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutTwoRows',
+			title: nls.localize({ key: 'miTwoRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "T&&wo Rows")
+		},
+		order: 5
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutThreeRows',
+			title: nls.localize({ key: 'miThreeRowsEditorLayout', comment: ['&& denotes a mnemonic'] }, "Three &&Rows")
+		},
+		order: 6
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutTwoColumns',
+			title: nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
+		},
+		order: 7
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutTwoByTwoGrid',
+			title: nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right")
+		},
+		order: 8
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: '2_layouts',
+		command: {
+			id: 'workbench.action.editorLayoutTwoColumnsBottom',
+			title: nls.localize({ key: 'miTwoColumnsBottomEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two &&Columns Bottom")
+		},
+		order: 9
+	});
+
+	// Flip
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
+		group: 'z_flip',
+		command: {
+			id: 'workbench.action.toggleEditorGroupLayout',
+			title: nls.localize({ key: 'miToggleEditorLayout', comment: ['&& denotes a mnemonic'] }, "Flip &&Layout")
+		},
+		order: 1
+	});
+
 }
 
 function goMenuRegistration() {

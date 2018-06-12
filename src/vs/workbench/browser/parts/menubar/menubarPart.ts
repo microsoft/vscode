@@ -7,6 +7,7 @@
 
 import 'vs/workbench/browser/parts/menubar/menubar.contribution';
 import 'vs/css!./media/menubarpart';
+import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
@@ -54,6 +55,7 @@ export class MenubarPart extends Part {
 		'Recent': IMenu;
 		'Selection': IMenu;
 		'View': IMenu;
+		'Layout': IMenu;
 		'Go': IMenu;
 		'Debug': IMenu;
 		'Tasks': IMenu;
@@ -64,16 +66,17 @@ export class MenubarPart extends Part {
 	};
 
 	private topLevelTitles = {
-		'File': '&&File',
-		'Edit': '&&Edit',
-		'Recent': '&&Recent',
-		'Selection': '&&Selection',
-		'View': '&&View',
-		'Go': '&&Go',
-		'Debug': '&&Debug',
-		'Tasks': '&&Tasks',
-		'Preferences': '&&Preferences',
-		'Help': '&&Help'
+		'File': nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
+		'Edit': nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
+		'Recent': nls.localize({ key: 'mRecent', comment: ['&& denotes a mnemonic'] }, "&&Recent"),
+		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
+		'View': nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View"),
+		'Layout': nls.localize({ key: 'mLayout', comment: ['&& denotes a mnemonic'] }, "&&Layout"),
+		'Go': nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go"),
+		'Debug': nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"),
+		'Tasks': nls.localize({ key: 'mTasks', comment: ['&& denotes a mnemonic'] }, "&&Tasks"),
+		'Preferences': nls.localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
+		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
 
 	private mnemonics: {
@@ -110,6 +113,7 @@ export class MenubarPart extends Part {
 			'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
 			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
 			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
+			'Layout': this.menuService.createMenu(MenuId.MenubarLayoutMenu, this.contextKeyService),
 			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
 			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
 			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
@@ -371,7 +375,6 @@ export class MenubarPart extends Part {
 				const [, actions] = group;
 
 				actions.forEach(menuItemAction => {
-					// const label = this.enableMenubarMnemonics ? menuItemAction.label : menuItemAction.label.replace(/&&(.)/g, '$1');
 					let menubarMenuItem: IMenubarMenuItemAction = {
 						id: menuItemAction.id,
 						label: menuItemAction.label,
