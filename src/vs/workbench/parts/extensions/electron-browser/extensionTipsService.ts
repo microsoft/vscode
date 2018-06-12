@@ -169,11 +169,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private refreshAllIgnoredRecommendations(): TPromise<void> {
 		const globallyIgnored = Promise.resolve(<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')));
 		const workspaceIgnored = this.getWorkspaceIgnores(); // get stuff from our .code-workspace file, if present
-		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => { this._allIgnoredRecommendations = distinct(flatten(ignored)); });
+		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => {
+			this._allIgnoredRecommendations = distinct(flatten(ignored)).map(id => id.toLowerCase());
+		});
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {
-		return this._allIgnoredRecommendations.indexOf(id) === -1;
+		return this._allIgnoredRecommendations.indexOf(id.toLowerCase()) === -1;
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
@@ -287,17 +289,12 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (extensionsContent && extensionsContent.recommendationsToIgnore && extensionsContent.recommendationsToIgnore.length) {
 			let countBadRecommendations = 0;
 			let badRecommendationsString = '';
-			let filteredRecommendations = extensionsContent.recommendationsToIgnore.filter((element, position) => {
-				if (extensionsContent.recommendations.indexOf(element) !== position) {
-					// This is a duplicate entry, it doesn't hurt anybody
-					// but it shouldn't be sent in the gallery query
-					return false;
-				} else if (!regEx.test(element)) {
+			let cleansedRecommendations = extensionsContent.recommendationsToIgnore.filter((element, position) => {
+				if (!regEx.test(element)) {
 					countBadRecommendations++;
 					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
 					return false;
 				}
-
 				return true;
 			});
 
@@ -311,7 +308,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				);
 			}
 
-			return TPromise.as(filteredRecommendations);
+			return TPromise.as(cleansedRecommendations);
 		}
 
 		return TPromise.as([]);
