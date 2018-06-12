@@ -260,6 +260,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm = new Terminal({
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
+			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
 			fontWeight: config.fontWeight,
 			fontWeightBold: config.fontWeightBold,
@@ -836,13 +837,14 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
-		this._setCursorBlink(this._configHelper.config.cursorBlinking);
-		this._setCursorStyle(this._configHelper.config.cursorStyle);
-		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
-		this._setScrollback(this._configHelper.config.scrollback);
-		this._setEnableBell(this._configHelper.config.enableBell);
-		this._setMacOptionIsMeta(this._configHelper.config.macOptionIsMeta);
-		this._setRightClickSelectsWord(this._configHelper.config.rightClickBehavior === 'selectWord');
+		const config = this._configHelper.config;
+		this._setCursorBlink(config.cursorBlinking);
+		this._setCursorStyle(config.cursorStyle);
+		this._setCommandsToSkipShell(config.commandsToSkipShell);
+		this._setScrollback(config.scrollback);
+		this._setEnableBell(config.enableBell);
+		this._setMacOptionIsMeta(config.macOptionIsMeta);
+		this._setRightClickSelectsWord(config.rightClickBehavior === 'selectWord');
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -934,6 +936,10 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 				if (this._xterm.getOption('fontWeightBold') !== this._configHelper.config.fontWeightBold) {
 					this._xterm.setOption('fontWeightBold', this._configHelper.config.fontWeightBold);
+				}
+				if (this._xterm.getOption('drawBoldTextInBrightColors') !== this._configHelper.config.drawBoldTextInBrightColors) {
+					console.log('set', this._configHelper.config.drawBoldTextInBrightColors);
+					this._xterm.setOption('drawBoldTextInBrightColors', this._configHelper.config.drawBoldTextInBrightColors);
 				}
 			}
 

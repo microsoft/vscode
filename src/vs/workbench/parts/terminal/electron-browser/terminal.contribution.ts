@@ -125,6 +125,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.drawBoldTextInBrightColors': {
+			'description': nls.localize('terminal.integrated.drawBoldTextInBrightColors', "When set, bold text in the terminal will always use the \"bright\" ANSI color variant."),
+			'type': 'boolean',
+			'default': true
+		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
