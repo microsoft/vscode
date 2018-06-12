@@ -27,10 +27,10 @@ phases:
       yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - powershell: |
-      .\scripts\test.bat --tfs
+      .\scripts\test.bat --tfs "Unit Tests"
     displayName: Run Unit Tests
   - powershell: |
-      .\scripts\test-integration.bat
+      .\scripts\test-integration.bat --tfs "Integration Tests"
     displayName: Run Integration Tests
   - powershell: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)\artifacts" --log "$(Build.ArtifactStagingDirectory)\artifacts\smoketest.log"
@@ -88,7 +88,7 @@ phases:
       yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - script: |
-      DISPLAY=:10 ./scripts/test.sh --tfs
+      DISPLAY=:10 ./scripts/test.sh --tfs "Unit Tests"
     displayName: Run Unit Tests
   - task: PublishTestResults@2
     displayName: Publish Tests Results
@@ -125,10 +125,10 @@ phases:
       yarn download-builtin-extensions
     displayName: Download Built-in Extensions
   - script: |
-      ./scripts/test.sh --tfs
+      ./scripts/test.sh --tfs "Unit Tests"
     displayName: Run Unit Tests
   - script: |
-      ./scripts/test-integration.sh
+      ./scripts/test-integration.sh --tfs "Integration Tests"
     displayName: Run Integration Tests
   - script: |
       yarn smoketest --screenshots "$(Build.ArtifactStagingDirectory)/artifacts" --log "$(Build.ArtifactStagingDirectory)/artifacts/smoketest.log"

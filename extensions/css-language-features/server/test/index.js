@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const Mocha = require('mocha');
+const glob = require('glob');
 
-const suite = 'Integration Markdown Tests';
+const suite = 'Integration CSS Extension Tests';
 
-const options: any = {
+const options = {
 	ui: 'tdd', 		// the TDD UI is being used in extension.test.ts (suite, test, etc.)
 	useColors: true, // colored output from test results (only windows cannot handle)
 	timeout: 60000
@@ -25,6 +26,9 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	};
 }
 
-testRunner.configure(options);
+const mocha = new Mocha(options);
 
-export = testRunner;
+glob.sync(__dirname + '/../out/test/**/*.test.js')
+	.forEach(file => mocha.addFile(file));
+
+mocha.run(failures => process.exit(failures ? -1 : 0));
