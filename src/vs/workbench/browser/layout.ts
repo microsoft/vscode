@@ -31,6 +31,7 @@ import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPar
 import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
+const MAXIMIZED_TITLE_BAR_HEIGHT = isMacintosh ? 22 : 23;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 
@@ -665,7 +666,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		// Propagate to Part Layouts
 		this.parts.titlebar.layout(new Dimension(this.workbenchSize.width, this.titlebarHeight));
-		this.parts.menubar.layout(new Dimension(undefined, this.menubarHeight));
+		this.parts.menubar.layout(new Dimension(this.workbenchSize.width, this.menubarHeight));
 		this.parts.editor.layout(new Dimension(editorSize.width, editorSize.height));
 		this.parts.sidebar.layout(sidebarSize);
 		this.parts.panel.layout(panelDimension);
@@ -676,11 +677,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	}
 
 	onMaximizeChange(maximized: boolean): void {
-		if (!isMacintosh) {
-			this.titlebarBaseHeight = maximized ? 23 : this.partLayoutInfo.titlebar.height;
-		} else {
-			this.titlebarBaseHeight = this.partLayoutInfo.titlebar.height;
-		}
+		this.titlebarBaseHeight = maximized ? MAXIMIZED_TITLE_BAR_HEIGHT : this.partLayoutInfo.titlebar.height;
 
 		this.layout();
 	}

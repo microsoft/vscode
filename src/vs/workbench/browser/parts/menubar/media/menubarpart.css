@@ -8,7 +8,7 @@
 	position: absolute;
 	order: 3;
 	box-sizing: border-box;
-	margin-left: 35px;
+	padding-left: 35px;
 }
 
 .monaco-workbench.fullscreen > .part.menubar {
