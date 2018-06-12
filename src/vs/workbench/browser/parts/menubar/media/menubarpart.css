@@ -9,6 +9,7 @@
 	order: 3;
 	box-sizing: border-box;
 	padding-left: 35px;
+	padding-right: 150px;
 }
 
 .monaco-workbench.fullscreen > .part.menubar {
@@ -20,6 +21,7 @@
 
 .monaco-workbench > .part.menubar > .menubar-menu-button {
 	display: flex;
+	flex-shrink: 0;
 	align-items: center;
 	min-width: 0;
 	box-sizing: border-box;
@@ -27,6 +29,7 @@
 	position: relative;
 	z-index: 10;
 	cursor: pointer;
+	overflow: hidden;
 	-webkit-app-region: no-drag;
 }
 

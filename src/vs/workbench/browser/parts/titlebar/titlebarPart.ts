@@ -157,6 +157,16 @@ export class TitlebarPart extends Part implements ITitleService {
 		return title;
 	}
 
+	public setTitleOffset(offset: number) {
+		if (this.title) {
+			if (offset) {
+				this.title.style('padding-left', offset + 'px');
+			} else {
+				this.title.style('padding-left', null);
+			}
+		}
+	}
+
 	public updateProperties(properties: ITitleProperties): void {
 		const isAdmin = typeof properties.isAdmin === 'boolean' ? properties.isAdmin : this.properties.isAdmin;
 		const isPure = typeof properties.isPure === 'boolean' ? properties.isPure : this.properties.isPure;

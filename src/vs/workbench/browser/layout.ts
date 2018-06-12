@@ -664,6 +664,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			this.sashXTwo.show();
 		}
 
+		let menubarOffset = this.parts.menubar.getMenubarItemsDimensions();
+		this.parts.titlebar.setTitleOffset(menubarOffset);
+
 		// Propagate to Part Layouts
 		this.parts.titlebar.layout(new Dimension(this.workbenchSize.width, this.titlebarHeight));
 		this.parts.menubar.layout(new Dimension(this.workbenchSize.width, this.menubarHeight));

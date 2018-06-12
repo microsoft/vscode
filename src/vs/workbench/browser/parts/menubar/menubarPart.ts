@@ -510,6 +510,14 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	public getMenubarItemsDimensions(): number {
+		if (this.customMenus) {
+			return this.customMenus[this.customMenus.length - 1].titleElement.getHTMLElement().getBoundingClientRect().right;
+		}
+
+		return 0;
+	}
+
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		this.container = $(parent);
 
