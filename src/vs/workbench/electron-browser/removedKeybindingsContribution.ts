@@ -35,8 +35,10 @@ export class HistoryNavigationKeybindingsChangedContribution implements IWorkben
 		'editor.action.extensioneditor.showPreviousFindTerm',
 
 		'editor.action.webvieweditor.showNextFindTerm',
-		'editor.action.webvieweditor.showPreviousFindTerm'
+		'editor.action.webvieweditor.showPreviousFindTerm',
 
+		'repl.action.historyNext',
+		'repl.action.historyPrevious'
 	];
 
 	constructor(
