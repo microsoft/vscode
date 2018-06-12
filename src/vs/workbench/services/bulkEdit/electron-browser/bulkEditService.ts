@@ -23,6 +23,7 @@ import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/progress/common/progress';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 abstract class Recording {
 
@@ -266,7 +267,8 @@ export class BulkEdit {
 		editor: ICodeEditor,
 		progress: IProgressRunner,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -359,7 +361,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => getPathLabel(edit.resource));
+			.map(edit => getPathLabel(edit.resource, this._environmentService));
 
 		recording.stop();
 
@@ -382,7 +384,8 @@ export class BulkEditService implements IBulkEditService {
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 
 	}
@@ -413,7 +416,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._environmentService);
 		bulkEdit.add(edits);
 		return bulkEdit.perform().then(selection => {
 			return {

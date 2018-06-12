@@ -196,7 +196,7 @@ export class ResourceLabel extends IconLabel {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
 			if (!this.computedPathLabel) {
-				this.computedPathLabel = getPathLabel(resource, void 0, this.environmentService);
+				this.computedPathLabel = getPathLabel(resource, this.environmentService);
 			}
 
 			iconLabelOptions.title = this.computedPathLabel;
@@ -314,7 +314,7 @@ export class FileLabel extends ResourceLabel {
 				rootProvider = this.contextService;
 			}
 
-			description = getPathLabel(resources.dirname(resource), rootProvider, this.environmentService);
+			description = getPathLabel(resources.dirname(resource), this.environmentService, rootProvider);
 		}
 
 		this.setLabel({ resource, name, description }, options);
