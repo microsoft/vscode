@@ -182,7 +182,11 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol);
-		const extHostContext: IExtHostContext = this._extensionHostProcessRPCProtocol;
+		const extHostContext: IExtHostContext = {
+			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
+			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
+			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol.assertRegistered(identifiers),
+		};
 
 		// Named customers
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
@@ -231,6 +235,7 @@ export class ExtensionHostProcessManager extends Disposable {
 }
 
 export class ExtensionService extends Disposable implements IExtensionService {
+
 	public _serviceBrand: any;
 
 	private readonly _onDidRegisterExtensions: Emitter<void>;
