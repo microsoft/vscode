@@ -120,6 +120,7 @@ export interface OutlineTemplate {
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 	icon?: HTMLElement;
+	detail?: HTMLElement;
 	decoration?: HTMLElement;
 }
 
@@ -147,10 +148,11 @@ export class OutlineRenderer implements IRenderer {
 		if (templateId === 'outline-element') {
 			const icon = dom.$('.outline-element-icon symbol-icon');
 			const labelContainer = dom.$('.outline-element-label');
+			const detail = dom.$('.outline-element-detail');
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), decoration };
+			dom.append(container, icon, labelContainer, detail, decoration);
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
@@ -166,6 +168,7 @@ export class OutlineRenderer implements IRenderer {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
 			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined);
+			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
 
 		}

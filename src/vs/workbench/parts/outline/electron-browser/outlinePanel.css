@@ -97,6 +97,22 @@
 	font-weight: bold;
 }
 
+.monaco-workbench .outline-panel .outline-element .outline-element-detail {
+	visibility: hidden;
+	flex: 1;
+	flex-basis: 10%;
+	opacity: 0.8;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: 90%;
+	padding-left: 4px;
+	padding-top: 3px;
+}
+
+.monaco-workbench .outline-panel .monaco-tree-row.focused .outline-element .outline-element-detail {
+	visibility: inherit;
+}
+
 .monaco-workbench .outline-panel .outline-element .outline-element-decoration {
 	opacity: 0.75;
 	font-size: 90%;
