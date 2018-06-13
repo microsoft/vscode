@@ -548,7 +548,7 @@ export class IgnoreAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
-	private static readonly Class = 'extension-action ignore octicon octicon-circle-slash';
+	private static readonly Class = 'extension-action ignore octicon octicon-x';
 
 	onIgnored: () => void;
 	private disposables: IDisposable[] = [];
