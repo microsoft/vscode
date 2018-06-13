@@ -10,7 +10,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN, IIgnoredRecommendations } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -63,6 +63,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _allWorkspaceRecommendedExtensions: string[] = [];
 	private _dynamicWorkspaceRecommendations: string[] = [];
 	private _allIgnoredRecommendations: string[] = [];
+	private _globallyIgnoredRecommendations: string[] = [];
+	private _workspaceIgnoredRecommendations: string[] = [];
 	private _extensionsRecommendationsUrl: string;
 	private _disposables: IDisposable[] = [];
 	public promptWorkspaceRecommendationsPromise: TPromise<any>;
@@ -289,19 +291,21 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const globallyIgnored = Promise.resolve(<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')));
 		const workspaceIgnored = this.getWorkspaceIgnores();
 		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => {
-			this._allIgnoredRecommendations = distinct(flatten(ignored)).map(id => id.toLowerCase());
+			this._globallyIgnoredRecommendations = distinct(ignored[0]).map(id => id.toLowerCase());
+			this._workspaceIgnoredRecommendations = distinct(ignored[1]).map(id => id.toLowerCase());
+			this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
+
 			this._allWorkspaceRecommendedExtensions = this._allWorkspaceRecommendedExtensions.filter((id) => this.isExtensionAllowedToBeRecommended(id));
 			this._dynamicWorkspaceRecommendations = this._dynamicWorkspaceRecommendations.filter((id) => this.isExtensionAllowedToBeRecommended(id));
 
 			let filteredFileBased: { [id: string]: number; } = {};
-			let filteredExeBased: { [id: string]: string; } = {};
-
 			forEach(this._fileBasedRecommendations, entry => {
 				if (this.isExtensionAllowedToBeRecommended(entry.key)) {
 					filteredFileBased[entry.key] = this._fileBasedRecommendations[entry.key];
 				}
 			});
 
+			let filteredExeBased: { [id: string]: string; } = {};
 			forEach(this._exeBasedRecommendations, entry => {
 				if (this.isExtensionAllowedToBeRecommended(entry.key)) {
 					filteredExeBased[entry.key] = this._exeBasedRecommendations[entry.key];
@@ -311,6 +315,13 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._exeBasedRecommendations = filteredExeBased;
 			this._fileBasedRecommendations = filteredFileBased;
 		});
+	}
+
+	getAllIgnoredRecommendations(): IIgnoredRecommendations {
+		return {
+			workspace: this._workspaceIgnoredRecommendations,
+			global: this._globallyIgnoredRecommendations
+		};
 	}
 
 	private isExtensionAllowedToBeRecommended(id: string): boolean {

@@ -321,9 +321,14 @@ export class ExtensionEditor extends BaseEditor {
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
 
-		toggleClass(this.header, 'ignored', this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1);
+		const ignoredRecommendations = this.extensionTipsService.getAllIgnoredRecommendations();
+
+		toggleClass(this.header, 'ignored', this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1 || ignoredRecommendations.workspace.indexOf(extension.id.toLowerCase()) !== -1);
 		if (this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1) {
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredGlobal', "You have chosen not to receive recommendations for this extension.");
+		}
+		if (ignoredRecommendations.workspace.indexOf(extension.id.toLowerCase()) !== -1) {
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredWorkspace', "This extension has been marked as not recommended for this workspace by users of the current workspace.");
 		}
 
 		toggleClass(this.name, 'clickable', !!extension.url);
