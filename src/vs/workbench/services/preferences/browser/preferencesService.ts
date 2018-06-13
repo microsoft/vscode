@@ -238,16 +238,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	configureSettingsForLanguage(language: string): void {
 		this.openGlobalSettings()
-			.then(editor => {
-				const codeEditor = getCodeEditor(editor.getControl());
-				if (codeEditor) {
-					this.getPosition(language, codeEditor)
-						.then(position => {
-							codeEditor.setPosition(position);
-							codeEditor.focus();
-						});
-				}
-			});
+			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
+				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
+					const codeEditor = getCodeEditor(editor.getControl());
+					if (codeEditor) {
+						this.getPosition(language, settingsModel, codeEditor)
+							.then(position => {
+								if (codeEditor) {
+									codeEditor.setPosition(position);
+									codeEditor.focus();
+								}
+							});
+					}
+				}));
 	}
 
 	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
@@ -456,39 +459,36 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		];
 	}
 
-	private getPosition(language: string, codeEditor: ICodeEditor): TPromise<IPosition> {
-		return this.createPreferencesEditorModel(this.userSettingsResource)
-			.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
-				const languageKey = `[${language}]`;
-				let setting = settingsModel.getPreference(languageKey);
-				const model = codeEditor.getModel();
-				const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
-				const eol = configuration.files && configuration.files.eol;
-				if (setting) {
-					if (setting.overrides.length) {
-						const lastSetting = setting.overrides[setting.overrides.length - 1];
-						let content;
-						if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
-							content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-						} else {
-							content = ',' + eol + this.spaces(2, configuration.editor);
-						}
-						const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						return { lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) };
-					}
-					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
+	private getPosition(language: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): TPromise<IPosition> {
+		const languageKey = `[${language}]`;
+		let setting = settingsModel.getPreference(languageKey);
+		const model = codeEditor.getModel();
+		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
+		const eol = configuration.files && configuration.files.eol;
+		if (setting) {
+			if (setting.overrides.length) {
+				const lastSetting = setting.overrides[setting.overrides.length - 1];
+				let content;
+				if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
+					content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
+				} else {
+					content = ',' + eol + this.spaces(2, configuration.editor);
 				}
-				return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
-					.then(() => {
-						setting = settingsModel.getPreference(languageKey);
-						let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						let lineNumber = setting.valueRange.endLineNumber + 1;
-						settingsModel.dispose();
-						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
-					});
+				const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
+				model.pushEditOperations([], [editOperation], () => []);
+				return TPromise.as({ lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) });
+			}
+			return TPromise.as({ lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 });
+		}
+		return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
+			.then(() => {
+				setting = settingsModel.getPreference(languageKey);
+				let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
+				let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
+				model.pushEditOperations([], [editOperation], () => []);
+				let lineNumber = setting.valueRange.endLineNumber + 1;
+				settingsModel.dispose();
+				return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
 			});
 	}
 
