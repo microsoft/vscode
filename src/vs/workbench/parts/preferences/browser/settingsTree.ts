@@ -301,7 +301,7 @@ export class SettingsRenderer implements IRenderer {
 
 		const height = measureHelper.offsetHeight;
 		this.measureContainer.removeChild(measureHelper);
-		return height;
+		return Math.max(height, 110);
 	}
 
 	getTemplateId(tree: ITree, element: TreeElement): string {

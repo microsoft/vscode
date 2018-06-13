@@ -191,10 +191,18 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
 .settings-editor > .settings-body > .settings-tree-container .setting-item.setting-measure-helper .setting-item-description {
+	min-height: 36px;
 	height: initial;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > *:first-child {
+	min-width: 250px;
+	display: inline-block;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
+	margin-top: 10px;
+	margin-bottom: 10px;
 	display: inline-block;
 }
 
@@ -218,8 +226,9 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
 	text-align: left;
-	display: block;
+	display: inline-block;
 	visibility: hidden;
+	width: initial;
 
 	padding-top: 0px; /* So focus outline doesn't overlap the control above */
 }
