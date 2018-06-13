@@ -11,8 +11,9 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITreeConfiguration, ITree } from 'vs/base/parts/tree/browser/tree';
+import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
@@ -29,14 +30,13 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement, isTOCLeaf } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const $ = DOM.$;
 
@@ -638,19 +638,25 @@ export class SettingsEditor2 extends BaseEditor {
 export interface ITOCEntry<T> {
 	id: string;
 	label: string;
+}
+
+export interface ITOCGroupEntry<T> extends ITOCEntry<T> {
 	children?: ITOCEntry<T>[];
+}
+
+export interface ITOCLeafEntry<T> extends ITOCEntry<T> {
 	settings?: T[];
 }
 
-export type IRawTOCEntry = ITOCEntry<string>;
-export type IResolvedTOCEntry = ITOCEntry<ISetting>;
+export type IRawTOCEntry = ITOCGroupEntry<string> | ITOCLeafEntry<string>;
+export type IResolvedTOCEntry = ITOCGroupEntry<ISetting> | ITOCLeafEntry<ISetting>;
 
 function resolveSettingsTree(tocData: IRawTOCEntry, defaultSettings: DefaultSettingsEditorModel): IResolvedTOCEntry {
 	return _resolveSettingsTree(tocData, getAllSettings(defaultSettings));
 }
 
 function _resolveSettingsTree(tocData: IRawTOCEntry, allSettings: Set<ISetting>): IResolvedTOCEntry {
-	if (tocData.settings) {
+	if (isTOCLeaf(tocData)) {
 		return <IResolvedTOCEntry>{
 			id: tocData.id,
 			label: tocData.label,

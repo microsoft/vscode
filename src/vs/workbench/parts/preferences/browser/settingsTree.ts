@@ -25,8 +25,8 @@ import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/com
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
+import { IResolvedTOCEntry, ITOCGroupEntry, ITOCLeafEntry, ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 import { ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { IResolvedTOCEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 
 const $ = DOM.$;
 
@@ -56,6 +56,7 @@ export interface ISettingElement extends ITreeItem {
 	type: TreeItemType.setting;
 	setting: ISetting;
 
+	parent: IGroupElement | SearchResultModel;
 	displayCategory: string;
 	displayLabel: string;
 	value: any;
@@ -68,6 +69,7 @@ export interface ISettingElement extends ITreeItem {
 
 export interface IGroupElement extends ITreeItem {
 	type: TreeItemType.groupTitle;
+	parent: IGroupElement | IResolvedTOCEntry;
 	group: IResolvedTOCEntry;
 	index: number;
 }
@@ -92,16 +94,17 @@ export class SettingsDataSource implements IDataSource {
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	getGroupElement(group: IResolvedTOCEntry, index: number): IGroupElement {
+	getGroupElement(group: IResolvedTOCEntry, parent: IGroupElement | IResolvedTOCEntry, index: number): IGroupElement {
 		return <IGroupElement>{
 			type: TreeItemType.groupTitle,
 			group,
+			parent,
 			id: sanitizeElementId(group.id),
 			index
 		};
 	}
 
-	getSettingElement(setting: ISetting, group: IResolvedTOCEntry): ISettingElement {
+	getSettingElement(setting: ISetting, parent: IGroupElement | SearchResultModel, category: string): ISettingElement {
 		const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
@@ -114,10 +117,10 @@ export class SettingsDataSource implements IDataSource {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
-		const displayKeyFormat = settingKeyToDisplayFormat(setting.key, group);
+		const displayKeyFormat = settingKeyToDisplayFormat(setting.key, category);
 		return <ISettingElement>{
 			type: TreeItemType.setting,
-			parent: group,
+			parent,
 			id: sanitizeElementId(setting.key),
 			setting,
 
@@ -139,7 +142,7 @@ export class SettingsDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: TreeElementOrRoot): boolean {
-		if (isRoot(element)) {
+		if (isTOCRoot(element)) {
 			return true;
 		}
 
@@ -154,36 +157,44 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	_getChildren(element: TreeElementOrRoot): TreeElement[] {
-		if (isRoot(element)) {
+	private _getChildren(element: TreeElementOrRoot): TreeElement[] {
+		if (isTOCRoot(element)) {
 			return this.getRootChildren(element);
 		} else if (element instanceof SearchResultModel) {
-			return this.getGroupChildren(element.resultsAsGroup());
+			return this.getSearchResultChildren(element);
 		} else if (element.type === TreeItemType.groupTitle) {
-			return this.getGroupChildren(element.group);
+			return this.getGroupChildren(element);
 		} else {
 			// No children...
 			return null;
 		}
 	}
 
+	private getSearchResultChildren(searchResult: SearchResultModel): ISettingElement[] {
+		return searchResult.getFlatSettings()
+			.map(s => this.getSettingElement(s, searchResult, 'searchResult'));
+	}
+
 	getChildren(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
 		return TPromise.as(this._getChildren(element));
 	}
 
-	private getRootChildren(root: IResolvedTOCEntry): TreeElement[] {
+	private getRootChildren(root: ITOCGroupEntry<ISetting>): TreeElement[] {
 		return root.children
-			.map((g, i) => this.getGroupElement(g, i));
+			.map((g, i) => this.getGroupElement(g, root, i));
 	}
 
-	private getGroupChildren(group: IResolvedTOCEntry): TreeElement[] {
-		return group.children ?
-			group.children.map((child, i) => this.getGroupElement(child, i)) :
-			group.settings.map(s => this.getSettingElement(s, group));
+	private getGroupChildren(groupElement: IGroupElement): TreeElement[] {
+		return isTOCLeaf(groupElement.group) ?
+			groupElement.group.settings.map(s => this.getSettingElement(s, groupElement, groupElement.id)) :
+			groupElement.group.children.map((child, i) => this.getGroupElement(child, groupElement, i));
 	}
 
-	getParent(tree: ITree, element: TreeElement): TPromise<any, any> {
-		return TPromise.wrap(null);
+	getParent(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
+		return TPromise.wrap(
+			isTOCRoot(element) ? null :
+			element instanceof SearchResultModel ? null :
+			element.parent);
 	}
 }
 
@@ -191,11 +202,11 @@ function sanitizeElementId(id: string): string {
 	return id.replace(/\./g, '_');
 }
 
-function isRoot(element: TreeElementOrRoot): element is IResolvedTOCEntry {
+function isTOCRoot(element: TreeElementOrRoot): element is IResolvedTOCEntry {
 	return element.id === 'root';
 }
 
-export function settingKeyToDisplayFormat(key: string, group: IResolvedTOCEntry): { category: string, label: string } {
+export function settingKeyToDisplayFormat(key: string, groupId: string): { category: string, label: string } {
 	let label = key
 		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
@@ -208,14 +219,14 @@ export function settingKeyToDisplayFormat(key: string, group: IResolvedTOCEntry)
 		label = label.substr(lastDotIdx + 1);
 	}
 
-	category = trimCategoryForGroup(category, group);
+	category = trimCategoryForGroup(category, groupId);
 
 	return { category, label };
 }
 
-function trimCategoryForGroup(category: string, group: IResolvedTOCEntry): string {
+function trimCategoryForGroup(category: string, groupId: string): string {
 	const doTrim = forward => {
-		const parts = group.id.split('.');
+		const parts = groupId.split('.');
 		while (parts.length) {
 			const reg = new RegExp(`^${parts.join('\\.')}(\\.|$)`, 'i');
 			if (reg.test(category)) {
@@ -571,16 +582,16 @@ export class SettingsTreeFilter implements IFilter {
 		return true;
 	}
 
-	private groupHasConfiguredSetting(group: IResolvedTOCEntry): boolean {
-		if (group.children) {
-			return group.children.some(c => this.groupHasConfiguredSetting(c));
-		}
-
-		for (let setting of group.settings) {
-			const { isConfigured } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
-			if (isConfigured) {
-				return true;
+	private groupHasConfiguredSetting(element: IResolvedTOCEntry): boolean {
+		if (isTOCLeaf(element)) {
+			for (let setting of element.settings) {
+				const { isConfigured } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+				if (isConfigured) {
+					return true;
+				}
 			}
+		} else {
+			return element.children.some(c => this.groupHasConfiguredSetting(c));
 		}
 
 		return false;
@@ -658,7 +669,7 @@ export class SearchResultModel {
 		this.rawSearchResults[type] = result;
 	}
 
-	resultsAsGroup(): IResolvedTOCEntry {
+	getFlatSettings(): ISetting[] {
 		const flatSettings: ISetting[] = [];
 		this.getUniqueResults()
 			.filter(r => !!r)
@@ -667,10 +678,10 @@ export class SearchResultModel {
 					...r.filterMatches.map(m => m.setting));
 			});
 
-		return <IResolvedTOCEntry>{
-			id: 'settingsSearchResultGroup',
-			settings: flatSettings,
-			label: 'searchResults'
-		};
+		return flatSettings;
 	}
+}
+
+export function isTOCLeaf<T>(entry: ITOCEntry<T>): entry is ITOCLeafEntry<T> {
+	return !!(<ITOCLeafEntry<T>>entry).settings;
 }

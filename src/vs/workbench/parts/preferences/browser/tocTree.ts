@@ -6,7 +6,9 @@
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { IResolvedTOCEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
+import { IResolvedTOCEntry, ITOCGroupEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
+import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { isTOCLeaf } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
 const $ = DOM.$;
 
@@ -21,10 +23,10 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	hasChildren(tree: ITree, element: IResolvedTOCEntry): boolean {
-		return element.children && element.children.length && typeof element.children[0] !== 'string';
+		return !isTOCLeaf(element) && element.children.length && typeof element.children[0] !== 'string';
 	}
 
-	getChildren(tree: ITree, element: IResolvedTOCEntry): TPromise<IResolvedTOCEntry[], any> {
+	getChildren(tree: ITree, element: ITOCGroupEntry<ISetting>): TPromise<IResolvedTOCEntry[], any> {
 		return TPromise.as(<IResolvedTOCEntry[]>element.children);
 	}
 
