@@ -56,6 +56,18 @@
 	line-height: initial;
 }
 
+.quick-input-action-bar {
+	display: flex;
+}
+
+.quick-input-action-bar .action-label.icon {
+	margin: 0 0 0 5px;
+	width: 16px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .quick-input-message {
 	margin: 0px 11px;
 }

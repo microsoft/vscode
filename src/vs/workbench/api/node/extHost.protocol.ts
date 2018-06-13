@@ -26,7 +26,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 
-import { IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
@@ -336,7 +336,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessExit(terminalId: number, exitCode: number): void;
 }
 
-export interface MyQuickPickItems extends IQuickPickItem {
+export interface TransferQuickPickItems extends IQuickPickItem {
+	handle: number;
+}
+
+export interface TransferQuickInputButton extends IQuickInputButton {
 	handle: number;
 }
 
@@ -363,9 +367,9 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	placeholder?: string;
 
-	commands?: TransferQuickInputCommand[];
+	buttons?: TransferQuickInputButton[];
 
-	items?: MyQuickPickItems[];
+	items?: TransferQuickPickItems[];
 
 	canSelectMany?: boolean;
 
@@ -386,21 +390,16 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 
 	password?: boolean;
 
-	commands?: TransferQuickInputCommand[];
+	buttons?: TransferQuickInputButton[];
 
 	prompt?: string;
 
 	validationMessage?: string;
 }
 
-export interface TransferQuickInputCommand {
-	iconPath: { light: string; dark: string; };
-	tooltip?: string | undefined;
-}
-
 export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions): TPromise<number | number[]>;
-	$setItems(items: MyQuickPickItems[]): TPromise<any>;
+	$setItems(items: TransferQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
 	$createOrUpdate(params: TransferQuickInput): TPromise<void>;
@@ -819,6 +818,7 @@ export interface ExtHostQuickOpenShape {
 	$onDidChangeActive(sessionId: number, handles: number[]): void;
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
+	$onDidTriggerButton(sessionId: number, handle: number): void;
 }
 
 export interface ShellLaunchConfigDto {

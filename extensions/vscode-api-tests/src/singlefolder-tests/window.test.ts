@@ -297,6 +297,15 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - value not empty on second try', async function () {
+		const one = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await one, 'notempty');
+		const two = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await two, 'notempty');
+	});
+
 
 	test('showQuickPick, accept first', async function () {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);

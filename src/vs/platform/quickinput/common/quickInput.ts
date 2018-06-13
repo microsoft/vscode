@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 
 export interface IQuickPickItem {
@@ -117,7 +116,7 @@ export interface IQuickPick extends IQuickInput {
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
-	readonly onDidTriggerCommand: Event<IQuickInputButton>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
 	items: ReadonlyArray<IQuickPickItem>;
 
@@ -160,7 +159,7 @@ export interface IInputBox extends IQuickInput {
 }
 
 export interface IQuickInputButton {
-	iconPath: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
+	iconPath: { dark: URI; light?: URI; };
 	tooltip?: string | undefined;
 }
 
