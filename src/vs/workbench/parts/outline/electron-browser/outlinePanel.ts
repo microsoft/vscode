@@ -615,7 +615,7 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
-		if (!this._outlineViewState.followCursor) {
+		if (!this._outlineViewState.followCursor && !this._tree.getInput()) {
 			return;
 		}
 		let item = model.getItemEnclosingPosition({
