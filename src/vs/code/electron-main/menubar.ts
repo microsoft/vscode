@@ -515,7 +515,7 @@ export class Menubar {
 		let label: string;
 		let path: string;
 		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
-			label = unmnemonicLabel(getPathLabel(workspace, null, this.environmentService));
+			label = unmnemonicLabel(getPathLabel(workspace, this.environmentService, null));
 			path = workspace;
 		} else {
 			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });

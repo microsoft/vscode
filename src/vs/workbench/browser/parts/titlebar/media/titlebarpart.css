@@ -44,7 +44,7 @@
 	text-align: center;
 	padding-right: 150px;
 	padding-left: 150px;
-	position: fixed;
+	position: absolute;
 	margin: 1px 2px;
 	width: 100%;
 	left: calc(-100vw + 100%);
