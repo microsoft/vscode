@@ -4873,6 +4873,7 @@ declare namespace monaco.languages {
 
 	export interface DocumentSymbol {
 		name: string;
+		detail: string;
 		kind: SymbolKind;
 		containerName?: string;
 		fullRange: IRange;

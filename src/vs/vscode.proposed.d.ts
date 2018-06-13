@@ -387,6 +387,11 @@ declare module 'vscode' {
 		name: string;
 
 		/**
+		 * More detail for this symbol, e.g the signature of a function.
+		 */
+		detail: string;
+
+		/**
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
@@ -411,11 +416,12 @@ declare module 'vscode' {
 		 * Creates a new document symbol.
 		 *
 		 * @param name The name of the symbol.
+		 * @param detail Details for the symbol.
 		 * @param kind The kind of the symbol.
 		 * @param fullRange The full range of the symbol.
 		 * @param gotoRange The range that should be reveal.
 		 */
-		constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
+		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {

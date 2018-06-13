@@ -17,6 +17,7 @@ suite('OutlineModel', function () {
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {
 		return {
 			name,
+			detail: 'fake',
 			kind: SymbolKind.Boolean,
 			identifierRange: range,
 			fullRange: range
