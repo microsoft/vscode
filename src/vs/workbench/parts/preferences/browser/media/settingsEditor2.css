@@ -126,7 +126,6 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	cursor: default;
 	white-space: normal;
-	display: flex;
 	height: 100%;
 	min-height: 75px;
 }
@@ -195,6 +194,10 @@
 	height: initial;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
+	display: inline-block;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:hover,
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:active {
@@ -208,7 +211,7 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .monaco-select-box {
-	width: 100%;
+	width: initial;
 	font: inherit;
 	height: 26px;
 }
@@ -228,7 +231,7 @@
 .settings-editor > .settings-body > .settings-tree-container .setting-item .expand-indicator {
 	visibility: hidden;
 	position: absolute;
-	bottom: -2px;
+	bottom: 52px;
 	width: calc(100% - 190px);
 	text-align: center;
 	opacity: .5;

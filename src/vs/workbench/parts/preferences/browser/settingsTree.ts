@@ -258,7 +258,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 75;
+	private static readonly SETTING_ROW_HEIGHT = 110;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -346,18 +346,15 @@ export class SettingsRenderer implements IRenderer {
 	private renderSettingTemplate(tree: ITree, container: HTMLElement): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 
-		const leftElement = DOM.append(container, $('.setting-item-left'));
-		const rightElement = DOM.append(container, $('.setting-item-right'));
-
-		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
-		const expandIndicatorElement = DOM.append(leftElement, $('.expand-indicator'));
+		const descriptionElement = DOM.append(container, $('.setting-item-description'));
+		const expandIndicatorElement = DOM.append(container, $('.expand-indicator'));
 
-		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
+		const valueElement = DOM.append(container, $('.setting-item-value'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
