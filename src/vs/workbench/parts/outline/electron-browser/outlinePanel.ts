@@ -307,7 +307,9 @@ export class OutlinePanel extends ViewletPanel {
 				this._tree.domFocus();
 			} else if (event.keyCode === KeyCode.Enter) {
 				let element = this._tree.getFocus();
-				this._revealTreeSelection(OutlineModel.get(element), element, true, false);
+				if (element instanceof OutlineElement) {
+					this._revealTreeSelection(OutlineModel.get(element), element, true, false);
+				}
 			} else if (event.keyCode === KeyCode.Escape) {
 				this._input.value = '';
 				this._tree.domFocus();
