@@ -39,7 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 
 interface IExtensionsContent {
 	recommendations: string[];
-	recommendationsToIgnore: string[];
+	unwantedRecommendations: string[];
 }
 
 const empty: { [key: string]: any; } = Object.create(null);
@@ -207,7 +207,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private mergeExtensionRecommendationConfigs(configs: IExtensionsContent[]): IExtensionsContent {
 		return {
 			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
-			recommendationsToIgnore: distinct(flatten(configs.map(config => config.recommendationsToIgnore || [])))
+			unwantedRecommendations: distinct(flatten(configs.map(config => config.unwantedRecommendations || [])))
 		};
 	}
 
@@ -265,7 +265,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		let countBadIDs = 0;
 		let badIDsString = '';
-		let cleansedIDs = extensionsContent.recommendationsToIgnore.filter(element => {
+		let cleansedIDs = extensionsContent.unwantedRecommendations.filter(element => {
 			if (!regEx.test(element)) {
 				countBadIDs++;
 				badIDsString += `${element} (bad format) Expected: <provider>.<name>\n`;
