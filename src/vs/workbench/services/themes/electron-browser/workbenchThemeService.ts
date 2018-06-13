@@ -31,6 +31,7 @@ import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 
 // implementation
 
@@ -69,6 +70,8 @@ export interface IColorCustomizations {
 
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
+
+	private fileService: IFileService;
 
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
@@ -180,6 +183,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
+	}
+
+	acquireFileService(fileService: IFileService): void {
+		this.fileService = fileService;
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -405,7 +412,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!iconThemeData) {
 				iconThemeData = FileIconThemeData.noIconTheme();
 			}
-			return iconThemeData.ensureLoaded(this).then(_ => {
+			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
 		});

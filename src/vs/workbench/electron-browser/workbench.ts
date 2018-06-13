@@ -111,6 +111,8 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -236,6 +238,7 @@ export class Workbench extends Disposable implements IPartService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: WorkspaceService,
+		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService
@@ -375,6 +378,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.fileService = this.instantiationService.createInstance(RemoteFileService);
 		serviceCollection.set(IFileService, this.fileService);
 		this.configurationService.acquireFileService(this.fileService);
+		this.themeService.acquireFileService(this.fileService);
 
 		// Editor and Group services
 		const restorePreviousEditorState = !this.hasInitialFilesToOpen;
