@@ -12,7 +12,7 @@
 .settings-editor > .settings-header {
 	padding-left: 15px;
 	padding-right: 5px;
-	max-width: 800px;
+	max-width: 1000px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -98,6 +98,12 @@
 	opacity: 0.7;
 }
 
+.settings-editor > .settings-body {
+	display: flex;
+	margin: auto;
+	max-width: 1000px;
+}
+
 .settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
 	max-width: 800px;
 	margin: auto;
@@ -114,6 +120,10 @@
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
 	outline: none !important;
+}
+
+.settings-editor > .settings-body .settings-toc-container {
+	width: 200px;
 }
 
 .settings-editor > .settings-body .settings-tree-container {

@@ -7,15 +7,18 @@ import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
+import { ITreeConfiguration, ITree } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -27,13 +30,13 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
-import { CancellationToken } from 'vs/base/common/cancellation';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const $ = DOM.$;
 
@@ -53,6 +56,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
 	private treeDataSource: SettingsDataSource;
+
+	private tocTreeContainer: HTMLElement;
+	private tocTree: WorkbenchTree;
+	private resolvedTocData: IResolvedTOCEntry;
 
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
@@ -209,14 +216,35 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
-		this.createList(bodyContainer);
+		this.createTOC(bodyContainer);
+		this.createSettingsTree(bodyContainer);
 
 		if (this.environmentService.appQuality !== 'stable') {
 			this.createFeedbackButton(bodyContainer);
 		}
 	}
 
-	private createList(parent: HTMLElement): void {
+	private createTOC(parent: HTMLElement): void {
+		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
+
+		const tocTreeDataSource = this.instantiationService.createInstance(TOCDataSource);
+		const renderer = this.instantiationService.createInstance(TOCRenderer);
+
+		this.tocTree = this.instantiationService.createInstance(WorkbenchTree, this.tocTreeContainer,
+			<ITreeConfiguration>{
+				dataSource: tocTreeDataSource,
+				renderer
+			},
+			{
+				showLoading: false
+			});
+
+		this._register(this.tocTree.onDidChangeSelection(e => {
+			this.settingsTree.reveal(e.selection[0], .1);
+		}));
+	}
+
+	private createSettingsTree(parent: HTMLElement): void {
 		this.settingsTreeContainer = DOM.append(parent, $('.settings-tree-container'));
 
 		this.treeDataSource = this.instantiationService.createInstance(SettingsDataSource, this.viewState);
@@ -228,7 +256,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTree = this.instantiationService.createInstance(WorkbenchTree, this.settingsTreeContainer,
 			<ITreeConfiguration>{
 				dataSource: this.treeDataSource,
-				renderer: renderer,
+				renderer,
 				controller: this.instantiationService.createInstance(SettingsTreeController),
 				accessibilityProvider: this.instantiationService.createInstance(SettingsAccessibilityProvider),
 				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState),
@@ -237,7 +265,7 @@ export class SettingsEditor2 extends BaseEditor {
 			{
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				showLoading: false,
-				indentPixels: 0,
+				// indentPixels: 0,
 				twistiePixels: 15,
 			});
 
@@ -416,10 +444,14 @@ export class SettingsEditor2 extends BaseEditor {
 					}
 
 					this.defaultSettingsEditorModel = model;
-					if (!this.settingsTree.getInput()) {
-						this.settingsTree.setInput(this.defaultSettingsEditorModel);
-						this.expandCommonlyUsedSettings();
-					}
+					// if (!this.settingsTree.getInput()) {
+						this.resolvedTocData = resolveSettingsTree(tocData, this.defaultSettingsEditorModel);
+						this.tocTree.setInput(this.resolvedTocData);
+						this.settingsTree.setInput(this.resolvedTocData);
+
+						this.expandAll(this.settingsTree);
+						this.expandAll(this.tocTree);
+					// }
 				});
 		}
 		return TPromise.as(null);
@@ -473,16 +505,30 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.searchResultModel = null;
-			this.settingsTree.setInput(this.defaultSettingsEditorModel);
-			this.expandCommonlyUsedSettings();
+			this.settingsTree.setInput(this.resolvedTocData);
+			this.expandAll(this.settingsTree);
+			this.expandAll(this.tocTree);
 
 			return TPromise.wrap(null);
 		}
 	}
 
-	private expandCommonlyUsedSettings(): void {
-		const commonlyUsedGroup = this.defaultSettingsEditorModel.settingsGroups[0];
-		this.settingsTree.expand(this.treeDataSource.getGroupElement(commonlyUsedGroup, 0));
+	private expandAll(tree: ITree): void {
+		// const expandSubtree = (element: IResolvedTOCEntry) => {
+		// 	const nav = tree.getNavigator();
+		// 	while (nav.)
+		// 	if (element.children) {
+		// 		element.children.forEach(expandSubtree);
+		// 	}
+		// };
+
+		// expandSubtree(this.resolvedTocData);
+
+		const nav = tree.getNavigator();
+		let cur;
+		while (cur = nav.next()) {
+			tree.expand(cur);
+		}
 	}
 
 	private reportFilteringUsed(query: string, results: ISearchResult[]): void {
@@ -583,6 +629,74 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutSettingsList(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
+		this.tocTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
+		this.tocTree.layout(listHeight, 200);
 	}
+}
+
+export interface ITOCEntry<T> {
+	id: string;
+	label: string;
+	children?: ITOCEntry<T>[];
+	settings?: T[];
+}
+
+export type IRawTOCEntry = ITOCEntry<string>;
+export type IResolvedTOCEntry = ITOCEntry<ISetting>;
+
+function resolveSettingsTree(tocData: IRawTOCEntry, defaultSettings: DefaultSettingsEditorModel): IResolvedTOCEntry {
+	return _resolveSettingsTree(tocData, getAllSettings(defaultSettings));
+}
+
+function _resolveSettingsTree(tocData: IRawTOCEntry, allSettings: Set<ISetting>): IResolvedTOCEntry {
+	if (tocData.settings) {
+		return <IResolvedTOCEntry>{
+			id: tocData.id,
+			label: tocData.label,
+			settings: arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern)))
+		};
+	} else {
+		return <IResolvedTOCEntry>{
+			id: tocData.id,
+			label: tocData.label,
+			children: tocData.children.map(child => _resolveSettingsTree(child, allSettings))
+		};
+	}
+}
+
+function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
+	const result: ISetting[] = [];
+
+	allSettings.forEach(s => {
+		if (settingMatches(s, pattern)) {
+			result.push(s);
+			allSettings.delete(s);
+		}
+	});
+
+
+	return result.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function settingMatches(s: ISetting, pattern: string): boolean {
+	pattern = escapeRegExpCharacters(pattern)
+		.replace(/\\\*/g, '.*');
+
+	const regexp = new RegExp(`^${pattern}`, 'i');
+	return regexp.test(s.key);
+}
+
+function getAllSettings(defaultSettings: DefaultSettingsEditorModel) {
+	const result: Set<ISetting> = new Set();
+
+	for (let group of defaultSettings.settingsGroups.slice(1)) {
+		for (let section of group.sections) {
+			for (let s of section.settings) {
+				result.add(s);
+			}
+		}
+	}
+
+	return result;
 }
