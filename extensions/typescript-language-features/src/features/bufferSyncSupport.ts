@@ -159,7 +159,35 @@ class SyncedBufferMap {
 	}
 
 	private toKey(resource: Uri): string | null {
-		return this._normalizePath(resource);
+		const key = this._normalizePath(resource);
+		if (!key) {
+			return key;
+		}
+
+		return this.isCaseInsensitivePath(key) ? key.toLowerCase() : key;
+	}
+
+	private isCaseInsensitivePath(path: string) {
+		if (isWindowsPath(path)) {
+			return true;
+		}
+
+		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
+	}
+
+	@memoize
+	private get onIsCaseInsenitiveFileSystem() {
+		if (process.platform === 'win32') {
+			return true;
+		}
+
+		if (process.platform !== 'darwin') {
+			return false;
+		}
+
+		const temp = getTempFile('typescript-case-check');
+		fs.writeFileSync(temp, '');
+		return fs.existsSync(temp.toUpperCase());
 	}
 }
 
@@ -396,35 +424,7 @@ export default class BufferSyncSupport {
 	}
 
 	private normalizePath(path: Uri): string | null {
-		const key = this.client.normalizedPath(path);
-		if (!key) {
-			return key;
-		}
-
-		return this.isCaseInsensitivePath(key) ? key.toLowerCase() : key;
-	}
-
-	private isCaseInsensitivePath(path: string) {
-		if (isWindowsPath(path)) {
-			return true;
-		}
-
-		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
-	}
-
-	@memoize
-	private get onIsCaseInsenitiveFileSystem() {
-		if (process.platform === 'win32') {
-			return true;
-		}
-
-		if (process.platform !== 'darwin') {
-			return false;
-		}
-
-		const temp = getTempFile('typescript-case-check');
-		fs.writeFileSync(temp, '');
-		return fs.existsSync(temp.toUpperCase());
+		return this.client.normalizedPath(path);
 	}
 }
 
