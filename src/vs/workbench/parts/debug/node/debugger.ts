@@ -73,12 +73,13 @@ export class Debugger {
 	}
 
 	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-
-		// first try to substitute variables in EH
-		return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
-
+		if (this.inEH()) {
+			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
+				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
+			});
+		} else {
 			return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
-		});
+		}
 	}
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
@@ -88,7 +89,7 @@ export class Debugger {
 
 	private inEH(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter;
+		return debugConfigs.extensionHostDebugAdapter || this.extensionDescription.extensionLocation.scheme !== 'file';
 	}
 
 	public get label(): string {
