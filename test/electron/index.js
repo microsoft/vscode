@@ -22,7 +22,7 @@ const optimist = require('optimist')
 	.describe('debug', 'open dev tools, keep window open, reuse app data').string('debug')
 	.describe('reporter', 'the mocha reporter').string('reporter').default('reporter', defaultReporterName)
 	.describe('reporter-options', 'the mocha reporter options').string('reporter-options').default('reporter-options', '')
-	.describe('tfs').boolean('tfs')
+	.describe('tfs').string('tfs')
 	.describe('help', 'show the help').alias('help', 'h');
 
 const argv = optimist.argv;
@@ -97,17 +97,6 @@ function parseReporterOption(value) {
 	return r ? { [r[1]]: r[2] } : {};
 }
 
-class TFSReporter extends mocha.reporters.Base {
-
-	constructor(runner) {
-		super(runner);
-
-		runner.on('pending', test => console.log('PEND', test.fullTitle()));
-		runner.on('fail', test => console.log('FAIL', test.fullTitle(), `(${test.duration}ms)`));
-		runner.once('end', () => this.epilogue());
-	}
-}
-
 app.on('ready', () => {
 
 	const win = new BrowserWindow({
@@ -133,11 +122,11 @@ app.on('ready', () => {
 	const runner = new IPCRunner();
 
 	if (argv.tfs) {
-		new TFSReporter(runner);
+		new mocha.reporters.Spec(runner);
 		new MochaJUnitReporter(runner, {
 			reporterOptions: {
-				testsuitesTitle: `Unit Tests ${process.platform}`,
-				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-unit-test-results.xml`) : undefined
+				testsuitesTitle: `${argv.tfs} ${process.platform}`,
+				mochaFile: process.env.BUILD_ARTIFACTSTAGINGDIRECTORY ? path.join(process.env.BUILD_ARTIFACTSTAGINGDIRECTORY, `test-results/${process.platform}-${argv.tfs.toLowerCase().replace(/[^\w]/g, '-')}-results.xml`) : undefined
 			}
 		});
 	} else {

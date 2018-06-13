@@ -17,5 +17,5 @@ export interface IConfigurationResolverService {
 	resolve(root: IWorkspaceFolder, value: string[]): string[];
 	resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
 	resolveAny<T>(root: IWorkspaceFolder, value: T, commandMapping?: IStringDictionary<string>): T;
-	executeCommandVariables(value: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>>;
+	resolveWithCommands(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any>;
 }

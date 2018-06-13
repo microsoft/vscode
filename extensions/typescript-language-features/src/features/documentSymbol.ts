@@ -51,7 +51,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 					// The root represents the file. Ignore this when showing in the UI
 					const tree = response.body;
 					if (tree.childItems) {
-						const result = new Array<vscode.SymbolInformation2>();
+						const result = new Array<vscode.DocumentSymbol>();
 						tree.childItems.forEach(item => TypeScriptDocumentSymbolProvider.convertNavTree(resource.uri, result, item));
 						return result;
 					}
@@ -89,12 +89,12 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 		}
 	}
 
-	private static convertNavTree(resource: vscode.Uri, bucket: vscode.SymbolInformation[], item: Proto.NavigationTree): boolean {
-		const symbolInfo = new vscode.SymbolInformation2(
+	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
+		const symbolInfo = new vscode.DocumentSymbol(
 			item.text,
 			getSymbolKind(item.kind),
-			'', // no container name
-			typeConverters.Location.fromTextSpan(resource, item.spans[0]),
+			typeConverters.Range.fromTextSpan(item.spans[0]),
+			typeConverters.Range.fromTextSpan(item.spans[0]),
 		);
 
 		let shouldInclude = TypeScriptDocumentSymbolProvider.shouldInclueEntry(item);

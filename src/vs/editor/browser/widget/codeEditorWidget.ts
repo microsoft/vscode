@@ -46,11 +46,13 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { InternalEditorAction } from 'vs/editor/common/editorAction';
 import { ICommandDelegate } from 'vs/editor/browser/view/viewController';
 import { CoreEditorCommand } from 'vs/editor/browser/controller/coreCommands';
-import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryForeground } from 'vs/editor/common/view/editorColorRegistry';
+import { editorErrorForeground, editorErrorBorder, editorWarningForeground, editorWarningBorder, editorInfoBorder, editorInfoForeground, editorHintForeground, editorHintBorder, editorUnnecessaryCodeOpacity } from 'vs/editor/common/view/editorColorRegistry';
 import { Color } from 'vs/base/common/color';
 import { ClassName } from 'vs/editor/common/model/intervalTree';
 
 let EDITOR_ID = 0;
+
+const SHOW_UNUSED_ENABLED_CLASS = 'showUnused';
 
 export interface ICodeEditorWidgetOptions {
 	/**
@@ -226,6 +228,11 @@ export class CodeEditorWidget extends Disposable implements editorBrowser.ICodeE
 
 			if (e.layoutInfo) {
 				this._onDidLayoutChange.fire(this._configuration.editor.layoutInfo);
+			}
+			if (this._configuration.editor.showUnused) {
+				this.domElement.classList.add(SHOW_UNUSED_ENABLED_CLASS);
+			} else {
+				this.domElement.classList.remove(SHOW_UNUSED_ENABLED_CLASS);
 			}
 		}));
 
@@ -1796,8 +1803,8 @@ registerThemingParticipant((theme, collector) => {
 		collector.addRule(`.monaco-editor .${ClassName.EditorHintDecoration} { background: url("data:image/svg+xml,${getDotDotDotSVGData(hintForeground)}") no-repeat bottom left; }`);
 	}
 
-	const unnecessaryForeground = theme.getColor(editorUnnecessaryForeground);
+	const unnecessaryForeground = theme.getColor(editorUnnecessaryCodeOpacity);
 	if (unnecessaryForeground) {
-		collector.addRule(`.monaco-editor .${ClassName.EditorUnnecessaryDecoration} { color: ${unnecessaryForeground}; }`);
+		collector.addRule(`.${SHOW_UNUSED_ENABLED_CLASS} .monaco-editor .${ClassName.EditorUnnecessaryDecoration} { opacity: ${unnecessaryForeground.rgba.a}; }`);
 	}
 });

@@ -653,4 +653,8 @@ export class ExtHostVariableResolverService implements IConfigurationResolverSer
 	public executeCommandVariables(configuration: any, variables: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
 		throw new Error('findAndExecuteCommandVariables not implemented.');
 	}
+
+	public resolveWithCommands(folder: IWorkspaceFolder, config: any): TPromise<any> {
+		throw new Error('resolveWithCommands not implemented.');
+	}
 }

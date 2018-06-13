@@ -11,12 +11,11 @@ import * as vscode from 'vscode';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import * as types from 'vs/workbench/api/node/extHostTypes';
 import { IRawColorInfo } from 'vs/workbench/api/node/extHost.protocol';
-
 import { ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
+import * as search from 'vs/workbench/parts/search/common/search';
 import { ICommandHandlerDescription } from 'vs/platform/commands/common/commands';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
-import { IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
 import { CustomCodeAction } from 'vs/workbench/api/node/extHostLanguageFeatures';
 import { ICommandsExecutor, PreviewHTMLAPICommand, OpenFolderAPICommand, DiffAPICommand, OpenAPICommand, RemoveFromRecentlyOpenedAPICommand } from './apiCommands';
 
@@ -266,11 +265,11 @@ export class ExtHostApiCommands {
 	 * @return A promise that resolves to an array of symbol information.
 	 */
 	private _executeWorkspaceSymbolProvider(query: string): Thenable<types.SymbolInformation[]> {
-		return this._commands.executeCommand<[IWorkspaceSymbolProvider, modes.SymbolInformation[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
+		return this._commands.executeCommand<[search.IWorkspaceSymbolProvider, search.IWorkspaceSymbol[]][]>('_executeWorkspaceSymbolProvider', { query }).then(value => {
 			const result: types.SymbolInformation[] = [];
 			if (Array.isArray(value)) {
 				for (let tuple of value) {
-					result.push(...tuple[1].map(typeConverters.SymbolInformation.to));
+					result.push(...tuple[1].map(typeConverters.WorkspaceSymbol.to));
 				}
 			}
 			return result;
@@ -404,13 +403,13 @@ export class ExtHostApiCommands {
 		});
 	}
 
-	private _executeDocumentSymbolProvider(resource: URI): Thenable<types.SymbolInformation[]> {
+	private _executeDocumentSymbolProvider(resource: URI): Thenable<vscode.DocumentSymbol[]> {
 		const args = {
 			resource
 		};
-		return this._commands.executeCommand<modes.IOutline>('_executeDocumentSymbolProvider', args).then(value => {
-			if (value && Array.isArray(value.entries)) {
-				return value.entries.map(typeConverters.SymbolInformation.to);
+		return this._commands.executeCommand<modes.DocumentSymbol[]>('_executeDocumentSymbolProvider', args).then(value => {
+			if (value && Array.isArray(value)) {
+				return value.map(typeConverters.DocumentSymbol.to);
 			}
 			return undefined;
 		});

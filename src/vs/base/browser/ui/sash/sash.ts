@@ -96,6 +96,8 @@ export class Sash {
 	private readonly _onDidEnd = new Emitter<void>();
 	readonly onDidEnd: Event<void> = this._onDidEnd.event;
 
+	linkedSash: Sash | undefined = undefined;
+
 	private orthogonalStartSashDisposables: IDisposable[] = [];
 	private _orthogonalStartSash: Sash | undefined;
 	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
@@ -177,6 +179,11 @@ export class Sash {
 		EventHelper.stop(e, false);
 
 		let isMultisashResize = false;
+
+		if (this.linkedSash && !(e as any).__linkedSashEvent) {
+			(e as any).__linkedSashEvent = true;
+			this.linkedSash.onMouseDown(e);
+		}
 
 		if (!(e as any).__orthogonalSashEvent) {
 			let orthogonalSash: Sash | undefined;
@@ -296,7 +303,6 @@ export class Sash {
 		const startX = event.pageX;
 		const startY = event.pageY;
 		const altKey = event.altKey;
-
 
 		this._onDidStart.fire({
 			startX: startX,

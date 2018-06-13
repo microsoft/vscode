@@ -8,25 +8,23 @@
  * https://github.com/Microsoft/TypeScript-Sublime-Plugin/blob/master/TypeScript%20Indent.tmPreferences
  * ------------------------------------------------------------------------------------------ */
 
-import { workspace, Memento, Diagnostic, Range, Disposable, Uri, DiagnosticSeverity, DiagnosticTag, DiagnosticRelatedInformation } from 'vscode';
-
+import { Diagnostic, DiagnosticRelatedInformation, DiagnosticSeverity, DiagnosticTag, Disposable, Memento, Range, Uri, workspace } from 'vscode';
+import { DiagnosticKind } from './features/diagnostics';
+import FileConfigurationManager from './features/fileConfigurationManager';
+import LanguageProvider from './languageProvider';
 import * as Proto from './protocol';
 import * as PConst from './protocol.const';
-
 import TypeScriptServiceClient from './typescriptServiceClient';
-import LanguageProvider from './languageProvider';
-
-import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
-import VersionStatus from './utils/versionStatus';
-import { TypeScriptServerPlugin } from './utils/plugins';
-import * as typeConverters from './utils/typeConverters';
+import API from './utils/api';
 import { CommandManager } from './utils/commandManager';
+import { disposeAll } from './utils/dispose';
 import { LanguageDescription } from './utils/languageDescription';
 import LogDirectoryProvider from './utils/logDirectoryProvider';
-import { disposeAll } from './utils/dispose';
-import { DiagnosticKind } from './features/diagnostics';
-import API from './utils/api';
-import FileConfigurationManager from './features/fileConfigurationManager';
+import { TypeScriptServerPlugin } from './utils/plugins';
+import * as typeConverters from './utils/typeConverters';
+import TypingsStatus, { AtaProgressReporter } from './utils/typingsStatus';
+import VersionStatus from './utils/versionStatus';
+import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 // Style check diagnostics that can be reported as warnings
 const styleCheckDiagnostics = [
@@ -47,6 +45,7 @@ export default class TypeScriptServiceClientHost {
 	private readonly disposables: Disposable[] = [];
 	private readonly versionStatus: VersionStatus;
 	private readonly fileConfigurationManager: FileConfigurationManager;
+	private readonly updateImportsOnFileRenameHandler: UpdateImportsOnFileRenameHandler;
 
 	private reportStyleCheckAsWarnings: boolean = true;
 
@@ -95,13 +94,14 @@ export default class TypeScriptServiceClientHost {
 		this.ataProgressReporter = new AtaProgressReporter(this.client);
 		this.fileConfigurationManager = new FileConfigurationManager(this.client);
 
-
 		for (const description of descriptions) {
 			const manager = new LanguageProvider(this.client, description, this.commandManager, this.client.telemetryReporter, this.typingsStatus, this.fileConfigurationManager);
 			this.languages.push(manager);
 			this.disposables.push(manager);
 			this.languagePerId.set(description.id, manager);
 		}
+
+		this.updateImportsOnFileRenameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.fileConfigurationManager, uri => this.handles(uri));
 
 		this.client.ensureServiceStarted();
 		this.client.onReady(() => {
@@ -151,6 +151,7 @@ export default class TypeScriptServiceClientHost {
 		this.typingsStatus.dispose();
 		this.ataProgressReporter.dispose();
 		this.fileConfigurationManager.dispose();
+		this.updateImportsOnFileRenameHandler.dispose();
 	}
 
 	public get serviceClient(): TypeScriptServiceClient {
@@ -162,8 +163,12 @@ export default class TypeScriptServiceClientHost {
 		this.triggerAllDiagnostics();
 	}
 
-	public handles(resource: Uri): boolean {
-		return !!this.findLanguage(resource);
+	public async handles(resource: Uri): Promise<boolean> {
+		const provider = await this.findLanguage(resource);
+		if (provider) {
+			return true;
+		}
+		return this.client.bufferSyncSupport.handles(resource);
 	}
 
 	private configurationChanged(): void {

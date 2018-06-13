@@ -4,14 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const Mocha = require('mocha');
 
-const suite = 'Integration Colorize Tests';
+const suite = 'Smoke Tests';
 
-const options: any = {
-	ui: 'tdd',
+const options = {
 	useColors: true,
-	timeout: 60000
+	timeout: 60000,
+	slow: 30000
 };
 
 if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
@@ -25,6 +25,6 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	};
 }
 
-testRunner.configure(options);
-
-export = testRunner;
+const mocha = new Mocha(options);
+mocha.addFile('out/main.js');
+mocha.run(failures => process.exit(failures ? -1 : 0));

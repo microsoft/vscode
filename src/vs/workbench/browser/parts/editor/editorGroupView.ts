@@ -748,16 +748,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
+		// Set group active unless we open inactive or preserve focus
+		// Do this before we open the editor in the group to prevent a false
+		// active editor change event before the editor is loaded
+		// (see https://github.com/Microsoft/vscode/issues/51679)
+		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
+			this.accessor.activateGroup(this);
+		}
+
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
 		const showEditorResult = this.doShowEditor(editor, openEditorOptions.active, options);
-
-		// Set group active unless we open inactive or preserve focus
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
-			this.accessor.activateGroup(this);
-		}
 
 		return showEditorResult;
 	}

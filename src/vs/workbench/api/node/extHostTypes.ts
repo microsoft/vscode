@@ -881,17 +881,22 @@ export class SymbolInformation {
 	}
 }
 
-export class SymbolInformation2 extends SymbolInformation {
-	definingRange: Range;
-	children: SymbolInformation2[];
-	constructor(name: string, kind: SymbolKind, containerName: string, location: Location) {
-		super(name, kind, containerName, location);
+export class DocumentSymbol {
+	name: string;
+	kind: SymbolKind;
+	fullRange: Range;
+	gotoRange: Range;
+	children: DocumentSymbol[];
 
+	constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+		this.name = name;
+		this.kind = kind;
+		this.fullRange = fullRange;
+		this.gotoRange = gotoRange;
 		this.children = [];
-		this.definingRange = location.range;
 	}
-
 }
+
 
 export enum CodeActionTrigger {
 	Automatic = 1,

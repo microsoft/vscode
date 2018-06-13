@@ -571,7 +571,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, context, environment);
+		return getPathLabel(res.fsPath, environment, context);
 	}
 
 	//#endregion

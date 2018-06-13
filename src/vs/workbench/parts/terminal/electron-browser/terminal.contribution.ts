@@ -125,6 +125,11 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.drawBoldTextInBrightColors': {
+			'description': nls.localize('terminal.integrated.drawBoldTextInBrightColors', "When set, bold text in the terminal will always use the \"bright\" ANSI color variant."),
+			'type': 'boolean',
+			'default': true
+		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
 			'type': 'string'
@@ -340,6 +345,12 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.experimentalRestore', "Whether to restore terminal sessions for the workspace automatically when launching VS Code. This is an experimental setting; it may be buggy and could change in the future."),
 			'type': 'boolean',
 			'default': false
+		},
+		'terminal.integrated.experimentalTextureCachingStrategy': {
+			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. Changes to this setting will only apply to new terminals."),
+			'type': 'string',
+			'enum': ['static', 'dynamic'],
+			'default': 'static'
 		},
 	}
 });

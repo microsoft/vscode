@@ -51,9 +51,9 @@ export class HtmlPreviewPart extends BaseWebviewEditor {
 	private editorMemento: IEditorMemento<HtmlPreviewEditorViewState>;
 
 	constructor(
-		@ITelemetryService readonly telemetryService: ITelemetryService,
-		@IThemeService readonly themeService: IThemeService,
-		@IContextKeyService readonly contextKeyService: IContextKeyService,
+		@ITelemetryService telemetryService: ITelemetryService,
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@IOpenerService private readonly _openerService: IOpenerService,
 		@IPartService private readonly _partService: IPartService,
 		@IStorageService readonly _storageService: IStorageService,

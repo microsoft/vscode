@@ -32,7 +32,7 @@
 	flex-grow: 1;
 }
 
-.quick-input-widget[data-type=pickMany] .quick-input-box {
+.quick-input-widget.show-checkboxes .quick-input-box {
 	margin-left: 5px;
 }
 
@@ -103,8 +103,15 @@
 	margin-left: 5px;
 }
 
-.quick-input-widget[data-type=pickMany] .quick-input-list .quick-input-list-rows {
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-rows {
 	margin-left: 10px;
+}
+
+.quick-input-widget .quick-input-list .quick-input-list-checkbox {
+	display: none;
+}
+.quick-input-widget.show-checkboxes .quick-input-list .quick-input-list-checkbox {
+	display: inline;
 }
 
 .quick-input-list .quick-input-list-rows > .quick-input-list-row {

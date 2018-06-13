@@ -4,11 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 const path = require('path');
-const testRunner = require('vscode/lib/testrunner');
+const Mocha = require('mocha');
+const glob = require('glob');
 
-const suite = 'Integration Colorize Tests';
+const suite = 'Integration HTML Extension Tests';
 
-const options: any = {
+const options = {
 	ui: 'tdd',
 	useColors: true,
 	timeout: 60000
@@ -25,6 +26,9 @@ if (process.env.BUILD_ARTIFACTSTAGINGDIRECTORY) {
 	};
 }
 
-testRunner.configure(options);
+const mocha = new Mocha(options);
 
-export = testRunner;
+glob.sync(__dirname + '/../out/test/**/*.test.js')
+	.forEach(file => mocha.addFile(file));
+
+mocha.run(failures => process.exit(failures ? -1 : 0));

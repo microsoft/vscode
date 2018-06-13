@@ -780,7 +780,7 @@ export class ReferenceWidget extends PeekViewWidget {
 
 		// Update widget header
 		if (reference.uri.scheme !== Schemas.inMemory) {
-			this.setTitle(reference.name, getPathLabel(reference.directory, this._contextService, this._environmentService));
+			this.setTitle(reference.name, getPathLabel(reference.directory, this._environmentService, this._contextService, ));
 		} else {
 			this.setTitle(nls.localize('peekView.alternateTitle', "References"));
 		}

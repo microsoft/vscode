@@ -581,6 +581,10 @@ export interface IEditorOptions {
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
+	/**
+	 * Controls fading out of unused variables.
+	 */
+	showUnused?: boolean;
 }
 
 /**
@@ -909,6 +913,7 @@ export interface IValidatedEditorOptions {
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
+	readonly showUnused: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -931,6 +936,7 @@ export class InternalEditorOptions {
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
+	readonly showUnused: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -972,6 +978,7 @@ export class InternalEditorOptions {
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
+		showUnused: boolean;
 	}) {
 		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
@@ -993,6 +1000,7 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
+		this.showUnused = source.showUnused;
 	}
 
 	/**
@@ -1014,6 +1022,7 @@ export class InternalEditorOptions {
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
+			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
@@ -1585,6 +1594,7 @@ export class EditorOptionsValidator {
 			multiCursorModifier: multiCursorModifier,
 			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
+			showUnused: _boolean(opts.showUnused, defaults.showUnused),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1824,6 +1834,7 @@ export class InternalEditorOptionsFactory {
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			accessibilitySupport: opts.accessibilitySupport,
+			showUnused: opts.showUnused,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -2045,7 +2056,8 @@ export class InternalEditorOptionsFactory {
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo
+			contribInfo: opts.contribInfo,
+			showUnused: opts.showUnused,
 		});
 	}
 }
@@ -2275,6 +2287,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	multiCursorModifier: 'altKey',
 	multiCursorMergeOverlapping: true,
 	accessibilitySupport: 'auto',
+	showUnused: true,
 
 	viewInfo: {
 		extraEditorClassName: '',

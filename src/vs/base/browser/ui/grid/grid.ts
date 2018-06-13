@@ -280,20 +280,17 @@ export class Grid<T extends IView> implements IDisposable {
 		return getLocationOrientation(this.orientation, location) === Orientation.HORIZONTAL ? viewSize.width : viewSize.height;
 	}
 
+	maximizeViewSize(view: T): void {
+		const location = this.getViewLocation(view);
+		this.gridview.maximizeViewSize(location);
+	}
+
+	distributeViewSizes(): void {
+		this.gridview.distributeViewSizes();
+	}
+
 	getViews(): GridBranchNode<T> {
 		return this.gridview.getViews() as GridBranchNode<T>;
-	}
-
-	getOrientation(view: T): Orientation {
-		const location = this.getViewLocation(view);
-
-		return getLocationOrientation(this.orientation, location);
-	}
-
-	resetViewSize(view: T): void {
-		const location = this.getViewLocation(view);
-
-		this.doResetViewSize(location);
 	}
 
 	getNeighborViews(view: T, direction: Direction, wrap: boolean = false): T[] {
@@ -467,6 +464,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		result.orientation = orientation;
 		result.restoreViews(firstLeaf.view, orientation, root);
 		result.initialLayoutContext = { width, height, root };
+		result.gridview.trySet2x2();
 
 		return result;
 	}
