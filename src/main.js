@@ -45,11 +45,18 @@ let fs = require('fs');
 let path = require('path');
 let minimist = require('minimist');
 let paths = require('./paths');
+let product = require('../product.json');
 
 let args = minimist(process.argv, {
-	string: ['user-data-dir', 'locale']
+	string: [
+		'user-data-dir',
+		'locale',
+		'js-flags',
+		'max-memory'
+	]
 });
 
+//#region NLS
 function stripComments(content) {
 	let regexp = /("(?:[^\\\"]*(?:\\.)?)*")|('(?:[^\\\']*(?:\\.)?)*')|(\/\*(?:\r?\n|.)*?\*\/)|(\/{2,}.*?(?:(?:\r?\n)|$))/g;
 	let result = content.replace(regexp, function (match, m1, m2, m3, m4) {
@@ -74,113 +81,38 @@ function stripComments(content) {
 	return result;
 }
 
-let _commit;
-function getCommit() {
-	if (_commit) {
-		return _commit;
-	}
-	if (_commit === null) {
-		return undefined;
-	}
-	try {
-		let productJson = require(path.join(__dirname, '../product.json'));
-		if (productJson.commit) {
-			_commit = productJson.commit;
-		} else {
-			_commit = null;
-		}
-	} catch (exp) {
-		_commit = null;
-	}
-	return _commit || undefined;
-}
+const mkdir = dir => new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c()));
+const exists = file => new Promise(c => fs.exists(file, c));
+const readFile = file => new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
+const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
+const touch = file => new Promise((c, e) => { const d = new Date(); fs.utimes(file, d, d, err => err ? e(err) : c()); });
 
 function mkdirp(dir) {
-	return mkdir(dir)
-		.then(null, (err) => {
-			if (err && err.code === 'ENOENT') {
-				let parent = path.dirname(dir);
-				if (parent !== dir) { // if not arrived at root
-					return mkdirp(parent)
-						.then(() => {
-							return mkdir(dir);
-						});
-				}
-			}
-			throw err;
-		});
-}
+	return mkdir(dir).then(null, err => {
+		if (err && err.code === 'ENOENT') {
+			const parent = path.dirname(dir);
 
-function mkdir(dir) {
-	return new Promise((resolve, reject) => {
-		fs.mkdir(dir, (err) => {
-			if (err && err.code !== 'EEXIST') {
-				reject(err);
-			} else {
-				resolve(dir);
+			if (parent !== dir) { // if not arrived at root
+				return mkdirp(parent).then(() => mkdir(dir));
 			}
-		});
-	});
-}
+		}
 
-function exists(file) {
-	return new Promise((resolve) => {
-		fs.exists(file, (result) => {
-			resolve(result);
-		});
-	});
-}
-
-function readFile(file) {
-	return new Promise((resolve, reject) => {
-		fs.readFile(file, 'utf8', (err, data) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(data);
-		});
-	});
-}
-
-function writeFile(file, content) {
-	return new Promise((resolve, reject) => {
-		fs.writeFile(file, content, 'utf8', (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
-	});
-}
-
-function touch(file) {
-	return new Promise((resolve, reject) => {
-		let d = new Date();
-		fs.utimes(file, d, d, (err) => {
-			if (err) {
-				reject(err);
-				return;
-			}
-			resolve(undefined);
-		});
+		throw err;
 	});
 }
 
 function resolveJSFlags() {
-	let jsFlags = [];
+	const jsFlags = [];
+
 	if (args['js-flags']) {
 		jsFlags.push(args['js-flags']);
 	}
+
 	if (args['max-memory'] && !/max_old_space_size=(\d+)/g.exec(args['js-flags'])) {
 		jsFlags.push(`--max_old_space_size=${args['max-memory']}`);
 	}
-	if (jsFlags.length > 0) {
-		return jsFlags.join(' ');
-	} else {
-		return null;
-	}
+
+	return jsFlags.length > 0 ? jsFlags.join(' ') : null;
 }
 
 // Language tags are case insensitve however an amd loader is case sensitive
@@ -285,7 +217,7 @@ function getNLSConfiguration(locale) {
 	}
 
 	perf.mark('nlsGeneration:start');
-	let defaultResult = function(locale) {
+	let defaultResult = function (locale) {
 		let isCoreLanguage = true;
 		if (locale) {
 			isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
@@ -296,13 +228,13 @@ function getNLSConfiguration(locale) {
 			let result = resolveLocale(locale);
 			perf.mark('nlsGeneration:end');
 			return Promise.resolve(result);
-		} else  {
+		} else {
 			perf.mark('nlsGeneration:end');
 			return Promise.resolve({ locale: locale, availableLanguages: {} });
 		}
 	};
 	try {
-		let commit = getCommit();
+		let commit = product.commit;
 		if (!commit) {
 			return defaultResult(locale);
 		}
@@ -339,7 +271,7 @@ function getNLSConfiguration(locale) {
 			return exists(coreLocation).then((fileExists) => {
 				if (fileExists) {
 					// We don't wait for this. No big harm if we can't touch
-					touch(coreLocation).catch(() => {});
+					touch(coreLocation).catch(() => { });
 					perf.mark('nlsGeneration:end');
 					return result;
 				}
@@ -392,7 +324,9 @@ function getNLSConfiguration(locale) {
 		return defaultResult(locale);
 	}
 }
+//#endregion
 
+//#region Cached Data Dir
 function getNodeCachedDataDir() {
 	// flag to disable cached data support
 	if (process.argv.indexOf('--no-cached-data') > 0) {
@@ -405,7 +339,7 @@ function getNodeCachedDataDir() {
 	}
 
 	// find commit id
-	let commit = getCommit();
+	let commit = product.commit;
 	if (!commit) {
 		return Promise.resolve(undefined);
 	}
@@ -414,6 +348,7 @@ function getNodeCachedDataDir() {
 
 	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
 }
+//#endregion
 
 // Set userData path before app 'ready' event and call to process.chdir
 let userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
