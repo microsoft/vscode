@@ -251,6 +251,7 @@ export class WebviewElement {
 
 	public set options(value: WebviewOptions) {
 		this._options = value;
+		this.reload();
 	}
 
 	public set contents(value: string) {

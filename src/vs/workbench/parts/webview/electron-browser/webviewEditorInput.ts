@@ -11,7 +11,7 @@ import { EditorInput, EditorModel, IEditorInput, GroupIdentifier } from 'vs/work
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-
+import * as vscode from 'vscode';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -95,7 +95,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	matches(other: IEditorInput): boolean {
+	public matches(other: IEditorInput): boolean {
 		return other && other === this;
 	}
 
@@ -136,8 +136,15 @@ export class WebviewEditorInput extends EditorInput {
 		return this._options;
 	}
 
-	public set options(value: WebviewInputOptions) {
-		this._options = value;
+	public setOptions(value: vscode.WebviewOptions) {
+		this._options = {
+			...this._options,
+			...value
+		};
+
+		if (this._webview) {
+			this._webview.options = this._options;
+		}
 	}
 
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
