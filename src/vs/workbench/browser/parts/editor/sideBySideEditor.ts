@@ -44,6 +44,8 @@ export class SideBySideEditor extends BaseEditor {
 		DOM.addClass(parent, 'side-by-side-editor');
 
 		this.splitview = new SplitView(parent, { orientation: Orientation.HORIZONTAL });
+		this._register(this.splitview);
+		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
 
 		this.detailsEditorContainer = DOM.$('.details-editor-container');
 		this.splitview.addView({

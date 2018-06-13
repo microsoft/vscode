@@ -767,6 +767,8 @@ class SideBySidePreferencesWidget extends Widget {
 		DOM.addClass(parentElement, 'side-by-side-preferences-editor');
 
 		this.splitview = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+		this._register(this.splitview);
+		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
 
 		this.defaultPreferencesEditorContainer = DOM.$('.default-preferences-editor-container');
 
