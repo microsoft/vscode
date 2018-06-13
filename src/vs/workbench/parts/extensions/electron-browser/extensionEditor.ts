@@ -328,7 +328,7 @@ export class ExtensionEditor extends BaseEditor {
 			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredGlobal', "You have chosen not to receive recommendations for this extension.");
 		}
 		if (ignoredRecommendations.workspace.indexOf(extension.id.toLowerCase()) !== -1) {
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredWorkspace', "This extension has been marked as not recommended for this workspace by users of the current workspace.");
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredWorkspace', "This extension has been marked as redundant or irrelevant by users of the current workspace.");
 		}
 
 		toggleClass(this.name, 'clickable', !!extension.url);
