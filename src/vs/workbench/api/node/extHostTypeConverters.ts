@@ -6,13 +6,14 @@
 
 import * as modes from 'vs/editor/common/modes';
 import * as types from './extHostTypes';
+import * as search from 'vs/workbench/parts/search/common/search';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { IDecorationOptions } from 'vs/editor/common/editorCommon';
 import { EndOfLineSequence } from 'vs/editor/common/model';
 import * as vscode from 'vscode';
 import URI from 'vs/base/common/uri';
-import { ProgressLocation as MainProgressLocation } from 'vs/platform/progress/common/progress';
+import { ProgressLocation as MainProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { IPosition } from 'vs/editor/common/core/position';
 import { IRange } from 'vs/editor/common/core/range';
@@ -355,16 +356,16 @@ export namespace SymbolKind {
 	}
 }
 
-export namespace SymbolInformation {
-	export function from(info: vscode.SymbolInformation): modes.SymbolInformation {
-		return <modes.SymbolInformation>{
+export namespace WorkspaceSymbol {
+	export function from(info: vscode.SymbolInformation): search.IWorkspaceSymbol {
+		return <search.IWorkspaceSymbol>{
 			name: info.name,
 			kind: SymbolKind.from(info.kind),
 			containerName: info.containerName,
 			location: location.from(info.location)
 		};
 	}
-	export function to(info: modes.SymbolInformation): types.SymbolInformation {
+	export function to(info: search.IWorkspaceSymbol): types.SymbolInformation {
 		return new types.SymbolInformation(
 			info.name,
 			SymbolKind.to(info.kind),
@@ -374,27 +375,27 @@ export namespace SymbolInformation {
 	}
 }
 
-export namespace SymbolInformation2 {
-	export function from(info: vscode.SymbolInformation2): modes.SymbolInformation {
-		let result: modes.SymbolInformation = {
+export namespace DocumentSymbol {
+	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
+		let result: modes.DocumentSymbol = {
 			name: info.name,
-			detail: undefined,
-			location: location.from(info.location),
-			definingRange: Range.from(info.definingRange),
-			kind: SymbolKind.from(info.kind),
-			containerName: info.containerName
+			detail: info.detail,
+			fullRange: Range.from(info.fullRange),
+			identifierRange: Range.from(info.gotoRange),
+			kind: SymbolKind.from(info.kind)
 		};
 		if (info.children) {
 			result.children = info.children.map(from);
 		}
 		return result;
 	}
-	export function to(info: modes.SymbolInformation): vscode.SymbolInformation2 {
-		let result = new types.SymbolInformation2(
+	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
+		let result = new types.DocumentSymbol(
 			info.name,
+			info.detail,
 			SymbolKind.to(info.kind),
-			info.containerName,
-			location.to(info.location),
+			Range.to(info.fullRange),
+			Range.to(info.identifierRange),
 		);
 		if (info.children) {
 			result.children = info.children.map(to) as any;

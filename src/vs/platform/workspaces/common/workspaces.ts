@@ -125,7 +125,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	const filename = basename(workspace.configPath);
 	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), null, environmentService));
+		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), environmentService));
 	}
 
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);

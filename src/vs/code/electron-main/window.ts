@@ -141,8 +141,7 @@ export class CodeWindow implements ICodeWindow {
 			title: product.nameLong,
 			webPreferences: {
 				'backgroundThrottling': false, // by default if Code is in the background, intervals and timeouts get throttled,
-				disableBlinkFeatures: 'Auxclick', // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
-				experimentalFeatures: true
+				disableBlinkFeatures: 'Auxclick' // disable auxclick events (see https://developers.google.com/web/updates/2016/10/auxclick)
 			}
 		};
 
@@ -989,8 +988,8 @@ export class CodeWindow implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
-			if (item.iconPath) {
-				icon = nativeImage.createFromPath(item.iconPath.dark);
+			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
+				icon = nativeImage.createFromPath(item.iconLocation.dark.fsPath);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}

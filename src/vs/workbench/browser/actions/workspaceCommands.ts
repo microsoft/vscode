@@ -170,7 +170,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 	const folderPicks = folders.map(folder => {
 		return {
 			label: folder.name,
-			description: getPathLabel(resources.dirname(folder.uri), void 0, environmentService),
+			description: getPathLabel(resources.dirname(folder.uri), environmentService, contextService),
 			folder,
 			resource: folder.uri,
 			fileKind: FileKind.ROOT_FOLDER

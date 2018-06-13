@@ -125,6 +125,7 @@ export class SplitView implements IDisposable {
 	private viewContainer: HTMLElement;
 	private size = 0;
 	private contentSize = 0;
+	private proportions: undefined | number[] = undefined;
 	private viewItems: IViewItem[] = [];
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState;
@@ -338,7 +339,17 @@ export class SplitView implements IDisposable {
 	layout(size: number): void {
 		const previousSize = Math.max(this.size, this.contentSize);
 		this.size = size;
-		this.resize(this.viewItems.length - 1, size - previousSize);
+
+		if (!this.proportions) {
+			this.resize(this.viewItems.length - 1, size - previousSize);
+		} else {
+			for (let i = 0; i < this.viewItems.length; i++) {
+				const item = this.viewItems[i];
+				item.size = clamp(this.proportions[i] * size, item.view.minimumSize, item.view.maximumSize);
+			}
+
+			this.layoutViews();
+		}
 	}
 
 	private onSashStart({ sash, start, current }: ISashEvent): void {
@@ -475,10 +486,19 @@ export class SplitView implements IDisposable {
 			item.size = size;
 		}
 
+		this.layoutViews();
+
+		if (this.contentSize > 0) {
+			this.proportions = this.viewItems.map(i => i.size / this.contentSize);
+		}
+	}
+
+	private layoutViews(): void {
+		// Rebalance empty space
 		let contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 		let emptyDelta = this.size - contentSize;
 
-		for (let i = this.viewItems.length - 1; emptyDelta > 0 && i >= 0; i--) {
+		for (let i = this.viewItems.length - 1; emptyDelta !== 0 && i >= 0; i--) {
 			const item = this.viewItems[i];
 			const size = clamp(item.size + emptyDelta, item.view.minimumSize, item.view.maximumSize);
 			const viewDelta = size - item.size;
@@ -487,13 +507,13 @@ export class SplitView implements IDisposable {
 			item.size = size;
 		}
 
+		// Save new content size
 		this.contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
 
-		this.layoutViews();
-	}
-
-	private layoutViews(): void {
+		// Layout views
 		this.viewItems.forEach(item => item.layout());
+
+		// Layout sashes
 		this.sashItems.forEach(item => item.sash.layout());
 
 		// Update sashes enablement

@@ -5,6 +5,8 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
@@ -377,13 +379,53 @@ declare module 'vscode' {
 
 	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
 
-	export class SymbolInformation2 extends SymbolInformation {
-		definingRange: Range;
-		children: SymbolInformation2[];
+	export class DocumentSymbol {
+
+		/**
+		 * The name of this symbol.
+		 */
+		name: string;
+
+		/**
+		 * More detail for this symbol, e.g the signature of a function.
+		 */
+		detail: string;
+
+		/**
+		 * The kind of this symbol.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * The full range of this symbol not including leading/trailing whitespace but everything else.
+		 */
+		fullRange: Range;
+
+		/**
+		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
+		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
+		 */
+		gotoRange: Range;
+
+		/**
+		 * Children of this symbol, e.g. properties of a class.
+		 */
+		children: DocumentSymbol[];
+
+		/**
+		 * Creates a new document symbol.
+		 *
+		 * @param name The name of the symbol.
+		 * @param detail Details for the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param fullRange The full range of the symbol.
+		 * @param gotoRange The range that should be reveal.
+		 */
+		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | SymbolInformation2[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
 	}
 
 	//#endregion
@@ -392,6 +434,97 @@ declare module 'vscode' {
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region QuickInput API
+
+	export namespace window {
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createQuickPick(): QuickPick;
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createInputBox(): InputBox;
+	}
+
+	export interface QuickInput {
+
+		enabled: boolean;
+
+		busy: boolean;
+
+		ignoreFocusOut: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onDidHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<void>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		items: ReadonlyArray<QuickPickItem>;
+
+		canSelectMany: boolean;
+
+		matchOnDescription: boolean;
+
+		matchOnDetail: boolean;
+
+		readonly activeItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeActive: Event<QuickPickItem[]>;
+
+		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+	}
+
+	export interface InputBox extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		password: boolean;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<string>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		prompt: string;
+
+		validationMessage: string;
+	}
+
+	export interface QuickInputButton {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
 	}
 
 	//#endregion

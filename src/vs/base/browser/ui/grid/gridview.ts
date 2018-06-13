@@ -9,7 +9,7 @@ import 'vs/css!./gridview';
 import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event';
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
-import { empty as EmptyDisposable, IDisposable } from 'vs/base/common/lifecycle';
+import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { $, append } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
@@ -256,8 +256,16 @@ class BranchNode implements ISplitView, IDisposable {
 		this.splitview.resizeView(index, size);
 	}
 
-	distributeViewSizes(): void {
+	distributeViewSizes(recursive = false): void {
 		this.splitview.distributeViewSizes();
+
+		if (recursive) {
+			for (const child of this.children) {
+				if (child instanceof BranchNode) {
+					child.distributeViewSizes(true);
+				}
+			}
+		}
 	}
 
 	getChildSize(index: number): number {
@@ -278,6 +286,22 @@ class BranchNode implements ISplitView, IDisposable {
 		this.childrenSashResetDisposable = onDidChildrenSashReset(this._onDidSashReset.fire, this._onDidSashReset);
 
 		this._onDidChange.fire();
+	}
+
+	trySet2x2(other: BranchNode): IDisposable {
+		if (this.children.length !== 2 || other.children.length !== 2) {
+			return EmptyDisposable;
+		}
+
+		if (this.getChildSize(0) !== other.getChildSize(0)) {
+			return EmptyDisposable;
+		}
+
+		const mySash = this.splitview.sashes[0];
+		const otherSash = other.splitview.sashes[0];
+		mySash.linkedSash = otherSash;
+		otherSash.linkedSash = mySash;
+		return toDisposable(() => mySash.linkedSash = otherSash.linkedSash = undefined);
 	}
 
 	dispose(): void {
@@ -401,6 +425,8 @@ export class GridView implements IDisposable {
 	private onDidSashResetRelay = new Relay<number[]>();
 	readonly onDidSashReset: Event<number[]> = this.onDidSashResetRelay.event;
 
+	private disposable2x2: IDisposable = EmptyDisposable;
+
 	private get root(): BranchNode {
 		return this._root;
 	}
@@ -459,8 +485,8 @@ export class GridView implements IDisposable {
 
 	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
 		this.element = append(container, $('.monaco-grid-view'));
-		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 		this.styles = options.styles || defaultStyles;
+		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 	}
 
 	style(styles: IGridViewStyles): void {
@@ -475,6 +501,9 @@ export class GridView implements IDisposable {
 	}
 
 	addView(view: IView, size: number | Sizing, location: number[]): void {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -504,6 +533,9 @@ export class GridView implements IDisposable {
 	}
 
 	removeView(location: number[], sizing?: Sizing): IView {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
 		const [rest, index] = tail(location);
 		const [pathToParent, parent] = this.getNode(rest);
 
@@ -622,7 +654,29 @@ export class GridView implements IDisposable {
 		parent.resizeChild(index, size);
 	}
 
-	distributeViewSizes(location: number[]): void {
+	getViewSize(location: number[]): { width: number; height: number; } {
+		const [, node] = this.getNode(location);
+		return { width: node.width, height: node.height };
+	}
+
+	maximizeViewSize(location: number[]): void {
+		const [ancestors, node] = this.getNode(location);
+
+		if (!(node instanceof LeafNode)) {
+			throw new Error('Invalid location');
+		}
+
+		for (let i = 0; i < ancestors.length; i++) {
+			ancestors[i].resizeChild(location[i], Number.POSITIVE_INFINITY);
+		}
+	}
+
+	distributeViewSizes(location?: number[]): void {
+		if (!location) {
+			this.root.distributeViewSizes(true);
+			return;
+		}
+
 		const [, node] = this.getNode(location);
 
 		if (!(node instanceof BranchNode)) {
@@ -630,11 +684,6 @@ export class GridView implements IDisposable {
 		}
 
 		node.distributeViewSizes();
-	}
-
-	getViewSize(location: number[]): { width: number; height: number; } {
-		const [, node] = this.getNode(location);
-		return { width: node.width, height: node.height };
 	}
 
 	getViews(): GridBranchNode {
@@ -684,8 +733,31 @@ export class GridView implements IDisposable {
 		return this.getNode(rest, child, path);
 	}
 
+	trySet2x2(): void {
+		this.disposable2x2.dispose();
+		this.disposable2x2 = EmptyDisposable;
+
+		if (this.root.children.length !== 2) {
+			return;
+		}
+
+		const [first, second] = this.root.children;
+
+		if (!(first instanceof BranchNode) || !(second instanceof BranchNode)) {
+			return;
+		}
+
+		this.disposable2x2 = first.trySet2x2(second);
+	}
+
 	dispose(): void {
 		this.onDidSashResetRelay.dispose();
 		this.root.dispose();
+
+		if (this.element && this.element.parentElement) {
+			this.element.parentElement.removeChild(this.element);
+		}
+
+		this.element = null;
 	}
 }

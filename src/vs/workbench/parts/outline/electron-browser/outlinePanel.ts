@@ -43,7 +43,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IMarkerService, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { attachInputBoxStyler, attachProgressBarStyler, attachCheckboxStyler } from 'vs/platform/theme/common/styler';
+import { attachInputBoxStyler, attachProgressBarStyler } from 'vs/platform/theme/common/styler';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
@@ -54,7 +54,6 @@ import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineView
 import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { IViewsService } from 'vs/workbench/common/views';
-import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 
 class RequestState {
 
@@ -294,7 +293,7 @@ export class OutlinePanel extends ViewletPanel {
 		);
 
 		this._input = new InputBox(this._inputContainer, null, {
-			placeholder: this._outlineViewState.filterOnType ? localize('filter', "Filter") : localize('find', "Find")
+			placeholder: this._outlineViewState.filterOnType ? localize('filter.placeholder', "Filter") : localize('find.placeholder', "Find")
 		});
 		this._input.disable();
 
@@ -308,23 +307,14 @@ export class OutlinePanel extends ViewletPanel {
 				this._tree.domFocus();
 			} else if (event.keyCode === KeyCode.Enter) {
 				let element = this._tree.getFocus();
-				this._revealTreeSelection(element, true, false);
+				if (element instanceof OutlineElement) {
+					this._revealTreeSelection(OutlineModel.get(element), element, true, false);
+				}
 			} else if (event.keyCode === KeyCode.Escape) {
 				this._input.value = '';
 				this._tree.domFocus();
 			}
 		}));
-
-		const checkBox = new Checkbox({
-			actionClassName: 'action-filter',
-			title: localize('checkboxFilter', "Filter element on type"),
-			isChecked: this._outlineViewState.filterOnType,
-			onChange: () => {
-				this._outlineViewState.filterOnType = !this._outlineViewState.filterOnType;
-			}
-		});
-		this._inputContainer.appendChild(checkBox.domNode);
-		this.disposables.push(attachCheckboxStyler(checkBox, this._themeService));
 
 		const $this = this;
 		const controller = new class extends OutlineController {
@@ -400,7 +390,8 @@ export class OutlinePanel extends ViewletPanel {
 			new SimpleToggleAction(localize('sortByKind', "Sort By: Type"), this._outlineViewState.sortBy === OutlineItemCompareType.ByKind, _ => this._outlineViewState.sortBy = OutlineItemCompareType.ByKind),
 		]);
 		let result = [
-			new SimpleToggleAction(localize('live', "Follow Cursor"), this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
+			new SimpleToggleAction(localize('followCur', "Follow Cursor"), this._outlineViewState.followCursor, action => this._outlineViewState.followCursor = action.checked),
+			new SimpleToggleAction(localize('filterOnType', "Filter on Type"), this._outlineViewState.filterOnType, action => this._outlineViewState.filterOnType = action.checked),
 			new Separator(),
 			...group.actions,
 		];
@@ -560,7 +551,7 @@ export class OutlinePanel extends ViewletPanel {
 					aside = !this._tree.useAltAsMultipleSelectionModifier && event.altKey || this._tree.useAltAsMultipleSelectionModifier && (event.ctrlKey || event.metaKey);
 				}
 			}
-			this._revealTreeSelection(first, focus, aside);
+			this._revealTreeSelection(model, first, focus, aside);
 		}));
 
 		// feature: reveal editor selection in outline
@@ -617,14 +608,14 @@ export class OutlinePanel extends ViewletPanel {
 		}
 	}
 
-	private async _revealTreeSelection(element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
-		let { range, uri } = element.symbol.location;
-		let input = this._editorService.createInput({ resource: uri });
-		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(range), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
+	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
+
+		let input = this._editorService.createInput({ resource: model.textModel.uri });
+		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(element.symbol.identifierRange), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
-		if (!this._outlineViewState.followCursor) {
+		if (!this._outlineViewState.followCursor && !this._tree.getInput()) {
 			return;
 		}
 		let item = model.getItemEnclosingPosition({

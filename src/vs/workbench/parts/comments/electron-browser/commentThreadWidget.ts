@@ -379,7 +379,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 					this._commentEditor.getValue()
 				);
 			} else {
-				newCommentThread = await this.commentService.createNewCommenThread(
+				newCommentThread = await this.commentService.createNewCommentThread(
 					this._owner,
 					this.editor.getModel().uri,
 					new Range(lineNumber, 1, lineNumber, 1),

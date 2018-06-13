@@ -6,7 +6,7 @@
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import uri from 'vs/base/common/uri';
-import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IConfig, IDebugConfigurationProvider, IBreakpoint, IFunctionBreakpoint, IBreakpointData, IAdapterExecutable, ITerminalSettings, IDebugAdapter, IDebugAdapterProvider } from 'vs/workbench/parts/debug/common/debug';
 import { TPromise } from 'vs/base/common/winjs.base';
 import {
 	ExtHostContext, ExtHostDebugServiceShape, MainThreadDebugServiceShape, DebugSessionUUID, MainContext,
@@ -18,8 +18,6 @@ import { AbstractDebugAdapter } from 'vs/workbench/parts/debug/node/debugAdapter
 import * as paths from 'vs/base/common/paths';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { convertToVSCPaths, convertToDAPaths } from 'vs/workbench/parts/debug/common/debugUtils';
-import { ITerminalService } from 'vs/workbench/parts/terminal/common/terminal';
-import { AbstractTerminalLauncher } from 'vs/workbench/parts/debug/electron-browser/terminalSupport';
 
 
 @extHostNamedCustomer(MainContext.MainThreadDebugService)
@@ -30,13 +28,11 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	private _breakpointEventsActive: boolean;
 	private _debugAdapters: Map<number, ExtensionHostDebugAdapter>;
 	private _debugAdaptersHandleCounter = 1;
-	private _terminalLauncher: ITerminalLauncher;
 
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IDebugService private debugService: IDebugService,
-		@ITerminalService private terminalService: ITerminalService,
+		@IDebugService private debugService: IDebugService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDebugService);
 		this._toDispose = [];
@@ -77,10 +73,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 	}
 
 	runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		if (!this._terminalLauncher) {
-			this._terminalLauncher = new ExtensionTerminalLauncher(this.terminalService, this._proxy);
-		}
-		return this._terminalLauncher.runInTerminal(args, config);
+		return this._proxy.$runInTerminal(args, config);
 	}
 
 	public dispose(): void {
@@ -301,27 +294,5 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
 	public stopSession(): TPromise<void> {
 		return this._proxy.$stopDASession(this._handle);
-	}
-}
-
-export class ExtensionTerminalLauncher extends AbstractTerminalLauncher {
-
-	constructor(
-		@ITerminalService terminalService: ITerminalService,
-		private _proxy: ExtHostDebugServiceShape
-	) {
-		super(terminalService);
-	}
-
-	protected runInExternalTerminal(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<void> {
-		return this._proxy.$runInTerminal(args, config);
-	}
-
-	protected isBusy(processId: number): TPromise<boolean> {
-		return this._proxy.$isTerminalBusy(processId);
-	}
-
-	protected prepareCommand(args: DebugProtocol.RunInTerminalRequestArguments, config: ITerminalSettings): TPromise<any> {
-		return this._proxy.$prepareCommandForTerminal(args, config);
 	}
 }

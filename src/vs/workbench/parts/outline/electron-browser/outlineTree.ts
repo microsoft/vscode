@@ -17,7 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
-import { getPathLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';
@@ -54,7 +53,7 @@ export class OutlineItemComparator implements ISorter {
 					return a.symbol.name.localeCompare(b.symbol.name);
 				case OutlineItemCompareType.ByPosition:
 				default:
-					return Range.compareRangesUsingStarts(a.symbol.location.range, b.symbol.location.range);
+					return Range.compareRangesUsingStarts(a.symbol.fullRange, b.symbol.fullRange);
 			}
 		}
 
@@ -121,6 +120,7 @@ export interface OutlineTemplate {
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 	icon?: HTMLElement;
+	detail?: HTMLElement;
 	decoration?: HTMLElement;
 }
 
@@ -148,10 +148,11 @@ export class OutlineRenderer implements IRenderer {
 		if (templateId === 'outline-element') {
 			const icon = dom.$('.outline-element-icon symbol-icon');
 			const labelContainer = dom.$('.outline-element-label');
+			const detail = dom.$('.outline-element-detail');
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), decoration };
+			dom.append(container, icon, labelContainer, detail, decoration);
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
@@ -166,7 +167,8 @@ export class OutlineRenderer implements IRenderer {
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('outline.title', "line {0} in {1}", element.symbol.location.range.startLineNumber, getPathLabel(element.symbol.location.uri, this._contextService, this._environmentService)));
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined);
+			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
 
 		}

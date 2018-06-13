@@ -42,7 +42,7 @@ phases:
   - powershell: |
       $ErrorActionPreference = "Stop"
       npm run gulp -- "electron-$(VSCODE_ARCH)"
-      .\scripts\test.bat --build --tfs
+      .\scripts\test.bat --build --tfs "Unit Tests"
       # yarn smoketest -- --build "$(agent.builddirectory)\VSCode-win32-$(VSCODE_ARCH)"
     name: test
 
@@ -271,7 +271,7 @@ phases:
   - script: |
       set -e
       npm run gulp -- "electron-$(VSCODE_ARCH)"
-      DISPLAY=:10 ./scripts/test.sh --build --tfs
+      DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
       # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
     name: test
 
@@ -284,7 +284,7 @@ phases:
       AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
       AZURE_STORAGE_ACCESS_KEY_2="$(AZURE_STORAGE_ACCESS_KEY_2)" \
       MOONCAKE_STORAGE_ACCESS_KEY="$(MOONCAKE_STORAGE_ACCESS_KEY)" \
-      ./build/tfs/linux/release2.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
+      ./build/tfs/linux/release.sh "$(VSCODE_ARCH)" "$(LINUX_REPO_PASSWORD)"
 
       # publish hockeyapp symbols
       node build/tfs/common/symbols.js "$(VSCODE_MIXIN_PASSWORD)" "$(VSCODE_HOCKEYAPP_TOKEN)" "$(VSCODE_ARCH)" "$(VSCODE_HOCKEYAPP_ID_LINUX64)"
@@ -327,7 +327,7 @@ phases:
   - script: |
       set -e
       npm run gulp -- "electron-$(VSCODE_ARCH)"
-      DISPLAY=:10 ./scripts/test.sh --build --tfs
+      DISPLAY=:10 ./scripts/test.sh --build --tfs "Unit Tests"
       # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-linux-$(VSCODE_ARCH)"
     name: test
 
@@ -376,7 +376,7 @@ phases:
 
   - script: |
       set -e
-      ./scripts/test.sh --build --tfs
+      ./scripts/test.sh --build --tfs "Unit Tests"
       APP_NAME="`ls $(agent.builddirectory)/VSCode-darwin | head -n 1`"
       # yarn smoketest -- --build "$(agent.builddirectory)/VSCode-darwin/$APP_NAME"
     name: test

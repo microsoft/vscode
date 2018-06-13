@@ -19,7 +19,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && mocha",
+    "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "check-monaco-editor-compilation": "tsc -p src/tsconfig.monaco.json --noEmit"
@@ -49,7 +49,7 @@
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^3.3.3",
-    "vscode-xterm": "3.5.0-beta8",
+    "vscode-xterm": "3.5.0-beta12",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
@@ -105,6 +105,7 @@
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
+    "mocha-junit-reporter": "^1.17.0",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",

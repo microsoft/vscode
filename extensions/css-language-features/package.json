@@ -701,6 +701,7 @@
     "vscode-nls": "^3.2.2"
   },
   "devDependencies": {
-    "@types/node": "7.0.43"
+    "@types/node": "7.0.43",
+    "mocha": "^5.2.0"
   }
 }

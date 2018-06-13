@@ -53,7 +53,7 @@ export class ConfigureLocaleAction extends Action {
 				}
 			});
 		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
+			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.environmentService, this.contextService), error));
 		});
 	}
 }

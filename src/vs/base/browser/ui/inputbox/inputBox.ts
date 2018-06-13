@@ -19,6 +19,7 @@ import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
 import { HistoryNavigator } from 'vs/base/common/history';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 
 const $ = dom.$;
 
@@ -503,7 +504,7 @@ export interface IHistoryInputOptions extends IInputOptions {
 	history: string[];
 }
 
-export class HistoryInputBox extends InputBox {
+export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
 
 	private readonly history: HistoryNavigator<string>;
 
@@ -522,21 +523,18 @@ export class HistoryInputBox extends InputBox {
 		return this.history.getHistory();
 	}
 
-	public showNextValue() {
+	public showNextValue(): void {
 		let next = this.history.next();
 		if (next) {
 			this.value = next;
 		}
 	}
 
-	public showPreviousValue() {
-		let previous;
-		if (this.value.length === 0) {
-			previous = this.history.current();
-		} else {
+	public showPreviousValue(): void {
+		if (this.value.length !== 0) {
 			this.history.addIfNotPresent(this.value);
-			previous = this.history.previous();
 		}
+		const previous = this.history.previous();
 		if (previous) {
 			this.value = previous;
 		}

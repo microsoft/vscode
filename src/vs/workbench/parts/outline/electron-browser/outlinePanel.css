@@ -45,16 +45,6 @@
 	align-items: center;
 }
 
-.monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox.action-filter {
-	background: url(./media/files_Filter_Filter_16x_vscode.svg) center center no-repeat;
-	background-size: 90%;
-}
-
-.vs-dark .monaco-workbench .outline-panel .outline-input .monaco-custom-checkbox.action-filter {
-	background: url(./media/files_Filter_Filter_16x_vscode_inverse.svg) center center no-repeat;
-	background-size: 90%;
-}
-
 .monaco-workbench .outline-panel .outline-tree {
 	height: 100%;
 }
@@ -105,6 +95,22 @@
 
 .monaco-workbench .outline-panel .outline-element .outline-element-label .monaco-highlighted-label .highlight {
 	font-weight: bold;
+}
+
+.monaco-workbench .outline-panel .outline-element .outline-element-detail {
+	visibility: hidden;
+	flex: 1;
+	flex-basis: 10%;
+	opacity: 0.8;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	font-size: 90%;
+	padding-left: 4px;
+	padding-top: 3px;
+}
+
+.monaco-workbench .outline-panel .monaco-tree-row.focused .outline-element .outline-element-detail {
+	visibility: inherit;
 }
 
 .monaco-workbench .outline-panel .outline-element .outline-element-decoration {

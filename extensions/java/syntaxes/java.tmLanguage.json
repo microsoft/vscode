@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-java/commit/bbbd3236c0ef9a9cd8c59d6ad4bd6b9b231dc714",
+	"version": "https://github.com/atom/language-java/commit/b9f1a853a69184363b0fb15f52da07c9660bf730",
 	"name": "Java",
 	"scopeName": "source.java",
 	"patterns": [
@@ -102,6 +102,9 @@
 		},
 		{
 			"include": "#code"
+		},
+		{
+			"include": "#module"
 		}
 	],
 	"repository": {
@@ -679,7 +682,19 @@
 									"include": "#comments"
 								},
 								{
-									"include": "#parameters"
+									"match": "\\|",
+									"name": "punctuation.catch.separator.java"
+								},
+								{
+									"match": "([a-zA-Z$_][\\.a-zA-Z0-9$_]*)\\s*(\\w+)?",
+									"captures": {
+										"1": {
+											"name": "storage.type.java"
+										},
+										"2": {
+											"name": "variable.parameter.java"
+										}
+									}
 								}
 							]
 						},
@@ -1049,6 +1064,45 @@
 				}
 			]
 		},
+		"module": {
+			"begin": "((open)\\s)?(module)\\s+(\\w+)",
+			"end": "}",
+			"beginCaptures": {
+				"1": {
+					"name": "storage.modifier.java"
+				},
+				"3": {
+					"name": "storage.modifier.java"
+				},
+				"4": {
+					"name": "entity.name.type.module.java"
+				}
+			},
+			"endCaptures": {
+				"0": {
+					"name": "punctuation.section.module.end.bracket.curly.java"
+				}
+			},
+			"name": "meta.module.java",
+			"patterns": [
+				{
+					"begin": "{",
+					"beginCaptures": {
+						"0": {
+							"name": "punctuation.section.module.begin.bracket.curly.java"
+						}
+					},
+					"end": "(?=})",
+					"contentName": "meta.module.body.java",
+					"patterns": [
+						{
+							"match": "\\b(requires|transitive|exports|opens|to|uses|provides|with)\\b",
+							"name": "keyword.module.java"
+						}
+					]
+				}
+			]
+		},
 		"numbers": {
 			"patterns": [
 				{
@@ -1359,12 +1413,17 @@
 			"name": "meta.throwables.java",
 			"patterns": [
 				{
-					"include": "#object-types"
+					"match": ",",
+					"name": "punctuation.separator.delimiter.java"
+				},
+				{
+					"match": "[a-zA-Z$_][\\.a-zA-Z0-9$_]*",
+					"name": "storage.type.java"
 				}
 			]
 		},
 		"variables": {
-			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
+			"begin": "(?x)\n(?=\n  (\n    (void|boolean|byte|char|short|int|float|long|double)\n    |\n    (?>(\\w+\\.)*[A-Z]+\\w*) # e.g. `javax.ws.rs.Response`, or `String`\n  )\n  (\n    <[\\w<>,\\.?\\s\\[\\]]*> # e.g. `HashMap<Integer, String>`, or `List<java.lang.String>`\n  )?\n  (\n    (\\[\\])* # int[][]\n  )?\n  \\s+\n  [A-Za-z_$][\\w$]* # At least one identifier after space\n  ([\\w\\[\\],$][\\w\\[\\],\\s]*)? # possibly primitive array or additional identifiers\n  \\s*(=|;)\n)",
 			"end": "(?=;)",
 			"name": "meta.definition.variable.java",
 			"patterns": [

@@ -42,10 +42,23 @@
 /* Title */
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title {
+	position: relative;
 	height: 35px;
 	display: flex;
 	box-sizing:	border-box;
 	overflow: hidden;
+}
+
+.monaco-workbench > .part.editor > .content .editor-group-container > .title.title-border-bottom::after {
+	content: '';
+	position: absolute;
+	bottom: 0;
+	left: 0;
+	z-index: 5;
+	pointer-events: none;
+	background-color: var(--title-border-bottom-color);
+	width: 100%;
+	height: 1px;
 }
 
 .monaco-workbench > .part.editor > .content .editor-group-container.empty > .title {
@@ -73,12 +86,12 @@
 }
 
 .vs .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close.svg');
+	background-image: url('close-big.svg');
 }
 
 .vs-dark .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group,
 .hc-black .monaco-workbench > .part.editor > .content .editor-group-container > .editor-group-container-toolbar .close-editor-group {
-	background-image: url('close-inverse.svg');
+	background-image: url('close-big-inverse.svg');
 }
 
 /* Editor */

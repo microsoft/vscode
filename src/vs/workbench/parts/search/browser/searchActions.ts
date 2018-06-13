@@ -7,7 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { Action } from 'vs/base/common/actions';
 import { INavigator } from 'vs/base/common/iterator';
 import { createKeybinding, ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { getPathLabel } from 'vs/base/common/labels';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { isWindows, OS } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
@@ -26,6 +26,7 @@ import { FileMatch, FileMatchOrMatch, FolderMatch, Match, RenderableMatch, searc
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
+import { normalize } from 'vs/base/common/paths';
 
 export function isSearchViewFocused(viewletService: IViewletService, panelService: IPanelService): boolean {
 	let searchView = getSearchView(viewletService, panelService);
@@ -584,7 +585,7 @@ export class ReplaceAction extends AbstractSearchAndReplaceAction {
 }
 
 function uriToClipboardString(resource: URI): string {
-	return resource.scheme === Schemas.file ? getPathLabel(resource) : resource.toString();
+	return resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(resource.fsPath), true) : resource.toString();
 }
 
 export const copyPathCommand: ICommandHandler = (accessor, fileMatch: FileMatch | FolderMatch) => {

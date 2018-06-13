@@ -208,9 +208,9 @@ suite('Gridview', function () {
 
 		grid.layout(800, 600);
 
-		assert.deepEqual(view1.size, [50, 550]);
-		assert.deepEqual(view2.size, [800, 50]);
-		assert.deepEqual(view3.size, [750, 550]);
+		assert.deepEqual(view1.size, [400, 300]);
+		assert.deepEqual(view2.size, [800, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
 	});
 
 	test('addviews before layout call 2', function () {
@@ -227,8 +227,8 @@ suite('Gridview', function () {
 
 		grid.layout(800, 600);
 
-		assert.deepEqual(view1.size, [800, 550]);
-		assert.deepEqual(view2.size, [750, 50]);
-		assert.deepEqual(view3.size, [50, 50]);
+		assert.deepEqual(view1.size, [800, 300]);
+		assert.deepEqual(view2.size, [400, 300]);
+		assert.deepEqual(view3.size, [400, 300]);
 	});
 });

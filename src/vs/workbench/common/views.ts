@@ -243,7 +243,7 @@ export interface ITreeViewer extends IDisposable {
 
 export interface ICustomViewDescriptor extends IViewDescriptor {
 
-	treeViewer: ITreeViewer;
+	readonly treeViewer: ITreeViewer;
 
 }
 

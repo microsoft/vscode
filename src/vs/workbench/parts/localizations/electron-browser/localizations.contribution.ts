@@ -124,11 +124,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (language !== 'en' && language !== 'en_us') {
+		if (language !== 'en' && language.indexOf('en-') !== -1) {
 			this.migrateToMarketplaceLanguagePack(language);
 			return;
 		}
-		if (locale === 'en' || locale === 'en_us') {
+		if (locale === 'en' || locale.indexOf('en-') !== -1) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {

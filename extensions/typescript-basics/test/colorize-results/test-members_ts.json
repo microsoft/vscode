@@ -122,7 +122,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.ts meta.class.ts",
+		"t": "source.ts meta.class.ts meta.field.declaration.ts",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

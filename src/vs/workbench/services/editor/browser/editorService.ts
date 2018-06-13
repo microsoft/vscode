@@ -235,15 +235,6 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 			return this.doOpenEditor(targetGroup, editor, editorOptions);
 		}
 
-		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
-		const resourceInput = <IResourceInput>editor;
-		if (resourceInput.resource instanceof URI) {
-			const schema = resourceInput.resource.scheme;
-			if (schema === Schemas.http || schema === Schemas.https) {
-				return TPromise.wrapError(new Error('Invalid scheme http/https to open resource as editor. Use IOpenerService instead.'));
-			}
-		}
-
 		// Untyped Text Editor Support
 		const textInput = <IResourceEditor>editor;
 		const typedInput = this.createInput(textInput);
@@ -580,7 +571,7 @@ export class EditorService extends Disposable implements EditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, context, environment);
+		return getPathLabel(res.fsPath, environment, context);
 	}
 
 	//#endregion

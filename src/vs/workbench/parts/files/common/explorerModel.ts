@@ -14,7 +14,6 @@ import { IFileStat } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
 import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -78,7 +77,7 @@ export class ExplorerItem {
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
 		this._name = name;
 		this.isDirectory = !!isDirectory;

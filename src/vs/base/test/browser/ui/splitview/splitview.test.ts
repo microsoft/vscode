@@ -268,14 +268,14 @@ suite('Splitview', () => {
 		const splitview = new SplitView(container);
 		splitview.layout(200);
 
-		splitview.addView(view1, 20);
-		splitview.addView(view2, 20);
-		splitview.addView(view3, 20);
+		splitview.addView(view1, Sizing.Distribute);
+		splitview.addView(view2, Sizing.Distribute);
+		splitview.addView(view3, Sizing.Distribute);
 
 		let sashes = getSashes(splitview);
 		assert.equal(sashes.length, 2, 'there are two sashes');
-		assert.equal(sashes[0].state, SashState.Maximum, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Maximum, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		splitview.layout(60);
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
@@ -286,12 +286,12 @@ suite('Splitview', () => {
 		assert.equal(sashes[1].state, SashState.Disabled, 'second sash is disabled');
 
 		splitview.layout(200);
-		assert.equal(sashes[0].state, SashState.Minimum, 'first sash is enabled');
-		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assert.equal(sashes[0].state, SashState.Enabled, 'first sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		view1.maximumSize = 20;
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
-		assert.equal(sashes[1].state, SashState.Minimum, 'second sash is enabled');
+		assert.equal(sashes[1].state, SashState.Enabled, 'second sash is enabled');
 
 		view2.maximumSize = 20;
 		assert.equal(sashes[0].state, SashState.Disabled, 'first sash is disabled');
@@ -380,7 +380,7 @@ suite('Splitview', () => {
 		splitview.addView(view3, 25);
 
 		splitview.layout(200);
-		assert.deepEqual([view1.size, view2.size, view3.size], [20, 20, 160]);
+		assert.deepEqual([Math.round(view1.size), Math.round(view2.size), Math.round(view3.size)], [67, 67, 67]);
 
 		splitview.dispose();
 		view3.dispose();
