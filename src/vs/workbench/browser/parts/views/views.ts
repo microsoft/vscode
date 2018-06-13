@@ -341,13 +341,12 @@ export class ContributableViewsModel extends Disposable {
 		for (const viewDescriptor of viewDescriptors) {
 			const viewState = this.viewStates.get(viewDescriptor.id);
 			if (viewState) {
-				if (isUndefinedOrNull(viewState.collapsed)) {
-					// collapsed state was not set, so set it from view descriptor
-					viewState.collapsed = !!viewDescriptor.collapsed;
-				}
+				// set defaults if not set
+				viewState.visible = isUndefinedOrNull(viewState.visible) ? !viewDescriptor.hideByDefault : viewState.visible;
+				viewState.collapsed = isUndefinedOrNull(viewState.collapsed) ? !!viewDescriptor.collapsed : viewState.collapsed;
 			} else {
 				this.viewStates.set(viewDescriptor.id, {
-					visible: true,
+					visible: !viewDescriptor.hideByDefault,
 					collapsed: viewDescriptor.collapsed
 				});
 			}
@@ -464,7 +463,7 @@ export class PersistentContributableViewsModel extends ContributableViewsModel {
 		}
 		for (const id of Object.keys(storedViewsStates)) {
 			if (!viewStates.has(id)) {
-				viewStates.set(id, <IViewState>{ ...storedViewsStates[id], ...{ visible: true } });
+				viewStates.set(id, <IViewState>{ ...storedViewsStates[id] });
 			}
 		}
 		return viewStates;
