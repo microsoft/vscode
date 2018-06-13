@@ -58,7 +58,7 @@ export class EmptyView extends ViewletPanel {
 
 		this.messageDiv = $('p').appendTo($('div.section').appendTo(container));
 
-		let section = $('div.section').appendTo(container);
+		const section = $('div.section').appendTo(container);
 
 		this.button = new Button(section.getHTMLElement());
 		attachButtonStyler(this.button, this.themeService);
@@ -75,20 +75,16 @@ export class EmptyView extends ViewletPanel {
 		}));
 
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, (e: DragEvent) => {
+			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
 			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
 			dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
-		}));
-		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_ENTER, () => {
-			container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
 		}));
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_LEAVE, () => {
 			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
 		}));
-		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, () => {
-			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
-		}));
 		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
 			e.dataTransfer.dropEffect = 'copy';
+			container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
 		}));
 
 		this.setLabels();
