@@ -48,13 +48,13 @@ export class FileIconThemeData implements IFileIconTheme {
 		return TPromise.as(this.styleSheetContent);
 	}
 
-	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, location: URI, extensionData: ExtensionData): FileIconThemeData {
+	static fromExtensionTheme(iconTheme: IThemeExtensionPoint, iconThemeLocation: URI, extensionData: ExtensionData): FileIconThemeData {
 		let themeData = new FileIconThemeData();
 		themeData.id = extensionData.extensionId + '-' + iconTheme.id;
 		themeData.label = iconTheme.label || Paths.basename(iconTheme.path);
 		themeData.settingsId = iconTheme.id;
 		themeData.description = iconTheme.description;
-		themeData.location = location;
+		themeData.location = iconThemeLocation;
 		themeData.extensionData = extensionData;
 		themeData.isLoaded = false;
 		return themeData;

@@ -7,7 +7,6 @@
 import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
-import * as Paths from 'path';
 import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
@@ -98,7 +97,7 @@ export class FileIconThemeStore {
 			}
 
 			const iconThemeLocation = resources.joinPath(extensionLocation, iconTheme.path);
-			if (iconThemeLocation.path.indexOf(Paths.normalize(extensionLocation.path)) !== 0) {
+			if (iconThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
 				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionLocation.path));
 			}
 

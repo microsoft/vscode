@@ -285,7 +285,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return themeData.ensureLoaded(this).then(_ => {
+				return themeData.ensureLoaded(this.fileService).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
@@ -298,7 +298,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message)));
+					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location, error.message)));
 				});
 			}
 			return null;
