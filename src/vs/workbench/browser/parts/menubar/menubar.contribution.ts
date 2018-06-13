@@ -812,16 +812,16 @@ function layoutMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		group: '2_layouts',
 		command: {
-			id: 'workbench.action.editorLayoutTwoColumns',
+			id: 'workbench.action.editorLayoutTwoByTwoGrid',
 			title: nls.localize({ key: 'miTwoByTwoGridEditorLayout', comment: ['&& denotes a mnemonic'] }, "&&Grid (2x2)")
 		},
 		order: 7
 	});
 
-	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+	MenuRegistry.appendMenuItem(MenuId.MenubarLayoutMenu, {
 		group: '2_layouts',
 		command: {
-			id: 'workbench.action.editorLayoutTwoByTwoGrid',
+			id: 'workbench.action.editorLayoutTwoColumnsRight',
 			title: nls.localize({ key: 'miTwoColumnsRightEditorLayout', comment: ['&& denotes a mnemonic'] }, "Two C&&olumns Right")
 		},
 		order: 8

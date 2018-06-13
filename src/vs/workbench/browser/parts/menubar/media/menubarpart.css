@@ -29,7 +29,6 @@
 	position: relative;
 	z-index: 10;
 	cursor: pointer;
-	overflow: hidden;
 	-webkit-app-region: no-drag;
 }
 

@@ -41,10 +41,10 @@ export class MenubarPart extends Part {
 	private keys = [
 		'files.autoSave',
 		'window.menuBarVisibility',
-		// 'editor.multiCursorModifier',
-		// 'workbench.sideBar.location',
-		// 'workbench.statusBar.visible',
-		// 'workbench.activityBar.visible',
+		'editor.multiCursorModifier',
+		'workbench.sideBar.location',
+		'workbench.statusBar.visible',
+		'workbench.activityBar.visible',
 		'window.enableMenuBarMnemonics',
 		// 'window.nativeTabs'
 	];
@@ -152,59 +152,70 @@ export class MenubarPart extends Part {
 		return enableMenuBarMnemonics;
 	}
 
+	private get currentMultiCursorSetting(): string {
+		return this.configurationService.getValue<string>('editor.multiCursorModifier');
+	}
+
 	private get currentAutoSaveSetting(): string {
 		return this.configurationService.getValue<string>('files.autoSave');
+	}
+
+	private get currentSidebarPosition(): string {
+		return this.configurationService.getValue<string>('workbench.sideBar.location');
+	}
+
+	private get currentStatusBarVisibility(): boolean {
+		let setting = this.configurationService.getValue<boolean>('workbench.statusBar.visible');
+		if (typeof setting !== 'boolean') {
+			setting = true;
+		}
+
+		return setting;
+	}
+
+	private get currentActivityBarVisibility(): boolean {
+		let setting = this.configurationService.getValue<boolean>('workbench.activityBar.visible');
+		if (typeof setting !== 'boolean') {
+			setting = true;
+		}
+
+		return setting;
+	}
+
+	private get currentTitlebarStyleSetting(): string {
+		return this.configurationService.getValue<string>('window.titleBarStyle');
 	}
 
 	private onDidChangeFullscreen(): void {
 		this.updateStyles();
 	}
 
+
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
-			this.setupCustomMenubar();
+			this.setupMenubar();
 		}
 	}
 
 	private registerListeners(): void {
-
-		// Keep flag when app quits
-		// app.on('will-quit', () => {
-		// 	this.isQuitting = true;
-		// });
-
-		// // Listen to some events from window service to update menu
-		// this.historyMainService.onRecentlyOpenedChange(() => this.updateMenu());
-		// this.windowsMainService.onWindowsCountChanged(e => this.onWindowsCountChanged(e));
-		// this.windowsMainService.onActiveWindowChanged(() => this.updateWorkspaceMenuItems());
-		// this.windowsMainService.onWindowReady(() => this.updateWorkspaceMenuItems());
-		// this.windowsMainService.onWindowClose(() => this.updateWorkspaceMenuItems());
-
 		browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen());
 
-		// Listen to extension viewlets
-		// ipc.on('vscode:extensionViewlets', (event: any, rawExtensionViewlets: string) => {
-		// 	let extensionViewlets: IExtensionViewlet[] = [];
-		// 	try {
-		// 		extensionViewlets = JSON.parse(rawExtensionViewlets);
-		// 	} catch (error) {
-		// 		// Should not happen
-		// 	}
-
-		// 	if (extensionViewlets.length) {
-		// 		this.extensionViewlets = extensionViewlets;
-		// 		this.updateMenu();
-		// 	}
-		// });
-
-		// Update when auto save config changes
+		// Update when config changes
 		this.configurationService.onDidChangeConfiguration(e => this.onConfigurationUpdated(e));
 
 		// Listen to update service
-		// this.updateService.onStateChange(() => this.updateMenu());
+		// this.updateService.onStateChange(() => this.setupMenubar());
 
 		// Listen to keybindings change
-		// this.keybindingsResolver.onKeybindingsChanged(() => this.scheduleUpdateMenu());
+		this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar());
+	}
+
+	private setupMenubar(): void {
+		if (this.currentTitlebarStyleSetting === 'custom') {
+			this.setupCustomMenubar();
+		} else {
+			this.setupNativeMenubar();
+		}
 	}
 
 	private setupNativeMenubar(): void {
@@ -226,7 +237,7 @@ export class MenubarPart extends Part {
 		});
 	}
 
-	private setCheckedStatus(action: IAction) {
+	private setCheckedStatus(action: IAction | IMenubarMenuItemAction) {
 		switch (action.id) {
 			case 'workbench.action.toggleAutoSave':
 				action.checked = this.currentAutoSaveSetting !== 'off';
@@ -237,7 +248,47 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	private calculateActionLabel(label: string): string {
+	private calculateActionLabel(action: IAction | IMenubarMenuItemAction): string {
+		let label = action.label;
+		switch (action.id) {
+			case 'workbench.action.toggleMultiCursorModifier':
+				if (this.currentMultiCursorSetting === 'ctrlCmd') {
+					label = nls.localize('miMultiCursorAlt', "Switch to Alt+Click for Multi-Cursor");
+				} else {
+					label = isMacintosh
+						? nls.localize('miMultiCursorCmd', "Switch to Cmd+Click for Multi-Cursor")
+						: nls.localize('miMultiCursorCtrl', "Switch to Ctrl+Click for Multi-Cursor");
+				}
+				break;
+
+			case 'workbench.action.toggleSidebarPosition':
+				if (this.currentSidebarPosition !== 'right') {
+					label = nls.localize({ key: 'miMoveSidebarRight', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Right");
+				} else {
+					label = nls.localize({ key: 'miMoveSidebarLeft', comment: ['&& denotes a mnemonic'] }, "&&Move Side Bar Left");
+				}
+				break;
+
+			case 'workbench.action.toggleStatusbarVisibility':
+				if (this.currentStatusBarVisibility) {
+					label = nls.localize({ key: 'miHideStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Hide Status Bar");
+				} else {
+					label = nls.localize({ key: 'miShowStatusbar', comment: ['&& denotes a mnemonic'] }, "&&Show Status Bar");
+				}
+				break;
+
+			case 'workbench.action.toggleActivityBarVisibility':
+				if (this.currentActivityBarVisibility) {
+					label = nls.localize({ key: 'miHideActivityBar', comment: ['&& denotes a mnemonic'] }, "Hide &&Activity Bar");
+				} else {
+					label = nls.localize({ key: 'miShowActivityBar', comment: ['&& denotes a mnemonic'] }, "Show &&Activity Bar");
+				}
+				break;
+
+			default:
+				break;
+		}
+
 		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
 	}
 
@@ -279,7 +330,7 @@ export class MenubarPart extends Part {
 					const [, actions] = group;
 
 					actions.map((action: IAction) => {
-						action.label = this.calculateActionLabel(action.label);
+						action.label = this.calculateActionLabel(action);
 						this.setCheckedStatus(action);
 					});
 
@@ -381,6 +432,9 @@ export class MenubarPart extends Part {
 						checked: menuItemAction.checked,
 						enabled: menuItemAction.enabled
 					};
+
+					this.setCheckedStatus(menubarMenuItem);
+					menubarMenuItem.label = this.calculateActionLabel(menubarMenuItem);
 
 					menubarMenu.items.push(menubarMenuItem);
 				});
