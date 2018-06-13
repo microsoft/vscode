@@ -638,7 +638,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	ignore(extension: IExtension): TPromise<void> {
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(distinct([...globallyIgnored, extension.id.toLowerCase()])), StorageScope.GLOBAL);
-		return TPromise.as(null);
+		return this.extensionTipsService.refreshAllIgnoredRecommendations().then(() => this._onChange.fire());
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {

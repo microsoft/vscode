@@ -285,11 +285,31 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return cleansedIDs;
 	}
 
-	private refreshAllIgnoredRecommendations(): TPromise<void> {
+	refreshAllIgnoredRecommendations(): TPromise<void> {
 		const globallyIgnored = Promise.resolve(<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')));
 		const workspaceIgnored = this.getWorkspaceIgnores();
 		return TPromise.join([globallyIgnored, workspaceIgnored]).then(ignored => {
 			this._allIgnoredRecommendations = distinct(flatten(ignored)).map(id => id.toLowerCase());
+			this._allWorkspaceRecommendedExtensions = this._allWorkspaceRecommendedExtensions.filter((id) => this.isExtensionAllowedToBeRecommended(id));
+			this._dynamicWorkspaceRecommendations = this._dynamicWorkspaceRecommendations.filter((id) => this.isExtensionAllowedToBeRecommended(id));
+
+			let filteredFileBased: { [id: string]: number; } = {};
+			let filteredExeBased: { [id: string]: string; } = {};
+
+			forEach(this._fileBasedRecommendations, entry => {
+				if (this.isExtensionAllowedToBeRecommended(entry.key)) {
+					filteredFileBased[entry.key] = this._fileBasedRecommendations[entry.key];
+				}
+			});
+
+			forEach(this._exeBasedRecommendations, entry => {
+				if (this.isExtensionAllowedToBeRecommended(entry.key)) {
+					filteredExeBased[entry.key] = this._exeBasedRecommendations[entry.key];
+				}
+			});
+
+			this._exeBasedRecommendations = filteredExeBased;
+			this._fileBasedRecommendations = filteredFileBased;
 		});
 	}
 

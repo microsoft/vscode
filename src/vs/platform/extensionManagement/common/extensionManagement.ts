@@ -373,6 +373,7 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
+	refreshAllIgnoredRecommendations(): TPromise<void>;
 }
 
 export enum ExtensionRecommendationReason {

@@ -167,6 +167,7 @@ export class ExtensionEditor extends BaseEditor {
 	private recommendationText: any;
 	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
+	private recentlyIgnored: string[] = [];
 
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
@@ -311,14 +312,19 @@ export class ExtensionEditor extends BaseEditor {
 		}
 
 		/* __GDPR__
-			"extensionGallery:openExtension" : {
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
-				]
-			}
+		"extensionGallery:openExtension" : {
+			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"${include}": [
+				"${GalleryExtensionTelemetryData}"
+			]
+		}
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
+
+		toggleClass(this.header, 'ignored', this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1);
+		if (this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1) {
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+		}
 
 		toggleClass(this.name, 'clickable', !!extension.url);
 		toggleClass(this.publisher, 'clickable', !!extension.url);
@@ -382,6 +388,11 @@ export class ExtensionEditor extends BaseEditor {
 
 		const ignoreAction = this.instantiationService.createInstance(IgnoreAction);
 		ignoreAction.extension = extension;
+		ignoreAction.onIgnored = () => {
+			addClass(this.header, 'ignored');
+			this.recentlyIgnored.push(extension.id.toLowerCase());
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+		};
 
 		this.ignoreActionbar.clear();
 		this.ignoreActionbar.push([ignoreAction], { icon: true, label: true });

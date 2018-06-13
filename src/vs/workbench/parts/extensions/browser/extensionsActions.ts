@@ -548,8 +548,9 @@ export class IgnoreAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
-	private static readonly Class = 'extension-action ignore';
+	private static readonly Class = 'extension-action ignore octicon octicon-circle-slash';
 
+	onIgnored: () => void;
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -566,13 +567,12 @@ export class IgnoreAction extends Action {
 
 	private update(): void {
 		this.class = IgnoreAction.Class;
-		this.tooltip = '';
+		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
 		this.enabled = true;
 	}
 
 	public run(): TPromise<any> {
-		return TPromise.as(null);
-		return this.extensionsWorkbenchService.ignore(this.extension);
+		return this.extensionsWorkbenchService.ignore(this.extension).then(() => this.onIgnored());
 	}
 
 	dispose(): void {

@@ -76,15 +76,16 @@
 }
 
 .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore {
-	height: 18px;
+	height: 15px;
 	width: 10px;
 	border: none;
-	background: url('manage.svg') center center no-repeat;
 	outline-offset: 0px;
-	margin-left: 5px;
+	margin-left: 3px;
+	background-color: transparent;
+	color: hsl(0, 66%, 50%);
 }
 
 .hc-black .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore,
 .vs-dark .extension-editor > .header.recommended > .details > .recommendation > .monaco-action-bar .action-item .action-label.extension-action.ignore {
-	background: url('manage-inverse.svg') center center no-repeat;
+	color: hsla(0, 66%, 77%, 1);
 }

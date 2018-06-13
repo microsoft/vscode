@@ -149,6 +149,15 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			toggleClass(data.root, 'disabled', isInstalled && !isExtensionRunning);
 		});
 
+
+		data.extensionDisposables.push(this.extensionsWorkbenchService.onChange(() => {
+			const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+			if (!extRecommendations[extension.id.toLowerCase()]) {
+				data.root.setAttribute('aria-label', extension.displayName);
+				removeClass(data.root, 'recommended');
+			}
+		}));
+
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
