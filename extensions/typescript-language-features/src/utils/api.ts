@@ -29,6 +29,7 @@ export default class API {
 	public static readonly v280 = API.fromSimpleString('2.8.0');
 	public static readonly v290 = API.fromSimpleString('2.9.0');
 	public static readonly v291 = API.fromSimpleString('2.9.1');
+	public static readonly v292 = API.fromSimpleString('2.9.2');
 
 
 	public static fromVersionString(versionString: string): API {
