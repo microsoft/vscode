@@ -152,7 +152,7 @@ class Renderer implements IRenderer<ICompletionItem, ISuggestionTemplateData> {
 			}
 		}
 
-		data.highlightedLabel.set(suggestion.label, createMatches(element.matches));
+		data.highlightedLabel.set(suggestion.label, createMatches(element.matches), '', true);
 		// data.highlightedLabel.set(`${suggestion.label} <${element.score}=score(${element.word}, ${suggestion.filterText || suggestion.label})>`, createMatches(element.matches));
 		data.typeLabel.textContent = (suggestion.detail || '').replace(/\n.*$/m, '');
 
@@ -401,6 +401,8 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	private storageServiceAvailable: boolean = true;
 	private expandSuggestionDocs: boolean = false;
 
+	private firstFocusInCurrentList: boolean = false;
+
 	constructor(
 		private editor: ICodeEditor,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -566,6 +568,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 		const item = e.elements[0];
 		this._ariaAlert(this._getSuggestionAriaAlertLabel(item));
 
+		this.firstFocusInCurrentList = !this.focusedItem;
 		if (item === this.focusedItem) {
 			return;
 		}
@@ -622,6 +625,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				if (stateChanged) {
 					this.list.splice(0, this.list.length);
 				}
+				this.focusedItem = null;
 				break;
 			case State.Loading:
 				this.messageElement.textContent = SuggestWidget.LOADING_MESSAGE;
@@ -629,6 +633,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
+				this.focusedItem = null;
 				break;
 			case State.Empty:
 				this.messageElement.textContent = SuggestWidget.NO_SUGGESTIONS_MESSAGE;
@@ -636,6 +641,7 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 				show(this.messageElement);
 				removeClass(this.element, 'docs-side');
 				this.show();
+				this.focusedItem = null;
 				break;
 			case State.Open:
 				hide(this.messageElement);
@@ -679,7 +685,6 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 
 		if (this.completionModel !== completionModel) {
 			this.completionModel = completionModel;
-			this.focusedItem = null;
 		}
 
 		if (isFrozen && this.state !== State.Empty && this.state !== State.Hidden) {
@@ -1004,11 +1009,17 @@ export class SuggestWidget implements IContentWidget, IDelegate<ICompletionItem>
 	}
 
 	private expandSideOrBelow() {
+		if (!canExpandCompletionItem(this.focusedItem) && this.firstFocusInCurrentList) {
+			removeClass(this.element, 'docs-side');
+			removeClass(this.element, 'docs-below');
+			return;
+		}
+
 		let matches = this.element.style.maxWidth.match(/(\d+)px/);
 		if (!matches || Number(matches[1]) < this.maxWidgetWidth) {
 			addClass(this.element, 'docs-below');
 			removeClass(this.element, 'docs-side');
-		} else {
+		} else if (canExpandCompletionItem(this.focusedItem)) {
 			addClass(this.element, 'docs-side');
 			removeClass(this.element, 'docs-below');
 		}

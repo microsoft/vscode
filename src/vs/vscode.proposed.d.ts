@@ -5,59 +5,21 @@
 
 // This is the place for API experiments and proposal.
 
+import { QuickPickItem } from 'vscode';
+
 declare module 'vscode' {
 
 	export namespace window {
 		export function sampleFunction(): Thenable<any>;
 	}
 
-	//#region Joh: file system provider (OLD)
-
-	export enum DeprecatedFileChangeType {
-		Updated = 0,
-		Added = 1,
-		Deleted = 2
-	}
-	export interface DeprecatedFileChange {
-		type: DeprecatedFileChangeType;
-		resource: Uri;
-	}
-	export enum DeprecatedFileType {
-		File = 0,
-		Dir = 1,
-		Symlink = 2
-	}
-	export interface DeprecatedFileStat {
-		id: number | string;
-		mtime: number;
-		size: number;
-		type: DeprecatedFileType;
-	}
-	export interface DeprecatedFileSystemProvider {
-		readonly onDidChange?: Event<DeprecatedFileChange[]>;
-		utimes(resource: Uri, mtime: number, atime: number): Thenable<DeprecatedFileStat>;
-		stat(resource: Uri): Thenable<DeprecatedFileStat>;
-		read(resource: Uri, offset: number, length: number, progress: Progress<Uint8Array>): Thenable<number>;
-		write(resource: Uri, content: Uint8Array): Thenable<void>;
-		move(resource: Uri, target: Uri): Thenable<DeprecatedFileStat>;
-		mkdir(resource: Uri): Thenable<DeprecatedFileStat>;
-		readdir(resource: Uri): Thenable<[Uri, DeprecatedFileStat][]>;
-		rmdir(resource: Uri): Thenable<void>;
-		unlink(resource: Uri): Thenable<void>;
-	}
-	export namespace workspace {
-		export function registerDeprecatedFileSystemProvider(scheme: string, provider: DeprecatedFileSystemProvider): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh: remote, search provider
 
 	export interface TextSearchQuery {
 		pattern: string;
-		isRegExp?: boolean;
-		isCaseSensitive?: boolean;
-		isWordMatch?: boolean;
+		isRegExp: boolean;
+		isCaseSensitive: boolean;
+		isWordMatch: boolean;
 	}
 
 	export interface SearchOptions {
@@ -296,47 +258,80 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Task
+	//#region Comments
+	/**
+	 * Comments provider related APIs are still in early stages, they may be changed significantly during our API experiments.
+	 */
 
-	export namespace workspace {
-
-		/**
-		 * Fetches all tasks available in the systems. This includes tasks
-		 * from `tasks.json` files as well as tasks from task providers
-		 * contributed through extensions.
-		 *
-		 * @param filter a filter to filter the return tasks.
-		 */
-		export function fetchTasks(filter?: TaskFilter): Thenable<Task[]>;
-
-		/**
-		 * Executes a task that is managed by VS Code. The returned
-		 * task execution can be used to terminate the task.
-		 *
-		 * @param task the task to execute
-		 */
-		export function executeTask(task: Task): Thenable<TaskExecution>;
-
-		/**
-		 * The currently active task executions or an empty array.
-		 *
-		 * @readonly
-		 */
-		export let taskExecutions: ReadonlyArray<TaskExecution>;
-
-		/**
-		 * Fires when a task starts.
-		 */
-		export const onDidStartTask: Event<TaskStartEvent>;
-
-		/**
-		 * Fires when a task ends.
-		 */
-		export const onDidEndTask: Event<TaskEndEvent>;
+	interface CommentInfo {
+		threads: CommentThread[];
+		commentingRanges?: Range[];
 	}
 
-	//#endregion
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
 
+	interface CommentThread {
+		threadId: string;
+		resource: Uri;
+		range: Range;
+		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
+	}
+
+	interface Comment {
+		commentId: string;
+		body: MarkdownString;
+		userName: string;
+		gravatar: string;
+		command?: Command;
+	}
+
+	export interface CommentThreadChangedEvent {
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
+	interface DocumentCommentProvider {
+		provideDocumentComments(document: TextDocument, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread?(document: TextDocument, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread?(document: TextDocument, range: Range, commentThread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+
+		onDidChangeCommentThreads?: Event<CommentThreadChangedEvent>;
+	}
+
+	namespace workspace {
+		export function registerDocumentCommentProvider(provider: DocumentCommentProvider): Disposable;
+		export function registerWorkspaceCommentProvider(provider: WorkspaceCommentProvider): Disposable;
+	}
+	//#endregion
 
 	//#region Terminal
 
@@ -405,20 +400,53 @@ declare module 'vscode' {
 
 	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
 
-	export class Hierarchy<T> {
-		parent: T;
-		children: Hierarchy<T>[];
-		constructor(element: T);
-	}
+	export class DocumentSymbol {
 
-	export class SymbolInformation2 extends SymbolInformation {
+		/**
+		 * The name of this symbol.
+		 */
+		name: string;
+
+		/**
+		 * More detail for this symbol, e.g the signature of a function.
+		 */
 		detail: string;
-		range: Range;
-		constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location);
+
+		/**
+		 * The kind of this symbol.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * The full range of this symbol not including leading/trailing whitespace but everything else.
+		 */
+		fullRange: Range;
+
+		/**
+		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
+		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
+		 */
+		gotoRange: Range;
+
+		/**
+		 * Children of this symbol, e.g. properties of a class.
+		 */
+		children: DocumentSymbol[];
+
+		/**
+		 * Creates a new document symbol.
+		 *
+		 * @param name The name of the symbol.
+		 * @param detail Details for the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param fullRange The full range of the symbol.
+		 * @param gotoRange The range that should be reveal.
+		 */
+		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | Hierarchy<SymbolInformation>[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
 	}
 
 	//#endregion
@@ -427,6 +455,97 @@ declare module 'vscode' {
 
 	export interface DocumentFilter {
 		exclusive?: boolean;
+	}
+
+	//#endregion
+
+	//#region QuickInput API
+
+	export namespace window {
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createQuickPick(): QuickPick;
+
+		/**
+		 * Implementation incomplete. See #49340.
+		 */
+		export function createInputBox(): InputBox;
+	}
+
+	export interface QuickInput {
+
+		enabled: boolean;
+
+		busy: boolean;
+
+		ignoreFocusOut: boolean;
+
+		show(): void;
+
+		hide(): void;
+
+		onDidHide: Event<void>;
+
+		dispose(): void;
+	}
+
+	export interface QuickPick extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<void>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		items: ReadonlyArray<QuickPickItem>;
+
+		canSelectMany: boolean;
+
+		matchOnDescription: boolean;
+
+		matchOnDetail: boolean;
+
+		readonly activeItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeActive: Event<QuickPickItem[]>;
+
+		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+
+		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+	}
+
+	export interface InputBox extends QuickInput {
+
+		value: string;
+
+		placeholder: string;
+
+		password: boolean;
+
+		readonly onDidChangeValue: Event<string>;
+
+		readonly onDidAccept: Event<string>;
+
+		buttons: ReadonlyArray<QuickInputButton>;
+
+		readonly onDidTriggerButton: Event<QuickInputButton>;
+
+		prompt: string;
+
+		validationMessage: string;
+	}
+
+	export interface QuickInputButton {
+		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		tooltip?: string | undefined;
 	}
 
 	//#endregion

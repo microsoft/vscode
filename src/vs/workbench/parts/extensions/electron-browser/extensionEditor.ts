@@ -42,7 +42,7 @@ import { IPartService, Parts } from 'vs/workbench/services/part/common/partServi
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { KeybindingLabel } from 'vs/base/browser/ui/keybindingLabel/keybindingLabel';
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
+import { Command } from 'vs/editor/browser/editorExtensions';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Color } from 'vs/base/common/color';
@@ -385,18 +385,6 @@ export class ExtensionEditor extends BaseEditor {
 	showFind(): void {
 		if (this.activeWebview) {
 			this.activeWebview.showFind();
-		}
-	}
-
-	public showNextFindTerm() {
-		if (this.activeWebview) {
-			this.activeWebview.showNextFindTerm();
-		}
-	}
-
-	public showPreviousFindTerm() {
-		if (this.activeWebview) {
-			this.activeWebview.showPreviousFindTerm();
 		}
 	}
 
@@ -1003,46 +991,3 @@ const showCommand = new ShowExtensionEditorFindCommand({
 	}
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(showCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-class ShowExtensionEditorFindTermCommand extends Command {
-	constructor(opts: ICommandOptions, private _next: boolean) {
-		super(opts);
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const extensionEditor = this.getExtensionEditor(accessor);
-		if (extensionEditor) {
-			if (this._next) {
-				extensionEditor.showNextFindTerm();
-			} else {
-				extensionEditor.showPreviousFindTerm();
-			}
-		}
-	}
-
-	private getExtensionEditor(accessor: ServicesAccessor): ExtensionEditor {
-		const activeControl = accessor.get(IEditorService).activeControl as ExtensionEditor;
-		if (activeControl instanceof ExtensionEditor) {
-			return activeControl;
-		}
-		return null;
-	}
-}
-
-const showNextFindTermCommand = new ShowExtensionEditorFindTermCommand({
-	id: 'editor.action.extensioneditor.showNextFindTerm',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.DownArrow
-	}
-}, true);
-KeybindingsRegistry.registerCommandAndKeybindingRule(showNextFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
-
-const showPreviousFindTermCommand = new ShowExtensionEditorFindTermCommand({
-	id: 'editor.action.extensioneditor.showPreviousFindTerm',
-	precondition: KEYBINDING_CONTEXT_EXTENSIONEDITOR_FIND_WIDGET_INPUT_FOCUSED,
-	kbOpts: {
-		primary: KeyMod.Alt | KeyCode.UpArrow
-	}
-}, false);
-KeybindingsRegistry.registerCommandAndKeybindingRule(showPreviousFindTermCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));

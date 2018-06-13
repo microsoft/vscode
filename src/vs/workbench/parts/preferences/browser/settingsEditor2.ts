@@ -27,12 +27,13 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 
 const $ = DOM.$;
 
@@ -65,6 +66,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private viewState: ISettingsEditorViewState;
 	private searchResultModel: SearchResultModel;
+	private inSettingsEditorContextKey: IContextKey<boolean>;
+	private searchFocusContextKey: IContextKey<boolean>;
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -74,7 +77,8 @@ export class SettingsEditor2 extends BaseEditor {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPreferencesSearchService private preferencesSearchService: IPreferencesSearchService,
 		@ILogService private logService: ILogService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IEnvironmentService private environmentService: IEnvironmentService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
 		this.delayedModifyLogging = new Delayer<void>(1000);
@@ -82,6 +86,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
+
+		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
+		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(() => this.refreshTreeAndMaintainFocus()));
 	}
@@ -94,10 +101,16 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		this.inSettingsEditorContextKey.set(true);
 		return super.setInput(input, options, token)
 			.then(() => {
 				this.render(token);
 			});
+	}
+
+	clearInput(): void {
+		this.inSettingsEditorContextKey.set(false);
+		super.clearInput();
 	}
 
 	layout(dimension: DOM.Dimension): void {
@@ -106,7 +119,15 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	focus(): void {
+		this.focusSearch();
+	}
+
+	focusSearch(): void {
 		this.searchWidget.focus();
+	}
+
+	clearSearchResults(): void {
+		this.searchWidget.clear();
 	}
 
 	private createHeader(parent: HTMLElement): void {
@@ -123,7 +144,8 @@ export class SettingsEditor2 extends BaseEditor {
 		const searchContainer = DOM.append(this.headerContainer, $('.search-container'));
 		this.searchWidget = this._register(this.instantiationService.createInstance(SearchWidget, searchContainer, {
 			ariaLabel: localize('SearchSettings.AriaLabel', "Search settings"),
-			placeholder: localize('SearchSettings.Placeholder', "Search settings")
+			placeholder: localize('SearchSettings.Placeholder', "Search settings"),
+			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
 		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {

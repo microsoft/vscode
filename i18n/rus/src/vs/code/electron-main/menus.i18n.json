@@ -143,6 +143,7 @@
 	"miContinue": "&&Продолжить",
 	"miToggleBreakpoint": "Перек&&лючить точку останова",
 	"miConditionalBreakpoint": "У&&словная точка останова...",
+	"miInlineBreakpoint": "Внутренняя точ&&ка останова",
 	"miFunctionBreakpoint": "&&Точка останова функции...",
 	"miLogPoint": "&&Точка журнала...",
 	"miNewBreakpoint": "&&Новая точка останова",

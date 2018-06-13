@@ -21,8 +21,13 @@ import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/con
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 
 export const VIEWLET_ID = 'workbench.view.debug';
+export const VIEW_CONTAINER: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).registerViewContainer(VIEWLET_ID);
+
 export const VARIABLES_VIEW_ID = 'workbench.debug.variablesView';
 export const WATCH_VIEW_ID = 'workbench.debug.watchExpressionsView';
 export const CALLSTACK_VIEW_ID = 'workbench.debug.callStackView';
@@ -35,8 +40,6 @@ export const CONTEXT_IN_DEBUG_MODE = new RawContextKey<boolean>('inDebugMode', f
 export const CONTEXT_NOT_IN_DEBUG_MODE: ContextKeyExpr = CONTEXT_IN_DEBUG_MODE.toNegated();
 export const CONTEXT_IN_DEBUG_REPL = new RawContextKey<boolean>('inDebugRepl', false);
 export const CONTEXT_NOT_IN_DEBUG_REPL: ContextKeyExpr = CONTEXT_IN_DEBUG_REPL.toNegated();
-export const CONTEXT_ON_FIRST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onFirstDebugReplLine', false);
-export const CONTEXT_ON_LAST_DEBUG_REPL_LINE = new RawContextKey<boolean>('onLastDebugReplLine', false);
 export const CONTEXT_BREAKPOINT_WIDGET_VISIBLE = new RawContextKey<boolean>('breakpointWidgetVisible', false);
 export const CONTEXT_IN_BREAKPOINT_WIDGET = new RawContextKey<boolean>('inBreakpointWidget', false);
 export const CONTEXT_BREAKPOINTS_FOCUSED = new RawContextKey<boolean>('breakpointsFocused', true);
@@ -239,10 +242,12 @@ export interface IBreakpointData {
 	readonly hitCondition?: string;
 }
 
-export interface IBreakpointUpdateData extends DebugProtocol.Breakpoint {
+export interface IBreakpointUpdateData {
 	readonly condition?: string;
 	readonly hitCondition?: string;
 	readonly logMessage?: string;
+	readonly lineNumber?: number;
+	readonly column?: number;
 }
 
 export interface IBaseBreakpoint extends IEnablement {
@@ -331,6 +336,7 @@ export interface IBreakpointsChangeEvent {
 	added?: (IBreakpoint | IFunctionBreakpoint)[];
 	removed?: (IBreakpoint | IFunctionBreakpoint)[];
 	changed?: (IBreakpoint | IFunctionBreakpoint)[];
+	sessionOnly?: boolean;
 }
 
 // Debug enums
@@ -365,8 +371,8 @@ export interface IGlobalConfig {
 
 export interface IEnvConfig {
 	internalConsoleOptions?: 'neverOpen' | 'openOnSessionStart' | 'openOnFirstSessionStart';
-	preLaunchTask?: string;
-	postDebugTask?: string;
+	preLaunchTask?: string | TaskIdentifier;
+	postDebugTask?: string | TaskIdentifier;
 	debugServer?: number;
 	noDebug?: boolean;
 }
@@ -555,7 +561,7 @@ export interface ILaunch {
 	/**
 	 * Opens the launch.json file. Creates if it does not exist.
 	 */
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor>;
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }>;
 }
 
 // Debug service interfaces

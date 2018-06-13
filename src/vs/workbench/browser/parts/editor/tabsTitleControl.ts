@@ -6,11 +6,9 @@
 'use strict';
 
 import 'vs/css!./media/tabstitlecontrol';
-import { TPromise } from 'vs/base/common/winjs.base';
 import { isMacintosh } from 'vs/base/common/platform';
 import { shorten } from 'vs/base/common/labels';
-import { ActionRunner, IAction } from 'vs/base/common/actions';
-import { toResource, GroupIdentifier, IEditorInput, Verbosity } from 'vs/workbench/common/editor';
+import { toResource, GroupIdentifier, IEditorInput, Verbosity, EditorCommandsContextActionRunner } from 'vs/workbench/common/editor';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { EventType as TouchEventType, GestureEvent, Gesture } from 'vs/base/browser/touch';
 import { KeyCode } from 'vs/base/common/keyCodes';
@@ -29,17 +27,17 @@ import { ScrollableElement } from 'vs/base/browser/ui/scrollbar/scrollableElemen
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { getOrSet } from 'vs/base/common/map';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
-import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP, EDITOR_GROUP_HEADER_TABS_BORDER } from 'vs/workbench/common/theme';
+import { TAB_INACTIVE_BACKGROUND, TAB_ACTIVE_BACKGROUND, TAB_ACTIVE_FOREGROUND, TAB_INACTIVE_FOREGROUND, TAB_BORDER, EDITOR_DRAG_AND_DROP_BACKGROUND, TAB_UNFOCUSED_ACTIVE_FOREGROUND, TAB_UNFOCUSED_INACTIVE_FOREGROUND, TAB_UNFOCUSED_ACTIVE_BORDER, TAB_ACTIVE_BORDER, TAB_HOVER_BACKGROUND, TAB_HOVER_BORDER, TAB_UNFOCUSED_HOVER_BACKGROUND, TAB_UNFOCUSED_HOVER_BORDER, EDITOR_GROUP_HEADER_TABS_BACKGROUND, WORKBENCH_BACKGROUND, TAB_ACTIVE_BORDER_TOP, TAB_UNFOCUSED_ACTIVE_BORDER_TOP } from 'vs/workbench/common/theme';
 import { activeContrastBorder, contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { ResourcesDropHandler, fillResourceDataTransfers, DraggedEditorIdentifier, DraggedEditorGroupIdentifier, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { Color } from 'vs/base/common/color';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { MergeGroupMode, IMergeGroupOptions } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { addClass, addDisposableListener, hasClass, EventType, EventHelper, removeClass, Dimension, scheduleAtNextAnimationFrame, findParentWithClass, clearNode } from 'vs/base/browser/dom';
 import { localize } from 'vs/nls';
-import { IEditorGroupsAccessor, IEditorPartOptions } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorPartOptions, IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
 import { CloseOneEditorAction } from 'vs/workbench/browser/parts/editor/editorActions';
 
 interface IEditorInputLabel {
@@ -69,7 +67,7 @@ export class TabsTitleControl extends TitleControl {
 	constructor(
 		parent: HTMLElement,
 		accessor: IEditorGroupsAccessor,
-		group: IEditorGroup,
+		group: IEditorGroupView,
 		@IContextMenuService contextMenuService: IContextMenuService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
@@ -393,7 +391,7 @@ export class TabsTitleControl extends TitleControl {
 		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
 
-		const tabActionRunner = new TabActionRunner(() => this.group.id, index);
+		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
 		const tabActionBar = new ActionBar(tabCloseContainer, { ariaLabel: localize('araLabelTabActions', "Tab actions"), actionRunner: tabActionRunner });
 		tabActionBar.push(this.closeOneEditorAction, { icon: true, label: false, keybinding: this.getKeybindingLabel(this.closeOneEditorAction) });
@@ -604,7 +602,12 @@ export class TabsTitleControl extends TitleControl {
 
 	private isSupportedDropTransfer(e: DragEvent): boolean {
 		if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
-			return false; // groups cannot be dropped on title area
+			const group = this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0];
+			if (group.identifier === this.group.id) {
+				return false; // groups cannot be dropped on title area it originates from
+			}
+
+			return true;
 		}
 
 		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
@@ -827,19 +830,22 @@ export class TabsTitleControl extends TitleControl {
 			tabContainer.setAttribute('aria-selected', 'true');
 			tabContainer.style.backgroundColor = this.getColor(TAB_ACTIVE_BACKGROUND);
 
-			const activeTabBorderColor = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
-			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
-			if (activeTabBorderColor) {
-				// Use boxShadow for the active tab border because if we also have a editor group header
-				// color, the two colors would collide and the tab border never shows up.
-				// see https://github.com/Microsoft/vscode/issues/33111
-				// In case of tabs container having a border, we need to inset -2px for the border to show up.
-				const hasTabsContainerBorder = !!this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER);
-				tabContainer.style.boxShadow = `${activeTabBorderColor} 0 ${hasTabsContainerBorder ? -2 : -1}px inset`;
-			} else if (activeTabBorderColorTop) {
-				tabContainer.style.boxShadow = `${activeTabBorderColorTop} 0 2px inset`;
+			const activeTabBorderColorBottom = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER : TAB_UNFOCUSED_ACTIVE_BORDER);
+			if (activeTabBorderColorBottom) {
+				addClass(tabContainer, 'tab-border-bottom');
+				tabContainer.style.setProperty('--tab-border-bottom-color', activeTabBorderColorBottom.toString());
 			} else {
-				tabContainer.style.boxShadow = null;
+				removeClass(tabContainer, 'tab-border-bottom');
+				tabContainer.style.removeProperty('--tab-border-bottom-color');
+			}
+
+			const activeTabBorderColorTop = this.getColor(isGroupActive ? TAB_ACTIVE_BORDER_TOP : TAB_UNFOCUSED_ACTIVE_BORDER_TOP);
+			if (activeTabBorderColorTop) {
+				addClass(tabContainer, 'tab-border-top');
+				tabContainer.style.setProperty('--tab-border-top-color', activeTabBorderColorTop.toString());
+			} else {
+				removeClass(tabContainer, 'tab-border-top');
+				tabContainer.style.removeProperty('--tab-border-top-color');
 			}
 
 			// Label
@@ -972,9 +978,9 @@ export class TabsTitleControl extends TitleControl {
 		this.updateDropFeedback(this.tabsContainer, false);
 		removeClass(this.tabsContainer, 'scroll');
 
-		// Local DND
-		const draggedEditor = this.editorTransfer.hasData(DraggedEditorIdentifier.prototype) ? this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier : void 0;
-		if (draggedEditor) {
+		// Local Editor DND
+		if (this.editorTransfer.hasData(DraggedEditorIdentifier.prototype)) {
+			const draggedEditor = this.editorTransfer.getData(DraggedEditorIdentifier.prototype)[0].identifier;
 			const sourceGroup = this.accessor.getGroup(draggedEditor.groupId);
 
 			// Move editor to target position and index
@@ -989,6 +995,21 @@ export class TabsTitleControl extends TitleControl {
 
 			this.group.focus();
 			this.editorTransfer.clearData(DraggedEditorIdentifier.prototype);
+		}
+
+		// Local Editor Group DND
+		else if (this.groupTransfer.hasData(DraggedEditorGroupIdentifier.prototype)) {
+			const sourceGroup = this.accessor.getGroup(this.groupTransfer.getData(DraggedEditorGroupIdentifier.prototype)[0].identifier);
+
+			const mergeGroupOptions: IMergeGroupOptions = { index: targetIndex };
+			if (!this.isMoveOperation(e, sourceGroup.id)) {
+				mergeGroupOptions.mode = MergeGroupMode.COPY_EDITORS;
+			}
+
+			this.accessor.mergeGroup(sourceGroup, this.group, mergeGroupOptions);
+
+			this.group.focus();
+			this.groupTransfer.clearData(DraggedEditorGroupIdentifier.prototype);
 		}
 
 		// External DND
@@ -1008,25 +1029,6 @@ export class TabsTitleControl extends TitleControl {
 		super.dispose();
 
 		this.layoutScheduled = dispose(this.layoutScheduled);
-	}
-}
-
-class TabActionRunner extends ActionRunner {
-
-	constructor(
-		private groupId: () => GroupIdentifier,
-		private index: number
-	) {
-		super();
-	}
-
-	run(action: IAction, context?: any): TPromise<void> {
-		const groupId = this.groupId();
-		if (typeof groupId !== 'number') {
-			return TPromise.as(void 0);
-		}
-
-		return super.run(action, { groupId, editorIndex: this.index });
 	}
 }
 

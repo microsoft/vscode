@@ -595,9 +595,9 @@ export class JoinLinesAction extends EditorAction {
 			let selection = reducedSelections[i];
 			let startLineNumber = selection.startLineNumber;
 			let startColumn = 1;
+			let columnDeltaOffset = 0;
 			let endLineNumber: number,
-				endColumn: number,
-				columnDeltaOffset: number;
+				endColumn: number;
 
 			let selectionEndPositionOffset = model.getLineContent(selection.endLineNumber).length - selection.endColumn;
 

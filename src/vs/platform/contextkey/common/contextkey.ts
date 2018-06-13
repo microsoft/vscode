@@ -401,7 +401,10 @@ export class ContextKeyRegexExpr implements ContextKeyExpr {
 	}
 
 	public serialize(): string {
-		return `${this.key} =~ /${this.regexp ? this.regexp.source : '<invalid>'}/${this.regexp.ignoreCase ? 'i' : ''}`;
+		const value = this.regexp
+			? `/${this.regexp.source}/${this.regexp.ignoreCase ? 'i' : ''}`
+			: '/invalid/';
+		return `${this.key} =~ ${value}`;
 	}
 
 	public keys(): string[] {

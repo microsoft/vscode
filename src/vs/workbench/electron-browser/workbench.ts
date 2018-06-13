@@ -70,7 +70,7 @@ import { TextFileService } from 'vs/workbench/services/textfile/electron-browser
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { ISCMService } from 'vs/workbench/services/scm/common/scm';
 import { SCMService } from 'vs/workbench/services/scm/common/scmService';
-import { IProgressService2 } from 'vs/platform/progress/common/progress';
+import { IProgressService2 } from 'vs/workbench/services/progress/common/progress';
 import { ProgressService2 } from 'vs/workbench/services/progress/browser/progressService2';
 import { TextModelResolverService } from 'vs/workbench/services/textmodelResolver/common/textModelResolverService';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
@@ -111,6 +111,8 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
+import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
 interface WorkbenchParams {
 	configuration: IWindowConfiguration;
@@ -236,6 +238,7 @@ export class Workbench extends Disposable implements IPartService {
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IStorageService private storageService: IStorageService,
 		@IConfigurationService private configurationService: WorkspaceService,
+		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
 		@INotificationService private notificationService: NotificationService
@@ -361,9 +364,9 @@ export class Workbench extends Disposable implements IPartService {
 		this._register(toDisposable(() => this.panelPart.shutdown()));
 		serviceCollection.set(IPanelService, this.panelPart);
 
-		// Custom views service
-		const customViewsService = this.instantiationService.createInstance(ViewsService);
-		serviceCollection.set(IViewsService, customViewsService);
+		// views service
+		const viewsService = this.instantiationService.createInstance(ViewsService);
+		serviceCollection.set(IViewsService, viewsService);
 
 		// Activity service (activitybar part)
 		this.activitybarPart = this.instantiationService.createInstance(ActivitybarPart, Identifiers.ACTIVITYBAR_PART);
@@ -375,6 +378,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.fileService = this.instantiationService.createInstance(RemoteFileService);
 		serviceCollection.set(IFileService, this.fileService);
 		this.configurationService.acquireFileService(this.fileService);
+		this.themeService.acquireFileService(this.fileService);
 
 		// Editor and Group services
 		const restorePreviousEditorState = !this.hasInitialFilesToOpen;
@@ -389,7 +393,6 @@ export class Workbench extends Disposable implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this._register(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
-
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 

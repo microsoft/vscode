@@ -20,7 +20,7 @@ import { IEditorGroupsService, GroupOrientation } from 'vs/workbench/services/gr
 export class ToggleEditorLayoutAction extends Action {
 
 	public static readonly ID = 'workbench.action.toggleEditorGroupLayout';
-	public static readonly LABEL = nls.localize('flipLayout', "Flip Editor Group Layout");
+	public static readonly LABEL = nls.localize('flipLayout', "Toggle Vertical/Horizontal Editor Layout");
 
 	private toDispose: IDisposable[];
 

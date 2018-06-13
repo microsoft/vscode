@@ -4430,6 +4430,11 @@ declare module 'vscode' {
 		 * every task execution (new). Defaults to `TaskInstanceKind.Shared`
 		 */
 		panel?: TaskPanelKind;
+
+		/**
+		 * Controls whether to show the "Terminal will be reused by tasks, press any key to close it" message.
+		 */
+		showReuseMessage?: boolean;
 	}
 
 	/**
@@ -6743,7 +6748,7 @@ declare module 'vscode' {
 		 * @param options Immutable metadata about the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options: { isCaseSensitive?: boolean }): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { isCaseSensitive?: boolean }): Disposable;
 	}
 
 	/**
@@ -7650,7 +7655,7 @@ declare module 'vscode' {
 
 	/**
 	 * Namespace for dealing with installed extensions. Extensions are represented
-	 * by an [extension](#Extension)-interface which allows to reflect on them.
+	 * by an [extension](#Extension)-interface which enables reflection on them.
 	 *
 	 * Extension writers can provide APIs to other extensions by returning their API public
 	 * surface from the `activate`-call.

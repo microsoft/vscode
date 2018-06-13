@@ -38,7 +38,7 @@ import {
 	SplitEditorUpAction, SplitEditorDownAction, MoveEditorToLeftGroupAction, MoveEditorToRightGroupAction, MoveEditorToAboveGroupAction, MoveEditorToBelowGroupAction, CloseAllEditorGroupsAction,
 	JoinAllGroupsAction, FocusLeftGroup, FocusAboveGroup, FocusRightGroup, FocusBelowGroup, EditorLayoutSingleAction, EditorLayoutTwoColumnsAction, EditorLayoutThreeColumnsAction, EditorLayoutTwoByTwoGridAction,
 	EditorLayoutTwoRowsAction, EditorLayoutThreeRowsAction, EditorLayoutTwoColumnsBottomAction, EditorLayoutTwoColumnsRightAction, EditorLayoutCenteredAction, NewEditorGroupLeftAction, NewEditorGroupRightAction,
-	NewEditorGroupAboveAction, NewEditorGroupBelowAction
+	NewEditorGroupAboveAction, NewEditorGroupBelowAction, SplitEditorOrthogonalAction
 } from 'vs/workbench/browser/parts/editor/editorActions';
 import * as editorCommands from 'vs/workbench/browser/parts/editor/editorCommands';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -319,6 +319,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(CloseAllEditorGroupsAc
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseLeftEditorsInGroupAction, CloseLeftEditorsInGroupAction.ID, CloseLeftEditorsInGroupAction.LABEL), 'View: Close Editors in Group to the Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CloseEditorsInOtherGroupsAction, CloseEditorsInOtherGroupsAction.ID, CloseEditorsInOtherGroupsAction.LABEL), 'View: Close Editors in Other Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorAction, SplitEditorAction.ID, SplitEditorAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.US_BACKSLASH }), 'View: Split Editor', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorOrthogonalAction, SplitEditorOrthogonalAction.ID, SplitEditorOrthogonalAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.US_BACKSLASH }), 'View: Split Editor Orthogonal', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorLeftAction, SplitEditorLeftAction.ID, SplitEditorLeftAction.LABEL), 'View: Split Editor Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorRightAction, SplitEditorRightAction.ID, SplitEditorRightAction.LABEL), 'View: Split Editor Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(SplitEditorUpAction, SplitEditorUpAction.ID, SplitEditorUpAction.LABEL), 'Split Editor Up', category);
@@ -328,7 +329,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(JoinAllGroupsAction, J
 registry.registerWorkbenchAction(new SyncActionDescriptor(NavigateBetweenGroupsAction, NavigateBetweenGroupsAction.ID, NavigateBetweenGroupsAction.LABEL), 'View: Navigate Between Editor Groups', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ResetGroupSizesAction, ResetGroupSizesAction.ID, ResetGroupSizesAction.LABEL), 'View: Reset Editor Group Sizes', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MaximizeGroupAction, MaximizeGroupAction.ID, MaximizeGroupAction.LABEL), 'View: Maximize Editor Group and Hide Sidebar', category);
-registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Minimize Other Editor Groups', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(MinimizeOtherGroupsAction, MinimizeOtherGroupsAction.ID, MinimizeOtherGroupsAction.LABEL), 'View: Maximize Editor Group', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorLeftInGroupAction, MoveEditorLeftInGroupAction.ID, MoveEditorLeftInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageUp, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.LeftArrow) } }), 'View: Move Editor Left', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveEditorRightInGroupAction, MoveEditorRightInGroupAction.ID, MoveEditorRightInGroupAction.LABEL, { primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.PageDown, mac: { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.RightArrow) } }), 'View: Move Editor Right', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(MoveGroupLeftAction, MoveGroupLeftAction.ID, MoveGroupLeftAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.LeftArrow) }), 'View: Move Editor Group Left', category);
@@ -398,19 +399,18 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	mac: openPreviousEditorKeybinding.mac
 });
 
-
 // Editor Commands
 editorCommands.setup();
 
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }
@@ -440,73 +440,97 @@ MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID, title: nls.localize('closeAll', "Close All") }, group: '5_close', order: 10, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 MenuRegistry.appendMenuItem(MenuId.EditorTitle, { command: { id: editorCommands.CLOSE_SAVED_EDITORS_COMMAND_ID, title: nls.localize('closeAllSaved', "Close Saved") }, group: '5_close', order: 20, when: ContextKeyExpr.has('config.workbench.editor.showTabs') });
 
+interface IEditorToolItem { id: string; title: string; iconDark: string; iconLight: string; }
+
+function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorToolItem, when: ContextKeyExpr, order: number): void {
+	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
+		command: {
+			id: primary.id,
+			title: primary.title,
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)),
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`))
+			}
+		},
+		alt: {
+			id: alternative.id,
+			title: alternative.title,
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)),
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`))
+			}
+		},
+		group: 'navigation',
+		when,
+		order
+	});
+}
+
 // Editor Title Menu: Split Editor
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
+	}, {
 		id: editorCommands.SPLIT_EDITOR_DOWN,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
-		}
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.not('splitEditorsVertically'),
-	order: 100000 // towards the end
-});
+	ContextKeyExpr.not('splitEditorsVertically'),
+	100000 /* towards the end */
+);
 
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: SplitEditorAction.ID,
 		title: nls.localize('splitEditorDown', "Split Editor Down"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-vertical.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'split-editor-vertical-inverse.svg',
+		iconLight: 'split-editor-vertical.svg'
+	}, {
 		id: editorCommands.SPLIT_EDITOR_RIGHT,
 		title: nls.localize('splitEditorRight', "Split Editor Right"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/split-editor-horizontal.svg')).fsPath
-		}
+		iconDark: 'split-editor-horizontal-inverse.svg',
+		iconLight: 'split-editor-horizontal.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.has('splitEditorsVertically'),
-	order: 100000 // towards the end
-});
+	ContextKeyExpr.has('splitEditorsVertically'),
+	100000 // towards the end
+);
 
 // Editor Title Menu: Close Group (tabs disabled)
-MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-	command: {
+appendEditorToolItem(
+	{
 		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
 		title: nls.localize('close', "Close"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/close-editor.svg')).fsPath
-		}
-	},
-	alt: {
+		iconDark: 'close-big-inverse-alt.svg',
+		iconLight: 'close-big-alt.svg'
+	}, {
 		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
 		title: nls.localize('closeAll', "Close All"),
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors-inverse.svg')).fsPath,
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/closeall-editors.svg')).fsPath
-		}
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
 	},
-	group: 'navigation',
-	when: ContextKeyExpr.not('config.workbench.editor.showTabs'),
-	order: 1000000 // towards the end
-});
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.not('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
+
+appendEditorToolItem(
+	{
+		id: editorCommands.CLOSE_EDITOR_COMMAND_ID,
+		title: nls.localize('close', "Close"),
+		iconDark: 'close-dirty-inverse-alt.svg',
+		iconLight: 'close-dirty-alt.svg'
+	}, {
+		id: editorCommands.CLOSE_EDITORS_IN_GROUP_COMMAND_ID,
+		title: nls.localize('closeAll', "Close All"),
+		iconDark: 'closeall-editors-inverse.svg',
+		iconLight: 'closeall-editors.svg'
+	},
+	ContextKeyExpr.and(ContextKeyExpr.not('config.workbench.editor.showTabs'), ContextKeyExpr.has('groupActiveEditorDirty')),
+	1000000 // towards the end
+);
 
 // Editor Commands for Command Palette
 MenuRegistry.appendMenuItem(MenuId.CommandPalette, { command: { id: editorCommands.KEEP_EDITOR_COMMAND_ID, title: nls.localize('keepEditor', "Keep Editor"), category }, when: ContextKeyExpr.has('config.workbench.editor.enablePreview') });

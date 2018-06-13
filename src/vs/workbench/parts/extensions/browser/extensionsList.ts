@@ -146,7 +146,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		this.extensionService.getExtensions().then(enabledExtensions => {
 			const isExtensionRunning = enabledExtensions.some(e => areSameExtensions(e, extension));
 
-			toggleClass(data.element, 'disabled', isInstalled && !isExtensionRunning);
+			toggleClass(data.root, 'disabled', isInstalled && !isExtensionRunning);
 		});
 
 		const onError = once(domEvent(data.icon, 'error'));
@@ -165,7 +165,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		if (extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id.toLowerCase()].reasonText);
 			addClass(data.root, 'recommended');
 			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 		}
@@ -176,6 +176,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		data.installCount.style.display = '';
 		data.ratings.style.display = '';
 		data.extension = extension;
+
+		extension.getManifest().then(manifest => {
+			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
+			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
+		});
 	}
 
 	disposeTemplate(data: ITemplateData): void {

@@ -56,18 +56,6 @@ export abstract class BaseWebviewEditor extends BaseEditor {
 		}
 	}
 
-	public showNextFindTerm() {
-		if (this._webview) {
-			this._webview.showNextFindTerm();
-		}
-	}
-
-	public showPreviousFindTerm() {
-		if (this._webview) {
-			this._webview.showPreviousFindTerm();
-		}
-	}
-
 	public get isWebviewEditor() {
 		return true;
 	}

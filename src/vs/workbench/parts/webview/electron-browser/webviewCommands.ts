@@ -5,7 +5,7 @@
 
 import { Action } from 'vs/base/common/actions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Command, ICommandOptions } from 'vs/editor/browser/editorExtensions';
+import { Command } from 'vs/editor/browser/editorExtensions';
 import * as nls from 'vs/nls';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
@@ -29,25 +29,6 @@ export class HideWebViewEditorFindCommand extends Command {
 		const webViewEditor = getActiveWebviewEditor(accessor);
 		if (webViewEditor) {
 			webViewEditor.hideFind();
-		}
-	}
-}
-
-export class ShowWebViewEditorFindTermCommand extends Command {
-	public static readonly Id = 'editor.action.webvieweditor.showPreviousFindTerm';
-
-	constructor(opts: ICommandOptions, private _next: boolean) {
-		super(opts);
-	}
-
-	public runCommand(accessor: ServicesAccessor, args: any): void {
-		const webViewEditor = getActiveWebviewEditor(accessor);
-		if (webViewEditor) {
-			if (this._next) {
-				webViewEditor.showNextFindTerm();
-			} else {
-				webViewEditor.showPreviousFindTerm();
-			}
 		}
 	}
 }

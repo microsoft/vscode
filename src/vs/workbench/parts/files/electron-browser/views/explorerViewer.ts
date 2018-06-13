@@ -332,7 +332,7 @@ export class FileRenderer implements IRenderer {
 				if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE) {
 					projectFolderName = paths.basename(stat.root.resource.path);	// show root folder name in multi-folder project
 				}
-				this.displayCurrentPath(inputBox, initialRelPath, projectFolderName, editableData.action.id);
+				this.showInputMessage(inputBox, initialRelPath, projectFolderName, editableData.action.id);
 			}),
 			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, () => {
 				done(inputBox.isInputValid(), true);
@@ -342,7 +342,7 @@ export class FileRenderer implements IRenderer {
 		];
 	}
 
-	private displayCurrentPath(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
+	private showInputMessage(inputBox: InputBox, initialRelPath: string, projectFolderName: string = '', actionID: string) {
 		if (inputBox.validate()) {
 			const value = inputBox.value;
 			if (value && /.[\\/]./.test(value)) {	// only show if there's at least one slash enclosed in the string
@@ -371,8 +371,13 @@ export class FileRenderer implements IRenderer {
 					content: msg,
 					formatContent: true
 				});
-			}
-			else {	// fixes #46744: inputbox hides again if all slashes are removed
+			} else if (value && /^\s|\s$/.test(value)) {
+				inputBox.showMessage({
+					content: nls.localize('whitespace', "Leading or trailing whitespace detected"),
+					formatContent: true,
+					type: MessageType.WARNING
+				});
+			} else {	// fixes #46744: inputbox hides again if all slashes are removed
 				inputBox.hideMessage();
 			}
 		}

@@ -30,6 +30,17 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 
+	let contentsWithTemplate = `
+	<script type="text/template">
+		<ul>
+			<li><span>Hello</span></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span/>
+	</script>
+	`;
+
 	test('update tag with multiple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -46,6 +57,30 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(3, 17, 3, 17), // cursor inside tags
 				new Selection(4, 5, 4, 5), // cursor inside opening tag
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
+			];
+
+			return updateTag('section')!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('update tag with template', () => {
+		const expectedContents = `
+	<script type="text/template">
+		<section>
+			<li><span>Hello</span></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</section>
+		<span/>
+	</script>
+	`;
+
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
 			];
 
 			return updateTag('section')!.then(() => {
@@ -81,6 +116,30 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+
+	test('remove tag with template', () => {
+		const expectedContents = `
+	<script type="text/template">
+\t\t
+		<li><span>Hello</span></li>
+		<li><span>There</span></li>
+		<div><li><span>Bye</span></li></div>
+\t
+		<span/>
+	</script>
+	`;
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 4, 2, 4), // cursor inside ul tag
+			];
+
+			return removeTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('split/join tag with mutliple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -105,6 +164,30 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+	test('split/join tag with templates', () => {
+		const expectedContents = `
+	<script type="text/template">
+		<ul>
+			<li><span/></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span></span>
+	</script>
+	`;
+		return withRandomFileEditor(contentsWithTemplate, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 17, 3, 17), // join tag
+				new Selection(7, 5, 7, 5), // split tag
+			];
+
+			return splitJoinTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('split/join tag in jsx with xhtml self closing tag', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -117,7 +200,7 @@ suite('Tests for Emmet actions on html tags', () => {
 	</div>
 	`;
 		const oldValueForSyntaxProfiles = workspace.getConfiguration('emmet').inspect('syntaxProfiles');
-		return workspace.getConfiguration('emmet').update('syntaxProfiles', {jsx: {selfClosingStyle: 'xhtml'}}, ConfigurationTarget.Global).then(() =>{
+		return workspace.getConfiguration('emmet').update('syntaxProfiles', { jsx: { selfClosingStyle: 'xhtml' } }, ConfigurationTarget.Global).then(() => {
 			return withRandomFileEditor(contents, 'jsx', (editor, doc) => {
 				editor.selections = [
 					new Selection(3, 17, 3, 17), // join tag
@@ -150,6 +233,32 @@ suite('Tests for Emmet actions on html tags', () => {
 				assert.equal(selection.active.character, 3);
 				assert.equal(selection.anchor.line, 8);
 				assert.equal(selection.anchor.character, 3);
+			});
+
+			return Promise.resolve();
+		});
+	});
+
+	test('match tag with template scripts', () => {
+		let templateScript = `
+	<script type="text/template">
+		<div>
+			Hello
+		</div>
+	</script>`;
+
+		return withRandomFileEditor(templateScript, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 2, 2, 2), // just before div tag starts, i.e before <
+			];
+
+			matchTag();
+
+			editor.selections.forEach(selection => {
+				assert.equal(selection.active.line, 4);
+				assert.equal(selection.active.character, 4);
+				assert.equal(selection.anchor.line, 4);
+				assert.equal(selection.anchor.character, 4);
 			});
 
 			return Promise.resolve();

@@ -4,8 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as crypto from 'crypto';
-
 import * as nls from 'vs/nls';
 
 import URI from 'vs/base/common/uri';
@@ -17,9 +15,12 @@ import * as Platform from 'vs/base/common/platform';
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
 } from 'vs/workbench/parts/tasks/common/tasks';
+
+import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+
 import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -28,8 +29,6 @@ import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
 	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
-
-export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -65,17 +64,13 @@ namespace TaskProcessEndedDTO {
 }
 
 namespace TaskDefinitionDTO {
-	export function from(value: TaskIdentifier): TaskDefinitionDTO {
+	export function from(value: KeyedTaskIdentifier): TaskDefinitionDTO {
 		let result = Objects.assign(Object.create(null), value);
 		delete result._key;
 		return result;
 	}
-	export function to(value: TaskDefinitionDTO): TaskIdentifier {
-		const hash = crypto.createHash('md5');
-		hash.update(JSON.stringify(value));
-		let result = Objects.assign(Object.create(null), value);
-		result._key = hash.digest('hex');
-		return result;
+	export function to(value: TaskDefinitionDTO): KeyedTaskIdentifier {
+		return TaskDefinition.createTaskIdentifier(value, console);
 	}
 }
 
@@ -393,15 +388,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskProvider(handle, {
 			provideTasks: () => {
 				return this._proxy.$provideTasks(handle).then((value) => {
+					let tasks: Task[] = [];
 					for (let task of value.tasks) {
-						if (ContributedTask.is(task)) {
-							let uri = (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
-							if (uri) {
-								delete (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
-								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(uri));
+						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
+						if (taskTransfer.__workspaceFolder !== void 0 && taskTransfer.__definition !== void 0) {
+							(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(taskTransfer.__workspaceFolder));
+							delete taskTransfer.__workspaceFolder;
+							let taskIdentifier = TaskDefinition.createTaskIdentifier(taskTransfer.__definition, console);
+							delete taskTransfer.__definition;
+							if (taskIdentifier !== void 0) {
+								(task as ContributedTask).defines = taskIdentifier;
+								task._id = `${task._id}.${taskIdentifier._key}`;
+								tasks.push(task);
 							}
+						} else {
+							console.warn(`Dropping task ${task.name}. Missing workspace folder and task definition`);
 						}
 					}
+					value.tasks = tasks;
 					return value;
 				});
 			}

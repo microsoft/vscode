@@ -124,11 +124,11 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 		if (!this.galleryService.isEnabled()) {
 			return;
 		}
-		if (language !== 'en' && language !== 'en_us') {
+		if (language !== 'en' && language.indexOf('en-') !== -1) {
 			this.migrateToMarketplaceLanguagePack(language);
 			return;
 		}
-		if (locale === 'en' || locale === 'en_us') {
+		if (locale === 'en' || locale.indexOf('en-') !== -1) {
 			return;
 		}
 		if (language === locale || languagePackSuggestionIgnoreList.indexOf(language) > -1) {
@@ -287,7 +287,7 @@ ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 	items: {
 		type: 'object',
 		required: ['languageId', 'translations'],
-		defaultSnippets: [{ body: { languageId: '', languageName: '', languageNameLocalized: '', translations: [{ id: 'vscode', path: '' }] } }],
+		defaultSnippets: [{ body: { languageId: '', languageName: '', localizedLanguageName: '', translations: [{ id: 'vscode', path: '' }] } }],
 		properties: {
 			languageId: {
 				description: localize('vscode.extension.contributes.localizations.languageId', 'Id of the language into which the display strings are translated.'),
@@ -297,7 +297,7 @@ ExtensionsRegistry.registerExtensionPoint('localizations', [], {
 				description: localize('vscode.extension.contributes.localizations.languageName', 'Name of the language in English.'),
 				type: 'string'
 			},
-			languageNameLocalized: {
+			localizedLanguageName: {
 				description: localize('vscode.extension.contributes.localizations.languageNameLocalized', 'Name of the language in contributed language.'),
 				type: 'string'
 			},

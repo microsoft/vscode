@@ -8,5 +8,6 @@
 	],
 	"largeFile": "{0} : la tokenisation, l'entourage et le repliage ont été désactivés pour ce gros fichier afin de réduire l’utilisation de la mémoire et éviter de se figer ou de crasher.",
 	"neverShowAgain": "OK. Ne plus afficher",
-	"removeOptimizations": "Activer les fonctionnalités en forçant"
+	"removeOptimizations": "Activer les fonctionnalités en forçant",
+	"reopenFilePrompt": "Veuillez rouvrir le dossier pour que ce paramètre soit effectif."
 }

@@ -12,8 +12,6 @@ import * as vscode from 'vscode';
 import { rgPath } from 'vscode-ripgrep';
 import { anchorGlob } from './ripgrepHelpers';
 
-
-
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
@@ -118,7 +116,7 @@ export class RipgrepTextSearchEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0];
+	const firstLine = msg.split('\n')[0].trim();
 
 	if (firstLine.startsWith('Error parsing regex')) {
 		return firstLine;
@@ -130,8 +128,13 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
 	if (firstLine.startsWith('Literal ')) {
-		// e.g. "Literal \n not allowed"
+		// Other unsupported chars
 		return firstLine;
 	}
 
@@ -353,11 +356,7 @@ function getRgArgs(query: vscode.TextSearchQuery, options: vscode.TextSearchOpti
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (query.isRegExp) {
-		const rgRegexPattern = query.pattern.endsWith('$') ?
-			query.pattern.replace(/\$$/, '\\r?') :
-			query.pattern;
-
-		args.push('--regexp', rgRegexPattern);
+		args.push('--regexp', fixRegexEndingPattern(query.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = query.pattern;
 		args.push('--fixed-strings');
@@ -435,4 +434,12 @@ function startsWithUTF8BOM(str: string): boolean {
 
 function stripUTF8BOM(str: string): string {
 	return startsWithUTF8BOM(str) ? str.substr(1) : str;
+}
+
+function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

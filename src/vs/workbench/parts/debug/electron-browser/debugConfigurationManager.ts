@@ -441,10 +441,10 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
 		return this.configurationManager.activateDebuggers().then(() => {
 			const resource = this.uri;
-			let pinned = false;
+			let created = false;
 
 			return this.fileService.resolveContent(resource).then(content => content.value, err => {
 
@@ -464,7 +464,7 @@ class Launch implements ILaunch {
 						return undefined;
 					}
 
-					pinned = true; // pin only if config file is created #8727
+					created = true; // pin only if config file is created #8727
 					return this.fileService.updateContent(resource, content).then(() => {
 						// convert string into IContent; see #32135
 						return content;
@@ -488,10 +488,10 @@ class Launch implements ILaunch {
 					options: {
 						forceOpen: true,
 						selection,
-						pinned,
+						pinned: created,
 						revealIfVisible: true
 					},
-				}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
+				}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created }));
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
@@ -523,8 +523,8 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration });
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration }).then(editor => ({ editor, created: false }));
 	}
 }
 
@@ -557,7 +557,7 @@ class UserLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').user;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.preferencesService.openGlobalSettings();
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.preferencesService.openGlobalSettings().then(editor => ({ editor, created: false }));
 	}
 }

@@ -20,6 +20,7 @@
 	"later": "In seguito",
 	"updateAvailable": "È disponibile un aggiornamento: {0} {1}",
 	"installUpdate": "Installa aggiornamento",
+	"updateInstalling": "{0} {1} verrà installato in background. Al termine, verrà visualizzato un messaggio.",
 	"updateAvailableAfterRestart": "Riavviare {0} per applicare l'aggiornamento più recente.",
 	"updateNow": "Aggiorna adesso",
 	"commandPalette": "Riquadro comandi...",

@@ -881,27 +881,28 @@ export class SymbolInformation {
 	}
 }
 
-export class SymbolInformation2 extends SymbolInformation {
-
+export class DocumentSymbol {
+	name: string;
 	detail: string;
-	range: Range;
+	kind: SymbolKind;
+	fullRange: Range;
+	gotoRange: Range;
+	children: DocumentSymbol[];
 
-	constructor(name: string, detail: string, kind: SymbolKind, range: Range, location: Location) {
-		super(name, kind, undefined, location);
+	constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+		this.name = name;
 		this.detail = detail;
-		this.range = range;
-	}
-}
-
-export class Hierarchy<T> {
-	parent: T;
-	children: Hierarchy<T>[];
-
-	constructor(parent: T) {
-		this.parent = parent;
+		this.kind = kind;
+		this.fullRange = fullRange;
+		this.gotoRange = gotoRange;
 		this.children = [];
+
+		if (!this.fullRange.contains(this.gotoRange)) {
+			throw new Error('gotoRange must be contained in fullRange');
+		}
 	}
 }
+
 
 export enum CodeActionTrigger {
 	Automatic = 1,
@@ -1494,7 +1495,6 @@ export class Task implements vscode.Task {
 	private __id: string;
 
 	private _definition: vscode.TaskDefinition;
-	private _definitionKey: string;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
@@ -1555,7 +1555,6 @@ export class Task implements vscode.Task {
 		}
 		this.__id = undefined;
 		this._scope = undefined;
-		this._definitionKey = undefined;
 		this._definition = undefined;
 		if (this._execution instanceof ProcessExecution) {
 			this._definition = {
@@ -1579,17 +1578,7 @@ export class Task implements vscode.Task {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
 		this.clear();
-		this._definitionKey = undefined;
 		this._definition = value;
-	}
-
-	get definitionKey(): string {
-		if (!this._definitionKey) {
-			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._definition));
-			this._definitionKey = hash.digest('hex');
-		}
-		return this._definitionKey;
 	}
 
 	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {
@@ -1845,23 +1834,11 @@ export enum LogLevel {
 }
 
 //#region file api
-// todo@remote
-export enum DeprecatedFileChangeType {
-	Updated = 0,
-	Added = 1,
-	Deleted = 2
-}
 
 export enum FileChangeType {
 	Changed = 1,
 	Created = 2,
 	Deleted = 3,
-}
-
-export enum DeprecatedFileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
 }
 
 export class FileSystemError extends Error {
@@ -1928,3 +1905,15 @@ export enum FoldingRangeKind {
 }
 
 //#endregion
+
+
+export enum CommentThreadCollapsibleState {
+	/**
+	 * Determines an item is collapsed
+	 */
+	Collapsed = 0,
+	/**
+	 * Determines an item is expanded
+	 */
+	Expanded = 1
+}

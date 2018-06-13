@@ -168,7 +168,7 @@ function saveAll(saveAllArguments: any, editorService: IEditorService, untitledE
 	editorGroupService.groups.forEach(g => {
 		g.editors.forEach(e => {
 			const resource = e.getResource();
-			if (untitledEditorService.isDirty(resource)) {
+			if (resource && untitledEditorService.isDirty(resource)) {
 				if (!groupIdToUntitledResourceInput.has(g.id)) {
 					groupIdToUntitledResourceInput.set(g.id, []);
 				}
@@ -381,7 +381,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 function resourcesToClipboard(resources: URI[], clipboardService: IClipboardService, notificationService: INotificationService): void {
 	if (resources.length) {
 		const lineDelimiter = isWindows ? '\r\n' : '\n';
-		const text = resources.map(r => r.scheme === Schemas.file ? labels.getPathLabel(r) : r.toString()).join(lineDelimiter);
+		const text = resources.map(r => r.scheme === Schemas.file ? paths.normalize(labels.normalizeDriveLetter(r.fsPath), true) : r.toString()).join(lineDelimiter);
 		clipboardService.writeText(text);
 	} else {
 		notificationService.info(nls.localize('openFileToCopy', "Open a file first to copy its path"));

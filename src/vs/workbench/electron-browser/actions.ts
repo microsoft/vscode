@@ -730,11 +730,11 @@ export abstract class BaseOpenRecentAction extends Action {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				path = workspace;
 				label = getBaseLabel(path);
-				description = getPathLabel(paths.dirname(path), null, environmentService);
+				description = getPathLabel(paths.dirname(path), environmentService);
 			} else {
 				path = workspace.configPath;
 				label = getWorkspaceLabel(workspace, environmentService);
-				description = getPathLabel(paths.dirname(workspace.configPath), null, environmentService);
+				description = getPathLabel(paths.dirname(workspace.configPath), environmentService);
 			}
 
 			return {
@@ -1197,7 +1197,7 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
-		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup, true);
+		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup);
 		if (nextGroup) {
 			nextGroup.focus();
 

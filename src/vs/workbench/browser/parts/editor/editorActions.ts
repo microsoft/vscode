@@ -42,25 +42,25 @@ export class ExecuteCommandAction extends Action {
 	}
 }
 
-export class SplitEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.splitEditor';
-	public static readonly LABEL = nls.localize('splitEditor', "Split Editor");
-
+export class BaseSplitEditorAction extends Action {
 	private toDispose: IDisposable[] = [];
 	private direction: GroupDirection;
 
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
-		@IConfigurationService private configurationService: IConfigurationService
+		protected editorGroupService: IEditorGroupsService,
+		protected configurationService: IConfigurationService
 	) {
 		super(id, label);
 
-		this.direction = preferredSideBySideGroupDirection(configurationService);
+		this.direction = this.getDirection();
 
 		this.registerListeners();
+	}
+
+	protected getDirection(): GroupDirection {
+		return preferredSideBySideGroupDirection(this.configurationService);
 	}
 
 	private registerListeners(): void {
@@ -81,6 +81,42 @@ export class SplitEditorAction extends Action {
 		super.dispose();
 
 		this.toDispose = dispose(this.toDispose);
+	}
+}
+
+export class SplitEditorAction extends BaseSplitEditorAction {
+
+	public static readonly ID = 'workbench.action.splitEditor';
+	public static readonly LABEL = nls.localize('splitEditor', "Split Editor");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(id, label, editorGroupService, configurationService);
+	}
+}
+
+export class SplitEditorOrthogonalAction extends BaseSplitEditorAction {
+
+	public static readonly ID = 'workbench.action.splitEditorOrthogonal';
+	public static readonly LABEL = nls.localize('splitEditorOrthogonal', "Split Editor Orthogonal");
+
+	constructor(
+		id: string,
+		label: string,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@IConfigurationService configurationService: IConfigurationService
+	) {
+		super(id, label, editorGroupService, configurationService);
+	}
+
+	protected getDirection(): GroupDirection {
+		const direction = preferredSideBySideGroupDirection(this.configurationService);
+
+		return direction === GroupDirection.RIGHT ? GroupDirection.DOWN : GroupDirection.RIGHT;
 	}
 }
 
@@ -792,7 +828,7 @@ export class MoveGroupDownAction extends BaseMoveGroupAction {
 export class MinimizeOtherGroupsAction extends Action {
 
 	public static readonly ID = 'workbench.action.minimizeOtherEditors';
-	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Minimize Other Editor Groups");
+	public static readonly LABEL = nls.localize('minimizeOtherEditorGroups', "Maximize Editor Group");
 
 	constructor(id: string, label: string, @IEditorGroupsService private editorGroupService: IEditorGroupsService) {
 		super(id, label);

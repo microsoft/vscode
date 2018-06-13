@@ -266,7 +266,11 @@ export class TerminalTaskSystem implements ITaskSystem {
 					}
 					promises.push(promise);
 				} else {
-					this.log(nls.localize('dependencyFailed', 'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'', dependency.task, dependency.workspaceFolder.name));
+					this.log(nls.localize('dependencyFailed',
+						'Couldn\'t resolve dependent task \'{0}\' in workspace folder \'{1}\'',
+						Types.isString(dependency.task) ? dependency.task : JSON.stringify(dependency.task, undefined, 0),
+						dependency.workspaceFolder.name
+					));
 					this.showOutput();
 				}
 			});
@@ -523,26 +527,29 @@ export class TerminalTaskSystem implements ITaskSystem {
 		if (task.command.presentation.reveal !== RevealKind.Never || !task.isBackground) {
 			if (task.command.presentation.panel === PanelKind.New) {
 				waitOnExit = nls.localize('closeTerminal', 'Press any key to close the terminal.');
-			} else {
+			} else if (task.command.presentation.showReuseMessage) {
 				waitOnExit = nls.localize('reuseTerminal', 'Terminal will be reused by tasks, press any key to close it.');
+			} else {
+				waitOnExit = '\u200B';
 			}
 		}
 		let shellLaunchConfig: IShellLaunchConfig = undefined;
 		let isShellCommand = task.command.runtime === RuntimeType.Shell;
 		if (isShellCommand) {
 			shellLaunchConfig = { name: terminalName, executable: null, args: null, waitOnExit };
+			this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			let shellSpecified: boolean = false;
 			let shellOptions: ShellConfiguration = task.command.options && task.command.options.shell;
-			if (shellOptions && shellOptions.executable) {
-				shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
-				shellSpecified = true;
+			if (shellOptions) {
+				if (shellOptions.executable) {
+					shellLaunchConfig.executable = this.resolveVariable(resolver, shellOptions.executable);
+					shellSpecified = true;
+				}
 				if (shellOptions.args) {
 					shellLaunchConfig.args = this.resolveVariables(resolver, shellOptions.args.slice());
 				} else {
 					shellLaunchConfig.args = [];
 				}
-			} else {
-				this.terminalService.configHelper.mergeDefaultShellPathAndArgs(shellLaunchConfig);
 			}
 			let shellArgs = <string[]>shellLaunchConfig.args.slice(0);
 			let toAdd: string[] = [];

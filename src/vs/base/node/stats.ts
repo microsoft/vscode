@@ -7,6 +7,7 @@
 
 import { readdir, stat, exists, readFile } from 'fs';
 import { join } from 'path';
+import { parse } from 'vs/base/common/json';
 
 export interface WorkspaceStatItem {
 	name: string;
@@ -38,25 +39,26 @@ export function collectLaunchConfigs(folder: string): Promise<WorkspaceStatItem[
 						return resolve([]);
 					}
 
-					try {
-						const json = JSON.parse(contents.toString());
-						if (json['configurations']) {
-							for (const each of json['configurations']) {
-								const type = each['type'];
-								if (type) {
-									if (launchConfigs.has(type)) {
-										launchConfigs.set(type, launchConfigs.get(type) + 1);
-									}
-									else {
-										launchConfigs.set(type, 1);
-									}
+					const errors = [];
+					const json = parse(contents.toString(), errors);
+					if (errors.length) {
+						console.log(`Unable to parse ${launchConfig}`);
+						return resolve([]);
+					}
+
+					if (json['configurations']) {
+						for (const each of json['configurations']) {
+							const type = each['type'];
+							if (type) {
+								if (launchConfigs.has(type)) {
+									launchConfigs.set(type, launchConfigs.get(type) + 1);
+								}
+								else {
+									launchConfigs.set(type, 1);
 								}
 							}
 						}
-					} catch (e) {
-						console.log(`Unable to parse ${launchConfig}`);
 					}
-
 
 					return resolve(asSortedItems(launchConfigs));
 				});

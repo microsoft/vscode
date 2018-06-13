@@ -111,9 +111,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	setInput(input: KeybindingsEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		return super.setInput(input, options, token)
-			.then(() => {
-				this.render(options && options.preserveFocus, token);
-			});
+			.then(() => this.render(options && options.preserveFocus, token));
 	}
 
 	clearInput(): void {
@@ -251,6 +249,7 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 
 	search(filter: string): void {
 		this.searchWidget.focus();
+		this.searchWidget.setValue(filter);
 	}
 
 	clearSearchResults(): void {

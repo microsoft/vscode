@@ -78,16 +78,16 @@ export class TreeNode {
 	}
 }
 
+export const enum NodeColor {
+	Black = 0,
+	Red = 1,
+}
+
 export const SENTINEL: TreeNode = new TreeNode(null, NodeColor.Black);
 SENTINEL.parent = SENTINEL;
 SENTINEL.left = SENTINEL;
 SENTINEL.right = SENTINEL;
 SENTINEL.color = NodeColor.Black;
-
-export const enum NodeColor {
-	Black = 0,
-	Red = 1,
-}
 
 export function leftest(node: TreeNode): TreeNode {
 	while (node.left !== SENTINEL) {

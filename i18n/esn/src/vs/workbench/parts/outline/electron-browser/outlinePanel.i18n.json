@@ -12,5 +12,6 @@
 	"sortByName": "Ordenar por: Nombre",
 	"sortByKind": "Ordenar por: tipo",
 	"live": "Seguir el Cursor",
-	"no-editor": "No hay editores abiertos que pueden proporcionar información del esquema."
+	"no-editor": "No hay editores abiertos que pueden proporcionar información del esquema.",
+	"too-many-symbols": "Lamentablemente, este archivo es demasiado grande para mostrar un esquema."
 }

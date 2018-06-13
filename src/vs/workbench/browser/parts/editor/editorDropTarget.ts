@@ -309,7 +309,13 @@ class DropOverlay extends Themable {
 		this.overlay.style.top = options.top;
 		this.overlay.style.left = options.left;
 		this.overlay.style.width = options.width;
-		this.overlay.style.height = options.height;
+
+		const offsetHeight = this.getOverlayOffsetHeight();
+		if (offsetHeight) {
+			this.overlay.style.height = `calc(${options.height} - ${offsetHeight}px)`;
+		} else {
+			this.overlay.style.height = options.height;
+		}
 	}
 
 	private getOverlayOffsetHeight(): number {

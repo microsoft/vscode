@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as nls from 'vs/nls';
+import * as resources from 'vs/base/common/resources';
 import * as paths from 'vs/base/common/paths';
 import * as DOM from 'vs/base/browser/dom';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -27,6 +28,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 export class SearchDataSource implements IDataSource {
 
@@ -123,6 +125,7 @@ interface IFolderMatchTemplate {
 }
 
 interface IFileMatchTemplate {
+	el: HTMLElement;
 	label: FileLabel;
 	badge: CountBadge;
 	actions: ActionBar;
@@ -147,7 +150,8 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		actionRunner: IActionRunner,
 		private searchView: SearchView,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IWorkspaceContextService protected contextService: IWorkspaceContextService
 	) {
 		super();
 	}
@@ -208,7 +212,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 		const badge = new CountBadge(DOM.append(fileMatchElement, DOM.$('.badge')));
 		this._register(attachBadgeStyler(badge, this.themeService));
 		const actions = new ActionBar(fileMatchElement, { animated: false });
-		return { label, badge, actions };
+		return { el: fileMatchElement, label, badge, actions };
 	}
 
 	private renderMatchTemplate(tree: ITree, templateId: string, container: HTMLElement): IMatchTemplate {
@@ -233,7 +237,11 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 	private renderFolderMatch(tree: ITree, folderMatch: FolderMatch, templateData: IFolderMatchTemplate): void {
 		if (folderMatch.hasRoot()) {
-			templateData.label.setFile(folderMatch.resource(), { fileKind: FileKind.FOLDER });
+			const fileKind = resources.isEqual(this.contextService.getWorkspaceFolder(folderMatch.resource()).uri, folderMatch.resource()) ?
+				FileKind.ROOT_FOLDER :
+				FileKind.FOLDER;
+
+			templateData.label.setFile(folderMatch.resource(), { fileKind });
 		} else {
 			templateData.label.setValue(nls.localize('searchFolderMatch.other.label', "Other files"));
 		}
@@ -256,6 +264,7 @@ export class SearchRenderer extends Disposable implements IRenderer {
 	private renderFileMatch(tree: ITree, fileMatch: FileMatch, templateData: IFileMatchTemplate): void {
 		const folderMatch = fileMatch.parent();
 		const root = folderMatch.hasRoot() ? folderMatch.resource() : undefined;
+		templateData.el.setAttribute('data-resource', fileMatch.resource().toString());
 		templateData.label.setFile(fileMatch.resource(), { root });
 		let count = fileMatch.count();
 		templateData.badge.setCount(count);
@@ -310,7 +319,10 @@ export class SearchRenderer extends Disposable implements IRenderer {
 
 export class SearchAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor(
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 	}
 
 	public getAriaLabel(tree: ITree, element: FileMatchOrMatch): string {
@@ -319,7 +331,7 @@ export class SearchAccessibilityProvider implements IAccessibilityProvider {
 		}
 
 		if (element instanceof FileMatch) {
-			const path = getPathLabel(element.resource(), this.contextService) || element.resource().fsPath;
+			const path = getPathLabel(element.resource(), this.environmentService, this.contextService) || element.resource().fsPath;
 
 			return nls.localize('fileMatchAriaLabel', "{0} matches in file {1} of folder {2}, Search result", element.count(), element.name(), paths.dirname(path));
 		}

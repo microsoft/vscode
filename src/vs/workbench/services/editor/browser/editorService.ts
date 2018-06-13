@@ -30,11 +30,11 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Disposable, IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
 import { coalesce } from 'vs/base/common/arrays';
 import { isCodeEditor, isDiffEditor, ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorGroupView, IEditorOpeningEvent, IEditorGroupsServiceImpl, IEditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, IEditorOpeningEvent, EditorGroupsServiceImpl, EditorServiceImpl } from 'vs/workbench/browser/parts/editor/editor';
 
 type ICachedEditorInput = ResourceEditorInput | IFileEditorInput | DataUriEditorInput;
 
-export class EditorService extends Disposable implements IEditorServiceImpl {
+export class EditorService extends Disposable implements EditorServiceImpl {
 
 	_serviceBrand: any;
 
@@ -63,7 +63,7 @@ export class EditorService extends Disposable implements IEditorServiceImpl {
 	private lastActiveGroupId: GroupIdentifier;
 
 	constructor(
-		@IEditorGroupsService private editorGroupService: IEditorGroupsServiceImpl,
+		@IEditorGroupsService private editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService private untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -233,15 +233,6 @@ export class EditorService extends Disposable implements IEditorServiceImpl {
 			const targetGroup = this.findTargetGroup(editor, editorOptions, group);
 
 			return this.doOpenEditor(targetGroup, editor, editorOptions);
-		}
-
-		// Throw error for well known foreign resources (such as a http link) (TODO@ben remove me after this has been adopted)
-		const resourceInput = <IResourceInput>editor;
-		if (resourceInput.resource instanceof URI) {
-			const schema = resourceInput.resource.scheme;
-			if (schema === Schemas.http || schema === Schemas.https) {
-				return TPromise.wrapError(new Error('Invalid scheme http/https to open resource as editor. Use IOpenerService instead.'));
-			}
 		}
 
 		// Untyped Text Editor Support
@@ -580,7 +571,7 @@ export class EditorService extends Disposable implements IEditorServiceImpl {
 		}
 
 		// Otherwise: for diff labels prefer to see the path as part of the label
-		return getPathLabel(res.fsPath, context, environment);
+		return getPathLabel(res.fsPath, environment, context);
 	}
 
 	//#endregion
@@ -594,11 +585,11 @@ export interface IEditorOpenHandler {
  * The delegating workbench editor service can be used to override the behaviour of the openEditor()
  * method by providing a IEditorOpenHandler.
  */
-export class DelegatingWorkbenchEditorService extends EditorService {
+export class DelegatingEditorService extends EditorService {
 	private editorOpenHandler: IEditorOpenHandler;
 
 	constructor(
-		@IEditorGroupsService editorGroupService: IEditorGroupsServiceImpl,
+		@IEditorGroupsService editorGroupService: EditorGroupsServiceImpl,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService,
 		@IInstantiationService instantiationService: IInstantiationService,

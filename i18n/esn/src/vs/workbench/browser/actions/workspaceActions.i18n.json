@@ -14,5 +14,6 @@
 	"save": "&&Guardar",
 	"saveWorkspace": "Guardar área de trabajo",
 	"openWorkspaceAction": "Abrir área de trabajo...",
-	"openWorkspaceConfigFile": "Abrir archivo de configuración del área de trabajo"
+	"openWorkspaceConfigFile": "Abrir archivo de configuración del área de trabajo",
+	"duplicateWorkspaceInNewWindow": "Duplicar el área de trabajo en una ventana nueva"
 }

@@ -17,11 +17,12 @@ import { RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/con
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITextModel } from 'vs/editor/common/model';
 import { Schemas } from 'vs/base/common/network';
-import { LRUCache } from 'vs/base/common/map';
-import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ICompositeControl } from 'vs/workbench/common/composite';
+import { ActionRunner, IAction } from 'vs/base/common/actions';
 
 export const EditorsVisibleContext = new RawContextKey<boolean>('editorIsOpen', false);
+export const EditorGroupActiveEditorDirtyContext = new RawContextKey<boolean>('groupActiveEditorDirty', false);
 export const NoEditorsVisibleContext: ContextKeyExpr = EditorsVisibleContext.toNegated();
 export const TextCompareEditorVisibleContext = new RawContextKey<boolean>('textCompareEditorVisible', false);
 export const ActiveEditorGroupEmptyContext = new RawContextKey<boolean>('activeEditorGroupEmpty', false);
@@ -924,6 +925,19 @@ export interface IEditorCommandsContext {
 	editorIndex?: number;
 }
 
+export class EditorCommandsContextActionRunner extends ActionRunner {
+
+	constructor(
+		private context: IEditorCommandsContext
+	) {
+		super();
+	}
+
+	run(action: IAction, context?: any): TPromise<void> {
+		return super.run(action, this.context);
+	}
+}
+
 export interface IEditorCloseEvent extends IEditorIdentifier {
 	replaced: boolean;
 	index: number;
@@ -1004,113 +1018,16 @@ export enum CloseDirection {
 	RIGHT
 }
 
-interface MapGroupToViewStates<T> {
-	[group: number]: T;
-}
+export interface IEditorMemento<T> {
 
-export class EditorViewStateMemento<T> {
-	private cache: LRUCache<string, MapGroupToViewStates<T>>;
+	saveState(group: IEditorGroup, resource: URI, state: T): void;
+	saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
 
-	constructor(
-		private editorGroupService: IEditorGroupsService,
-		private memento: object,
-		private key: string,
-		private limit: number = 10
-	) { }
+	loadState(group: IEditorGroup, resource: URI): T;
+	loadState(group: IEditorGroup, editor: EditorInput): T;
 
-	public saveState(group: IEditorGroup, resource: URI, state: T): void;
-	public saveState(group: IEditorGroup, editor: EditorInput, state: T): void;
-	public saveState(group: IEditorGroup, resourceOrEditor: URI | EditorInput, state: T): void {
-		const resource = this.doGetResource(resourceOrEditor);
-		if (!resource || !group) {
-			return; // we are not in a good state to save any viewstate for a resource
-		}
-
-		const cache = this.doLoad();
-
-		let viewStates = cache.get(resource.toString());
-		if (!viewStates) {
-			viewStates = Object.create(null) as MapGroupToViewStates<T>;
-			cache.set(resource.toString(), viewStates);
-		}
-
-		viewStates[group.id] = state;
-
-		// Automatically clear when editor input gets disposed if any
-		if (resourceOrEditor instanceof EditorInput) {
-			once(resourceOrEditor.onDispose)(() => {
-				this.clearState(resource);
-			});
-		}
-	}
-
-	public loadState(group: IEditorGroup, resource: URI): T;
-	public loadState(group: IEditorGroup, editor: EditorInput): T;
-	public loadState(group: IEditorGroup, resourceOrEditor: URI | EditorInput): T {
-		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
-
-			const viewStates = cache.get(resource.toString());
-			if (viewStates) {
-				return viewStates[group.id];
-			}
-		}
-
-		return void 0;
-	}
-
-	public clearState(resource: URI): void;
-	public clearState(editor: EditorInput): void;
-	public clearState(resourceOrEditor: URI | EditorInput): void {
-		const resource = this.doGetResource(resourceOrEditor);
-		if (resource) {
-			const cache = this.doLoad();
-			cache.delete(resource.toString());
-		}
-	}
-
-	private doGetResource(resourceOrEditor: URI | EditorInput): URI {
-		if (resourceOrEditor instanceof EditorInput) {
-			return resourceOrEditor.getResource();
-		}
-
-		return resourceOrEditor;
-	}
-
-	private doLoad(): LRUCache<string, MapGroupToViewStates<T>> {
-		if (!this.cache) {
-			this.cache = new LRUCache<string, MapGroupToViewStates<T>>(this.limit);
-
-			// Restore from serialized map state
-			const rawViewState = this.memento[this.key];
-			if (Array.isArray(rawViewState)) {
-				this.cache.fromJSON(rawViewState);
-			}
-		}
-
-		return this.cache;
-	}
-
-	public save(): void {
-		const cache = this.doLoad();
-
-		// Remove groups from states that no longer exist
-		cache.forEach((mapGroupToViewStates, resource) => {
-			Object.keys(mapGroupToViewStates).forEach(group => {
-				const groupId: GroupIdentifier = Number(group);
-				if (!this.editorGroupService.getGroup(groupId)) {
-					delete mapGroupToViewStates[groupId];
-
-					if (types.isEmptyObject(mapGroupToViewStates)) {
-						cache.delete(resource);
-					}
-				}
-			});
-		});
-
-		this.memento[this.key] = cache.toJSON();
-	}
+	clearState(resource: URI): void;
+	clearState(editor: EditorInput): void;
 }
 
 class EditorInputFactoryRegistry implements IEditorInputFactoryRegistry {

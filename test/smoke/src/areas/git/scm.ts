@@ -10,12 +10,10 @@ import { findElement, findElements, Code } from '../../vscode/code';
 const VIEWLET = 'div[id="workbench.view.scm"]';
 const SCM_INPUT = `${VIEWLET} .scm-editor textarea`;
 const SCM_RESOURCE = `${VIEWLET} .monaco-list-row > .resource`;
-const SCM_RESOURCE_GROUP = `${VIEWLET} .monaco-list-row > .resource-group`;
 const REFRESH_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Refresh"]`;
 const COMMIT_COMMAND = `div[id="workbench.parts.sidebar"] .actions-container a.action-label[title="Commit"]`;
 const SCM_RESOURCE_CLICK = (name: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .label-name`;
 const SCM_RESOURCE_ACTION_CLICK = (name: string, actionName: string) => `${SCM_RESOURCE} .monaco-icon-label[title*="${name}"] .actions .action-label[title="${actionName}"]`;
-const SCM_RESOURCE_GROUP_COMMAND_CLICK = (name: string) => `${SCM_RESOURCE_GROUP} .actions .action-label[title="${name}"]`;
 
 interface Change {
 	name: string;
@@ -64,14 +62,12 @@ export class SCM extends Viewlet {
 
 	async stage(name: string): Promise<void> {
 		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Stage Changes'));
-	}
-
-	async stageAll(): Promise<void> {
-		await this.code.waitAndClick(SCM_RESOURCE_GROUP_COMMAND_CLICK('Stage All Changes'));
+		await this.waitForChange(name, 'Index Modified');
 	}
 
 	async unstage(name: string): Promise<void> {
 		await this.code.waitAndClick(SCM_RESOURCE_ACTION_CLICK(name, 'Unstage Changes'));
+		await this.waitForChange('app.js', 'Modified');
 	}
 
 	async commit(message: string): Promise<void> {

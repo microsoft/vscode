@@ -12,6 +12,7 @@
 	"resetButtonTitle": "重置",
 	"configured": "已修改",
 	"alsoConfiguredIn": "同时修改于",
+	"configuredIn": "修改于",
 	"editInSettingsJson": "在 settings.json 中编辑",
 	"settingRowAriaLabel": "{0} {1}，设置",
 	"groupRowAriaLabel": "{0}，组"

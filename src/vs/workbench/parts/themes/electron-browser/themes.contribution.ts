@@ -25,6 +25,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { Color } from 'vs/base/common/color';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LIGHT, DARK, HIGH_CONTRAST } from 'vs/platform/theme/common/themeService';
+import { schemaId } from 'vs/workbench/services/themes/common/colorThemeSchema';
 
 export class SelectColorThemeAction extends Action {
 
@@ -185,19 +186,32 @@ class GenerateColorThemeAction extends Action {
 
 	run(): TPromise<any> {
 		let theme = this.themeService.getColorTheme();
-		let colorRegistry = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution);
+		let colors = Registry.as<IColorRegistry>(ColorRegistryExtensions.ColorContribution).getColors();
+		let colorIds = colors.map(c => c.id).sort();
 		let resultingColors = {};
-		colorRegistry.getColors().map(c => {
-			let color = theme.getColor(c.id, false);
+		let inherited = [];
+		for (let colorId of colorIds) {
+			let color = theme.getColor(colorId, false);
 			if (color) {
-				resultingColors[c.id] = Color.Format.CSS.formatHexA(color, true);
+				resultingColors[colorId] = Color.Format.CSS.formatHexA(color, true);
+			} else {
+				inherited.push(colorId);
 			}
-		});
+		}
+		for (let id of inherited) {
+			let color = theme.getColor(id);
+			if (color) {
+				resultingColors['__' + id] = Color.Format.CSS.formatHexA(color, true);
+			}
+		}
 		let contents = JSON.stringify({
+			'$schema': schemaId,
 			type: theme.type,
 			colors: resultingColors,
-			tokenColors: theme.tokenColors
+			tokenColors: theme.tokenColors.filter(t => !!t.scope)
 		}, null, '\t');
+		contents = contents.replace(/\"__/g, '//"');
+
 		return this.editorService.openEditor({ contents, language: 'jsonc' });
 	}
 }

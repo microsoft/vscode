@@ -304,6 +304,8 @@
 		"@types/markdown-it": "0.0.2",
 		"@types/node": "7.0.43",
 		"lodash.throttle": "^4.1.1",
+		"mocha-junit-reporter": "^1.17.0",
+		"mocha-multi-reporters": "^1.1.7",
 		"ts-loader": "^4.0.1",
 		"typescript": "^2.7.2",
 		"vscode": "^1.1.10",

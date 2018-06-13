@@ -364,7 +364,7 @@ declare namespace monaco {
 		 * Placed last to cover the length of the enum.
 		 * Please do not depend on this value!
 		 */
-		MAX_VALUE = 112,
+		MAX_VALUE = 112
 	}
 
 	export class KeyMod {
@@ -761,7 +761,7 @@ declare namespace monaco {
 		/**
 		 * The selection starts below where it ends.
 		 */
-		RTL = 1,
+		RTL = 1
 	}
 
 	export class Token {
@@ -1136,7 +1136,7 @@ declare namespace monaco.editor {
 	export enum ScrollbarVisibility {
 		Auto = 1,
 		Hidden = 2,
-		Visible = 3,
+		Visible = 3
 	}
 
 	export interface ThemeColor {
@@ -1150,7 +1150,7 @@ declare namespace monaco.editor {
 		Left = 1,
 		Center = 2,
 		Right = 4,
-		Full = 7,
+		Full = 7
 	}
 
 	/**
@@ -1313,7 +1313,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 2,
+		CRLF = 2
 	}
 
 	/**
@@ -1327,7 +1327,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 2,
+		CRLF = 2
 	}
 
 	/**
@@ -1341,7 +1341,7 @@ declare namespace monaco.editor {
 		/**
 		 * Use carriage return and line feed (\r\n) as the end of line character.
 		 */
-		CRLF = 1,
+		CRLF = 1
 	}
 
 	/**
@@ -1435,7 +1435,7 @@ declare namespace monaco.editor {
 		AlwaysGrowsWhenTypingAtEdges = 0,
 		NeverGrowsWhenTypingAtEdges = 1,
 		GrowsOnlyWhenTypingBefore = 2,
-		GrowsOnlyWhenTypingAfter = 3,
+		GrowsOnlyWhenTypingAfter = 3
 	}
 
 	/**
@@ -1991,7 +1991,7 @@ declare namespace monaco.editor {
 
 	export const enum ScrollType {
 		Smooth = 0,
-		Immediate = 1,
+		Immediate = 1
 	}
 
 	/**
@@ -2321,7 +2321,7 @@ declare namespace monaco.editor {
 		/**
 		 * There was a Redo.
 		 */
-		Redo = 6,
+		Redo = 6
 	}
 
 	/**
@@ -2923,6 +2923,10 @@ declare namespace monaco.editor {
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
+		/**
+		 * Controls fading out of unused variables.
+		 */
+		showUnused?: boolean;
 	}
 
 	/**
@@ -2961,7 +2965,7 @@ declare namespace monaco.editor {
 		Small = 1,
 		Large = 2,
 		SmallBlocks = 3,
-		LargeBlocks = 4,
+		LargeBlocks = 4
 	}
 
 	/**
@@ -2983,7 +2987,7 @@ declare namespace monaco.editor {
 		/**
 		 * DeepIndent => wrapped lines get +2 indentation toward the parent.
 		 */
-		DeepIndent = 3,
+		DeepIndent = 3
 	}
 
 	/**
@@ -3013,7 +3017,7 @@ declare namespace monaco.editor {
 		/**
 		 * No-Blinking
 		 */
-		Solid = 5,
+		Solid = 5
 	}
 
 	/**
@@ -3043,7 +3047,7 @@ declare namespace monaco.editor {
 		/**
 		 * As a thin horizontal line (sitting under a character).
 		 */
-		UnderlineThin = 6,
+		UnderlineThin = 6
 	}
 
 	export interface InternalEditorScrollbarOptions {
@@ -3091,7 +3095,7 @@ declare namespace monaco.editor {
 		On = 1,
 		Relative = 2,
 		Interval = 3,
-		Custom = 4,
+		Custom = 4
 	}
 
 	export interface InternalEditorViewOptions {
@@ -3175,6 +3179,7 @@ declare namespace monaco.editor {
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly multiCursorMergeOverlapping: boolean;
+		readonly showUnused: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -3420,7 +3425,7 @@ declare namespace monaco.editor {
 		/**
 		 * Place the content widget below a position
 		 */
-		BELOW = 2,
+		BELOW = 2
 	}
 
 	/**
@@ -3477,7 +3482,7 @@ declare namespace monaco.editor {
 		/**
 		 * Position the overlay widget in the top center
 		 */
-		TOP_CENTER = 2,
+		TOP_CENTER = 2
 	}
 
 	/**
@@ -3568,7 +3573,7 @@ declare namespace monaco.editor {
 		/**
 		 * Mouse is outside of the editor.
 		 */
-		OUTSIDE_EDITOR = 13,
+		OUTSIDE_EDITOR = 13
 	}
 
 	/**
@@ -4207,7 +4212,7 @@ declare namespace monaco.languages {
 		Color = 15,
 		File = 16,
 		Reference = 17,
-		Folder = 18,
+		Folder = 18
 	}
 
 	/**
@@ -4557,7 +4562,7 @@ declare namespace monaco.languages {
 		/**
 		 * Insert new line and outdent once (relative to the previous line's indentation).
 		 */
-		Outdent = 3,
+		Outdent = 3
 	}
 
 	/**
@@ -4628,7 +4633,7 @@ declare namespace monaco.languages {
 	export enum SuggestTriggerKind {
 		Invoke = 0,
 		TriggerCharacter = 1,
-		TriggerForIncompleteCompletions = 2,
+		TriggerForIncompleteCompletions = 2
 	}
 
 	export interface CodeAction {
@@ -4725,7 +4730,7 @@ declare namespace monaco.languages {
 		/**
 		 * Write-access of a symbol, like writing to a variable.
 		 */
-		Write = 2,
+		Write = 2
 	}
 
 	/**
@@ -4863,39 +4868,17 @@ declare namespace monaco.languages {
 		Struct = 22,
 		Event = 23,
 		Operator = 24,
-		TypeParameter = 25,
+		TypeParameter = 25
 	}
 
-	/**
-	 * Represents information about programming constructs like variables, classes,
-	 * interfaces etc.
-	 */
-	export interface SymbolInformation {
-		/**
-		 * The name of this symbol.
-		 */
+	export interface DocumentSymbol {
 		name: string;
-		/**
-		 * The detail of this symbol.
-		 */
-		detail?: string;
-		/**
-		 * The name of the symbol containing this symbol.
-		 */
-		containerName?: string;
-		/**
-		 * The kind of this symbol.
-		 */
+		detail: string;
 		kind: SymbolKind;
-		/**
-		 * The location of this symbol.
-		 */
-		location: Location;
-		/**
-		 * The defining range of this symbol.
-		 */
-		definingRange: IRange;
-		children?: SymbolInformation[];
+		containerName?: string;
+		fullRange: IRange;
+		identifierRange: IRange;
+		children?: DocumentSymbol[];
 	}
 
 	/**
@@ -4907,7 +4890,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide symbol information for the given document.
 		 */
-		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): SymbolInformation[] | Thenable<SymbolInformation[]>;
+		provideDocumentSymbols(model: editor.ITextModel, token: CancellationToken): DocumentSymbol[] | Thenable<DocumentSymbol[]>;
 	}
 
 	export interface TextEdit {
@@ -5145,6 +5128,76 @@ declare namespace monaco.languages {
 		title: string;
 		tooltip?: string;
 		arguments?: any[];
+	}
+
+	export interface CommentInfo {
+		owner: number;
+		threads: CommentThread[];
+		commentingRanges?: IRange[];
+		reply?: Command;
+	}
+
+	export enum CommentThreadCollapsibleState {
+		/**
+		 * Determines an item is collapsed
+		 */
+		Collapsed = 0,
+		/**
+		 * Determines an item is expanded
+		 */
+		Expanded = 1
+	}
+
+	export interface CommentThread {
+		threadId: string;
+		resource: string;
+		range: IRange;
+		comments: Comment[];
+		collapsibleState?: CommentThreadCollapsibleState;
+		reply?: Command;
+	}
+
+	export interface NewCommentAction {
+		ranges: IRange[];
+		actions: Command[];
+	}
+
+	export interface Comment {
+		readonly commentId: string;
+		readonly body: IMarkdownString;
+		readonly userName: string;
+		readonly gravatar: string;
+		readonly command?: Command;
+	}
+
+	export interface CommentThreadChangedEvent {
+		readonly owner: number;
+		/**
+		 * Added comment threads.
+		 */
+		readonly added: CommentThread[];
+		/**
+		 * Removed comment threads.
+		 */
+		readonly removed: CommentThread[];
+		/**
+		 * Changed comment threads.
+		 */
+		readonly changed: CommentThread[];
+	}
+
+	export interface DocumentCommentProvider {
+		provideDocumentComments(resource: Uri, token: CancellationToken): Promise<CommentInfo>;
+		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
+	}
+
+	export interface WorkspaceCommentProvider {
+		provideWorkspaceComments(token: CancellationToken): Promise<CommentThread[]>;
+		createNewCommentThread(resource: Uri, range: Range, text: string, token: CancellationToken): Promise<CommentThread>;
+		replyToCommentThread(resource: Uri, range: Range, thread: CommentThread, text: string, token: CancellationToken): Promise<CommentThread>;
+		onDidChangeCommentThreads(): IEvent<CommentThreadChangedEvent>;
 	}
 
 	export interface ICodeLensSymbol {

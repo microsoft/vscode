@@ -47,7 +47,7 @@ import { EXTENSION_LOG_BROADCAST_CHANNEL, EXTENSION_ATTACH_BROADCAST_CHANNEL, EX
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
 import { IRemoteConsoleLog, parse, getFirstFrame } from 'vs/base/node/console';
 import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { TaskEvent, TaskEventKind } from 'vs/workbench/parts/tasks/common/tasks';
+import { TaskEvent, TaskEventKind, TaskIdentifier } from 'vs/workbench/parts/tasks/common/tasks';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -138,6 +138,10 @@ export class DebugService implements debug.IDebugService {
 		this.lifecycleService.onShutdown(this.store, this);
 		this.lifecycleService.onShutdown(this.dispose, this);
 		this.toDispose.push(this.broadcastService.onBroadcast(this.onBroadcast, this));
+		this.toDispose.push(this.viewModel.onDidFocusSession(s => {
+			const id = s ? s.getId() : undefined;
+			this.model.setBreakpointsSessionId(id);
+		}));
 	}
 
 	private onBroadcast(broadcast: IBroadcast): void {
@@ -425,10 +429,10 @@ export class DebugService implements debug.IDebugService {
 					if (!breakpoint.column) {
 						event.body.breakpoint.column = undefined;
 					}
-					this.model.updateBreakpoints({ [breakpoint.getId()]: event.body.breakpoint });
+					this.model.setBreakpointSessionData(session.getId(), { [breakpoint.getId()]: event.body.breakpoint });
 				}
 				if (functionBreakpoint) {
-					this.model.updateFunctionBreakpoints({ [functionBreakpoint.getId()]: event.body.breakpoint });
+					this.model.setBreakpointSessionData(session.getId(), { [functionBreakpoint.getId()]: event.body.breakpoint });
 				}
 			}
 		}));
@@ -493,7 +497,7 @@ export class DebugService implements debug.IDebugService {
 		let result: ExceptionBreakpoint[];
 		try {
 			result = JSON.parse(this.storageService.get(DEBUG_EXCEPTION_BREAKPOINTS_KEY, StorageScope.WORKSPACE, '[]')).map((exBreakpoint: any) => {
-				return new ExceptionBreakpoint(exBreakpoint.filter || exBreakpoint.name, exBreakpoint.label, exBreakpoint.enabled);
+				return new ExceptionBreakpoint(exBreakpoint.filter, exBreakpoint.label, exBreakpoint.enabled);
 			});
 		} catch (e) { }
 
@@ -611,7 +615,7 @@ export class DebugService implements debug.IDebugService {
 
 	public addBreakpoints(uri: uri, rawBreakpoints: debug.IBreakpointData[]): TPromise<debug.IBreakpoint[]> {
 		const breakpoints = this.model.addBreakpoints(uri, rawBreakpoints);
-		rawBreakpoints.forEach(rbp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", rbp.lineNumber, uri.fsPath)));
+		breakpoints.forEach(bp => aria.status(nls.localize('breakpointAdded', "Added breakpoint, line {0}, file {1}", bp.lineNumber, uri.fsPath)));
 
 		return this.sendBreakpoints(uri).then(() => breakpoints);
 	}
@@ -646,7 +650,7 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public renameFunctionBreakpoint(id: string, newFunctionName: string): TPromise<void> {
-		this.model.updateFunctionBreakpoints({ [id]: { name: newFunctionName } });
+		this.model.renameFunctionBreakpoint(id, newFunctionName);
 		return this.sendFunctionBreakpoints();
 	}
 
@@ -666,12 +670,15 @@ export class DebugService implements debug.IDebugService {
 	}
 
 	public logToRepl(value: string | debug.IExpression, sev = severity.Info, source?: debug.IReplElementSource): void {
-		if (typeof value === 'string' && '[2J'.localeCompare(value) === 0) {
+		const clearAnsiSequence = '\u001b[2J';
+		if (typeof value === 'string' && value.indexOf(clearAnsiSequence) >= 0) {
 			// [2J is the ansi escape sequence for clearing the display http://ascii-table.com/ansi-escape-sequences.php
 			this.model.removeReplExpressions();
-		} else {
-			this.model.appendToRepl(value, sev, source);
+			this.model.appendToRepl(nls.localize('consoleCleared', "Console was cleared"), severity.Ignore);
+			value = value.substr(value.indexOf(clearAnsiSequence) + clearAnsiSequence.length);
 		}
+
+		this.model.appendToRepl(value, sev, source);
 	}
 
 	public addWatchExpression(name: string): void {
@@ -706,7 +713,6 @@ export class DebugService implements debug.IDebugService {
 				if (this.model.getSessions().length === 0) {
 					this.removeReplExpressions();
 					this.allSessions.clear();
-					this.model.unverifyBreakpoints();
 				}
 
 				let config: debug.IConfig, compound: debug.ICompound;
@@ -716,6 +722,15 @@ export class DebugService implements debug.IDebugService {
 				if (typeof configOrName === 'string' && launch) {
 					config = launch.getConfiguration(configOrName);
 					compound = launch.getCompound(configOrName);
+
+					const sessions = this.model.getSessions();
+					const alreadyRunningMessage = nls.localize('configurationAlreadyRunning', "There is already a debug configuration \"{0}\" running.", configOrName);
+					if (sessions.some(p => p.getName(false) === configOrName && (!launch || !launch.workspace || !p.raw.root || p.raw.root.uri.toString() === launch.workspace.uri.toString()))) {
+						return TPromise.wrapError(new Error(alreadyRunningMessage));
+					}
+					if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+						return TPromise.wrapError(new Error(alreadyRunningMessage));
+					}
 				} else if (typeof configOrName !== 'string') {
 					config = configOrName;
 				}
@@ -844,30 +859,9 @@ export class DebugService implements debug.IDebugService {
 				this.toDisposeOnSessionEnd.set(sessionId, []);
 
 				const workspace = launch ? launch.workspace : undefined;
-				const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
-					return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
-				});
-
-				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask).then((taskSummary: ITaskSummary) => {
-					const errorCount = resolvedConfig.preLaunchTask ? this.markerService.getStatistics().errors : 0;
-					const successExitCode = taskSummary && taskSummary.exitCode === 0;
-					const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
-					if (successExitCode || (errorCount === 0 && !failureExitCode)) {
-						return this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId);
-					}
-
-					const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-						errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", resolvedConfig.preLaunchTask) :
-							nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", resolvedConfig.preLaunchTask, taskSummary.exitCode);
-
-					const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
-						return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
-					});
-
-					return this.showError(message, [debugAnywayAction, showErrorsAction]);
-				}, (err: TaskError) => {
-					return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
-				});
+				return this.runTask(sessionId, workspace, resolvedConfig.preLaunchTask, resolvedConfig, unresolvedConfig,
+					() => this.doCreateSession(workspace, { resolved: resolvedConfig, unresolved: unresolvedConfig }, sessionId)
+				);
 			}, err => {
 				if (err && err.message) {
 					return this.showError(err.message);
@@ -1014,16 +1008,43 @@ export class DebugService implements debug.IDebugService {
 		});
 	}
 
-	private runTask(sessionId: string, root: IWorkspaceFolder, taskName: string): TPromise<ITaskSummary> {
-		if (!taskName || this.skipRunningTask) {
+	private runTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier, config: debug.IConfig, unresolvedConfig: debug.IConfig, onSuccess: () => TPromise<any>): TPromise<any> {
+		const debugAnywayAction = new Action('debug.debugAnyway', nls.localize('debugAnyway', "Debug Anyway"), undefined, true, () => {
+			return this.doCreateSession(root, { resolved: config, unresolved: unresolvedConfig }, sessionId);
+		});
+
+		return this.doRunTask(sessionId, root, taskId).then((taskSummary: ITaskSummary) => {
+			const errorCount = config.preLaunchTask ? this.markerService.getStatistics().errors : 0;
+			const successExitCode = taskSummary && taskSummary.exitCode === 0;
+			const failureExitCode = taskSummary && taskSummary.exitCode !== undefined && taskSummary.exitCode !== 0;
+			if (successExitCode || (errorCount === 0 && !failureExitCode)) {
+				return onSuccess();
+			}
+
+			const message = errorCount > 1 ? nls.localize('preLaunchTaskErrors', "Build errors have been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
+				errorCount === 1 ? nls.localize('preLaunchTaskError', "Build error has been detected during preLaunchTask '{0}'.", config.preLaunchTask) :
+					nls.localize('preLaunchTaskExitCode', "The preLaunchTask '{0}' terminated with exit code {1}.", config.preLaunchTask, taskSummary.exitCode);
+
+			const showErrorsAction = new Action('debug.showErrors', nls.localize('showErrors', "Show Errors"), undefined, true, () => {
+				return this.panelService.openPanel(Constants.MARKERS_PANEL_ID).then(() => undefined);
+			});
+
+			return this.showError(message, [debugAnywayAction, showErrorsAction]);
+		}, (err: TaskError) => {
+			return this.showError(err.message, [debugAnywayAction, this.taskService.configureAction()]);
+		});
+	}
+
+	private doRunTask(sessionId: string, root: IWorkspaceFolder, taskId: string | TaskIdentifier): TPromise<ITaskSummary> {
+		if (!taskId || this.skipRunningTask) {
 			this.skipRunningTask = false;
 			return TPromise.as(null);
 		}
-
 		// run a task before starting a debug session
-		return this.taskService.getTask(root, taskName).then(task => {
+		return this.taskService.getTask(root, taskId).then(task => {
+			const taskDisplayName = typeof taskId === 'string' ? `'${taskId}'` : nls.localize('specified', "specified");
 			if (!task) {
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the task \'{0}\'.", taskName)));
+				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the task {0}.", taskDisplayName)));
 			}
 
 			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
@@ -1067,7 +1088,7 @@ export class DebugService implements debug.IDebugService {
 
 				setTimeout(() => {
 					if (!taskStarted) {
-						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskName) });
+						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The task {0} cannot be tracked.", taskDisplayName) });
 					}
 				}, 10000);
 			});
@@ -1080,11 +1101,12 @@ export class DebugService implements debug.IDebugService {
 
 	public restartSession(session: debug.ISession, restartData?: any): TPromise<any> {
 		return this.textFileService.saveAll().then(() => {
+			const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 			if (session.raw.capabilities.supportsRestartRequest) {
-				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask)
-					.then(() => this.runTask(session.getId(), session.raw.root, session.configuration.preLaunchTask))
-					.then(() => <TPromise>session.raw.custom('restart', null));
+				return this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask, session.configuration, unresolvedConfiguration,
+					() => session.raw.custom('restart', null));
 			}
+
 			const focusedSession = this.viewModel.focusedSession;
 			const preserveFocus = focusedSession && session.getId() === focusedSession.getId();
 			// Do not run preLaunch and postDebug tasks for automatic restarts
@@ -1104,7 +1126,6 @@ export class DebugService implements debug.IDebugService {
 						let configToUse = session.configuration;
 
 						const launch = session.raw.root ? this.configurationManager.getLaunch(session.raw.root.uri) : undefined;
-						const unresolvedConfiguration = (<Session>session).unresolvedConfiguration;
 						if (launch) {
 							const config = launch.getConfiguration(session.configuration.name);
 							if (config && !equals(config, unresolvedConfiguration)) {
@@ -1170,7 +1191,7 @@ export class DebugService implements debug.IDebugService {
 		if (session) {
 			this._onDidEndSession.fire(session);
 			if (session.configuration.postDebugTask) {
-				this.runTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>
+				this.doRunTask(session.getId(), session.raw.root, session.configuration.postDebugTask).done(undefined, err =>
 					this.notificationService.error(err)
 				);
 			}
@@ -1184,13 +1205,6 @@ export class DebugService implements debug.IDebugService {
 		this.updateStateAndEmit(raw.getId(), debug.State.Inactive);
 
 		if (this.model.getSessions().length === 0) {
-			// set breakpoints back to unverified since the session ended.
-			const data: { [id: string]: { line: number, verified: boolean, column: number, endLine: number, endColumn: number } } = {};
-			breakpoints.forEach(bp => {
-				data[bp.getId()] = { line: bp.lineNumber, verified: false, column: bp.column, endLine: bp.endLineNumber, endColumn: bp.endColumn };
-			});
-			this.model.updateBreakpoints(data);
-
 			this.inDebugMode.reset();
 			this.debugType.reset();
 			this.viewModel.setMultiSessionView(false);
@@ -1255,16 +1269,11 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: DebugProtocol.Breakpoint } = {};
+				const data = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
-					if (!breakpointsToSend[i].column) {
-						// If there was no column sent ignore the breakpoint column response from the adapter
-						data[breakpointsToSend[i].getId()].column = undefined;
-					}
 				}
-
-				this.model.updateBreakpoints(data);
+				this.model.setBreakpointSessionData(raw.getId(), data);
 			});
 		};
 
@@ -1284,12 +1293,11 @@ export class DebugService implements debug.IDebugService {
 					return;
 				}
 
-				const data: { [id: string]: { name?: string, verified?: boolean } } = {};
+				const data = Object.create(null);
 				for (let i = 0; i < breakpointsToSend.length; i++) {
 					data[breakpointsToSend[i].getId()] = response.body.breakpoints[i];
 				}
-
-				this.model.updateFunctionBreakpoints(data);
+				this.model.setBreakpointSessionData(raw.getId(), data);
 			});
 		};
 

@@ -22,6 +22,9 @@ import { inQuickOpenContext, getQuickNavigateHandler } from 'vs/workbench/browse
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
+import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { HistoryNavigationKeybindingsChangedContribution } from 'vs/workbench/electron-browser/removedKeybindingsContribution';
 
 // Contribute Commands
 registerCommands();
@@ -268,7 +271,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['bottom', 'right'],
 			'default': 'bottom',
-			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel. It can either show at the bottom or on the right of the workbench.")
+			'description': nls.localize('panelDefaultLocation', "Controls the default location of the panel (terminal, debug console, output, problems). It can either show at the bottom or on the right of the workbench.")
 		},
 		'workbench.statusBar.visible': {
 			'type': 'boolean',
@@ -501,3 +504,5 @@ configurationRegistry.registerConfiguration({
 		}
 	}
 });
+
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench).registerWorkbenchContribution(HistoryNavigationKeybindingsChangedContribution, LifecyclePhase.Eventually);

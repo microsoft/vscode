@@ -8,7 +8,7 @@
 import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
-import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent } from 'vs/workbench/common/editor';
+import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext } from 'vs/workbench/common/editor';
 import { Event, Emitter, once } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
@@ -27,7 +27,7 @@ import { ProgressService } from 'vs/workbench/services/progress/browser/progress
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { localize } from 'vs/nls';
 import { isPromiseCanceledError, isErrorWithActions, IErrorWithActions } from 'vs/base/common/errors';
-import { dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { Severity, INotificationService, INotificationActions } from 'vs/platform/notification/common/notification';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -172,11 +172,15 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		this._register(attachProgressBarStyler(this.progressBar, this.themeService));
 		this.progressBar.hide();
 
-		// Scoped instantiator
+		// Scoped services
+		const scopedContextKeyService = this._register(this.contextKeyService.createScoped(this.element));
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection(
-			[IContextKeyService, this._register(this.contextKeyService.createScoped(this.element))],
+			[IContextKeyService, scopedContextKeyService],
 			[IProgressService, new ProgressService(this.progressBar)]
 		));
+
+		// Context keys
+		this.handleGroupContextKeys(scopedContextKeyService);
 
 		// Title container
 		this.titleContainer = document.createElement('div');
@@ -203,6 +207,34 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Update styles
 		this.updateStyles();
+	}
+
+	private handleGroupContextKeys(contextKeyServcie: IContextKeyService): void {
+		const groupActiveEditorDirtyContextKey = EditorGroupActiveEditorDirtyContext.bindTo(contextKeyServcie);
+
+		let activeEditorListener: IDisposable;
+
+		const observeActiveEditor = () => {
+			activeEditorListener = dispose(activeEditorListener);
+
+			const activeEditor = this._group.activeEditor;
+			if (activeEditor) {
+				groupActiveEditorDirtyContextKey.set(activeEditor.isDirty());
+				activeEditorListener = activeEditor.onDidChangeDirty(() => groupActiveEditorDirtyContextKey.set(activeEditor.isDirty()));
+			} else {
+				groupActiveEditorDirtyContextKey.set(false);
+			}
+		};
+
+		// Track the active editor and update context key that reflects
+		// the dirty state of this editor
+		this._register(this.onDidGroupChange(e => {
+			if (e.kind === GroupChangeKind.EDITOR_ACTIVE) {
+				observeActiveEditor();
+			}
+		}));
+
+		observeActiveEditor();
 	}
 
 	private registerContainerListeners(): void {
@@ -716,16 +748,19 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			openEditorOptions.active = true;
 		}
 
+		// Set group active unless we open inactive or preserve focus
+		// Do this before we open the editor in the group to prevent a false
+		// active editor change event before the editor is loaded
+		// (see https://github.com/Microsoft/vscode/issues/51679)
+		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
+			this.accessor.activateGroup(this);
+		}
+
 		// Update model
 		this._group.openEditor(editor, openEditorOptions);
 
 		// Show editor
 		const showEditorResult = this.doShowEditor(editor, openEditorOptions.active, options);
-
-		// Set group active unless we open inactive or preserve focus
-		if (openEditorOptions.active && (!options || !options.preserveFocus)) {
-			this.accessor.activateGroup(this);
-		}
 
 		return showEditorResult;
 	}
@@ -1262,9 +1297,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Themable
 
 	protected updateStyles(): void {
+		const isEmpty = this.isEmpty();
 
 		// Container
-		if (this.isEmpty()) {
+		if (isEmpty) {
 			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND);
 		} else {
 			this.element.style.backgroundColor = null;
@@ -1273,10 +1309,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control
 		const { showTabs } = this.accessor.partOptions;
 		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+
+		if (!isEmpty && showTabs && borderColor) {
+			addClass(this.titleContainer, 'title-border-bottom');
+			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
+		} else {
+			removeClass(this.titleContainer, 'title-border-bottom');
+			this.titleContainer.style.removeProperty('--title-border-bottom-color');
+		}
+
 		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
-		this.titleContainer.style.borderBottomWidth = (borderColor && showTabs) ? '1px' : null;
-		this.titleContainer.style.borderBottomStyle = (borderColor && showTabs) ? 'solid' : null;
-		this.titleContainer.style.borderBottomColor = showTabs ? borderColor : null;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground);

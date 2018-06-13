@@ -136,7 +136,7 @@ export function getActiveTextEditorOptions(group: IEditorGroup, expectedActiveEd
  * A sub-interface of IEditorService to hide some workbench-core specific
  * events from clients.
  */
-export interface IEditorServiceImpl extends IEditorService {
+export interface EditorServiceImpl extends IEditorService {
 
 	/**
 	 * Emitted when an editor is closed.
@@ -153,7 +153,7 @@ export interface IEditorServiceImpl extends IEditorService {
  * A sub-interface of IEditorGroupsService to hide some workbench-core specific
  * methods from clients.
  */
-export interface IEditorGroupsServiceImpl extends IEditorGroupsService {
+export interface EditorGroupsServiceImpl extends IEditorGroupsService {
 
 	/**
 	 * A promise that resolves when groups have been restored.

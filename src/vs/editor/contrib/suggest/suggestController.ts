@@ -350,7 +350,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
 		primary: KeyCode.Tab
 	}
 }));

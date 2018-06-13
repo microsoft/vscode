@@ -68,6 +68,7 @@ export interface ITerminalConfiguration {
 	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	drawBoldTextInBrightColors: boolean;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
@@ -88,6 +89,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalRestore: boolean;
+	experimentalTextureCachingStrategy: 'static' | 'dynamic';
 }
 
 export interface ITerminalConfigHelper {
@@ -215,8 +217,6 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
-	showNextFindTermFindWidget(): void;
-	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;

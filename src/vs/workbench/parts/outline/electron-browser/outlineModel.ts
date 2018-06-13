@@ -4,25 +4,25 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvider } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { fuzzyScore } from 'vs/base/common/filters';
+import { fuzzyScore, FuzzyScore } from 'vs/base/common/filters';
 import { IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
+import { Range, IRange } from 'vs/editor/common/core/range';
 import { first, size } from 'vs/base/common/collections';
-import { isFalsyOrEmpty } from 'vs/base/common/arrays';
+import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
-
-export type FuzzyScore = [number, number[]];
+import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { onUnexpectedExternalError } from 'vs/base/common/errors';
 
 export abstract class TreeElement {
 	abstract id: string;
 	abstract children: { [id: string]: TreeElement };
 	abstract parent: TreeElement | any;
 
-	static findId(candidate: SymbolInformation | string, container: TreeElement): string {
+	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
 		// the parent path, and some dedupe logic when names collide
 		let candidateId: string;
@@ -31,7 +31,7 @@ export abstract class TreeElement {
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
 			if (container.children[candidateId] !== void 0) {
-				candidateId = `${container.id}/${candidate.name}_${candidate.definingRange.startLineNumber}_${candidate.definingRange.startColumn}`;
+				candidateId = `${container.id}/${candidate.name}_${candidate.fullRange.startLineNumber}_${candidate.fullRange.startColumn}`;
 			}
 		}
 
@@ -76,11 +76,12 @@ export class OutlineElement extends TreeElement {
 
 	children: { [id: string]: OutlineElement; } = Object.create(null);
 	score: FuzzyScore = [0, []];
+	marker: { count: number, topSev: MarkerSeverity };
 
 	constructor(
 		readonly id: string,
 		public parent: OutlineModel | OutlineGroup | OutlineElement,
-		readonly symbol: SymbolInformation
+		readonly symbol: DocumentSymbol
 	) {
 		super();
 	}
@@ -107,7 +108,7 @@ export class OutlineGroup extends TreeElement {
 	}
 
 	private _updateMatches(pattern: string, item: OutlineElement, topMatch: OutlineElement): OutlineElement {
-		item.score = fuzzyScore(pattern, item.symbol.name);
+		item.score = fuzzyScore(pattern, item.symbol.name, undefined, true);
 		if (item.score && (!topMatch || item.score[0] > topMatch.score[0])) {
 			topMatch = item;
 		}
@@ -129,12 +130,63 @@ export class OutlineGroup extends TreeElement {
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.definingRange || item.symbol.location.range, position)) {
+			if (!Range.containsPosition(item.symbol.fullRange, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
 		}
 		return undefined;
+	}
+
+	updateMarker(marker: IMarker[]): void {
+		for (const key in this.children) {
+			this._updateMarker(marker, this.children[key]);
+		}
+	}
+
+	private _updateMarker(markers: IMarker[], item: OutlineElement): void {
+
+		item.marker = undefined;
+
+		// find the proper start index to check for item/marker overlap.
+		let idx = binarySearch<IRange>(markers, item.symbol.fullRange, Range.compareRangesUsingStarts);
+		let start: number;
+		if (idx < 0) {
+			start = ~idx;
+			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.fullRange)) {
+				start -= 1;
+			}
+		} else {
+			start = idx;
+		}
+
+		let myMarkers: IMarker[] = [];
+		let myTopSev: MarkerSeverity;
+
+		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.fullRange)) {
+			// remove markers intersecting with this outline element
+			// and store them in a 'private' array.
+			let marker = markers.splice(start, 1)[0];
+			myMarkers.push(marker);
+			if (!myTopSev || marker.severity > myTopSev) {
+				myTopSev = marker.severity;
+			}
+		}
+
+		// Recurse into children and let them match markers that have matched
+		// this outline element. This might remove markers from this element and
+		// therefore we remember that we have had markers. That allows us to render
+		// the dot, saying 'this element has children with markers'
+		for (const key in item.children) {
+			this._updateMarker(myMarkers, item.children[key]);
+		}
+
+		if (myTopSev) {
+			item.marker = {
+				count: myMarkers.length,
+				topSev: myTopSev
+			};
+		}
 	}
 }
 
@@ -155,7 +207,7 @@ export class OutlineModel extends TreeElement {
 				}
 				return group;
 			}, err => {
-				//todo@joh capture error in group
+				onUnexpectedExternalError(err);
 				return group;
 			}).then(group => {
 				result._groups[id] = group;
@@ -192,7 +244,7 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	private static _makeOutlineElement(info: SymbolInformation, container: OutlineGroup | OutlineElement): void {
+	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
 		let id = TreeElement.findId(info, container);
 		let res = new OutlineElement(id, container, info);
 		if (info.children) {
@@ -201,6 +253,16 @@ export class OutlineModel extends TreeElement {
 			}
 		}
 		container.children[res.id] = res;
+	}
+
+	static get(element: TreeElement): OutlineModel {
+		while (element) {
+			if (element instanceof OutlineModel) {
+				return element;
+			}
+			element = element.parent;
+		}
+		return undefined;
 	}
 
 	readonly id = 'root';
@@ -249,5 +311,15 @@ export class OutlineModel extends TreeElement {
 
 	getItemById(id: string): TreeElement {
 		return TreeElement.getElementById(id, this);
+	}
+
+	updateMarker(marker: IMarker[]): void {
+		// sort markers by start range so that we can use
+		// outline element starts for quicker look up
+		marker.sort(Range.compareRangesUsingStarts);
+
+		for (const key in this._groups) {
+			this._groups[key].updateMarker(marker);
+		}
 	}
 }

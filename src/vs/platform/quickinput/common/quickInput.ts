@@ -8,8 +8,10 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
+import URI from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
 
-export interface IPickOpenEntry {
+export interface IQuickPickItem {
 	id?: string;
 	label: string;
 	description?: string;
@@ -86,24 +88,99 @@ export interface IInputOptions {
 
 export interface IQuickInput {
 
+
+	enabled: boolean;
+
+	busy: boolean;
+
+	ignoreFocusOut: boolean;
+
+	show(): void;
+
+	hide(): void;
+
+	onDidHide: Event<void>;
+
+	dispose(): void;
+}
+
+export interface IQuickPick extends IQuickInput {
+
+	value: string;
+
+	placeholder: string;
+
+	readonly onDidValueChange: Event<string>;
+
+	readonly onDidAccept: Event<string>;
+
+	buttons: ReadonlyArray<IQuickInputButton>;
+
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
+
+	items: ReadonlyArray<IQuickPickItem>;
+
+	canSelectMany: boolean;
+
+	matchOnDescription: boolean;
+
+	matchOnDetail: boolean;
+
+	readonly activeItems: ReadonlyArray<IQuickPickItem>;
+
+	readonly onDidChangeActive: Event<IQuickPickItem[]>;
+
+	readonly selectedItems: ReadonlyArray<IQuickPickItem>;
+
+	readonly onDidChangeSelection: Event<IQuickPickItem[]>;
+}
+
+export interface IInputBox extends IQuickInput {
+
+	value: string;
+
+	valueSelection: Readonly<[number, number]>;
+
+	placeholder: string;
+
+	password: boolean;
+
+	readonly onDidChangeValue: Event<string>;
+
+	readonly onDidAccept: Event<string>;
+
+	buttons: ReadonlyArray<IQuickInputButton>;
+
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
+
+	prompt: string;
+
+	validationMessage: string;
+}
+
+export interface IQuickInputButton {
+	iconPath: { dark: URI; light?: URI; };
+	tooltip?: string | undefined;
+}
+
+export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
+
+export interface IQuickInputService {
+
+	_serviceBrand: any;
+
 	/**
 	 * Opens the quick input box for selecting items and returns a promise with the user selected item(s) if any.
 	 */
-	pick<T extends IPickOpenEntry, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
+	pick<T extends IQuickPickItem, O extends IPickOptions>(picks: TPromise<T[]>, options?: O, token?: CancellationToken): TPromise<O extends { canPickMany: true } ? T[] : T>;
 
 	/**
 	 * Opens the quick input box for text input and returns a promise with the user typed value if any.
 	 */
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
-}
 
-export const IQuickInputService = createDecorator<IQuickInputService>('quickInputService');
-
-export interface IQuickInputService extends IQuickInput {
-
-	_serviceBrand: any;
-
-	multiStepInput<T>(handler: (input: IQuickInput, token: CancellationToken) => Thenable<T>, token?: CancellationToken): Thenable<T>;
+	createQuickPick(): IQuickPick;
+	createInputBox(): IInputBox;
 
 	focus(): void;
 

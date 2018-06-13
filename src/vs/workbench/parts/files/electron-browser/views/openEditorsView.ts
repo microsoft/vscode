@@ -15,7 +15,6 @@ import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/co
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IEditorInput } from 'vs/workbench/common/editor';
 import { SaveAllAction, SaveAllInGroupAction, CloseGroupAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenEditorsFocusedContext, ExplorerFocusedContext, IFilesConfiguration } from 'vs/workbench/parts/files/common/files';
 import { ITextFileService, AutoSaveMode } from 'vs/workbench/services/textfile/common/textfiles';
 import { OpenEditor } from 'vs/workbench/parts/files/common/explorerModel';
@@ -39,10 +38,12 @@ import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions'
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
 import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
 const $ = dom.$;
 
-export class OpenEditorsView extends ViewsViewletPanel {
+export class OpenEditorsView extends ViewletPanel {
 
 	private static readonly DEFAULT_VISIBLE_OPEN_EDITORS = 9;
 	static readonly ID = 'workbench.explorer.openEditorsView';
@@ -74,7 +75,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 		@IMenuService private menuService: IMenuService
 	) {
 		super({
-			...(options as IViewOptions),
+			...(options as IViewletPanelOptions),
 			ariaHeaderLabel: nls.localize({ key: 'openEditosrSection', comment: ['Open is an adjective'] }, "Open Editors Section"),
 		}, keybindingService, contextMenuService, configurationService);
 
@@ -175,7 +176,7 @@ export class OpenEditorsView extends ViewsViewletPanel {
 
 	protected renderHeaderTitle(container: HTMLElement): void {
 		const title = dom.append(container, $('.title'));
-		dom.append(title, $('span', null, this.name));
+		dom.append(title, $('span', null, this.title));
 
 		const count = dom.append(container, $('.count'));
 		this.dirtyCountElement = dom.append(count, $('.monaco-count-badge'));

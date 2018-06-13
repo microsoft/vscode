@@ -217,6 +217,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsShowRecommendationsOnlyOnDemand', "If set to true, recommendations will not be fetched or shown unless specifically requested by the user."),
 				default: false
+			},
+			'extensions.closeExtensionDetailsOnViewChange': {
+				type: 'boolean',
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
+				default: false
 			}
 		}
 	});

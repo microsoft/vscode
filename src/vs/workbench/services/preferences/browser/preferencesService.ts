@@ -35,8 +35,8 @@ import { parse } from 'vs/base/common/json';
 import { ICodeEditor, getCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { assign } from 'vs/base/common/objects';
-import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroup, IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 
 const emptyEditableSettingsContent = '{\n}';
 
@@ -224,9 +224,12 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 			// Create as needed and open in editor
 			return this.createIfNotExists(editableKeybindings, emptyContents).then(() => {
+				const activeEditorGroup = this.editorGroupService.activeGroup;
+				const sideEditorGroup = this.editorGroupService.addGroup(activeEditorGroup.id, GroupDirection.RIGHT);
+
 				return TPromise.join([
 					this.editorService.openEditor({ resource: this.defaultKeybindingsResource, options: { pinned: true, preserveFocus: true }, label: nls.localize('defaultKeybindings', "Default Keybindings"), description: '' }),
-					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, SIDE_GROUP)
+					this.editorService.openEditor({ resource: editableKeybindings, options: { pinned: true } }, sideEditorGroup.id)
 				]).then(editors => void 0);
 			});
 		}
@@ -235,16 +238,19 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 
 	configureSettingsForLanguage(language: string): void {
 		this.openGlobalSettings()
-			.then(editor => {
-				const codeEditor = getCodeEditor(editor.getControl());
-				if (codeEditor) {
-					this.getPosition(language, codeEditor)
-						.then(position => {
-							codeEditor.setPosition(position);
-							codeEditor.focus();
-						});
-				}
-			});
+			.then(editor => this.createPreferencesEditorModel(this.userSettingsResource)
+				.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
+					const codeEditor = getCodeEditor(editor.getControl());
+					if (codeEditor) {
+						this.getPosition(language, settingsModel, codeEditor)
+							.then(position => {
+								if (codeEditor) {
+									codeEditor.setPosition(position);
+									codeEditor.focus();
+								}
+							});
+					}
+				}));
 	}
 
 	private openOrSwitchSettings(configurationTarget: ConfigurationTarget, resource: URI, options?: IEditorOptions, group: IEditorGroup = this.editorGroupService.activeGroup): TPromise<IEditor> {
@@ -278,14 +284,16 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 	private doSwitchSettings(target: ConfigurationTarget, resource: URI, input: PreferencesEditorInput, group: IEditorGroup): TPromise<IEditor> {
 		return this.getOrCreateEditableSettingsEditorInput(target, this.getEditableSettingsURI(target, resource))
 			.then(toInput => {
-				const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
+				return group.openEditor(input).then(() => {
+					const replaceWith = new PreferencesEditorInput(this.getPreferencesEditorInputName(target, resource), toInput.getDescription(), this.instantiationService.createInstance(DefaultPreferencesEditorInput, this.getDefaultSettingsResource(target)), toInput);
 
-				return group.replaceEditors([{
-					editor: input,
-					replacement: replaceWith
-				}]).then(() => {
-					this.lastOpenedSettingsInput = replaceWith;
-					return group.activeControl;
+					return group.replaceEditors([{
+						editor: input,
+						replacement: replaceWith
+					}]).then(() => {
+						this.lastOpenedSettingsInput = replaceWith;
+						return group.activeControl;
+					});
 				});
 			});
 	}
@@ -427,7 +435,7 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		return this.fileService.resolveContent(resource, { acceptTextOnly: true }).then(null, error => {
 			if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_NOT_FOUND) {
 				return this.fileService.updateContent(resource, contents).then(null, error => {
-					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.contextService, this.environmentService), error)));
+					return TPromise.wrapError(new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", labels.getPathLabel(resource, this.environmentService, this.contextService), error)));
 				});
 			}
 
@@ -451,39 +459,36 @@ export class PreferencesService extends Disposable implements IPreferencesServic
 		];
 	}
 
-	private getPosition(language: string, codeEditor: ICodeEditor): TPromise<IPosition> {
-		return this.createPreferencesEditorModel(this.userSettingsResource)
-			.then((settingsModel: IPreferencesEditorModel<ISetting>) => {
-				const languageKey = `[${language}]`;
-				let setting = settingsModel.getPreference(languageKey);
-				const model = codeEditor.getModel();
-				const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
-				const eol = configuration.files && configuration.files.eol;
-				if (setting) {
-					if (setting.overrides.length) {
-						const lastSetting = setting.overrides[setting.overrides.length - 1];
-						let content;
-						if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
-							content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-						} else {
-							content = ',' + eol + this.spaces(2, configuration.editor);
-						}
-						const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						return { lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) };
-					}
-					return { lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 };
+	private getPosition(language: string, settingsModel: IPreferencesEditorModel<ISetting>, codeEditor: ICodeEditor): TPromise<IPosition> {
+		const languageKey = `[${language}]`;
+		let setting = settingsModel.getPreference(languageKey);
+		const model = codeEditor.getModel();
+		const configuration = this.configurationService.getValue<{ editor: { tabSize: number; insertSpaces: boolean }, files: { eol: string } }>();
+		const eol = configuration.files && configuration.files.eol;
+		if (setting) {
+			if (setting.overrides.length) {
+				const lastSetting = setting.overrides[setting.overrides.length - 1];
+				let content;
+				if (lastSetting.valueRange.endLineNumber === setting.range.endLineNumber) {
+					content = ',' + eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
+				} else {
+					content = ',' + eol + this.spaces(2, configuration.editor);
 				}
-				return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
-					.then(() => {
-						setting = settingsModel.getPreference(languageKey);
-						let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
-						let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
-						model.pushEditOperations([], [editOperation], () => []);
-						let lineNumber = setting.valueRange.endLineNumber + 1;
-						settingsModel.dispose();
-						return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
-					});
+				const editOperation = EditOperation.insert(new Position(lastSetting.valueRange.endLineNumber, lastSetting.valueRange.endColumn), content);
+				model.pushEditOperations([], [editOperation], () => []);
+				return TPromise.as({ lineNumber: lastSetting.valueRange.endLineNumber + 1, column: model.getLineMaxColumn(lastSetting.valueRange.endLineNumber + 1) });
+			}
+			return TPromise.as({ lineNumber: setting.valueRange.startLineNumber, column: setting.valueRange.startColumn + 1 });
+		}
+		return this.configurationService.updateValue(languageKey, {}, ConfigurationTarget.USER)
+			.then(() => {
+				setting = settingsModel.getPreference(languageKey);
+				let content = eol + this.spaces(2, configuration.editor) + eol + this.spaces(1, configuration.editor);
+				let editOperation = EditOperation.insert(new Position(setting.valueRange.endLineNumber, setting.valueRange.endColumn - 1), content);
+				model.pushEditOperations([], [editOperation], () => []);
+				let lineNumber = setting.valueRange.endLineNumber + 1;
+				settingsModel.dispose();
+				return { lineNumber, column: model.getLineMaxColumn(lineNumber) };
 			});
 	}
 

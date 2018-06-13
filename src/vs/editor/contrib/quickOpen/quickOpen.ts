@@ -11,13 +11,13 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
-import { SymbolInformation, DocumentSymbolProviderRegistry, IOutline } from 'vs/editor/common/modes';
+import { DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
 
-export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
+export function getDocumentSymbols(model: ITextModel): TPromise<DocumentSymbol[]> {
 
-	let roots: SymbolInformation[] = [];
+	let roots: DocumentSymbol[] = [];
 
 	let promises = DocumentSymbolProviderRegistry.all(model).map(support => {
 
@@ -31,29 +31,26 @@ export function getDocumentSymbols(model: ITextModel): TPromise<IOutline> {
 	});
 
 	return TPromise.join(promises).then(() => {
-		let flatEntries: SymbolInformation[] = [];
+		let flatEntries: DocumentSymbol[] = [];
 		flatten(flatEntries, roots, '');
 		flatEntries.sort(compareEntriesUsingStart);
-
-		return {
-			entries: flatEntries,
-		};
+		return flatEntries;
 	});
 }
 
-function compareEntriesUsingStart(a: SymbolInformation, b: SymbolInformation): number {
-	return Range.compareRangesUsingStarts(a.location.range, b.location.range);
+function compareEntriesUsingStart(a: DocumentSymbol, b: DocumentSymbol): number {
+	return Range.compareRangesUsingStarts(a.fullRange, b.fullRange);
 }
 
-function flatten(bucket: SymbolInformation[], entries: SymbolInformation[], overrideContainerLabel: string): void {
+function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
 	for (let entry of entries) {
 		bucket.push({
 			kind: entry.kind,
 			name: entry.name,
 			detail: entry.detail,
 			containerName: entry.containerName || overrideContainerLabel,
-			location: entry.location,
-			definingRange: entry.definingRange,
+			fullRange: entry.fullRange,
+			identifierRange: entry.identifierRange,
 			children: undefined, // we flatten it...
 		});
 		if (entry.children) {

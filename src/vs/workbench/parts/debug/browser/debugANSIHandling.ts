@@ -56,12 +56,12 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 					* Certain ranges that are matched here do not contain real graphics rendition sequences. For
 					* the sake of having a simpler expression, they have been included anyway.
 					*/
-				if (ansiSequence.match(/^(?:[39][0-7]|[0-8]|39)(?:;(?:[39][0-7]|[0-8]|39))*;?m$/)) {
+				if (ansiSequence.match(/^(?:[349][0-7]|10[0-7]|[01]|4|[34]9)(?:;(?:[349][0-7]|10[0-7]|[01]|4|[34]9))*;?m$/)) {
 
 					const styleCodes: number[] = ansiSequence.slice(0, -1)	// Remove final 'm' character.
-						.split(';')											// Separate style codes.
-						.filter(elem => elem !== '')						// Filter empty elems as '34;m' -> ['34', ''].
-						.map(elem => parseInt(elem, 10));					// Convert to numbers.
+						.split(';')					// Separate style codes.
+						.filter(elem => elem !== '')			// Filter empty elems as '34;m' -> ['34', ''].
+						.map(elem => parseInt(elem, 10));		// Convert to numbers.
 
 					for (let code of styleCodes) {
 						if (code === 0) {
@@ -75,6 +75,11 @@ export function handleANSIOutput(text: string, linkDetector: LinkDetector): HTML
 						} else if (code === 39) {
 							// Remove all foreground colour codes
 							styleNames = styleNames.filter(style => !style.match(/^code-foreground-\d+$/));
+						} else if ((code >= 40 && code <= 47) || (code >= 100 && code <= 107)) {
+							styleNames.push('code-background-' + code);
+						} else if (code === 49) {
+							// Remove all background colour codes
+							styleNames = styleNames.filter(style => !style.match(/^code-background-\d+$/));
 						}
 					}
 

@@ -1704,7 +1704,7 @@ registerCommand(new EditorOrNativeTextInputCommand({
 	editorHandler: CoreNavigationCommands.SelectAll,
 	inputHandler: 'selectAll',
 	id: 'editor.action.selectAll',
-	precondition: null,
+	precondition: EditorContextKeys.focus,
 	kbOpts: {
 		weight: CORE_WEIGHT,
 		kbExpr: null,

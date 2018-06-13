@@ -8,9 +8,9 @@ import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
-import BufferSyncSupport from './bufferSyncSupport';
 import FileConfigurationManager from './fileConfigurationManager';
 
 const localize = nls.loadMessageBundle();
@@ -28,11 +28,11 @@ export class UpdateImportsOnFileRenameHandler {
 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		private readonly bufferSyncSupport: BufferSyncSupport,
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
 		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
+			console.log(e.newResource);
 			this.doRename(e.oldResource, e.newResource);
 		});
 	}
@@ -45,20 +45,23 @@ export class UpdateImportsOnFileRenameHandler {
 		oldResource: vscode.Uri,
 		newResource: vscode.Uri,
 	): Promise<void> {
-		if (!this.client.apiVersion.has290Features) {
+		if (!this.client.apiVersion.gte(API.v290)) {
 			return;
 		}
 
-		if (!await this.handles(newResource)) {
+		const handles = await this.handles(newResource);
+		console.log(handles);
+		if (!handles) {
 			return;
 		}
 
-		const newFile = this.client.normalizePath(newResource);
+
+		const newFile = this.client.toPath(newResource);
 		if (!newFile) {
 			return;
 		}
 
-		const oldFile = this.client.normalizePath(oldResource);
+		const oldFile = this.client.toPath(oldResource);
 		if (!oldFile) {
 			return;
 		}
@@ -72,14 +75,15 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.bufferSyncSupport.closeResource(oldResource);
-		this.bufferSyncSupport.openTextDocument(document);
+		this.client.bufferSyncSupport.closeResource(oldResource);
+		this.client.bufferSyncSupport.openTextDocument(document);
 
 		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
 		}
 
+		console.log('x');
 		if (await this.confirmActionWithUser(document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
