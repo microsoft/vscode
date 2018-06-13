@@ -13,6 +13,7 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
@@ -23,7 +24,7 @@ export interface ICommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconPath?: { dark: string; light?: string; };
+	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
 }
 

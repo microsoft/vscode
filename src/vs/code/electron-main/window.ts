@@ -966,8 +966,8 @@ export class CodeWindow implements ICodeWindow {
 	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
-			if (item.iconPath) {
-				icon = nativeImage.createFromPath(item.iconPath.dark);
+			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
+				icon = nativeImage.createFromPath(item.iconLocation.dark.fsPath);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}

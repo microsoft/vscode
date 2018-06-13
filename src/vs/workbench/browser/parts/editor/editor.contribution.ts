@@ -405,12 +405,12 @@ editorCommands.setup();
 // Touch Bar
 if (isMacintosh) {
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')).fsPath } },
+		command: { id: NavigateBackwardsAction.ID, title: NavigateBackwardsAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/back-tb.png')) } },
 		group: 'navigation'
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.TouchBarContext, {
-		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconPath: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')).fsPath } },
+		command: { id: NavigateForwardAction.ID, title: NavigateForwardAction.LABEL, iconLocation: { dark: URI.parse(require.toUrl('vs/workbench/browser/parts/editor/media/forward-tb.png')) } },
 		group: 'navigation'
 	});
 }
@@ -447,17 +447,17 @@ function appendEditorToolItem(primary: IEditorToolItem, alternative: IEditorTool
 		command: {
 			id: primary.id,
 			title: primary.title,
-			iconPath: {
-				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)).fsPath,
-				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`)).fsPath
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconDark}`)),
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${primary.iconLight}`))
 			}
 		},
 		alt: {
 			id: alternative.id,
 			title: alternative.title,
-			iconPath: {
-				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)).fsPath,
-				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`)).fsPath
+			iconLocation: {
+				dark: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconDark}`)),
+				light: URI.parse(require.toUrl(`vs/workbench/browser/parts/editor/media/${alternative.iconLight}`))
 			}
 		},
 		group: 'navigation',
