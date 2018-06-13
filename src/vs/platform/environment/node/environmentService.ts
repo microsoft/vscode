@@ -90,7 +90,24 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return os.homedir(); }
 
 	@memoize
-	get userDataPath(): string { return parseUserDataDir(this._args, process); }
+	private get appPath(): string {
+		if (process.env['VSCODE_DEV']) {
+			return this.appRoot;
+		} else if (process.platform === 'darwin') {
+			return path.dirname(path.dirname(path.dirname(this.appRoot)));
+		} else {
+			return path.dirname(path.dirname(this.appRoot));
+		}
+	}
+
+	@memoize
+	get userDataPath(): string {
+		if (product.portable) {
+			return path.join(path.dirname(this.appPath), product.portable, 'user-data');
+		}
+
+		return parseUserDataDir(this._args, process);
+	}
 
 	get appNameLong(): string { return product.nameLong; }
 
@@ -127,7 +144,19 @@ export class EnvironmentService implements IEnvironmentService {
 	get installSourcePath(): string { return path.join(this.userDataPath, 'installSource'); }
 
 	@memoize
-	get extensionsPath(): string { return parsePathArg(this._args['extensions-dir'], process) || process.env['VSCODE_EXTENSIONS'] || path.join(this.userHome, product.dataFolderName, 'extensions'); }
+	get extensionsPath(): string {
+		const fromArgs = parsePathArg(this._args['extensions-dir'], process);
+
+		if (fromArgs) {
+			return fromArgs;
+		} else if (process.env['VSCODE_EXTENSIONS']) {
+			return process.env['VSCODE_EXTENSIONS'];
+		} else if (product.portable) {
+			return path.join(path.dirname(this.appPath), product.portable, 'extensions');
+		} else {
+			return path.join(this.userHome, product.dataFolderName, 'extensions');
+		}
+	}
 
 	@memoize
 	get extensionDevelopmentPath(): string { return this._args.extensionDevelopmentPath ? path.normalize(this._args.extensionDevelopmentPath) : this._args.extensionDevelopmentPath; }

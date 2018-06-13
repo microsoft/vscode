@@ -4,13 +4,42 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-let perf = require('./vs/base/common/performance');
+const perf = require('./vs/base/common/performance');
 perf.mark('main:started');
 
 // Perf measurements
 global.perfStartTime = Date.now();
 
 Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https://github.com/v8/v8/wiki/Stack-Trace-API)
+
+const fs = require('fs');
+const path = require('path');
+const product = require('../product.json');
+const appRoot = path.dirname(__dirname);
+
+function getApplicationPath() {
+	if (process.env['VSCODE_DEV']) {
+		return appRoot;
+	} else if (process.platform === 'darwin') {
+		return path.dirname(path.dirname(path.dirname(appRoot)));
+	} else {
+		return path.dirname(path.dirname(appRoot));
+	}
+}
+
+function getPortableDataPath() {
+	return path.join(path.dirname(getApplicationPath()), product.portable);
+}
+
+if (product.portable) {
+	const portablePath = getPortableDataPath();
+	try { fs.mkdirSync(portablePath); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
+
+	const tmpdir = path.join(portablePath, 'tmp');
+	try { fs.mkdirSync(tmpdir); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
+
+	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = tmpdir;
+}
 
 //#region Add support for using node_modules.asar
 (function () {
@@ -36,18 +65,15 @@ Error.stackTraceLimit = 100; // increase number of stack frames (from 10, https:
 })();
 //#endregion
 
-let app = require('electron').app;
+const app = require('electron').app;
 
 // TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
 app.commandLine.appendSwitch('disable-mojo-local-storage');
 
-let fs = require('fs');
-let path = require('path');
-let minimist = require('minimist');
-let paths = require('./paths');
-let product = require('../product.json');
+const minimist = require('minimist');
+const paths = require('./paths');
 
-let args = minimist(process.argv, {
+const args = minimist(process.argv, {
 	string: [
 		'user-data-dir',
 		'locale',
@@ -350,9 +376,16 @@ function getNodeCachedDataDir() {
 }
 //#endregion
 
+function getUserDataPath() {
+	if (product.portable) {
+		return path.join(getPortableDataPath(), 'user-data');
+	}
+
+	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
+}
+
 // Set userData path before app 'ready' event and call to process.chdir
-let userData = path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));
-app.setPath('userData', userData);
+app.setPath('userData', getUserDataPath());
 
 // Update cwd based on environment and platform
 try {
