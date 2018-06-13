@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace, EventEmitter } from 'vscode';
+import { CancellationTokenSource, Disposable, EventEmitter, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
-import API from '../utils/api';
-import { memoize } from '../utils/memoize';
-import { getTempFile } from '../utils/temp';
+import { ResourceMap } from './resourceMap';
 
 enum BufferKind {
 	TypeScript = 1,
@@ -115,84 +114,6 @@ class SyncedBuffer {
 	}
 }
 
-/**
- * Maps of file resources
- *
- * Attempts to handle correct mapping on both case sensitive and case in-sensitive
- * file systems.
- */
-class ResourceMap<T> {
-	private readonly _map = new Map<string, T>();
-
-	constructor(
-		private readonly _normalizePath: (resource: Uri) => string | null
-	) { }
-
-	public has(resource: Uri): boolean {
-		const file = this.toKey(resource);
-		return !!file && this._map.has(file);
-	}
-
-	public get(resource: Uri): T | undefined {
-		const file = this.toKey(resource);
-		return file ? this._map.get(file) : undefined;
-	}
-
-	public set(resource: Uri, value: T) {
-		const file = this.toKey(resource);
-		if (file) {
-			this._map.set(file, value);
-		}
-	}
-
-	public delete(resource: Uri): void {
-		const file = this.toKey(resource);
-		if (file) {
-			this._map.delete(file);
-		}
-	}
-
-	public get values(): Iterable<T> {
-		return this._map.values();
-	}
-
-	public get keys(): Iterable<string> {
-		return this._map.keys();
-	}
-
-	private toKey(resource: Uri): string | null {
-		const key = this._normalizePath(resource);
-		if (!key) {
-			return key;
-		}
-
-		return this.isCaseInsensitivePath(key) ? key.toLowerCase() : key;
-	}
-
-	private isCaseInsensitivePath(path: string) {
-		if (isWindowsPath(path)) {
-			return true;
-		}
-
-		return path[0] === '/' && this.onIsCaseInsenitiveFileSystem;
-	}
-
-	@memoize
-	private get onIsCaseInsenitiveFileSystem() {
-		if (process.platform === 'win32') {
-			return true;
-		}
-
-		if (process.platform !== 'darwin') {
-			return false;
-		}
-
-		const temp = getTempFile('typescript-case-check');
-		fs.writeFileSync(temp, '');
-		return fs.existsSync(temp.toUpperCase());
-	}
-}
-
 class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 
 	public getForPath(filePath: string): SyncedBuffer | undefined {
@@ -207,7 +128,6 @@ class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 		return this.keys;
 	}
 }
-
 
 export default class BufferSyncSupport {
 
@@ -445,6 +365,6 @@ export default class BufferSyncSupport {
 	}
 }
 
-function isWindowsPath(path: string): boolean {
+export function isWindowsPath(path: string): boolean {
 	return /^[a-zA-Z]:\\/.test(path);
 }
