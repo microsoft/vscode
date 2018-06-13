@@ -1341,10 +1341,8 @@ export class FocusFilesExplorer extends Action {
 	}
 }
 
-export class ShowActiveFileInExplorer extends Action {
-
-	public static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
-	public static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+export abstract class BaseActiveFileInExplorer extends Action {
+	public focusSelected: boolean = false;
 
 	constructor(
 		id: string,
@@ -1359,13 +1357,24 @@ export class ShowActiveFileInExplorer extends Action {
 	public run(): TPromise<any> {
 		const resource = toResource(this.editorService.activeEditor, { supportSideBySide: true });
 		if (resource) {
-			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource);
+			this.commandService.executeCommand(REVEAL_IN_EXPLORER_COMMAND_ID, resource, this.focusSelected);
 		} else {
 			this.notificationService.info(nls.localize('openFileToShow', "Open a file first to show it in the explorer"));
 		}
 
 		return TPromise.as(true);
 	}
+}
+
+export class ShowActiveFileInExplorer extends BaseActiveFileInExplorer {
+	public static readonly ID = 'workbench.files.action.showActiveFileInExplorer';
+	public static readonly LABEL = nls.localize('showInExplorer', "Reveal Active File in Side Bar");
+}
+
+export class FocusActiveFileInExplorer extends BaseActiveFileInExplorer {
+	public static readonly ID = 'workbench.files.action.focusActiveFileInExplorer';
+	public static readonly LABEL = nls.localize('focusInExplorer', "Focus Active File in Side Bar");
+	focusSelected = true;
 }
 
 export class CollapseExplorerView extends Action {
