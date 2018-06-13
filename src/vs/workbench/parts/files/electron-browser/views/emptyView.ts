@@ -23,7 +23,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
-import { ResourcesDropHandler } from 'vs/workbench/browser/dnd';
+import { ResourcesDropHandler, DragAndDropObserver } from 'vs/workbench/browser/dnd';
 import { listDropBackground } from 'vs/platform/theme/common/colorRegistry';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
@@ -74,17 +74,24 @@ export class EmptyView extends ViewletPanel {
 			});
 		}));
 
-		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DROP, (e: DragEvent) => {
-			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
-			const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
-			dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
-		}));
-		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_LEAVE, () => {
-			container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
-		}));
-		this.disposables.push(DOM.addDisposableListener(container, DOM.EventType.DRAG_OVER, (e: DragEvent) => {
-			e.dataTransfer.dropEffect = 'copy';
-			container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
+		this.disposables.push(new DragAndDropObserver(container, {
+			onDrop: e => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+				const dropHandler = this.instantiationService.createInstance(ResourcesDropHandler, { allowWorkspaceOpen: true });
+				dropHandler.handleDrop(e, () => undefined, targetGroup => undefined);
+			},
+			onDragEnter: (e) => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(listDropBackground).toString();
+			},
+			onDragEnd: () => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+			},
+			onDragLeave: () => {
+				container.style.backgroundColor = this.themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
+			},
+			onDragOver: e => {
+				e.dataTransfer.dropEffect = 'copy';
+			}
 		}));
 
 		this.setLabels();
