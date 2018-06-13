@@ -74,6 +74,7 @@ export const IExtensionsWorkbenchService = createDecorator<IExtensionsWorkbenchS
 export interface IExtensionsWorkbenchService {
 	_serviceBrand: any;
 	onChange: Event<void>;
+	onRecommendationChange: Event<void>;
 	local: IExtension[];
 	queryLocal(): TPromise<IExtension[]>;
 	queryGallery(options?: IQueryOptions): TPromise<IPager<IExtension>>;

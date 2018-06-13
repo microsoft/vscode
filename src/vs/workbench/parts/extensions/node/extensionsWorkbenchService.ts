@@ -340,6 +340,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private readonly _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
+	private readonly _onRecommendationChange: Emitter<void> = new Emitter<void>();
+	get onRecommendationChange(): Event<void> { return this._onRecommendationChange.event; }
+
 	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
@@ -638,7 +641,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	ignore(extension: IExtension): TPromise<void> {
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(distinct([...globallyIgnored, extension.id.toLowerCase()])), StorageScope.GLOBAL);
-		return this.extensionTipsService.refreshAllIgnoredRecommendations().then(() => this._onChange.fire());
+		return this.extensionTipsService.refreshAllIgnoredRecommendations().then(() => this._onRecommendationChange.fire());
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {

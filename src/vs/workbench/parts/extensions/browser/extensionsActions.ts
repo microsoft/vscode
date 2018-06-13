@@ -552,20 +552,14 @@ export class IgnoreAction extends Action {
 
 	onIgnored: () => void;
 	private disposables: IDisposable[] = [];
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+	extension: IExtension;
+
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 	) {
 		super(IgnoreAction.ID);
 
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
-		this.update();
-	}
-
-	private update(): void {
 		this.class = IgnoreAction.Class;
 		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
 		this.enabled = true;

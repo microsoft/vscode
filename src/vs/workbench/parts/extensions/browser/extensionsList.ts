@@ -150,11 +150,16 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 
 
-		data.extensionDisposables.push(this.extensionsWorkbenchService.onChange(() => {
+		data.extensionDisposables.push(this.extensionsWorkbenchService.onRecommendationChange(() => {
 			const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 			if (!extRecommendations[extension.id.toLowerCase()]) {
 				data.root.setAttribute('aria-label', extension.displayName);
+				data.root.title = '';
 				removeClass(data.root, 'recommended');
+			} else {
+				data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+				data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
+				addClass(data.root, 'recommended');
 			}
 		}));
 
