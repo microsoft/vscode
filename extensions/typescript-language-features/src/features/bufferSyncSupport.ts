@@ -115,8 +115,14 @@ class SyncedBuffer {
 	}
 }
 
-class SyncedBufferMap {
-	private readonly _map = new Map<string, SyncedBuffer>();
+/**
+ * Maps of file resources
+ *
+ * Attempts to handle correct mapping on both case sensitive and case in-sensitive
+ * file systems.
+ */
+class ResourceMap<T> {
+	private readonly _map = new Map<string, T>();
 
 	constructor(
 		private readonly _normalizePath: (resource: Uri) => string | null
@@ -127,19 +133,15 @@ class SyncedBufferMap {
 		return !!file && this._map.has(file);
 	}
 
-	public get(resource: Uri): SyncedBuffer | undefined {
+	public get(resource: Uri): T | undefined {
 		const file = this.toKey(resource);
 		return file ? this._map.get(file) : undefined;
 	}
 
-	public getForPath(filePath: string): SyncedBuffer | undefined {
-		return this.get(Uri.file(filePath));
-	}
-
-	public set(resource: Uri, buffer: SyncedBuffer) {
+	public set(resource: Uri, value: T) {
 		const file = this.toKey(resource);
 		if (file) {
-			this._map.set(file, buffer);
+			this._map.set(file, value);
 		}
 	}
 
@@ -150,11 +152,11 @@ class SyncedBufferMap {
 		}
 	}
 
-	public get allBuffers(): Iterable<SyncedBuffer> {
+	public get values(): Iterable<T> {
 		return this._map.values();
 	}
 
-	public get allResources(): Iterable<string> {
+	public get keys(): Iterable<string> {
 		return this._map.keys();
 	}
 
@@ -188,6 +190,21 @@ class SyncedBufferMap {
 		const temp = getTempFile('typescript-case-check');
 		fs.writeFileSync(temp, '');
 		return fs.existsSync(temp.toUpperCase());
+	}
+}
+
+class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
+
+	public getForPath(filePath: string): SyncedBuffer | undefined {
+		return this.get(Uri.file(filePath));
+	}
+
+	public get allBuffers(): Iterable<SyncedBuffer> {
+		return this.values;
+	}
+
+	public get allResources(): Iterable<string> {
+		return this.keys;
 	}
 }
 
