@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor, isCodeEditor, isDiffEditor, getCodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
