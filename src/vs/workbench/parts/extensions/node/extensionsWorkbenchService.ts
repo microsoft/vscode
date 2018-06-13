@@ -10,7 +10,7 @@ import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
 import { Event, Emitter } from 'vs/base/common/event';
-import { index } from 'vs/base/common/arrays';
+import { index, distinct } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -37,6 +37,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -355,7 +356,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
+		@IStorageService private storageService: IStorageService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -631,6 +633,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			location: ProgressLocation.Extensions,
 			source: `${local.identifier.id}`
 		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
+	}
+
+	ignore(extension: IExtension): TPromise<void> {
+		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
+		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(distinct([...globallyIgnored, extension.id.toLowerCase()])), StorageScope.GLOBAL);
+		return TPromise.as(null);
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {

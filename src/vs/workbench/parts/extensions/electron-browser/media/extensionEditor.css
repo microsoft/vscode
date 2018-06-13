@@ -133,7 +133,7 @@
 }
 
 .extension-editor > .header.recommended > .details > .recommendation {
-	display: block;
+	display: flex;
 	margin-top: 2px;
 	font-size: 13px;
 }

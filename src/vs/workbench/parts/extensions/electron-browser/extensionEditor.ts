@@ -31,7 +31,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -164,6 +164,8 @@ export class ExtensionEditor extends BaseEditor {
 	private navbar: NavBar;
 	private content: HTMLElement;
 	private recommendation: HTMLElement;
+	private recommendationText: any;
+	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
 
 	private extensionReadme: Cache<string>;
@@ -250,11 +252,20 @@ export class ExtensionEditor extends BaseEditor {
 				return null;
 			}
 		});
-		this.disposables.push(this.extensionActionBar);
 
 		this.recommendation = append(details, $('.recommendation'));
+		this.recommendationText = append(this.recommendation, $('.recommendation-text'));
+		this.ignoreActionbar = new ActionBar(this.recommendation, { animated: false });
+
+		this.disposables.push(this.extensionActionBar);
+		this.disposables.push(this.ignoreActionbar);
 
 		chain(this.extensionActionBar.onDidRun)
+			.map(({ error }) => error)
+			.filter(error => !!error)
+			.on(this.onError, this, this.disposables);
+
+		chain(this.ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
@@ -292,11 +303,11 @@ export class ExtensionEditor extends BaseEditor {
 		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
 			addClass(this.header, 'recommended');
-			this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
 			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
 		} else {
 			removeClass(this.header, 'recommended');
-			this.recommendation.textContent = '';
+			this.recommendationText.textContent = '';
 		}
 
 		/* __GDPR__
@@ -368,6 +379,13 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar.clear();
 		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
+
+		const ignoreAction = this.instantiationService.createInstance(IgnoreAction);
+		ignoreAction.extension = extension;
+
+		this.ignoreActionbar.clear();
+		this.ignoreActionbar.push([ignoreAction], { icon: true, label: true });
+		this.transientDisposables.push(ignoreAction);
 
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 

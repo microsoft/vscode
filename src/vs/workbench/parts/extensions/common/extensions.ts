@@ -84,6 +84,7 @@ export interface IExtensionsWorkbenchService {
 	reinstall(extension: IExtension): TPromise<void>;
 	setEnablement(extensions: IExtension | IExtension[], enablementState: EnablementState): TPromise<void>;
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies>;
+	ignore(extension: IExtension): TPromise<void>;
 	open(extension: IExtension, sideByside?: boolean): TPromise<any>;
 	checkForUpdates(): TPromise<void>;
 	allowedBadgeProviders: string[];

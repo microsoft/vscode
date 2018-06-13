@@ -544,6 +544,43 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	}
 }
 
+export class IgnoreAction extends Action {
+
+	static readonly ID = 'extensions.ignore';
+
+	private static readonly Class = 'extension-action ignore';
+
+	private disposables: IDisposable[] = [];
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	constructor(
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(IgnoreAction.ID);
+
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.class = IgnoreAction.Class;
+		this.tooltip = '';
+		this.enabled = true;
+	}
+
+	public run(): TPromise<any> {
+		return TPromise.as(null);
+		return this.extensionsWorkbenchService.ignore(this.extension);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
 export class EnableAction extends Action {
 
 	static readonly ID = 'extensions.enable';
