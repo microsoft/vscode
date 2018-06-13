@@ -716,7 +716,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			}
 		}));
 
-		this.toUnbind.push(this.quickOpenService.onShow(() => this.hide()));
+		this.toUnbind.push(this.quickOpenService.onShow(() => this.hide(true)));
 
 		this.ui = {
 			container,
