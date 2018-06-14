@@ -28,6 +28,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isEqual } from 'vs/base/common/resources';
+import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 
 interface FileElement {
 	name: string;
@@ -186,7 +187,7 @@ export abstract class BreadcrumbsPicker {
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
 		this._domNode = document.createElement('div');
-		// this._domNode.style.background = this._themeService.getTheme().getColor(colors.progressBarBackground).toString();
+		this._domNode.style.background = this._themeService.getTheme().getColor(SIDE_BAR_BACKGROUND).toString();
 		container.appendChild(this._domNode);
 
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._domNode, this._completeTreeConfiguration({ dataSource: undefined }), {});
