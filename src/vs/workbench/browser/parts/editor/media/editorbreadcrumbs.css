@@ -1,0 +1,12 @@
+/*---------------------------------------------------------------------------------------------
+ *  Copyright (c) Microsoft Corporation. All rights reserved.
+ *  Licensed under the MIT License. See License.txt in the project root for license information.
+ *--------------------------------------------------------------------------------------------*/
+
+.monaco-workbench>.part.editor>.content .editor-breadcrumbs .monaco-breadcrumbs {
+	--color-item-focused: pink;
+}
+
+.monaco-workbench>.part.editor>.content .editor-breadcrumbs .monaco-breadcrumbs:focus .monaco-breadcrumb-item.focused {
+	color: var(--color-item-focused);
+}

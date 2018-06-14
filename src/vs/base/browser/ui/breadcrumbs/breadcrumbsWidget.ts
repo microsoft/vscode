@@ -38,11 +38,12 @@ export class SimpleBreadcrumbsItem extends BreadcrumbsItem {
 
 export class RenderedBreadcrumbsItem<E> extends BreadcrumbsItem {
 
-
+	readonly element: E;
 	private _disposables: IDisposable[] = [];
 
 	constructor(render: (element: E, container: HTMLDivElement, bucket: IDisposable[]) => any, element: E, more: boolean) {
 		super(document.createElement('div'), more);
+		this.element = element;
 		render(element, this.node as HTMLDivElement, this._disposables);
 	}
 
@@ -57,7 +58,6 @@ export class BreadcrumbsWidget {
 	private readonly _disposables = new Array<IDisposable>();
 	private readonly _domNode: HTMLDivElement;
 	private readonly _scrollable: DomScrollableElement;
-	private _cachedWidth: number;
 
 	private readonly _onDidSelectItem = new Emitter<BreadcrumbsItem>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
@@ -100,10 +100,12 @@ export class BreadcrumbsWidget {
 		this._freeNodes.length = 0;
 	}
 
-	layout(width: number = this._cachedWidth): void {
-		if (typeof width === 'number') {
-			this._cachedWidth = width;
-			this._domNode.style.width = `${this._cachedWidth}px`;
+	layout(dim: dom.Dimension): void {
+		if (!dim) {
+			this._scrollable.scanDomNode();
+		} else {
+			this._domNode.style.width = `${dim.width}px`;
+			this._domNode.style.height = `${dim.height}px`;
 			this._scrollable.scanDomNode();
 		}
 	}
@@ -124,7 +126,7 @@ export class BreadcrumbsWidget {
 
 	private _focus(nth: number): boolean {
 		if (this._focusedItemIdx !== -1) {
-			dom.removeClass(this._nodes[this._focusedItemIdx], 'active');
+			dom.removeClass(this._nodes[this._focusedItemIdx], 'focused');
 			this._focusedItemIdx = -1;
 		}
 		if (nth < 0 || nth >= this._nodes.length) {
@@ -132,7 +134,7 @@ export class BreadcrumbsWidget {
 		}
 		this._focusedItemIdx = nth;
 		let node = this._nodes[this._focusedItemIdx];
-		dom.addClass(node, 'active');
+		dom.addClass(node, 'focused');
 		this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
 		return true;
 	}
@@ -177,7 +179,7 @@ export class BreadcrumbsWidget {
 			this._domNode.appendChild(node);
 			this._nodes[start] = node;
 		}
-		this.layout();
+		this.layout(undefined);
 		this._focus(this._nodes.length - 1);
 	}
 

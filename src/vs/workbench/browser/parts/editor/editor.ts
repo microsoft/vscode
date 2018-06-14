@@ -20,6 +20,7 @@ import { IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export const EDITOR_TITLE_HEIGHT = 35;
+export const BREAD_CRUMPS_HEIGHT = 30;
 
 export const EDITOR_MIN_DIMENSIONS = new Dimension(220, 70);
 export const EDITOR_MAX_DIMENSIONS = new Dimension(Number.POSITIVE_INFINITY, Number.POSITIVE_INFINITY);

@@ -7,7 +7,7 @@
 
 import { IEditorContribution } from 'vs/editor/common/editorCommon';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPositionPreference } from 'vs/editor/browser/editorBrowser';
-import { BreadcrumbsWidget, RenderedBreadcrumbsItem } from 'vs/workbench/parts/breadcrumbs/electron-browser/breadcrumbsWidget';
+import { BreadcrumbsWidget, RenderedBreadcrumbsItem } from 'vs/base/browser/ui/breadcrumbs/breadcrumbsWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
@@ -16,6 +16,9 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { FileKind } from 'vs/platform/files/common/files';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { IContextKeyService, IContextKey, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
+import { BreadcrumbsFilePicker } from 'vs/workbench/parts/breadcrumbs/electron-browser/breadcrumbsPicker';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class Widget implements IOverlayWidget {
 
@@ -59,6 +62,11 @@ class BreadcrumbsUpdateEvent {
 	}
 }
 
+interface FileElement {
+	name: string;
+	uri: URI;
+	kind: FileKind;
+}
 
 export class EditorBreadcrumbs implements IEditorContribution {
 
@@ -78,6 +86,8 @@ export class EditorBreadcrumbs implements IEditorContribution {
 		readonly editor: ICodeEditor,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
+		@IContextViewService private readonly _contextViewService: IContextViewService,
+		@IEditorService private readonly _editorService: IEditorService,
 	) {
 		this._widget = new Widget(() => this._onWidgetReady());
 		this._update = new BreadcrumbsUpdateEvent(this.editor);
@@ -99,6 +109,7 @@ export class EditorBreadcrumbs implements IEditorContribution {
 		this._disposables.push(this._widget.breadcrumb.onDidChangeFocus(value => this._ckFocused.set(value)));
 		this._disposables.push(this._widget.breadcrumb.onDidSelectItem(this._onDidSelectItem, this));
 		this._update.event(this._onUpdate, this, this._disposables);
+		this._onUpdate();
 	}
 
 	private _onUpdate(): void {
@@ -107,26 +118,20 @@ export class EditorBreadcrumbs implements IEditorContribution {
 		}
 		let { uri } = this.editor.getModel();
 
-		interface Element {
-			name: string;
-			uri: URI;
-			kind: FileKind;
-		}
-
-		const render = (element: Element, target: HTMLElement, disposables: IDisposable[]) => {
+		const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
 			let label = this._instantiationService.createInstance(FileLabel, target, {});
 			label.setFile(element.uri, { fileKind: element.kind, hidePath: true });
 			disposables.push(label);
 		};
 
-		let items: RenderedBreadcrumbsItem<Element>[] = [];
+		let items: RenderedBreadcrumbsItem<FileElement>[] = [];
 		let path = uri.path;
 		while (path !== '/') {
 			let first = items.length === 0;
 			let name = posix.basename(path);
 			uri = uri.with({ path });
 			path = posix.dirname(path);
-			items.unshift(new RenderedBreadcrumbsItem<Element>(
+			items.unshift(new RenderedBreadcrumbsItem<FileElement>(
 				render,
 				{ name, uri, kind: first ? FileKind.FILE : FileKind.FOLDER },
 				!first
@@ -136,8 +141,28 @@ export class EditorBreadcrumbs implements IEditorContribution {
 		this._widget.breadcrumb.replace(undefined, items);
 	}
 
-	private _onDidSelectItem(item: RenderedBreadcrumbsItem<any>): void {
-		console.log(item);
+	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
+
+		this._contextViewService.showContextView({
+			getAnchor() {
+				return item.node;
+			},
+			render: (container: HTMLElement) => {
+				let res = this._instantiationService.createInstance(BreadcrumbsFilePicker, container);
+				res.layout({ width: 300, height: 450 });
+				res.setInput(item.element.uri.with({ path: posix.dirname(item.element.uri.path) }));
+				res.onDidPickElement(data => {
+					this._contextViewService.hideContextView();
+					if (!data) {
+						return;
+					}
+					if (URI.isUri(data)) {
+						this._editorService.openEditor({ resource: data });
+					}
+				});
+				return res;
+			},
+		});
 	}
 
 	focus(): void {

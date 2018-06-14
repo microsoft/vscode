@@ -312,6 +312,13 @@ export interface IGroupChangeEvent {
 	editorIndex?: number;
 }
 
+export interface IEditorBreadcrumbs {
+	focus(): void;
+	focusNext(): void;
+	focusPrev(): void;
+	select(): void;
+}
+
 export interface IEditorGroup {
 
 	/**
@@ -331,6 +338,11 @@ export interface IEditorGroup {
 	 * `onDidGroupChange` event to react to that.
 	 */
 	readonly label: string;
+
+	/**
+	 *
+	 */
+	readonly breadcrumbs: IEditorBreadcrumbs;
 
 	/**
 	 * The active control is the currently visible control of the group.
