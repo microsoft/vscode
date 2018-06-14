@@ -7,7 +7,6 @@ import * as fs from 'fs';
 import { Uri } from 'vscode';
 import { memoize } from '../utils/memoize';
 import { getTempFile } from '../utils/temp';
-import { isWindowsPath } from './bufferSyncSupport';
 
 /**
  * Maps of file resources
@@ -19,7 +18,7 @@ export class ResourceMap<T> {
 	private readonly _map = new Map<string, T>();
 
 	constructor(
-		private readonly _normalizePath: (resource: Uri) => string | null
+		private readonly _normalizePath?: (resource: Uri) => string | null
 	) { }
 
 	public has(resource: Uri): boolean {
@@ -55,7 +54,7 @@ export class ResourceMap<T> {
 	}
 
 	private toKey(resource: Uri): string | null {
-		const key = this._normalizePath(resource);
+		const key = this._normalizePath ? this._normalizePath(resource) : resource.toString(true);
 		if (!key) {
 			return key;
 		}
@@ -81,4 +80,8 @@ export class ResourceMap<T> {
 		fs.writeFileSync(temp, '');
 		return fs.existsSync(temp.toUpperCase());
 	}
+}
+
+export function isWindowsPath(path: string): boolean {
+	return /^[a-zA-Z]:\\/.test(path);
 }

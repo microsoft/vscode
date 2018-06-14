@@ -364,7 +364,3 @@ export default class BufferSyncSupport {
 		return this.client.normalizedPath(path);
 	}
 }
-
-export function isWindowsPath(path: string): boolean {
-	return /^[a-zA-Z]:\\/.test(path);
-}
