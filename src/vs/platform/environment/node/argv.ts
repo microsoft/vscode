@@ -64,7 +64,9 @@ const options: minimist.Opts = {
 		'status',
 		'file-write',
 		'file-chmod',
-		'driver-verbose'
+		'driver-verbose',
+		'set-portable',
+		'unset-portable'
 	],
 	alias: {
 		add: 'a',
@@ -150,6 +152,8 @@ const optionsHelp: { [name: string]: string; } = {
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
+	'--set-portable': localize('setPortable', "Enables portable mode"),
+	'--unset-portable': localize('unsedPortable', "Disables portable mode"),
 	'-v, --version': localize('version', "Print version."),
 	'-h, --help': localize('help', "Print usage.")
 };

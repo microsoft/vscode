@@ -8,7 +8,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { assign } from 'vs/base/common/objects';
 import { parseCLIProcessArgv, buildHelpMessage } from 'vs/platform/environment/node/argv';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
-import product from 'vs/platform/node/product';
+import product, { IProductConfiguration } from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
 import * as paths from 'path';
 import * as os from 'os';
@@ -19,6 +19,7 @@ import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
+import uri from 'vs/base/common/uri';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -29,6 +30,15 @@ function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 
 interface IMainCli {
 	main: (argv: ParsedArgs) => TPromise<void>;
+}
+
+function updateProductJsonSync(fn: (productJson: IProductConfiguration) => void): void {
+	const rootPath = paths.dirname(uri.parse(require.toUrl('')).fsPath);
+	const productJsonPath = paths.join(rootPath, 'product.json');
+	const product = JSON.parse(fs.readFileSync(productJsonPath, 'utf8')) as IProductConfiguration;
+	fn(product);
+
+	fs.writeFileSync(productJsonPath, JSON.stringify(product, null, '\t'), 'utf8');
 }
 
 export async function main(argv: string[]): TPromise<any> {
@@ -55,6 +65,18 @@ export async function main(argv: string[]): TPromise<any> {
 	else if (shouldSpawnCliProcess(args)) {
 		const mainCli = new TPromise<IMainCli>(c => require(['vs/code/node/cliProcessMain'], c));
 		return mainCli.then(cli => cli.main(args));
+	}
+
+	// Enable Portable
+	else if (args['set-portable']) {
+		updateProductJsonSync(product => product.portable = 'code-portable-data');
+		console.log('Portable mode enabled');
+	}
+
+	// Disable Portable
+	else if (args['unset-portable']) {
+		updateProductJsonSync(product => { delete product.portable; delete product.portableTemp; });
+		console.log('Portable mode disabled');
 	}
 
 	// Write File
