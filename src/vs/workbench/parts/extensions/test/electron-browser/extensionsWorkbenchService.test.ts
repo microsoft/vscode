@@ -11,7 +11,7 @@ import * as fs from 'fs';
 import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { generateUuid } from 'vs/base/common/uuid';
-import { IExtensionsWorkbenchService, ExtensionState } from 'vs/workbench/parts/extensions/common/extensions';
+import { IExtensionsWorkbenchService, ExtensionState, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
@@ -38,6 +38,7 @@ import { ProgressService2 } from 'vs/workbench/services/progress/browser/progres
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -1191,6 +1192,33 @@ suite('ExtensionsWorkbenchService Test', () => {
 				return instantiationService.get(IExtensionEnablementService).setEnablement(localExtension, EnablementState.Disabled)
 					.then(() => assert.ok(target.calledOnce));
 			});
+	});
+
+	test('test global extensions are modified and recommendation change event is fired when an extension is ignored', () => {
+		const gallery = aGalleryExtension('gallery1');
+		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
+		instantiationService.stubPromise(IExtensionTipsService, 'refreshAllIgnoredRecommendations', null);
+
+		const storageSetterTarget = sinon.spy();
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => a === 'extensionsAssistant/ignored_recommendations' ? '["ms-vscode.vscode"]' : c,
+			store: (...args) => {
+				storageSetterTarget(...args);
+			}
+		});
+		testObject = instantiationService.createInstance(ExtensionsWorkbenchService);
+
+		const changeHandlerTarget = sinon.spy();
+		let extension: IExtension;
+		return testObject.queryGallery().then(page => {
+			extension = page.firstPage[0];
+			assert.equal(ExtensionState.Uninstalled, extension.state);
+			testObject.onRecommendationChange(changeHandlerTarget);
+			return testObject.ignore(extension);
+		}).then(() => {
+			assert.ok(changeHandlerTarget.calledOnce);
+			assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${extension.id.toLowerCase()}"]`, StorageScope.GLOBAL));
+		});
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
