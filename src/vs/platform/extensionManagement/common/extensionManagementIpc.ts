@@ -8,7 +8,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from './extensionManagement';
-import { Event, buffer } from 'vs/base/common/event';
+import { Event, buffer, mapEvent } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IURITransformer } from 'vs/base/common/uriIpc';
 
@@ -67,7 +67,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	private _onInstallExtension = eventFromCall<InstallExtensionEvent>(this.channel, 'event:onInstallExtension');
 	get onInstallExtension(): Event<InstallExtensionEvent> { return this._onInstallExtension; }
 
-	private _onDidInstallExtension = eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension');
+	private _onDidInstallExtension = mapEvent(eventFromCall<DidInstallExtensionEvent>(this.channel, 'event:onDidInstallExtension'), i => ({ ...i, local: this._transform(i.local) }));
 	get onDidInstallExtension(): Event<DidInstallExtensionEvent> { return this._onDidInstallExtension; }
 
 	private _onUninstallExtension = eventFromCall<IExtensionIdentifier>(this.channel, 'event:onUninstallExtension');
@@ -110,7 +110,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	}
 
 	private _transform(extension: ILocalExtension): ILocalExtension {
-		return { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } };
+		return extension ? { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } } : extension;
 	}
 
 }
