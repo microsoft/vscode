@@ -23,6 +23,7 @@ import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
+import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export interface PositionLike {
 	line: number;
@@ -159,29 +160,22 @@ export namespace DiagnosticSeverity {
 
 export namespace ViewColumn {
 	export function from(column?: vscode.ViewColumn): EditorViewColumn {
-		let editorColumn: EditorViewColumn;
-		if (column === <number>types.ViewColumn.One) {
-			editorColumn = 0;
-		} else if (column === <number>types.ViewColumn.Two) {
-			editorColumn = 1;
-		} else if (column === <number>types.ViewColumn.Three) {
-			editorColumn = 2;
-		} else {
-			// in any other case (no column or ViewColumn.Active), leave the
-			// editorColumn as undefined which signals to use the active column
-			editorColumn = undefined;
+		if (typeof column === 'number' && column >= types.ViewColumn.One) {
+			return column - 1; // adjust zero index (ViewColumn.ONE => 0)
 		}
-		return editorColumn;
+
+		if (column === types.ViewColumn.Beside) {
+			return SIDE_GROUP;
+		}
+
+		return ACTIVE_GROUP; // default is always the active group
 	}
 
 	export function to(position?: EditorViewColumn): vscode.ViewColumn {
-		if (position === 0) {
-			return <number>types.ViewColumn.One;
-		} else if (position === 1) {
-			return <number>types.ViewColumn.Two;
-		} else if (position === 2) {
-			return <number>types.ViewColumn.Three;
+		if (typeof position === 'number' && position >= 0) {
+			return position + 1; // adjust to index (ViewColumn.ONE => 1)
 		}
+
 		return undefined;
 	}
 }
