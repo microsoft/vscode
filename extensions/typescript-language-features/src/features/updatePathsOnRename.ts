@@ -87,12 +87,13 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		if (await this.confirmActionWithUser(document)) {
+		if (await this.confirmActionWithUser(newResource, document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
 	}
 
 	private async confirmActionWithUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		const config = this.getConfiguration(newDocument);
@@ -104,7 +105,7 @@ export class UpdateImportsOnFileRenameHandler {
 				return false;
 			case UpdateImportsOnFileMoveSetting.Prompt:
 			default:
-				return this.promptUser(newDocument);
+				return this.promptUser(newResource, newDocument);
 		}
 	}
 
@@ -113,6 +114,7 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 
 	private async promptUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		enum Choice {
@@ -128,7 +130,7 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newDocument.fileName)), {
+			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
 				modal: true,
 			},
 			{
