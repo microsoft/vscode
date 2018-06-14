@@ -25,7 +25,6 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 		try {
 			const response = await this.client.execute('implementation', args, token);
 			if (response && response.body) {
-
 				const locations = response.body
 					.map(reference =>
 						// Only take first line on implementation: https://github.com/Microsoft/vscode/issues/23924
@@ -33,8 +32,8 @@ export default class TypeScriptImplementationsCodeLensProvider extends TypeScrip
 							reference.start.line === reference.end.line
 								? typeConverters.Range.fromTextSpan(reference)
 								: new vscode.Range(
-									reference.start.line - 1, reference.start.offset - 1,
-									reference.start.line, 0)))
+									typeConverters.Position.fromLocation(reference.start),
+									new vscode.Position(reference.start.line, 0))))
 					// Exclude original from implementations
 					.filter(location =>
 						!(location.uri.toString() === codeLens.document.toString() &&
