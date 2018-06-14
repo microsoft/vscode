@@ -96,7 +96,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.refreshTreeAndMaintainFocus()));
+		this._register(configurationService.onDidChangeConfiguration(() => this.onConfigUpdate()));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -241,7 +241,11 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(this.tocTree.onDidChangeSelection(e => {
 			if (this.settingsTreeModel) {
 				const element = this.settingsTreeModel.getElementById(e.selection[0] && e.selection[0].id);
-				this.settingsTree.reveal(element, 0);
+				if (element) {
+					this.settingsTree.reveal(element, 0);
+					this.settingsTree.setSelection([element]);
+					this.settingsTree.setFocus(element);
+				}
 			}
 		}));
 	}
@@ -430,9 +434,7 @@ export class SettingsEditor2 extends BaseEditor {
 					}
 
 					this.defaultSettingsEditorModel = model;
-					this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
-					this.tocTree.setInput(this.settingsTreeModel.root);
-					this.settingsTree.setInput(this.settingsTreeModel.root);
+					this.onConfigUpdate();
 				});
 		}
 		return TPromise.as(null);
@@ -440,6 +442,17 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private toggleSearchMode(): void {
 		DOM.toggleClass(this.getContainer(), 'search-mode', !!this.searchResultModel);
+	}
+
+	private onConfigUpdate(): TPromise<void> {
+		this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
+
+		if (!this.searchResultModel) {
+			this.settingsTree.setInput(this.settingsTreeModel.root);
+			this.tocTree.setInput(this.settingsTreeModel.root);
+		}
+
+		return this.refreshTreeAndMaintainFocus();
 	}
 
 	private refreshTreeAndMaintainFocus(): TPromise<any> {

@@ -253,15 +253,11 @@ export class SettingsDataSource implements IDataSource {
 		if (element instanceof SearchResultModel) {
 			return this.getSearchResultChildren(element);
 		} else if (element instanceof SettingsTreeGroupElement) {
-			return this.getGroupChildren(element);
+			return element.children;
 		} else {
 			// No children...
 			return null;
 		}
-	}
-
-	private getGroupChildren(groupElement: SettingsTreeGroupElement): SettingsTreeElement[] {
-		return groupElement.children;
 	}
 
 	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
