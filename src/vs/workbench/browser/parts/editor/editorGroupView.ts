@@ -415,7 +415,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 			clearNode(this.breadcrumbsContainer);
 		}
 
-		this.breadcrumbsControl = this.scopedInstantiationService.createInstance(EditorBreadcrumbs, this.breadcrumbsContainer);
+		this.breadcrumbsControl = this.scopedInstantiationService.createInstance(EditorBreadcrumbs, this.breadcrumbsContainer, this);
 	}
 
 	private restoreEditors(from: IEditorGroupView | ISerializedEditorGroup): TPromise<void> {

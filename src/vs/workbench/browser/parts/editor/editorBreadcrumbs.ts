@@ -18,7 +18,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { EditorInput } from 'vs/workbench/common/editor';
-import { IEditorBreadcrumbs, IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorBreadcrumbs, IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ITreeConfiguration, IDataSource, ITree, IRenderer, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
@@ -50,6 +50,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 	constructor(
 		container: HTMLElement,
+		private readonly _editorGroup: IEditorGroup,
 		@IContextKeyService private readonly _contextKeyService: IContextKeyService,
 		@IFileService private readonly _fileService: IFileService,
 		@IContextViewService private readonly _contextViewService: IContextViewService,
@@ -146,6 +147,9 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
+
+		this._editorGroup.focus();
+
 		this._contextViewService.showContextView({
 			getAnchor() {
 				return item.node;

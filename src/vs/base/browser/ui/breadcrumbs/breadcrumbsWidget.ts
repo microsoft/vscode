@@ -60,9 +60,11 @@ export class BreadcrumbsWidget {
 	private readonly _scrollable: DomScrollableElement;
 
 	private readonly _onDidSelectItem = new Emitter<BreadcrumbsItem>();
+	private readonly _onDidFocusItem = new Emitter<BreadcrumbsItem>();
 	private readonly _onDidChangeFocus = new Emitter<boolean>();
 
 	readonly onDidSelectItem: Event<BreadcrumbsItem> = this._onDidSelectItem.event;
+	readonly onDidFocusItem: Event<BreadcrumbsItem> = this._onDidFocusItem.event;
 	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
@@ -133,9 +135,9 @@ export class BreadcrumbsWidget {
 			return false;
 		}
 		this._focusedItemIdx = nth;
-		let node = this._nodes[this._focusedItemIdx];
-		dom.addClass(node, 'focused');
-		this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
+		dom.addClass(this._nodes[this._focusedItemIdx], 'focused');
+		this._scrollable.setScrollPosition({ scrollLeft: this._nodes[this._focusedItemIdx].offsetLeft });
+		this._onDidFocusItem.fire(this._items[this._focusedItemIdx]);
 		return true;
 	}
 
