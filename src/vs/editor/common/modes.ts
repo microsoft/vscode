@@ -645,6 +645,7 @@ export const symbolKindToCssClass = (function () {
 
 export interface DocumentSymbol {
 	name: string;
+	detail: string;
 	kind: SymbolKind;
 	containerName?: string;
 	fullRange: IRange;

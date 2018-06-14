@@ -44,6 +44,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 	'order': 117,
 	'type': 'object',
 	'properties': {
+		[OutlineConfigKeys.icons]: {
+			'description': localize('outline.showIcons', "Render Outline Elements with Icons."),
+			'type': 'boolean',
+			'default': true
+		},
 		[OutlineConfigKeys.problemsEnabled]: {
 			'description': localize('outline.showProblem', "Show Errors & Warnings on Outline Elements."),
 			'type': 'boolean',

@@ -6,7 +6,7 @@
 'use strict';
 
 import { WORKSPACE_EXTENSION, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
-import { extname, basename } from 'vs/base/common/paths';
+import { extname, basename, normalize } from 'vs/base/common/paths';
 import { IFileService } from 'vs/platform/files/common/files';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import URI from 'vs/base/common/uri';
@@ -22,7 +22,7 @@ import { IEditorViewState } from 'vs/editor/common/editorCommon';
 import { DataTransfers } from 'vs/base/browser/dnd';
 import { DefaultDragAndDrop } from 'vs/base/parts/tree/browser/treeDefaults';
 import { DragMouseEvent } from 'vs/base/browser/mouseEvent';
-import { getPathLabel } from 'vs/base/common/labels';
+import { normalizeDriveLetter } from 'vs/base/common/labels';
 import { MIME_BINARY } from 'vs/base/common/mime';
 import { ITree, IDragAndDropData } from 'vs/base/parts/tree/browser/tree';
 import { isWindows } from 'vs/base/common/platform';
@@ -370,7 +370,7 @@ export function fillResourceDataTransfers(accessor: ServicesAccessor, resources:
 
 	// Text: allows to paste into text-capable areas
 	const lineDelimiter = isWindows ? '\r\n' : '\n';
-	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? getPathLabel(source.resource) : source.resource.toString()).join(lineDelimiter));
+	event.dataTransfer.setData(DataTransfers.TEXT, sources.map(source => source.resource.scheme === Schemas.file ? normalize(normalizeDriveLetter(source.resource.fsPath), true) : source.resource.toString()).join(lineDelimiter));
 
 	// Download URL: enables support to drag a tab as file to desktop (only single file supported)
 	if (firstSource.resource.scheme === Schemas.file) {

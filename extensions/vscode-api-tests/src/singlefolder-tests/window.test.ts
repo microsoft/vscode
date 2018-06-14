@@ -297,6 +297,15 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - value not empty on second try', async function () {
+		const one = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await one, 'notempty');
+		const two = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await two, 'notempty');
+	});
+
 
 	test('showQuickPick, accept first', async function () {
 		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
@@ -417,7 +426,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
 			validateInput: (value: string) => {
 				if (!value || value.trim().length === 0) {
@@ -427,19 +436,9 @@ suite('window namespace tests', () => {
 			}
 		});
 
-		const accept = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		return Promise.race([
-			result.then(() => assert.ok(false)),
-			accept.then(() => assert.ok(false), err => assert.ok(err))
-				.then(() => new Promise(resolve => setTimeout(resolve, 10)))
-		])
-			.then(() => {
-				const close = commands.executeCommand('workbench.action.closeQuickOpen');
-				return Promise.all([result, close])
-					.then(([value]) => {
-						assert.equal(value, undefined);
-					});
-			});
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		await commands.executeCommand('workbench.action.closeQuickOpen');
+		assert.equal(await result, undefined);
 	});
 
 

@@ -14,7 +14,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
+import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -120,6 +120,7 @@ export interface OutlineTemplate {
 	labelContainer: HTMLElement;
 	label: HighlightedLabel;
 	icon?: HTMLElement;
+	detail?: HTMLElement;
 	decoration?: HTMLElement;
 }
 
@@ -147,10 +148,11 @@ export class OutlineRenderer implements IRenderer {
 		if (templateId === 'outline-element') {
 			const icon = dom.$('.outline-element-icon symbol-icon');
 			const labelContainer = dom.$('.outline-element-label');
+			const detail = dom.$('.outline-element-detail');
 			const decoration = dom.$('.outline-element-decoration');
 			dom.addClass(container, 'outline-element');
-			dom.append(container, icon, labelContainer, decoration);
-			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), decoration };
+			dom.append(container, icon, labelContainer, detail, decoration);
+			return { icon, labelContainer, label: new HighlightedLabel(labelContainer), detail, decoration };
 		}
 		if (templateId === 'outline-group') {
 			const labelContainer = dom.$('.outline-element-label');
@@ -165,7 +167,8 @@ export class OutlineRenderer implements IRenderer {
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined);
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
+			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
 
 		}
@@ -222,6 +225,35 @@ export class OutlineRenderer implements IRenderer {
 			template.decoration.style.setProperty('--outline-element-color', color);
 		}
 	}
+
+	private static _symbolKindNames: { [symbol: number]: string } = {
+		[SymbolKind.Array]: localize('Array', "array"),
+		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
+		[SymbolKind.Class]: localize('Class', "class"),
+		[SymbolKind.Constant]: localize('Constant', "constant"),
+		[SymbolKind.Constructor]: localize('Constructor', "constructor"),
+		[SymbolKind.Enum]: localize('Enum', "enumeration"),
+		[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
+		[SymbolKind.Event]: localize('Event', "event"),
+		[SymbolKind.Field]: localize('Field', "field"),
+		[SymbolKind.File]: localize('File', "file"),
+		[SymbolKind.Function]: localize('Function', "function"),
+		[SymbolKind.Interface]: localize('Interface', "interface"),
+		[SymbolKind.Key]: localize('Key', "key"),
+		[SymbolKind.Method]: localize('Method', "method"),
+		[SymbolKind.Module]: localize('Module', "module"),
+		[SymbolKind.Namespace]: localize('Namespace', "namespace"),
+		[SymbolKind.Null]: localize('Null', "null"),
+		[SymbolKind.Number]: localize('Number', "number"),
+		[SymbolKind.Object]: localize('Object', "object"),
+		[SymbolKind.Operator]: localize('Operator', "operator"),
+		[SymbolKind.Package]: localize('Package', "package"),
+		[SymbolKind.Property]: localize('Property', "property"),
+		[SymbolKind.String]: localize('String', "string"),
+		[SymbolKind.Struct]: localize('Struct', "struct"),
+		[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
+		[SymbolKind.Variable]: localize('Variable', "variable"),
+	};
 
 	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
 		template.label.dispose();

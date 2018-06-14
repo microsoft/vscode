@@ -11,7 +11,7 @@ import * as dom from 'vs/base/browser/dom';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IPickOpenEntry } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem } from 'vs/platform/quickinput/common/quickInput';
 import { IMatch } from 'vs/base/common/filters';
 import { matchesFuzzyOcticonAware, parseOcticons } from 'vs/base/common/octicon';
 import { compareAnything } from 'vs/base/common/comparers';
@@ -31,13 +31,13 @@ const $ = dom.$;
 
 interface IListElement {
 	index: number;
-	item: IPickOpenEntry;
-	checked?: boolean;
+	item: IQuickPickItem;
+	checked: boolean;
 }
 
 class ListElement implements IListElement {
 	index: number;
-	item: IPickOpenEntry;
+	item: IQuickPickItem;
 	shouldAlwaysShow = false;
 	hidden = false;
 	private _onChecked = new Emitter<boolean>();
@@ -111,13 +111,8 @@ class ListElementRenderer implements IRenderer<ListElement, IListElementTemplate
 	renderElement(element: ListElement, index: number, data: IListElementTemplateData): void {
 		data.toDisposeElement = dispose(data.toDisposeElement);
 		data.element = element;
-		if (element.checked === undefined) {
-			data.checkbox.style.display = 'none';
-		} else {
-			data.checkbox.style.display = '';
-			data.checkbox.checked = element.checked;
-			data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
-		}
+		data.checkbox.checked = element.checked;
+		data.toDisposeElement.push(element.onChecked(checked => data.checkbox.checked = checked));
 
 		const { labelHighlights, descriptionHighlights, detailHighlights } = element;
 
@@ -156,10 +151,12 @@ export class QuickInputList {
 	private elements: ListElement[] = [];
 	matchOnDescription = false;
 	matchOnDetail = false;
-	private _onAllVisibleCheckedChanged = new Emitter<boolean>(); // TODO: Debounce
-	onAllVisibleCheckedChanged: Event<boolean> = this._onAllVisibleCheckedChanged.event;
-	private _onCheckedCountChanged = new Emitter<number>(); // TODO: Debounce
-	onCheckedCountChanged: Event<number> = this._onCheckedCountChanged.event;
+	private _onChangedAllVisibleChecked = new Emitter<boolean>();
+	onChangedAllVisibleChecked: Event<boolean> = this._onChangedAllVisibleChecked.event;
+	private _onChangedCheckedCount = new Emitter<number>();
+	onChangedCheckedCount: Event<number> = this._onChangedCheckedCount.event;
+	private _onChangedCheckedElements = new Emitter<IQuickPickItem[]>();
+	onChangedCheckedElements: Event<IQuickPickItem[]> = this._onChangedCheckedElements.event;
 	private _onLeave = new Emitter<void>();
 	onLeave: Event<void> = this._onLeave.event;
 	private _fireCheckedEvents = true;
@@ -215,12 +212,12 @@ export class QuickInputList {
 	}
 
 	@memoize
-	get onFocusChange() {
+	get onDidChangeFocus() {
 		return mapEvent(this.list.onFocusChange, e => e.elements.map(e => e.item));
 	}
 
 	@memoize
-	get onSelectionChange() {
+	get onDidChangeSelection() {
 		return mapEvent(this.list.onSelectionChange, e => e.elements.map(e => e.item));
 	}
 
@@ -267,27 +264,30 @@ export class QuickInputList {
 		}
 	}
 
-	setElements(elements: IPickOpenEntry[], canCheck = false): void {
+	setElements(elements: IQuickPickItem[]): void {
 		this.elementDisposables = dispose(this.elementDisposables);
 		this.elements = elements.map((item, index) => new ListElement({
 			index,
 			item,
-			checked: canCheck ? !!item.picked : undefined
+			checked: !!item.picked
 		}));
-		if (canCheck) {
-			this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
-		}
+		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
 	}
 
-	getCheckedElements() {
-		return this.elements.filter(e => e.checked)
+	getFocusedElements() {
+		return this.list.getFocusedElements()
 			.map(e => e.item);
 	}
 
-	getFocusedElements() {
-		return this.list.getFocusedElements()
+	getSelectedElements() {
+		return this.list.getSelectedElements()
+			.map(e => e.item);
+	}
+
+	getCheckedElements() {
+		return this.elements.filter(e => e.checked)
 			.map(e => e.item);
 	}
 
@@ -368,7 +368,7 @@ export class QuickInputList {
 		this.list.setFocus([]);
 		this.list.layout();
 
-		this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
+		this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
 	}
 
 	toggleCheckbox() {
@@ -400,8 +400,9 @@ export class QuickInputList {
 
 	private fireCheckedEvents() {
 		if (this._fireCheckedEvents) {
-			this._onAllVisibleCheckedChanged.fire(this.getAllVisibleChecked());
-			this._onCheckedCountChanged.fire(this.getCheckedCount());
+			this._onChangedAllVisibleChecked.fire(this.getAllVisibleChecked());
+			this._onChangedCheckedCount.fire(this.getCheckedCount());
+			this._onChangedCheckedElements.fire(this.getCheckedElements());
 		}
 	}
 }

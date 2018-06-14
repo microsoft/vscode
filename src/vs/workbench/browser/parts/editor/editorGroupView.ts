@@ -1297,9 +1297,10 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	//#region Themable
 
 	protected updateStyles(): void {
+		const isEmpty = this.isEmpty();
 
 		// Container
-		if (this.isEmpty()) {
+		if (isEmpty) {
 			this.element.style.backgroundColor = this.getColor(EDITOR_GROUP_EMPTY_BACKGROUND);
 		} else {
 			this.element.style.backgroundColor = null;
@@ -1308,10 +1309,16 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 		// Title control
 		const { showTabs } = this.accessor.partOptions;
 		const borderColor = this.getColor(EDITOR_GROUP_HEADER_TABS_BORDER) || this.getColor(contrastBorder);
+
+		if (!isEmpty && showTabs && borderColor) {
+			addClass(this.titleContainer, 'title-border-bottom');
+			this.titleContainer.style.setProperty('--title-border-bottom-color', borderColor.toString());
+		} else {
+			removeClass(this.titleContainer, 'title-border-bottom');
+			this.titleContainer.style.removeProperty('--title-border-bottom-color');
+		}
+
 		this.titleContainer.style.backgroundColor = this.getColor(showTabs ? EDITOR_GROUP_HEADER_TABS_BACKGROUND : EDITOR_GROUP_HEADER_NO_TABS_BACKGROUND);
-		this.titleContainer.style.borderBottomWidth = (borderColor && showTabs) ? '1px' : null;
-		this.titleContainer.style.borderBottomStyle = (borderColor && showTabs) ? 'solid' : null;
-		this.titleContainer.style.borderBottomColor = showTabs ? borderColor : null;
 
 		// Editor container
 		this.editorContainer.style.backgroundColor = this.getColor(editorBackground);

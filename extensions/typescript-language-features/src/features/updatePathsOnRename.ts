@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as fs from 'fs';
 import * as path from 'path';
 import * as vscode from 'vscode';
 import * as nls from 'vscode-nls';
@@ -12,6 +13,7 @@ import API from '../utils/api';
 import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
+import * as fileSchemes from '../utils/fileSchemes';
 
 const localize = nls.loadMessageBundle();
 
@@ -29,7 +31,7 @@ export class UpdateImportsOnFileRenameHandler {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
 		private readonly fileConfigurationManager: FileConfigurationManager,
-		private readonly handles: (uri: vscode.Uri) => Promise<boolean>,
+		private readonly _handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
 		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
 			this.doRename(e.oldResource, e.newResource);
@@ -48,7 +50,13 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		if (!await this.handles(newResource)) {
+		const targetResource = await this.getTargetResource(newResource);
+		if (!targetResource) {
+			return;
+		}
+
+		const targetFile = this.client.toPath(targetResource);
+		if (!targetFile) {
 			return;
 		}
 
@@ -62,7 +70,7 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		const document = await vscode.workspace.openTextDocument(newResource);
+		const document = await vscode.workspace.openTextDocument(targetResource);
 
 		const config = this.getConfiguration(document);
 		const setting = config.get<UpdateImportsOnFileMoveSetting>(updateImportsOnFileMoveName);
@@ -71,10 +79,10 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		// Make sure TS knows about file
-		this.client.bufferSyncSupport.closeResource(oldResource);
+		this.client.bufferSyncSupport.closeResource(targetResource);
 		this.client.bufferSyncSupport.openTextDocument(document);
 
-		const edits = await this.getEditsForFileRename(document, oldFile, newFile);
+		const edits = await this.getEditsForFileRename(targetFile, document, oldFile, newFile);
 		if (!edits || !edits.size) {
 			return;
 		}
@@ -177,7 +185,24 @@ export class UpdateImportsOnFileRenameHandler {
 		return false;
 	}
 
+	private async getTargetResource(resource: vscode.Uri): Promise<vscode.Uri | undefined> {
+		if (resource.scheme !== fileSchemes.file) {
+			return undefined;
+		}
+
+		if (this.client.apiVersion.gte(API.v292) && fs.lstatSync(resource.fsPath).isDirectory()) {
+			const files = await vscode.workspace.findFiles({
+				base: resource.fsPath,
+				pattern: '**/*.{ts,tsx,js,jsx}',
+			}, '**/node_modules/**', 1);
+			return files[0];
+		}
+
+		return this._handles(resource) ? resource : undefined;
+	}
+
 	private async getEditsForFileRename(
+		targetResource: string,
 		document: vscode.TextDocument,
 		oldFile: string,
 		newFile: string,
@@ -185,7 +210,7 @@ export class UpdateImportsOnFileRenameHandler {
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs = {
-			file: newFile,
+			file: targetResource,
 			oldFilePath: oldFile,
 			newFilePath: newFile,
 		};

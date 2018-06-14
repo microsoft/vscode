@@ -5,7 +5,6 @@
 
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { VSash } from 'vs/base/browser/ui/sash/sash';
 import { Widget } from 'vs/base/browser/ui/widget';
 import * as arrays from 'vs/base/common/arrays';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
@@ -56,6 +55,7 @@ import { IFilterResult, IPreferencesService, ISearchResult, ISetting, ISettingsE
 import { DefaultPreferencesEditorInput, PreferencesEditorInput } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel, SettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { SplitView, Orientation, Sizing } from 'vs/base/browser/ui/splitview/splitview';
 
 export class PreferencesEditor extends BaseEditor {
 
@@ -736,7 +736,7 @@ class PreferencesRenderersController extends Disposable {
 
 class SideBySidePreferencesWidget extends Widget {
 
-	private dimension: DOM.Dimension;
+	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
 
 	private defaultPreferencesHeader: HTMLElement;
 	private defaultPreferencesEditor: DefaultPreferencesEditor;
@@ -753,30 +753,26 @@ class SideBySidePreferencesWidget extends Widget {
 	readonly onDidSettingsTargetChange: Event<SettingsTarget> = this._onDidSettingsTargetChange.event;
 
 	private lastFocusedEditor: BaseEditor;
-
-	private sash: VSash;
+	private splitview: SplitView;
 
 	constructor(
-		parent: HTMLElement,
+		parentElement: HTMLElement,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IThemeService private themeService: IThemeService,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 	) {
 		super();
-		this.create(parent);
-	}
 
-	private create(parentElement: HTMLElement): void {
 		DOM.addClass(parentElement, 'side-by-side-preferences-editor');
-		this.createSash(parentElement);
 
-		this.defaultPreferencesEditorContainer = DOM.append(parentElement, DOM.$('.default-preferences-editor-container'));
-		this.defaultPreferencesEditorContainer.style.position = 'absolute';
+		this.splitview = new SplitView(parentElement, { orientation: Orientation.HORIZONTAL });
+		this._register(this.splitview);
+		this._register(this.splitview.onDidSashReset(() => this.splitview.distributeViewSizes()));
+
+		this.defaultPreferencesEditorContainer = DOM.$('.default-preferences-editor-container');
 
 		const defaultPreferencesHeaderContainer = DOM.append(this.defaultPreferencesEditorContainer, DOM.$('.preferences-header-container'));
-		defaultPreferencesHeaderContainer.style.height = '30px';
-		defaultPreferencesHeaderContainer.style.marginBottom = '4px';
 		this.defaultPreferencesHeader = DOM.append(defaultPreferencesHeaderContainer, DOM.$('div.default-preferences-header'));
 		this.defaultPreferencesHeader.textContent = nls.localize('defaultSettings', "Default Settings");
 
@@ -784,11 +780,16 @@ class SideBySidePreferencesWidget extends Widget {
 		this.defaultPreferencesEditor.create(this.defaultPreferencesEditorContainer);
 		(<CodeEditorWidget>this.defaultPreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.defaultPreferencesEditor);
 
-		this.editablePreferencesEditorContainer = DOM.append(parentElement, DOM.$('.editable-preferences-editor-container'));
-		this.editablePreferencesEditorContainer.style.position = 'absolute';
+		this.splitview.addView({
+			element: this.defaultPreferencesEditorContainer,
+			layout: size => this.defaultPreferencesEditor.layout(new DOM.Dimension(size, this.dimension.height - 34 /* height of header container */)),
+			minimumSize: 220,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None
+		}, Sizing.Distribute);
+
+		this.editablePreferencesEditorContainer = DOM.$('.editable-preferences-editor-container');
 		const editablePreferencesHeaderContainer = DOM.append(this.editablePreferencesEditorContainer, DOM.$('.preferences-header-container'));
-		editablePreferencesHeaderContainer.style.height = '30px';
-		editablePreferencesHeaderContainer.style.marginBottom = '4px';
 		this.settingsTargetsWidget = this._register(this.instantiationService.createInstance(SettingsTargetsWidget, editablePreferencesHeaderContainer));
 		this._register(this.settingsTargetsWidget.onDidTargetChange(target => this._onDidSettingsTargetChange.fire(target)));
 
@@ -802,6 +803,14 @@ class SideBySidePreferencesWidget extends Widget {
 			}
 		}));
 
+		this.splitview.addView({
+			element: this.editablePreferencesEditorContainer,
+			layout: size => this.editablePreferencesEditor && this.editablePreferencesEditor.layout(new DOM.Dimension(size, this.dimension.height - 34 /* height of header container */)),
+			minimumSize: 220,
+			maximumSize: Number.POSITIVE_INFINITY,
+			onDidChange: Event.None
+		}, Sizing.Distribute);
+
 		const focusTracker = this._register(DOM.trackFocus(parentElement));
 		this._register(focusTracker.onDidFocus(() => this._onFocus.fire()));
 	}
@@ -809,7 +818,6 @@ class SideBySidePreferencesWidget extends Widget {
 	public setInput(defaultPreferencesEditorInput: DefaultPreferencesEditorInput, editablePreferencesEditorInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<{ defaultPreferencesRenderer: IPreferencesRenderer<ISetting>, editablePreferencesRenderer: IPreferencesRenderer<ISetting> }> {
 		this.getOrCreateEditablePreferencesEditor(editablePreferencesEditorInput);
 		this.settingsTargetsWidget.settingsTarget = this.getSettingsTarget(editablePreferencesEditorInput.getResource());
-		this.dolayout(this.sash.getVerticalSashLeft());
 		return TPromise.join([
 			this.updateInput(this.defaultPreferencesEditor, defaultPreferencesEditorInput, DefaultSettingsEditorContribution.ID, editablePreferencesEditorInput.getResource(), options, token),
 			this.updateInput(this.editablePreferencesEditor, editablePreferencesEditorInput, SettingsEditorContribution.ID, defaultPreferencesEditorInput.getResource(), options, token)
@@ -840,9 +848,9 @@ class SideBySidePreferencesWidget extends Widget {
 		this.settingsTargetsWidget.setResultCount(settingsTarget, count);
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	public layout(dimension: DOM.Dimension = this.dimension): void {
 		this.dimension = dimension;
-		this.sash.setDimenesion(this.dimension);
+		this.splitview.layout(dimension.width);
 	}
 
 	public focus(): void {
@@ -883,6 +891,7 @@ class SideBySidePreferencesWidget extends Widget {
 		this.editablePreferencesEditor.create(this.editablePreferencesEditorContainer);
 		(<CodeEditorWidget>this.editablePreferencesEditor.getControl()).onDidFocusEditorWidget(() => this.lastFocusedEditor = this.editablePreferencesEditor);
 		this.lastFocusedEditor = this.editablePreferencesEditor;
+		this.layout();
 
 		return editor;
 	}
@@ -896,30 +905,6 @@ class SideBySidePreferencesWidget extends Widget {
 
 				return (<CodeEditorWidget>editor.getControl()).getContribution<ISettingsEditorContribution>(editorContributionId).updatePreferencesRenderer(associatedPreferencesModelUri);
 			});
-	}
-
-	private createSash(parentElement: HTMLElement): void {
-		this.sash = this._register(new VSash(parentElement, 220));
-		this._register(this.sash.onPositionChange(position => this.dolayout(position)));
-	}
-
-	private dolayout(splitPoint: number): void {
-		if (!this.editablePreferencesEditor || !this.dimension) {
-			return;
-		}
-		const masterEditorWidth = this.dimension.width - splitPoint;
-		const detailsEditorWidth = this.dimension.width - masterEditorWidth;
-
-		this.defaultPreferencesEditorContainer.style.width = `${detailsEditorWidth}px`;
-		this.defaultPreferencesEditorContainer.style.height = `${this.dimension.height}px`;
-		this.defaultPreferencesEditorContainer.style.left = '0px';
-
-		this.editablePreferencesEditorContainer.style.width = `${masterEditorWidth}px`;
-		this.editablePreferencesEditorContainer.style.height = `${this.dimension.height}px`;
-		this.editablePreferencesEditorContainer.style.left = `${splitPoint}px`;
-
-		this.defaultPreferencesEditor.layout(new DOM.Dimension(detailsEditorWidth, this.dimension.height - 34 /* height of header container */));
-		this.editablePreferencesEditor.layout(new DOM.Dimension(masterEditorWidth, this.dimension.height - 34 /* height of header container */));
 	}
 
 	private getSettingsTarget(resource: URI): SettingsTarget {

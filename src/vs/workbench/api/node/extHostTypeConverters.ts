@@ -379,6 +379,7 @@ export namespace DocumentSymbol {
 	export function from(info: vscode.DocumentSymbol): modes.DocumentSymbol {
 		let result: modes.DocumentSymbol = {
 			name: info.name,
+			detail: info.detail,
 			fullRange: Range.from(info.fullRange),
 			identifierRange: Range.from(info.gotoRange),
 			kind: SymbolKind.from(info.kind)
@@ -391,6 +392,7 @@ export namespace DocumentSymbol {
 	export function to(info: modes.DocumentSymbol): vscode.DocumentSymbol {
 		let result = new types.DocumentSymbol(
 			info.name,
+			info.detail,
 			SymbolKind.to(info.kind),
 			Range.to(info.fullRange),
 			Range.to(info.identifierRange),

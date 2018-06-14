@@ -324,9 +324,11 @@ TaskDefinitionRegistry.onReady().then(() => {
 		if (taskType.required) {
 			schema.required = taskType.required.slice();
 		}
-		for (let key of Object.keys(taskType.properties)) {
-			let property = taskType.properties[key];
-			schema.properties[key] = Objects.deepClone(property);
+		if (taskType.properties) {
+			for (let key of Object.keys(taskType.properties)) {
+				let property = taskType.properties[key];
+				schema.properties[key] = Objects.deepClone(property);
+			}
 		}
 		fixReferences(schema);
 		taskDefinitions.push(schema);

@@ -16,7 +16,6 @@ import { Emitter } from 'vs/base/common/event';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { createCSSRule } from 'vs/base/browser/dom';
-import URI from 'vs/base/common/uri';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { isWindows, isLinux } from 'vs/base/common/platform';
 
@@ -161,7 +160,7 @@ export class MenuItemActionItem extends ActionItem {
 		@INotificationService protected _notificationService: INotificationService,
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService
 	) {
-		super(undefined, _action, { icon: !!(_action.class || _action.item.iconPath), label: !_action.class && !_action.item.iconPath });
+		super(undefined, _action, { icon: !!(_action.class || _action.item.iconLocation), label: !_action.class && !_action.item.iconLocation });
 	}
 
 	protected get _commandAction(): IAction {
@@ -234,16 +233,18 @@ export class MenuItemActionItem extends ActionItem {
 		dispose(this._itemClassDispose);
 		this._itemClassDispose = undefined;
 
-		if (item.iconPath) {
+		if (item.iconLocation) {
 			let iconClass: string;
 
-			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(item.iconPath.dark)) {
-				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(item.iconPath.dark);
+			const iconPathMapKey = item.iconLocation.dark.toString();
+
+			if (MenuItemActionItem.ICON_PATH_TO_CSS_RULES.has(iconPathMapKey)) {
+				iconClass = MenuItemActionItem.ICON_PATH_TO_CSS_RULES.get(iconPathMapKey);
 			} else {
 				iconClass = ids.nextId();
-				createCSSRule(`.icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.light || item.iconPath.dark).toString()}")`);
-				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${URI.file(item.iconPath.dark).toString()}")`);
-				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(item.iconPath.dark, iconClass);
+				createCSSRule(`.icon.${iconClass}`, `background-image: url("${(item.iconLocation.light || item.iconLocation.dark).toString()}")`);
+				createCSSRule(`.vs-dark .icon.${iconClass}, .hc-black .icon.${iconClass}`, `background-image: url("${item.iconLocation.dark.toString()}")`);
+				MenuItemActionItem.ICON_PATH_TO_CSS_RULES.set(iconPathMapKey, iconClass);
 			}
 
 			this.$e.getHTMLElement().classList.add('icon', iconClass);

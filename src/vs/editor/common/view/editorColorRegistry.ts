@@ -49,7 +49,8 @@ export const editorInfoBorder = registerColor('editorInfo.border', { dark: null,
 export const editorHintForeground = registerColor('editorHint.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('hintForeground', 'Foreground color of hint squigglies in the editor.'));
 export const editorHintBorder = registerColor('editorHint.border', { dark: null, light: null, hc: Color.fromHex('#eeeeee').transparent(0.8) }, nls.localize('hintBorder', 'Border color of hint squigglies in the editor.'));
 
-export const editorUnnecessaryForeground = registerColor('editorUnnecessary.foreground', { dark: Color.fromHex('#eeeeee').transparent(0.7), light: '#6c6c6c', hc: null }, nls.localize('unnecessaryForeground', 'Foreground color of unnecessary code in the editor.'));
+export const editorUnnecessaryCodeBorder = registerColor('editorUnnecessaryCode.border', { dark: null, light: null, hc: Color.fromHex('#fff').transparent(0.8) }, nls.localize('unnecessaryCodeBorder', 'Border of unnecessary code in the editor.'));
+export const editorUnnecessaryCodeOpacity = registerColor('editorUnnecessaryCode.opacity', { dark: Color.fromHex('#0009'), light: Color.fromHex('#0007'), hc: null }, nls.localize('unnecessaryCodeOpacity', 'Opacity of unnecessary code in the editor.'));
 
 const rulerRangeDefault = new Color(new RGBA(0, 122, 204, 0.6));
 export const overviewRulerRangeHighlight = registerColor('editorOverviewRuler.rangeHighlightForeground', { dark: rulerRangeDefault, light: rulerRangeDefault, hc: rulerRangeDefault }, nls.localize('overviewRulerRangeHighlight', 'Overview ruler marker color for range highlights. The color must not be opaque to not hide underlying decorations.'), true);

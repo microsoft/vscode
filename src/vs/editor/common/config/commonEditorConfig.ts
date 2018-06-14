@@ -645,6 +645,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
+		'editor.showUnused': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.showUnused,
+			'description': nls.localize('showUnused', "Controls fading out of unused code.")
+		},
 		'editor.links': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,

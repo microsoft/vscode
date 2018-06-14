@@ -19,7 +19,7 @@ export class ExtHostWebview implements vscode.Webview {
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 
-	readonly _onMessageEmitter = new Emitter<any>();
+	public readonly _onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
@@ -32,16 +32,16 @@ export class ExtHostWebview implements vscode.Webview {
 		this._options = options;
 	}
 
-	dispose() {
+	public dispose() {
 		this._onMessageEmitter.dispose();
 	}
 
-	get html(): string {
+	public get html(): string {
 		this.assertNotDisposed();
 		return this._html;
 	}
 
-	set html(value: string) {
+	public set html(value: string) {
 		this.assertNotDisposed();
 		if (this._html !== value) {
 			this._html = value;
@@ -49,9 +49,15 @@ export class ExtHostWebview implements vscode.Webview {
 		}
 	}
 
-	get options(): vscode.WebviewOptions {
+	public get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
 		return this._options;
+	}
+
+	public set options(newOptions: vscode.WebviewOptions) {
+		this.assertNotDisposed();
+		this._proxy.$setOptions(this._handle, newOptions);
+		this._options = newOptions;
 	}
 
 	public postMessage(message: any): Thenable<boolean> {

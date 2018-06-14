@@ -307,7 +307,9 @@ export class OutlinePanel extends ViewletPanel {
 				this._tree.domFocus();
 			} else if (event.keyCode === KeyCode.Enter) {
 				let element = this._tree.getFocus();
-				this._revealTreeSelection(OutlineModel.get(element), element, true, false);
+				if (element instanceof OutlineElement) {
+					this._revealTreeSelection(OutlineModel.get(element), element, true, false);
+				}
 			} else if (event.keyCode === KeyCode.Escape) {
 				this._input.value = '';
 				this._tree.domFocus();
@@ -354,6 +356,14 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._disposables.push(this._tree, this._input);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+
+		// feature: toggle icons
+		dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
+		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
+				dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
+			}
+		}));
 	}
 
 	protected layoutBody(height: number = this._cachedHeight): void {
@@ -613,7 +623,7 @@ export class OutlinePanel extends ViewletPanel {
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
-		if (!this._outlineViewState.followCursor) {
+		if (!this._outlineViewState.followCursor && !this._tree.getInput()) {
 			return;
 		}
 		let item = model.getItemEnclosingPosition({

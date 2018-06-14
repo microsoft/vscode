@@ -92,6 +92,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	private static convertNavTree(resource: vscode.Uri, bucket: vscode.DocumentSymbol[], item: Proto.NavigationTree): boolean {
 		const symbolInfo = new vscode.DocumentSymbol(
 			item.text,
+			'',
 			getSymbolKind(item.kind),
 			typeConverters.Range.fromTextSpan(item.spans[0]),
 			typeConverters.Range.fromTextSpan(item.spans[0]),
