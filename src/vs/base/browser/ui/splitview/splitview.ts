@@ -43,6 +43,7 @@ interface ISashEvent {
 	sash: Sash;
 	start: number;
 	current: number;
+	alt: boolean;
 }
 
 interface IViewItem {
@@ -62,8 +63,8 @@ interface ISashDragState {
 	index: number;
 	start: number;
 	sizes: number[];
-	minDelta: number;
-	maxDelta: number;
+	minDelta?: number;
+	maxDelta?: number;
 }
 
 enum State {
@@ -89,6 +90,7 @@ function pushToStart<T>(arr: T[], value: T): T[] {
 
 	return result;
 }
+
 function pushToEnd<T>(arr: T[], value: T): T[] {
 	let didFindValue = false;
 
@@ -239,18 +241,19 @@ export class SplitView implements IDisposable {
 				orthogonalStartSash: this.orthogonalStartSash,
 				orthogonalEndSash: this.orthogonalEndSash
 			});
+
 			const sashEventMapper = this.orientation === Orientation.VERTICAL
-				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY })
-				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX });
+				? (e: IBaseSashEvent) => ({ sash, start: e.startY, current: e.currentY, alt: e.altKey } as ISashEvent)
+				: (e: IBaseSashEvent) => ({ sash, start: e.startX, current: e.currentX, alt: e.altKey } as ISashEvent);
 
 			const onStart = mapEvent(sash.onDidStart, sashEventMapper);
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
-			const onSashChangeDisposable = onChange(this.onSashChange, this);
+			const onChangeDisposable = onChange(this.onSashChange, this);
 			const onEndDisposable = sash.onDidEnd(() => this._onDidSashChange.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 
-			const disposable = combinedDisposable([onStartDisposable, onSashChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
+			const disposable = combinedDisposable([onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
 			const sashItem: ISashItem = { sash, disposable };
 
 			this.sashItems.splice(index - 1, 0, sashItem);
@@ -333,7 +336,7 @@ export class SplitView implements IDisposable {
 
 	private relayout(lowPriorityIndex?: number, highPriorityIndex?: number): void {
 		const contentSize = this.viewItems.reduce((r, i) => r + i.size, 0);
-		this.resize(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex, highPriorityIndex);
+		this.resizeAndLayout(this.viewItems.length - 1, this.size - contentSize, undefined, lowPriorityIndex, highPriorityIndex);
 	}
 
 	layout(size: number): void {
@@ -341,7 +344,7 @@ export class SplitView implements IDisposable {
 		this.size = size;
 
 		if (!this.proportions) {
-			this.resize(this.viewItems.length - 1, size - previousSize);
+			this.resizeAndLayout(this.viewItems.length - 1, size - previousSize);
 		} else {
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
@@ -352,29 +355,37 @@ export class SplitView implements IDisposable {
 		}
 	}
 
-	private onSashStart({ sash, start, current }: ISashEvent): void {
+	// private alt = false;
+
+	private onSashStart({ sash, start, alt }: ISashEvent): void {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
 		const sizes = this.viewItems.map(i => i.size);
 
-		const upIndexes = range(index, -1);
-		const collapseUp = upIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
-		const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
-
-		const downIndexes = range(index + 1, this.viewItems.length);
-		const collapseDown = downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
-		const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
-
-		const minDelta = -Math.min(collapseUp, expandDown);
-		const maxDelta = Math.min(collapseDown, expandUp);
-
-		this.sashDragState = { start, index, sizes, minDelta, maxDelta };
+		if (alt) {
+			const viewItem = this.viewItems[index + 1];
+			const minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
+			const maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+			this.sashDragState = { start, index, sizes, minDelta, maxDelta };
+		} else {
+			this.sashDragState = { start, index, sizes };
+		}
 	}
 
-	private onSashChange({ current }: ISashEvent): void {
+	private onSashChange({ current, alt }: ISashEvent): void {
 		const { index, start, sizes, minDelta, maxDelta } = this.sashDragState;
-		const delta = clamp(current - start, minDelta, maxDelta);
+		const delta = current - start;
+		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta);
 
-		this.resize(index, delta, sizes);
+		if (alt) {
+			const newSizes = this.viewItems.map(i => i.size);
+			const viewItem = this.viewItems[index + 1];
+			const newMinDelta = (viewItem.view.maximumSize - viewItem.size);
+			const newMaxDelta = (viewItem.size - viewItem.view.minimumSize);
+
+			this.resize(index + 1, -newDelta, newSizes, undefined, undefined, newMinDelta, newMaxDelta);
+		}
+
+		this.layoutViews();
 	}
 
 	private onViewChange(item: IViewItem, size: number | undefined): void {
@@ -412,7 +423,7 @@ export class SplitView implements IDisposable {
 			const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - this.viewItems[i].size), 0);
 			const deltaDown = clamp(delta, -expandDown, collapseDown);
 
-			this.resize(index, deltaDown);
+			this.resizeAndLayout(index, deltaDown);
 			delta -= deltaDown;
 		}
 
@@ -422,7 +433,7 @@ export class SplitView implements IDisposable {
 			const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - this.viewItems[i].size), 0);
 			const deltaUp = clamp(-delta, -collapseUp, expandUp);
 
-			this.resize(index - 1, deltaUp);
+			this.resizeAndLayout(index - 1, deltaUp);
 		}
 
 		this.state = State.Idle;
@@ -444,9 +455,17 @@ export class SplitView implements IDisposable {
 		return this.viewItems[index].size;
 	}
 
-	private resize(index: number, delta: number, sizes = this.viewItems.map(i => i.size), lowPriorityIndex?: number, highPriorityIndex?: number): void {
+	private resize(
+		index: number,
+		delta: number,
+		sizes = this.viewItems.map(i => i.size),
+		lowPriorityIndex?: number,
+		highPriorityIndex?: number,
+		overloadMinDelta: number = Number.POSITIVE_INFINITY,
+		overloadMaxDelta: number = Number.POSITIVE_INFINITY
+	): number {
 		if (index < 0 || index >= this.viewItems.length) {
-			return;
+			return 0;
 		}
 
 		let upIndexes = range(index, -1);
@@ -468,7 +487,18 @@ export class SplitView implements IDisposable {
 		const downItems = downIndexes.map(i => this.viewItems[i]);
 		const downSizes = downIndexes.map(i => sizes[i]);
 
-		for (let i = 0, deltaUp = delta; deltaUp !== 0 && i < upItems.length; i++) {
+		const collapseUp = upIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
+		const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
+
+		const collapseDown = downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
+		const expandDown = downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
+
+		const minDelta = -Math.min(collapseUp, expandDown, overloadMinDelta);
+		const maxDelta = Math.min(collapseDown, expandUp, overloadMaxDelta);
+
+		delta = clamp(delta, minDelta, maxDelta);
+
+		for (let i = 0, deltaUp = delta; i < upItems.length; i++) {
 			const item = upItems[i];
 			const size = clamp(upSizes[i] + deltaUp, item.view.minimumSize, item.view.maximumSize);
 			const viewDelta = size - upSizes[i];
@@ -477,7 +507,7 @@ export class SplitView implements IDisposable {
 			item.size = size;
 		}
 
-		for (let i = 0, deltaDown = delta; deltaDown !== 0 && i < downItems.length; i++) {
+		for (let i = 0, deltaDown = delta; i < downItems.length; i++) {
 			const item = downItems[i];
 			const size = clamp(downSizes[i] - deltaDown, item.view.minimumSize, item.view.maximumSize);
 			const viewDelta = size - downSizes[i];
@@ -486,6 +516,17 @@ export class SplitView implements IDisposable {
 			item.size = size;
 		}
 
+		return delta;
+	}
+
+	private resizeAndLayout(
+		index: number,
+		delta: number,
+		sizes = this.viewItems.map(i => i.size),
+		lowPriorityIndex?: number,
+		highPriorityIndex?: number
+	): void {
+		this.resize(index, delta, sizes, lowPriorityIndex, highPriorityIndex);
 		this.layoutViews();
 
 		if (this.contentSize > 0) {
