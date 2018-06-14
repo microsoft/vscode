@@ -4,19 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
-import { nativeSep, extname } from 'vs/base/common/paths';
+import { extname, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -68,7 +68,7 @@ export class WebviewElement extends Disposable {
 		this._webview.src = this._options.useSameOriginForRoot ? require.toUrl('./webview.html') : 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		this._ready = new Promise<this>(resolve => {
-			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
+			const subscription = this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
@@ -76,7 +76,7 @@ export class WebviewElement extends Disposable {
 					subscription.dispose();
 					resolve(this);
 				}
-			});
+			}));
 		});
 
 		if (!this._options.useSameOriginForRoot) {
