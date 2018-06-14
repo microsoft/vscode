@@ -47,7 +47,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 
 export abstract class SettingsTreeElement {
 	id: string;
-	parent: SettingsTreeElement;
+	parent: any; // SearchResultModel or group element... TODO search should be more similar to the normal case
 }
 
 export class SettingsTreeGroupElement extends SettingsTreeElement {
@@ -108,38 +108,43 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const element = new SettingsTreeSettingElement();
-		element.id = setting.key;
-		element.parent = parent;
-
-		const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
-
-		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
-		const overriddenScopeList = [];
-		if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
-			overriddenScopeList.push(localize('workspace', "Workspace"));
-		}
-
-		if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
-			overriddenScopeList.push(localize('user', "User"));
-		}
-
-		const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
-		element.setting = setting;
-		element.displayLabel = displayKeyFormat.label;
-		element.displayCategory = displayKeyFormat.category;
-		element.isExpanded = false;
-
-		element.value = displayValue;
-		element.isConfigured = isConfigured;
-		element.overriddenScopeList = overriddenScopeList;
-		element.description = setting.description.join('\n');
-		element.enum = setting.enum;
-		element.valueType = setting.type;
-
+		const element = createSettingsTreeSettingElement(setting, parent, this.viewState.settingsTarget, this.configurationService);
 		this._treeElementsById.set(element.id, element);
 		return element;
 	}
+}
+
+function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
+	const element = new SettingsTreeSettingElement();
+	element.id = setting.key;
+	element.parent = parent;
+
+	const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, settingsTarget, configurationService);
+
+	const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
+	const overriddenScopeList = [];
+	if (targetSelector === 'user' && typeof inspected.workspace !== 'undefined') {
+		overriddenScopeList.push(localize('workspace', "Workspace"));
+	}
+
+	if (targetSelector === 'workspace' && typeof inspected.user !== 'undefined') {
+		overriddenScopeList.push(localize('user', "User"));
+	}
+
+	const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
+	element.setting = setting;
+	element.displayLabel = displayKeyFormat.label;
+	element.displayCategory = displayKeyFormat.category;
+	element.isExpanded = false;
+
+	element.value = displayValue;
+	element.isConfigured = isConfigured;
+	element.overriddenScopeList = overriddenScopeList;
+	element.description = setting.description.join('\n');
+	element.enum = setting.enum;
+	element.valueType = setting.type;
+
+	return element;
 }
 
 function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
@@ -214,6 +219,12 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 
 export class SettingsDataSource implements IDataSource {
 
+	constructor(
+		private viewState: ISettingsEditorViewState,
+		@IConfigurationService private configurationService: IConfigurationService
+	) {
+	}
+
 	getId(tree: ITree, element: SettingsTreeElement): string {
 		return element.id;
 	}
@@ -232,7 +243,7 @@ export class SettingsDataSource implements IDataSource {
 
 	private getSearchResultChildren(searchResult: SearchResultModel): SettingsTreeSettingElement[] {
 		return searchResult.getFlatSettings()
-			.map(s => this.getSettingElement(s, searchResult, 'searchResult'));
+			.map(s => createSettingsTreeSettingElement(s, searchResult, this.viewState.settingsTarget, this.configurationService));
 	}
 
 	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {

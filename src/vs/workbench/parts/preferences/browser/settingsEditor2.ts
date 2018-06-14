@@ -239,8 +239,10 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(this.tocTree.onDidChangeSelection(e => {
-			const element = this.settingsTreeModel.getElementById(e.selection[0] && e.selection[0].id);
-			this.settingsTree.reveal(element, 0);
+			if (this.settingsTreeModel) {
+				const element = this.settingsTreeModel.getElementById(e.selection[0] && e.selection[0].id);
+				this.settingsTree.reveal(element, 0);
+			}
 		}));
 	}
 
