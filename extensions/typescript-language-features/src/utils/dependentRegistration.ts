@@ -89,7 +89,7 @@ export class ConfigurationDependentRegistration {
 	}
 
 	private update() {
-		const config = vscode.workspace.getConfiguration(this.language);
+		const config = vscode.workspace.getConfiguration(this.language, null);
 		this._registration.update(!!config.get<boolean>(this.configValue));
 	}
 }
