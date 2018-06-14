@@ -10,7 +10,7 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN, IIgnoredRecommendations } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN, IIgnoredRecommendations, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -36,11 +36,6 @@ import { asJson } from 'vs/base/node/request';
 import { isNumber } from 'vs/base/common/types';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-
-interface IExtensionsContent {
-	recommendations: string[];
-	unwantedRecommendations: string[];
-}
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -181,7 +176,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return this.fetchCombinedExtensionRecommendationConfig().then(content => this.processWorkspaceIgnores(content));
 	}
 
-	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsContent> {
+	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsConfigContent> {
 		if (!this.isEnabled()) {
 			return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 		}
@@ -190,32 +185,32 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			.then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsContent> {
+	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent> {
 		if (workspace.configuration) {
 			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => [<IExtensionsContent>json.parse(content.value, [])['extensions']], err => [])
+				.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])['extensions']], err => [])
 				.then(this.mergeExtensionRecommendationConfigs);
 		}
 		return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsContent> {
+	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 
 		return this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => [<IExtensionsContent>json.parse(content.value, [])], err => [])
+			.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])], err => [])
 			.then(this.mergeExtensionRecommendationConfigs);
 	}
 
-	private mergeExtensionRecommendationConfigs(configs: IExtensionsContent[]): IExtensionsContent {
+	private mergeExtensionRecommendationConfigs(configs: IExtensionsConfigContent[]): IExtensionsConfigContent {
 		return {
 			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
 			unwantedRecommendations: distinct(flatten(configs.map(config => config.unwantedRecommendations || [])))
 		};
 	}
 
-	private processWorkspaceRecommendations(extensionsContent: IExtensionsContent): TPromise<string[]> {
+	private processWorkspaceRecommendations(extensionsContent: IExtensionsConfigContent): TPromise<string[]> {
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 		if (extensionsContent && extensionsContent.recommendations && extensionsContent.recommendations.length) {
@@ -264,7 +259,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return TPromise.as([]);
 	}
 
-	private processWorkspaceIgnores(extensionsContent: IExtensionsContent): string[] {
+	private processWorkspaceIgnores(extensionsContent: IExtensionsConfigContent): string[] {
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
 		let countBadIDs = 0;

@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
@@ -1507,9 +1507,6 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 	}
 }
 
-interface IExtensionsContent {
-	recommendations: string[];
-}
 
 export abstract class AbstractConfigureRecommendedExtensionsAction extends Action {
 
@@ -1555,9 +1552,9 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<IContent> {
 		return this.fileService.resolveContent(workspaceConfigurationFile)
 			.then(content => {
-				const workspaceRecommendations = <IExtensionsContent>json.parse(content.value)['extensions'];
-				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
-					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
+				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value)['extensions'];
+				if (!workspaceRecommendations || !workspaceRecommendations.recommendations && !workspaceRecommendations.unwantedRecommendations) {
+					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [], unwantedRecommendations: [] } }, true)
 						.then(() => this.fileService.resolveContent(workspaceConfigurationFile));
 				}
 				return content;
