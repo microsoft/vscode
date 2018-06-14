@@ -54,7 +54,7 @@ export class ResourceMap<T> {
 	}
 
 	private toKey(resource: Uri): string | null {
-		const key = this._normalizePath ? this._normalizePath(resource) : resource.toString(true);
+		const key = this._normalizePath ? this._normalizePath(resource) : resource.fsPath;
 		if (!key) {
 			return key;
 		}
