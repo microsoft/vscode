@@ -125,7 +125,7 @@ export class BreadcrumbsWidget {
 	}
 
 	private _focus(nth: number): boolean {
-		if (this._focusedItemIdx !== -1) {
+		if (this._focusedItemIdx >= 0 && this._focusedItemIdx < this._nodes.length) {
 			dom.removeClass(this._nodes[this._focusedItemIdx], 'focused');
 			this._focusedItemIdx = -1;
 		}
