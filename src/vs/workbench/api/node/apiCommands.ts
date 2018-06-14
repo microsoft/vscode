@@ -10,6 +10,7 @@ import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import { CommandsRegistry, ICommandService, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { ITextEditorOptions } from 'vs/platform/editor/common/editor';
 import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
+import { EditorGroupLayout } from 'vs/workbench/services/group/common/editorGroupsService';
 
 // -----------------------------------------------------------------
 // The following commands are registered on both sides separately.
@@ -98,3 +99,11 @@ export class RemoveFromRecentlyOpenedAPICommand {
 	}
 }
 CommandsRegistry.registerCommand(RemoveFromRecentlyOpenedAPICommand.ID, adjustHandler(RemoveFromRecentlyOpenedAPICommand.execute));
+
+export class SetEditorLayoutAPICommand {
+	public static ID = 'vscode.setEditorLayout';
+	public static execute(executor: ICommandsExecutor, layout: EditorGroupLayout): Thenable<any> {
+		return executor.executeCommand('layoutEditorGroups', layout);
+	}
+}
+CommandsRegistry.registerCommand(SetEditorLayoutAPICommand.ID, adjustHandler(SetEditorLayoutAPICommand.execute));
