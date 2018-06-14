@@ -30,7 +30,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -240,8 +240,19 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this._register(this.tocTree.onDidChangeSelection(e => {
 			if (this.settingsTreeModel) {
-				const element = this.settingsTreeModel.getElementById(e.selection[0] && e.selection[0].id);
-				if (element) {
+				const element = e.selection[0];
+				const currentSelection = this.settingsTree.getSelection()[0];
+				const isEqualOrParent = (element: SettingsTreeElement, candidate: SettingsTreeElement) => {
+					do {
+						if (element === candidate) {
+							return true;
+						}
+					} while (element = element.parent);
+
+					return false;
+				};
+
+				if (element && !isEqualOrParent(currentSelection, element)) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
@@ -289,7 +300,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.settingsTree.getHTMLElement().classList.add(treeClass);
 
-		attachStyler(this.themeService, {
+		this._register(attachStyler(this.themeService, {
 			listActiveSelectionBackground: editorBackground,
 			listActiveSelectionForeground: foreground,
 			listFocusAndSelectionBackground: editorBackground,
@@ -302,9 +313,9 @@ export class SettingsEditor2 extends BaseEditor {
 			listInactiveSelectionForeground: foreground
 		}, colors => {
 			this.settingsTree.style(colors);
-		});
+		}));
 
-		this.settingsTree.onDidChangeFocus(e => {
+		this._register(this.settingsTree.onDidChangeFocus(e => {
 			this.settingsTree.setSelection([e.focus]);
 			if (this.selectedElement) {
 				this.settingsTree.refresh(this.selectedElement);
@@ -315,7 +326,19 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.selectedElement = e.focus;
-		});
+		}));
+
+		this._register(this.settingsTree.onDidChangeSelection(e => {
+			const element = e.selection[0] instanceof SettingsTreeSettingElement ? e.selection[0].parent :
+				e.selection[0] instanceof SettingsTreeGroupElement ? e.selection[0] :
+					null;
+
+			if (element && this.tocTree.getSelection()[0] !== element) {
+				this.tocTree.reveal(element, 0);
+				this.tocTree.setSelection([element]);
+				this.tocTree.setFocus(element);
+			}
+		}));
 	}
 
 	private createFeedbackButton(parent: HTMLElement): void {
