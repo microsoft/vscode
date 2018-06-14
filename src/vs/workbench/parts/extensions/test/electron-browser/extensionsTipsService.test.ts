@@ -251,19 +251,20 @@ suite('ExtensionsTipsService Test', () => {
 		}
 	});
 
-	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[]): TPromise<void> {
+	function setUpFolderWorkspace(folderName: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
 		const id = uuid.generateUuid();
 		parentResource = path.join(os.tmpdir(), 'vsctests', id);
-		return setUpFolder(folderName, parentResource, recommendedExtensions);
+		return setUpFolder(folderName, parentResource, recommendedExtensions, ignoredRecommendations);
 	}
 
-	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[]): TPromise<void> {
+	function setUpFolder(folderName: string, parentDir: string, recommendedExtensions: string[], ignoredRecommendations: string[] = []): TPromise<void> {
 		const folderDir = path.join(parentDir, folderName);
 		const workspaceSettingsDir = path.join(folderDir, '.vscode');
 		return mkdirp(workspaceSettingsDir, 493).then(() => {
 			const configPath = path.join(workspaceSettingsDir, 'extensions.json');
 			fs.writeFileSync(configPath, JSON.stringify({
-				'recommendations': recommendedExtensions
+				'recommendations': recommendedExtensions,
+				'unwantedRecommendations': ignoredRecommendations,
 			}, null, '\t'));
 
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
@@ -357,17 +358,140 @@ suite('ExtensionsTipsService Test', () => {
 		return testNoPromptForValidRecommendations(mockTestData.validRecommendedExtensions);
 	});
 
+	test('ExtensionTipsService: No Recommendations of globally ignored recommendations', () => {
+		const storageGetterStub = (a, _, c) => {
+			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
+			const ignoredRecommendations = '["ms-vscode.csharp", "mockpublisher2.mockextension2"]'; // ignore a stored recommendation and a workspace recommendation.
+			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
+			if (a === 'extensionsAssistant/ignored_recommendations') { return ignoredRecommendations; }
+			return c;
+		};
+
+		instantiationService.stub(IStorageService, {
+			get: storageGetterStub,
+			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
+		});
+
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(!recommendations['ms-vscode.csharp']); // stored recommendation that has been globally ignored
+				assert.ok(recommendations['ms-python.python']); // stored recommendation
+				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
+				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been globally ignored
+			});
+		});
+	});
+
+	test('ExtensionTipsService: No Recommendations of workspace ignored recommendations', () => {
+		const ignoredRecommendations = ['ms-vscode.csharp', 'mockpublisher2.mockextension2']; // ignore a stored recommendation and a workspace recommendation.
+		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c,
+			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
+		});
+
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, ignoredRecommendations).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(!recommendations['ms-vscode.csharp']); // stored recommendation that has been workspace ignored
+				assert.ok(recommendations['ms-python.python']); // stored recommendation
+				assert.ok(recommendations['mockpublisher1.mockextension1']); // workspace recommendation
+				assert.ok(!recommendations['mockpublisher2.mockextension2']); // workspace recommendation that has been workspace ignored
+			});
+		});
+	});
+
+	test('ExtensionTipsService: Able to retrieve collection of all ignored recommendations', () => {
+
+		const storageGetterStub = (a, _, c) => {
+			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+			const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
+			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
+			if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
+			return c;
+		};
+
+		const workspaceIgnoredRecommendations = ['ms-vscode.csharp']; // ignore a stored recommendation and a workspace recommendation.
+		instantiationService.stub(IStorageService, {
+			get: storageGetterStub,
+			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
+		});
+
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, workspaceIgnoredRecommendations).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getAllIgnoredRecommendations();
+				assert.deepStrictEqual(recommendations,
+					{
+						global: ['mockpublisher2.mockextension2'],
+						workspace: ['ms-vscode.csharp']
+					});
+			});
+		});
+	});
+
+	test('ExtensionTipsService: Able to dynamically update globally ignored recommendations', () => {
+		let updated = false;
+		let update = () => updated = !updated;
+		const storageGetterStub = (a, _, c) => {
+			if (!updated) {
+				const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+				const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
+				if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
+				if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
+				return c;
+			} else {
+				const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+				const globallyIgnoredRecommendations = '["mockpublisher1.mockextension1"]'; // ignore a workspace recommendation.
+				if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
+				if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
+				return c;
+			}
+		};
+
+		instantiationService.stub(IStorageService, {
+			get: storageGetterStub,
+			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
+		});
+
+		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getAllIgnoredRecommendations();
+				assert.deepStrictEqual(recommendations,
+					{
+						global: ['mockpublisher2.mockextension2'],
+						workspace: []
+					});
+				update();
+				return testObject.refreshAllIgnoredRecommendations();
+			}).then(() => {
+				const recommendations = testObject.getAllIgnoredRecommendations();
+				assert.deepStrictEqual(recommendations,
+					{
+						global: ['mockpublisher1.mockextension1'],
+						workspace: []
+					});
+			});
+		});
+	});
+
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
 		const storedRecommendations = '["ms-vscode.csharp", "ms-python.python", "eg2.tslint"]';
 		instantiationService.stub(IStorageService, { get: (a, b, c) => a === 'extensionsAssistant/recommendations' ? storedRecommendations : c });
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
-			const recommendations = testObject.getFileBasedRecommendations();
-			assert.equal(recommendations.length, 2);
-			assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
-			assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
-			assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getFileBasedRecommendations();
+				assert.equal(recommendations.length, 2);
+				assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+			});
 		});
 	});
 
@@ -380,12 +504,14 @@ suite('ExtensionsTipsService Test', () => {
 
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
-			const recommendations = testObject.getFileBasedRecommendations();
-			assert.equal(recommendations.length, 2);
-			assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
-			assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
-			assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
-			assert.ok(recommendations.indexOf('lukehoban.Go') === -1); //stored recommendation that is older than a week
+			return testObject.promptWorkspaceRecommendationsPromise.then(() => {
+				const recommendations = testObject.getFileBasedRecommendations();
+				assert.equal(recommendations.length, 2);
+				assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.indexOf('lukehoban.Go') === -1); //stored recommendation that is older than a week
+			});
 		});
 	});
 });

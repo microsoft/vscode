@@ -95,15 +95,17 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (product.extensionsGallery && product.extensionsGallery.recommendationsUrl) {
 			this._extensionsRecommendationsUrl = product.extensionsGallery.recommendationsUrl;
 		}
-		this.refreshAllIgnoredRecommendations().then(() => {
-			this.getCachedDynamicWorkspaceRecommendations();
-			this._suggestFileBasedRecommendations();
-			this.promptWorkspaceRecommendationsPromise = this._suggestWorkspaceRecommendations();
+		this.promptWorkspaceRecommendationsPromise =
+			this.refreshAllIgnoredRecommendations().then(() => {
+				this.getCachedDynamicWorkspaceRecommendations();
+				this._suggestFileBasedRecommendations();
 
-			if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
-				this.fetchProactiveRecommendations(true);
-			}
-		});
+				if (!this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
+					this.fetchProactiveRecommendations(true);
+				}
+
+				return this._suggestWorkspaceRecommendations();
+			});
 
 		this._register(this.contextService.onDidChangeWorkspaceFolders(e => this.onWorkspaceFoldersChanged(e)));
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
