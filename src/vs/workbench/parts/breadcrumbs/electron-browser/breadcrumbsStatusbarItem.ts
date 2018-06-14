@@ -58,7 +58,7 @@ export class BreadcrumbsStatusbarItem implements IStatusbarItem {
 
 		function render(element: Element, target: HTMLElement) {
 			target.innerText = getBaseLabel(element.uri);
-			target.title = getPathLabel(element.uri);
+			target.title = getPathLabel(element.uri, undefined, undefined);
 		}
 
 		let items: RenderedBreadcrumbsItem<Element>[] = [];
