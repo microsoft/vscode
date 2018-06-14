@@ -209,6 +209,7 @@ export class UpdateImportsOnFileRenameHandler {
 		oldFile: string,
 		newFile: string,
 	) {
+		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs = {
@@ -221,7 +222,37 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
+		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.map((edit: Proto.FileCodeEdits) => this.fixEdit(edit, isDirectoryRename)));
+	}
+
+	private fixEdit(
+		edit: Proto.FileCodeEdits,
+		isDirectoryRename: boolean
+	): Proto.FileCodeEdits {
+		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
+			return edit;
+		}
+
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
+		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
+			const match = change.newText.match(/\/[^\/]+$/g);
+			if (!match) {
+				return change;
+			}
+			return {
+				newText: change.newText.slice(0, -match[0].length),
+				start: change.start,
+				end: {
+					line: change.end.line,
+					offset: change.end.offset - match[0].length
+				}
+			};
+		});
+
+		return {
+			fileName: edit.fileName,
+			textChanges
+		};
 	}
 }
 
