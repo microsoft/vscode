@@ -316,7 +316,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			resolvedVariables = TPromise.as(result);
 		}
 		return resolvedVariables.then((variables) => {
-			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, undefined, variables, this.configurationResolverService));
+			return this.executeInTerminal(task, trigger, new VariableResolver(workspaceFolder, taskSystemInfo, variables, this.configurationResolverService));
 		});
 	}
 
@@ -517,6 +517,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 	}
 
 	private createTerminal(task: CustomTask | ContributedTask, resolver: VariableResolver): [ITerminalInstance, string, TaskError | undefined] {
+		let platform = resolver.taskSystemInfo ? resolver.taskSystemInfo.platform : Platform.platform;
 		let options = this.resolveOptions(resolver, task.command.options);
 		let { command, args } = this.resolveCommandAndArgs(resolver, task.command);
 		let commandExecutable = CommandString.value(command);
@@ -555,7 +556,7 @@ export class TerminalTaskSystem implements ITaskSystem {
 			let toAdd: string[] = [];
 			let commandLine = this.buildShellCommandLine(shellLaunchConfig.executable, shellOptions, command, args);
 			let windowsShellArgs: boolean = false;
-			if (Platform.isWindows) {
+			if (platform === Platform.Platform.Windows) {
 				// Change Sysnative to System32 if the OS is Windows but NOT WoW64. It's
 				// safe to assume that this was used by accident as Sysnative does not
 				// exist and will break the terminal in non-WoW64 environments.
@@ -642,14 +643,23 @@ export class TerminalTaskSystem implements ITaskSystem {
 		}
 		if (options.cwd) {
 			let cwd = options.cwd;
-			if (!path.isAbsolute(cwd)) {
+			let p: typeof path;
+			// This must be normalized to the OS
+			if (platform === Platform.Platform.Windows) {
+				p = path.win32 as any;
+			} else if (platform === Platform.Platform.Linux || platform === Platform.Platform.Mac) {
+				p = path.posix as any;
+			} else {
+				p = path;
+			}
+			if (!p.isAbsolute(cwd)) {
 				let workspaceFolder = Task.getWorkspaceFolder(task);
 				if (workspaceFolder.uri.scheme === 'file') {
-					cwd = path.join(workspaceFolder.uri.fsPath, cwd);
+					cwd = p.join(workspaceFolder.uri.fsPath, cwd);
 				}
 			}
 			// This must be normalized to the OS
-			shellLaunchConfig.cwd = path.normalize(cwd);
+			shellLaunchConfig.cwd = p.normalize(cwd);
 		}
 		if (options.env) {
 			shellLaunchConfig.env = options.env;
