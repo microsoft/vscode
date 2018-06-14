@@ -6,19 +6,14 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol, IURITransformer } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
-import URI, { UriComponents } from 'vs/base/common/uri';
+import URI from 'vs/base/common/uri';
 import { MarshalledObject } from 'vs/base/common/marshalling';
 
 declare var Proxy: any; // TODO@TypeScript
-
-export interface IURITransformer {
-	transformIncoming(uri: UriComponents): UriComponents;
-	transformOutgoing(uri: URI): URI;
-}
 
 function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: number): any {
 

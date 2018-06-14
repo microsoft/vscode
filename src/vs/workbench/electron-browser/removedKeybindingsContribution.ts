@@ -35,8 +35,10 @@ export class HistoryNavigationKeybindingsChangedContribution implements IWorkben
 		'editor.action.extensioneditor.showPreviousFindTerm',
 
 		'editor.action.webvieweditor.showNextFindTerm',
-		'editor.action.webvieweditor.showPreviousFindTerm'
+		'editor.action.webvieweditor.showPreviousFindTerm',
 
+		'repl.action.historyNext',
+		'repl.action.historyPrevious'
 	];
 
 	constructor(
@@ -53,7 +55,7 @@ export class HistoryNavigationKeybindingsChangedContribution implements IWorkben
 		if (!this.storageService.getBoolean(key, StorageScope.GLOBAL, false)) {
 			const keybindingsToRemove = this.keybindingService.getKeybindings().filter(keybinding => !keybinding.isDefault && this.previousCommands.indexOf(keybinding.command) !== -1);
 			if (keybindingsToRemove.length) {
-				const message = localize('showDeprecatedWarningMessage', "History navigation commands have changed. Please update your keybindings to use following new commands: 'input.action.historyPrevious' and 'input.action.historyNext'");
+				const message = localize('showDeprecatedWarningMessage', "History navigation commands have changed. Please update your keybindings to use following new commands: 'history.showPrevious' and 'history.showNext'");
 				this.notificationService.prompt(Severity.Warning, message, [
 					{
 						label: localize('Open Keybindings', "Open Keybindings File"),

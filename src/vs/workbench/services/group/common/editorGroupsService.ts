@@ -64,7 +64,7 @@ export enum GroupsArrangement {
 
 export interface GroupLayoutArgument {
 	size?: number;
-	groups?: Array<GroupLayoutArgument>;
+	groups?: GroupLayoutArgument[];
 }
 
 export interface EditorGroupLayout {

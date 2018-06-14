@@ -494,8 +494,8 @@ export class CodeApplication {
 		this.historyMainService.updateWindowsJumpList();
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
-		// Start shared process here
-		this.sharedProcess.spawn();
+		// Start shared process after a while
+		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
 	}
 
 	private dispose(): void {

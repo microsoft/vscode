@@ -593,6 +593,20 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 }
 
+export class EnabledExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@enabled');
+	}
+}
+
+export class DisabledExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@disabled');
+	}
+}
+
 export class BuiltInExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {

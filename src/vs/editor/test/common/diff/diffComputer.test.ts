@@ -25,8 +25,9 @@ function extractCharChangeRepresentation(change: ICharChange, expectedChange: IC
 }
 
 function extractLineChangeRepresentation(change: ILineChange, expectedChange: ILineChange): IChange | ILineChange {
+	let charChanges: ICharChange[];
 	if (change.charChanges) {
-		let charChanges: ICharChange[] = [];
+		charChanges = [];
 		for (let i = 0; i < change.charChanges.length; i++) {
 			charChanges.push(
 				extractCharChangeRepresentation(
@@ -35,26 +36,21 @@ function extractLineChangeRepresentation(change: ILineChange, expectedChange: IL
 				)
 			);
 		}
-		return {
-			originalStartLineNumber: change.originalStartLineNumber,
-			originalEndLineNumber: change.originalEndLineNumber,
-			modifiedStartLineNumber: change.modifiedStartLineNumber,
-			modifiedEndLineNumber: change.modifiedEndLineNumber,
-			charChanges: charChanges
-		};
 	}
 	return {
 		originalStartLineNumber: change.originalStartLineNumber,
 		originalEndLineNumber: change.originalEndLineNumber,
 		modifiedStartLineNumber: change.modifiedStartLineNumber,
-		modifiedEndLineNumber: change.modifiedEndLineNumber
+		modifiedEndLineNumber: change.modifiedEndLineNumber,
+		charChanges: charChanges
 	};
 }
 
-function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: IChange[], shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
+function assertDiff(originalLines: string[], modifiedLines: string[], expectedChanges: IChange[], shouldComputeCharChanges: boolean = true, shouldPostProcessCharChanges: boolean = false, shouldIgnoreTrimWhitespace: boolean = false) {
 	let diffComputer = new DiffComputer(originalLines, modifiedLines, {
-		shouldPostProcessCharChanges: shouldPostProcessCharChanges || false,
-		shouldIgnoreTrimWhitespace: shouldIgnoreTrimWhitespace || false,
+		shouldComputeCharChanges,
+		shouldPostProcessCharChanges,
+		shouldIgnoreTrimWhitespace,
 		shouldMakePrettyDiff: true
 	});
 	let changes = diffComputer.computeDiff();
@@ -66,25 +62,27 @@ function assertDiff(originalLines: string[], modifiedLines: string[], expectedCh
 	assert.deepEqual(extracted, expectedChanges);
 }
 
-function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): IChange {
+function createLineDeletion(startLineNumber: number, endLineNumber: number, modifiedLineNumber: number): ILineChange {
 	return {
 		originalStartLineNumber: startLineNumber,
 		originalEndLineNumber: endLineNumber,
 		modifiedStartLineNumber: modifiedLineNumber,
-		modifiedEndLineNumber: 0
+		modifiedEndLineNumber: 0,
+		charChanges: undefined
 	};
 }
 
-function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): IChange {
+function createLineInsertion(startLineNumber: number, endLineNumber: number, originalLineNumber: number): ILineChange {
 	return {
 		originalStartLineNumber: originalLineNumber,
 		originalEndLineNumber: 0,
 		modifiedStartLineNumber: startLineNumber,
-		modifiedEndLineNumber: endLineNumber
+		modifiedEndLineNumber: endLineNumber,
+		charChanges: undefined
 	};
 }
 
-function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges: ICharChange[]): ILineChange {
+function createLineChange(originalStartLineNumber: number, originalEndLineNumber: number, modifiedStartLineNumber: number, modifiedEndLineNumber: number, charChanges?: ICharChange[]): ILineChange {
 	return {
 		originalStartLineNumber: originalStartLineNumber,
 		originalEndLineNumber: originalEndLineNumber,
@@ -390,7 +388,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(1, 2, 1, 4, 1, 2, 1, 13)
 			])
 		];
-		assertDiff(original, modified, expected, true);
+		assertDiff(original, modified, expected, true, true);
 	});
 
 	test('ignore trim whitespace', () => {
@@ -403,7 +401,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharInsertion(4, 1, 4, 4)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('issue #12122 r.hasOwnProperty is not a function', () => {
@@ -423,7 +421,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 2', () => {
@@ -434,7 +432,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 3', () => {
@@ -445,7 +443,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('empty diff 4', () => {
@@ -456,7 +454,7 @@ suite('Editor Diff - DiffComputer', () => {
 				createCharChange(0, 0, 0, 0, 0, 0, 0, 0)
 			])
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 1', () => {
@@ -493,7 +491,7 @@ suite('Editor Diff - DiffComputer', () => {
 			createLineInsertion(1, 1, 0),
 			createLineInsertion(10, 13, 8)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 2', () => {
@@ -536,7 +534,7 @@ suite('Editor Diff - DiffComputer', () => {
 			createLineInsertion(1, 3, 0),
 			createLineDeletion(10, 13, 12),
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('pretty diff 3', () => {
@@ -574,7 +572,7 @@ suite('Editor Diff - DiffComputer', () => {
 		let expected = [
 			createLineInsertion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, false, true);
+		assertDiff(original, modified, expected, true, false, true);
 	});
 
 	test('issue #23636', () => {
@@ -671,7 +669,7 @@ suite('Editor Diff - DiffComputer', () => {
 			)
 			// createLineInsertion(7, 11, 6)
 		];
-		assertDiff(original, modified, expected, true, false);
+		assertDiff(original, modified, expected, true, true, false);
 	});
 
 	test('issue #43922', () => {
@@ -690,7 +688,7 @@ suite('Editor Diff - DiffComputer', () => {
 				]
 			)
 		];
-		assertDiff(original, modified, expected, true, false);
+		assertDiff(original, modified, expected, true, true, false);
 	});
 
 	test('issue #42751', () => {
@@ -710,6 +708,25 @@ suite('Editor Diff - DiffComputer', () => {
 				]
 			)
 		];
-		assertDiff(original, modified, expected, true, false);
+		assertDiff(original, modified, expected, true, true, false);
+	});
+
+	test('does not give character changes', () => {
+		let original = [
+			'    1',
+			'  2',
+			'A',
+		];
+		let modified = [
+			'    1',
+			'   3',
+			' A',
+		];
+		let expected = [
+			createLineChange(
+				2, 3, 2, 3
+			)
+		];
+		assertDiff(original, modified, expected, false, false, false);
 	});
 });

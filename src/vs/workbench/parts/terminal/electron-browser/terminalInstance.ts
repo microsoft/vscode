@@ -65,7 +65,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
-	private _onDataListeners: ((data: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
@@ -115,12 +114,11 @@ export class TerminalInstance implements ITerminalInstance {
 		@IThemeService private readonly _themeService: IThemeService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService,
 		@ILogService private _logService: ILogService,
-		@IStorageService private readonly _storageService: IStorageService,
+		@IStorageService private readonly _storageService: IStorageService
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
 		this._onLineDataListeners = [];
-		this._onDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
@@ -262,6 +260,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._xterm = new Terminal({
 			scrollback: config.scrollback,
 			theme: this._getXtermTheme(),
+			drawBoldTextInBrightColors: config.drawBoldTextInBrightColors,
 			fontFamily: font.fontFamily,
 			fontWeight: config.fontWeight,
 			fontWeightBold: config.fontWeightBold,
@@ -273,7 +272,8 @@ export class TerminalInstance implements ITerminalInstance {
 			macOptionIsMeta: config.macOptionIsMeta,
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
-			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType
+			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
+			experimentalCharAtlas: config.experimentalTextureCachingStrategy
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
@@ -568,13 +568,15 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public focus(force?: boolean): void {
-		if (!this._xterm) {
-			return;
-		}
-		const text = window.getSelection().toString();
-		if (!text || force) {
-			this._xterm.focus();
-		}
+		this._xtermReadyPromise.then(() => {
+			if (!this._xterm) {
+				return;
+			}
+			const text = window.getSelection().toString();
+			if (!text || force) {
+				this._xterm.focus();
+			}
+		});
 	}
 
 	public paste(): void {
@@ -684,13 +686,6 @@ export class TerminalInstance implements ITerminalInstance {
 		if (this._xterm) {
 			this._xterm.write(data);
 		}
-		this._onDataListeners.forEach(listener => {
-			try {
-				listener(data);
-			} catch (err) {
-				console.error(`onData listener threw`, err);
-			}
-		});
 	}
 
 	private _onProcessExit(exitCode: number): void {
@@ -797,15 +792,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onData(listener: (data: string) => void): lifecycle.IDisposable {
-		this._onDataListeners.push(listener);
-		return {
-			dispose: () => {
-				const i = this._onDataListeners.indexOf(listener);
-				if (i >= 0) {
-					this._onDataListeners.splice(i, 1);
-				}
-			}
-		};
+		return this._processManager.onProcessData(data => listener(data));
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
@@ -850,13 +837,14 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public updateConfig(): void {
-		this._setCursorBlink(this._configHelper.config.cursorBlinking);
-		this._setCursorStyle(this._configHelper.config.cursorStyle);
-		this._setCommandsToSkipShell(this._configHelper.config.commandsToSkipShell);
-		this._setScrollback(this._configHelper.config.scrollback);
-		this._setEnableBell(this._configHelper.config.enableBell);
-		this._setMacOptionIsMeta(this._configHelper.config.macOptionIsMeta);
-		this._setRightClickSelectsWord(this._configHelper.config.rightClickBehavior === 'selectWord');
+		const config = this._configHelper.config;
+		this._setCursorBlink(config.cursorBlinking);
+		this._setCursorStyle(config.cursorStyle);
+		this._setCommandsToSkipShell(config.commandsToSkipShell);
+		this._setEnableBell(config.enableBell);
+		this._safeSetOption('scrollback', config.scrollback);
+		this._safeSetOption('macOptionIsMeta', config.macOptionIsMeta);
+		this._safeSetOption('rightClickSelectsWord', config.rightClickBehavior === 'selectWord');
 	}
 
 	public updateAccessibilitySupport(): void {
@@ -883,24 +871,6 @@ export class TerminalInstance implements ITerminalInstance {
 		this._skipTerminalCommands = commands;
 	}
 
-	private _setScrollback(lineCount: number): void {
-		if (this._xterm && this._xterm.getOption('scrollback') !== lineCount) {
-			this._xterm.setOption('scrollback', lineCount);
-		}
-	}
-
-	private _setMacOptionIsMeta(value: boolean): void {
-		if (this._xterm && this._xterm.getOption('macOptionIsMeta') !== value) {
-			this._xterm.setOption('macOptionIsMeta', value);
-		}
-	}
-
-	private _setRightClickSelectsWord(value: boolean): void {
-		if (this._xterm && this._xterm.getOption('rightClickSelectsWord') !== value) {
-			this._xterm.setOption('rightClickSelectsWord', value);
-		}
-	}
-
 	private _setEnableBell(isEnabled: boolean): void {
 		if (this._xterm) {
 			if (this._xterm.getOption('bellStyle') === 'sound') {
@@ -912,6 +882,16 @@ export class TerminalInstance implements ITerminalInstance {
 					this._xterm.setOption('bellStyle', 'sound');
 				}
 			}
+		}
+	}
+
+	private _safeSetOption(key: string, value: any): void {
+		if (!this._xterm) {
+			return;
+		}
+
+		if (this._xterm.getOption(key) !== value) {
+			this._xterm.setOption(key, value);
 		}
 	}
 
@@ -931,24 +911,14 @@ export class TerminalInstance implements ITerminalInstance {
 			// Only apply these settings when the terminal is visible so that
 			// the characters are measured correctly.
 			if (this._isVisible) {
-				if (this._xterm.getOption('letterSpacing') !== font.letterSpacing) {
-					this._xterm.setOption('letterSpacing', font.letterSpacing);
-				}
-				if (this._xterm.getOption('lineHeight') !== font.lineHeight) {
-					this._xterm.setOption('lineHeight', font.lineHeight);
-				}
-				if (this._xterm.getOption('fontSize') !== font.fontSize) {
-					this._xterm.setOption('fontSize', font.fontSize);
-				}
-				if (this._xterm.getOption('fontFamily') !== font.fontFamily) {
-					this._xterm.setOption('fontFamily', font.fontFamily);
-				}
-				if (this._xterm.getOption('fontWeight') !== this._configHelper.config.fontWeight) {
-					this._xterm.setOption('fontWeight', this._configHelper.config.fontWeight);
-				}
-				if (this._xterm.getOption('fontWeightBold') !== this._configHelper.config.fontWeightBold) {
-					this._xterm.setOption('fontWeightBold', this._configHelper.config.fontWeightBold);
-				}
+				const config = this._configHelper.config;
+				this._safeSetOption('letterSpacing', font.letterSpacing);
+				this._safeSetOption('lineHeight', font.lineHeight);
+				this._safeSetOption('fontSize', font.fontSize);
+				this._safeSetOption('fontFamily', font.fontFamily);
+				this._safeSetOption('fontWeight', config.fontWeight);
+				this._safeSetOption('fontWeightBold', config.fontWeightBold);
+				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
 			this._xterm.resize(this._cols, this._rows);

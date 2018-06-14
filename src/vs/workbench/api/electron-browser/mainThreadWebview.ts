@@ -19,6 +19,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { extHostNamedCustomer } from './extHostCustomers';
+import * as vscode from 'vscode';
 
 @extHostNamedCustomer(MainContext.MainThreadWebviews)
 export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviver {
@@ -103,6 +104,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	$setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
+	}
+
+	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
+		const webview = this.getWebview(handle);
+		webview.setOptions({
+			...options,
+			localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
+		});
 	}
 
 	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {

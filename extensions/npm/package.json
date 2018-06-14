@@ -85,6 +85,28 @@
       }
     ],
     "menus": {
+      "commandPalette": [
+        {
+          "command": "npm.refresh",
+          "when": "false"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.openScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.runInstall",
+          "when": "false"
+        }
+      ],
       "view/title": [
         {
           "command": "npm.refresh",
@@ -102,7 +124,8 @@
           "command": "npm.runInstall",
           "when": "view == npm && viewItem == packageJSON",
           "group": "navigation@2"
-        },        {
+        },
+        {
           "command": "npm.openScript",
           "when": "view == npm && viewItem == script",
           "group": "navigation@1"

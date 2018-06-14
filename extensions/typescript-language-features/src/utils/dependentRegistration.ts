@@ -5,8 +5,8 @@
 
 import * as vscode from 'vscode';
 import { ITypeScriptServiceClient } from '../typescriptService';
-import API from '../utils/api';
-import { disposeAll } from '../utils/dispose';
+import API from './api';
+import { disposeAll } from './dispose';
 
 class ConditionalRegistration {
 	private registration: vscode.Disposable | undefined = undefined;
@@ -89,7 +89,7 @@ export class ConfigurationDependentRegistration {
 	}
 
 	private update() {
-		const config = vscode.workspace.getConfiguration(this.language);
+		const config = vscode.workspace.getConfiguration(this.language, null);
 		this._registration.update(!!config.get<boolean>(this.configValue));
 	}
 }

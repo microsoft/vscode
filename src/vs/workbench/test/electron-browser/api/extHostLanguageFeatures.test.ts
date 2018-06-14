@@ -163,7 +163,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
-				assert.equal(value.entries.length, 1);
+				assert.equal(value.length, 1);
 			});
 		});
 	});
@@ -178,11 +178,11 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
-				assert.equal(value.entries.length, 1);
+				assert.equal(value.length, 1);
 
-				let entry = value.entries[0];
+				let entry = value[0];
 				assert.equal(entry.name, 'test');
-				assert.deepEqual(entry.location.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.deepEqual(entry.fullRange, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});

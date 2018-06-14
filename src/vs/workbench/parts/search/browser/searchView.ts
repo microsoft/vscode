@@ -969,6 +969,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 		skipLayout = Boolean(skipLayout);
 
 		if (show) {
+			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'true');
 			dom.addClass(this.queryDetails, cls);
 			if (moveFocus) {
 				if (reverse) {
@@ -980,6 +981,7 @@ export class SearchView extends Viewlet implements IViewlet, IPanel {
 				}
 			}
 		} else {
+			this.toggleQueryDetailsButton.setAttribute('aria-expanded', 'false');
 			dom.removeClass(this.queryDetails, cls);
 			if (moveFocus) {
 				this.searchWidget.focus();

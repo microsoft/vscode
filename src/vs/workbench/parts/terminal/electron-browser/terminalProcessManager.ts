@@ -150,11 +150,13 @@ export class TerminalProcessManager implements ITerminalProcessManager {
 
 	public write(data: string): void {
 		if (this.shellProcessId) {
-			// Send data if the pty is ready
-			this._process.send({
-				event: 'input',
-				data
-			});
+			if (this._process) {
+				// Send data if the pty is ready
+				this._process.send({
+					event: 'input',
+					data
+				});
+			}
 		} else {
 			// If the pty is not ready, queue the data received to send later
 			this._preLaunchInputQueue.push(data);

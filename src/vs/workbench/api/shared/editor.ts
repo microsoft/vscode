@@ -9,18 +9,14 @@ import { IEditorGroupsService, IEditorGroup, GroupsOrder } from 'vs/workbench/se
 import { GroupIdentifier } from 'vs/workbench/common/editor';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
-// TODO@api this was previously a hardcoded list of editor positions (ONE, TWO, THREE)
-// that with the introduction of grid editor feature is now unbounded. This should be
-// revisited when the grid functionality is exposed to extensions,
-
 export type EditorViewColumn = number;
 
 export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService, position?: EditorViewColumn): GroupIdentifier {
-	if (typeof position !== 'number') {
-		return ACTIVE_GROUP; // prefer active group when position is undefined
+	if (typeof position !== 'number' || position === ACTIVE_GROUP) {
+		return ACTIVE_GROUP; // prefer active group when position is undefined or passed in as such
 	}
 
-	const groups = editorGroupService.getGroups(GroupsOrder.CREATION_TIME);
+	const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
 
 	let candidate = groups[position];
 	if (candidate) {
@@ -29,14 +25,14 @@ export function viewColumnToEditorGroup(editorGroupService: IEditorGroupsService
 
 	let firstGroup = groups[0];
 	if (groups.length === 1 && firstGroup.count === 0) {
-		return firstGroup.id; // first editor should always open in first group
+		return firstGroup.id; // first editor should always open in first group independent from position provided
 	}
 
-	return SIDE_GROUP; // open to the side if group not found
+	return SIDE_GROUP; // open to the side if group not found or we are instructed to
 }
 
 export function editorGroupToViewColumn(editorGroupService: IEditorGroupsService, editorGroup: IEditorGroup | GroupIdentifier): EditorViewColumn {
-	const group = typeof editorGroup === 'number' ? editorGroupService.getGroup(editorGroup) : editorGroup;
+	const group = (typeof editorGroup === 'number') ? editorGroupService.getGroup(editorGroup) : editorGroup;
 
-	return editorGroupService.getGroups(GroupsOrder.CREATION_TIME).indexOf(group);
+	return editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE).indexOf(group);
 }

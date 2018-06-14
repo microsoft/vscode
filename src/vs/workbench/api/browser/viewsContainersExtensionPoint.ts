@@ -7,7 +7,7 @@
 import { localize } from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ExtensionMessageCollector, ExtensionsRegistry, IExtensionPoint } from 'vs/workbench/services/extensions/common/extensionsRegistry';
-import { join } from 'vs/base/common/paths';
+import * as resources from 'vs/base/common/resources';
 import { createCSSRule } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
@@ -29,11 +29,18 @@ import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions, IWo
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import URI from 'vs/base/common/uri';
 
 export interface IUserFriendlyViewsContainerDescriptor {
 	id: string;
 	title: string;
 	icon: string;
+}
+
+export interface IUserFriendlyViewsContainerDescriptor2 {
+	id: string;
+	title: string;
+	icon: URI;
 }
 
 const viewsContainerSchema: IJSONSchema = {
@@ -81,7 +88,7 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private registerTestViewContainer(): void {
 		const title = localize('test', "Test");
 		const cssClass = `extensionViewlet-test`;
-		const icon = require.toUrl('./media/test.svg');
+		const icon = URI.parse(require.toUrl('./media/test.svg'));
 
 		this.registerCustomViewlet({ id: TEST_VIEW_CONTAINER_ID, title, icon }, TEST_VIEW_CONTAINER_ORDER, cssClass);
 	}
@@ -135,13 +142,12 @@ class ViewsContainersExtensionHandler implements IWorkbenchContribution {
 	private registerCustomViewContainers(containers: IUserFriendlyViewsContainerDescriptor[], extension: IExtensionDescription) {
 		containers.forEach((descriptor, index) => {
 			const cssClass = `extensionViewlet-${descriptor.id}`;
-			// TODO@extensionLocation
-			const icon = join(extension.extensionLocation.fsPath, descriptor.icon);
+			const icon = resources.joinPath(extension.extensionLocation, descriptor.icon);
 			this.registerCustomViewlet({ id: `workbench.view.extension.${descriptor.id}`, title: descriptor.title, icon }, TEST_VIEW_CONTAINER_ORDER + index + 1, cssClass);
 		});
 	}
 
-	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor, order: number, cssClass: string): void {
+	private registerCustomViewlet(descriptor: IUserFriendlyViewsContainerDescriptor2, order: number, cssClass: string): void {
 		const viewContainersRegistry = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry);
 		const viewletRegistry = Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets);
 		const id = descriptor.id;

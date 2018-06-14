@@ -8,6 +8,17 @@
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter, once, filterEvent } from 'vs/base/common/event';
+import URI, { UriComponents } from 'vs/base/common/uri';
+
+export interface IURITransformer {
+	transformIncoming(uri: UriComponents): UriComponents;
+	transformOutgoing(uri: URI): URI;
+}
+
+export const DefaultURITransformer: IURITransformer = {
+	transformIncoming: (uri: UriComponents) => uri,
+	transformOutgoing: (uri: URI) => URI.revive(uri),
+};
 
 enum MessageType {
 	RequestCommon,

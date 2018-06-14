@@ -65,8 +65,8 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 			}
 
 			existing.push({
-				label: basename(file.filepath),
-				filepath: file.filepath,
+				label: basename(file.location.fsPath),
+				filepath: file.location.fsPath,
 				description: names.size === 0
 					? nls.localize('global.scope', "(global)")
 					: nls.localize('global.1', "({0})", values(names).join(', '))
@@ -74,11 +74,11 @@ async function computePicks(snippetService: ISnippetsService, envService: IEnvir
 
 		} else {
 			// language snippet
-			const mode = basename(file.filepath, '.json');
+			const mode = basename(file.location.fsPath, '.json');
 			existing.push({
-				label: basename(file.filepath),
+				label: basename(file.location.fsPath),
 				description: `(${modeService.getLanguageName(mode)})`,
-				filepath: file.filepath
+				filepath: file.location.fsPath
 			});
 			seen.add(mode);
 		}

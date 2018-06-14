@@ -77,6 +77,8 @@ export class Search extends Viewlet {
 			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-remove`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
+		// ¯\_(ツ)_/¯
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-remove`);
 		await this.code.waitForElement(fileMatch, el => !el);
 	}
@@ -101,6 +103,8 @@ export class Search extends Viewlet {
 			() => this.code.waitForElement(`${fileMatch} .action-label.icon.action-replace-all`, el => !!el && el.top > 0 && el.left > 0, 10)
 		);
 
+		// ¯\_(ツ)_/¯
+		await new Promise(c => setTimeout(c, 500));
 		await this.code.waitAndClick(`${fileMatch} .action-label.icon.action-replace-all`);
 	}
 

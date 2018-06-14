@@ -27,7 +27,6 @@ import { ExtHostContext, ExtHostEditorsShape, IExtHostContext, ITextDocumentShow
 import { MainThreadDocumentsAndEditors } from './mainThreadDocumentsAndEditors';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
-import { IFileService } from 'vs/platform/files/common/files';
 
 export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
@@ -57,6 +56,7 @@ export class MainThreadTextEditors implements MainThreadTextEditorsShape {
 
 		this._toDispose.push(this._editorService.onDidVisibleEditorsChange(() => this._updateActiveAndVisibleTextEditors()));
 		this._toDispose.push(this._editorGroupService.onDidRemoveGroup(() => this._updateActiveAndVisibleTextEditors()));
+		this._toDispose.push(this._editorGroupService.onDidMoveGroup(() => this._updateActiveAndVisibleTextEditors()));
 
 		this._registeredDecorationTypes = Object.create(null);
 	}
@@ -253,18 +253,23 @@ CommandsRegistry.registerCommand('_workbench.open', function (accessor: Services
 	const editorService = accessor.get(IEditorService);
 	const editorGroupService = accessor.get(IEditorGroupsService);
 	const openerService = accessor.get(IOpenerService);
-	const fileService = accessor.get(IFileService);
 
 	const [resource, options, position] = args;
 
-	if (fileService.canHandleResource(resource)) {
-		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(() => void 0);
-	} else {
-		// http://, https://, command:id
-		//todo@ben make this proper
-		return openerService.open(resource).then(_ => void 0);
+	if (options || typeof position === 'number') {
+		// use editor options or editor view column as a hint to use the editor service for opening
+		return editorService.openEditor({ resource, options }, viewColumnToEditorGroup(editorGroupService, position)).then(_ => void 0);
 	}
+
+	if (resource && resource.scheme === 'command') {
+		// do not allow to execute commands from here
+		return TPromise.as(void 0);
+	}
+
+	// finally, delegate to opener service
+	return openerService.open(resource).then(_ => void 0);
 });
+
 
 CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorViewColumn]) {
 	const editorService = accessor.get(IEditorService);

@@ -5,7 +5,7 @@
 'use strict';
 
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { ICodeEditor, isCodeEditor, isDiffEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import * as modes from 'vs/editor/common/modes';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -37,23 +37,25 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._disposables = [];
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostComments);
 		this._disposables.push(this._editorService.onDidActiveEditorChange(e => {
-			const outerEditor = this.getFocusedEditor();
-			if (!outerEditor) {
+			const editors = this.getFocusedEditors();
+			if (!editors || !editors.length) {
 				return;
 			}
 
-			const controller = ReviewController.get(outerEditor);
-			if (!controller) {
-				return;
-			}
+			editors.forEach(editor => {
+				const controller = ReviewController.get(editor);
+				if (!controller) {
+					return;
+				}
 
-			if (!outerEditor.getModel()) {
-				return;
-			}
+				if (!editor.getModel()) {
+					return;
+				}
 
-			const outerEditorURI = outerEditor.getModel().uri;
-			this.provideDocumentComments(outerEditorURI).then(commentInfos => {
-				this._commentService.setComments(outerEditorURI, commentInfos.filter(info => info !== null));
+				const outerEditorURI = editor.getModel().uri;
+				this.provideDocumentComments(outerEditorURI).then(commentInfos => {
+					this._commentService.setDocumentComments(outerEditorURI, commentInfos.filter(info => info !== null));
+				});
 			});
 		}));
 	}
@@ -84,7 +86,7 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._panelService.openPanel(COMMENTS_PANEL_ID);
 		this._proxy.$provideWorkspaceComments(handle).then(commentThreads => {
 			if (commentThreads) {
-				this._commentService.setAllComments(commentThreads);
+				this._commentService.setWorkspaceComments(handle, commentThreads);
 			}
 		});
 	}
@@ -96,8 +98,10 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 
 	$unregisterWorkspaceCommentProvider(handle: number): void {
 		this._workspaceProviders.delete(handle);
-		this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
-		this._commentService.removeAllComments();
+		if (this._workspaceProviders.size === 0) {
+			this._panelService.setPanelEnablement(COMMENTS_PANEL_ID, false);
+		}
+		this._commentService.removeWorkspaceComments(handle);
 	}
 
 	$onDidCommentThreadsChange(handle: number, event: modes.CommentThreadChangedEvent) {
@@ -113,13 +117,25 @@ export class MainThreadComments extends Disposable implements MainThreadComments
 		this._documentProviders.clear();
 	}
 
-	getFocusedEditor(): ICodeEditor {
-		let editor = this._codeEditorService.getFocusedCodeEditor();
-		if (!editor) {
-			return this._editorService.activeTextEditorWidget as ICodeEditor;
+	getFocusedEditors(): ICodeEditor[] {
+		let activeControl = this._editorService.activeControl;
+		if (activeControl) {
+			if (isCodeEditor(activeControl.getControl())) {
+				return [this._editorService.activeControl.getControl() as ICodeEditor];
+			}
+
+			if (isDiffEditor(activeControl.getControl())) {
+				let diffEditor = activeControl.getControl() as IDiffEditor;
+				return [diffEditor.getOriginalEditor(), diffEditor.getModifiedEditor()];
+			}
 		}
 
-		return editor;
+		let editor = this._codeEditorService.getFocusedCodeEditor();
+
+		if (editor) {
+			return [editor];
+		}
+		return [];
 	}
 
 	async provideWorkspaceComments(): Promise<modes.CommentThread[]> {

@@ -7,20 +7,20 @@
 
 import * as assert from 'assert';
 import { OutlineElement, OutlineGroup } from 'vs/workbench/parts/outline/electron-browser/outlineModel';
-import { SymbolKind, SymbolInformation } from 'vs/editor/common/modes';
+import { SymbolKind, DocumentSymbol } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
-import URI from 'vs/base/common/uri';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 suite('OutlineModel', function () {
 
 
-	function fakeSymbolInformation(range: Range, name: string = 'foo'): SymbolInformation {
+	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {
 		return {
 			name,
+			detail: 'fake',
 			kind: SymbolKind.Boolean,
-			location: { uri: URI.parse('some:uri'), range },
-			definingRange: range
+			identifierRange: range,
+			fullRange: range
 		};
 	}
 

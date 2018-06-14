@@ -25,7 +25,6 @@ import URI from 'vs/base/common/uri';
 import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
 import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
@@ -45,7 +44,6 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@INotificationService private readonly _notificationService: INotificationService
@@ -113,27 +111,14 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					// Ensure the "Running" lifecycle face has been reached before creating the
-					// first terminal.
-					this._lifecycleService.when(LifecyclePhase.Running).then(() => {
-						// Allow time for the panel to display if it is being shown
-						// for the first time. If there is not wait here the initial
-						// dimensions of the pty could be wrong.
-						setTimeout(() => {
-							// Check if instances were already restored as part of workbench restore
-							if (this._terminalService.terminalInstances.length > 0) {
-								this._updateFont();
-								this._updateTheme();
-								return;
-							}
-
-							const instance = this._terminalService.createTerminal();
-							if (instance) {
-								this._updateFont();
-								this._updateTheme();
-							}
-						}, 0);
-					});
+					// Check if instances were already restored as part of workbench restore
+					if (this._terminalService.terminalInstances.length === 0) {
+						this._terminalService.createTerminal();
+					}
+					if (this._terminalService.terminalInstances.length > 0) {
+						this._updateFont();
+						this._updateTheme();
+					}
 					return TPromise.as(void 0);
 				});
 			}

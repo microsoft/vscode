@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { DocumentSymbolProviderRegistry, SymbolInformation, DocumentSymbolProvider } from 'vs/editor/common/modes';
+import { DocumentSymbolProviderRegistry, DocumentSymbolProvider, DocumentSymbol } from 'vs/editor/common/modes';
 import { ITextModel } from 'vs/editor/common/model';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -22,7 +22,7 @@ export abstract class TreeElement {
 	abstract children: { [id: string]: TreeElement };
 	abstract parent: TreeElement | any;
 
-	static findId(candidate: SymbolInformation | string, container: TreeElement): string {
+	static findId(candidate: DocumentSymbol | string, container: TreeElement): string {
 		// complex id-computation which contains the origin/extension,
 		// the parent path, and some dedupe logic when names collide
 		let candidateId: string;
@@ -31,7 +31,7 @@ export abstract class TreeElement {
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
 			if (container.children[candidateId] !== void 0) {
-				candidateId = `${container.id}/${candidate.name}_${candidate.definingRange.startLineNumber}_${candidate.definingRange.startColumn}`;
+				candidateId = `${container.id}/${candidate.name}_${candidate.fullRange.startLineNumber}_${candidate.fullRange.startColumn}`;
 			}
 		}
 
@@ -81,7 +81,7 @@ export class OutlineElement extends TreeElement {
 	constructor(
 		readonly id: string,
 		public parent: OutlineModel | OutlineGroup | OutlineElement,
-		readonly symbol: SymbolInformation
+		readonly symbol: DocumentSymbol
 	) {
 		super();
 	}
@@ -130,7 +130,7 @@ export class OutlineGroup extends TreeElement {
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.definingRange || item.symbol.location.range, position)) {
+			if (!Range.containsPosition(item.symbol.fullRange, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
@@ -149,11 +149,11 @@ export class OutlineGroup extends TreeElement {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.definingRange, Range.compareRangesUsingStarts);
+		let idx = binarySearch<IRange>(markers, item.symbol.fullRange, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
 			start = ~idx;
-			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.definingRange)) {
+			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.fullRange)) {
 				start -= 1;
 			}
 		} else {
@@ -163,7 +163,7 @@ export class OutlineGroup extends TreeElement {
 		let myMarkers: IMarker[] = [];
 		let myTopSev: MarkerSeverity;
 
-		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.definingRange)) {
+		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.fullRange)) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
 			let marker = markers.splice(start, 1)[0];
@@ -244,7 +244,7 @@ export class OutlineModel extends TreeElement {
 		});
 	}
 
-	private static _makeOutlineElement(info: SymbolInformation, container: OutlineGroup | OutlineElement): void {
+	private static _makeOutlineElement(info: DocumentSymbol, container: OutlineGroup | OutlineElement): void {
 		let id = TreeElement.findId(info, container);
 		let res = new OutlineElement(id, container, info);
 		if (info.children) {
@@ -253,6 +253,16 @@ export class OutlineModel extends TreeElement {
 			}
 		}
 		container.children[res.id] = res;
+	}
+
+	static get(element: TreeElement): OutlineModel {
+		while (element) {
+			if (element instanceof OutlineModel) {
+				return element;
+			}
+			element = element.parent;
+		}
+		return undefined;
 	}
 
 	readonly id = 'root';

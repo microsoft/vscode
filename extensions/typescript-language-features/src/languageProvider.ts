@@ -17,7 +17,6 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -29,8 +28,6 @@ export default class LanguageProvider {
 	private _enableSuggestionDiagnostics: boolean = true;
 
 	private readonly disposables: vscode.Disposable[] = [];
-
-	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -52,22 +49,12 @@ export default class LanguageProvider {
 		client.onReady(async () => {
 			await this.registerProviders();
 		});
-
-		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.fileConfigurationManager, async uri => {
-			try {
-				const doc = await vscode.workspace.openTextDocument(uri);
-				return this.handles(uri, doc);
-			} catch {
-				return false;
-			}
-		});
 	}
 
 	public dispose(): void {
 		disposeAll(this.disposables);
 
 		this.diagnosticsManager.dispose();
-		this.renameHandler.dispose();
 	}
 
 	@memoize
@@ -116,10 +103,6 @@ export default class LanguageProvider {
 
 	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
 		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
-		}
-
-		if (this.client.bufferSyncSupport.handles(resource)) {
 			return true;
 		}
 
