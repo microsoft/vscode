@@ -474,7 +474,7 @@ declare module 'vscode' {
 
 		value: string;
 
-		placeholder: string;
+		placeholder: string | undefined;
 
 		readonly onDidChangeValue: Event<string>;
 
@@ -505,21 +505,21 @@ declare module 'vscode' {
 
 		value: string;
 
-		placeholder: string;
+		placeholder: string | undefined;
 
 		password: boolean;
 
 		readonly onDidChangeValue: Event<string>;
 
-		readonly onDidAccept: Event<string>;
+		readonly onDidAccept: Event<void>;
 
 		buttons: ReadonlyArray<QuickInputButton>;
 
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
-		prompt: string;
+		prompt: string | undefined;
 
-		validationMessage: string;
+		validationMessage: string | undefined;
 	}
 
 	export interface QuickInputButton {

@@ -108,9 +108,9 @@ export interface IQuickPick extends IQuickInput {
 
 	value: string;
 
-	placeholder: string;
+	placeholder: string | undefined;
 
-	readonly onDidValueChange: Event<string>;
+	readonly onDidChangeValue: Event<string>;
 
 	readonly onDidAccept: Event<string>;
 
@@ -141,7 +141,7 @@ export interface IInputBox extends IQuickInput {
 
 	valueSelection: Readonly<[number, number]>;
 
-	placeholder: string;
+	placeholder: string | undefined;
 
 	password: boolean;
 
@@ -153,9 +153,9 @@ export interface IInputBox extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
-	prompt: string;
+	prompt: string | undefined;
 
-	validationMessage: string;
+	validationMessage: string | undefined;
 }
 
 export interface IQuickInputButton {
