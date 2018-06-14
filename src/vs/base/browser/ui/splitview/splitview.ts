@@ -371,13 +371,26 @@ export class SplitView implements IDisposable {
 
 		const resetSashDragState = (start: number, alt: boolean) => {
 			const sizes = this.viewItems.map(i => i.size);
+
+			// TODO@Joao rename these guys
 			let minDelta = Number.POSITIVE_INFINITY;
 			let maxDelta = Number.POSITIVE_INFINITY;
 
 			if (alt) {
-				const viewItem = this.viewItems[index + 1];
-				minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
-				maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+				// When we're using the last sash with Alt, we're resizing
+				// the view to the left/up, instead of right/down as usual
+				// Thus, we must do the inverse of the usual
+				const isLastSash = index === this.sashItems.length - 1;
+
+				if (isLastSash) {
+					const viewItem = this.viewItems[index];
+					minDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+					maxDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
+				} else {
+					const viewItem = this.viewItems[index + 1];
+					minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
+					maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+				}
 			}
 
 			this.sashDragState = { start, current: start, index, sizes, minDelta, maxDelta, alt, disposable };
@@ -394,12 +407,15 @@ export class SplitView implements IDisposable {
 		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta);
 
 		if (alt) {
+			const isLastSash = index === this.sashItems.length - 1;
 			const newSizes = this.viewItems.map(i => i.size);
-			const viewItem = this.viewItems[index + 1];
+			const viewItemIndex = isLastSash ? index : index + 1;
+			const viewItem = this.viewItems[viewItemIndex];
 			const newMinDelta = (viewItem.view.maximumSize - viewItem.size);
 			const newMaxDelta = (viewItem.size - viewItem.view.minimumSize);
+			const resizeIndex = isLastSash ? index - 1 : index + 1;
 
-			this.resize(index + 1, -newDelta, newSizes, undefined, undefined, newMinDelta, newMaxDelta);
+			this.resize(resizeIndex, -newDelta, newSizes, undefined, undefined, newMinDelta, newMaxDelta);
 		}
 
 		this.layoutViews();
