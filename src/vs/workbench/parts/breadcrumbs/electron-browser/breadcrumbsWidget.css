@@ -21,12 +21,15 @@
 	cursor: pointer;
 }
 
+.monaco-breadcrumbs:focus .monaco-breadcrumb-item.active {
+	color: pink;
+}
+
 .monaco-breadcrumbs .monaco-breadcrumb-item:hover {
 	color: var(--item-hover-color);
 	background-color: var(--item-hover-background);
 }
 
-.monaco-breadcrumbs .monaco-breadcrumb-item-more::after {
-	content: '〉';
-	padding-left: 5px;
+.monaco-breadcrumbs .monaco-breadcrumb-item-more {
+	border-right: 1px solid;
 }

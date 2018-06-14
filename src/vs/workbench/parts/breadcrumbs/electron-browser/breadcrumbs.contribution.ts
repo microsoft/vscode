@@ -5,10 +5,24 @@
 
 'use strict';
 
-import { Registry } from 'vs/platform/registry/common/platform';
-import { Extensions, IStatusbarRegistry, StatusbarAlignment, StatusbarItemDescriptor } from 'vs/workbench/browser/parts/statusbar/statusbar';
-import { BreadcrumbsStatusbarItem } from 'vs/workbench/parts/breadcrumbs/electron-browser/breadcrumbsStatusbarItem';
+import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
+import { registerEditorContribution, EditorCommand, registerEditorCommand } from 'vs/editor/browser/editorExtensions';
+import { EditorBreadcrumbs } from 'vs/workbench/parts/breadcrumbs/electron-browser/editorBreadcrumbs';
+import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 
-Registry.as<IStatusbarRegistry>(Extensions.Statusbar).registerStatusbarItem(
-	new StatusbarItemDescriptor(BreadcrumbsStatusbarItem, StatusbarAlignment.LEFT)
-);
+registerEditorContribution(EditorBreadcrumbs);
+
+
+const BreadcrumbCommandCtor = EditorCommand.bindToContribution<EditorBreadcrumbs>(EditorBreadcrumbs.get);
+
+registerEditorCommand(new BreadcrumbCommandCtor({
+	id: 'breadcrumbs.focus',
+	precondition: undefined,
+	handler: x => x.focus(),
+	kbOpts: {
+		weight: KeybindingsRegistry.WEIGHT.editorContrib(50),
+		kbExpr: EditorContextKeys.focus,
+		primary: KeyMod.CtrlCmd | KeyCode.US_DOT
+	}
+}));
