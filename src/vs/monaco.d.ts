@@ -5220,7 +5220,7 @@ declare namespace monaco.languages {
 		firstLine?: string;
 		aliases?: string[];
 		mimetypes?: string[];
-		configuration?: string;
+		configuration?: Uri;
 	}
 	/**
 	 * A Monarch language definition
