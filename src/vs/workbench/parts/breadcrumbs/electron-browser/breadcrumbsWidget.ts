@@ -60,12 +60,15 @@ export class BreadcrumbsWidget {
 	private _cachedWidth: number;
 
 	private readonly _onDidSelectItem = new Emitter<BreadcrumbsItem>();
+	private readonly _onDidChangeFocus = new Emitter<boolean>();
+
 	readonly onDidSelectItem: Event<BreadcrumbsItem> = this._onDidSelectItem.event;
+	readonly onDidChangeFocus: Event<boolean> = this._onDidChangeFocus.event;
 
 	private readonly _items = new Array<BreadcrumbsItem>();
 	private readonly _nodes = new Array<HTMLDivElement>();
 	private readonly _freeNodes = new Array<HTMLDivElement>();
-	private _activeItem: number = -1;
+	private _focusedItemIdx: number = -1;
 
 	constructor(
 		container: HTMLElement
@@ -82,6 +85,11 @@ export class BreadcrumbsWidget {
 		this._disposables.push(this._scrollable);
 		this._disposables.push(dom.addStandardDisposableListener(this._domNode, 'click', e => this._onClick(e)));
 		container.appendChild(this._scrollable.getDomNode());
+
+		let focusTracker = dom.trackFocus(this._domNode);
+		this._disposables.push(focusTracker);
+		this._disposables.push(focusTracker.onDidBlur(_ => this._onDidChangeFocus.fire(false)));
+		this._disposables.push(focusTracker.onDidFocus(_ => this._onDidChangeFocus.fire(true)));
 	}
 
 	dispose(): void {
@@ -104,19 +112,36 @@ export class BreadcrumbsWidget {
 		this._domNode.focus();
 	}
 
-	select(nth: number): boolean {
-		if (this._activeItem !== -1) {
-			dom.removeClass(this._nodes[this._activeItem], 'active');
-			this._activeItem = -1;
+	focusPrev(): any {
+		this._focus((this._focusedItemIdx - 1 + this._nodes.length) % this._nodes.length);
+		this._domNode.focus();
+	}
+
+	focusNext(): any {
+		this._focus((this._focusedItemIdx + 1) % this._nodes.length);
+		this._domNode.focus();
+	}
+
+	private _focus(nth: number): boolean {
+		if (this._focusedItemIdx !== -1) {
+			dom.removeClass(this._nodes[this._focusedItemIdx], 'active');
+			this._focusedItemIdx = -1;
 		}
 		if (nth < 0 || nth >= this._nodes.length) {
 			return false;
 		}
-		this._activeItem = nth;
-		let node = this._nodes[this._activeItem];
+		this._focusedItemIdx = nth;
+		let node = this._nodes[this._focusedItemIdx];
 		dom.addClass(node, 'active');
 		this._scrollable.setScrollPosition({ scrollLeft: node.offsetLeft });
 		return true;
+	}
+
+	select(): void {
+		if (this._focusedItemIdx !== -1) {
+			let item = this._items[this._focusedItemIdx];
+			this._onDidSelectItem.fire(item);
+		}
 	}
 
 	append(item: BreadcrumbsItem): void {
@@ -153,7 +178,7 @@ export class BreadcrumbsWidget {
 			this._nodes[start] = node;
 		}
 		this.layout();
-		this.select(this._nodes.length - 1);
+		this._focus(this._nodes.length - 1);
 	}
 
 	private _renderItem(item: BreadcrumbsItem, container: HTMLDivElement): void {
@@ -167,7 +192,7 @@ export class BreadcrumbsWidget {
 		for (let el = event.target; el; el = el.parentElement) {
 			let idx = this._nodes.indexOf(el as any);
 			if (idx >= 0) {
-				this.select(idx);
+				this._focus(idx);
 				this._onDidSelectItem.fire(this._items[idx]);
 				break;
 			}
