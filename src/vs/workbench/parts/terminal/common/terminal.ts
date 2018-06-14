@@ -467,10 +467,17 @@ export interface ITerminalInstance {
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
-	 * sequecnes.
+	 * sequences.
 	 * @param listener  The listener function.
 	 */
 	onData(listener: (data: string) => void): IDisposable;
+
+	/**
+	 * Attach a listener to the "renderer" data event, this event fires for terminal renderers on
+	 * keystrokes and when the Terminal.sendText extension API is used.
+	 * @param listener The listener function.
+	 */
+	onRendererData(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.

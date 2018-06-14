@@ -130,6 +130,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._initDimensions();
 		if (!this.shellLaunchConfig.isRendererOnly) {
 			this._createProcess();
+		} else {
+			this.setTitle(this._shellLaunchConfig.name, false);
 		}
 
 		this._xtermReadyPromise = this._createXterm();
@@ -799,7 +801,23 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onData(listener: (data: string) => void): lifecycle.IDisposable {
+		// TODO: This should still work for renderers
+		if (!this._processManager) {
+			return null;
+		}
 		return this._processManager.onProcessData(data => listener(data));
+	}
+
+	public onRendererData(listener: (data: string) => void): lifecycle.IDisposable {
+		if (this._processManager) {
+			throw new Error('onRendererData attempted to be used on a regular terminal');
+		}
+		// For terminal renderers onData fires on keystrokes and when sendText is called.
+		// TODO: Handle sendText case
+		this._xterm.on('data', listener);
+		return {
+			dispose: () => this._xterm.off('data', listener)
+		};
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {

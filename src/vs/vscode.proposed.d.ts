@@ -353,7 +353,7 @@ declare module 'vscode' {
 		// Setting to undefined will reset to use the maximum available
 		// dimensions: TerminalDimensions;
 
-		// Write to xterm.js
+		// Write to the terminal emulator
 		write(data: string): void; // out
 
 		// key press, or sendText was triggered by an extension on the terminal

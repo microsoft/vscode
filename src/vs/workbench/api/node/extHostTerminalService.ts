@@ -132,12 +132,21 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 
 export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vscode.TerminalRenderer {
 	public get name(): string { return this._name; }
+	public set name(newName: string) {
+		this._name = newName;
+		this._checkDisposed();
+		this._queueApiRequest(this._proxy.$terminalRendererSetName, [this._name]);
+	}
 
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> {
+		this._checkDisposed();
+		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnDataListener, [this._id]);
+		// TODO: This is not firing on renderers as ExtHostTerminalService doesn't track them currently
+		console.log('TerminalRenderer.onData id: ', this._id);
 		// TODO: This needs to fire for keystrokes and sendText only for renderers
 		// Tell the main side to start sending data if it's not already
-		this._proxy.$registerOnDataListener(this._id);
+		// this._proxy.$terminalRendererRegisterOnDataListener(this._id);
 		return this._onData && this._onData.event;
 	}
 
@@ -153,7 +162,11 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 
 	public write(data: string): void {
 		this._checkDisposed();
-		this._queueApiRequest(this._proxy.$write, [data]);
+		this._queueApiRequest(this._proxy.$terminalRendererWrite, [data]);
+	}
+
+	public _fireOnData(data: string): void {
+		this._onData.fire(data);
 	}
 }
 
@@ -161,6 +174,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
+	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
@@ -192,9 +206,10 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
-		const terminalRenderer = new ExtHostTerminalRenderer(this._proxy, name);
+		const renderer = new ExtHostTerminalRenderer(this._proxy, name);
 		console.log('Creating new terminal renderer');
-		return terminalRenderer;
+		this._terminalRenderers.push(renderer);
+		return renderer;
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
@@ -204,6 +219,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 		const terminal = this._terminals[index];
 		terminal._fireOnData(data);
+	}
+
+	public $acceptTerminalRendererData(id: number, data: string): void {
+		const index = this._getTerminalRendererIndexById(id);
+		if (index === null) {
+			return;
+		}
+		const renderer = this._terminalRenderers[index];
+		renderer._fireOnData(data);
 	}
 
 	public $acceptTerminalClosed(id: number): void {
@@ -337,6 +361,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._terminals.some((terminal, i) => {
 			// TODO: This shouldn't be cas
 			const thisId = (<any>terminal)._id;
+			if (thisId === id) {
+				index = i;
+				return true;
+			}
+			return false;
+		});
+		return index;
+	}
+
+	// TODO: Factor out common bits
+	private _getTerminalRendererIndexById(id: number): number {
+		let index: number = null;
+		this._terminalRenderers.some((renderer, i) => {
+			// TODO: This shouldn't be cas
+			const thisId = (<any>renderer)._id;
 			if (thisId === id) {
 				index = i;
 				return true;
