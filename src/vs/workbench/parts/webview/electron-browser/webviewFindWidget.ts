@@ -11,11 +11,16 @@ import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 export class WebviewFindWidget extends SimpleFindWidget {
 
 	constructor(
-		private readonly webview: WebviewElement,
+		private webview: WebviewElement,
 		@IContextViewService contextViewService: IContextViewService,
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(contextViewService, contextKeyService);
+	}
+
+	dispose() {
+		this.webview = undefined;
+		super.dispose();
 	}
 
 	public find(previous: boolean) {

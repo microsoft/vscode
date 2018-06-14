@@ -71,6 +71,7 @@ export class WebviewEditorInput extends EditorInput {
 		}
 		this._events = undefined;
 
+		this._webview = undefined;
 		super.dispose();
 	}
 

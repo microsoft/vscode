@@ -5,7 +5,7 @@
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
 import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
 import { nativeSep, extname } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
@@ -27,10 +27,12 @@ export interface WebviewOptions {
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 }
 
-export class WebviewElement {
-	private readonly _webview: Electron.WebviewTag;
+const CORE_RESOURCE_PROTOCOL = 'vscode-core-resource';
+const VSCODE_RESOURCE_PROTOCOL = 'vscode-resource';
+
+export class WebviewElement extends Disposable {
+	private _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
-	private _disposables: IDisposable[] = [];
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -42,11 +44,12 @@ export class WebviewElement {
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IFileService private readonly _fileService: IFileService,
-		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
+		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
@@ -78,7 +81,7 @@ export class WebviewElement {
 
 		if (!this._options.useSameOriginForRoot) {
 			let loaded = false;
-			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
+			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
 				if (loaded) {
 					return;
 				}
@@ -91,7 +94,7 @@ export class WebviewElement {
 
 		if (!this._options.allowSvgs) {
 			let loaded = false;
-			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
+			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
 				if (loaded) {
 					return;
 				}
@@ -127,7 +130,7 @@ export class WebviewElement {
 			}));
 		}
 
-		this._disposables.push(
+		this._toDispose.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
 			}),
@@ -188,11 +191,10 @@ export class WebviewElement {
 			}),
 		);
 
-		this._webviewFindWidget = this._instantiationService.createInstance(WebviewFindWidget, this);
-		this._disposables.push(this._webviewFindWidget);
+		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
 		this.style(this._themeService.getTheme());
-		this._themeService.onThemeChange(this.style, this, this._disposables);
+		this._themeService.onThemeChange(this.style, this, this._toDispose);
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -209,31 +211,34 @@ export class WebviewElement {
 	}
 
 	dispose(): void {
-		this._onDidClickLink.dispose();
-		this._disposables = dispose(this._disposables);
-
 		if (this._contextKey) {
 			this._contextKey.reset();
 		}
 
-		if (this._webview.parentElement) {
-			this._webview.parentElement.removeChild(this._webview);
+		if (this._webview) {
+			this._webview.guestinstance = 'none';
+
+			if (this._webview.parentElement) {
+				this._webview.parentElement.removeChild(this._webview);
+			}
 		}
 
-		this._webviewFindWidget.dispose();
+		this._webview = undefined;
+		this._webviewFindWidget = undefined;
+		super.dispose();
 	}
 
-	private readonly _onDidClickLink = new Emitter<URI>();
-	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
+	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	public readonly onDidClickLink = this._onDidClickLink.event;
 
-	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
-	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	public readonly onDidScroll = this._onDidScroll.event;
 
-	private readonly _onDidUpdateState = new Emitter<string | undefined>();
-	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
+	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
 
-	private readonly _onMessage = new Emitter<any>();
-	public readonly onMessage: Event<any> = this._onMessage.event;
+	private readonly _onMessage = this._register(new Emitter<any>());
+	public readonly onMessage = this._onMessage.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
@@ -364,11 +369,11 @@ export class WebviewElement {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, 'vscode-core-resource', this._fileService, () => [
+		registerFileProtocol(contents, CORE_RESOURCE_PROTOCOL, this._fileService, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, 'vscode-resource', this._fileService, () =>
+		registerFileProtocol(contents, VSCODE_RESOURCE_PROTOCOL, this._fileService, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}

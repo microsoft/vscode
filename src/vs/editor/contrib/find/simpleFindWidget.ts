@@ -154,6 +154,7 @@ export abstract class SimpleFindWidget extends Widget {
 
 		if (this._domNode && this._domNode.parentElement) {
 			this._domNode.parentElement.removeChild(this._domNode);
+			this._domNode = undefined;
 		}
 	}
 
