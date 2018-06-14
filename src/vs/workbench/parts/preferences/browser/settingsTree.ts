@@ -222,8 +222,7 @@ export class SettingsDataSource implements IDataSource {
 	constructor(
 		private viewState: ISettingsEditorViewState,
 		@IConfigurationService private configurationService: IConfigurationService
-	) {
-	}
+	) { }
 
 	getId(tree: ITree, element: SettingsTreeElement): string {
 		return element.id;
@@ -260,12 +259,17 @@ export class SettingsDataSource implements IDataSource {
 			return null;
 		}
 	}
+
 	private getGroupChildren(groupElement: SettingsTreeGroupElement): SettingsTreeElement[] {
 		return groupElement.children;
 	}
 
 	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
 		return TPromise.wrap(element.parent);
+	}
+
+	shouldAutoexpand(): boolean {
+		return true;
 	}
 }
 
@@ -358,7 +362,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 85;
+	private static readonly SETTING_ROW_HEIGHT = 82;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;

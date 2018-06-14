@@ -50,7 +50,6 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTargetsWidget: SettingsTargetsWidget;
 
 	private showConfiguredSettingsOnlyCheckbox: HTMLInputElement;
-	private savedExpandedGroups: any[];
 
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
@@ -329,25 +328,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private onShowConfiguredOnlyClicked(): void {
 		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.refreshTreeAndMaintainFocus();
-
-		// TODO@roblou - This is slow
-		if (this.viewState.showConfiguredOnly) {
-			this.savedExpandedGroups = this.settingsTree.getExpandedElements();
-			const nav = this.settingsTree.getNavigator();
-			let element;
-			while (element = nav.next()) {
-				this.settingsTree.expand(element);
-			}
-		} else if (this.savedExpandedGroups) {
-			const nav = this.settingsTree.getNavigator();
-			let element;
-			while (element = nav.next()) {
-				this.settingsTree.collapse(element);
-			}
-
-			this.settingsTree.expandAll(this.savedExpandedGroups);
-			this.savedExpandedGroups = null;
-		}
+		this.expandAll(this.settingsTree);
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
@@ -446,17 +427,17 @@ export class SettingsEditor2 extends BaseEditor {
 					}
 
 					this.defaultSettingsEditorModel = model;
-					// if (!this.settingsTree.getInput()) {
 					this.tocTree.setInput(getTOCElement(tocData));
 
 					this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
 					this.settingsTree.setInput(this.settingsTreeModel.root);
-					this.expandAll(this.settingsTree);
-					this.expandAll(this.tocTree);
-					// }
 				});
 		}
 		return TPromise.as(null);
+	}
+
+	private toggleSearchMode(): void {
+		DOM.toggleClass(this.getContainer(), 'search-mode', !!this.searchResultModel);
 	}
 
 	private refreshTreeAndMaintainFocus(): TPromise<any> {
@@ -507,25 +488,14 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.searchResultModel = null;
+			this.toggleSearchMode();
 			this.settingsTree.setInput(this.settingsTreeModel.root);
-			this.expandAll(this.settingsTree);
-			this.expandAll(this.tocTree);
 
 			return TPromise.wrap(null);
 		}
 	}
 
 	private expandAll(tree: ITree): void {
-		// const expandSubtree = (element: IResolvedTOCEntry) => {
-		// 	const nav = tree.getNavigator();
-		// 	while (nav.)
-		// 	if (element.children) {
-		// 		element.children.forEach(expandSubtree);
-		// 	}
-		// };
-
-		// expandSubtree(this.resolvedTocData);
-
 		const nav = tree.getNavigator();
 		let cur;
 		while (cur = nav.next()) {
@@ -593,6 +563,7 @@ export class SettingsEditor2 extends BaseEditor {
 				const [result] = results;
 				if (!this.searchResultModel) {
 					this.searchResultModel = new SearchResultModel();
+					this.toggleSearchMode();
 					this.settingsTree.setInput(this.searchResultModel);
 				}
 
