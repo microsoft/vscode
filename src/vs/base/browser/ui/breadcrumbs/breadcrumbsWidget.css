@@ -19,7 +19,3 @@
 	cursor: pointer;
 	align-self: center;
 }
-
-.monaco-breadcrumbs .monaco-breadcrumb-item-more {
-	border-right: 1px solid;
-}
