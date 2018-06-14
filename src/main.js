@@ -31,7 +31,7 @@ function getPortableDataPath() {
 	return path.join(path.dirname(getApplicationPath()), product.portable);
 }
 
-if (product.portable) {
+if (product.portable && product.portableTemp) {
 	const portablePath = getPortableDataPath();
 	try { fs.mkdirSync(portablePath); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
 
