@@ -81,7 +81,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, onDidChangeTextEditorViewColumn', () => {
+	test('editor, onDidChangeTextEditorViewColumn (close editor)', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;
 
@@ -113,6 +113,51 @@ suite('window namespace tests', () => {
 				assert.ok(actualEvent);
 				assert.ok(actualEvent.textEditor === two);
 				assert.ok(actualEvent.viewColumn === two.viewColumn);
+
+				registration1.dispose();
+			});
+		});
+	});
+
+	test('editor, onDidChangeTextEditorViewColumn (move editor group)', () => {
+
+		let actualEvents: TextEditorViewColumnChangeEvent[] = [];
+
+		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+			provideTextDocumentContent() {
+				return 'mountainbiking,roadcycling';
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
+			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
+		]).then(editors => {
+
+			let [, two] = editors;
+			two.show();
+
+			return new Promise(resolve => {
+
+				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+					actualEvents.push(event);
+
+					if (actualEvents.length === 2) {
+						registration2.dispose();
+						resolve();
+					}
+				});
+
+				// move active editor group left
+				return commands.executeCommand('workbench.action.moveActiveEditorGroupLeft');
+
+			}).then(() => {
+				assert.equal(actualEvents.length, 2);
+
+				for (let i = 0; i < actualEvents.length; i++) {
+					const event = actualEvents[i];
+					assert.equal(event.viewColumn, event.textEditor.viewColumn);
+				}
 
 				registration1.dispose();
 			});
