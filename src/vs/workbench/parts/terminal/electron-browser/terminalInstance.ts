@@ -84,9 +84,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get title(): string { return this._title; }
 	public get hadFocusOnExit(): boolean { return this._hadFocusOnExit; }
 	public get isTitleSetByProcess(): boolean { return !!this._messageTitleDisposable; }
-	public get shellLaunchConfig(): IShellLaunchConfig { return Object.freeze(this._shellLaunchConfig); }
+	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
-
 
 	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
