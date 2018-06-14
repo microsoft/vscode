@@ -13,7 +13,7 @@ import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
@@ -29,6 +29,9 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Color } from 'vs/base/common/color';
+import { Emitter } from 'vs/base/common/event';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { domEvent } from 'vs/base/browser/event';
 
 interface CustomMenu {
 	title: string;
@@ -93,7 +96,7 @@ export class MenubarPart extends Part {
 
 	private actionRunner: IActionRunner;
 	private container: Builder;
-	private isFocused: boolean;
+	private _isFocused: boolean;
 
 	constructor(
 		id: string,
@@ -182,18 +185,57 @@ export class MenubarPart extends Part {
 		return setting;
 	}
 
+	private get currentMenubarVisibility(): MenuBarVisibility {
+		return this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility');
+	}
+
 	private get currentTitlebarStyleSetting(): string {
 		return this.configurationService.getValue<string>('window.titleBarStyle');
+	}
+
+	private get isFocused(): boolean {
+		return this._isFocused;
+	}
+
+	private set isFocused(value: boolean) {
+		this._isFocused = value;
+
+		if (!this._isFocused && this.currentMenubarVisibility === 'toggle') {
+			if (this.container) {
+				this.container.style('display', 'none');
+			}
+		}
 	}
 
 	private onDidChangeFullscreen(): void {
 		this.updateStyles();
 	}
 
-
 	private onConfigurationUpdated(event: IConfigurationChangeEvent): void {
 		if (this.keys.some(key => event.affectsConfiguration(key))) {
 			this.setupMenubar();
+		}
+	}
+
+	private onAltKeyToggled(altKeyDown: boolean): void {
+		if (this.currentMenubarVisibility === 'toggle') {
+			if (altKeyDown) {
+				this.container.style('display', null);
+			} else if (!this.isFocused) {
+				this.container.style('display', 'none');
+			}
+		}
+
+		if (this.currentEnableMenuBarMnemonics) {
+			this.customMenus.forEach(customMenu => {
+				let child = customMenu.titleElement.child();
+				if (child) {
+					let grandChild = child.child();
+					if (grandChild) {
+						grandChild.style('text-decoration', altKeyDown ? 'underline' : null);
+					}
+				}
+			});
 		}
 	}
 
@@ -208,6 +250,8 @@ export class MenubarPart extends Part {
 
 		// Listen to keybindings change
 		this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar());
+
+		AlternativeKeyEmitter.getInstance().event(this.onAltKeyToggled, this);
 	}
 
 	private setupMenubar(): void {
@@ -231,6 +275,7 @@ export class MenubarPart extends Part {
 			win: { primary: KeyMod.Alt | keyCode },
 			handler: (accessor, resource: URI | object) => {
 				if (!this.focusedMenu) {
+					this.isFocused = true;
 					this.toggleCustomMenu(menuIndex);
 				}
 			}
@@ -296,6 +341,10 @@ export class MenubarPart extends Part {
 		this.container.empty();
 		this.container.attr('role', 'menubar');
 
+		if (this.currentMenubarVisibility === 'toggle') {
+			this.container.style('display', 'none');
+		}
+
 		this.customMenus = [];
 
 		let idx = 0;
@@ -305,7 +354,7 @@ export class MenubarPart extends Part {
 			let menuIndex = idx++;
 
 			let titleElement = $(this.container).div({ class: 'menubar-menu-button' });
-			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<u>$1</u>' : '$1');
+			let displayTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, this.currentEnableMenuBarMnemonics ? '<mnemonic>$1</mnemonic>' : '$1');
 			let legibleTitle = this.topLevelTitles[menuTitle].replace(/&&(.)/g, '$1');
 			$(titleElement).div({ class: 'menubar-menu-title', 'aria-hidden': true }).innerHtml(displayTitle);
 
@@ -585,5 +634,72 @@ export class MenubarPart extends Part {
 		}
 
 		return this.container.getHTMLElement();
+	}
+}
+
+class AlternativeKeyEmitter extends Emitter<boolean> {
+
+	private _subscriptions: IDisposable[] = [];
+	private _isPressed: boolean;
+	private static instance: AlternativeKeyEmitter;
+	private _suppressAltKeyUp: boolean = false;
+
+	private constructor() {
+		super();
+
+		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
+			if (e.altKey) {
+				this.isPressed = true;
+			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
+			if (this.isPressed && !e.altKey) {
+				if (this._suppressAltKeyUp) {
+					e.preventDefault();
+				}
+
+				this._suppressAltKeyUp = false;
+				this.isPressed = false;
+			}
+		}));
+		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => {
+			if (this.isPressed) {
+				this.isPressed = false;
+			}
+		}));
+
+		this._subscriptions.push(domEvent(document.body, 'blur')(e => {
+			if (this.isPressed) {
+				this.isPressed = false;
+			}
+		}));
+	}
+
+	get isPressed(): boolean {
+		return this._isPressed;
+	}
+
+	set isPressed(value: boolean) {
+		this._isPressed = value;
+		this.fire(this._isPressed);
+	}
+
+	suppressAltKeyUp() {
+		// Sometimes the native alt behavior needs to be suppresed since the alt was already used as an alternative key
+		// Example: windows behavior to toggle tha top level menu #44396
+		this._suppressAltKeyUp = true;
+	}
+
+	static getInstance() {
+		if (!AlternativeKeyEmitter.instance) {
+			AlternativeKeyEmitter.instance = new AlternativeKeyEmitter();
+		}
+
+		return AlternativeKeyEmitter.instance;
+	}
+
+	dispose() {
+		super.dispose();
+		this._subscriptions = dispose(this._subscriptions);
 	}
 }

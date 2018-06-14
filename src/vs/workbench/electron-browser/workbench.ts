@@ -79,7 +79,7 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/workbench/services/actions/common/menuService';
@@ -584,7 +584,7 @@ export class Workbench extends Disposable implements IPartService {
 			}
 		}
 
-		const newMenubarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
+		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
 		this.setMenubarHidden(newMenubarVisibility, skipLayout);
 	}
 
@@ -851,7 +851,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.setPanelPositionFromStorageOrConfig();
 
 		// Menubar visibility
-		const menuBarVisibility = this.configurationService.getValue<string>(Workbench.menubarVisibilityConfigurationKey);
+		const menuBarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
 		this.setMenubarHidden(menuBarVisibility, true);
 
 		// Statusbar visibility
@@ -1486,8 +1486,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
-	setMenubarHidden(visibility: 'default' | 'visible' | 'toggle' | 'hidden' | string, skipLayout: boolean): void {
-		this.menubarHidden = !(visibility === 'visible' || (visibility === 'default' && !browser.isFullscreen()));
+	setMenubarHidden(visibility: MenuBarVisibility, skipLayout: boolean): void {
+		this.menubarHidden = visibility === 'hidden' || (visibility === 'default' && browser.isFullscreen());
 
 		if (!skipLayout) {
 			this.workbenchLayout.layout();
