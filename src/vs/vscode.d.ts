@@ -5286,7 +5286,7 @@ declare module 'vscode' {
 		/**
 		 * Content settings for the webview.
 		 */
-		readonly options: WebviewOptions;
+		options: WebviewOptions;
 
 		/**
 		 * Contents of the webview.

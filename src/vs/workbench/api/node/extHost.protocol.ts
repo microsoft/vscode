@@ -430,6 +430,7 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
+	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
 
 	$registerSerializer(viewType: string): void;
@@ -855,7 +856,7 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: URI, variables: string[]): TPromise<any>;
+	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): TPromise<any>;
 }
 
 export interface IBreakpointDto {

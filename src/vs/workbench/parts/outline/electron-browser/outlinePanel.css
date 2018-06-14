@@ -87,6 +87,10 @@
 	padding-right: 3px;
 }
 
+.monaco-workbench .outline-panel.no-icons .outline-element .outline-element-icon {
+	display: none;
+}
+
 .monaco-workbench .outline-panel .outline-element .outline-element-label {
 	text-overflow: ellipsis;
 	overflow: hidden;

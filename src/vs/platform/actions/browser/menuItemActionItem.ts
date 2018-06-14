@@ -184,21 +184,33 @@ export class MenuItemActionItem extends ActionItem {
 		super.render(container);
 
 		this._updateItemClass(this._action.item);
+
+		let mouseOver = false;
 		const alternativeKeyEmitter = AlternativeKeyEmitter.getInstance(this._contextMenuService);
 		let alternativeKeyDown = alternativeKeyEmitter.isPressed;
 
 		const updateAltState = () => {
-			if (alternativeKeyDown !== this._wantsAltCommand) {
-				this._wantsAltCommand = alternativeKeyDown;
+			const wantsAltCommand = mouseOver && alternativeKeyDown;
+			if (wantsAltCommand !== this._wantsAltCommand) {
+				this._wantsAltCommand = wantsAltCommand;
 				this._updateLabel();
 				this._updateTooltip();
 				this._updateClass();
 			}
 		};
-		updateAltState();
 
 		this._callOnDispose.push(alternativeKeyEmitter.event(value => {
 			alternativeKeyDown = value;
+			updateAltState();
+		}));
+
+		this._callOnDispose.push(domEvent(container, 'mouseleave')(_ => {
+			mouseOver = false;
+			updateAltState();
+		}));
+
+		this._callOnDispose.push(domEvent(container, 'mouseenter')(e => {
+			mouseOver = true;
 			updateAltState();
 		}));
 	}

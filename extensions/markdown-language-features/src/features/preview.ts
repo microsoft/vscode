@@ -34,14 +34,14 @@ export class MarkdownPreview {
 	private isScrolling = false;
 	private _disposed: boolean = false;
 
-
 	public static async revive(
 		webview: vscode.WebviewPanel,
 		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		contributions: MarkdownContributions,
 	): Promise<MarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
@@ -55,6 +55,12 @@ export class MarkdownPreview {
 			previewConfigurations,
 			logger,
 			topmostLineMonitor);
+
+		preview.editor.webview.options = {
+			enableScripts: true,
+			enableCommandUris: true,
+			localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
+		};
 
 		if (!isNaN(line)) {
 			preview.line = line;

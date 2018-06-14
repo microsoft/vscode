@@ -356,6 +356,14 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._disposables.push(this._tree, this._input);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
+
+		// feature: toggle icons
+		dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
+		this.disposables.push(this._configurationService.onDidChangeConfiguration(e => {
+			if (e.affectsConfiguration(OutlineConfigKeys.icons)) {
+				dom.toggleClass(this._domNode, 'no-icons', !this._configurationService.getValue(OutlineConfigKeys.icons));
+			}
+		}));
 	}
 
 	protected layoutBody(height: number = this._cachedHeight): void {
