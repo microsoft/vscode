@@ -18,7 +18,6 @@ import * as concat from 'gulp-concat';
 import * as VinylFile from 'vinyl';
 import * as bundle from './bundle';
 import * as util from './util';
-import * as i18n from './i18n';
 import * as gulpUtil from 'gulp-util';
 import * as flatmap from 'gulp-flatmap';
 import * as pump from 'pump';
@@ -160,11 +159,8 @@ export interface IOptimizeTaskOpts {
 	 * (out folder name)
 	 */
 	out: string;
-	/**
-	 * (languages to process)
-	 */
-	languages: i18n.Language[];
 }
+
 export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStream {
 	const entryPoints = opts.entryPoints;
 	const otherSources = opts.otherSources;
@@ -232,10 +228,6 @@ export function optimizeTask(opts: IOptimizeTaskOpts): () => NodeJS.ReadWriteStr
 				sourceRoot: null,
 				addComment: true,
 				includeContent: true
-			}))
-			.pipe(i18n.processNlsFiles({
-				fileHeader: bundledFileHeader,
-				languages: opts.languages
 			}))
 			.pipe(gulp.dest(out));
 	};
