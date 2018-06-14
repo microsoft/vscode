@@ -31,7 +31,7 @@ import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { getTOCElement, TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -231,7 +231,8 @@ export class SettingsEditor2 extends BaseEditor {
 		this.tocTree = this.instantiationService.createInstance(WorkbenchTree, this.tocTreeContainer,
 			<ITreeConfiguration>{
 				dataSource: tocTreeDataSource,
-				renderer
+				renderer,
+				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
 				showLoading: false
@@ -328,6 +329,8 @@ export class SettingsEditor2 extends BaseEditor {
 	private onShowConfiguredOnlyClicked(): void {
 		this.viewState.showConfiguredOnly = this.showConfiguredSettingsOnlyCheckbox.checked;
 		this.refreshTreeAndMaintainFocus();
+		this.tocTree.refresh();
+		this.settingsTree.setScrollPosition(0);
 		this.expandAll(this.settingsTree);
 	}
 
@@ -427,9 +430,8 @@ export class SettingsEditor2 extends BaseEditor {
 					}
 
 					this.defaultSettingsEditorModel = model;
-					this.tocTree.setInput(getTOCElement(tocData));
-
 					this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
+					this.tocTree.setInput(this.settingsTreeModel.root);
 					this.settingsTree.setInput(this.settingsTreeModel.root);
 				});
 		}
