@@ -6,9 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IChannel, eventToCall, eventFromCall, IURITransformer } from 'vs/base/parts/ipc/common/ipc';
+import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
 import { IExtensionManagementService, ILocalExtension, InstallExtensionEvent, DidInstallExtensionEvent, IGalleryExtension, LocalExtensionType, DidUninstallExtensionEvent, IExtensionIdentifier, IGalleryMetadata, IReportedExtension } from './extensionManagement';
 import { Event, buffer } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 export interface IExtensionManagementChannel extends IChannel {
 	call(command: 'event:onInstallExtension'): TPromise<void>;
@@ -108,7 +110,7 @@ export class ExtensionManagementChannelClient implements IExtensionManagementSer
 	}
 
 	private _transform(extension: ILocalExtension): ILocalExtension {
-		return { ...extension, ...{ location: this.uriTransformer.transformOutgoing(extension.location) } };
+		return { ...extension, ...{ location: URI.revive(this.uriTransformer.transformIncoming(extension.location)) } };
 	}
 
 }

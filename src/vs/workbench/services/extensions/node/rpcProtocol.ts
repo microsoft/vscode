@@ -6,12 +6,13 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { IMessagePassingProtocol, IURITransformer } from 'vs/base/parts/ipc/common/ipc';
+import { IMessagePassingProtocol } from 'vs/base/parts/ipc/common/ipc';
 import { LazyPromise } from 'vs/workbench/services/extensions/node/lazyPromise';
 import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
 import URI from 'vs/base/common/uri';
 import { MarshalledObject } from 'vs/base/common/marshalling';
+import { IURITransformer } from 'vs/base/common/uriIpc';
 
 declare var Proxy: any; // TODO@TypeScript
 
