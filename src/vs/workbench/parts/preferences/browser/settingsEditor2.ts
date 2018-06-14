@@ -11,7 +11,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
-import { escapeRegExpCharacters } from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
@@ -31,10 +30,10 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeFilter, TreeElement, isTOCLeaf } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { getTOCElement, TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
-import { IPreferencesService, ISearchResult, ISetting, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
+import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
 
@@ -56,10 +55,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
 	private treeDataSource: SettingsDataSource;
+	private settingsTreeModel: SettingsTreeModel;
 
 	private tocTreeContainer: HTMLElement;
 	private tocTree: WorkbenchTree;
-	private resolvedTocData: IResolvedTOCEntry;
 
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
@@ -69,7 +68,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingUpdateDelayer: Delayer<void>;
 	private pendingSettingUpdate: { key: string, value: any };
 
-	private selectedElement: TreeElement;
+	private selectedElement: SettingsTreeElement;
 
 	private viewState: ISettingsEditorViewState;
 	private searchResultModel: SearchResultModel;
@@ -240,7 +239,8 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(this.tocTree.onDidChangeSelection(e => {
-			this.settingsTree.reveal(e.selection[0], .1);
+			const element = this.settingsTreeModel.getElementById(e.selection[0] && e.selection[0].id);
+			this.settingsTree.reveal(element, 0);
 		}));
 	}
 
@@ -445,12 +445,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 					this.defaultSettingsEditorModel = model;
 					// if (!this.settingsTree.getInput()) {
-						this.resolvedTocData = resolveSettingsTree(tocData, this.defaultSettingsEditorModel);
-						this.tocTree.setInput(this.resolvedTocData);
-						this.settingsTree.setInput(this.resolvedTocData);
+					this.tocTree.setInput(getTOCElement(tocData));
 
-						this.expandAll(this.settingsTree);
-						this.expandAll(this.tocTree);
+					this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
+					this.settingsTree.setInput(this.settingsTreeModel.root);
+					this.expandAll(this.settingsTree);
+					this.expandAll(this.tocTree);
 					// }
 				});
 		}
@@ -505,7 +505,7 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.searchResultModel = null;
-			this.settingsTree.setInput(this.resolvedTocData);
+			this.settingsTree.setInput(this.settingsTreeModel.root);
 			this.expandAll(this.settingsTree);
 			this.expandAll(this.tocTree);
 
@@ -633,76 +633,4 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTree.layout(listHeight, 800);
 		this.tocTree.layout(listHeight, 200);
 	}
-}
-
-export interface ITOCEntry<T> {
-	id: string;
-	label: string;
-}
-
-export interface ITOCGroupEntry<T> extends ITOCEntry<T> {
-	children?: ITOCEntry<T>[];
-}
-
-export interface ITOCLeafEntry<T> extends ITOCEntry<T> {
-	settings?: T[];
-}
-
-export type IRawTOCEntry = ITOCGroupEntry<string> | ITOCLeafEntry<string>;
-export type IResolvedTOCEntry = ITOCGroupEntry<ISetting> | ITOCLeafEntry<ISetting>;
-
-function resolveSettingsTree(tocData: IRawTOCEntry, defaultSettings: DefaultSettingsEditorModel): IResolvedTOCEntry {
-	return _resolveSettingsTree(tocData, getAllSettings(defaultSettings));
-}
-
-function _resolveSettingsTree(tocData: IRawTOCEntry, allSettings: Set<ISetting>): IResolvedTOCEntry {
-	if (isTOCLeaf(tocData)) {
-		return <IResolvedTOCEntry>{
-			id: tocData.id,
-			label: tocData.label,
-			settings: arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, pattern)))
-		};
-	} else {
-		return <IResolvedTOCEntry>{
-			id: tocData.id,
-			label: tocData.label,
-			children: tocData.children.map(child => _resolveSettingsTree(child, allSettings))
-		};
-	}
-}
-
-function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
-	const result: ISetting[] = [];
-
-	allSettings.forEach(s => {
-		if (settingMatches(s, pattern)) {
-			result.push(s);
-			allSettings.delete(s);
-		}
-	});
-
-
-	return result.sort((a, b) => a.key.localeCompare(b.key));
-}
-
-function settingMatches(s: ISetting, pattern: string): boolean {
-	pattern = escapeRegExpCharacters(pattern)
-		.replace(/\\\*/g, '.*');
-
-	const regexp = new RegExp(`^${pattern}`, 'i');
-	return regexp.test(s.key);
-}
-
-function getAllSettings(defaultSettings: DefaultSettingsEditorModel) {
-	const result: Set<ISetting> = new Set();
-
-	for (let group of defaultSettings.settingsGroups.slice(1)) {
-		for (let section of group.sections) {
-			for (let s of section.settings) {
-				result.add(s);
-			}
-		}
-	}
-
-	return result;
 }

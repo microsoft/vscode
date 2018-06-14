@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import * as arrays from 'vs/base/common/arrays';
 import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -25,8 +26,9 @@ import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/com
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { IResolvedTOCEntry, ITOCGroupEntry, ITOCLeafEntry, ITOCEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
-import { ISearchResult, ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { ISearchResult, ISetting, ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
+import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { escapeRegExpCharacters } from 'vs/base/common/strings';
 
 const $ = DOM.$;
 
@@ -43,20 +45,20 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 });
 
-export interface ITreeItem {
+export abstract class SettingsTreeElement {
 	id: string;
+	parent: SettingsTreeElement;
 }
 
-export enum TreeItemType {
-	setting,
-	groupTitle
+export class SettingsTreeGroupElement extends SettingsTreeElement {
+	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
+	label: string;
 }
 
-export interface ISettingElement extends ITreeItem {
-	type: TreeItemType.setting;
+export class SettingsTreeSettingElement extends SettingsTreeElement {
 	setting: ISetting;
 
-	parent: IGroupElement | SearchResultModel;
+	isExpanded: boolean;
 	displayCategory: string;
 	displayLabel: string;
 	value: any;
@@ -67,44 +69,49 @@ export interface ISettingElement extends ITreeItem {
 	enum?: string[];
 }
 
-export interface IGroupElement extends ITreeItem {
-	type: TreeItemType.groupTitle;
-	parent: IGroupElement | IResolvedTOCEntry;
-	group: IResolvedTOCEntry;
-	index: number;
-}
+export class SettingsTreeModel {
+	private _root: SettingsTreeElement;
+	private _treeElementsById = new Map<string, SettingsTreeElement>();
 
-export type TreeElement = ISettingElement | IGroupElement;
-export type TreeElementOrRoot = TreeElement | IResolvedTOCEntry | SearchResultModel;
-
-function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
-	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
-	const inspected = configurationService.inspect(key, inspectOverrides);
-	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
-		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
-			'workspaceFolder';
-	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
-
-	return { isConfigured, inspected, targetSelector };
-}
-
-export class SettingsDataSource implements IDataSource {
 	constructor(
 		private viewState: ISettingsEditorViewState,
+		tocRoot: ITOCEntry,
+		allSettings: ISettingsGroup[],
 		@IConfigurationService private configurationService: IConfigurationService
-	) { }
-
-	getGroupElement(group: IResolvedTOCEntry, parent: IGroupElement | IResolvedTOCEntry, index: number): IGroupElement {
-		return <IGroupElement>{
-			type: TreeItemType.groupTitle,
-			group,
-			parent,
-			id: sanitizeElementId(group.id),
-			index
-		};
+	) {
+		const resolvedTOC = resolveSettingsTree(tocRoot, allSettings);
+		this._root = this.createSettingsTreeGroupElement(resolvedTOC);
 	}
 
-	getSettingElement(setting: ISetting, parent: IGroupElement | SearchResultModel, category: string): ISettingElement {
+	get root(): SettingsTreeElement {
+		return this._root;
+	}
+
+	getElementById(id: string): SettingsTreeElement {
+		return this._treeElementsById.get(id);
+	}
+
+	private createSettingsTreeGroupElement(tocEntry: ITOCEntry, parent?: SettingsTreeGroupElement): SettingsTreeGroupElement {
+		const element = new SettingsTreeGroupElement();
+		element.id = tocEntry.id;
+		element.label = tocEntry.label;
+		element.parent = parent;
+
+		if (tocEntry.children) {
+			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
+		} else if (tocEntry.settings) {
+			element.children = tocEntry.settings.map(s => this.createSettingsTreeSettingElement(<ISetting>s, element));
+		}
+
+		this._treeElementsById.set(element.id, element);
+		return element;
+	}
+
+	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
+		const element = new SettingsTreeSettingElement();
+		element.id = setting.key;
+		element.parent = parent;
+
 		const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
 
 		const displayValue = isConfigured ? inspected[targetSelector] : inspected.default;
@@ -117,96 +124,143 @@ export class SettingsDataSource implements IDataSource {
 			overriddenScopeList.push(localize('user', "User"));
 		}
 
-		const displayKeyFormat = settingKeyToDisplayFormat(setting.key, category);
-		return <ISettingElement>{
-			type: TreeItemType.setting,
-			parent,
-			id: sanitizeElementId(setting.key),
-			setting,
+		const displayKeyFormat = settingKeyToDisplayFormat(setting.key, parent.id);
+		element.setting = setting;
+		element.displayLabel = displayKeyFormat.label;
+		element.displayCategory = displayKeyFormat.category;
+		element.isExpanded = false;
 
-			displayLabel: displayKeyFormat.label,
-			displayCategory: displayKeyFormat.category,
-			isExpanded: false,
+		element.value = displayValue;
+		element.isConfigured = isConfigured;
+		element.overriddenScopeList = overriddenScopeList;
+		element.description = setting.description.join('\n');
+		element.enum = setting.enum;
+		element.valueType = setting.type;
 
-			value: displayValue,
-			isConfigured,
-			overriddenScopeList,
-			description: setting.description.join('\n'),
-			enum: setting.enum,
-			valueType: setting.type
+		this._treeElementsById.set(element.id, element);
+		return element;
+	}
+}
+
+function inspectSetting(key: string, target: SettingsTarget, configurationService: IConfigurationService): { isConfigured: boolean, inspected: any, targetSelector: string } {
+	const inspectOverrides = URI.isUri(target) ? { resource: target } : undefined;
+	const inspected = configurationService.inspect(key, inspectOverrides);
+	const targetSelector = target === ConfigurationTarget.USER ? 'user' :
+		target === ConfigurationTarget.WORKSPACE ? 'workspace' :
+			'workspaceFolder';
+	const isConfigured = typeof inspected[targetSelector] !== 'undefined';
+
+	return { isConfigured, inspected, targetSelector };
+}
+
+function resolveSettingsTree(tocData: ITOCEntry, settingsGroups: ISettingsGroup[]): ITOCEntry {
+	return _resolveSettingsTree(tocData, getFlatSettings(settingsGroups));
+}
+
+function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
+	if (tocData.settings) {
+		return <ITOCEntry>{
+			id: tocData.id,
+			label: tocData.label,
+			settings: arrays.flatten(tocData.settings.map(pattern => getMatchingSettings(allSettings, <string>pattern)))
+		};
+	} else if (tocData.children) {
+		return <ITOCEntry>{
+			id: tocData.id,
+			label: tocData.label,
+			children: tocData.children.map(child => _resolveSettingsTree(child, allSettings))
 		};
 	}
 
-	getId(tree: ITree, element: TreeElementOrRoot): string {
+	return null;
+}
+
+function getMatchingSettings(allSettings: Set<ISetting>, pattern: string): ISetting[] {
+	const result: ISetting[] = [];
+
+	allSettings.forEach(s => {
+		if (settingMatches(s, pattern)) {
+			result.push(s);
+			allSettings.delete(s);
+		}
+	});
+
+
+	return result.sort((a, b) => a.key.localeCompare(b.key));
+}
+
+function settingMatches(s: ISetting, pattern: string): boolean {
+	pattern = escapeRegExpCharacters(pattern)
+		.replace(/\\\*/g, '.*');
+
+	const regexp = new RegExp(`^${pattern}`, 'i');
+	return regexp.test(s.key);
+}
+
+function getFlatSettings(settingsGroups: ISettingsGroup[]) {
+	const result: Set<ISetting> = new Set();
+
+	for (let group of settingsGroups) {
+		for (let section of group.sections) {
+			for (let s of section.settings) {
+				result.add(s);
+			}
+		}
+	}
+
+	return result;
+}
+
+
+export class SettingsDataSource implements IDataSource {
+
+	getId(tree: ITree, element: SettingsTreeElement): string {
 		return element.id;
 	}
 
-	hasChildren(tree: ITree, element: TreeElementOrRoot): boolean {
-		if (isTOCRoot(element)) {
-			return true;
-		}
-
+	hasChildren(tree: ITree, element: SettingsTreeElement): boolean {
 		if (element instanceof SearchResultModel) {
 			return true;
 		}
 
-		if (element.type === TreeItemType.groupTitle) {
+		if (element instanceof SettingsTreeGroupElement) {
 			return true;
 		}
 
 		return false;
 	}
 
-	private _getChildren(element: TreeElementOrRoot): TreeElement[] {
-		if (isTOCRoot(element)) {
-			return this.getRootChildren(element);
-		} else if (element instanceof SearchResultModel) {
+	private getSearchResultChildren(searchResult: SearchResultModel): SettingsTreeSettingElement[] {
+		return searchResult.getFlatSettings()
+			.map(s => this.getSettingElement(s, searchResult, 'searchResult'));
+	}
+
+	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+		return TPromise.as(this._getChildren(element));
+	}
+
+	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
+		if (element instanceof SearchResultModel) {
 			return this.getSearchResultChildren(element);
-		} else if (element.type === TreeItemType.groupTitle) {
+		} else if (element instanceof SettingsTreeGroupElement) {
 			return this.getGroupChildren(element);
 		} else {
 			// No children...
 			return null;
 		}
 	}
-
-	private getSearchResultChildren(searchResult: SearchResultModel): ISettingElement[] {
-		return searchResult.getFlatSettings()
-			.map(s => this.getSettingElement(s, searchResult, 'searchResult'));
+	private getGroupChildren(groupElement: SettingsTreeGroupElement): SettingsTreeElement[] {
+		return groupElement.children;
 	}
 
-	getChildren(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
-		return TPromise.as(this._getChildren(element));
+	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
+		return TPromise.wrap(element.parent);
 	}
-
-	private getRootChildren(root: ITOCGroupEntry<ISetting>): TreeElement[] {
-		return root.children
-			.map((g, i) => this.getGroupElement(g, root, i));
-	}
-
-	private getGroupChildren(groupElement: IGroupElement): TreeElement[] {
-		return isTOCLeaf(groupElement.group) ?
-			groupElement.group.settings.map(s => this.getSettingElement(s, groupElement, groupElement.id)) :
-			groupElement.group.children.map((child, i) => this.getGroupElement(child, groupElement, i));
-	}
-
-	getParent(tree: ITree, element: TreeElementOrRoot): TPromise<any, any> {
-		return TPromise.wrap(
-			isTOCRoot(element) ? null :
-			element instanceof SearchResultModel ? null :
-			element.parent);
-	}
-}
-
-function sanitizeElementId(id: string): string {
-	return id.replace(/\./g, '_');
-}
-
-function isTOCRoot(element: TreeElementOrRoot): element is IResolvedTOCEntry {
-	return element.id === 'root';
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId: string): { category: string, label: string } {
+	groupId = groupId.replace(/\//g, '.');
+
 	let label = key
 		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
 		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
@@ -267,7 +321,7 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 
-	context?: ISettingElement;
+	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -278,7 +332,7 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 }
 
 interface IGroupTitleTemplate extends IDisposableTemplate {
-	context?: IGroupElement;
+	context?: SettingsTreeGroupElement;
 	parent: HTMLElement;
 	labelElement: HTMLElement;
 }
@@ -311,12 +365,12 @@ export class SettingsRenderer implements IRenderer {
 		this.measureContainer = DOM.append(_measureContainer, $('.setting-measure-container.monaco-tree-row'));
 	}
 
-	getHeight(tree: ITree, element: TreeElement): number {
-		if (element.type === TreeItemType.groupTitle) {
+	getHeight(tree: ITree, element: SettingsTreeElement): number {
+		if (element instanceof SettingsTreeGroupElement) {
 			return 30;
 		}
 
-		if (element.type === TreeItemType.setting) {
+		if (element instanceof SettingsTreeSettingElement) {
 			const isSelected = this.elementIsSelected(tree, element);
 			if (isSelected) {
 				return this.measureSettingElementHeight(tree, element);
@@ -328,7 +382,7 @@ export class SettingsRenderer implements IRenderer {
 		return 0;
 	}
 
-	private measureSettingElementHeight(tree: ITree, element: ISettingElement): number {
+	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
 		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
 		const template = this.renderSettingTemplate(tree, measureHelper);
@@ -339,12 +393,12 @@ export class SettingsRenderer implements IRenderer {
 		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
 	}
 
-	getTemplateId(tree: ITree, element: TreeElement): string {
-		if (element.type === TreeItemType.groupTitle) {
+	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
+		if (element instanceof SettingsTreeGroupElement) {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
-		if (element.type === TreeItemType.setting) {
+		if (element instanceof SettingsTreeSettingElement) {
 			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
 
@@ -417,24 +471,24 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
-	renderElement(tree: ITree, element: TreeElement, templateId: string, template: any): void {
+	renderElement(tree: ITree, element: SettingsTreeElement, templateId: string, template: any): void {
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
-			return this.renderSettingElement(tree, <ISettingElement>element, template);
+			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
 		}
 
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
-			(<IGroupTitleTemplate>template).labelElement.textContent = (<IGroupElement>element).group.label;
+			(<IGroupTitleTemplate>template).labelElement.textContent = (<SettingsTreeGroupElement>element).label;
 			return;
 		}
 	}
 
-	private elementIsSelected(tree: ITree, element: TreeElement): boolean {
+	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
 		const selection = tree.getSelection();
-		const selectedElement: TreeElement = selection && selection[0];
+		const selectedElement: SettingsTreeElement = selection && selection[0];
 		return selectedElement && selectedElement.id === element.id;
 	}
 
-	private renderSettingElement(tree: ITree, element: ISettingElement, template: ISettingItemTemplate): void {
+	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
@@ -482,7 +536,7 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
+	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
 		const valueControlElement = DOM.append(template.valueElement, $('.setting-item-control'));
@@ -504,7 +558,7 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderBool(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
+	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
 		const checkboxElement = <HTMLInputElement>DOM.append(element, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = dataElement.value;
@@ -513,7 +567,7 @@ export class SettingsRenderer implements IRenderer {
 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
 
-	private renderEnum(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
+	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
 		const idx = dataElement.enum.indexOf(dataElement.value);
 		const displayOptions = dataElement.enum.map(escapeInvisibleChars);
 		const selectBox = new SelectBox(displayOptions, idx, this.contextViewService);
@@ -527,7 +581,7 @@ export class SettingsRenderer implements IRenderer {
 			selectBox.onDidSelect(e => onChange(dataElement.enum[e.index])));
 	}
 
-	private renderText(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
+	private renderText(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
 		const inputBox = new InputBox(element, this.contextViewService);
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
@@ -538,7 +592,7 @@ export class SettingsRenderer implements IRenderer {
 			inputBox.onDidChange(e => onChange(e)));
 	}
 
-	private renderEditInSettingsJson(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement): void {
+	private renderEditInSettingsJson(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement): void {
 		const openSettingsButton = new Button(element, { title: true, buttonBackground: null, buttonHoverBackground: null });
 		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
@@ -570,28 +624,30 @@ export class SettingsTreeFilter implements IFilter {
 		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
-	isVisible(tree: ITree, element: TreeElement): boolean {
-		if (this.viewState.showConfiguredOnly && element.type === TreeItemType.setting) {
+	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
+		if (this.viewState.showConfiguredOnly && element instanceof SettingsTreeSettingElement) {
 			return element.isConfigured;
 		}
 
-		if (element.type === TreeItemType.groupTitle && this.viewState.showConfiguredOnly) {
-			return this.groupHasConfiguredSetting(element.group);
+		if (element instanceof SettingsTreeGroupElement && this.viewState.showConfiguredOnly) {
+			return this.groupHasConfiguredSetting(element);
 		}
 
 		return true;
 	}
 
-	private groupHasConfiguredSetting(element: IResolvedTOCEntry): boolean {
-		if (isTOCLeaf(element)) {
-			for (let setting of element.settings) {
-				const { isConfigured } = inspectSetting(setting.key, this.viewState.settingsTarget, this.configurationService);
+	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {
+		for (let child of element.children) {
+			if (child instanceof SettingsTreeSettingElement) {
+				const { isConfigured } = inspectSetting(child.setting.key, this.viewState.settingsTarget, this.configurationService);
 				if (isConfigured) {
 					return true;
 				}
+			} else {
+				if (child instanceof SettingsTreeGroupElement) {
+					return this.groupHasConfiguredSetting(child);
+				}
 			}
-		} else {
-			return element.children.some(c => this.groupHasConfiguredSetting(c));
 		}
 
 		return false;
@@ -607,17 +663,17 @@ export class SettingsTreeController extends WorkbenchTreeController {
 }
 
 export class SettingsAccessibilityProvider implements IAccessibilityProvider {
-	getAriaLabel(tree: ITree, element: TreeElement): string {
+	getAriaLabel(tree: ITree, element: SettingsTreeElement): string {
 		if (!element) {
 			return '';
 		}
 
-		if (element.type === TreeItemType.setting) {
+		if (element instanceof SettingsTreeSettingElement) {
 			return localize('settingRowAriaLabel', "{0} {1}, Setting", element.displayCategory, element.displayLabel);
 		}
 
-		if (element.type === TreeItemType.groupTitle) {
-			return localize('groupRowAriaLabel', "{0}, group", element.group.label);
+		if (element instanceof SettingsTreeGroupElement) {
+			return localize('groupRowAriaLabel', "{0}, group", element.label);
 		}
 
 		return '';
@@ -680,8 +736,4 @@ export class SearchResultModel {
 
 		return flatSettings;
 	}
-}
-
-export function isTOCLeaf<T>(entry: ITOCEntry<T>): entry is ITOCLeafEntry<T> {
-	return !!(<ITOCLeafEntry<T>>entry).settings;
 }

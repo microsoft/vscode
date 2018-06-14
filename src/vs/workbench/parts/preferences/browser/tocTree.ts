@@ -6,32 +6,53 @@
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { IResolvedTOCEntry, ITOCGroupEntry } from 'vs/workbench/parts/preferences/browser/settingsEditor2';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
-import { isTOCLeaf } from 'vs/workbench/parts/preferences/browser/settingsTree';
 
 const $ = DOM.$;
 
-// export interface ITOCRoot {
-// 	id: string;
-// 	children: ITOCEntry[];
-// }
+export interface ITOCEntry {
+	id: string;
+	label: string;
+	children?: ITOCEntry[];
+	settings?: (string | ISetting)[];
+}
+
+export class TOCElement {
+	id: string;
+	label: string;
+
+	parent?: TOCElement;
+	children?: TOCElement[];
+}
+
+export function getTOCElement(tocRoot: ITOCEntry, parent?: TOCElement): TOCElement {
+	const element = new TOCElement();
+	element.id = tocRoot.id;
+	element.label = tocRoot.label;
+
+	element.parent = parent;
+	if (tocRoot.children) {
+		element.children = tocRoot.children.map(child => getTOCElement(child, element));
+	}
+
+	return element;
+}
 
 export class TOCDataSource implements IDataSource {
-	getId(tree: ITree, element: IResolvedTOCEntry): string {
+	getId(tree: ITree, element: TOCElement): string {
 		return element.id;
 	}
 
-	hasChildren(tree: ITree, element: IResolvedTOCEntry): boolean {
-		return !isTOCLeaf(element) && element.children.length && typeof element.children[0] !== 'string';
+	hasChildren(tree: ITree, element: TOCElement): boolean {
+		return !!(element.children && element.children.length);
 	}
 
-	getChildren(tree: ITree, element: ITOCGroupEntry<ISetting>): TPromise<IResolvedTOCEntry[], any> {
-		return TPromise.as(<IResolvedTOCEntry[]>element.children);
+	getChildren(tree: ITree, element: TOCElement): TPromise<TOCElement[], any> {
+		return TPromise.as(<TOCElement[]>element.children);
 	}
 
-	getParent(tree: ITree, element: IResolvedTOCEntry): TPromise<any, any> {
-		return TPromise.wrap(null); // ??
+	getParent(tree: ITree, element: TOCElement): TPromise<any, any> {
+		return TPromise.wrap(element.parent);
 	}
 }
 
@@ -42,11 +63,11 @@ interface ITOCEntryTemplate {
 }
 
 export class TOCRenderer implements IRenderer {
-	getHeight(tree: ITree, element: IResolvedTOCEntry): number {
+	getHeight(tree: ITree, element: TOCElement): number {
 		return 22;
 	}
 
-	getTemplateId(tree: ITree, element: IResolvedTOCEntry): string {
+	getTemplateId(tree: ITree, element: TOCElement): string {
 		return TOC_ENTRY_TEMPLATE_ID;
 	}
 
@@ -56,7 +77,7 @@ export class TOCRenderer implements IRenderer {
 		};
 	}
 
-	renderElement(tree: ITree, element: IResolvedTOCEntry, templateId: string, template: ITOCEntryTemplate): void {
+	renderElement(tree: ITree, element: TOCElement, templateId: string, template: ITOCEntryTemplate): void {
 		template.element.textContent = element.label;
 	}
 
