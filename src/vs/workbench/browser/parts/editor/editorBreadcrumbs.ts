@@ -57,7 +57,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 	) {
 		this._domNode = document.createElement('div');
-		this._domNode.className = 'editor-breadcrumbs';
+		dom.addClasses(this._domNode, 'editor-breadcrumbs', 'show-file-icons');
 		this._widget = new BreadcrumbsWidget(this._domNode);
 		this._widget.onDidSelectItem(this._onDidSelectItem, this, this._disposables);
 		this._widget.onDidChangeFocus(val => this._ckBreadcrumbsFocused.set(val), undefined, this._disposables);
@@ -150,6 +150,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				return item.node;
 			},
 			render: (container: HTMLElement) => {
+				dom.addClasses(container, 'show-file-icons');
 				let res = this._instantiationService.createInstance(BreadcrumbsFilePicker, container);
 				res.layout({ width: 250, height: 300 });
 				res.setInput(item.element.uri.with({ path: paths.dirname(item.element.uri.path) }));
