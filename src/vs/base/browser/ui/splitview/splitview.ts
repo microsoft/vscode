@@ -345,7 +345,7 @@ export class SplitView implements IDisposable {
 		} else {
 			for (let i = 0; i < this.viewItems.length; i++) {
 				const item = this.viewItems[i];
-				item.size = clamp(this.proportions[i] * size, item.view.minimumSize, item.view.maximumSize);
+				item.size = clamp(Math.round(this.proportions[i] * size), item.view.minimumSize, item.view.maximumSize);
 			}
 
 			this.layoutViews();
