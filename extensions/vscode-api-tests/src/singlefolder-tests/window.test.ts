@@ -156,6 +156,56 @@ suite('window namespace tests', () => {
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 	});
 
+	test('showTextDocument ViewColumn.BESIDE', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Three);
+	});
+
+	test('showTextDocument ViewColumn is always defined (even when opening > ViewColumn.Nine)', async () => {
+		const [doc1, doc2, doc3, doc4, doc5, doc6, doc7, doc8, doc9, doc10] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(doc1, ViewColumn.One);
+		await window.showTextDocument(doc2, ViewColumn.Two);
+		await window.showTextDocument(doc3, ViewColumn.Three);
+		await window.showTextDocument(doc4, ViewColumn.Four);
+		await window.showTextDocument(doc5, ViewColumn.Five);
+		await window.showTextDocument(doc6, ViewColumn.Six);
+		await window.showTextDocument(doc7, ViewColumn.Seven);
+		await window.showTextDocument(doc8, ViewColumn.Eight);
+		await window.showTextDocument(doc9, ViewColumn.Nine);
+		await window.showTextDocument(doc10, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === doc10);
+		assert.equal(window.activeTextEditor!.viewColumn, 10);
+	});
+
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
