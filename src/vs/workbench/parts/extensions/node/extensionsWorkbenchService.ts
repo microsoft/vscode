@@ -134,8 +134,10 @@ class Extension implements IExtension {
 	}
 
 	private get localIconUrl(): string {
-		return this.local && this.local.manifest.icon
-			&& URI.file(path.join(this.local.path, this.local.manifest.icon)).toString();
+		if (this.local && this.local.manifest.icon) {
+			return this.local.location.with({ path: path.join(this.local.location.path, this.local.manifest.icon) }).toString();
+		}
+		return null;
 	}
 
 	private get galleryIconUrl(): string {

@@ -151,7 +151,7 @@ class LanguagePacksCache extends Disposable {
 					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
 				}
 				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = join(extension.path, translation.path);
+					languagePack.translations[translation.id] = join(extension.location.path, translation.path);
 				}
 			}
 		}
