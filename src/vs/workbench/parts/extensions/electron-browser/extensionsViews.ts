@@ -447,10 +447,10 @@ export class ExtensionsListView extends ViewletPanel {
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
-			"extensionWorkspaceRecommendations:open" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
+					"extensionWorkspaceRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {

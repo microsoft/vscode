@@ -50,6 +50,7 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import { ExtensionsViewlet } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -394,6 +395,10 @@ export class ExtensionEditor extends BaseEditor {
 		const ignoreAction = this.instantiationService.createInstance(IgnoreAction);
 		ignoreAction.extension = extension;
 		ignoreAction.onIgnored = () => {
+			const activeViewlet = this.viewletService.getActiveViewlet();
+			if (activeViewlet instanceof ExtensionsViewlet) {
+				(<ExtensionsViewlet>activeViewlet).refreshRecommendedExtensions();
+			}
 			addClass(this.header, 'ignored');
 			this.recentlyIgnored.push(extension.id.toLowerCase());
 			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");

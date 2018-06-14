@@ -373,12 +373,19 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.searchBox.dispatchEvent(event);
 	}
 
+	refreshRecommendedExtensions() {
+		const query = this.searchBox.value;
+		if (query === '' || /@recommended/.test(query)) {
+			this.doSearch(true);
+		}
+	}
+
 	private triggerSearch(immediate = false): void {
 		this.searchDelayer.trigger(() => this.doSearch(), immediate || !this.searchBox.value ? 0 : 500)
 			.done(null, err => this.onError(err));
 	}
 
-	private async doSearch(): TPromise<any> {
+	private async doSearch(forceRefresh: boolean = false): TPromise<any> {
 		const value = this.searchBox.value || '';
 		this.searchExtensionsContextKey.set(!!value);
 		this.searchInstalledExtensionsContextKey.set(InstalledExtensionsView.isInstalledExtensionsQuery(value));
@@ -386,7 +393,7 @@ export class ExtensionsViewlet extends ViewContainerViewlet implements IExtensio
 		this.recommendedExtensionsContextKey.set(ExtensionsListView.isRecommendedExtensionsQuery(value));
 		this.nonEmptyWorkspaceContextKey.set(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY);
 
-		if (value) {
+		if (value || forceRefresh) {
 			this.progress(TPromise.join(this.panels.map(view => (<ExtensionsListView>view).show(this.searchBox.value))));
 		}
 	}
