@@ -39,6 +39,7 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
 import URI from 'vs/base/common/uri';
+import { join } from 'vs/base/common/paths';
 
 suite('ExtensionsWorkbenchService Test', () => {
 
@@ -193,8 +194,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal('1.1.0', actual.version);
 		assert.equal('1.1.0', actual.latestVersion);
 		assert.equal('localDescription1', actual.description);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
-		assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
+		assert.equal(URI.file(join('localPath1', 'localIcon1')).toString(), actual.iconUrl);
+		assert.equal(URI.file(join('localPath1', 'localIcon1')).toString(), actual.iconUrlFallback);
 		assert.equal(null, actual.licenseUrl);
 		assert.equal(ExtensionState.Installed, actual.state);
 		assert.equal(null, actual.installCount);
