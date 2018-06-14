@@ -14,6 +14,7 @@ import { clamp } from 'vs/base/common/numbers';
 import { range, firstIndex } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
+import { domEvent } from 'vs/base/browser/event';
 export { Orientation } from 'vs/base/browser/ui/sash/sash';
 
 export interface ISplitViewStyles {
@@ -62,9 +63,12 @@ interface ISashItem {
 interface ISashDragState {
 	index: number;
 	start: number;
+	current: number;
 	sizes: number[];
-	minDelta?: number;
-	maxDelta?: number;
+	minDelta: number;
+	maxDelta: number;
+	alt: boolean;
+	disposable: IDisposable;
 }
 
 enum State {
@@ -211,11 +215,11 @@ export class SplitView implements IDisposable {
 		const disposable = combinedDisposable([onChangeDisposable, containerDisposable]);
 
 		const layoutContainer = this.orientation === Orientation.VERTICAL
-			? size => item.container.style.height = `${item.size}px`
-			: size => item.container.style.width = `${item.size}px`;
+			? () => item.container.style.height = `${item.size}px`
+			: () => item.container.style.width = `${item.size}px`;
 
 		const layout = () => {
-			layoutContainer(item.size);
+			layoutContainer();
 			item.view.layout(item.size, this.orientation);
 		};
 
@@ -250,7 +254,8 @@ export class SplitView implements IDisposable {
 			const onStartDisposable = onStart(this.onSashStart, this);
 			const onChange = mapEvent(sash.onDidChange, sashEventMapper);
 			const onChangeDisposable = onChange(this.onSashChange, this);
-			const onEndDisposable = sash.onDidEnd(() => this._onDidSashChange.fire(firstIndex(this.sashItems, item => item.sash === sash)));
+			const onEnd = mapEvent(sash.onDidEnd, () => firstIndex(this.sashItems, item => item.sash === sash));
+			const onEndDisposable = onEnd(this.onSashEnd, this);
 			const onDidResetDisposable = sash.onDidReset(() => this._onDidSashReset.fire(firstIndex(this.sashItems, item => item.sash === sash)));
 
 			const disposable = combinedDisposable([onStartDisposable, onChangeDisposable, onEndDisposable, onDidResetDisposable, sash]);
@@ -355,24 +360,36 @@ export class SplitView implements IDisposable {
 		}
 	}
 
-	// private alt = false;
-
 	private onSashStart({ sash, start, alt }: ISashEvent): void {
 		const index = firstIndex(this.sashItems, item => item.sash === sash);
-		const sizes = this.viewItems.map(i => i.size);
 
-		if (alt) {
-			const viewItem = this.viewItems[index + 1];
-			const minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
-			const maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
-			this.sashDragState = { start, index, sizes, minDelta, maxDelta };
-		} else {
-			this.sashDragState = { start, index, sizes };
-		}
+		// This way, we can press Alt while we resize a sash, macOS style!
+		const disposable = combinedDisposable([
+			domEvent(document.body, 'keydown')(e => resetSashDragState(this.sashDragState.current, e.altKey)),
+			domEvent(document.body, 'keyup')(() => resetSashDragState(this.sashDragState.current, false))
+		]);
+
+		const resetSashDragState = (start: number, alt: boolean) => {
+			const sizes = this.viewItems.map(i => i.size);
+			let minDelta = Number.POSITIVE_INFINITY;
+			let maxDelta = Number.POSITIVE_INFINITY;
+
+			if (alt) {
+				const viewItem = this.viewItems[index + 1];
+				minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
+				maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+			}
+
+			this.sashDragState = { start, current: start, index, sizes, minDelta, maxDelta, alt, disposable };
+		};
+
+		resetSashDragState(start, alt);
 	}
 
-	private onSashChange({ current, alt }: ISashEvent): void {
-		const { index, start, sizes, minDelta, maxDelta } = this.sashDragState;
+	private onSashChange({ current }: ISashEvent): void {
+		const { index, start, sizes, alt, minDelta, maxDelta } = this.sashDragState;
+		this.sashDragState.current = current;
+
 		const delta = current - start;
 		const newDelta = this.resize(index, delta, sizes, undefined, undefined, minDelta, maxDelta);
 
@@ -386,6 +403,11 @@ export class SplitView implements IDisposable {
 		}
 
 		this.layoutViews();
+	}
+
+	private onSashEnd(index: number): void {
+		this._onDidSashChange.fire(index);
+		this.sashDragState.disposable.dispose();
 	}
 
 	private onViewChange(item: IViewItem, size: number | undefined): void {
