@@ -298,7 +298,7 @@ export class SettingsRenderer implements IRenderer {
 		this.renderSettingElement(tree, element, template);
 
 		const height = measureHelper.offsetHeight;
-		this.measureContainer.removeChild(measureHelper);
+		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
 	}
 
@@ -448,56 +448,61 @@ export class SettingsRenderer implements IRenderer {
 	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
+		const valueControlElement = DOM.append(template.valueElement, $('.setting-item-control'));
 		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
-			this.renderEnum(element, isSelected, template, onChange);
+			valueControlElement.classList.add('setting-type-enum');
+			this.renderEnum(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'boolean') {
-			this.renderBool(element, isSelected, template, onChange);
+			valueControlElement.classList.add('setting-type-boolean');
+			this.renderBool(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'string') {
-			this.renderText(element, isSelected, template, onChange);
+			valueControlElement.classList.add('setting-type-string');
+			this.renderText(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'number' || element.valueType === 'integer') {
-			this.renderText(element, isSelected, template, value => onChange(parseInt(value)));
+			valueControlElement.classList.add('setting-type-number');
+			this.renderText(element, isSelected, template, valueControlElement, value => onChange(parseInt(value)));
 		} else {
-			this.renderEditInSettingsJson(element, isSelected, template);
+			valueControlElement.classList.add('setting-type-complex');
+			this.renderEditInSettingsJson(element, isSelected, template, valueControlElement);
 		}
 	}
 
-	private renderBool(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: boolean) => void): void {
-		const checkboxElement = <HTMLInputElement>DOM.append(template.valueElement, $('input.setting-value-checkbox.setting-value-input'));
+	private renderBool(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
+		const checkboxElement = <HTMLInputElement>DOM.append(element, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
-		checkboxElement.checked = element.value;
+		checkboxElement.checked = dataElement.value;
 		checkboxElement.tabIndex = isSelected ? 0 : -1;
 
 		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
 	}
 
-	private renderEnum(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: string) => void): void {
-		const idx = element.enum.indexOf(element.value);
-		const displayOptions = element.enum.map(escapeInvisibleChars);
+	private renderEnum(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
+		const idx = dataElement.enum.indexOf(dataElement.value);
+		const displayOptions = dataElement.enum.map(escapeInvisibleChars);
 		const selectBox = new SelectBox(displayOptions, idx, this.contextViewService);
-		template.toDispose.push(selectBox);
 		template.toDispose.push(attachSelectBoxStyler(selectBox, this.themeService));
-		selectBox.render(template.valueElement);
-		if (template.valueElement.firstElementChild) {
-			template.valueElement.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
+		selectBox.render(element);
+		if (element.firstElementChild) {
+			element.firstElementChild.setAttribute('tabindex', isSelected ? '0' : '-1');
 		}
 
 		template.toDispose.push(
-			selectBox.onDidSelect(e => onChange(element.enum[e.index])));
+			selectBox.onDidSelect(e => onChange(dataElement.enum[e.index])));
 	}
 
-	private renderText(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: string) => void): void {
-		const inputBox = new InputBox(template.valueElement, this.contextViewService);
+	private renderText(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
+		const inputBox = new InputBox(element, this.contextViewService);
 		template.toDispose.push(attachInputBoxStyler(inputBox, this.themeService));
 		template.toDispose.push(inputBox);
-		inputBox.value = element.value;
+		inputBox.value = dataElement.value;
 		inputBox.inputElement.tabIndex = isSelected ? 0 : -1;
 
 		template.toDispose.push(
 			inputBox.onDidChange(e => onChange(e)));
 	}
 
-	private renderEditInSettingsJson(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
-		const openSettingsButton = new Button(template.valueElement, { title: true, buttonBackground: null, buttonHoverBackground: null });
+	private renderEditInSettingsJson(dataElement: ISettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement): void {
+		const openSettingsButton = new Button(element, { title: true, buttonBackground: null, buttonHoverBackground: null });
 		openSettingsButton.onDidClick(() => this._onDidOpenSettings.fire());
 		openSettingsButton.label = localize('editInSettingsJson', "Edit in settings.json");
 		openSettingsButton.element.classList.add('edit-in-settings-button');
