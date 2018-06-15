@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -43,6 +43,7 @@ export class EditorControl extends Disposable {
 	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
 
 	private _activeControl: BaseEditor;
+	private activeControlDisposable: IDisposable = EmptyDisposable;
 	private controls: BaseEditor[] = [];
 
 	constructor(
@@ -58,7 +59,13 @@ export class EditorControl extends Disposable {
 	}
 
 	private setActiveControl(activeControl: BaseEditor) {
+		this.activeControlDisposable.dispose();
 		this._activeControl = activeControl;
+
+		if (activeControl) {
+			this.activeControlDisposable = activeControl.onDidChange(e => this._onDidChange.fire(e));
+		}
+
 		this._onDidChange.fire();
 	}
 

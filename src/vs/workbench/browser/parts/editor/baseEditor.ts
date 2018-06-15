@@ -14,7 +14,7 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
-import { once } from 'vs/base/common/event';
+import { once, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
 import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
@@ -44,6 +44,7 @@ export abstract class BaseEditor extends Panel implements IEditor {
 	readonly maximumWidth: number = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
 	readonly minimumHeight: number = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
 	readonly maximumHeight: number = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+	readonly onDidChange: Event<{ width: number; height: number; }> = Event.None;
 
 	constructor(
 		id: string,
