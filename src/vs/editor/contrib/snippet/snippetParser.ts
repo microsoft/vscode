@@ -214,8 +214,11 @@ export class Text extends Marker {
 	}
 }
 
-export class Placeholder extends Marker {
+export abstract class TransformableMarker extends Marker {
+	public transform: Transform;
+}
 
+export class Placeholder extends TransformableMarker {
 	static compareByIndex(a: Placeholder, b: Placeholder): number {
 		if (a.index === b.index) {
 			return 0;
@@ -246,27 +249,27 @@ export class Placeholder extends Marker {
 			: undefined;
 	}
 
-	get transform(): Transform {
-		for (const child of this._children) {
-			if (child instanceof Transform) {
-				return child as Transform;
-			}
-		}
-		return undefined;
-	}
-
 	toTextmateString(): string {
-		if (this.children.length === 0) {
+		let transformString = '';
+		if (this.transform) {
+			transformString = this.transform.toTextmateString();
+		}
+		if (this.children.length === 0 && !this.transform) {
 			return `\$${this.index}`;
+		} else if (this.children.length === 0) {
+			return `\${${this.index}${transformString}}`;
 		} else if (this.choice) {
-			return `\${${this.index}|${this.choice.toTextmateString()}|}`;
+			return `\${${this.index}|${this.choice.toTextmateString()}|${transformString}}`;
 		} else {
-			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+			return `\${${this.index}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
 		}
 	}
 
 	clone(): Placeholder {
 		let ret = new Placeholder(this.index);
+		if (this.transform) {
+			ret.transform = this.transform.clone();
+		}
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -393,7 +396,7 @@ export class FormatString extends Marker {
 	}
 }
 
-export class Variable extends Marker {
+export class Variable extends TransformableMarker {
 
 	constructor(public name: string) {
 		super();
@@ -401,9 +404,8 @@ export class Variable extends Marker {
 
 	resolve(resolver: VariableResolver): boolean {
 		let value = resolver.resolve(this);
-		let [firstChild] = this._children;
-		if (firstChild instanceof Transform && this._children.length === 1) {
-			value = firstChild.resolve(value || '');
+		if (this.transform) {
+			value = this.transform.resolve(value || '');
 		}
 		if (value !== undefined) {
 			this._children = [new Text(value)];
@@ -413,15 +415,22 @@ export class Variable extends Marker {
 	}
 
 	toTextmateString(): string {
+		let transformString = '';
+		if (this.transform) {
+			transformString = this.transform.toTextmateString();
+		}
 		if (this.children.length === 0) {
-			return `\${${this.name}}`;
+			return `\${${this.name}${transformString}}`;
 		} else {
-			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}}`;
+			return `\${${this.name}:${this.children.map(child => child.toTextmateString()).join('')}${transformString}}`;
 		}
 	}
 
 	clone(): Variable {
 		const ret = new Variable(this.name);
+		if (this.transform) {
+			ret.transform = this.transform.clone();
+		}
 		ret._children = this.children.map(child => child.clone());
 		return ret;
 	}
@@ -592,6 +601,7 @@ export class SnippetParser {
 		for (const placeholder of incompletePlaceholders) {
 			if (placeholderDefaultValues.has(placeholder.index)) {
 				const clone = new Placeholder(placeholder.index);
+				clone.transform = placeholder.transform;
 				for (const child of placeholderDefaultValues.get(placeholder.index)) {
 					clone.appendChild(child.clone());
 				}
@@ -864,7 +874,7 @@ export class SnippetParser {
 		}
 	}
 
-	private _parseTransform(parent: Variable | Placeholder): boolean {
+	private _parseTransform(parent: TransformableMarker): boolean {
 		// ...<regex>/<format>/<options>}
 
 		let transform = new Transform();
@@ -929,7 +939,7 @@ export class SnippetParser {
 			return false;
 		}
 
-		parent.appendChild(transform);
+		parent.transform = transform;
 		return true;
 	}
 
