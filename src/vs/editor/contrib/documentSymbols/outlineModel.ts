@@ -195,12 +195,12 @@ export class OutlineModel extends TreeElement {
 
 	private static readonly _requests = new LRUCache<string, { count: number, promise: TPromise<OutlineModel> }>(9, .75);
 
-	static create(textModel: ITextModel, forceFresh?: boolean): TPromise<OutlineModel> {
+	static create(textModel: ITextModel): TPromise<OutlineModel> {
 
 		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
 		let data = OutlineModel._requests.get(key);
 
-		if (!data || forceFresh) {
+		if (!data) {
 			data = { promise: OutlineModel._create(textModel), count: 0 };
 			OutlineModel._requests.set(key, data);
 		}
@@ -209,12 +209,15 @@ export class OutlineModel extends TreeElement {
 		data.count += 1;
 
 		return new TPromise((resolve, reject) => {
-			data.promise.then(resolve, err => {
-				OutlineModel._requests.delete(key); // don't cache failure/cancelation
+			data.promise.then(value => {
+				OutlineModel._requests.delete(key);
+				resolve(value);
+			}, err => {
+				OutlineModel._requests.delete(key);
 				reject(err);
 			});
 		}, () => {
-			// last -> cancel provider request
+			// last -> cancel provider request, remove cached promise
 			if (--data.count === 0) {
 				data.promise.cancel();
 			}
