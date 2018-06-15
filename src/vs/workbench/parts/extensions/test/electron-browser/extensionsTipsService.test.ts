@@ -482,12 +482,10 @@ suite('ExtensionsTipsService Test', () => {
 
 		testObject = instantiationService.createInstance(ExtensionTipsService);
 		testObject.onRecommendationChange(changeHandlerTarget);
+		testObject.ignoreExtensionRecommendation(ignoredExtensionId);
 
-		return testObject.ignoreExtensionRecommendation(ignoredExtensionId)
-			.then(() => {
-				assert.ok(changeHandlerTarget.calledOnce);
-				assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
-			});
+		assert.ok(changeHandlerTarget.calledOnce);
+		assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
 	});
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {
