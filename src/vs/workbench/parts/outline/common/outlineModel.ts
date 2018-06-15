@@ -16,6 +16,7 @@ import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { LRUCache } from 'vs/base/common/map';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -192,7 +193,33 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	static create(textModel: ITextModel): TPromise<OutlineModel> {
+	private static readonly _requests = new LRUCache<string, { count: number, promise: TPromise<OutlineModel> }>(9, .75);
+
+	static create(textModel: ITextModel, forceFresh?: boolean): TPromise<OutlineModel> {
+
+		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
+		let data = OutlineModel._requests.get(key);
+
+		if (!data || forceFresh) {
+			data = { promise: OutlineModel._create(textModel), count: 0 };
+			OutlineModel._requests.set(key, data);
+		}
+
+		// increase usage counter
+		data.count += 1;
+
+		return new TPromise((resolve, reject) => {
+			data.promise.then(resolve, reject);
+		}, () => {
+			if (--data.count === 0) {
+				// last -> cancel provider request
+				data.promise.cancel();
+			}
+		});
+	}
+
+	static _create(textModel: ITextModel): TPromise<OutlineModel> {
+
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
 

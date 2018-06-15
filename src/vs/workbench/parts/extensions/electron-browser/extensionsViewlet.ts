@@ -96,49 +96,49 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('marketPlace', "Marketplace"),
 			container: VIEW_CONTAINER,
 			ctor: ExtensionsListView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchExtensions'), ContextKeyExpr.not('searchInstalledExtensions'), ContextKeyExpr.not('searchBuiltInExtensions'), ContextKeyExpr.not('recommendedExtensions')),
 			weight: 100
 		};
 	}
 
 	private createInstalledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.installedList',
+			id: 'extensions.installedExtensionsList',
 			name: localize('installedExtensions', "Installed"),
 			container: VIEW_CONTAINER,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			order: 1,
 			weight: 30,
-			canToggleVisibility: true
+			canToggleVisibility: true,
+			hideByDefault: true
 		};
 	}
 
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.enabledList',
+			id: 'extensions.enabledExtensionsList',
 			name: localize('enabledExtensions', "Enabled"),
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			weight: 30,
 			canToggleVisibility: true,
-			order: 30,
-			collapsed: true
+			order: 1
 		};
 	}
 
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.disabledList',
+			id: 'extensions.disabledExtensionsList',
 			name: localize('disabledExtensions', "Disabled"),
 			container: VIEW_CONTAINER,
 			ctor: DisabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
-			weight: 30,
+			weight: 1,
 			canToggleVisibility: true,
-			order: 40,
-			collapsed: true
+			order: 30,
+			hideByDefault: true
 		};
 	}
 
@@ -148,7 +148,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('searchInstalledExtensions', "Installed"),
 			container: VIEW_CONTAINER,
 			ctor: InstalledExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchInstalledExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchInstalledExtensions')),
 			weight: 100
 		};
 	}
@@ -159,7 +159,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('recommendedExtensions', "Recommended"),
 			container: VIEW_CONTAINER,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions'), ContextKeyExpr.has('defaultRecommendedExtensions')),
 			weight: 70,
 			order: 2,
 			canToggleVisibility: true
@@ -172,7 +172,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('otherRecommendedExtensions', "Other Recommendations"),
 			container: VIEW_CONTAINER,
 			ctor: RecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('recommendedExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions')),
 			weight: 50,
 			canToggleVisibility: true,
 			order: 2
@@ -185,7 +185,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('workspaceRecommendedExtensions', "Workspace Recommendations"),
 			container: VIEW_CONTAINER,
 			ctor: WorkspaceRecommendedExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('recommendedExtensions'), ContextKeyExpr.has('nonEmptyWorkspace')),
 			weight: 50,
 			canToggleVisibility: true,
 			order: 1
@@ -198,7 +198,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('builtInExtensions', "Features"),
 			container: VIEW_CONTAINER,
 			ctor: BuiltInExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
 			canToggleVisibility: true
 		};
@@ -210,7 +210,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('builtInThemesExtensions', "Themes"),
 			container: VIEW_CONTAINER,
 			ctor: BuiltInThemesExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
 			canToggleVisibility: true
 		};
@@ -222,7 +222,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 			name: localize('builtInBasicsExtensions', "Programming Languages"),
 			container: VIEW_CONTAINER,
 			ctor: BuiltInBasicsExtensionsView,
-			when: ContextKeyExpr.and(ContextKeyExpr.not('donotshowExtensions'), ContextKeyExpr.has('searchBuiltInExtensions')),
+			when: ContextKeyExpr.and(ContextKeyExpr.has('searchBuiltInExtensions')),
 			weight: 100,
 			canToggleVisibility: true
 		};

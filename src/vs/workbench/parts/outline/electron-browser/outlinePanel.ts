@@ -51,7 +51,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
-import { OutlineElement, OutlineModel, TreeElement } from './outlineModel';
+import { OutlineElement, OutlineModel, TreeElement } from '../common/outlineModel';
 import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
 import { IViewsService } from 'vs/workbench/common/views';
 
@@ -434,9 +434,11 @@ export class OutlinePanel extends ViewletPanel {
 		dispose(this._editorDisposables);
 
 		this._editorDisposables = new Array();
-		this._input.disable();
-		this._input.value = '';
 		this._progressBar.infinite().show(150);
+		this._input.disable();
+		if (!event) {
+			this._input.value = '';
+		}
 
 		if (!editor || !DocumentSymbolProviderRegistry.has(editor.getModel())) {
 			return this._showMessage(localize('no-editor', "There are no editors open that can provide outline information."));
@@ -510,7 +512,7 @@ export class OutlinePanel extends ViewletPanel {
 		// on first type -> capture tree state
 		// on erase -> restore captured tree state
 		let beforePatternState: OutlineTreeState;
-		this._editorDisposables.push(this._input.onDidChange(async pattern => {
+		let onInputValueChanged = async pattern => {
 
 			this._contextKeyFiltered.set(pattern.length > 0);
 
@@ -530,7 +532,9 @@ export class OutlinePanel extends ViewletPanel {
 				await OutlineTreeState.restore(this._tree, beforePatternState);
 				beforePatternState = undefined;
 			}
-		}));
+		};
+		onInputValueChanged(this._input.value);
+		this._editorDisposables.push(this._input.onDidChange(onInputValueChanged));
 
 		this._editorDisposables.push({
 			dispose: () => this._contextKeyFiltered.reset()

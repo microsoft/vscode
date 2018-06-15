@@ -83,6 +83,10 @@ export class QuickInputBox {
 		this.inputBox.inputElement.type = password ? 'password' : 'text';
 	}
 
+	set enabled(enabled: boolean) {
+		this.inputBox.setEnabled(enabled);
+	}
+
 	showDecoration(decoration: Severity): void {
 		if (decoration === Severity.Ignore) {
 			this.inputBox.hideMessage();

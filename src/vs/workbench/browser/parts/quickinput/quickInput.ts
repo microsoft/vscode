@@ -36,7 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -56,6 +56,7 @@ interface QuickInputUI {
 	ignoreFocusOut: boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
+	setEnabled(enabled: boolean): void;
 	hide(): void;
 }
 
@@ -96,7 +97,7 @@ class QuickInput implements IQuickInput {
 
 	set enabled(enabled: boolean) {
 		this._enabled = enabled;
-		this.update(); // TODO
+		this.update();
 	}
 
 	get busy() {
@@ -177,6 +178,7 @@ class QuickInput implements IQuickInput {
 				return action;
 			}), { icon: true, label: false });
 		}
+		this.ui.setEnabled(this.enabled);
 	}
 
 	public dispose(): void {
@@ -188,7 +190,7 @@ class QuickInput implements IQuickInput {
 class QuickPick extends QuickInput implements IQuickPick {
 
 	private _value = '';
-	private _placeholder = '';
+	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
 	private _items: IQuickPickItem[] = [];
@@ -226,11 +228,11 @@ class QuickPick extends QuickInput implements IQuickPick {
 	}
 
 	set placeholder(placeholder: string) {
-		this._placeholder = placeholder || '';
+		this._placeholder = placeholder;
 		this.update();
 	}
 
-	onDidValueChange = this.onDidChangeValueEmitter.event;
+	onDidChangeValue = this.onDidChangeValueEmitter.event;
 
 	onDidAccept = this.onDidAcceptEmitter.event;
 
@@ -313,7 +315,13 @@ class QuickPick extends QuickInput implements IQuickPick {
 							break;
 					}
 				}),
-				this.ui.onDidAccept(() => this.onDidAcceptEmitter.fire()),
+				this.ui.onDidAccept(() => {
+					if (!this.canSelectMany && this.activeItems[0]) {
+						this._selectedItems = [this.activeItems[0]];
+						this.onDidChangeSelectionEmitter.fire(this.selectedItems);
+					}
+					this.onDidAcceptEmitter.fire();
+				}),
 				this.ui.list.onDidChangeFocus(focusedItems => {
 					// Drop initial event.
 					if (!focusedItems.length && !this._activeItems.length) {
@@ -332,6 +340,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 					}
 					this._selectedItems = selectedItems;
 					this.onDidChangeSelectionEmitter.fire(selectedItems);
+					this.onDidAcceptEmitter.fire();
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
 					if (!this.canSelectMany) {
@@ -353,8 +362,8 @@ class QuickPick extends QuickInput implements IQuickPick {
 		if (this.ui.inputBox.value !== this.value) {
 			this.ui.inputBox.value = this.value;
 		}
-		if (this.ui.inputBox.placeholder !== this.placeholder) {
-			this.ui.inputBox.placeholder = this.placeholder;
+		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
+			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
 		if (this.itemsUpdated) {
 			this.ui.list.setElements(this.items);
@@ -420,7 +429,9 @@ class QuickPick extends QuickInput implements IQuickPick {
 				return false;
 			});
 
-			if (wasTriggerKeyPressed) {
+			if (wasTriggerKeyPressed && this.activeItems[0]) {
+				this._selectedItems = [this.activeItems[0]];
+				this.onDidChangeSelectionEmitter.fire(this.selectedItems);
 				this.onDidAcceptEmitter.fire();
 			}
 		}));
@@ -434,11 +445,11 @@ class InputBox extends QuickInput implements IInputBox {
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]>;
 	private valueSelectionUpdated = true;
-	private _placeholder = '';
+	private _placeholder: string;
 	private _password = false;
-	private _prompt = '';
+	private _prompt: string;
 	private noValidationMessage = InputBox.noPromptMessage;
-	private _validationMessage = '';
+	private _validationMessage: string;
 	private onDidValueChangeEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
 
@@ -470,7 +481,7 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	set placeholder(placeholder: string) {
-		this._placeholder = placeholder || '';
+		this._placeholder = placeholder;
 		this.update();
 	}
 
@@ -479,7 +490,7 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	set password(password: boolean) {
-		this._password = password || false;
+		this._password = password;
 		this.update();
 	}
 
@@ -488,7 +499,7 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	set prompt(prompt: string) {
-		this._prompt = prompt || '';
+		this._prompt = prompt;
 		this.noValidationMessage = prompt
 			? localize('inputModeEntryDescription', "{0} (Press 'Enter' to confirm or 'Escape' to cancel)", prompt)
 			: InputBox.noPromptMessage;
@@ -500,7 +511,7 @@ class InputBox extends QuickInput implements IInputBox {
 	}
 
 	set validationMessage(validationMessage: string) {
-		this._validationMessage = validationMessage || '';
+		this._validationMessage = validationMessage;
 		this.update();
 	}
 
@@ -536,8 +547,8 @@ class InputBox extends QuickInput implements IInputBox {
 			this.valueSelectionUpdated = false;
 			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
 		}
-		if (this.ui.inputBox.placeholder !== this.placeholder) {
-			this.ui.inputBox.placeholder = this.placeholder;
+		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
+			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
 		if (this.ui.inputBox.password !== this.password) {
 			this.ui.inputBox.password = this.password;
@@ -565,7 +576,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private filterContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
+	private ok: Button;
 	private ui: QuickInputUI;
+	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
 	private onDidAcceptEmitter = new Emitter<void>();
@@ -642,11 +655,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(this.okContainer);
-		attachButtonStyler(ok, this.themeService);
-		ok.label = localize('ok', "OK");
-		this.toUnbind.push(ok.onDidClick(e => {
-			this.onDidAcceptEmitter.fire(); // TODO: make single-select QuickPick exclusively use Accept?
+		this.ok = new Button(this.okContainer);
+		attachButtonStyler(this.ok, this.themeService);
+		this.ok.label = localize('ok', "OK");
+		this.toUnbind.push(this.ok.onDidClick(e => {
+			this.onDidAcceptEmitter.fire();
 		}));
 
 		const actionBar = new ActionBar(headerContainer);
@@ -731,7 +744,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			ignoreFocusOut: false,
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
-			setVisibilities: visibilities => this.setVisibilities(visibilities)
+			setVisibilities: visibilities => this.setVisibilities(visibilities),
+			setEnabled: enabled => this.setEnabled(enabled),
 		};
 		this.updateStyles();
 	}
@@ -868,6 +882,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			oldController.didHide();
 		}
 
+		this.setEnabled(true);
 		this.ui.checkAll.checked = false;
 		// this.ui.inputBox.value = ''; Avoid triggering an event.
 		this.ui.inputBox.placeholder = '';
@@ -898,6 +913,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.display(visibilities.list);
 		this.ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
+	}
+
+	private setEnabled(enabled: boolean) {
+		if (enabled !== this.enabled) {
+			this.enabled = enabled;
+			this.ui.checkAll.disabled = !enabled;
+			this.ui.inputBox.enabled = enabled;
+			for (const item of this.ui.actionBar.items) {
+				(item as ActionItem).getAction().enabled = enabled;
+			}
+			this.ok.enabled = enabled;
+			this.ui.list.enabled = enabled;
+		}
 	}
 
 	private hide(focusLost?: boolean) {

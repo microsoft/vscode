@@ -39,7 +39,6 @@ const EXPAND_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-down';
 const COLLAPSE_ACTION_CLASS = 'expand-review-action octicon octicon-chevron-up';
 const COMMENT_SCHEME = 'comment';
 
-declare var ResizeObserver: any;
 export class CommentNode {
 	private _domNode: HTMLElement;
 	private _body: HTMLElement;
@@ -397,19 +396,14 @@ export class ReviewZoneWidget extends ZoneWidget {
 			}
 		});
 
+		this._resizeObserver = new MutationObserver(this._refresh.bind(this));
 
-		this._resizeObserver = new ResizeObserver(entries => {
-			if (entries[0].target === this._bodyElement && !this._isCollapsed) {
-				const lineHeight = this.editor.getConfiguration().lineHeight;
-				const arrowHeight = Math.round(lineHeight / 3);
-				const frameThickness = Math.round(lineHeight / 9) * 2;
-
-				const computedLinesNumber = Math.ceil((headHeight + entries[0].contentRect.height + arrowHeight + frameThickness) / lineHeight);
-				this._relayout(computedLinesNumber);
-			}
+		this._resizeObserver.observe(this._bodyElement, {
+			attributes: true,
+			childList: true,
+			characterData: true,
+			subtree: true
 		});
-
-		this._resizeObserver.observe(this._bodyElement);
 
 		if (this._commentThread.collapsibleState === modes.CommentThreadCollapsibleState.Expanded) {
 			this.show({ lineNumber: lineNumber, column: 1 }, 2);
@@ -442,6 +436,19 @@ export class ReviewZoneWidget extends ZoneWidget {
 			});
 		} else {
 			dom.addClass(this._commentForm, 'expand');
+		}
+	}
+
+	_refresh() {
+		if (!this._isCollapsed && this._bodyElement) {
+			let dimensions = dom.getClientArea(this._bodyElement);
+			const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+			const lineHeight = this.editor.getConfiguration().lineHeight;
+			const arrowHeight = Math.round(lineHeight / 3);
+			const frameThickness = Math.round(lineHeight / 9) * 2;
+
+			const computedLinesNumber = Math.ceil((headHeight + dimensions.height + arrowHeight + frameThickness) / lineHeight);
+			this._relayout(computedLinesNumber);
 		}
 	}
 
@@ -536,6 +543,7 @@ export class ReviewZoneWidget extends ZoneWidget {
 	show(rangeOrPos: IRange | IPosition, heightInLines: number): void {
 		this._isCollapsed = false;
 		super.show(rangeOrPos, heightInLines);
+		this._refresh();
 	}
 
 	hide() {

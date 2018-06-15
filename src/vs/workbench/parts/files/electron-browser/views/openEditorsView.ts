@@ -160,6 +160,7 @@ export class OpenEditorsView extends ViewletPanel {
 					}
 				}
 			}));
+			this.disposables.push(groupDisposables.get(group.id));
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));

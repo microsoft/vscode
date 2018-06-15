@@ -448,7 +448,7 @@ export class SettingsRenderer implements IRenderer {
 	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
-		if (element.valueType === 'string' && element.enum) {
+		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			this.renderEnum(element, isSelected, template, onChange);
 		} else if (element.valueType === 'boolean') {
 			this.renderBool(element, isSelected, template, onChange);
@@ -517,7 +517,7 @@ export class SettingsRenderer implements IRenderer {
 }
 
 function escapeInvisibleChars(enumValue: string): string {
-	return enumValue
+	return enumValue && enumValue
 		.replace(/\n/g, '\\n')
 		.replace(/\r/g, '\\r');
 }

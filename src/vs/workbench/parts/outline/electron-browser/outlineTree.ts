@@ -16,7 +16,7 @@ import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from '../common/outlineModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';

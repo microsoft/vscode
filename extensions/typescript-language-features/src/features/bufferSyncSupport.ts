@@ -243,6 +243,10 @@ export default class BufferSyncSupport {
 		if (this.pendingGetErr) {
 			this.pendingGetErr.token.cancel();
 			this.pendingGetErr = undefined;
+
+			this.diagnosticDelayer.trigger(() => {
+				this.sendPendingDiagnostics();
+			}, 200);
 		}
 	}
 

@@ -81,7 +81,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, onDidChangeTextEditorViewColumn', () => {
+	test('editor, onDidChangeTextEditorViewColumn (close editor)', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;
 
@@ -113,6 +113,51 @@ suite('window namespace tests', () => {
 				assert.ok(actualEvent);
 				assert.ok(actualEvent.textEditor === two);
 				assert.ok(actualEvent.viewColumn === two.viewColumn);
+
+				registration1.dispose();
+			});
+		});
+	});
+
+	test('editor, onDidChangeTextEditorViewColumn (move editor group)', () => {
+
+		let actualEvents: TextEditorViewColumnChangeEvent[] = [];
+
+		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+			provideTextDocumentContent() {
+				return 'mountainbiking,roadcycling';
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
+			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
+		]).then(editors => {
+
+			let [, two] = editors;
+			two.show();
+
+			return new Promise(resolve => {
+
+				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+					actualEvents.push(event);
+
+					if (actualEvents.length === 2) {
+						registration2.dispose();
+						resolve();
+					}
+				});
+
+				// move active editor group left
+				return commands.executeCommand('workbench.action.moveActiveEditorGroupLeft');
+
+			}).then(() => {
+				assert.equal(actualEvents.length, 2);
+
+				for (let i = 0; i < actualEvents.length; i++) {
+					const event = actualEvents[i];
+					assert.equal(event.viewColumn, event.textEditor.viewColumn);
+				}
 
 				registration1.dispose();
 			});
@@ -154,6 +199,56 @@ suite('window namespace tests', () => {
 		);
 		assert.ok(window.activeTextEditor!.document === docC);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+	});
+
+	test('showTextDocument ViewColumn.BESIDE', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Three);
+	});
+
+	test('showTextDocument ViewColumn is always defined (even when opening > ViewColumn.Nine)', async () => {
+		const [doc1, doc2, doc3, doc4, doc5, doc6, doc7, doc8, doc9, doc10] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(doc1, ViewColumn.One);
+		await window.showTextDocument(doc2, ViewColumn.Two);
+		await window.showTextDocument(doc3, ViewColumn.Three);
+		await window.showTextDocument(doc4, ViewColumn.Four);
+		await window.showTextDocument(doc5, ViewColumn.Five);
+		await window.showTextDocument(doc6, ViewColumn.Six);
+		await window.showTextDocument(doc7, ViewColumn.Seven);
+		await window.showTextDocument(doc8, ViewColumn.Eight);
+		await window.showTextDocument(doc9, ViewColumn.Nine);
+		await window.showTextDocument(doc10, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === doc10);
+		assert.equal(window.activeTextEditor!.viewColumn, 10);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
