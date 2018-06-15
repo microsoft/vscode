@@ -538,9 +538,6 @@ export class CodeWindow implements ICodeWindow {
 		mark('main:loadWindow');
 		this._win.loadURL(this.getUrl(configuration));
 
-		// Window Maximized
-		config.maximized = this._win.isMaximized();
-
 		// Make window visible if it did not open in N seconds because this indicates an error
 		// Only do this when running out of sources and not when running tests
 		if (!this.environmentService.isBuilt && !this.environmentService.extensionTestsPath) {
@@ -599,6 +596,7 @@ export class CodeWindow implements ICodeWindow {
 
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this._win.isFullScreen();
+		windowConfiguration.maximized = this._win.isMaximized();
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
