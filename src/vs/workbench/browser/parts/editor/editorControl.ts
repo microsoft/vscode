@@ -16,7 +16,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IOpenEditorResult {
@@ -34,10 +34,10 @@ export class EditorControl extends Disposable {
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
-	get minimumWidth(): number { return this._activeControl ? this._activeControl.minimumWidth : 0; }
-	get minimumHeight(): number { return this._activeControl ? this._activeControl.minimumHeight : 0; }
-	get maximumWidth(): number { return this._activeControl ? this._activeControl.maximumWidth : Number.POSITIVE_INFINITY; }
-	get maximumHeight(): number { return this._activeControl ? this._activeControl.maximumHeight : Number.POSITIVE_INFINITY; }
+	get minimumWidth(): number { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight(): number { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth(): number { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight(): number { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
 
 	private _onDidChange = new Emitter<{ width: number; height: number; }>();
 	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
