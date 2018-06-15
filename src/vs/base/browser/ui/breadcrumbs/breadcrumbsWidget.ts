@@ -214,14 +214,12 @@ export class BreadcrumbsWidget {
 		this._onDidSelectItem.fire(this._items[this._selectedItemIdx]);
 	}
 
-	append(item: BreadcrumbsItem): void {
-		this._items.push(item);
-		this._render(this._items.length - 1);
+	items(): ReadonlyArray<BreadcrumbsItem> {
+		return this._items;
 	}
 
-	replace(existing: BreadcrumbsItem, newItems: BreadcrumbsItem[]): void {
-		let start = !existing ? 0 : this._items.indexOf(existing);
-		let removed = this._items.splice(start, this._items.length - start, ...newItems);
+	splice(start: number, deleteCount: number, items: BreadcrumbsItem[]): void {
+		let removed = this._items.splice(start, deleteCount, ...items);
 		this._render(start);
 		dispose(removed);
 	}

@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorBreadcrumbs, IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ITreeConfiguration, IDataSource, ITree, IRenderer, ISelectionEvent, ISorter } from 'vs/base/parts/tree/browser/tree';
+import { ITreeConfiguration, IDataSource, IRenderer, ISelectionEvent, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -31,6 +31,8 @@ import { isEqual } from 'vs/base/common/resources';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { compareFileNames } from 'vs/base/common/comparers';
+import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 interface FileElement {
 	name: string;
@@ -43,12 +45,14 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	static CK_BreadcrumbsVisible = new RawContextKey('breadcrumbsVisible', false);
 	static CK_BreadcrumbsFocused = new RawContextKey('breadcrumbsFocused', false);
 
+	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
+	private readonly _ckBreadcrumbsFocused: IContextKey<boolean>;
+
 	private readonly _disposables = new Array<IDisposable>();
 	private readonly _domNode: HTMLDivElement;
 	private readonly _widget: BreadcrumbsWidget;
 
-	private readonly _ckBreadcrumbsVisible: IContextKey<boolean>;
-	private readonly _ckBreadcrumbsFocused: IContextKey<boolean>;
+	private _editorDisposables = new Array<IDisposable>();
 
 	constructor(
 		container: HTMLElement,
@@ -92,6 +96,9 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 	openEditor(input: EditorInput): void {
 
+		this._editorDisposables = dispose(this._editorDisposables);
+
+
 		let uri = input.getResource();
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			return this.closeEditor(undefined);
@@ -100,25 +107,24 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		this._ckBreadcrumbsVisible.set(true);
 		dom.toggleClass(this._domNode, 'hidden', false);
 
-
 		const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
 			let label = this._instantiationService.createInstance(FileLabel, target, {});
 			label.setFile(element.uri, { fileKind: element.kind, hidePath: true, fileDecorations: { colors: false, badges: false } });
 			disposables.push(label);
 		};
 
-		let items: RenderedBreadcrumbsItem<FileElement>[] = [];
+		let fileItems: RenderedBreadcrumbsItem<FileElement>[] = [];
 		let workspace = this._workspaceService.getWorkspaceFolder(uri);
 		let path = uri.path;
 
 		while (true) {
-			let first = items.length === 0;
+			let first = fileItems.length === 0;
 			let name = paths.basename(path);
 			uri = uri.with({ path });
 			if (workspace && isEqual(workspace.uri, uri, true)) {
 				break;
 			}
-			items.unshift(new RenderedBreadcrumbsItem<FileElement>(
+			fileItems.unshift(new RenderedBreadcrumbsItem<FileElement>(
 				render,
 				{ name, uri, kind: first ? FileKind.FILE : FileKind.FOLDER },
 				!first
@@ -129,7 +135,70 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			}
 		}
 
-		this._widget.replace(undefined, items);
+		this._widget.splice(0, undefined, fileItems);
+
+		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
+		if (!isCodeEditor(control)) {
+			return;
+		}
+
+		let editorWait = new TPromise<boolean>(resolve => {
+			if (control.getModel() && control.getModel().uri.toString() === input.getResource().toString()) {
+				return resolve(true);
+			}
+			let listener = control.onDidChangeModel(e => {
+				if (e.newModelUrl.toString() === input.getResource().toString()) {
+					resolve(true);
+					listener.dispose();
+				}
+			});
+			this._editorDisposables.push({
+				dispose: () => {
+					resolve(false);
+					listener.dispose();
+				}
+			});
+		});
+
+		editorWait.then(success => {
+			console.log(success, control.getModel().uri.path);
+			if (!success) {
+				return undefined;
+			}
+			// let request = OutlineModel.create(control.getModel());
+			// let { promise } = asDisposablePromise(request, undefined, this._editorDisposables);
+			// return promise;
+
+			// }).then(model => {
+			// 	if (!model) {
+			// 		console.log('canceled', control.getModel().uri.path);
+			// 		return; // canceled
+			// 	}
+
+			// 	let showOutlineForPosition = (position: IPosition) => {
+			// 		console.log('show', model.textModel.uri.path);
+			// 		let element: OutlineElement | OutlineGroup = model.getItemEnclosingPosition(position);
+			// 		let outlineItems: SimpleBreadcrumbsItem[] = [];
+			// 		while (element) {
+			// 			if (element instanceof OutlineElement) {
+			// 				outlineItems.push(new SimpleBreadcrumbsItem(element.symbol.name));
+			// 			} else {
+			// 				outlineItems.push(new SimpleBreadcrumbsItem(element.providerIndex.toString()));
+			// 			}
+			// 			if (element.parent instanceof OutlineElement || element.parent instanceof OutlineGroup) {
+			// 				element = element.parent;
+			// 			} else {
+			// 				element = undefined;
+			// 			}
+			// 		}
+			// 		outlineItems.reverse();
+			// 		this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
+			// 	};
+
+			// 	showOutlineForPosition(control.getPosition());
+			// 	debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._editorDisposables);
+
+		}, onUnexpectedError);
 	}
 
 	closeEditor(input: EditorInput): void {
@@ -157,6 +226,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
+
+		if (!(item instanceof RenderedBreadcrumbsItem)) {
+			return;
+		}
 
 		this._editorGroup.focus();
 
@@ -206,7 +279,7 @@ export abstract class BreadcrumbsPicker {
 		container.appendChild(this._domNode);
 
 		this._tree = this._instantiationService.createInstance(WorkbenchTree, this._domNode, this._completeTreeConfiguration({ dataSource: undefined }), {});
-		debounceEvent(this._tree.onDidChangeSelection, (last, cur) => cur, 0)(this._onDidChangeSelection, this, this._disposables);
+		debounceEvent(this._tree.onDidChangeSelection, (_last, cur) => cur, 0)(this._onDidChangeSelection, this, this._disposables);
 
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
