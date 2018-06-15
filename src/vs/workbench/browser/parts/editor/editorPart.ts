@@ -720,6 +720,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			this.centeredViewLayout = undefined;
 		}
 
+		toggleClass(this.gridWidget.element, 'content', !active);
 		if (active) {
 			this.centeredViewLayout = new CenteredViewLayout(this.parentElement, {
 				element: this.gridWidget.element,
@@ -728,6 +729,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				maximumSize: this.gridWidget.maximumWidth,
 				onDidChange: Event.None
 			});
+			addClass(this.centeredViewLayout.element, 'content');
 		}
 	}
 
