@@ -31,7 +31,7 @@ import { isMacintosh, isWindows } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
-import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { addDisposableListener, EventType, EventHelper, Dimension, addClass, removeClass } from 'vs/base/browser/dom';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService {
@@ -322,10 +322,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			}, 0 /* need a timeout because we are in capture phase */);
 		}, void 0, true /* use capture to know the currently active element properly */);
 
-		// Now that there exists a titelbar, we don't need the whole page to be a drag region anymore
-		(document.documentElement.style as any).webkitAppRegion = '';
-		document.documentElement.style.height = '';
-
 		return this.titleContainer.getHTMLElement();
 	}
 
@@ -336,11 +332,11 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		if (maximized) {
-			element.classList.remove('window-maximize');
-			element.classList.add('window-unmaximize');
+			removeClass(<HTMLElement>element, 'window-maximize');
+			addClass(<HTMLElement>element, 'window-unmaximize');
 		} else {
-			element.classList.remove('window-unmaximize');
-			element.classList.add('window-maximize');
+			removeClass(<HTMLElement>element, 'window-unmaximize');
+			addClass(<HTMLElement>element, 'window-maximize');
 		}
 	}
 
