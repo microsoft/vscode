@@ -98,7 +98,6 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 		this._editorDisposables = dispose(this._editorDisposables);
 
-
 		let uri = input.getResource();
 		if (!uri || !this._fileService.canHandleResource(uri)) {
 			return this.closeEditor(undefined);
@@ -135,7 +134,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			}
 		}
 
-		this._widget.splice(0, undefined, fileItems);
+		this._widget.splice(0, this._widget.items().length, fileItems);
 
 		let control = this._editorGroup.activeControl.getControl() as ICodeEditor;
 		if (!isCodeEditor(control)) {
