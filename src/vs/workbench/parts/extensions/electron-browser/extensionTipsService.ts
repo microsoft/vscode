@@ -297,15 +297,18 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this._globallyIgnoredRecommendations = distinct(ignored[0]).map(id => id.toLowerCase());
 			this._workspaceIgnoredRecommendations = distinct(ignored[1]).map(id => id.toLowerCase());
 			this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
+			this.refreshAllRecommendations();
+		});
+	}
 
-			this._allWorkspaceRecommendedExtensions = this._allWorkspaceRecommendedExtensions.filter((id) => this.isExtensionAllowedToBeRecommended(id));
-			this._dynamicWorkspaceRecommendations = this._dynamicWorkspaceRecommendations.filter((id) => this.isExtensionAllowedToBeRecommended(id));
+	private refreshAllRecommendations() {
+		this._allWorkspaceRecommendedExtensions = this._allWorkspaceRecommendedExtensions.filter((id) => this.isExtensionAllowedToBeRecommended(id));
+		this._dynamicWorkspaceRecommendations = this._dynamicWorkspaceRecommendations.filter((id) => this.isExtensionAllowedToBeRecommended(id));
 
-			this._allIgnoredRecommendations.forEach(x => {
-				delete this._fileBasedRecommendations[x];
-				delete this._exeBasedRecommendations[x];
-				delete this._availableRecommendations[x];
-			});
+		this._allIgnoredRecommendations.forEach(x => {
+			delete this._fileBasedRecommendations[x];
+			delete this._exeBasedRecommendations[x];
+			delete this._availableRecommendations[x];
 		});
 	}
 
@@ -893,10 +896,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return Object.keys(result);
 	}
 
-	ignoreExtensionRecommendation(extensionId: string): TPromise<void> {
+	ignoreExtensionRecommendation(extensionId: string): void {
 		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
 		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(distinct([...globallyIgnored, extensionId.toLowerCase()])), StorageScope.GLOBAL);
-		return this.refreshAllIgnoredRecommendations().then(() => this._onRecommendationChange.fire());
+
+		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
+		this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
+		this.refreshAllRecommendations();
+
+		this._onRecommendationChange.fire();
 	}
 
 	dispose() {
