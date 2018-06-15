@@ -1042,9 +1042,11 @@ export class DebugService implements debug.IDebugService {
 		}
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskId).then(task => {
-			const taskDisplayName = typeof taskId === 'string' ? `'${taskId}'` : nls.localize('specified', "specified");
 			if (!task) {
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the task {0}.", taskDisplayName)));
+				const errorMessage = typeof taskId === 'string'
+					? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
+					: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
+				return TPromise.wrapError(errors.create(errorMessage));
 			}
 
 			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
@@ -1088,7 +1090,10 @@ export class DebugService implements debug.IDebugService {
 
 				setTimeout(() => {
 					if (!taskStarted) {
-						e({ severity: severity.Error, message: nls.localize('taskNotTracked', "The task {0} cannot be tracked.", taskDisplayName) });
+						const errorMessage = typeof taskId === 'string'
+							  ? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
+							  : nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskDisplayName)
+						e({ severity: severity.Error, message:  });
 					}
 				}, 10000);
 			});
