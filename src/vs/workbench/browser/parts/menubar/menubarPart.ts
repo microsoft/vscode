@@ -432,7 +432,8 @@ export class MenubarPart extends Part {
 			};
 		}
 
-		$(this.container).on(EventType.KEY_DOWN, (e) => {
+		this.container.off(EventType.KEY_DOWN);
+		this.container.on(EventType.KEY_DOWN, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
