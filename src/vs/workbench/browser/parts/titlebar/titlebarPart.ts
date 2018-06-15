@@ -252,7 +252,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			// App Icon
 			this.appIcon = $(this.titleContainer).img({
 				class: 'window-appicon',
-				src: paths.join(this.environmentService.appRoot, 'resources/linux/code.png')
+				src: paths.join(this.environmentService.appRoot, isWindows ? 'resources/win32/code.ico' : 'resources/linux/code.png')
 			}).on(EventType.DBLCLICK, (e) => {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
