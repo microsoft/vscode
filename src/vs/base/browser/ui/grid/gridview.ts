@@ -104,11 +104,11 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 
 	get minimumOrthogonalSize(): number {
-		return this.children.length === 0 ? 0 : this.children.reduce((r, c) => r + c.minimumSize, 0);
+		return this.splitview.minimumSize;
 	}
 
 	get maximumOrthogonalSize(): number {
-		return this.children.length === 0 ? Number.POSITIVE_INFINITY : this.children.reduce((r, c) => r + c.maximumSize, 0);
+		return this.splitview.maximumSize;
 	}
 
 	get minimumWidth(): number {
