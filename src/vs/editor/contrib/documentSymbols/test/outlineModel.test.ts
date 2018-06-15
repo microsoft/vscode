@@ -6,13 +6,69 @@
 'use strict';
 
 import * as assert from 'assert';
-import { OutlineElement, OutlineGroup } from 'vs/workbench/parts/outline/common/outlineModel';
-import { SymbolKind, DocumentSymbol } from 'vs/editor/common/modes';
+import { OutlineElement, OutlineGroup, OutlineModel } from '../outlineModel';
+import { SymbolKind, DocumentSymbol, DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import URI from 'vs/base/common/uri';
 
 suite('OutlineModel', function () {
 
+	test('OutlineModel#create, cached', async function () {
+
+		let model = TextModel.createFromString('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		let count = 0;
+		let reg = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
+			provideDocumentSymbols() {
+				count += 1;
+				return [];
+			}
+		});
+
+		await OutlineModel.create(model);
+		assert.equal(count, 1);
+
+		// cached
+		await OutlineModel.create(model);
+		assert.equal(count, 1);
+
+		// new version
+		model.applyEdits([{ text: 'XXX', range: new Range(1, 1, 1, 1) }]);
+		await OutlineModel.create(model);
+		assert.equal(count, 2);
+
+		reg.dispose();
+	});
+
+	test('OutlineModel#create, cached/cancel', async function () {
+
+		let model = TextModel.createFromString('foo', undefined, undefined, URI.file('/fome/path.foo'));
+		let isCancelled = false;
+
+		let reg = DocumentSymbolProviderRegistry.register({ pattern: '**/path.foo' }, {
+			provideDocumentSymbols(d, token) {
+				return new Promise(resolve => {
+					token.onCancellationRequested(_ => {
+						isCancelled = true;
+						resolve(null);
+					});
+				});
+			}
+		});
+
+		assert.equal(isCancelled, false);
+		let p1 = OutlineModel.create(model);
+		let p2 = OutlineModel.create(model);
+
+		p1.cancel();
+		assert.equal(isCancelled, false);
+
+		p2.cancel();
+		assert.equal(isCancelled, true);
+
+		reg.dispose();
+	});
 
 	function fakeSymbolInformation(range: Range, name: string = 'foo'): DocumentSymbol {
 		return {

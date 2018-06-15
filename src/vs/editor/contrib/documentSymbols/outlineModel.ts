@@ -193,27 +193,43 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { count: number, promise: TPromise<OutlineModel> }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
 
-	static create(textModel: ITextModel, forceFresh?: boolean): TPromise<OutlineModel> {
+	static create(textModel: ITextModel): TPromise<OutlineModel> {
 
 		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
 		let data = OutlineModel._requests.get(key);
 
-		if (!data || forceFresh) {
-			data = { promise: OutlineModel._create(textModel), count: 0 };
+		if (!data) {
+			data = {
+				promiseCnt: 0,
+				promise: OutlineModel._create(textModel),
+				model: undefined,
+			};
 			OutlineModel._requests.set(key, data);
 		}
 
+		if (data.model) {
+			// resolved -> return data
+			return TPromise.as(data.model);
+		}
+
 		// increase usage counter
-		data.count += 1;
+		data.promiseCnt += 1;
 
 		return new TPromise((resolve, reject) => {
-			data.promise.then(resolve, reject);
+			data.promise.then(model => {
+				data.model = model;
+				resolve(model);
+			}, err => {
+				OutlineModel._requests.delete(key);
+				reject(err);
+			});
 		}, () => {
-			if (--data.count === 0) {
-				// last -> cancel provider request
+			// last -> cancel provider request, remove cached promise
+			if (--data.promiseCnt === 0) {
 				data.promise.cancel();
+				OutlineModel._requests.delete(key);
 			}
 		});
 	}

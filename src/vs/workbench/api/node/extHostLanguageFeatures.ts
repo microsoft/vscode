@@ -24,6 +24,7 @@ import { IRange, Range as EditorRange } from 'vs/editor/common/core/range';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { isObject } from 'vs/base/common/types';
 import { ISelection, Selection } from 'vs/editor/common/core/selection';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 
 // --- adapter
 
@@ -929,9 +930,9 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 
 	// --- outline
 
-	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, extensionId?: string): vscode.Disposable {
+	registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider, extension?: IExtensionDescription): vscode.Disposable {
 		const handle = this._addNewAdapter(new OutlineAdapter(this._documents, provider));
-		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extensionId);
+		this._proxy.$registerOutlineSupport(handle, this._transformDocumentSelector(selector), extension ? extension.displayName || extension.name : undefined);
 		return this._createDisposable(handle);
 	}
 
