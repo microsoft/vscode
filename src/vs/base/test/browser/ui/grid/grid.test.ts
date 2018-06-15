@@ -8,19 +8,16 @@ import { Direction, Grid, getRelativeLocation, Orientation, SerializableGrid, IS
 import { TestView, nodesToArrays } from './util';
 import { deepClone } from 'vs/base/common/objects';
 
+function setupGrid(view: TestView): Grid<TestView> {
+	const grid = new Grid(view);
+	grid.container.style.position = 'absolute';
+	grid.container.style.width = `${800}px`;
+	grid.container.style.height = `${600}px`;
+
+	return grid;
+}
+
 suite('Grid', function () {
-	let container: HTMLElement;
-
-	setup(function () {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${800}px`;
-		container.style.height = `${600}px`;
-	});
-
-	teardown(function () {
-		container = null;
-	});
 
 	test('getRelativeLocation', function () {
 		assert.deepEqual(getRelativeLocation(Orientation.VERTICAL, [0], Direction.Up), [0]);
@@ -56,7 +53,7 @@ suite('Grid', function () {
 
 	test('empty', function () {
 		const view1 = new TestView(100, Number.MAX_VALUE, 100, Number.MAX_VALUE);
-		const gridview = new Grid(container, view1);
+		const gridview = setupGrid(view1);
 		gridview.layout(800, 600);
 
 		assert.deepEqual(view1.size, [800, 600]);
@@ -64,7 +61,7 @@ suite('Grid', function () {
 
 	test('two views vertically', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -76,7 +73,7 @@ suite('Grid', function () {
 
 	test('two views horizontally', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -88,7 +85,7 @@ suite('Grid', function () {
 
 	test('simple layout', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -121,7 +118,8 @@ suite('Grid', function () {
 
 	test('another simple layout with automatic size distribution', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -163,7 +161,7 @@ suite('Grid', function () {
 
 	test('another simple layout with split size distribution', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -205,7 +203,8 @@ suite('Grid', function () {
 
 	test('3/2 layout with split', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 		assert.deepEqual(view1.size, [800, 600]);
 
@@ -238,7 +237,8 @@ suite('Grid', function () {
 
 	test('sizing should be correct after branch demotion #50564', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -262,7 +262,8 @@ suite('Grid', function () {
 
 	test('sizing should be correct after branch demotion #50675', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -286,7 +287,8 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on single view layout', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		assert.deepEqual(grid.getNeighborViews(view1, Direction.Up), []);
@@ -302,7 +304,8 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on simple layout', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -344,7 +347,8 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on a complex layout', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -383,7 +387,8 @@ suite('Grid', function () {
 
 	test('getNeighborViews should work on another simple layout', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -403,7 +408,8 @@ suite('Grid', function () {
 
 	test('getNeighborViews should only return immediate neighbors', function () {
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new Grid(container, view1);
+		const grid = setupGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -459,23 +465,19 @@ function nodesToNames(node: GridNode<TestSerializableView>): any {
 	}
 }
 
+function setupSerializedGrid(view: TestSerializableView): SerializableGrid<TestSerializableView> {
+	const grid = new SerializableGrid(view);
+	grid.container.style.position = 'absolute';
+	grid.container.style.width = `${800}px`;
+	grid.container.style.height = `${600}px`;
+
+	return grid;
+}
+
 suite('SerializableGrid', function () {
-	let container: HTMLElement;
-
-	setup(function () {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${800}px`;
-		container.style.height = `${600}px`;
-	});
-
-	teardown(function () {
-		container = null;
-	});
-
 	test('serialize empty', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
 		grid.layout(800, 600);
 
 		assert.deepEqual(grid.serialize(), {
@@ -500,7 +502,7 @@ suite('SerializableGrid', function () {
 
 	test('serialize simple layout', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -553,14 +555,14 @@ suite('SerializableGrid', function () {
 
 	test('deserialize empty', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
 		grid.layout(800, 600);
 
 		const json = grid.serialize();
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 		grid2.layout(800, 600);
 
 		assert.deepEqual(nodesToNames(grid2.getViews()), ['view1']);
@@ -568,7 +570,8 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple layout', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -587,7 +590,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -614,7 +617,8 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple layout with scaling', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -633,7 +637,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -651,7 +655,7 @@ suite('SerializableGrid', function () {
 
 	test('deserialize 4 view layout (ben issue #2)', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -667,7 +671,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -684,7 +688,8 @@ suite('SerializableGrid', function () {
 
 	test('deserialize 2 view layout (ben issue #3)', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -694,7 +699,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 
 		const view1Copy = deserializer.getView('view1');
 		const view2Copy = deserializer.getView('view2');
@@ -707,7 +712,8 @@ suite('SerializableGrid', function () {
 
 	test('deserialize simple view layout #50609', function () {
 		const view1 = new TestSerializableView('view1', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		const grid = new SerializableGrid(container, view1);
+		const grid = setupSerializedGrid(view1);
+
 		grid.layout(800, 600);
 
 		const view2 = new TestSerializableView('view2', 50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
@@ -722,7 +728,7 @@ suite('SerializableGrid', function () {
 		grid.dispose();
 
 		const deserializer = new TestViewDeserializer();
-		const grid2 = SerializableGrid.deserialize(container, json, deserializer);
+		const grid2 = SerializableGrid.deserialize(json, deserializer);
 
 		const view2Copy = deserializer.getView('view2');
 		const view3Copy = deserializer.getView('view3');

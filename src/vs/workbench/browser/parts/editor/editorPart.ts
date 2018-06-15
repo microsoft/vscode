@@ -79,7 +79,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
-	private container: HTMLElement;
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 
 	private _whenRestored: TPromise<void>;
@@ -318,7 +317,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.container);
+		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.container);
 
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
@@ -355,7 +354,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		});
 
 		// Recreate gridwidget with descriptor
-		this.doCreateGridControlWithState(this.container, gridDescriptor, activeGroup.id, currentGroupViews);
+		this.doCreateGridControlWithState(gridDescriptor, activeGroup.id, currentGroupViews);
 
 		// Layout
 		this.doLayout(this.dimension);
@@ -540,7 +539,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.container);
+		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
@@ -688,38 +687,38 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	protected updateStyles(): void {
-		this.container.style.backgroundColor = this.getColor(editorBackground);
+		this.gridWidget.container.style.backgroundColor = this.getColor(editorBackground);
 
 		this.gridWidget.style({ separatorBorder: this.gridSeparatorBorder });
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 
-		// Container
-		this.container = document.createElement('div');
-		addClass(this.container, 'content');
-		parent.appendChild(this.container);
-
 		// Grid control
-		this.doCreateGridControl(this.container);
+		this.doCreateGridControl();
+
+		// Container
+		addClass(this.gridWidget.container, 'content');
+		parent.appendChild(this.gridWidget.container);
+
 
 		// Drop support
-		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
+		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.gridWidget.container));
 
-		return this.container;
+		return this.gridWidget.container;
 	}
 
-	private doCreateGridControl(container: HTMLElement): void {
+	private doCreateGridControl(): void {
 
 		// Grid Widget (with previous UI state)
 		if (this.restorePreviousState) {
-			this.doCreateGridControlWithPreviousState(container);
+			this.doCreateGridControlWithPreviousState();
 		}
 
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {
 			const initialGroup = this.doCreateGroupView();
-			this.gridWidget = new SerializableGrid(container, initialGroup);
+			this.gridWidget = new SerializableGrid(initialGroup);
 
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
@@ -732,7 +731,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.updateContainer();
 	}
 
-	private doCreateGridControlWithPreviousState(container: HTMLElement): void {
+	private doCreateGridControlWithPreviousState(): void {
 		const uiState = this.doGetPreviousState();
 		if (uiState && uiState.serializedGrid) {
 			try {
@@ -742,17 +741,17 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this.mostRecentActiveGroups = uiState.mostRecentActiveGroups;
 
 				// Grid Widget
-				this.doCreateGridControlWithState(container, uiState.serializedGrid, uiState.activeGroup);
+				this.doCreateGridControlWithState(uiState.serializedGrid, uiState.activeGroup);
 
 				// Ensure last active group has focus
 				this._activeGroup.focus();
 			} catch (error) {
 				if (this.gridWidget) {
+					clearNode(this.gridWidget.container);
 					this.gridWidget.dispose();
 					this.gridWidget = void 0;
 				}
 
-				clearNode(container);
 				this.groupViews.forEach(group => group.dispose());
 				this.groupViews.clear();
 				this._activeGroup = void 0;
@@ -763,7 +762,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 	}
 
-	private doCreateGridControlWithState(container: HTMLElement, serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
 
 		// Dispose old
 		if (this.gridWidget) {
@@ -779,7 +778,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
-		this.gridWidget = SerializableGrid.deserialize(container, serializedGrid, {
+		this.gridWidget = SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
@@ -915,7 +914,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.container, 'empty', this.isEmpty());
+		toggleClass(this.gridWidget.container, 'empty', this.isEmpty());
 	}
 
 	private isEmpty(): boolean {

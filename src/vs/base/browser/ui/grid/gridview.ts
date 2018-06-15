@@ -483,8 +483,11 @@ export class GridView implements IDisposable {
 		return this.root.maximumHeight;
 	}
 
-	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
-		this.element = append(container, $('.monaco-grid-view'));
+	readonly container: HTMLElement;
+
+	constructor(options: IGridViewOptions = {}) {
+		this.container = $('.');
+		this.element = append(this.container, $('.monaco-grid-view'));
 		this.styles = options.styles || defaultStyles;
 		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 	}

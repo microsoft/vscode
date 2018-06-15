@@ -8,27 +8,25 @@ import { GridView, IView, Sizing } from 'vs/base/browser/ui/grid/gridview';
 import { nodesToArrays, TestView } from './util';
 
 suite('Gridview', function () {
-	let container: HTMLElement;
+	let gridview: GridView;
 
 	setup(function () {
-		container = document.createElement('div');
-		container.style.position = 'absolute';
-		container.style.width = `${200}px`;
-		container.style.height = `${200}px`;
+		gridview = new GridView();
+		gridview.container.style.position = 'absolute';
+		gridview.container.style.width = `${200}px`;
+		gridview.container.style.height = `${200}px`;
 	});
 
 	teardown(function () {
-		container = null;
+		gridview = null;
 	});
 
 	test('empty gridview is empty', function () {
-		const gridview = new GridView(container);
 		assert.deepEqual(nodesToArrays(gridview.getViews()), []);
 		gridview.dispose();
 	});
 
 	test('gridview addView', function () {
-		const gridview = new GridView(container);
 
 		const view = new TestView(20, 20, 20, 20);
 		assert.throws(() => gridview.addView(view, 200, []), 'empty location');
@@ -51,7 +49,6 @@ suite('Gridview', function () {
 	});
 
 	test('gridview addView nested', function () {
-		const gridview = new GridView(container);
 
 		const views = [
 			new TestView(20, 20, 20, 20),
@@ -71,7 +68,6 @@ suite('Gridview', function () {
 	});
 
 	test('gridview addView deep nested', function () {
-		const gridview = new GridView(container);
 
 		const view1 = new TestView(20, 20, 20, 20);
 		gridview.addView(view1 as IView, 200, [0]);
@@ -109,84 +105,82 @@ suite('Gridview', function () {
 	});
 
 	test('simple layout', function () {
-		const grid = new GridView(container);
-		grid.layout(800, 600);
+		gridview.layout(800, 600);
 
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view1, 200, [0]);
+		gridview.addView(view1, 200, [0]);
 		assert.deepEqual(view1.size, [800, 600]);
-		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 600 });
+		assert.deepEqual(gridview.getViewSize([0]), { width: 800, height: 600 });
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, [0]);
+		gridview.addView(view2, 200, [0]);
 		assert.deepEqual(view1.size, [800, 400]);
-		assert.deepEqual(grid.getViewSize([1]), { width: 800, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1]), { width: 800, height: 400 });
 		assert.deepEqual(view2.size, [800, 200]);
-		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0]), { width: 800, height: 200 });
 
 		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, [1, 1]);
+		gridview.addView(view3, 200, [1, 1]);
 		assert.deepEqual(view1.size, [600, 400]);
-		assert.deepEqual(grid.getViewSize([1, 0]), { width: 600, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1, 0]), { width: 600, height: 400 });
 		assert.deepEqual(view2.size, [800, 200]);
-		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0]), { width: 800, height: 200 });
 		assert.deepEqual(view3.size, [200, 400]);
-		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1, 1]), { width: 200, height: 400 });
 
 		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, 200, [0, 0]);
+		gridview.addView(view4, 200, [0, 0]);
 		assert.deepEqual(view1.size, [600, 400]);
-		assert.deepEqual(grid.getViewSize([1, 0]), { width: 600, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1, 0]), { width: 600, height: 400 });
 		assert.deepEqual(view2.size, [600, 200]);
-		assert.deepEqual(grid.getViewSize([0, 1]), { width: 600, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0, 1]), { width: 600, height: 200 });
 		assert.deepEqual(view3.size, [200, 400]);
-		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1, 1]), { width: 200, height: 400 });
 		assert.deepEqual(view4.size, [200, 200]);
-		assert.deepEqual(grid.getViewSize([0, 0]), { width: 200, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0, 0]), { width: 200, height: 200 });
 
 		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, 100, [1, 0, 1]);
+		gridview.addView(view5, 100, [1, 0, 1]);
 		assert.deepEqual(view1.size, [600, 300]);
-		assert.deepEqual(grid.getViewSize([1, 0, 0]), { width: 600, height: 300 });
+		assert.deepEqual(gridview.getViewSize([1, 0, 0]), { width: 600, height: 300 });
 		assert.deepEqual(view2.size, [600, 200]);
-		assert.deepEqual(grid.getViewSize([0, 1]), { width: 600, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0, 1]), { width: 600, height: 200 });
 		assert.deepEqual(view3.size, [200, 400]);
-		assert.deepEqual(grid.getViewSize([1, 1]), { width: 200, height: 400 });
+		assert.deepEqual(gridview.getViewSize([1, 1]), { width: 200, height: 400 });
 		assert.deepEqual(view4.size, [200, 200]);
-		assert.deepEqual(grid.getViewSize([0, 0]), { width: 200, height: 200 });
+		assert.deepEqual(gridview.getViewSize([0, 0]), { width: 200, height: 200 });
 		assert.deepEqual(view5.size, [600, 100]);
-		assert.deepEqual(grid.getViewSize([1, 0, 1]), { width: 600, height: 100 });
+		assert.deepEqual(gridview.getViewSize([1, 0, 1]), { width: 600, height: 100 });
 	});
 
 	test('simple layout with automatic size distribution', function () {
-		const grid = new GridView(container);
-		grid.layout(800, 600);
+		gridview.layout(800, 600);
 
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view1, Sizing.Distribute, [0]);
+		gridview.addView(view1, Sizing.Distribute, [0]);
 		assert.deepEqual(view1.size, [800, 600]);
-		assert.deepEqual(grid.getViewSize([0]), { width: 800, height: 600 });
+		assert.deepEqual(gridview.getViewSize([0]), { width: 800, height: 600 });
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, Sizing.Distribute, [0]);
+		gridview.addView(view2, Sizing.Distribute, [0]);
 		assert.deepEqual(view1.size, [800, 300]);
 		assert.deepEqual(view2.size, [800, 300]);
 
 		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, Sizing.Distribute, [1, 1]);
+		gridview.addView(view3, Sizing.Distribute, [1, 1]);
 		assert.deepEqual(view1.size, [400, 300]);
 		assert.deepEqual(view2.size, [800, 300]);
 		assert.deepEqual(view3.size, [400, 300]);
 
 		const view4 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view4, Sizing.Distribute, [0, 0]);
+		gridview.addView(view4, Sizing.Distribute, [0, 0]);
 		assert.deepEqual(view1.size, [400, 300]);
 		assert.deepEqual(view2.size, [400, 300]);
 		assert.deepEqual(view3.size, [400, 300]);
 		assert.deepEqual(view4.size, [400, 300]);
 
 		const view5 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view5, Sizing.Distribute, [1, 0, 1]);
+		gridview.addView(view5, Sizing.Distribute, [1, 0, 1]);
 		assert.deepEqual(view1.size, [400, 150]);
 		assert.deepEqual(view2.size, [400, 300]);
 		assert.deepEqual(view3.size, [400, 300]);
@@ -195,18 +189,17 @@ suite('Gridview', function () {
 	});
 
 	test('addviews before layout call 1', function () {
-		const grid = new GridView(container);
 
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view1, 200, [0]);
+		gridview.addView(view1, 200, [0]);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, [0]);
+		gridview.addView(view2, 200, [0]);
 
 		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, [1, 1]);
+		gridview.addView(view3, 200, [1, 1]);
 
-		grid.layout(800, 600);
+		gridview.layout(800, 600);
 
 		assert.deepEqual(view1.size, [400, 300]);
 		assert.deepEqual(view2.size, [800, 300]);
@@ -214,18 +207,17 @@ suite('Gridview', function () {
 	});
 
 	test('addviews before layout call 2', function () {
-		const grid = new GridView(container);
 
 		const view1 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view1, 200, [0]);
+		gridview.addView(view1, 200, [0]);
 
 		const view2 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view2, 200, [0]);
+		gridview.addView(view2, 200, [0]);
 
 		const view3 = new TestView(50, Number.MAX_VALUE, 50, Number.MAX_VALUE);
-		grid.addView(view3, 200, [0, 0]);
+		gridview.addView(view3, 200, [0, 0]);
 
-		grid.layout(800, 600);
+		gridview.layout(800, 600);
 
 		assert.deepEqual(view1.size, [800, 300]);
 		assert.deepEqual(view2.size, [400, 300]);
