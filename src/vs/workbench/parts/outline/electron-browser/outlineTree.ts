@@ -17,8 +17,6 @@ import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
@@ -128,8 +126,6 @@ export class OutlineRenderer implements IRenderer {
 
 	constructor(
 		@IExtensionService readonly _extensionService: IExtensionService,
-		@IEnvironmentService readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService,
 		@IThemeService readonly _themeService: IThemeService,
 		@IConfigurationService readonly _configurationService: IConfigurationService
 	) {
