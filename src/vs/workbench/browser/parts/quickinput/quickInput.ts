@@ -36,7 +36,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandAndKeybindingRule, KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { inQuickOpenContext } from 'vs/workbench/browser/parts/quickopen/quickopen';
-import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
@@ -56,6 +56,7 @@ interface QuickInputUI {
 	ignoreFocusOut: boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
+	setEnabled(enabled: boolean): void;
 	hide(): void;
 }
 
@@ -96,7 +97,7 @@ class QuickInput implements IQuickInput {
 
 	set enabled(enabled: boolean) {
 		this._enabled = enabled;
-		this.update(); // TODO
+		this.update();
 	}
 
 	get busy() {
@@ -177,6 +178,7 @@ class QuickInput implements IQuickInput {
 				return action;
 			}), { icon: true, label: false });
 		}
+		this.ui.setEnabled(this.enabled);
 	}
 
 	public dispose(): void {
@@ -574,7 +576,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private filterContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
+	private ok: Button;
 	private ui: QuickInputUI;
+	private enabled = true;
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
 	private onDidAcceptEmitter = new Emitter<void>();
@@ -651,11 +655,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(attachBadgeStyler(count, this.themeService));
 
 		this.okContainer = dom.append(headerContainer, $('.quick-input-action'));
-		const ok = new Button(this.okContainer);
-		attachButtonStyler(ok, this.themeService);
-		ok.label = localize('ok', "OK");
-		this.toUnbind.push(ok.onDidClick(e => {
-			this.onDidAcceptEmitter.fire(); // TODO: make single-select QuickPick exclusively use Accept?
+		this.ok = new Button(this.okContainer);
+		attachButtonStyler(this.ok, this.themeService);
+		this.ok.label = localize('ok', "OK");
+		this.toUnbind.push(this.ok.onDidClick(e => {
+			this.onDidAcceptEmitter.fire();
 		}));
 
 		const actionBar = new ActionBar(headerContainer);
@@ -740,7 +744,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 			ignoreFocusOut: false,
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
-			setVisibilities: visibilities => this.setVisibilities(visibilities)
+			setVisibilities: visibilities => this.setVisibilities(visibilities),
+			setEnabled: enabled => this.setEnabled(enabled),
 		};
 		this.updateStyles();
 	}
@@ -877,6 +882,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			oldController.didHide();
 		}
 
+		this.setEnabled(true);
 		this.ui.checkAll.checked = false;
 		// this.ui.inputBox.value = ''; Avoid triggering an event.
 		this.ui.inputBox.placeholder = '';
@@ -907,6 +913,19 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.display(visibilities.list);
 		this.ui.container.classList[visibilities.checkAll ? 'add' : 'remove']('show-checkboxes');
 		this.updateLayout(); // TODO
+	}
+
+	private setEnabled(enabled: boolean) {
+		if (enabled !== this.enabled) {
+			this.enabled = enabled;
+			this.ui.checkAll.disabled = !enabled;
+			this.ui.inputBox.enabled = enabled;
+			for (const item of this.ui.actionBar.items) {
+				(item as ActionItem).getAction().enabled = enabled;
+			}
+			this.ok.enabled = enabled;
+			this.ui.list.enabled = enabled;
+		}
 	}
 
 	private hide(focusLost?: boolean) {
