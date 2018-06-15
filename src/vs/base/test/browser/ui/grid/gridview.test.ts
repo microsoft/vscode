@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
+import { $ } from 'vs/base/browser/dom';
 import { GridView, IView, Sizing } from 'vs/base/browser/ui/grid/gridview';
 import { nodesToArrays, TestView } from './util';
 
@@ -12,9 +13,12 @@ suite('Gridview', function () {
 
 	setup(function () {
 		gridview = new GridView();
-		gridview.container.style.position = 'absolute';
-		gridview.container.style.width = `${200}px`;
-		gridview.container.style.height = `${200}px`;
+		const container = $('.container');
+
+		container.style.position = 'absolute';
+		container.style.width = `${200}px`;
+		container.style.height = `${200}px`;
+		container.appendChild(gridview.element);
 	});
 
 	teardown(function () {

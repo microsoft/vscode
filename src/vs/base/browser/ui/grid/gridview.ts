@@ -10,7 +10,7 @@ import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event'
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { $, append } from 'vs/base/browser/dom';
+import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 
@@ -418,7 +418,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 
 export class GridView implements IDisposable {
 
-	private element: HTMLElement;
+	readonly element: HTMLElement;
 	private styles: IGridViewStyles;
 
 	private _root: BranchNode;
@@ -483,11 +483,8 @@ export class GridView implements IDisposable {
 		return this.root.maximumHeight;
 	}
 
-	readonly container: HTMLElement;
-
 	constructor(options: IGridViewOptions = {}) {
-		this.container = $('.');
-		this.element = append(this.container, $('.monaco-grid-view'));
+		this.element = $('.monaco-grid-view');
 		this.styles = options.styles || defaultStyles;
 		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 	}
@@ -760,7 +757,5 @@ export class GridView implements IDisposable {
 		if (this.element && this.element.parentElement) {
 			this.element.parentElement.removeChild(this.element);
 		}
-
-		this.element = null;
 	}
 }

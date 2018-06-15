@@ -199,7 +199,7 @@ export class Grid<T extends IView> implements IDisposable {
 	public sashResetSizing: Sizing = Sizing.Distribute;
 
 	get container(): HTMLElement {
-		return this.gridview.container;
+		return this.gridview.element;
 	}
 
 	constructor(view: T, options: IGridOptions = {}) {
