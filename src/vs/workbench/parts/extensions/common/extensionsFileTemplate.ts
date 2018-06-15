@@ -13,10 +13,11 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 	allowComments: true,
 	type: 'object',
 	title: localize('app.extensions.json.title', "Extensions"),
+	additionalProperties: false,
 	properties: {
 		recommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.recommendations', "List of extensions which should be recommended for users of this repository. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			description: localize('app.extensions.json.recommendations', "List of extensions which should be recommended for users of this workspace. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
@@ -25,7 +26,7 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 		},
 		unwantedRecommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions which are irrelevant, redundant, or otherwise unwanted, and should not be recommended for users of this repository. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions which should not be recommended for users of this workspace. These extensions may be irrelevant, redundant, or otherwise unwanted. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
@@ -40,12 +41,12 @@ export const ExtensionsConfigurationInitialContent: string = [
 	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
 	'\t// for the documentation about the extensions.json format',
 	'\t"recommendations": [',
-	'\t\t// List of extensions which should be recommended for users of this repository.',
+	'\t\t// List of extensions which should be recommended for users of this workspace.',
 	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t],',
 	'\t"unwantedRecommendations": [',
-	'\t\t// List of extensions which are irrelevant, redundant, or otherwise unwanted, and should not be recommended for users of this repository. ',
+	'\t\t// List of extensions which should not be recommended for users of this workspace. These extensions may be irrelevant, redundant, or otherwise unwanted.',
 	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t]',

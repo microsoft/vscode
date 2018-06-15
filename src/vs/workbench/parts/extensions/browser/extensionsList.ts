@@ -150,18 +150,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 
 
-		data.extensionDisposables.push(this.extensionsWorkbenchService.onRecommendationChange(() => {
-			const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-			if (!extRecommendations[extension.id.toLowerCase()]) {
-				data.root.setAttribute('aria-label', extension.displayName);
-				data.root.title = '';
-				removeClass(data.root, 'recommended');
-			} else {
-				data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
-				data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
-				addClass(data.root, 'recommended');
-			}
-		}));
 
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
@@ -174,15 +162,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		data.root.setAttribute('aria-label', extension.displayName);
-		removeClass(data.root, 'recommended');
-
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id.toLowerCase()].reasonText);
-			addClass(data.root, 'recommended');
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
-		}
+		this.updateRecommendedness(extension, data);
+		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(() => this.updateRecommendedness(extension, data)));
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
@@ -195,6 +176,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
 			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
 		});
+	}
+
+	private updateRecommendedness(extension: IExtension, data: ITemplateData) {
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+
+		if (!extRecommendations[extension.id.toLowerCase()]) {
+			data.root.setAttribute('aria-label', extension.displayName);
+			data.root.title = '';
+			removeClass(data.root, 'recommended');
+		} else {
+			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
+			addClass(data.root, 'recommended');
+		}
 	}
 
 	disposeTemplate(data: ITemplateData): void {

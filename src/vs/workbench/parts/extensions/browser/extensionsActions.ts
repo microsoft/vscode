@@ -544,29 +544,27 @@ export class EnableGloballyAction extends Action implements IExtensionAction {
 	}
 }
 
-export class IgnoreAction extends Action {
+export class IgnoreExtensionRecommendationAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
 	private static readonly Class = 'extension-action ignore octicon octicon-x';
 
-	onIgnored: () => void;
 	private disposables: IDisposable[] = [];
 	extension: IExtension;
 
-
 	constructor(
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionTipsService private extensionsTipsService: IExtensionTipsService,
 	) {
-		super(IgnoreAction.ID);
+		super(IgnoreExtensionRecommendationAction.ID);
 
-		this.class = IgnoreAction.Class;
+		this.class = IgnoreExtensionRecommendationAction.Class;
 		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
 		this.enabled = true;
 	}
 
 	public run(): TPromise<any> {
-		return this.extensionsWorkbenchService.ignore(this.extension).then(() => this.onIgnored());
+		return this.extensionsTipsService.ignoreExtensionRecommendation(this.extension.id);
 	}
 
 	dispose(): void {

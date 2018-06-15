@@ -5,6 +5,7 @@
 
 'use strict';
 
+import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as path from 'path';
 import * as fs from 'fs';
@@ -36,7 +37,7 @@ import { IPager } from 'vs/base/common/paging';
 import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IStorageService } from 'vs/platform/storage/common/storage';
+import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionsWorkbenchService, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
@@ -433,23 +434,13 @@ suite('ExtensionsTipsService Test', () => {
 		});
 	});
 
-	test('ExtensionTipsService: Able to dynamically update globally ignored recommendations', () => {
-		let updated = false;
-		let update = () => updated = !updated;
+	test('ExtensionTipsService: Able to dynamically ignore global recommendations', () => {
 		const storageGetterStub = (a, _, c) => {
-			if (!updated) {
-				const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
-				const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
-				if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
-				if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
-				return c;
-			} else {
-				const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
-				const globallyIgnoredRecommendations = '["mockpublisher1.mockextension1"]'; // ignore a workspace recommendation.
-				if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
-				if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
-				return c;
-			}
+			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
+			const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
+			if (a === 'extensionsAssistant/recommendations') { return storedRecommendations; }
+			if (a === 'extensionsAssistant/ignored_recommendations') { return globallyIgnoredRecommendations; }
+			return c;
 		};
 
 		instantiationService.stub(IStorageService, {
@@ -466,17 +457,37 @@ suite('ExtensionsTipsService Test', () => {
 						global: ['mockpublisher2.mockextension2'],
 						workspace: []
 					});
-				update();
-				return testObject.refreshAllIgnoredRecommendations();
+				return testObject.ignoreExtensionRecommendation('mockpublisher1.mockextension1');
 			}).then(() => {
 				const recommendations = testObject.getAllIgnoredRecommendations();
 				assert.deepStrictEqual(recommendations,
 					{
-						global: ['mockpublisher1.mockextension1'],
+						global: ['mockpublisher1.mockextension1', 'mockpublisher2.mockextension2'],
 						workspace: []
 					});
 			});
 		});
+	});
+
+	test('test global extensions are modified and recommendation change event is fired when an extension is ignored', () => {
+		const storageSetterTarget = sinon.spy();
+		const changeHandlerTarget = sinon.spy();
+		const ignoredExtensionId = 'Some.Extension';
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => a === 'extensionsAssistant/ignored_recommendations' ? '["ms-vscode.vscode"]' : c,
+			store: (...args) => {
+				storageSetterTarget(...args);
+			}
+		});
+
+		testObject = instantiationService.createInstance(ExtensionTipsService);
+		testObject.onRecommendationChange(changeHandlerTarget);
+
+		return testObject.ignoreExtensionRecommendation(ignoredExtensionId)
+			.then(() => {
+				assert.ok(changeHandlerTarget.calledOnce);
+				assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
+			});
 	});
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {

@@ -10,7 +10,7 @@ import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import * as path from 'path';
 import { Event, Emitter } from 'vs/base/common/event';
-import { index, distinct } from 'vs/base/common/arrays';
+import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
@@ -37,7 +37,6 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
@@ -345,9 +344,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private readonly _onChange: Emitter<void> = new Emitter<void>();
 	get onChange(): Event<void> { return this._onChange.event; }
 
-	private readonly _onRecommendationChange: Emitter<void> = new Emitter<void>();
-	get onRecommendationChange(): Event<void> { return this._onRecommendationChange.event; }
-
 	private _extensionAllowedBadgeProviders: string[];
 
 	constructor(
@@ -365,7 +361,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IStorageService private storageService: IStorageService,
 		@IExtensionService private runtimeExtensionService: IExtensionService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
@@ -681,12 +676,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			location: ProgressLocation.Extensions,
 			source: `${local.identifier.id}`
 		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
-	}
-
-	ignore(extension: IExtension): TPromise<void> {
-		let globallyIgnored = <string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]'));
-		this.storageService.store('extensionsAssistant/ignored_recommendations', JSON.stringify(distinct([...globallyIgnored, extension.id.toLowerCase()])), StorageScope.GLOBAL);
-		return this.extensionTipsService.refreshAllIgnoredRecommendations().then(() => this._onRecommendationChange.fire());
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {

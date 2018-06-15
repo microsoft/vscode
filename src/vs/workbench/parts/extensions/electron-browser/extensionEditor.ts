@@ -31,7 +31,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, IgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -50,7 +50,6 @@ import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { assign } from 'vs/base/common/objects';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { CancellationToken } from 'vs/base/common/cancellation';
-import { ExtensionsViewlet } from 'vs/workbench/parts/extensions/electron-browser/extensionsViewlet';
 
 /**  A context key that is set when an extension editor webview has focus. */
 export const KEYBINDING_CONTEXT_EXTENSIONEDITOR_WEBVIEW_FOCUS = new RawContextKey<boolean>('extensionEditorWebviewFocus', undefined);
@@ -168,7 +167,6 @@ export class ExtensionEditor extends BaseEditor {
 	private recommendationText: any;
 	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
-	private recentlyIgnored: string[] = [];
 
 	private extensionReadme: Cache<string>;
 	private extensionChangelog: Cache<string>;
@@ -301,6 +299,7 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
+		removeClass(this.header, 'ignored');
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
@@ -321,16 +320,6 @@ export class ExtensionEditor extends BaseEditor {
 		}
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
-
-		const ignoredRecommendations = this.extensionTipsService.getAllIgnoredRecommendations();
-
-		toggleClass(this.header, 'ignored', this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1 || ignoredRecommendations.workspace.indexOf(extension.id.toLowerCase()) !== -1);
-		if (this.recentlyIgnored.indexOf(extension.id.toLowerCase()) !== -1) {
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredGlobal', "You have chosen not to receive recommendations for this extension.");
-		}
-		if (ignoredRecommendations.workspace.indexOf(extension.id.toLowerCase()) !== -1) {
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnoredWorkspace', "This extension has been marked as redundant or irrelevant by users of the current workspace.");
-		}
 
 		toggleClass(this.name, 'clickable', !!extension.url);
 		toggleClass(this.publisher, 'clickable', !!extension.url);
@@ -392,17 +381,14 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
 
-		const ignoreAction = this.instantiationService.createInstance(IgnoreAction);
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
 		ignoreAction.extension = extension;
-		ignoreAction.onIgnored = () => {
-			const activeViewlet = this.viewletService.getActiveViewlet();
-			if (activeViewlet instanceof ExtensionsViewlet) {
-				(<ExtensionsViewlet>activeViewlet).refreshRecommendedExtensions();
-			}
+
+		this.extensionTipsService.onRecommendationChange(() => {
 			addClass(this.header, 'ignored');
-			this.recentlyIgnored.push(extension.id.toLowerCase());
+			removeClass(this.header, 'recommended');
 			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
-		};
+		});
 
 		this.ignoreActionbar.clear();
 		this.ignoreActionbar.push([ignoreAction], { icon: true, label: true });

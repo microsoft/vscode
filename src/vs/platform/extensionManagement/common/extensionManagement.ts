@@ -93,11 +93,6 @@ export interface IColor {
 	defaults: { light: string, dark: string, highContrast: string };
 }
 
-export interface IExtensionsConfigContent {
-	recommendations: string[];
-	unwantedRecommendations: string[];
-}
-
 export interface IExtensionContributions {
 	commands?: ICommand[];
 	configuration?: IConfiguration;
@@ -373,6 +368,11 @@ export interface IIgnoredRecommendations {
 	workspace: string[];
 }
 
+export interface IExtensionsConfigContent {
+	recommendations: string[];
+	unwantedRecommendations: string[];
+}
+
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
@@ -384,8 +384,9 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
-	refreshAllIgnoredRecommendations(): TPromise<void>;
 	getAllIgnoredRecommendations(): IIgnoredRecommendations;
+	ignoreExtensionRecommendation(extensionId: string): TPromise<void>;
+	onRecommendationChange: Event<void>;
 }
 
 export enum ExtensionRecommendationReason {
