@@ -1043,10 +1043,10 @@ export class DebugService implements debug.IDebugService {
 		// run a task before starting a debug session
 		return this.taskService.getTask(root, taskId).then(task => {
 			if (!task) {
-				if (typeof taskId === 'string')
-					return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)));
-				
-				return TPromise.wrapError(errors.create(nls.localize('DebugTaskNotFound', "Could not find the specified task.")));
+				const errorMessage = typeof taskId === 'string'
+					? nls.localize('DebugTaskNotFoundWithTaskId', "Could not find the task '{0}'.", taskId)
+					: nls.localize('DebugTaskNotFound', "Could not find the specified task.");
+				return TPromise.wrapError(errors.create(errorMessage));
 			}
 
 			function once(kind: TaskEventKind, event: Event<TaskEvent>): Event<TaskEvent> {
