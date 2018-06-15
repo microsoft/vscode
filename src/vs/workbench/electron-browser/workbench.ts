@@ -954,15 +954,6 @@ export class Workbench extends Disposable implements IPartService {
 			this.notificationsCenter,
 			this.notificationsToasts
 		);
-
-		if (!isMacintosh && this.getCustomTitleBarStyle()) {
-			this.windowService.isMaximized().then((max) => {
-				this.workbenchLayout.onMaximizeChange(max);
-				this.workbenchLayout.layout();
-			});
-
-			this.windowService.onDidChangeMaximize(this.workbenchLayout.onMaximizeChange, this.workbenchLayout);
-		}
 	}
 
 	private renderWorkbench(): void {
@@ -1026,6 +1017,9 @@ export class Workbench extends Disposable implements IPartService {
 		});
 
 		this.menubarPart.create(menubarContainer.getHTMLElement());
+		this.menubarPart.onVisibilityChange((dimension => {
+			this._onMenubarVisibilityChange.fire(dimension);
+		}));
 	}
 
 	private createActivityBarPart(): void {
@@ -1141,6 +1135,9 @@ export class Workbench extends Disposable implements IPartService {
 
 	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
+
+	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = new Emitter<DOM.Dimension>();
+	get onMenubarVisibilityChange(): Event<DOM.Dimension> { return this._onMenubarVisibilityChange.event; }
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 

@@ -45,6 +45,11 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
+	 * Emits when the visibility of the menubar changes.
+	 */
+	onMenubarVisibilityChange: Event<IDimension>;
+
+	/**
 	 * Emits when the editor part's layout changes.
 	 */
 	onEditorLayout: Event<IDimension>;

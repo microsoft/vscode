@@ -31,7 +31,6 @@ import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPar
 import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 
 const TITLE_BAR_HEIGHT = isMacintosh ? 22 : 30;
-const MAXIMIZED_TITLE_BAR_HEIGHT = isMacintosh ? 22 : 23;
 const STATUS_BAR_HEIGHT = 22;
 const ACTIVITY_BAR_WIDTH = 50;
 
@@ -65,7 +64,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	private _sidebarWidth: number;
 	private sidebarHeight: number;
-	private titlebarBaseHeight: number;
 	private titlebarHeight: number;
 	private menubarHeight: number;
 	private headingHeight: number;
@@ -108,8 +106,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		this.sashXOne = new Sash(this.workbenchContainer, this);
 		this.sashXTwo = new Sash(this.workbenchContainer, this);
 		this.sashY = new Sash(this.workbenchContainer, this, { orientation: Orientation.HORIZONTAL });
-
-		this.onMaximizeChange(false);
 
 		this.registerListeners();
 	}
@@ -226,6 +222,9 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 	private get partLayoutInfo() {
 		return {
 			titlebar: {
+				height: TITLE_BAR_HEIGHT
+			},
+			menubar: {
 				height: TITLE_BAR_HEIGHT
 			},
 			activitybar: {
@@ -434,8 +433,8 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 		}
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
-		this.titlebarHeight = isTitlebarHidden ? 0 : this.titlebarBaseHeight / getZoomFactor(); // adjust for zoom prevention
-		this.menubarHeight = isMenubarHidden ? 0 : this.titlebarBaseHeight;
+		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
+		this.menubarHeight = isMenubarHidden ? 0 : this.partLayoutInfo.menubar.height / getZoomFactor();
 		this.headingHeight = Math.max(this.menubarHeight, this.titlebarHeight);
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.headingHeight;
@@ -664,9 +663,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 			this.sashXTwo.show();
 		}
 
-		let menubarOffset = this.parts.menubar.getMenubarItemsDimensions();
-		this.parts.titlebar.setTitleOffset(menubarOffset);
-
 		// Propagate to Part Layouts
 		this.parts.titlebar.layout(new Dimension(this.workbenchSize.width, this.titlebarHeight));
 		this.parts.menubar.layout(new Dimension(this.workbenchSize.width, this.menubarHeight));
@@ -677,12 +673,6 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		// Propagate to Context View
 		this.contextViewService.layout();
-	}
-
-	onMaximizeChange(maximized: boolean): void {
-		this.titlebarBaseHeight = maximized ? MAXIMIZED_TITLE_BAR_HEIGHT : this.partLayoutInfo.titlebar.height;
-
-		this.layout();
 	}
 
 	getVerticalSashTop(sash: Sash): number {

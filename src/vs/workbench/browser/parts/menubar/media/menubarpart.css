@@ -6,10 +6,11 @@
 .monaco-workbench > .part.menubar {
 	display: flex;
 	position: absolute;
-	order: 3;
+	font-size: 12px;
 	box-sizing: border-box;
-	padding-left: 35px;
+	padding-left: 30px;
 	padding-right: 150px;
+	height: 30px;
 }
 
 .monaco-workbench.fullscreen > .part.menubar {
@@ -30,6 +31,11 @@
 	z-index: 10;
 	cursor: pointer;
 	-webkit-app-region: no-drag;
+	zoom: 1;
+}
+
+.monaco-workbench > .part.menubar > .menubar-menu-title {
+	zoom: 1;
 }
 
 .monaco-workbench > .part.menubar > .menubar-menu-button.open,

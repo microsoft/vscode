@@ -18,7 +18,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventType } from 'vs/base/browser/dom';
+import { EventType, Dimension } from 'vs/base/browser/dom';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -29,7 +29,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import URI from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Color } from 'vs/base/common/color';
-import { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
 
@@ -97,6 +97,7 @@ export class MenubarPart extends Part {
 	private actionRunner: IActionRunner;
 	private container: Builder;
 	private _isFocused: boolean;
+	private _onVisibilityChange: Emitter<Dimension>;
 
 	constructor(
 		id: string,
@@ -138,6 +139,8 @@ export class MenubarPart extends Part {
 		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
 			this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupNativeMenubar());
 		}
+
+		this._onVisibilityChange = new Emitter<Dimension>();
 
 		this.setupNativeMenubar();
 
@@ -202,7 +205,7 @@ export class MenubarPart extends Part {
 
 		if (!this._isFocused && this.currentMenubarVisibility === 'toggle') {
 			if (this.container) {
-				this.container.style('display', 'none');
+				this.hideMenubar();
 			}
 		}
 	}
@@ -217,12 +220,22 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private hideMenubar(): void {
+		this._onVisibilityChange.fire(new Dimension(0, 0));
+		this.container.style('visibility', 'hidden');
+	}
+
+	private showMenubar(): void {
+		this._onVisibilityChange.fire(this.getMenubarItemsDimensions());
+		this.container.style('visibility', null);
+	}
+
 	private onAltKeyToggled(altKeyDown: boolean): void {
 		if (this.currentMenubarVisibility === 'toggle') {
 			if (altKeyDown) {
-				this.container.style('display', null);
+				this.showMenubar();
 			} else if (!this.isFocused) {
-				this.container.style('display', 'none');
+				this.hideMenubar();
 			}
 		}
 
@@ -340,10 +353,6 @@ export class MenubarPart extends Part {
 	private setupCustomMenubar(): void {
 		this.container.empty();
 		this.container.attr('role', 'menubar');
-
-		if (this.currentMenubarVisibility === 'toggle') {
-			this.container.style('display', 'none');
-		}
 
 		this.customMenus = [];
 
@@ -560,8 +569,6 @@ export class MenubarPart extends Part {
 
 		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
-			// 'background-color': this.getColor(TITLE_BAR_ACTIVE_BACKGROUND),
-			// 'color': this.getColor(TITLE_BAR_ACTIVE_FOREGROUND),
 			'top': `${this.container.getClientArea().height}px`
 		});
 
@@ -613,12 +620,32 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	public getMenubarItemsDimensions(): number {
-		if (this.customMenus) {
-			return this.customMenus[this.customMenus.length - 1].titleElement.getHTMLElement().getBoundingClientRect().right;
+	public get onVisibilityChange(): Event<Dimension> {
+		return this._onVisibilityChange.event;
+	}
+
+	public layout(dimension: Dimension): Dimension[] {
+		// this.container.style({
+		// 	'transform': `scale(${1 / browser.getZoomFactor()}, ${1 /browser.getZoomFactor()})`
+		// });
+
+		if (this.currentMenubarVisibility === 'toggle') {
+			this.hideMenubar();
+		} else {
+			this.showMenubar();
 		}
 
-		return 0;
+		return super.layout(dimension);
+	}
+
+	public getMenubarItemsDimensions(): Dimension {
+		if (this.customMenus) {
+			const left = this.customMenus[0].titleElement.getHTMLElement().getBoundingClientRect().left;
+			const right = this.customMenus[this.customMenus.length - 1].titleElement.getHTMLElement().getBoundingClientRect().right;
+			return new Dimension(right - left, this.container.getClientArea().height);
+		}
+
+		return new Dimension(0, 0);
 	}
 
 	public createContentArea(parent: HTMLElement): HTMLElement {

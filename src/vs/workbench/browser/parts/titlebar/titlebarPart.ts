@@ -12,7 +12,7 @@ import * as paths from 'vs/base/common/paths';
 import { Part } from 'vs/workbench/browser/part';
 import { ITitleService, ITitleProperties } from 'vs/workbench/services/title/common/titleService';
 import { getZoomFactor } from 'vs/base/browser/browser';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import * as errors from 'vs/base/common/errors';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
@@ -32,6 +32,7 @@ import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
 import { addDisposableListener, EventType, EventHelper, Dimension } from 'vs/base/browser/dom';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
 
 export class TitlebarPart extends Part implements ITitleService {
 
@@ -45,9 +46,19 @@ export class TitlebarPart extends Part implements ITitleService {
 
 	private titleContainer: Builder;
 	private title: Builder;
+	private windowControls: Builder;
+	private appIcon: Builder;
 	private pendingTitle: string;
-	private initialTitleFontSize: number;
 	private representedFileName: string;
+	private menubarWidth: number;
+
+	private initialSizing: {
+		titleFontSize?: number;
+		titlebarHeight?: number;
+		controlsWidth?: number;
+		appIconWidth?: number;
+		appIconLeftPadding?: number;
+	} = {};
 
 	private isInactive: boolean;
 
@@ -63,6 +74,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService
 	) {
 		super(id, { hasTitle: false }, themeService);
@@ -81,6 +93,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceFolders(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkbenchState(() => this.setTitle(this.getWindowTitle())));
 		this.toUnbind.push(this.contextService.onDidChangeWorkspaceName(() => this.setTitle(this.getWindowTitle())));
+		this.toUnbind.push(this.partService.onMenubarVisibilityChange(this.onMenubarVisibilityChanged, this));
 	}
 
 	private onBlur(): void {
@@ -97,6 +110,12 @@ export class TitlebarPart extends Part implements ITitleService {
 		if (event.affectsConfiguration('window.title')) {
 			this.setTitle(this.getWindowTitle());
 		}
+	}
+
+	private onMenubarVisibilityChanged(dimension: Dimension): void {
+		this.menubarWidth = dimension.width;
+
+		this.updateLayout();
 	}
 
 	private onActiveEditorChange(): void {
@@ -155,16 +174,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 
 		return title;
-	}
-
-	public setTitleOffset(offset: number) {
-		if (this.title) {
-			if (offset) {
-				this.title.style('padding-left', offset + 'px');
-			} else {
-				this.title.style('padding-left', null);
-			}
-		}
 	}
 
 	public updateProperties(properties: ITitleProperties): void {
@@ -240,13 +249,17 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.titleContainer = $(parent);
 
 		if (!isMacintosh) {
-			$(this.titleContainer).img({
+			// App Icon
+			this.appIcon = $(this.titleContainer).img({
 				class: 'window-appicon',
 				src: paths.join(this.environmentService.appRoot, 'resources/linux/code.png')
 			}).on(EventType.DBLCLICK, (e) => {
 				EventHelper.stop(e, true);
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
+
+			// Resizer
+			$(this.titleContainer).div({ class: 'resizer' });
 		}
 
 		// Title
@@ -272,13 +285,13 @@ export class TitlebarPart extends Part implements ITitleService {
 		});
 
 		if (!isMacintosh) {
-			let windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
+			this.windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
 
-			$(windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
+			$(this.windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			let maxRestore = $(windowControls).div({ class: 'window-icon window-max-restore' });
+			let maxRestore = $(this.windowControls).div({ class: 'window-icon window-max-restore' });
 			maxRestore.on(EventType.CLICK, (e, builder) => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
@@ -289,7 +302,7 @@ export class TitlebarPart extends Part implements ITitleService {
 				}).then(null, errors.onUnexpectedError);
 			});
 
-			$(windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
+			$(this.windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -413,13 +426,72 @@ export class TitlebarPart extends Part implements ITitleService {
 		}
 	}
 
+	private updateLayout() {
+		// To prevent zooming we need to adjust the font size with the zoom factor
+		if (typeof this.initialSizing.titleFontSize !== 'number') {
+			this.initialSizing.titleFontSize = parseInt(this.titleContainer.getComputedStyle().fontSize, 10);
+		}
+
+		if (typeof this.initialSizing.titlebarHeight !== 'number') {
+			this.initialSizing.titlebarHeight = parseInt(this.titleContainer.getComputedStyle().height, 10);
+		}
+
+		// Set font size and line height
+		const newHeight = this.initialSizing.titlebarHeight / getZoomFactor();
+		this.titleContainer.style({
+			fontSize: `${this.initialSizing.titleFontSize / getZoomFactor()}px`,
+			'line-height': `${newHeight}px`
+		});
+
+		if (!isMacintosh) {
+			if (typeof this.initialSizing.controlsWidth !== 'number') {
+				this.initialSizing.controlsWidth = parseInt(this.windowControls.getComputedStyle().width, 10);
+			}
+
+			if (typeof this.initialSizing.appIconWidth !== 'number') {
+				this.initialSizing.appIconWidth = parseInt(this.appIcon.getComputedStyle().width, 10);
+			}
+
+			if (typeof this.initialSizing.appIconLeftPadding !== 'number') {
+				this.initialSizing.appIconLeftPadding = parseInt(this.appIcon.getComputedStyle().paddingLeft, 10);
+			}
+
+			const currentAppIconHeight = parseInt(this.appIcon.getComputedStyle().height, 10);
+			const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
+			const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
+			const newAppIconPaddingLeft = this.initialSizing.appIconLeftPadding / getZoomFactor();
+
+			if (!this.menubarWidth) {
+				this.menubarWidth = 0;
+			}
+
+			// Adjust app icon
+			this.appIcon.style({
+				width: `${newAppIconWidth}px`,
+				'padding-left': `${newAppIconPaddingLeft}px`,
+				'margin-right': `${newControlsWidth - newAppIconWidth - newAppIconPaddingLeft + this.menubarWidth}px`,
+				'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
+				'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
+			});
+
+			// Adjust windows controls
+			this.windowControls.style({
+				'width': `${newControlsWidth}px`
+			});
+
+			// Hide title when toggling menu bar
+			let menubarToggled = this.configurationService.getValue<MenuBarVisibility>('window.menuBarVisibility') === 'toggle';
+			if (menubarToggled && this.menubarWidth) {
+				this.title.style('visibility', 'hidden');
+			} else {
+				this.title.style('visibility', null);
+			}
+		}
+	}
+
 	public layout(dimension: Dimension): Dimension[] {
 
-		// To prevent zooming we need to adjust the font size with the zoom factor
-		if (typeof this.initialTitleFontSize !== 'number') {
-			this.initialTitleFontSize = parseInt(this.titleContainer.getComputedStyle().fontSize, 10);
-		}
-		this.titleContainer.style({ fontSize: `${this.initialTitleFontSize / getZoomFactor()}px` });
+		this.updateLayout();
 
 		return super.layout(dimension);
 	}
