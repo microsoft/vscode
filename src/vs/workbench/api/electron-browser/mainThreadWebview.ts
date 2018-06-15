@@ -58,11 +58,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}, this, this._toDispose);
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebviewPanel(
+	public $createWebviewPanel(
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -89,22 +89,22 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._activeWebview = handle;
 	}
 
-	$disposeWebview(handle: WebviewPanelHandle): void {
+	public $disposeWebview(handle: WebviewPanelHandle): void {
 		const webview = this.getWebview(handle);
 		webview.dispose();
 	}
 
-	$setTitle(handle: WebviewPanelHandle, value: string): void {
+	public $setTitle(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.setName(value);
 	}
 
-	$setHtml(handle: WebviewPanelHandle, value: string): void {
+	public $setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
 	}
 
-	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
+	public $setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
 		const webview = this.getWebview(handle);
 		webview.setOptions({
 			...options,
@@ -112,7 +112,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 	}
 
-	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
+	public $reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
@@ -123,7 +123,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, preserveFocus);
 	}
 
-	async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	public async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)
@@ -137,15 +137,15 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return (editors.length > 0);
 	}
 
-	$registerSerializer(viewType: string): void {
+	public $registerSerializer(viewType: string): void {
 		this._revivers.add(viewType);
 	}
 
-	$unregisterSerializer(viewType: string): void {
+	public $unregisterSerializer(viewType: string): void {
 		this._revivers.delete(viewType);
 	}
 
-	reviveWebview(webview: WebviewEditorInput): TPromise<void> {
+	public reviveWebview(webview: WebviewEditorInput): TPromise<void> {
 		const viewType = webview.state.viewType;
 		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
@@ -168,7 +168,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 	}
 
-	canRevive(webview: WebviewEditorInput): boolean {
+	public canRevive(webview: WebviewEditorInput): boolean {
 		if (webview.isDisposed() || !webview.state) {
 			return false;
 		}
@@ -196,14 +196,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 					() => this._webviews.delete(handle));
 			}
 		};
-	}
-
-	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
-		const webview = this._webviews.get(handle);
-		if (!webview) {
-			throw new Error('Unknown webview handle:' + handle);
-		}
-		return webview;
 	}
 
 	private onActiveEditorChanged() {
@@ -282,6 +274,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (MainThreadWebviews.standardSupportedLinkSchemes.indexOf(link.scheme) >= 0 || enableCommandUris && link.scheme === 'command') {
 			this._openerService.open(link);
 		}
+	}
+
+	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
+		const webview = this._webviews.get(handle);
+		if (!webview) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webview;
 	}
 
 	private static getDeserializationFailedContents(viewType: string) {
