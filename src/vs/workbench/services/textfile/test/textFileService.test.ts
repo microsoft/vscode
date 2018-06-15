@@ -252,6 +252,45 @@ suite('Files - TextFileService', () => {
 		});
 	});
 
+	test('delete - dirty file', function () {
+		model = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(model.getResource(), model);
+
+		const service = accessor.textFileService;
+
+		return model.load().then(() => {
+			model.textEditorModel.setValue('foo');
+
+			assert.ok(service.isDirty(model.getResource()));
+
+			return service.delete(model.getResource()).then(() => {
+				assert.ok(!service.isDirty(model.getResource()));
+			});
+		});
+	});
+
+	test('move - dirty file', function () {
+		let sourceModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file.txt'), 'utf8');
+		let targetModel: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/file_target.txt'), 'utf8');
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(sourceModel.getResource(), sourceModel);
+		(<TextFileEditorModelManager>accessor.textFileService.models).add(targetModel.getResource(), targetModel);
+
+		const service = accessor.textFileService;
+
+		return sourceModel.load().then(() => {
+			sourceModel.textEditorModel.setValue('foo');
+
+			assert.ok(service.isDirty(sourceModel.getResource()));
+
+			return service.move(sourceModel.getResource(), targetModel.getResource(), true).then(() => {
+				assert.ok(!service.isDirty(sourceModel.getResource()));
+
+				sourceModel.dispose();
+				targetModel.dispose();
+			});
+		});
+	});
+
 	suite('Hot Exit', () => {
 		suite('"onExit" setting', () => {
 			test('should hot exit on non-Mac (reason: CLOSE, windows: single, workspace)', function () {

@@ -701,6 +701,58 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
+	public delete(resource: URI, useTrash?: boolean): TPromise<void> {
+		return this.revert(resource, { soft: true }).then(() => this.fileService.del(resource, useTrash));
+	}
+
+	public move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {
+
+		// Handle target model if existing
+		let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
+		const targetModel = this.models.get(target);
+		if (targetModel) {
+			if (!overwrite) {
+				return TPromise.wrapError(new Error('Cannot move file because target file exists and we are not overwriting'));
+			}
+
+			// Soft revert the target file since we overwrite
+			handleTargetModelPromise = this.revert(target, { soft: true });
+		}
+
+		return handleTargetModelPromise.then(() => {
+
+			// Handle source model if existing
+			let handleSourceModelPromise: TPromise<boolean>;
+			const sourceModel = this.models.get(source);
+			if (sourceModel && sourceModel.isDirty()) {
+				// Backup to target if the source is dirty
+				handleSourceModelPromise = this.backupFileService.backupResource(target, sourceModel.createSnapshot(), sourceModel.getVersionId()).then((() => true));
+			} else {
+				handleSourceModelPromise = TPromise.as(false);
+			}
+
+			return handleSourceModelPromise.then(dirty => {
+
+				// Soft revert the source file
+				return this.revert(source, { soft: true }).then(() => {
+
+					// Rename to target
+					return this.fileService.moveFile(source, target, overwrite).then(() => {
+
+						// Load if we were dirty before
+						if (dirty) {
+							return this.models.loadOrCreate(target).then(() => void 0);
+						}
+
+						return void 0;
+					}, error => {
+						return this.backupFileService.discardResourceBackup(target).then(() => TPromise.wrapError(error));
+					});
+				});
+			});
+		});
+	}
+
 	public getAutoSaveMode(): AutoSaveMode {
 		if (this.configuredAutoSaveOnFocusChange) {
 			return AutoSaveMode.ON_FOCUS_CHANGE;
