@@ -99,6 +99,14 @@ export class MenubarPart extends Part {
 	private _isFocused: boolean;
 	private _onVisibilityChange: Emitter<Dimension>;
 
+	private initialSizing: {
+		menuButtonPaddingLeftRight?: number;
+		menubarHeight?: number;
+		menubarPaddingLeft?: number;
+		menubarPaddingRight?: number;
+		menubarFontSize?: number;
+	} = {};
+
 	constructor(
 		id: string,
 		@IThemeService themeService: IThemeService,
@@ -569,7 +577,8 @@ export class MenubarPart extends Part {
 
 		menuHolder.addClass('menubar-menu-items-holder-open context-view');
 		menuHolder.style({
-			'top': `${this.container.getClientArea().height}px`
+			'zoom': `${1 / browser.getZoomFactor()}`,
+			'top': `${this.container.getClientArea().height * browser.getZoomFactor()}px`
 		});
 
 		let menuOptions: IMenuOptions = {
@@ -625,9 +634,41 @@ export class MenubarPart extends Part {
 	}
 
 	public layout(dimension: Dimension): Dimension[] {
-		// this.container.style({
-		// 	'transform': `scale(${1 / browser.getZoomFactor()}, ${1 /browser.getZoomFactor()})`
-		// });
+		// To prevent zooming we need to adjust the font size with the zoom factor
+		if (this.customMenus) {
+			if (typeof this.initialSizing.menubarFontSize !== 'number') {
+				this.initialSizing.menubarFontSize = parseInt(this.container.getComputedStyle().fontSize, 10);
+			}
+
+			if (typeof this.initialSizing.menubarHeight !== 'number') {
+				this.initialSizing.menubarHeight = parseInt(this.container.getComputedStyle().height, 10);
+			}
+
+			if (typeof this.initialSizing.menubarPaddingLeft !== 'number') {
+				this.initialSizing.menubarPaddingLeft = parseInt(this.container.getComputedStyle().paddingLeft, 10);
+			}
+
+			if (typeof this.initialSizing.menubarPaddingRight !== 'number') {
+				this.initialSizing.menubarPaddingRight = parseInt(this.container.getComputedStyle().paddingRight, 10);
+			}
+
+			if (typeof this.initialSizing.menuButtonPaddingLeftRight !== 'number') {
+				this.initialSizing.menuButtonPaddingLeftRight = parseInt(this.customMenus[0].titleElement.getComputedStyle().paddingLeft, 10);
+			}
+
+			this.container.style({
+				height: `${this.initialSizing.menubarHeight / browser.getZoomFactor()}px`,
+				'padding-left': `${this.initialSizing.menubarPaddingLeft / browser.getZoomFactor()}px`,
+				'padding-right': `${this.initialSizing.menubarPaddingRight / browser.getZoomFactor()}px`,
+				'font-size': `${this.initialSizing.menubarFontSize / browser.getZoomFactor()}px`,
+			});
+
+			this.customMenus.forEach(customMenu => {
+				customMenu.titleElement.style({
+					'padding': `0 ${this.initialSizing.menuButtonPaddingLeftRight / browser.getZoomFactor()}px`
+				});
+			});
+		}
 
 		if (this.currentMenubarVisibility === 'toggle') {
 			this.hideMenubar();

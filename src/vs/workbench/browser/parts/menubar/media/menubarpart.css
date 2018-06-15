@@ -9,7 +9,7 @@
 	font-size: 12px;
 	box-sizing: border-box;
 	padding-left: 30px;
-	padding-right: 150px;
+	padding-right: 138px;
 	height: 30px;
 }
 
@@ -24,17 +24,12 @@
 	display: flex;
 	flex-shrink: 0;
 	align-items: center;
-	min-width: 0;
 	box-sizing: border-box;
 	padding: 0px 5px;
 	position: relative;
 	z-index: 10;
 	cursor: pointer;
 	-webkit-app-region: no-drag;
-	zoom: 1;
-}
-
-.monaco-workbench > .part.menubar > .menubar-menu-title {
 	zoom: 1;
 }
 
