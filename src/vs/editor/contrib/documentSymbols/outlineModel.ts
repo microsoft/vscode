@@ -193,7 +193,7 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
-	private static readonly _requests = new LRUCache<string, { count: number, promise: TPromise<OutlineModel> }>(9, .75);
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
 
 	static create(textModel: ITextModel): TPromise<OutlineModel> {
 
@@ -201,25 +201,35 @@ export class OutlineModel extends TreeElement {
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {
-			data = { promise: OutlineModel._create(textModel), count: 0 };
+			data = {
+				promiseCnt: 0,
+				promise: OutlineModel._create(textModel),
+				model: undefined,
+			};
 			OutlineModel._requests.set(key, data);
 		}
 
+		if (data.model) {
+			// resolved -> return data
+			return TPromise.as(data.model);
+		}
+
 		// increase usage counter
-		data.count += 1;
+		data.promiseCnt += 1;
 
 		return new TPromise((resolve, reject) => {
-			data.promise.then(value => {
-				OutlineModel._requests.delete(key);
-				resolve(value);
+			data.promise.then(model => {
+				data.model = model;
+				resolve(model);
 			}, err => {
 				OutlineModel._requests.delete(key);
 				reject(err);
 			});
 		}, () => {
 			// last -> cancel provider request, remove cached promise
-			if (--data.count === 0) {
+			if (--data.promiseCnt === 0) {
 				data.promise.cancel();
+				OutlineModel._requests.delete(key);
 			}
 		});
 	}
