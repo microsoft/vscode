@@ -196,11 +196,9 @@ export class Grid<T extends IView> implements IDisposable {
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
 
-	public sashResetSizing: Sizing = Sizing.Distribute;
+	get element(): HTMLElement { return this.gridview.element; }
 
-	get container(): HTMLElement {
-		return this.gridview.element;
-	}
+	sashResetSizing: Sizing = Sizing.Distribute;
 
 	constructor(view: T, options: IGridOptions = {}) {
 		this.gridview = new GridView(options);

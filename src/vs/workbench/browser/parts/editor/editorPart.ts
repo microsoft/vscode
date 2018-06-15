@@ -317,7 +317,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.container);
+		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.element);
 
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
@@ -539,7 +539,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.container);
+		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.element);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
@@ -687,7 +687,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	protected updateStyles(): void {
-		this.gridWidget.container.style.backgroundColor = this.getColor(editorBackground);
+		this.gridWidget.element.style.backgroundColor = this.getColor(editorBackground);
 
 		this.gridWidget.style({ separatorBorder: this.gridSeparatorBorder });
 	}
@@ -698,14 +698,14 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.doCreateGridControl();
 
 		// Container
-		addClass(this.gridWidget.container, 'content');
-		parent.appendChild(this.gridWidget.container);
+		addClass(this.gridWidget.element, 'content');
+		parent.appendChild(this.gridWidget.element);
 
 
 		// Drop support
-		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.gridWidget.container));
+		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.gridWidget.element));
 
-		return this.gridWidget.container;
+		return this.gridWidget.element;
 	}
 
 	private doCreateGridControl(): void {
@@ -747,7 +747,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this._activeGroup.focus();
 			} catch (error) {
 				if (this.gridWidget) {
-					clearNode(this.gridWidget.container);
+					clearNode(this.gridWidget.element);
 					this.gridWidget.dispose();
 					this.gridWidget = void 0;
 				}
@@ -914,7 +914,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.gridWidget.container, 'empty', this.isEmpty());
+		toggleClass(this.gridWidget.element, 'empty', this.isEmpty());
 	}
 
 	private isEmpty(): boolean {
