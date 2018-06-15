@@ -240,6 +240,35 @@ suite('SnippetParser', () => {
 
 	});
 
+	test('Parser, placeholder transforms', function () {
+		assertTextAndMarker('${1///}', '', Placeholder);
+		assertTextAndMarker('${1/regex/format/gmi}', '', Placeholder);
+		assertTextAndMarker('${1/([A-Z][a-z])/format/}', '', Placeholder);
+
+		// tricky regex
+		assertTextAndMarker('${1/m\\/atch/$1/i}', '', Placeholder);
+		assertMarker('${1/regex\/format/options}', Text);
+
+		// incomplete
+		assertTextAndMarker('${1///', '${1///', Text);
+		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
+	});
+
+	test('Parser, placeholder with defaults and transformation', () => {
+		assertTextAndMarker('${1:value/foo/bar/}', 'value', Placeholder);
+		assertTextAndMarker('${1:bar${2:foo}bar/foo/bar/}', 'barfoobar', Placeholder);
+
+		// incomplete
+		assertTextAndMarker('${1:bar${2:foobar}/foo/bar/', '${1:barfoobar/foo/bar/', Text, Placeholder, Text);
+	});
+
+	test('Parser, placeholder with choice and transformation', () => {
+		assertTextAndMarker('${1|one,two,three|/foo/bar/}', 'one', Placeholder);
+		assertTextAndMarker('${1|one|/foo/bar/}', 'one', Placeholder);
+		assertTextAndMarker('${1|one,two,three,|/foo/bar/}', '${1|one,two,three,|/foo/bar/}', Text);
+		assertTextAndMarker('${1|one,/foo/bar/', '${1|one,/foo/bar/', Text);
+	});
+
 	test('No way to escape forward slash in snippet regex #36715', function () {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});
@@ -378,6 +407,36 @@ suite('SnippetParser', () => {
 		assert.ok(marker[0] instanceof Variable);
 	});
 
+	test('Parser, transform example', () => {
+		let marker = new SnippetParser().parse('${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		let childs = marker.children;
+
+		assert.ok(childs[0] instanceof Placeholder);
+		assert.equal(childs[0].children.length, 1);
+		assert.equal(childs[0].children[0].toString(), 'name');
+		assert.equal((<Placeholder>childs[0]).transform, undefined);
+		assert.ok(childs[1] instanceof Text);
+		assert.equal(childs[1].toString(), ' : ');
+		assert.ok(childs[2] instanceof Placeholder);
+		assert.equal(childs[2].children.length, 1);
+		assert.equal(childs[2].children[0].toString(), 'type');
+		assert.ok(childs[3] instanceof Placeholder);
+		assert.equal(childs[3].children.length, 1);
+		assert.equal(childs[3].children[0].toString(), ' :=');
+		assert.notEqual((<Placeholder>childs[3]).transform, undefined);
+		let t = (<Placeholder>childs[3]).transform;
+		assert.equal(t.regexp, '/\\s:=(.*)/');
+		assert.equal(t.children.length, 2);
+		assert.ok(t.children[0] instanceof FormatString);
+		assert.equal((<FormatString>t.children[0]).index, 1);
+		assert.equal((<FormatString>t.children[0]).ifValue, ' :=');
+		assert.ok(t.children[1] instanceof FormatString);
+		assert.equal((<FormatString>t.children[1]).index, 1);
+		assert.ok(childs[4] instanceof Text);
+		assert.equal(childs[4].toString(), ';\n');
+
+	});
+
 	test('Parser, default placeholder values', () => {
 
 		assertMarker('errorContext: `${1:err}`, error: $1', Text, Placeholder, Text, Placeholder);
@@ -391,6 +450,37 @@ suite('SnippetParser', () => {
 		assert.equal((<Placeholder>p2).index, '1');
 		assert.equal((<Placeholder>p2).children.length, '1');
 		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+	});
+
+	test('Parser, default placeholder values and one transform', () => {
+
+		assertMarker('errorContext: `${1:err/err/ok/}`, error: $1', Text, Placeholder, Text, Placeholder);
+
+		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err/err/ok/}`, error:$1').children;
+
+		assert.equal((<Placeholder>p1).index, '1');
+		assert.equal((<Placeholder>p1).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p1).children[0]), 'err');
+		assert.notEqual((<Placeholder>p1).transform, undefined);
+
+		assert.equal((<Placeholder>p2).index, '1');
+		assert.equal((<Placeholder>p2).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
+		assert.equal((<Placeholder>p2).transform, undefined);
+
+		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
+
+		const [, p3, , p4] = new SnippetParser().parse('errorContext: `${1:err}`, error:${1/err/ok/}').children;
+
+		assert.equal((<Placeholder>p3).index, '1');
+		assert.equal((<Placeholder>p3).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p3).children[0]), 'err');
+		assert.equal((<Placeholder>p3).transform, undefined);
+
+		assert.equal((<Placeholder>p4).index, '1');
+		assert.equal((<Placeholder>p4).children.length, '1');
+		assert.equal((<Text>(<Placeholder>p4).children[0]), 'err');
+		assert.notEqual((<Placeholder>p4).transform, undefined);
 	});
 
 	test('Repeated snippet placeholder should always inherit, #31040', function () {
