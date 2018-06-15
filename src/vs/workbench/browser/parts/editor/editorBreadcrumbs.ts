@@ -196,6 +196,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 					outlineItems.unshift(new RenderedBreadcrumbsItem<OutlineItem>(render, element, !!first(element.children)));
 					element = element.parent;
 				}
+				// todo@joh compare items for equality and only update changed...
 				this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
 			};
 
