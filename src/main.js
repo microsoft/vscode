@@ -230,50 +230,21 @@ function getNLSConfiguration(locale) {
 
 	let initialLocale = locale;
 
-	function resolveLocale(locale) {
-		while (locale) {
-			let candidate = path.join(__dirname, 'vs', 'code', 'electron-main', 'main.nls.') + locale + '.js';
-			if (fs.existsSync(candidate)) {
-				return { locale: initialLocale, availableLanguages: { '*': locale } };
-			} else {
-				let index = locale.lastIndexOf('-');
-				if (index > 0) {
-					locale = locale.substring(0, index);
-				} else {
-					locale = undefined;
-				}
-			}
-		}
-		return undefined;
-	}
-
 	perf.mark('nlsGeneration:start');
-	let defaultResult = function (locale) {
-		let isCoreLanguage = true;
-		if (locale) {
-			isCoreLanguage = ['de', 'es', 'fr', 'it', 'ja', 'ko', 'ru', 'zh-cn', 'zh-tw'].some((language) => {
-				return locale === language || locale.startsWith(language + '-');
-			});
-		}
-		if (isCoreLanguage) {
-			let result = resolveLocale(locale);
-			perf.mark('nlsGeneration:end');
-			return Promise.resolve(result);
-		} else {
-			perf.mark('nlsGeneration:end');
-			return Promise.resolve({ locale: locale, availableLanguages: {} });
-		}
+
+	let defaultResult = function(locale) {
+		perf.mark('nlsGeneration:end');
+		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	};
 	try {
 		let commit = product.commit;
 		if (!commit) {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
 		let configs = getLanguagePackConfigurations();
 		if (!configs) {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
-		let initialLocale = locale;
 		locale = resolveLanguagePackLocale(configs, locale);
 		if (!locale) {
 			return defaultResult(initialLocale);
@@ -281,11 +252,11 @@ function getNLSConfiguration(locale) {
 		let packConfig = configs[locale];
 		let mainPack;
 		if (!packConfig || typeof packConfig.hash !== 'string' || !packConfig.translations || typeof (mainPack = packConfig.translations['vscode']) !== 'string') {
-			return defaultResult(locale);
+			return defaultResult(initialLocale);
 		}
 		return exists(mainPack).then((fileExists) => {
 			if (!fileExists) {
-				return defaultResult(locale);
+				return defaultResult(initialLocale);
 			}
 			let packId = packConfig.hash + '.' + locale;
 			let cacheRoot = path.join(userData, 'clp', packId);
