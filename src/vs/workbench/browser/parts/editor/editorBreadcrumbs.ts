@@ -19,7 +19,7 @@ import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRe
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { EditorInput } from 'vs/workbench/common/editor';
 import { IEditorBreadcrumbs, IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ITreeConfiguration, IDataSource, ITree, IRenderer, ISelectionEvent } from 'vs/base/parts/tree/browser/tree';
+import { ITreeConfiguration, IDataSource, ITree, IRenderer, ISelectionEvent, ISorter } from 'vs/base/parts/tree/browser/tree';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
@@ -30,6 +30,7 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { isEqual } from 'vs/base/common/resources';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
+import { compareFileNames } from 'vs/base/common/comparers';
 
 interface FileElement {
 	name: string;
@@ -291,12 +292,27 @@ export class FileRenderer implements IRenderer {
 	}
 }
 
+export class FileSorter implements ISorter {
+	compare(tree: ITree, a: IFileStat, b: IFileStat): number {
+		if (a.isDirectory === b.isDirectory) {
+			// same type -> compare on names
+			return compareFileNames(a.name, b.name);
+		} else if (a.isDirectory) {
+			return -1;
+		} else {
+			return 1;
+		}
+	}
+}
+
 export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 
 
 	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
+		// todo@joh reuse explorer implementations?
 		config.dataSource = this._instantiationService.createInstance(FileDataSource);
 		config.renderer = this._instantiationService.createInstance(FileRenderer);
+		config.sorter = new FileSorter();
 		return config;
 	}
 
