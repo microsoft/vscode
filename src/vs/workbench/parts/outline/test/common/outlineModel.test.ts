@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { OutlineElement, OutlineGroup } from 'vs/workbench/parts/outline/electron-browser/outlineModel';
+import { OutlineElement, OutlineGroup } from 'vs/workbench/parts/outline/common/outlineModel';
 import { SymbolKind, DocumentSymbol } from 'vs/editor/common/modes';
 import { Range } from 'vs/editor/common/core/range';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';

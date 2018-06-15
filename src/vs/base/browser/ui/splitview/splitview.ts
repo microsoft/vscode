@@ -30,6 +30,7 @@ export interface ISplitViewOptions {
 	styles?: ISplitViewStyles;
 	orthogonalStartSash?: Sash;
 	orthogonalEndSash?: Sash;
+	inverseAltBehavior?: boolean;
 }
 
 export interface IView {
@@ -136,6 +137,7 @@ export class SplitView implements IDisposable {
 	private sashItems: ISashItem[] = [];
 	private sashDragState: ISashDragState;
 	private state: State = State.Idle;
+	private inverseAltBehavior: boolean;
 
 	private _onDidSashChange = new Emitter<number>();
 	readonly onDidSashChange = this._onDidSashChange.event;
@@ -180,6 +182,7 @@ export class SplitView implements IDisposable {
 
 	constructor(container: HTMLElement, options: ISplitViewOptions = {}) {
 		this.orientation = types.isUndefined(options.orientation) ? Orientation.VERTICAL : options.orientation;
+		this.inverseAltBehavior = !!options.inverseAltBehavior;
 
 		this.el = document.createElement('div');
 		dom.addClass(this.el, 'monaco-split-view2');
@@ -383,6 +386,9 @@ export class SplitView implements IDisposable {
 			// TODO@Joao rename these guys
 			let minDelta = Number.POSITIVE_INFINITY;
 			let maxDelta = Number.POSITIVE_INFINITY;
+			if (this.inverseAltBehavior) {
+				alt = !alt;
+			}
 
 			if (alt) {
 				// When we're using the last sash with Alt, we're resizing
