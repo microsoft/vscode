@@ -461,11 +461,24 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.menubarWidth = 0;
 			}
 
-			// Adjust app icon
+			// If we can center the title in the titlebar, we should
+			const fullWidth = parseInt(this.titleContainer.getComputedStyle().width, 10);
+			const titleWidth = parseInt(this.title.getComputedStyle().width, 10);
+			const freeSpace = fullWidth - newAppIconWidth - newControlsWidth - titleWidth;
+			const leftSideTitle = newAppIconWidth + (freeSpace / 2);
+
+			let bufferWidth = this.menubarWidth;
+			if (newAppIconWidth + this.menubarWidth < leftSideTitle) {
+				bufferWidth = 0;
+			}
+
+
+
+			// Adjust app icon mimic menubar
 			this.appIcon.style({
 				width: `${newAppIconWidth}px`,
 				'padding-left': `${newAppIconPaddingLeft}px`,
-				'margin-right': `${newControlsWidth - newAppIconWidth - newAppIconPaddingLeft + this.menubarWidth}px`,
+				'margin-right': `${newControlsWidth - newAppIconWidth - newAppIconPaddingLeft + bufferWidth}px`,
 				'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
 				'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
 			});
