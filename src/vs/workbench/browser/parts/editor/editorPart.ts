@@ -64,14 +64,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	get onDidMoveGroup(): Event<IEditorGroupView> { return this._onDidMoveGroup.event; }
 
-	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
-	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
-	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
-	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
-
-	private _onDidSetGridWidget = new Emitter<{ width: number; height: number; }>();
-	private _onDidChange = new Relay<{ width: number; height: number; }>();
-	readonly onDidChange: Event<{ width: number; height: number; }> = anyEvent(this._onDidSetGridWidget.event, this._onDidChange.event);
+	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; }>());
+	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return anyEvent(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
@@ -674,6 +669,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	//#region Part
 
+	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
+	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
+	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
 			this._preferredSize = new Dimension(this.gridWidget.minimumWidth, this.gridWidget.minimumHeight);
@@ -727,7 +727,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {
 			const initialGroup = this.doCreateGroupView();
-			this.setGridWidget(new SerializableGrid(initialGroup));
+			this.doSetGridWidget(new SerializableGrid(initialGroup));
 
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
@@ -758,7 +758,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				if (this.gridWidget) {
 					clearNode(this.gridWidget.element);
 					this.gridWidget.dispose();
-					this.setGridWidget();
+					this.doSetGridWidget();
 				}
 
 				this.groupViews.forEach(group => group.dispose());
@@ -787,7 +787,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
-		this.setGridWidget(SerializableGrid.deserialize(serializedGrid, {
+		this.doSetGridWidget(SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
@@ -803,6 +803,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				return groupView;
 			}
 		}, { styles: { separatorBorder: this.gridSeparatorBorder } }));
+	}
+
+	private doSetGridWidget(gridWidget?: SerializableGrid<IEditorGroupView>): void {
+		this.gridWidget = gridWidget;
+
+		if (gridWidget) {
+			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
+		}
+
+		this.onDidSetGridWidget.fire();
 	}
 
 	private doGetPreviousState(): IEditorPartUIState {
@@ -922,16 +932,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		return void 0;
 	}
 
-	private setGridWidget(grid?: SerializableGrid<IEditorGroupView>): void {
-		this.gridWidget = grid;
-
-		if (grid) {
-			this._onDidChange.input = grid.onDidChange;
-		}
-
-		this._onDidSetGridWidget.fire();
-	}
-
 	private updateContainer(): void {
 		toggleClass(this.gridWidget.element, 'empty', this.isEmpty());
 	}
@@ -1003,9 +1003,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Forward to all groups
 		this.groupViews.forEach(group => group.dispose());
 		this.groupViews.clear();
-
-		this._onDidSetGridWidget.dispose();
-		this._onDidChange.dispose();
 
 		// Grid widget
 		if (this.gridWidget) {

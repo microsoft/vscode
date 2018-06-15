@@ -83,7 +83,7 @@ export class PreferencesEditor extends BaseEditor {
 	set maximumWidth(value: number) { /*noop*/ }
 
 	private _onDidCreateWidget = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidCreateWidget.event;
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = this._onDidCreateWidget.event;
 
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,

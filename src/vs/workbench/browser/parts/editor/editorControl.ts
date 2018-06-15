@@ -26,22 +26,20 @@ export interface IOpenEditorResult {
 
 export class EditorControl extends Disposable {
 
+	get minimumWidth() { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+
 	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
-	private activeControlFocusListener: IDisposable;
+	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return this._onDidSizeConstraintsChange.event; }
 
+	private activeControlFocusListener: IDisposable;
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
-
-	get minimumWidth(): number { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
-	get minimumHeight(): number { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
-	get maximumWidth(): number { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
-	get maximumHeight(): number { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
-
-	private _onDidChange = new Emitter<{ width: number; height: number; }>();
-	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
-
 	private _activeControl: BaseEditor;
 	private activeControlDisposable: IDisposable = EmptyDisposable;
 	private controls: BaseEditor[] = [];
@@ -56,17 +54,6 @@ export class EditorControl extends Disposable {
 		super();
 
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
-	}
-
-	private setActiveControl(activeControl: BaseEditor) {
-		this.activeControlDisposable.dispose();
-		this._activeControl = activeControl;
-
-		if (activeControl) {
-			this.activeControlDisposable = activeControl.onDidChange(e => this._onDidChange.fire(e));
-		}
-
-		this._onDidChange.fire();
 	}
 
 	get activeControl(): BaseEditor {
@@ -97,7 +84,7 @@ export class EditorControl extends Disposable {
 		const control = this.doCreateEditorControl(descriptor);
 
 		// Remember editor as active
-		this.setActiveControl(control);
+		this.doSetActiveControl(control);
 
 		// Show editor
 		this.parent.appendChild(control.getContainer());
@@ -147,6 +134,17 @@ export class EditorControl extends Disposable {
 		this.controls.push(control);
 
 		return control;
+	}
+
+	private doSetActiveControl(control: BaseEditor) {
+		this.activeControlDisposable.dispose();
+		this._activeControl = control;
+
+		if (control) {
+			this.activeControlDisposable = control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e));
+		}
+
+		this._onDidSizeConstraintsChange.fire();
 	}
 
 	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): TPromise<boolean> {
@@ -216,7 +214,7 @@ export class EditorControl extends Disposable {
 		this._activeControl.setVisible(false, this.groupView);
 
 		// Clear active control
-		this.setActiveControl(null);
+		this.doSetActiveControl(null);
 
 		// Clear focus listener
 		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
