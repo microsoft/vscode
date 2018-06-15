@@ -632,6 +632,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private static readonly MAX_WIDTH = 600; // Max total width of quick open widget
 
 	private layoutDimensions: dom.Dimension;
+	private titleBar: HTMLElement;
 	private filterContainer: HTMLElement;
 	private countContainer: HTMLElement;
 	private okContainer: HTMLElement;
@@ -690,7 +691,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 		container.tabIndex = -1;
 		container.style.display = 'none';
 
-		const title = dom.append(container, $('.quick-input-title'));
+		this.titleBar = dom.append(container, $('.quick-input-titlebar'));
+
+		const title = dom.append(this.titleBar, $('.quick-input-title'));
+
+		const actionBar = new ActionBar(this.titleBar);
+		actionBar.domNode.classList.add('quick-input-action-bar');
+		this.toUnbind.push(actionBar);
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -722,10 +729,6 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.toUnbind.push(this.ok.onDidClick(e => {
 			this.onDidAcceptEmitter.fire();
 		}));
-
-		const actionBar = new ActionBar(headerContainer);
-		actionBar.domNode.classList.add('quick-input-action-bar');
-		this.toUnbind.push(actionBar);
 
 		const message = dom.append(container, $('.quick-input-message'));
 
@@ -1061,7 +1064,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		if (this.ui) {
 			// TODO
 			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
-			this.ui.title.style.backgroundColor = titleColor ? titleColor.toString() : undefined;
+			this.titleBar.style.backgroundColor = titleColor ? titleColor.toString() : undefined;
 			this.ui.inputBox.style(theme);
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
 			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
