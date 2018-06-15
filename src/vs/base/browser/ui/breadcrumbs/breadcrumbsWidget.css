@@ -14,7 +14,7 @@
 .monaco-breadcrumbs .monaco-breadcrumb-item {
 	display: flex;
 	align-items: center;
-	padding: 3px;
+	padding: 0 5px 0 3px;
 	flex: 0 1 auto;
 	white-space: nowrap;
 	cursor: pointer;
