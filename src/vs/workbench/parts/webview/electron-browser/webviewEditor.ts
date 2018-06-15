@@ -95,14 +95,21 @@ export class WebviewEditor extends BaseWebviewEditor {
 		this._webview = undefined;
 		this._webviewContent = undefined;
 
+		if (this._content && this._content.parentElement) {
+			this._content.parentElement.removeChild(this._content);
+			this._content = undefined;
+		}
+
 		this._onDidFocusWebview.dispose();
 
 		if (this._webviewFocusTracker) {
 			this._webviewFocusTracker.dispose();
+			this._webviewFocusTracker = undefined;
 		}
 
 		if (this._webviewFocusListenerDisposable) {
 			this._webviewFocusListenerDisposable.dispose();
+			this._webviewFocusListenerDisposable = undefined;
 		}
 
 		if (this._onFocusWindowHandler) {
@@ -217,7 +224,7 @@ export class WebviewEditor extends BaseWebviewEditor {
 		}
 
 		if (input.options.enableFindWidget) {
-			this._contextKeyService = this._contextKeyService.createScoped(this._webviewContent);
+			this._contextKeyService = this._register(this._contextKeyService.createScoped(this._webviewContent));
 			this.contextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FOCUS.bindTo(this._contextKeyService);
 			this.findInputFocusContextKey = KEYBINDING_CONTEXT_WEBVIEWEDITOR_FIND_WIDGET_INPUT_FOCUSED.bindTo(this._contextKeyService);
 			this.findWidgetVisible = KEYBINDING_CONTEXT_WEBVIEW_FIND_WIDGET_VISIBLE.bindTo(this._contextKeyService);

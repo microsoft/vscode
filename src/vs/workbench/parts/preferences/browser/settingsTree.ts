@@ -8,7 +8,6 @@ import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
-import { renderOcticons } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { Color } from 'vs/base/common/color';
 import { Emitter, Event } from 'vs/base/common/event';
@@ -236,7 +235,6 @@ export interface ISettingItemTemplate extends IDisposableTemplate {
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
-	expandIndicatorElement: HTMLElement;
 	valueElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
@@ -258,7 +256,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 75;
+	private static readonly SETTING_ROW_HEIGHT = 85;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -297,11 +295,11 @@ export class SettingsRenderer implements IRenderer {
 		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
 		const template = this.renderSettingTemplate(tree, measureHelper);
-		this.renderSettingElement(tree, element, template, true);
+		this.renderSettingElement(tree, element, template);
 
 		const height = measureHelper.offsetHeight;
 		this.measureContainer.removeChild(measureHelper);
-		return height;
+		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
 	}
 
 	getTemplateId(tree: ITree, element: TreeElement): string {
@@ -346,18 +344,14 @@ export class SettingsRenderer implements IRenderer {
 	private renderSettingTemplate(tree: ITree, container: HTMLElement): ISettingItemTemplate {
 		DOM.addClass(container, 'setting-item');
 
-		const leftElement = DOM.append(container, $('.setting-item-left'));
-		const rightElement = DOM.append(container, $('.setting-item-right'));
-
-		const titleElement = DOM.append(leftElement, $('.setting-item-title'));
+		const titleElement = DOM.append(container, $('.setting-item-title'));
 		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
 		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
 		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
 		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
-		const descriptionElement = DOM.append(leftElement, $('.setting-item-description'));
-		const expandIndicatorElement = DOM.append(leftElement, $('.expand-indicator'));
+		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
-		const valueElement = DOM.append(rightElement, $('.setting-item-value'));
+		const valueElement = DOM.append(container, $('.setting-item-value'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -368,7 +362,6 @@ export class SettingsRenderer implements IRenderer {
 			categoryElement,
 			labelElement,
 			descriptionElement,
-			expandIndicatorElement,
 			valueElement,
 			isConfiguredElement,
 			otherOverridesElement
@@ -404,7 +397,7 @@ export class SettingsRenderer implements IRenderer {
 		return selectedElement && selectedElement.id === element.id;
 	}
 
-	private renderSettingElement(tree: ITree, element: ISettingElement, template: ISettingItemTemplate, measuring?: boolean): void {
+	private renderSettingElement(tree: ITree, element: ISettingElement, template: ISettingItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
@@ -420,20 +413,6 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.textContent = element.displayLabel;
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = element.description;
-
-		if (!measuring) {
-			const expandedHeight = this.measureSettingElementHeight(tree, element);
-			const isExpandable = expandedHeight > SettingsRenderer.SETTING_ROW_HEIGHT;
-			DOM.toggleClass(template.parent, 'is-expandable', isExpandable);
-
-			if (isSelected) {
-				template.expandIndicatorElement.innerHTML = renderOcticons('$(chevron-up)');
-			} else if (isExpandable) {
-				template.expandIndicatorElement.innerHTML = renderOcticons('$(chevron-down)');
-			} else {
-				template.expandIndicatorElement.innerHTML = '';
-			}
-		}
 
 		this.renderValue(element, isSelected, template);
 
@@ -469,7 +448,7 @@ export class SettingsRenderer implements IRenderer {
 	private renderValue(element: ISettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
-		if (element.valueType === 'string' && element.enum) {
+		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			this.renderEnum(element, isSelected, template, onChange);
 		} else if (element.valueType === 'boolean') {
 			this.renderBool(element, isSelected, template, onChange);
@@ -538,7 +517,7 @@ export class SettingsRenderer implements IRenderer {
 }
 
 function escapeInvisibleChars(enumValue: string): string {
-	return enumValue
+	return enumValue && enumValue
 		.replace(/\n/g, '\\n')
 		.replace(/\r/g, '\\r');
 }

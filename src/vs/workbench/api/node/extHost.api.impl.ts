@@ -289,7 +289,7 @@ export function createApiFactory(
 				return extHostLanguageFeatures.registerRenameProvider(checkSelector(selector), provider);
 			},
 			registerDocumentSymbolProvider(selector: vscode.DocumentSelector, provider: vscode.DocumentSymbolProvider): vscode.Disposable {
-				return extHostLanguageFeatures.registerDocumentSymbolProvider(checkSelector(selector), provider, extension.id);
+				return extHostLanguageFeatures.registerDocumentSymbolProvider(checkSelector(selector), provider, extension);
 			},
 			registerWorkspaceSymbolProvider(provider: vscode.WorkspaceSymbolProvider): vscode.Disposable {
 				return extHostLanguageFeatures.registerWorkspaceSymbolProvider(provider);

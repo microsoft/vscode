@@ -396,7 +396,6 @@ export class DebugAdapter extends StreamDebugAdapter {
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						// TODO@extensionLocation
 						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge

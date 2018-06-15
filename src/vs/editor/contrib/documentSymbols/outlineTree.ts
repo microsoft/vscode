@@ -5,6 +5,7 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
@@ -12,20 +13,15 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
-import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
-import { symbolKindToCssClass } from 'vs/editor/common/modes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from './outlineModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -126,10 +122,10 @@ export interface OutlineTemplate {
 
 export class OutlineRenderer implements IRenderer {
 
+	renderProblemColors = true;
+	renderProblemBadges = true;
+
 	constructor(
-		@IExtensionService readonly _extensionService: IExtensionService,
-		@IEnvironmentService readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService,
 		@IThemeService readonly _themeService: IThemeService,
 		@IConfigurationService readonly _configurationService: IConfigurationService
 	) {
@@ -167,24 +163,13 @@ export class OutlineRenderer implements IRenderer {
 	renderElement(tree: ITree, element: OutlineGroup | OutlineElement, templateId: string, template: OutlineTemplate): void {
 		if (element instanceof OutlineElement) {
 			template.icon.className = `outline-element-icon symbol-icon ${symbolKindToCssClass(element.symbol.kind)}`;
-			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined);
+			template.label.set(element.symbol.name, element.score ? createMatches(element.score[1]) : undefined, localize('title.template', "{0} ({1})", element.symbol.name, OutlineRenderer._symbolKindNames[element.symbol.kind]));
 			template.detail.innerText = element.symbol.detail || '';
 			this._renderMarkerInfo(element, template);
 
 		}
 		if (element instanceof OutlineGroup) {
-			this._extensionService.getExtensions().then(all => {
-				let found = false;
-				for (let i = 0; !found && i < all.length; i++) {
-					const extension = all[i];
-					if (extension.id === element.provider.extensionId) {
-						template.label.set(extension.displayName);
-						break;
-					}
-				}
-			}, _err => {
-				template.label.set(element.provider.extensionId);
-			});
+			template.label.set(element.provider.displayName || localize('provider', "Outline Provider"));
 		}
 	}
 
@@ -200,14 +185,14 @@ export class OutlineRenderer implements IRenderer {
 		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+		if (this.renderProblemColors) {
 			template.labelContainer.style.setProperty('--outline-element-color', color);
 		} else {
 			template.labelContainer.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
+		if (!this.renderProblemBadges) {
 			dom.hide(template.decoration);
 
 		} else if (count > 0) {
@@ -225,6 +210,35 @@ export class OutlineRenderer implements IRenderer {
 			template.decoration.style.setProperty('--outline-element-color', color);
 		}
 	}
+
+	private static _symbolKindNames: { [symbol: number]: string } = {
+		[SymbolKind.Array]: localize('Array', "array"),
+		[SymbolKind.Boolean]: localize('Boolean', "boolean"),
+		[SymbolKind.Class]: localize('Class', "class"),
+		[SymbolKind.Constant]: localize('Constant', "constant"),
+		[SymbolKind.Constructor]: localize('Constructor', "constructor"),
+		[SymbolKind.Enum]: localize('Enum', "enumeration"),
+		[SymbolKind.EnumMember]: localize('EnumMember', "enumeration member"),
+		[SymbolKind.Event]: localize('Event', "event"),
+		[SymbolKind.Field]: localize('Field', "field"),
+		[SymbolKind.File]: localize('File', "file"),
+		[SymbolKind.Function]: localize('Function', "function"),
+		[SymbolKind.Interface]: localize('Interface', "interface"),
+		[SymbolKind.Key]: localize('Key', "key"),
+		[SymbolKind.Method]: localize('Method', "method"),
+		[SymbolKind.Module]: localize('Module', "module"),
+		[SymbolKind.Namespace]: localize('Namespace', "namespace"),
+		[SymbolKind.Null]: localize('Null', "null"),
+		[SymbolKind.Number]: localize('Number', "number"),
+		[SymbolKind.Object]: localize('Object', "object"),
+		[SymbolKind.Operator]: localize('Operator', "operator"),
+		[SymbolKind.Package]: localize('Package', "package"),
+		[SymbolKind.Property]: localize('Property', "property"),
+		[SymbolKind.String]: localize('String', "string"),
+		[SymbolKind.Struct]: localize('Struct', "struct"),
+		[SymbolKind.TypeParameter]: localize('TypeParameter', "type parameter"),
+		[SymbolKind.Variable]: localize('Variable', "variable"),
+	};
 
 	disposeTemplate(tree: ITree, templateId: string, template: OutlineTemplate): void {
 		template.label.dispose();

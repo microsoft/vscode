@@ -139,7 +139,6 @@ function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, access
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupService = accessor.get(IEditorGroupsService);
 
-	const groups = editorGroupService.groups;
 	const sourceGroup = control.group;
 	let targetGroup: IEditorGroup;
 
@@ -181,10 +180,10 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 			targetGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
 			break;
 		case 'center':
-			targetGroup = groups[(groups.length / 2) - 1];
+			targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupService.count / 2) - 1];
 			break;
 		case 'position':
-			targetGroup = groups[args.value - 1];
+			targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[args.value - 1];
 			break;
 	}
 
@@ -330,7 +329,7 @@ function registerFocusEditorGroupAtIndexCommands(): void {
 				}
 
 				// Group exists: just focus
-				const groups = editorGroupService.getGroups(GroupsOrder.CREATION_TIME);
+				const groups = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE);
 				if (groups[groupIndex]) {
 					return groups[groupIndex].focus();
 				}

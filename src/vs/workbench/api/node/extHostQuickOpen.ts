@@ -8,7 +8,6 @@ import { asWinJsPromise, wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Emitter } from 'vs/base/common/event';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostCommands } from 'vs/workbench/api/node/extHostCommands';
 import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
@@ -164,9 +163,16 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 		return session;
 	}
 
+	$onDidChangeValue(sessionId: number, value: string): void {
+		const session = this._sessions.get(sessionId);
+		if (session) {
+			session._fireDidChangeValue(value);
+		}
+	}
+
 	$onDidAccept(sessionId: number): void {
 		const session = this._sessions.get(sessionId);
-		if (session instanceof ExtHostQuickPick) {
+		if (session) {
 			session._fireDidAccept();
 		}
 	}
@@ -174,7 +180,7 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	$onDidChangeActive(sessionId: number, handles: number[]): void {
 		const session = this._sessions.get(sessionId);
 		if (session instanceof ExtHostQuickPick) {
-			session._fireDidChangeFocus(handles);
+			session._fireDidChangeActive(handles);
 		}
 	}
 
@@ -191,6 +197,13 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 			session._fireDidTriggerButton(handle);
 		}
 	}
+
+	$onDidHide(sessionId: number): void {
+		const session = this._sessions.get(sessionId);
+		if (session) {
+			session._fireDidHide();
+		}
+	}
 }
 
 class ExtHostQuickInput implements QuickInput {
@@ -198,12 +211,19 @@ class ExtHostQuickInput implements QuickInput {
 	private static _nextId = 1;
 	_id = ExtHostQuickPick._nextId++;
 
+	private _title: string;
+	private _steps: number;
+	private _totalSteps: number;
 	private _visible = false;
 	private _enabled = true;
 	private _busy = false;
 	private _ignoreFocusOut = true;
+	private _value = '';
+	private _placeholder: string;
 	private _buttons: QuickInputButton[] = [];
 	private _handlesToButtons = new Map<number, QuickInputButton>();
+	private _onDidAcceptEmitter = new Emitter<void>();
+	private _onDidChangeValueEmitter = new Emitter<string>();
 	private _onDidTriggerButtonEmitter = new Emitter<QuickInputButton>();
 	private _onDidHideEmitter = new Emitter<void>();
 	private _updateTimeout: number;
@@ -213,9 +233,38 @@ class ExtHostQuickInput implements QuickInput {
 	protected _disposables: IDisposable[] = [
 		this._onDidTriggerButtonEmitter,
 		this._onDidHideEmitter,
+		this._onDidAcceptEmitter,
+		this._onDidChangeValueEmitter
 	];
 
 	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: string, private _onDidDispose: () => void) {
+	}
+
+	get title() {
+		return this._title;
+	}
+
+	set title(title: string) {
+		this._title = title;
+		this.update({ title });
+	}
+
+	get step() {
+		return this._steps;
+	}
+
+	set step(step: number) {
+		this._steps = step;
+		this.update({ step });
+	}
+
+	get totalSteps() {
+		return this._totalSteps;
+	}
+
+	set totalSteps(totalSteps: number) {
+		this._totalSteps = totalSteps;
+		this.update({ totalSteps });
 	}
 
 	get enabled() {
@@ -245,6 +294,28 @@ class ExtHostQuickInput implements QuickInput {
 		this.update({ ignoreFocusOut });
 	}
 
+	get value() {
+		return this._value;
+	}
+
+	set value(value: string) {
+		this._value = value;
+		this.update({ value });
+	}
+
+	get placeholder() {
+		return this._placeholder;
+	}
+
+	set placeholder(placeholder: string) {
+		this._placeholder = placeholder;
+		this.update({ placeholder });
+	}
+
+	onDidChangeValue = this._onDidChangeValueEmitter.event;
+
+	onDidAccept = this._onDidAcceptEmitter.event;
+
 	get buttons() {
 		return this._buttons;
 	}
@@ -258,7 +329,7 @@ class ExtHostQuickInput implements QuickInput {
 		this.update({
 			buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
 				iconPath: getIconUris(button.iconPath),
-				toolTip: button.tooltip,
+				tooltip: button.tooltip,
 				handle: i,
 			}))
 		});
@@ -278,9 +349,22 @@ class ExtHostQuickInput implements QuickInput {
 
 	onDidHide = this._onDidHideEmitter.event;
 
+	_fireDidAccept() {
+		this._onDidAcceptEmitter.fire();
+	}
+
+	_fireDidChangeValue(value) {
+		this._value = value;
+		this._onDidChangeValueEmitter.fire(value);
+	}
+
 	_fireDidTriggerButton(handle: number) {
 		const button = this._handlesToButtons.get(handle);
 		this._onDidTriggerButtonEmitter.fire(button);
+	}
+
+	_fireDidHide() {
+		this._onDidHideEmitter.fire();
 	}
 
 	public dispose(): void {
@@ -288,26 +372,30 @@ class ExtHostQuickInput implements QuickInput {
 			return;
 		}
 		this._disposed = true;
+		this._fireDidHide();
 		this._disposables = dispose(this._disposables);
 		if (this._updateTimeout) {
 			clearTimeout(this._updateTimeout);
 			this._updateTimeout = undefined;
 		}
-		this._proxy.$dispose(this._id);
 		this._onDidDispose();
+		this._proxy.$dispose(this._id);
 	}
 
 	protected update(properties: Record<string, any>): void {
 		if (this._disposed) {
 			return;
 		}
-		assign(this._pendingUpdate, properties);
+		for (const key of Object.keys(properties)) {
+			const value = properties[key];
+			this._pendingUpdate[key] = value === undefined ? null : value;
+		}
 
 		if (!this._visible) {
 			return;
 		}
 
-		if (properties.visible) {
+		if ('visible' in this._pendingUpdate) {
 			if (this._updateTimeout) {
 				clearTimeout(this._updateTimeout);
 				this._updateTimeout = undefined;
@@ -360,16 +448,12 @@ function getIconUri(iconPath: string | URI) {
 
 class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 
-	private _value = '';
-	private _placeholder: string;
-	private _onDidChangeValueEmitter = new Emitter<string>();
-	private _onDidAcceptEmitter = new Emitter<void>();
 	private _items: QuickPickItem[] = [];
 	private _handlesToItems = new Map<number, QuickPickItem>();
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
-	private _focusedItems: QuickPickItem[] = [];
+	private _activeItems: QuickPickItem[] = [];
 	private _onDidChangeActiveEmitter = new Emitter<QuickPickItem[]>();
 	private _selectedItems: QuickPickItem[] = [];
 	private _onDidChangeSelectionEmitter = new Emitter<QuickPickItem[]>();
@@ -377,35 +461,11 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
 		this._disposables.push(
-			this._onDidChangeValueEmitter,
-			this._onDidAcceptEmitter,
 			this._onDidChangeActiveEmitter,
 			this._onDidChangeSelectionEmitter,
 		);
 		this.update({ type: 'quickPick' });
 	}
-
-	get value() {
-		return this._value;
-	}
-
-	set value(value: string) {
-		this._value = value;
-		this.update({ value });
-	}
-
-	get placeholder() {
-		return this._placeholder;
-	}
-
-	set placeholder(placeholder: string) {
-		this._placeholder = placeholder;
-		this.update({ placeholder });
-	}
-
-	onDidChangeValue = this._onDidChangeValueEmitter.event;
-
-	onDidAccept = this._onDidAcceptEmitter.event;
 
 	get items() {
 		return this._items;
@@ -456,7 +516,7 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 	}
 
 	get activeItems() {
-		return this._focusedItems;
+		return this._activeItems;
 	}
 
 	onDidChangeActive = this._onDidChangeActiveEmitter.event;
@@ -467,13 +527,9 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 
 	onDidChangeSelection = this._onDidChangeSelectionEmitter.event;
 
-	_fireDidAccept() {
-		this._onDidAcceptEmitter.fire();
-	}
-
-	_fireDidChangeFocus(handles: number[]) {
+	_fireDidChangeActive(handles: number[]) {
 		const items = handles.map(handle => this._handlesToItems.get(handle));
-		this._focusedItems = items;
+		this._activeItems = items;
 		this._onDidChangeActiveEmitter.fire(items);
 	}
 
@@ -486,39 +542,13 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 
 class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 
-	private _value = '';
-	private _placeholder: string;
 	private _password: boolean;
 	private _prompt: string;
 	private _validationMessage: string;
-	private _onDidChangeValueEmitter = new Emitter<string>();
-	private _onDidAcceptEmitter = new Emitter<string>();
 
 	constructor(proxy: MainThreadQuickOpenShape, extensionId: string, onDispose: () => void) {
 		super(proxy, extensionId, onDispose);
-		this._disposables.push(
-			this._onDidChangeValueEmitter,
-			this._onDidAcceptEmitter,
-		);
 		this.update({ type: 'inputBox' });
-	}
-
-	get value() {
-		return this._value;
-	}
-
-	set value(value: string) {
-		this._value = value;
-		this.update({ value });
-	}
-
-	get placeholder() {
-		return this._placeholder;
-	}
-
-	set placeholder(placeholder: string) {
-		this._placeholder = placeholder;
-		this.update({ placeholder });
 	}
 
 	get password() {
@@ -547,8 +577,4 @@ class ExtHostInputBox extends ExtHostQuickInput implements InputBox {
 		this._validationMessage = validationMessage;
 		this.update({ validationMessage });
 	}
-
-	onDidChangeValue = this._onDidChangeValueEmitter.event;
-
-	onDidAccept = this._onDidAcceptEmitter.event;
 }

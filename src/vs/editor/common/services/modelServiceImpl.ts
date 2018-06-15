@@ -131,7 +131,9 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (!marker.customTags || marker.customTags.indexOf(MarkerTag.Unnecessary) === -1) {
+				if (marker.customTags && marker.customTags.indexOf(MarkerTag.Unnecessary) >= 0) {
+					className = ClassName.EditorUnnecessaryDecoration;
+				} else {
 					className = ClassName.EditorHintDecoration;
 				}
 				zIndex = 0;
@@ -159,7 +161,7 @@ class ModelMarkerHandler {
 
 		if (marker.customTags) {
 			if (marker.customTags.indexOf(MarkerTag.Unnecessary) !== -1) {
-				inlineClassName = ClassName.EditorUnnecessaryDecoration;
+				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
 			}
 		}
 

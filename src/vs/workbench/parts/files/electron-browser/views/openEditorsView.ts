@@ -160,6 +160,7 @@ export class OpenEditorsView extends ViewletPanel {
 					}
 				}
 			}));
+			this.disposables.push(groupDisposables.get(group.id));
 		};
 
 		this.editorGroupService.groups.forEach(g => addGroupListener(g));
@@ -211,6 +212,10 @@ export class OpenEditorsView extends ViewletPanel {
 
 			return focused;
 		};
+
+		if (this.list) {
+			this.list.dispose();
+		}
 		this.list = this.instantiationService.createInstance(WorkbenchList, container, delegate, [
 			new EditorGroupRenderer(this.keybindingService, this.instantiationService, this.editorGroupService),
 			new OpenEditorRenderer(getSelectedElements, this.instantiationService, this.keybindingService, this.configurationService, this.editorGroupService)
@@ -218,6 +223,7 @@ export class OpenEditorsView extends ViewletPanel {
 				identityProvider: (element: OpenEditor | IEditorGroup) => element instanceof OpenEditor ? element.getId() : element.id.toString(),
 				selectOnMouseDown: false /* disabled to better support DND */
 			}) as WorkbenchList<OpenEditor | IEditorGroup>;
+		this.disposables.push(this.list);
 
 		this.contributedContextMenu = this.menuService.createMenu(MenuId.OpenEditorsContext, this.list.contextKeyService);
 		this.disposables.push(this.contributedContextMenu);

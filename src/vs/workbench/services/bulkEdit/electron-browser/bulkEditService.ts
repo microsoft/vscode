@@ -25,6 +25,7 @@ import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/pro
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 abstract class Recording {
 
@@ -269,6 +270,7 @@ export class BulkEdit {
 		progress: IProgressRunner,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
@@ -345,9 +347,9 @@ export class BulkEdit {
 			progress.report(undefined);
 
 			if (edit.newUri && edit.oldUri) {
-				await this._fileService.moveFile(edit.oldUri, edit.newUri, false);
+				await this._textFileService.move(edit.oldUri, edit.newUri, false);
 			} else if (!edit.newUri && edit.oldUri) {
-				await this._fileService.del(edit.oldUri, true);
+				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
 				await this._fileService.createFile(edit.newUri, undefined, { overwrite: false });
 			}
@@ -387,6 +389,7 @@ export class BulkEditService implements IBulkEditService {
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
@@ -419,7 +422,7 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._environmentService, this._contextService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
 		bulkEdit.add(edits);
 		return bulkEdit.perform().then(selection => {
 			return {

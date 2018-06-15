@@ -423,16 +423,11 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: 
 
 export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
+	let index = 0;
+	const len = promiseFactories.length;
 
-	// reverse since we start with last element using pop()
-	promiseFactories = promiseFactories.reverse();
-
-	function next(): Thenable<any> {
-		if (promiseFactories.length) {
-			return promiseFactories.pop()();
-		}
-
-		return null;
+	function next(): Thenable<T> | null {
+		return index < len ? promiseFactories[index++]() : null;
 	}
 
 	function thenHandler(result: any): Thenable<any> {
@@ -452,14 +447,15 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 }
 
 export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
-	promiseFactories = [...promiseFactories.reverse()];
+	let index = 0;
+	const len = promiseFactories.length;
 
 	const loop: () => TPromise<T> = () => {
-		if (promiseFactories.length === 0) {
+		if (index >= len) {
 			return TPromise.as(null);
 		}
 
-		const factory = promiseFactories.pop();
+		const factory = promiseFactories[index++];
 		const promise = factory();
 
 		return promise.then(result => {

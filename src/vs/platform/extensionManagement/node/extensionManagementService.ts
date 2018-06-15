@@ -658,7 +658,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
-		return pfs.exists(extension.path)
+		return pfs.exists(extension.location.path)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
@@ -747,7 +747,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 						manifest.extensionDependencies = manifest.extensionDependencies.map(id => adoptToGalleryExtensionId(id));
 					}
 					const identifier = { id: type === LocalExtensionType.System ? folderName : getLocalExtensionIdFromManifest(manifest), uuid: metadata ? metadata.id : null };
-					return { type, identifier, manifest, metadata, path: extensionPath, readmeUrl, changelogUrl };
+					return { type, identifier, manifest, metadata, location: URI.file(extensionPath), readmeUrl, changelogUrl };
 				}))
 			.then(null, () => null);
 	}
@@ -788,7 +788,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private removeExtension(extension: ILocalExtension, type: string): TPromise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id);
-		return pfs.rimraf(extension.path).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
+		return pfs.rimraf(extension.location.path).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
 	}
 
 	private isUninstalled(id: string): TPromise<boolean> {

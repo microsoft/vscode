@@ -754,7 +754,8 @@ declare module 'vscode' {
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
 		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
 		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
-		 * not adjusted.
+		 * not adjusted. Use [`ViewColumn.Beside`](#ViewColumn.Beside) to open the
+		 * editor to the side of the currently active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -4016,17 +4017,23 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Denotes a column in the editor window. Columns are
-	 * used to show editors side by side.
+	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
+	 * and each column represents one editor location in that grid by counting the editors
+	 * in order of their appearance.
 	 */
 	export enum ViewColumn {
 		/**
-		 * A *symbolic* editor column representing the currently
-		 * active column. This value can be used when opening editors, but the
-		 * *resolved* [viewColumn](#TextEditor.viewColumn)-value of editors will always
-		 * be `One`, `Two`, `Three`, or `undefined` but never `Active`.
+		 * A *symbolic* editor column representing the currently active column. This value
+		 * can be used when opening editors, but the *resolved* [viewColumn](#TextEditor.viewColumn)-value
+		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Active`.
 		 */
 		Active = -1,
+		/**
+		 * A *symbolic* editor column representing the column to the side of the active one. This value
+		 * can be used when opening editors, but the *resolved* [viewColumn](#TextEditor.viewColumn)-value
+		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Beside`.
+		 */
+		Beside = -2,
 		/**
 		 * The first editor column.
 		 */
@@ -4038,7 +4045,31 @@ declare module 'vscode' {
 		/**
 		 * The third editor column.
 		 */
-		Three = 3
+		Three = 3,
+		/**
+		 * The fourth editor column.
+		 */
+		Four = 4,
+		/**
+		 * The fifth editor column.
+		 */
+		Five = 5,
+		/**
+		 * The sixth editor column.
+		 */
+		Six = 6,
+		/**
+		 * The seventh editor column.
+		 */
+		Seven = 7,
+		/**
+		 * The eighth editor column.
+		 */
+		Eight = 8,
+		/**
+		 * The ninth editor column.
+		 */
+		Nine = 9
 	}
 
 	/**
@@ -5286,7 +5317,7 @@ declare module 'vscode' {
 		/**
 		 * Content settings for the webview.
 		 */
-		readonly options: WebviewOptions;
+		options: WebviewOptions;
 
 		/**
 		 * Contents of the webview.
@@ -5608,7 +5639,7 @@ declare module 'vscode' {
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 * An [event](#Event) which fires when the visible ranges of an editor has changed.
 		 */
 		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
 
@@ -5646,8 +5677,8 @@ declare module 'vscode' {
 		 *
 		 * @param document A text document to be shown.
 		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [active](#ViewColumn.Active), other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
-		 * not adjusted.
+		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is not adjusted. Use [`ViewColumn.Beside`](#ViewColumn.Beside)
+		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */

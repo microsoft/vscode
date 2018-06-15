@@ -16,6 +16,7 @@ import { isFalsyOrEmpty, binarySearch } from 'vs/base/common/arrays';
 import { commonPrefixLength } from 'vs/base/common/strings';
 import { IMarker, MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
+import { LRUCache } from 'vs/base/common/map';
 
 export abstract class TreeElement {
 	abstract id: string;
@@ -192,7 +193,49 @@ export class OutlineGroup extends TreeElement {
 
 export class OutlineModel extends TreeElement {
 
+	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
+
 	static create(textModel: ITextModel): TPromise<OutlineModel> {
+
+		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
+		let data = OutlineModel._requests.get(key);
+
+		if (!data) {
+			data = {
+				promiseCnt: 0,
+				promise: OutlineModel._create(textModel),
+				model: undefined,
+			};
+			OutlineModel._requests.set(key, data);
+		}
+
+		if (data.model) {
+			// resolved -> return data
+			return TPromise.as(data.model);
+		}
+
+		// increase usage counter
+		data.promiseCnt += 1;
+
+		return new TPromise((resolve, reject) => {
+			data.promise.then(model => {
+				data.model = model;
+				resolve(model);
+			}, err => {
+				OutlineModel._requests.delete(key);
+				reject(err);
+			});
+		}, () => {
+			// last -> cancel provider request, remove cached promise
+			if (--data.promiseCnt === 0) {
+				data.promise.cancel();
+				OutlineModel._requests.delete(key);
+			}
+		});
+	}
+
+	static _create(textModel: ITextModel): TPromise<OutlineModel> {
+
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
 
