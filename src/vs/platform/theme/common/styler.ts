@@ -285,7 +285,7 @@ export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
 	breadcrumbsItemSelectionForeground: listActiveSelectionForeground,
 	breadcrumbsActiveItemSelectionBackground: listActiveSelectionBackground,
 	breadcrumbsActiveItemSelectionForeground: listActiveSelectionForeground,
-	breadcrumbsInactiveItemSelectionBackground: listInactiveSelectionBackground,
+	breadcrumbsInactiveItemSelectionBackground: editorBackground,
 	breadcrumbsInactiveItemSelectionForeground: listInactiveSelectionForeground,
 };
 

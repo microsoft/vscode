@@ -102,7 +102,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 		const render = (element: FileElement, target: HTMLElement, disposables: IDisposable[]) => {
 			let label = this._instantiationService.createInstance(FileLabel, target, {});
-			label.setFile(element.uri, { fileKind: element.kind, hidePath: true });
+			label.setFile(element.uri, { fileKind: element.kind, hidePath: true, fileDecorations: { colors: false, badges: false } });
 			disposables.push(label);
 		};
 
@@ -111,19 +111,21 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		let path = uri.path;
 
 		while (true) {
-			if (workspace && isEqual(workspace.uri, uri, true) || path === '/') {
-				break;
-			}
-
 			let first = items.length === 0;
 			let name = paths.basename(path);
 			uri = uri.with({ path });
-			path = paths.dirname(path);
+			if (workspace && isEqual(workspace.uri, uri, true)) {
+				break;
+			}
 			items.unshift(new RenderedBreadcrumbsItem<FileElement>(
 				render,
 				{ name, uri, kind: first ? FileKind.FILE : FileKind.FOLDER },
 				!first
 			));
+			path = paths.dirname(path);
+			if (path === '/') {
+				break;
+			}
 		}
 
 		this._widget.replace(undefined, items);
@@ -168,6 +170,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				res.setInput(item.element.uri.with({ path: paths.dirname(item.element.uri.path) }));
 				res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
+					this._widget.select(undefined);
 					if (!data) {
 						return;
 					}
@@ -276,7 +279,11 @@ export class FileRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: IFileStat, templateId: string, templateData: FileLabel): void {
-		templateData.setFile(element.resource, { hidePath: true, fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE });
+		templateData.setFile(element.resource, {
+			hidePath: true,
+			fileKind: element.isDirectory ? FileKind.FOLDER : FileKind.FILE,
+			fileDecorations: { colors: true, badges: true }
+		});
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: FileLabel): void {
