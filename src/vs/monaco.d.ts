@@ -2772,6 +2772,11 @@ declare namespace monaco.editor {
 		 */
 		autoClosingBrackets?: boolean;
 		/**
+		 * Which characters may fall after the cursor in order for auto closing of brackets to occur.
+		 * Defaults to " \n\t".
+		 */
+		autoClosingEnabledBefore?: string;
+		/**
 		 * Enable auto indentation adjustment.
 		 * Defaults to false.
 		 */
@@ -3182,6 +3187,7 @@ declare namespace monaco.editor {
 		readonly showUnused: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
+		readonly autoClosingEnabledBefore: string;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;
@@ -3320,6 +3326,7 @@ declare namespace monaco.editor {
 		readonly multiCursorMergeOverlapping: boolean;
 		readonly wordSeparators: boolean;
 		readonly autoClosingBrackets: boolean;
+		readonly autoClosingEnabledBefore: boolean;
 		readonly autoIndent: boolean;
 		readonly useTabStops: boolean;
 		readonly tabFocusMode: boolean;

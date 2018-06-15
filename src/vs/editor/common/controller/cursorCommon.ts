@@ -80,6 +80,7 @@ export class CursorConfiguration {
 	public readonly emptySelectionClipboard: boolean;
 	public readonly multiCursorMergeOverlapping: boolean;
 	public readonly autoClosingBrackets: boolean;
+	public readonly autoClosingEnabledBefore: string;
 	public readonly autoIndent: boolean;
 	public readonly autoClosingPairsOpen: CharacterMap;
 	public readonly autoClosingPairsClose: CharacterMap;
@@ -122,6 +123,7 @@ export class CursorConfiguration {
 		this.emptySelectionClipboard = c.emptySelectionClipboard;
 		this.multiCursorMergeOverlapping = c.multiCursorMergeOverlapping;
 		this.autoClosingBrackets = c.autoClosingBrackets;
+		this.autoClosingEnabledBefore = c.autoClosingEnabledBefore;
 		this.autoIndent = c.autoIndent;
 
 		this.autoClosingPairsOpen = {};

@@ -428,6 +428,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.autoClosingBrackets,
 			'description': nls.localize('autoClosingBrackets', "Controls if the editor should automatically close brackets after opening them")
 		},
+		'editor.autoClosingEnabledBefore': {
+			'type': 'string',
+			'default': EDITOR_DEFAULTS.autoClosingEnabledBefore,
+			'description': nls.localize('autoClosingEnabledBefore', "Sets which characters may fall after the cursor in order for auto closing of brackets to occur")
+		},
 		'editor.formatOnType': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.formatOnType,

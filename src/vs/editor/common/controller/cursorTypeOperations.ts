@@ -538,7 +538,7 @@ export class TypeOperations {
 			const characterAfter = lineText.charAt(position.column - 1);
 			if (characterAfter) {
 				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-				if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+				if (!isBeforeCloseBrace && config.autoClosingEnabledBefore.indexOf(characterAfter) === -1) {
 					return false;
 				}
 			}
@@ -749,7 +749,7 @@ export class TypeOperations {
 
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-					if (!isBeforeCloseBrace && !/\s/.test(characterAfter)) {
+					if (!isBeforeCloseBrace && config.autoClosingEnabledBefore.indexOf(characterAfter) === -1) {
 						continue;
 					}
 				}
