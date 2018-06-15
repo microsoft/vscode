@@ -659,7 +659,7 @@ export interface DocumentSymbol {
  */
 export interface DocumentSymbolProvider {
 
-	extensionId?: string;
+	displayName?: string;
 
 	/**
 	 * Provide symbol information for the given document.

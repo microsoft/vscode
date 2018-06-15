@@ -15,7 +15,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
@@ -125,7 +124,6 @@ export interface OutlineTemplate {
 export class OutlineRenderer implements IRenderer {
 
 	constructor(
-		@IExtensionService readonly _extensionService: IExtensionService,
 		@IThemeService readonly _themeService: IThemeService,
 		@IConfigurationService readonly _configurationService: IConfigurationService
 	) {
@@ -169,18 +167,7 @@ export class OutlineRenderer implements IRenderer {
 
 		}
 		if (element instanceof OutlineGroup) {
-			this._extensionService.getExtensions().then(all => {
-				let found = false;
-				for (let i = 0; !found && i < all.length; i++) {
-					const extension = all[i];
-					if (extension.id === element.provider.extensionId) {
-						template.label.set(extension.displayName);
-						break;
-					}
-				}
-			}, _err => {
-				template.label.set(element.provider.extensionId);
-			});
+			template.label.set(element.provider.displayName || localize('provider', "Outline Provider"));
 		}
 	}
 
