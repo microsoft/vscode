@@ -132,6 +132,9 @@ export class BreadcrumbsWidget {
 
 	style(style: IBreadcrumbsWidgetStyles): void {
 		let content = '';
+		if (style.breadcrumbsBackground) {
+			content += `.monaco-breadcrumbs { background-color: ${style.breadcrumbsBackground}}`;
+		}
 		if (style.breadcrumbsItemFocusForeground) {
 			content += `.monaco-breadcrumbs:focus .monaco-breadcrumb-item.focused { color: ${style.breadcrumbsItemFocusForeground}}\n`;
 		}
