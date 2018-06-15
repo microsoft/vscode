@@ -134,3 +134,12 @@
 .monaco-shell .monaco-list:focus {
 	outline: 0 !important; /* tree indicates focus not via outline but through the focused item */
 }
+
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label,
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
+	padding: 0.5em 2em;
+}
+
+.monaco-shell .monaco-menu .monaco-action-bar.vertical {
+	padding: .5em 0;
+}
