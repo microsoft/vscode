@@ -442,6 +442,7 @@ export class GridView implements IDisposable {
 		this._root = root;
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
+		this._onDidChange.input = mapEvent(root.onDidChange, () => undefined); // TODO
 	}
 
 	get orientation(): Orientation {
@@ -466,6 +467,9 @@ export class GridView implements IDisposable {
 	get minimumHeight(): number { return this.root.minimumHeight; }
 	get maximumWidth(): number { return this.root.maximumHeight; }
 	get maximumHeight(): number { return this.root.maximumHeight; }
+
+	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
 	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
 		this.element = append(container, $('.monaco-grid-view'));
