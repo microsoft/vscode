@@ -193,6 +193,7 @@ export class OutlineGroup extends TreeElement {
 export class OutlineModel extends TreeElement {
 
 	static create(textModel: ITextModel): TPromise<OutlineModel> {
+
 		let result = new OutlineModel(textModel);
 		let promises = DocumentSymbolProviderRegistry.ordered(textModel).map((provider, index) => {
 
