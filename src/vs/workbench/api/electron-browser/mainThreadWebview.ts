@@ -7,7 +7,6 @@ import * as map from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -40,9 +39,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	constructor(
 		context: IExtHostContext,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
