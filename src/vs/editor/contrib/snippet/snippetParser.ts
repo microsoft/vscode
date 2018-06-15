@@ -500,9 +500,6 @@ export class TextmateSnippet extends Marker {
 		let ret = 0;
 		walk([marker], marker => {
 			ret += marker.len();
-			if (marker instanceof Transform) {
-				return false;
-			}
 			return true;
 		});
 		return ret;
