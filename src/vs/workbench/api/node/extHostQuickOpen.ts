@@ -329,7 +329,7 @@ class ExtHostQuickInput implements QuickInput {
 		this.update({
 			buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
 				iconPath: getIconUris(button.iconPath),
-				toolTip: button.tooltip,
+				tooltip: button.tooltip,
 				handle: i,
 			}))
 		});
