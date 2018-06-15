@@ -117,12 +117,12 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 	private registerListeners(): void {
 		this._register(this.themeService.onThemeChange(_ => this.layout()));
-		this._register(this.parts.editor.onDidSizeConstraintsChange(() => this.onDidEditorChange()));
+		this._register(this.parts.editor.onDidSizeConstraintsChange(() => this.onDidEditorSizeConstraintsChange()));
 
 		this.registerSashListeners();
 	}
 
-	private onDidEditorChange(): void {
+	private onDidEditorSizeConstraintsChange(): void {
 		if (this.workbenchSize && (this.sidebarWidth || this.panelHeight)) {
 			if (this.editorGroupService.count > 1) {
 				const minimumEditorPartSize = new Dimension(this.parts.editor.minimumWidth, this.parts.editor.minimumHeight);

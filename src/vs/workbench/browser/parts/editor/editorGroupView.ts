@@ -1336,7 +1336,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 	get maximumWidth(): number { return this.editorControl.maximumWidth; }
 	get maximumHeight(): number { return this.editorControl.maximumHeight; }
 
-	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	private _onDidChange = this._register(new Relay<{ width: number; height: number; }>());
 	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
 
 	layout(width: number, height: number): void {

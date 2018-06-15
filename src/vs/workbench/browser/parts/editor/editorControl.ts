@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { dispose, Disposable, IDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
+import { dispose, Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
 import { Dimension, show, hide, addClass } from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
@@ -37,12 +37,12 @@ export class EditorControl extends Disposable {
 	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; }>());
 	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return this._onDidSizeConstraintsChange.event; }
 
-	private activeControlFocusListener: IDisposable;
+	private _activeControl: BaseEditor;
+	private controls: BaseEditor[] = [];
+
+	private activeControlDisposeables: IDisposable[] = [];
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
-	private _activeControl: BaseEditor;
-	private activeControlDisposable: IDisposable = EmptyDisposable;
-	private controls: BaseEditor[] = [];
 
 	constructor(
 		private parent: HTMLElement,
@@ -83,15 +83,12 @@ export class EditorControl extends Disposable {
 		// Create editor
 		const control = this.doCreateEditorControl(descriptor);
 
-		// Remember editor as active
+		// Set editor as active
 		this.doSetActiveControl(control);
 
 		// Show editor
 		this.parent.appendChild(control.getContainer());
 		show(control.getContainer());
-
-		// Track focus
-		this.activeControlFocusListener = control.onDidFocus(() => this._onDidFocus.fire());
 
 		// Indicate to editor that it is now visible
 		control.setVisible(true, this.groupView);
@@ -137,13 +134,18 @@ export class EditorControl extends Disposable {
 	}
 
 	private doSetActiveControl(control: BaseEditor) {
-		this.activeControlDisposable.dispose();
 		this._activeControl = control;
 
+		// Clear out previous active control listeners
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
+
+		// Listen to control changes
 		if (control) {
-			this.activeControlDisposable = control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e));
+			this.activeControlDisposeables.push(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposeables.push(control.onDidFocus(() => this._onDidFocus.fire()));
 		}
 
+		// Indicate that size constraints could have changed due to new editor
 		this._onDidSizeConstraintsChange.fire();
 	}
 
@@ -215,9 +217,6 @@ export class EditorControl extends Disposable {
 
 		// Clear active control
 		this.doSetActiveControl(null);
-
-		// Clear focus listener
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
 	}
 
 	closeEditor(editor: EditorInput): void {
@@ -241,8 +240,7 @@ export class EditorControl extends Disposable {
 	}
 
 	dispose(): void {
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
-		this.activeControlDisposable = dispose(this.activeControlDisposable);
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
 
 		super.dispose();
 	}
