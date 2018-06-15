@@ -244,6 +244,7 @@ export class EditorControl extends Disposable {
 
 	dispose(): void {
 		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+		this.activeControlDisposable = dispose(this.activeControlDisposable);
 
 		super.dispose();
 	}
