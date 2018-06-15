@@ -5,20 +5,26 @@
 
 export class Query {
 
-	constructor(public value: string, public sortBy: string) {
+	constructor(public value: string, public sortBy: string, public groupBy: string) {
 		this.value = value.trim();
 	}
 
 	static parse(value: string): Query {
 		let sortBy = '';
-
 		value = value.replace(/@sort:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
 			sortBy = by;
 
 			return '';
 		});
 
-		return new Query(value, sortBy);
+		let groupBy = '';
+		value = value.replace(/@group:(\w+)(-\w*)?/g, (match, by: string, order: string) => {
+			groupBy = by;
+
+			return '';
+		});
+
+		return new Query(value, sortBy, groupBy);
 	}
 
 	toString(): string {
@@ -26,6 +32,9 @@ export class Query {
 
 		if (this.sortBy) {
 			result = `${result}${result ? ' ' : ''}@sort:${this.sortBy}`;
+		}
+		if (this.groupBy) {
+			result = `${result}${result ? ' ' : ''}@group:${this.groupBy}`;
 		}
 
 		return result;

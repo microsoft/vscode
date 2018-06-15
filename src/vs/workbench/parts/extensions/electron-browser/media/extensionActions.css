@@ -19,6 +19,8 @@
 	background: url('clear-inverse.svg') center center no-repeat;
 }
 
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.install:after,
+.monaco-action-bar .action-item .action-label.extension-action.multiserver.update:after,
 .monaco-action-bar .action-item .action-label.extension-action.enable:after,
 .monaco-action-bar .action-item .action-label.extension-action.disable:after {
 	content: '▼';
