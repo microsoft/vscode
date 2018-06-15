@@ -5,6 +5,7 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
@@ -12,11 +13,10 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
-import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from '../common/outlineModel';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { localize } from 'vs/nls';
