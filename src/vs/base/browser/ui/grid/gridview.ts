@@ -363,7 +363,7 @@ class LeafNode implements ISplitView, IDisposable {
 	}
 
 	get onDidChange(): Event<number> {
-		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
+		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
 	}
 
 	set orthogonalStartSash(sash: Sash) {

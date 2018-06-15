@@ -34,6 +34,14 @@ export class EditorControl extends Disposable {
 	private dimension: Dimension;
 	private editorOperation: LongRunningOperation;
 
+	get minimumWidth(): number { return this._activeControl ? this._activeControl.minimumWidth : 0; }
+	get minimumHeight(): number { return this._activeControl ? this._activeControl.minimumHeight : 0; }
+	get maximumWidth(): number { return this._activeControl ? this._activeControl.maximumWidth : Number.POSITIVE_INFINITY; }
+	get maximumHeight(): number { return this._activeControl ? this._activeControl.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	private _onDidChange = new Emitter<{ width: number; height: number; }>();
+	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
+
 	private _activeControl: BaseEditor;
 	private controls: BaseEditor[] = [];
 
@@ -47,6 +55,11 @@ export class EditorControl extends Disposable {
 		super();
 
 		this.editorOperation = this._register(new LongRunningOperation(progressService));
+	}
+
+	private setActiveControl(activeControl: BaseEditor) {
+		this._activeControl = activeControl;
+		this._onDidChange.fire();
 	}
 
 	get activeControl(): BaseEditor {
@@ -77,7 +90,7 @@ export class EditorControl extends Disposable {
 		const control = this.doCreateEditorControl(descriptor);
 
 		// Remember editor as active
-		this._activeControl = control;
+		this.setActiveControl(control);
 
 		// Show editor
 		this.parent.appendChild(control.getContainer());
@@ -196,7 +209,7 @@ export class EditorControl extends Disposable {
 		this._activeControl.setVisible(false, this.groupView);
 
 		// Clear active control
-		this._activeControl = null;
+		this.setActiveControl(null);
 
 		// Clear focus listener
 		this.activeControlFocusListener = dispose(this.activeControlFocusListener);

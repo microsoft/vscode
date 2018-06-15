@@ -16,6 +16,7 @@ import { LRUCache } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
 import { once } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -38,6 +39,11 @@ export abstract class BaseEditor extends Panel implements IEditor {
 
 	private _options: EditorOptions;
 	private _group: IEditorGroup;
+
+	readonly minimumWidth: number = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
+	readonly maximumWidth: number = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
+	readonly minimumHeight: number = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
+	readonly maximumHeight: number = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
 
 	constructor(
 		id: string,
