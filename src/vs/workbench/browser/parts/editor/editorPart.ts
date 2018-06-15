@@ -34,6 +34,7 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
+import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -85,6 +86,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private whenRestoredComplete: TValueCallback<void>;
 
 	private previousUIState: IEditorPartUIState;
+	private parentElement: HTMLElement;
+	private centeredViewLayout: CenteredViewLayout;
 
 	constructor(
 		id: string,
@@ -695,17 +698,41 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	createContentArea(parent: HTMLElement): HTMLElement {
 
 		// Grid control
+		this.parentElement = parent;
 		this.doCreateGridControl();
 
 		// Container
 		addClass(this.gridWidget.element, 'content');
-		parent.appendChild(this.gridWidget.element);
+		this.parentElement.appendChild(this.gridWidget.element);
 
 
 		// Drop support
 		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.gridWidget.element));
 
 		return this.gridWidget.element;
+	}
+
+	centerLayout(active: boolean): void {
+		if (!active && this.centeredViewLayout) {
+			this.parentElement.removeChild(this.centeredViewLayout.element);
+			this.parentElement.appendChild(this.gridWidget.element);
+			this.centeredViewLayout.dispose();
+			this.centeredViewLayout = undefined;
+		}
+
+		if (active) {
+			this.centeredViewLayout = new CenteredViewLayout(this.parentElement, {
+				element: this.gridWidget.element,
+				layout: size => this.gridWidget.layout(size, this.dimension ? this.dimension.height : this.gridWidget.maximumHeight),
+				minimumSize: this.gridWidget.minimumWidth,
+				maximumSize: this.gridWidget.maximumWidth,
+				onDidChange: Event.None
+			});
+		}
+	}
+
+	isLayoutCentered(): boolean {
+		return !!this.centeredViewLayout;
 	}
 
 	private doCreateGridControl(): void {
@@ -947,7 +974,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Layout Grid
 		try {
-			this.gridWidget.layout(this.dimension.width, this.dimension.height);
+			if (this.centeredViewLayout) {
+				this.centeredViewLayout.layout(this.dimension.width);
+			} else {
+				this.gridWidget.layout(this.dimension.width, this.dimension.height);
+			}
 		} catch (error) {
 			this.gridError(error);
 		}
@@ -988,6 +1019,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Grid widget
 		if (this.gridWidget) {
 			this.gridWidget = dispose(this.gridWidget);
+		}
+		if (this.centeredViewLayout) {
+			this.centeredViewLayout = dispose(this.centeredViewLayout);
 		}
 
 		super.dispose();

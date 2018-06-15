@@ -108,7 +108,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
@@ -218,7 +218,6 @@ export class Workbench extends Disposable implements IPartService {
 	private panelPosition: Position;
 	private panelHidden: boolean;
 	private zenMode: IZenMode;
-	private centeredEditorLayoutActive: boolean;
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
 
@@ -692,7 +691,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Forced Editor Center Mode
 		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.WORKSPACE, false)) {
-			this.centeredEditorLayoutActive = true;
+			this.centerEditorLayout(true);
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
@@ -846,9 +845,6 @@ export class Workbench extends Disposable implements IPartService {
 			wasPanelVisible: false,
 			transitionDisposeables: []
 		};
-
-		// Centered Editor Layout
-		this.centeredEditorLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1247,39 +1243,14 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	isEditorLayoutCentered(): boolean {
-		return this.centeredEditorLayoutActive;
+		return this.editorPart.isLayoutCentered();
 	}
 
-	// TODO@ben support centered editor layout using empty groups or not? functionality missing:
-	// - resize sashes left and right in sync
-	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
-	// - should we just allow to enter layout even if groups > 1? what does it then mean to be
-	//   actively in centered editor layout though?
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.centeredEditorLayoutActive = active;
-		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
 
 		// Enter Centered Editor Layout
-		if (active) {
-			if (this.editorGroupService.count === 1) {
-				const activeGroup = this.editorGroupService.activeGroup;
-				this.editorGroupService.addGroup(activeGroup, GroupDirection.LEFT);
-				this.editorGroupService.addGroup(activeGroup, GroupDirection.RIGHT);
-
-				this.editorGroupService.applyLayout({ groups: [{ size: 0.2 }, { size: 0.6 }, { size: 0.2 }], orientation: GroupOrientation.HORIZONTAL });
-			}
-		}
-
-		// Leave Centered Editor Layout
-		else {
-			if (this.editorGroupService.count === 3) {
-				this.editorGroupService.groups.forEach(group => {
-					if (group.count === 0) {
-						this.editorGroupService.removeGroup(group);
-					}
-				});
-			}
-		}
+		this.editorPart.centerLayout(active);
 
 		if (!skipLayout) {
 			this.layout();
