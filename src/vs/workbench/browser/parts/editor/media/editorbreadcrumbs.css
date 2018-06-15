@@ -3,10 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.monaco-workbench>.part.editor>.content .editor-breadcrumbs .monaco-breadcrumbs {
-	--color-item-focused: pink;
-}
-
-.monaco-workbench>.part.editor>.content .editor-breadcrumbs .monaco-breadcrumbs:focus .monaco-breadcrumb-item.focused {
-	color: var(--color-item-focused);
+.monaco-workbench>.part.editor>.content .editor-group-container:not(.active) .editor-breadcrumbs {
+	opacity: .8;
 }

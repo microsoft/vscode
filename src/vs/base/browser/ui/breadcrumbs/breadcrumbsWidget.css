@@ -12,10 +12,16 @@
 }
 
 .monaco-breadcrumbs .monaco-breadcrumb-item {
-	display: inline-block;
-	padding: 0 5px 0 5px;
+	display: flex;
+	align-items: center;
+	padding: 3px;
 	flex: 0 1 auto;
 	white-space: nowrap;
 	cursor: pointer;
 	align-self: center;
+	height: 100%;
+}
+
+.monaco-breadcrumbs .monaco-breadcrumb-item:nth-child(2) { /*first-child is the style-element*/
+	padding-left: 8px;
 }

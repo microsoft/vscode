@@ -262,3 +262,33 @@ export function attachProgressBarStyler(widget: IThemable, themeService: IThemeS
 export function attachStylerCallback(themeService: IThemeService, colors: { [name: string]: ColorIdentifier }, callback: styleFn): IDisposable {
 	return attachStyler(themeService, colors, callback);
 }
+
+export interface IBreadcrumbsWidgetStyleOverrides extends IStyleOverrides {
+	breadcrumbsBackground?: ColorIdentifier;
+	breadcrumbsItemHoverBackground?: ColorIdentifier;
+	breadcrumbsItemHoverForeground?: ColorIdentifier;
+	breadcrumbsItemFocusBackground?: ColorIdentifier;
+	breadcrumbsItemFocusForeground?: ColorIdentifier;
+	breadcrumbsActiveItemSelectionBackground?: ColorIdentifier;
+	breadcrumbsActiveItemSelectionForeground?: ColorIdentifier;
+	breadcrumbsInactiveItemSelectionBackground?: ColorIdentifier;
+	breadcrumbsInactiveItemSelectionForeground?: ColorIdentifier;
+}
+
+export const defaultBreadcrumbsStyles = <IBreadcrumbsWidgetStyleOverrides>{
+	breadcrumbsBackground: editorBackground,
+	breadcrumbsItemHoverBackground: listHoverBackground,
+	breadcrumbsItemHoverForeground: listHoverForeground,
+	breadcrumbsItemFocusBackground: listFocusBackground,
+	breadcrumbsItemFocusForeground: listFocusForeground,
+	breadcrumbsItemSelectionBackground: listActiveSelectionBackground,
+	breadcrumbsItemSelectionForeground: listActiveSelectionForeground,
+	breadcrumbsActiveItemSelectionBackground: listActiveSelectionBackground,
+	breadcrumbsActiveItemSelectionForeground: listActiveSelectionForeground,
+	breadcrumbsInactiveItemSelectionBackground: listInactiveSelectionBackground,
+	breadcrumbsInactiveItemSelectionForeground: listInactiveSelectionForeground,
+};
+
+export function attachBreadcrumbsStyler(widget: IThemable, themeService: IThemeService, style?: IBreadcrumbsWidgetStyleOverrides): IDisposable {
+	return attachStyler(themeService, { ...defaultBreadcrumbsStyles, ...style }, widget);
+}

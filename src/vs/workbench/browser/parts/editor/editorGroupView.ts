@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions, IEditorOpeningEvent, BREAD_CRUMPS_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions, IEditorOpeningEvent, BREAD_CRUMBS_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -1373,8 +1373,8 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Forward to controls
 		this.titleAreaControl.layout(new Dimension(this.dimension.width, EDITOR_TITLE_HEIGHT));
-		this.breadcrumbsControl.layout(new Dimension(this.dimension.width, BREAD_CRUMPS_HEIGHT));
-		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - (EDITOR_TITLE_HEIGHT + BREAD_CRUMPS_HEIGHT)));
+		this.breadcrumbsControl.layout(new Dimension(this.dimension.width, BREAD_CRUMBS_HEIGHT));
+		this.editorControl.layout(new Dimension(this.dimension.width, this.dimension.height - (EDITOR_TITLE_HEIGHT + BREAD_CRUMBS_HEIGHT)));
 	}
 
 	toJSON(): ISerializedEditorGroup {

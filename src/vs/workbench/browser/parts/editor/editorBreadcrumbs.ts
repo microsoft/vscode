@@ -29,6 +29,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { isEqual } from 'vs/base/common/resources';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
+import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 
 interface FileElement {
 	name: string;
@@ -57,13 +58,16 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWorkspaceContextService private readonly _workspaceService: IWorkspaceContextService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
+		@IThemeService private readonly _themeService: IThemeService,
 	) {
 		this._domNode = document.createElement('div');
 		dom.addClasses(this._domNode, 'editor-breadcrumbs', 'show-file-icons');
+		dom.append(container, this._domNode);
+
 		this._widget = new BreadcrumbsWidget(this._domNode);
 		this._widget.onDidSelectItem(this._onDidSelectItem, this, this._disposables);
 		this._widget.onDidChangeFocus(val => this._ckBreadcrumbsFocused.set(val), undefined, this._disposables);
-		container.appendChild(this._domNode);
+		this._disposables.push(attachBreadcrumbsStyler(this._widget, this._themeService));
 
 		this._ckBreadcrumbsVisible = EditorBreadcrumbs.CK_BreadcrumbsVisible.bindTo(this._contextKeyService);
 		this._ckBreadcrumbsFocused = EditorBreadcrumbs.CK_BreadcrumbsFocused.bindTo(this._contextKeyService);
@@ -143,7 +147,10 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 	}
 
 	select(): void {
-		this._widget.select();
+		const item = this._widget.getFocusedItem();
+		if (item) {
+			this._widget.select(item);
+		}
 	}
 
 	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
