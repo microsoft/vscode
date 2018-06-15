@@ -1091,9 +1091,9 @@ export class DebugService implements debug.IDebugService {
 				setTimeout(() => {
 					if (!taskStarted) {
 						const errorMessage = typeof taskId === 'string'
-							  ? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
-							  : nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskDisplayName)
-						e({ severity: severity.Error, message:  });
+							? nls.localize('taskNotTrackedWithTaskId', "The specified task cannot be tracked.")
+							: nls.localize('taskNotTracked', "The task '{0}' cannot be tracked.", taskId);
+						e({ severity: severity.Error, message: errorMessage });
 					}
 				}, 10000);
 			});
