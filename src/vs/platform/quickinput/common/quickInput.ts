@@ -88,6 +88,11 @@ export interface IInputOptions {
 
 export interface IQuickInput {
 
+	title: string | undefined;
+
+	step: number | undefined;
+
+	totalSteps: number | undefined;
 
 	enabled: boolean;
 

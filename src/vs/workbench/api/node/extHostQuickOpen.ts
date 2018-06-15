@@ -211,6 +211,9 @@ class ExtHostQuickInput implements QuickInput {
 	private static _nextId = 1;
 	_id = ExtHostQuickPick._nextId++;
 
+	private _title: string;
+	private _steps: number;
+	private _totalSteps: number;
 	private _visible = false;
 	private _enabled = true;
 	private _busy = false;
@@ -235,6 +238,33 @@ class ExtHostQuickInput implements QuickInput {
 	];
 
 	constructor(protected _proxy: MainThreadQuickOpenShape, protected _extensionId: string, private _onDidDispose: () => void) {
+	}
+
+	get title() {
+		return this._title;
+	}
+
+	set title(title: string) {
+		this._title = title;
+		this.update({ title });
+	}
+
+	get step() {
+		return this._steps;
+	}
+
+	set step(step: number) {
+		this._steps = step;
+		this.update({ step });
+	}
+
+	get totalSteps() {
+		return this._totalSteps;
+	}
+
+	set totalSteps(totalSteps: number) {
+		this._totalSteps = totalSteps;
+		this.update({ totalSteps });
 	}
 
 	get enabled() {

@@ -12,6 +12,10 @@
 	margin-left: -300px;
 }
 
+.quick-input-title {
+	padding: 3px 11px;
+}
+
 .quick-input-header {
 	display: flex;
 	padding: 6px 6px 4px 6px;

@@ -45,6 +45,7 @@ const $ = dom.$;
 
 interface QuickInputUI {
 	container: HTMLElement;
+	title: HTMLElement;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
@@ -61,6 +62,7 @@ interface QuickInputUI {
 }
 
 type Visibilities = {
+	title?: boolean;
 	checkAll?: boolean;
 	inputBox?: boolean;
 	count?: boolean;
@@ -71,6 +73,9 @@ type Visibilities = {
 
 class QuickInput implements IQuickInput {
 
+	private _title: string;
+	private _steps: number;
+	private _totalSteps: number;
 	protected visible = false;
 	private _enabled = true;
 	private _busy = false;
@@ -89,6 +94,33 @@ class QuickInput implements IQuickInput {
 	private busyDelay: TPromise<void>;
 
 	constructor(protected ui: QuickInputUI) {
+	}
+
+	get title() {
+		return this._title;
+	}
+
+	set title(title: string) {
+		this._title = title;
+		this.update();
+	}
+
+	get step() {
+		return this._steps;
+	}
+
+	set step(step: number) {
+		this._steps = step;
+		this.update();
+	}
+
+	get totalSteps() {
+		return this._totalSteps;
+	}
+
+	set totalSteps(totalSteps: number) {
+		this._totalSteps = totalSteps;
+		this.update();
 	}
 
 	get enabled() {
@@ -158,6 +190,10 @@ class QuickInput implements IQuickInput {
 		if (!this.visible) {
 			return;
 		}
+		const title = this.getTitle();
+		if (this.ui.title.textContent !== title) {
+			this.ui.title.textContent = title;
+		}
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = TPromise.timeout(800);
 			this.busyDelay.then(() => {
@@ -179,6 +215,29 @@ class QuickInput implements IQuickInput {
 			}), { icon: true, label: false });
 		}
 		this.ui.setEnabled(this.enabled);
+	}
+
+	private getTitle() {
+		if (this.title && this.step) {
+			return `${this.title} ― ${this.getSteps()}`;
+		}
+		if (this.title) {
+			return this.title;
+		}
+		if (this.step) {
+			return this.getSteps();
+		}
+		return '';
+	}
+
+	private getSteps() {
+		if (this.step && this.totalSteps) {
+			return localize('quickInput.steps', "{0} of {1}", this.step, this.totalSteps);
+		}
+		if (this.step) {
+			return String(this.step);
+		}
+		return '';
 	}
 
 	public dispose(): void {
@@ -385,7 +444,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
-		this.ui.setVisibilities(this.canSelectMany ? { checkAll: true, inputBox: true, count: true, ok: true, list: true } : { inputBox: true, list: true });
+		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, list: true });
 	}
 
 	configureQuickNavigate(quickNavigate: IQuickNavigateConfiguration) {
@@ -561,7 +620,7 @@ class InputBox extends QuickInput implements IInputBox {
 			this.ui.message.textContent = this.validationMessage;
 			this.ui.inputBox.showDecoration(Severity.Error);
 		}
-		this.ui.setVisibilities({ inputBox: true, message: true });
+		this.ui.setVisibilities({ title: !!this.title || !!this.step, inputBox: true, message: true });
 	}
 }
 
@@ -630,6 +689,8 @@ export class QuickInputService extends Component implements IQuickInputService {
 		const container = dom.append(workbench, $('.quick-input-widget'));
 		container.tabIndex = -1;
 		container.style.display = 'none';
+
+		const title = dom.append(container, $('.quick-input-title'));
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -733,6 +794,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.ui = {
 			container,
+			title,
 			checkAll,
 			inputBox,
 			count,
@@ -883,6 +945,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 
 		this.setEnabled(true);
+		this.ui.title.textContent = '';
 		this.ui.checkAll.checked = false;
 		// this.ui.inputBox.value = ''; Avoid triggering an event.
 		this.ui.inputBox.placeholder = '';
@@ -905,6 +968,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	}
 
 	private setVisibilities(visibilities: Visibilities) {
+		this.ui.title.style.display = visibilities.title ? '' : 'none';
 		this.ui.checkAll.style.display = visibilities.checkAll ? '' : 'none';
 		this.filterContainer.style.display = visibilities.inputBox ? '' : 'none';
 		this.countContainer.style.display = visibilities.count ? '' : 'none';
@@ -995,9 +1059,10 @@ export class QuickInputService extends Component implements IQuickInputService {
 	protected updateStyles() {
 		const theme = this.themeService.getTheme();
 		if (this.ui) {
+			// TODO
+			const titleColor = { dark: 'rgba(255, 255, 255, 0.105)', light: 'rgba(0,0,0,.06)', hc: 'black' }[theme.type];
+			this.ui.title.style.backgroundColor = titleColor ? titleColor.toString() : undefined;
 			this.ui.inputBox.style(theme);
-		}
-		if (this.ui) {
 			const sideBarBackground = theme.getColor(SIDE_BAR_BACKGROUND);
 			this.ui.container.style.backgroundColor = sideBarBackground ? sideBarBackground.toString() : undefined;
 			const sideBarForeground = theme.getColor(SIDE_BAR_FOREGROUND);

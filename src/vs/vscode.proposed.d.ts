@@ -455,6 +455,12 @@ declare module 'vscode' {
 
 	export interface QuickInput {
 
+		title: string | undefined;
+
+		step: number | undefined;
+
+		totalSteps: number | undefined;
+
 		enabled: boolean;
 
 		busy: boolean;
