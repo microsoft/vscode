@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle } from './extHost.protocol';
+import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
@@ -84,6 +84,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _visible: boolean = true;
+	private _active: boolean = true;
 
 	readonly _onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
@@ -163,7 +164,17 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this._viewColumn = value;
 	}
 
-	get visible(): boolean {
+	public get active(): boolean {
+		this.assertNotDisposed();
+		return this._active;
+	}
+
+	_setActive(value: boolean) {
+		this.assertNotDisposed();
+		this._active = value;
+	}
+
+	public get visible(): boolean {
 		this.assertNotDisposed();
 		return this._visible;
 	}
@@ -254,12 +265,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, visible: boolean, position: EditorViewColumn): void {
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
-			const viewColumn = typeConverters.ViewColumn.to(position);
-			if (panel.visible !== visible || panel.viewColumn !== viewColumn) {
-				panel._setVisible(visible);
+			const viewColumn = typeConverters.ViewColumn.to(newState.position);
+			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+				panel._setActive(newState.active);
+				panel._setVisible(newState.visible);
 				panel._setViewColumn(viewColumn);
 				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}

@@ -5404,6 +5404,11 @@ declare module 'vscode' {
 		readonly viewColumn?: ViewColumn;
 
 		/**
+		 * Is the panel currently active?
+		 */
+		readonly active: boolean;
+
+		/**
 		 * Is the panel currently visible?
 		 */
 		readonly visible: boolean;
