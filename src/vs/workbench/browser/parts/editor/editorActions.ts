@@ -1580,6 +1580,7 @@ export class EditorLayoutCenteredAction extends Action {
 	}
 
 	public run(): TPromise<any> {
+
 		// Ensure we can enter centered editor layout even if there are more than 1 groups
 		if (this.editorGroupService.count > 1) {
 			mergeAllGroups(this.editorGroupService);
