@@ -109,6 +109,7 @@ export interface IViewDescriptor {
 
 	readonly canToggleVisibility?: boolean;
 
+	// Applies only to newly created views
 	readonly hideByDefault?: boolean;
 }
 

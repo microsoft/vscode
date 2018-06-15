@@ -256,7 +256,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.$sendButton.addClass('send');
 		this.toDispose.push(attachButtonStyler(this.sendButton, this.themeService));
 
-		this.invoke(this.$sendButton, () => {
+		this.sendButton.onDidClick(() => {
 			if (this.isSendingFeedback) {
 				return;
 			}

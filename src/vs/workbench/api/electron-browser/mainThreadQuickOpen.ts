@@ -146,6 +146,9 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				input.onDidAccept(() => {
 					this._proxy.$onDidAccept(sessionId);
 				});
+				input.onDidTriggerButton(button => {
+					this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+				});
 				input.onDidChangeValue(value => {
 					this._proxy.$onDidChangeValue(sessionId, value);
 				});

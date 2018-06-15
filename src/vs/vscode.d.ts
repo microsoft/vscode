@@ -5639,7 +5639,7 @@ declare module 'vscode' {
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 * An [event](#Event) which fires when the visible ranges of an editor has changed.
 		 */
 		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
 

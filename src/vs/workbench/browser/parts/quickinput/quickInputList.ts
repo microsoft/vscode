@@ -291,6 +291,10 @@ export class QuickInputList {
 			.map(e => e.item);
 	}
 
+	set enabled(value: boolean) {
+		this.list.getHTMLElement().style.pointerEvents = value ? null : 'none';
+	}
+
 	focus(what: 'First' | 'Last' | 'Next' | 'Previous' | 'NextPage' | 'PreviousPage'): void {
 		if (!this.list.length) {
 			return;

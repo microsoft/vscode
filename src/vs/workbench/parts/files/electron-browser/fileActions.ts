@@ -308,7 +308,7 @@ class RenameFileAction extends BaseRenameAction {
 				renamed = this.element.parent.resource.with({ path: targetPath });
 			}
 
-			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
+			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated
 			else {
 				renamed = this.element.parent.resource.with({ path: paths.join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
 			}

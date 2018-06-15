@@ -16,7 +16,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import product from 'vs/platform/node/product';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { ShowRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction, InstallRecommendedExtensionAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import Severity from 'vs/base/common/severity';
 import { IWorkspaceContextService, IWorkspaceFolder, IWorkspace, IWorkspaceFoldersChangeEvent, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { Schemas } from 'vs/base/common/network';

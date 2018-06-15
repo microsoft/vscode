@@ -48,22 +48,23 @@ suite('MainThreadEditors', () => {
 		deletedResources.clear();
 
 		const fileService = new class extends TestFileService {
-			async moveFile(from: URI, target: URI): TPromise<IFileStat> {
-				movedResources.set(from, target);
-				return createMockFileStat(target);
-			}
 			async createFile(uri: URI): TPromise<IFileStat> {
 				createdResources.add(uri);
 				return createMockFileStat(uri);
-			}
-			async del(uri: URI): TPromise<any> {
-				deletedResources.add(uri);
 			}
 		};
 
 
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
+			delete(resource: URI) {
+				deletedResources.add(resource);
+				return TPromise.as(void 0);
+			}
+			move(source: URI, target: URI) {
+				movedResources.set(source, target);
+				return TPromise.as(void 0);
+			}
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,
@@ -73,7 +74,7 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 
-		const bulkEditService = new BulkEditService(modelService, new TestEditorService(), null, fileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
