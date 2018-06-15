@@ -76,10 +76,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, mainThreadShowOptions, {
-			...options,
-			localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
-		}, URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, mainThreadShowOptions, reviveWebviewOptions(options), URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -106,10 +103,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	public $setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
 		const webview = this.getWebview(handle);
-		webview.setOptions({
-			...options,
-			localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
-		});
+		webview.setOptions(reviveWebviewOptions(options));
 	}
 
 	public $reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
@@ -295,4 +289,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", viewType)}</body>
 		</html>`;
 	}
+}
+
+function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions {
+	return {
+		...options,
+		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
+	};
 }
