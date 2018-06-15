@@ -22,7 +22,6 @@ import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -123,6 +122,9 @@ export interface OutlineTemplate {
 
 export class OutlineRenderer implements IRenderer {
 
+	renderProblemColors = true;
+	renderProblemBadges = true;
+
 	constructor(
 		@IThemeService readonly _themeService: IThemeService,
 		@IConfigurationService readonly _configurationService: IConfigurationService
@@ -183,14 +185,14 @@ export class OutlineRenderer implements IRenderer {
 		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+		if (this.renderProblemColors) {
 			template.labelContainer.style.setProperty('--outline-element-color', color);
 		} else {
 			template.labelContainer.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
+		if (!this.renderProblemBadges) {
 			dom.hide(template.decoration);
 
 		} else if (count > 0) {
