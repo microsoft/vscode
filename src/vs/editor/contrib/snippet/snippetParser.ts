@@ -712,17 +712,21 @@ export class SnippetParser {
 			// ${1:<children>}
 			while (true) {
 
-
+				// ...} -> done
 				if (this._accept(TokenType.CurlyClose)) {
-					// ...} -> done
 					parent.appendChild(placeholder);
 					return true;
-				} else if (this._accept(TokenType.Forwardslash)) {
-					//../<regex>/<format>/<options>} -> transform
+				}
+
+				//../<regex>/<format>/<options>} -> transform
+				if (this._accept(TokenType.Forwardslash)) {
 					if (this._parseTransform(placeholder)) {
 						parent.appendChild(placeholder);
 						return true;
 					}
+
+					this._backTo(token);
+					return false;
 				}
 
 				if (this._parse(placeholder)) {
@@ -746,16 +750,19 @@ export class SnippetParser {
 						continue;
 					}
 
-					if (this._accept(TokenType.Pipe) && this._accept(TokenType.CurlyClose)) {
-						// ..|} -> done
+					if (this._accept(TokenType.Pipe)) {
 						placeholder.appendChild(choice);
-						parent.appendChild(placeholder);
-						return true;
-					} else if (this._accept(TokenType.Forwardslash)) {
-						// ...|/<regex>/<format>/<options>} -> transform
-						if (this._parseTransform(placeholder)) {
+						if (this._accept(TokenType.CurlyClose)) {
+							// ..|} -> done
 							parent.appendChild(placeholder);
 							return true;
+						}
+						if (this._accept(TokenType.Forwardslash)) {
+							// ...|/<regex>/<format>/<options>} -> transform
+							if (this._parseTransform(placeholder)) {
+								parent.appendChild(placeholder);
+								return true;
+							}
 						}
 					}
 				}
