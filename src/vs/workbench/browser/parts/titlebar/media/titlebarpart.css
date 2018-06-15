@@ -144,7 +144,8 @@
 	background-color: rgba(0, 0, 0, 0.1);
 }
 
-.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover {
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover,
+	.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-close:hover {
 	background-color: rgba(232, 17, 35, 0.9);
 	background-image: url('chrome-close-dark.svg');
 }
