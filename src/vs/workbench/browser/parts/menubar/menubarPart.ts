@@ -144,13 +144,14 @@ export class MenubarPart extends Part {
 			}
 		});
 
-		for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
-			this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupNativeMenubar());
-		}
-
 		this._onVisibilityChange = new Emitter<Dimension>();
 
-		this.setupNativeMenubar();
+		if (isMacintosh || this.currentTitlebarStyleSetting !== 'custom') {
+			for (let topLevelMenuName of Object.keys(this.topLevelMenus)) {
+				this.topLevelMenus[topLevelMenuName].onDidChange(() => this.setupMenubar());
+			}
+			this.setupMenubar();
+		}
 
 		this.isFocused = false;
 
@@ -247,7 +248,7 @@ export class MenubarPart extends Part {
 			}
 		}
 
-		if (this.currentEnableMenuBarMnemonics) {
+		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
 			this.customMenus.forEach(customMenu => {
 				let child = customMenu.titleElement.child();
 				if (child) {
@@ -276,7 +277,7 @@ export class MenubarPart extends Part {
 	}
 
 	private setupMenubar(): void {
-		if (this.currentTitlebarStyleSetting === 'custom') {
+		if (!isMacintosh && this.currentTitlebarStyleSetting === 'custom') {
 			this.setupCustomMenubar();
 		} else {
 			this.setupNativeMenubar();
@@ -284,7 +285,10 @@ export class MenubarPart extends Part {
 	}
 
 	private setupNativeMenubar(): void {
-		this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+		// TODO@sbatten: Remove once native menubar is ready
+		if (isMacintosh && isWindows) {
+			this.menubarService.updateMenubar(this.windowService.getCurrentWindowId(), this.getMenubarMenus());
+		}
 	}
 
 	private registerMnemonic(menuIndex: number, keyCode: KeyCode): void {
@@ -699,7 +703,7 @@ export class MenubarPart extends Part {
 
 		// Build the menubar
 		if (this.container) {
-			this.setupCustomMenubar();
+			this.setupMenubar();
 		}
 
 		return this.container.getHTMLElement();

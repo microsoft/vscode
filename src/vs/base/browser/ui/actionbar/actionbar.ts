@@ -278,7 +278,9 @@ export class ActionItem extends BaseActionItem {
 	public _updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
-			label = label.replace(BaseActionItem.MNEMONIC_REGEX, '<u>$1</u>');
+			if (label) {
+				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '<u>$1</u>');
+			}
 			this.$e.innerHtml(label);
 		}
 	}

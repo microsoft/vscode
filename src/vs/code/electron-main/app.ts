@@ -63,6 +63,8 @@ import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
 import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
 import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
+// TODO@sbatten: Remove after conversion to new dynamic menubar
+import { CodeMenu } from 'vs/code/electron-main/menus';
 
 export class CodeApplication {
 
@@ -491,6 +493,14 @@ export class CodeApplication {
 					});
 				}
 			}
+		}
+
+		// TODO@sbatten: Remove when menu is converted
+		// Install Menu
+		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
+		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
+			instantiationService.createInstance(CodeMenu);
 		}
 
 		// Jump List
