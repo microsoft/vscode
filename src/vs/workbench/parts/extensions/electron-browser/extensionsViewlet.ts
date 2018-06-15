@@ -103,42 +103,42 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createInstalledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.installedList',
+			id: 'extensions.installedExtensionsList',
 			name: localize('installedExtensions', "Installed"),
 			container: VIEW_CONTAINER,
 			ctor: InstalledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			order: 1,
 			weight: 30,
-			canToggleVisibility: true
+			canToggleVisibility: true,
+			hideByDefault: true
 		};
 	}
 
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.enabledList',
+			id: 'extensions.enabledExtensionsList',
 			name: localize('enabledExtensions', "Enabled"),
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
 			weight: 30,
 			canToggleVisibility: true,
-			order: 30,
-			collapsed: true
+			order: 1
 		};
 	}
 
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.disabledList',
+			id: 'extensions.disabledExtensionsList',
 			name: localize('disabledExtensions', "Disabled"),
 			container: VIEW_CONTAINER,
 			ctor: DisabledExtensionsView,
 			when: ContextKeyExpr.and(ContextKeyExpr.not('searchExtensions')),
-			weight: 30,
+			weight: 1,
 			canToggleVisibility: true,
-			order: 40,
-			collapsed: true
+			order: 30,
+			hideByDefault: true
 		};
 	}
 
