@@ -209,10 +209,13 @@ export class OutlineModel extends TreeElement {
 		data.count += 1;
 
 		return new TPromise((resolve, reject) => {
-			data.promise.then(resolve, reject);
+			data.promise.then(resolve, err => {
+				OutlineModel._requests.delete(key); // don't cache failure/cancelation
+				reject(err);
+			});
 		}, () => {
+			// last -> cancel provider request
 			if (--data.count === 0) {
-				// last -> cancel provider request
 				data.promise.cancel();
 			}
 		});
