@@ -16,7 +16,7 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/br
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Event } from 'vs/base/common/event';
+import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
 
 export class SideBySideEditor extends BaseEditor {
 
@@ -31,6 +31,31 @@ export class SideBySideEditor extends BaseEditor {
 	private detailsEditorContainer: HTMLElement;
 
 	private splitview: SplitView;
+
+	get minimumMasterWidth(): number { return this.masterEditor ? this.masterEditor.minimumWidth : 0; }
+	get maximumMasterWidth(): number { return this.masterEditor ? this.masterEditor.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumMasterHeight(): number { return this.masterEditor ? this.masterEditor.minimumHeight : 0; }
+	get maximumMasterHeight(): number { return this.masterEditor ? this.masterEditor.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	get minimumDetailsWidth(): number { return this.detailsEditor ? this.detailsEditor.minimumWidth : 0; }
+	get maximumDetailsWidth(): number { return this.detailsEditor ? this.detailsEditor.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumDetailsHeight(): number { return this.detailsEditor ? this.detailsEditor.minimumHeight : 0; }
+	get maximumDetailsHeight(): number { return this.detailsEditor ? this.detailsEditor.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	// these setters need to exist because this extends from BaseEditor
+	set minimumWidth(value: number) { /*noop*/ }
+	set maximumWidth(value: number) { /*noop*/ }
+	set minimumHeight(value: number) { /*noop*/ }
+	set maximumHeight(value: number) { /*noop*/ }
+
+	get minimumWidth(): number { return this.minimumMasterWidth + this.minimumDetailsWidth; }
+	get maximumWidth(): number { return this.maximumMasterWidth + this.maximumDetailsWidth; }
+	get minimumHeight(): number { return this.minimumMasterHeight + this.minimumDetailsHeight; }
+	get maximumHeight(): number { return this.maximumMasterHeight + this.maximumDetailsHeight; }
+
+	private _onDidCreateEditors = new Emitter<{ width: number; height: number; }>();
+	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	readonly onDidChange: Event<{ width: number; height: number; }> = anyEvent(this._onDidCreateEditors.event, this._onDidChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -163,6 +188,14 @@ export class SideBySideEditor extends BaseEditor {
 	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
+
+		this._onDidChange.input = anyEvent(
+			mapEvent(details.onDidChange, () => undefined),
+			mapEvent(master.onDidChange, () => undefined)
+		);
+
+		this._onDidCreateEditors.fire();
+
 		return TPromise.join([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
 
