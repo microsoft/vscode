@@ -32,7 +32,11 @@ import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { onUnexpectedError } from 'vs/base/common/errors';
+import { OutlineModel, OutlineGroup, OutlineElement, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
+import { asDisposablePromise } from 'vs/base/common/async';
+import { IPosition } from 'vs/editor/common/core/position';
+import { first } from 'vs/base/common/collections';
+import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 
 interface FileElement {
 	name: string;
@@ -141,63 +145,63 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			return;
 		}
 
-		let editorWait = new TPromise<boolean>(resolve => {
-			if (control.getModel() && control.getModel().uri.toString() === input.getResource().toString()) {
-				return resolve(true);
+
+		let oracle = new class extends Emitter<void> {
+
+			private readonly _listener: IDisposable[] = [];
+
+			constructor() {
+				super();
+				DocumentSymbolProviderRegistry.onDidChange(_ => this.fire());
+				this._listener.push(control.onDidChangeModel(_ => this._checkModel()));
+				this._listener.push(control.onDidChangeModelLanguage(_ => this._checkModel()));
+				this._checkModel();
 			}
-			let listener = control.onDidChangeModel(e => {
-				if (e.newModelUrl.toString() === input.getResource().toString()) {
-					resolve(true);
-					listener.dispose();
+
+			private _checkModel() {
+				if (control.getModel() && isEqual(control.getModel().uri, input.getResource())) {
+					this.fire();
 				}
-			});
-			this._editorDisposables.push({
-				dispose: () => {
-					resolve(false);
-					listener.dispose();
+			}
+
+			dispose(): void {
+				dispose(this._listener);
+				super.dispose();
+			}
+		};
+
+		this._editorDisposables.push(oracle);
+
+		oracle.event(async _ => {
+			let model = await asDisposablePromise(OutlineModel.create(control.getModel()), undefined, this._editorDisposables).promise;
+			if (!model) {
+				return;
+			}
+			type OutlineItem = OutlineElement | OutlineGroup;
+
+			let render = (element: OutlineItem, target: HTMLElement, disposables: IDisposable[]) => {
+				let label = this._instantiationService.createInstance(FileLabel, target, {});
+				if (element instanceof OutlineElement) {
+					label.setLabel({ name: element.symbol.name });
+				} else {
+					label.setLabel({ name: element.provider.displayName });
 				}
-			});
+				disposables.push(label);
+			};
+
+			let showOutlineForPosition = (position: IPosition) => {
+				let element = model.getItemEnclosingPosition(position) as TreeElement;
+				let outlineItems: RenderedBreadcrumbsItem<OutlineItem>[] = [];
+				while (element instanceof OutlineGroup || element instanceof OutlineElement) {
+					outlineItems.unshift(new RenderedBreadcrumbsItem<OutlineItem>(render, element, !!first(element.children)));
+					element = element.parent;
+				}
+				this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
+			};
+
+			showOutlineForPosition(control.getPosition());
+			debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._editorDisposables);
 		});
-
-		editorWait.then(success => {
-			console.log(success, control.getModel().uri.path);
-			if (!success) {
-				return undefined;
-			}
-			// let request = OutlineModel.create(control.getModel());
-			// let { promise } = asDisposablePromise(request, undefined, this._editorDisposables);
-			// return promise;
-
-			// }).then(model => {
-			// 	if (!model) {
-			// 		console.log('canceled', control.getModel().uri.path);
-			// 		return; // canceled
-			// 	}
-
-			// 	let showOutlineForPosition = (position: IPosition) => {
-			// 		console.log('show', model.textModel.uri.path);
-			// 		let element: OutlineElement | OutlineGroup = model.getItemEnclosingPosition(position);
-			// 		let outlineItems: SimpleBreadcrumbsItem[] = [];
-			// 		while (element) {
-			// 			if (element instanceof OutlineElement) {
-			// 				outlineItems.push(new SimpleBreadcrumbsItem(element.symbol.name));
-			// 			} else {
-			// 				outlineItems.push(new SimpleBreadcrumbsItem(element.providerIndex.toString()));
-			// 			}
-			// 			if (element.parent instanceof OutlineElement || element.parent instanceof OutlineGroup) {
-			// 				element = element.parent;
-			// 			} else {
-			// 				element = undefined;
-			// 			}
-			// 		}
-			// 		outlineItems.reverse();
-			// 		this._widget.splice(fileItems.length, this._widget.items().length - fileItems.length, outlineItems);
-			// 	};
-
-			// 	showOutlineForPosition(control.getPosition());
-			// 	debounceEvent(control.onDidChangeCursorPosition, (last, cur) => cur, 100)(_ => showOutlineForPosition(control.getPosition()), undefined, this._editorDisposables);
-
-		}, onUnexpectedError);
 	}
 
 	closeEditor(input: EditorInput): void {
@@ -226,7 +230,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
 	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
 
-		if (!(item instanceof RenderedBreadcrumbsItem)) {
+		if (item.element instanceof TreeElement) {
 			return;
 		}
 
