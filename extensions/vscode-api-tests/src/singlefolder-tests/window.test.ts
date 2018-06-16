@@ -550,7 +550,6 @@ suite('window namespace tests', () => {
 			});
 		});
 
-
 		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
@@ -564,6 +563,23 @@ suite('window namespace tests', () => {
 					terminal.dispose();
 				});
 				renderer.write('bar');
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				reg1.dispose();
+				const reg2 = renderer.onInput(data => {
+					assert.equal(data, 'bar');
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+				terminal.sendText('bar', false);
 			});
 			const renderer = window.createTerminalRenderer('foo');
 		});
