@@ -92,7 +92,6 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 	}
 
 	public createTerminalRenderer(name: string): ITerminalInstance {
-		console.log('createTerminalRenderer', name);
 		return this.createTerminal({ name, isRendererOnly: true });
 	}
 

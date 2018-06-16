@@ -124,7 +124,9 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	public $registerOnDataListener(terminalId: number): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
-			terminalInstance.addDisposable(terminalInstance.onData(data => this._onTerminalData(terminalId, data)));
+			terminalInstance.addDisposable(terminalInstance.onData(data => {
+				this._onTerminalData(terminalId, data);
+			}));
 		}
 	}
 
