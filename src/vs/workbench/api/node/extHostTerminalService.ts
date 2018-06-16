@@ -239,34 +239,28 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
-		const index = this._getTerminalIndexById(id);
-		if (index === null) {
-			return;
+		const terminal = this._getTerminalById(id);
+		if (terminal) {
+			terminal._fireOnData(data);
 		}
-		const terminal = this._terminals[index];
-		terminal._fireOnData(data);
 	}
 
 	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
-		const index = this._getTerminalRendererIndexById(id);
-		if (index === null) {
-			return;
+		const renderer = this._getTerminalRendererById(id);
+		if (renderer) {
+			renderer._setMaximumDimensions(cols, rows);
 		}
-		const renderer = this._terminalRenderers[index];
-		renderer._setMaximumDimensions(cols, rows);
 	}
 
 	public $acceptTerminalRendererInput(id: number, data: string): void {
-		const index = this._getTerminalRendererIndexById(id);
-		if (index === null) {
-			return;
+		const renderer = this._getTerminalRendererById(id);
+		if (renderer) {
+			renderer._fireOnInput(data);
 		}
-		const renderer = this._terminalRenderers[index];
-		renderer._fireOnInput(data);
 	}
 
 	public $acceptTerminalClosed(id: number): void {
-		const index = this._getTerminalIndexById(id);
+		const index = this._getTerminalObjectIndexById(this.terminals, id);
 		if (index === null) {
 			return;
 		}
@@ -275,7 +269,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalOpened(id: number, name: string): void {
-		const index = this._getTerminalIndexById(id);
+		const index = this._getTerminalObjectIndexById(this._terminals, id);
 		if (index !== null) {
 			// The terminal has already been created (via createTerminal*), only fire the event
 			this._onDidOpenTerminal.fire(this.terminals[index]);
@@ -387,28 +381,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
-		const index = this._getTerminalIndexById(id);
-		return index !== null ? this._terminals[index] : null;
+		return this._getTerminalObjectById(this._terminals, id);
 	}
 
-	private _getTerminalIndexById(id: number): number {
-		let index: number = null;
-		this._terminals.some((terminal, i) => {
-			const thisId = terminal._id;
-			if (thisId === id) {
-				index = i;
-				return true;
-			}
-			return false;
-		});
-		return index;
+	private _getTerminalRendererById(id: number): ExtHostTerminalRenderer {
+		return this._getTerminalObjectById(this._terminalRenderers, id);
 	}
 
-	// TODO: Factor out common bits
-	private _getTerminalRendererIndexById(id: number): number {
+	private _getTerminalObjectById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): T {
+		const index = this._getTerminalObjectIndexById(array, id);
+		return index !== null ? array[index] : null;
+	}
+
+	private _getTerminalObjectIndexById<T extends ExtHostTerminal | ExtHostTerminalRenderer>(array: T[], id: number): number {
 		let index: number = null;
-		this._terminalRenderers.some((renderer, i) => {
-			const thisId = renderer._id;
+		array.some((item, i) => {
+			const thisId = item._id;
 			if (thisId === id) {
 				index = i;
 				return true;
