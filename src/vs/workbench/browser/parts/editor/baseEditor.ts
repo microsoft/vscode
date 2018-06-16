@@ -14,8 +14,9 @@ import { IEditorGroup, IEditorGroupsService } from 'vs/workbench/services/group/
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { LRUCache } from 'vs/base/common/map';
 import URI from 'vs/base/common/uri';
-import { once } from 'vs/base/common/event';
+import { once, Event } from 'vs/base/common/event';
 import { isEmptyObject } from 'vs/base/common/types';
+import { DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 
 /**
  * The base class of editors in the workbench. Editors register themselves for specific editor inputs.
@@ -31,6 +32,13 @@ import { isEmptyObject } from 'vs/base/common/types';
  * This class is only intended to be subclassed and not instantiated.
  */
 export abstract class BaseEditor extends Panel implements IEditor {
+
+	readonly minimumWidth = DEFAULT_EDITOR_MIN_DIMENSIONS.width;
+	readonly maximumWidth = DEFAULT_EDITOR_MAX_DIMENSIONS.width;
+	readonly minimumHeight = DEFAULT_EDITOR_MIN_DIMENSIONS.height;
+	readonly maximumHeight = DEFAULT_EDITOR_MAX_DIMENSIONS.height;
+
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = Event.None;
 
 	private static readonly EDITOR_MEMENTOS: Map<string, EditorMemento<any>> = new Map<string, EditorMemento<any>>();
 

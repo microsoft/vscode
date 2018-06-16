@@ -9,7 +9,7 @@ import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
 import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -63,6 +63,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	private _onDidMoveGroup: Emitter<IEditorGroupView> = this._register(new Emitter<IEditorGroupView>());
 	get onDidMoveGroup(): Event<IEditorGroupView> { return this._onDidMoveGroup.event; }
+
+	private onDidSetGridWidget = this._register(new Emitter<{ width: number; height: number; }>());
+	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return anyEvent(this.onDidSetGridWidget.event, this._onDidSizeConstraintsChange.event); }
 
 	private _onDidPreferredSizeChange: Emitter<void> = this._register(new Emitter<void>());
 	get onDidPreferredSizeChange(): Event<void> { return this._onDidPreferredSizeChange.event; }
@@ -665,6 +669,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	//#region Part
 
+	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
+	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
+	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
 			this._preferredSize = new Dimension(this.gridWidget.minimumWidth, this.gridWidget.minimumHeight);
@@ -718,7 +727,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		// Grid Widget (no previous UI state or failed to restore)
 		if (!this.gridWidget) {
 			const initialGroup = this.doCreateGroupView();
-			this.gridWidget = new SerializableGrid(initialGroup);
+			this.doSetGridWidget(new SerializableGrid(initialGroup));
 
 			// Ensure a group is active
 			this.doSetGroupActive(initialGroup);
@@ -749,7 +758,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				if (this.gridWidget) {
 					clearNode(this.gridWidget.element);
 					this.gridWidget.dispose();
-					this.gridWidget = void 0;
+					this.doSetGridWidget();
 				}
 
 				this.groupViews.forEach(group => group.dispose());
@@ -778,7 +787,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
-		this.gridWidget = SerializableGrid.deserialize(serializedGrid, {
+		this.doSetGridWidget(SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
@@ -793,7 +802,17 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 				return groupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+		}, { styles: { separatorBorder: this.gridSeparatorBorder } }));
+	}
+
+	private doSetGridWidget(gridWidget?: SerializableGrid<IEditorGroupView>): void {
+		this.gridWidget = gridWidget;
+
+		if (gridWidget) {
+			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
+		}
+
+		this.onDidSetGridWidget.fire();
 	}
 
 	private doGetPreviousState(): IEditorPartUIState {
