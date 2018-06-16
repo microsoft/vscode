@@ -99,6 +99,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onProcessIdReady(): Event<ITerminalInstance> { return this._onProcessIdReady.event; }
 	private readonly _onTitleChanged: Emitter<string> = new Emitter<string>();
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
+	private readonly _onData: Emitter<string> = new Emitter<string>();
+	public get onData(): Event<string> { return this._onData.event; }
 	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
@@ -607,6 +609,10 @@ export class TerminalInstance implements ITerminalInstance {
 				return;
 			}
 			this._xterm.write(text);
+			if (this._shellLaunchConfig.isRendererOnly) {
+				// Fire onData API in the extension host
+				this._onData.fire(text);
+			}
 		});
 	}
 
@@ -694,6 +700,8 @@ export class TerminalInstance implements ITerminalInstance {
 		this._processManager.onProcessReady(() => this._onProcessIdReady.fire(this));
 		this._processManager.onProcessExit(exitCode => this._onProcessExit(exitCode));
 		this._processManager.createProcess(this._shellLaunchConfig, this._cols, this._rows);
+
+		this._processManager.onProcessData(data => this._onData.fire(data));
 
 		if (this._shellLaunchConfig.name) {
 			this.setTitle(this._shellLaunchConfig.name, false);
@@ -824,14 +832,6 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Set the new shell launch config
 		this._shellLaunchConfig = shell;
-	}
-
-	public onData(listener: (data: string) => void): lifecycle.IDisposable {
-		// TODO: This should still work for renderers
-		if (!this._processManager) {
-			return null;
-		}
-		return this._processManager.onProcessData(data => listener(data));
 	}
 
 	public onRendererInput(listener: (data: string) => void): lifecycle.IDisposable {
