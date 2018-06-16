@@ -300,15 +300,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
 		if (this._shellLaunchConfig.isRendererOnly) {
-			const listener = (data) => this._sendRendererInput(data);
-			this._xterm.on('data', listener);
-			this._disposables.push({
-				dispose: () => {
-					if (this._xterm) {
-						this._xterm.off('data', listener);
-					}
-				}
-			});
+			this._xterm.on('data', (data) => this._sendRendererInput(data));
 		}
 
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
