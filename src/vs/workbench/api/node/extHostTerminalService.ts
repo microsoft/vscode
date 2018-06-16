@@ -15,6 +15,7 @@ import { ExtHostTerminalServiceShape, MainContext, MainThreadTerminalServiceShap
 import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/terminal';
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
+import { EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 
 const RENDERER_NO_PROCESS_ID = -1;
 
@@ -297,7 +298,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			setTimeout(() => {
 				terminal = this._getTerminalById(id);
 				terminal._setProcessId(processId);
-			}, 1000);
+			}, EXT_HOST_CREATION_DELAY);
 		}
 	}
 

@@ -36,6 +36,11 @@ export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWor
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
+// The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
+// this delay is to allow the terminal instance to initialize correctly and have its ID set before
+// trying to create the corressponding object on the ext host.
+export const EXT_HOST_CREATION_DELAY = 100;
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {

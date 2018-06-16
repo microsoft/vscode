@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -26,7 +26,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
-			setTimeout(() => this._onTerminalOpened(instance), 100);
+			setTimeout(() => this._onTerminalOpened(instance), EXT_HOST_CREATION_DELAY);
 		}));
 		this._toDispose.push(terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
