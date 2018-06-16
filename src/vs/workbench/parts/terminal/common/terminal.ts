@@ -297,6 +297,38 @@ export interface ITerminalInstance {
 
 	onDimensionsChanged: Event<void>;
 
+	/**
+	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * sequences.
+	 */
+	onData: Event<string>;
+
+	/**
+	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
+	 * keystrokes and when the Terminal.sendText extension API is used.
+	 * @param listener The listener function.
+	 */
+	onRendererInput: Event<string>;
+
+	/**
+	 * Attach a listener to listen for new lines added to this terminal instance.
+	 *
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
+	 * not fire for the last line, until either the line is ended with a LF character of the process
+	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
+	 * characters.
+	 */
+	onLineData: Event<string>;
+
+	/**
+	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
+	 * is the processes' exit code, an exit code of null means the process was killed as a result of
+	 * the ITerminalInstance being disposed.
+	 */
+	onExit: Event<number>;
+
 	processReady: TPromise<void>;
 
 	/**
@@ -482,40 +514,6 @@ export interface ITerminalInstance {
 	 * @param visible Whether the element is visible.
 	 */
 	setVisible(visible: boolean): void;
-
-	/**
-	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
-	 * sequences.
-	 * @param listener  The listener function.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
-	 * keystrokes and when the Terminal.sendText extension API is used.
-	 * @param listener The listener function.
-	 */
-	onRendererInput(listener: (data: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener to listen for new lines added to this terminal instance.
-	 *
-	 * @param listener The listener function which takes new line strings added to the terminal,
-	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
-	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
-	 * not fire for the last line, until either the line is ended with a LF character of the process
-	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
-	 * characters.
-	 */
-	onLineData(listener: (lineData: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener that fires when the terminal's pty process exits.
-	 *
-	 * @param listener The listener function which takes the processes' exit code, an exit code of
-	 * null means the process was killed as a result of the ITerminalInstance being disposed.
-	 */
-	onExit(listener: (exitCode: number) => void): IDisposable;
 
 	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.

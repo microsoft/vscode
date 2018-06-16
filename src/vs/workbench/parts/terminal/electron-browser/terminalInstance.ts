@@ -65,7 +65,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
-	private _onLineDataListeners: ((lineData: string) => void)[] = [];
 	private _xtermReadyPromise: TPromise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
@@ -90,6 +89,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get shellLaunchConfig(): IShellLaunchConfig { return this._shellLaunchConfig; }
 	public get commandTracker(): TerminalCommandTracker { return this._commandTracker; }
 
+	private readonly _onExit: Emitter<number> = new Emitter<number>();
+	public get onExit(): Event<number> { return this._onExit.event; }
 	private readonly _onDisposed: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onDisposed(): Event<ITerminalInstance> { return this._onDisposed.event; }
 	private readonly _onFocused: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
@@ -100,6 +101,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
+	private readonly _onLineData: Emitter<string> = new Emitter<string>();
+	public get onLineData(): Event<string> { return this._onLineData.event; }
 	private readonly _onRendererInput: Emitter<string> = new Emitter<string>();
 	public get onRendererInput(): Event<string> { return this._onRendererInput.event; }
 	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
@@ -300,7 +303,11 @@ export class TerminalInstance implements ITerminalInstance {
 			const listener = (data) => this._sendRendererInput(data);
 			this._xterm.on('data', listener);
 			this._disposables.push({
-				dispose: () => this._xterm.off('data', listener)
+				dispose: () => {
+					if (this._xterm) {
+						this._xterm.off('data', listener);
+					}
+				}
 			});
 		}
 
@@ -575,7 +582,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
-		this._onLineDataListeners = null;
 		if (this._processManager) {
 			this._processManager.dispose();
 		}
@@ -794,6 +800,8 @@ export class TerminalInstance implements ITerminalInstance {
 				}
 			}
 		}
+
+		this._onExit.fire(exitCode);
 	}
 
 	private _attachPressAnyKeyToCloseListener() {
@@ -843,22 +851,7 @@ export class TerminalInstance implements ITerminalInstance {
 		this._onRendererInput.fire(input);
 	}
 
-	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
-		this._onLineDataListeners.push(listener);
-		return {
-			dispose: () => {
-				const i = this._onLineDataListeners.indexOf(listener);
-				if (i >= 0) {
-					this._onLineDataListeners.splice(i, 1);
-				}
-			}
-		};
-	}
-
 	private _onLineFeed(): void {
-		if (this._onLineDataListeners.length === 0) {
-			return;
-		}
 		const buffer = (<any>this._xterm.buffer);
 		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
 		if (!newLine.isWrapped) {
@@ -871,17 +864,7 @@ export class TerminalInstance implements ITerminalInstance {
 		while (lineIndex >= 0 && buffer.lines.get(lineIndex--).isWrapped) {
 			lineData = buffer.translateBufferLineToString(lineIndex, false) + lineData;
 		}
-		this._onLineDataListeners.forEach(listener => {
-			try {
-				listener(lineData);
-			} catch (err) {
-				console.error(`onLineData listener threw`, err);
-			}
-		});
-	}
-
-	public onExit(listener: (exitCode: number) => void): lifecycle.IDisposable {
-		return this._processManager.onProcessExit(listener);
+		this._onLineData.fire(lineData);
 	}
 
 	public updateConfig(): void {
