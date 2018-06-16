@@ -16,6 +16,8 @@ import { IMessageFromTerminalProcess } from 'vs/workbench/parts/terminal/node/te
 import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration';
 import { ILogService } from 'vs/platform/log/common/log';
 
+const RENDERER_NO_PROCESS_ID = -1;
+
 export class BaseExtHostTerminal {
 	public _id: number;
 	private _disposed: boolean = false;
@@ -71,14 +73,19 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
-		id?: number
+		id?: number,
+		pid?: number
 	) {
 		super(proxy);
 		if (id) {
 			this._id = id;
 		}
 		this._pidPromise = new Promise<number>(c => {
-			this._pidPromiseComplete = c;
+			if (pid === RENDERER_NO_PROCESS_ID) {
+				c(undefined);
+			} else {
+				this._pidPromiseComplete = c;
+			}
 		});
 	}
 
@@ -233,7 +240,6 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
 		const renderer = new ExtHostTerminalRenderer(this._proxy, name);
-		console.log('Creating new terminal renderer');
 		this._terminalRenderers.push(renderer);
 		return renderer;
 	}
@@ -275,15 +281,23 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			this._onDidOpenTerminal.fire(this.terminals[index]);
 			return;
 		}
-		const terminal = new ExtHostTerminal(this._proxy, name, id);
+		const renderer = this._getTerminalRendererById(id);
+		const terminal = new ExtHostTerminal(this._proxy, name, id, renderer ? RENDERER_NO_PROCESS_ID : undefined);
 		this._terminals.push(terminal);
 		this._onDidOpenTerminal.fire(terminal);
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
-		const terminal = this._getTerminalById(id);
+		let terminal = this._getTerminalById(id);
+
 		if (terminal) {
 			terminal._setProcessId(processId);
+		} else {
+			// Retry one more time in case the terminal has not yet been initialized.
+			setTimeout(() => {
+				terminal = this._getTerminalById(id);
+				terminal._setProcessId(processId);
+			}, 1000);
 		}
 	}
 
