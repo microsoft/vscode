@@ -401,17 +401,15 @@ declare module 'vscode' {
 		 *
 		 * @param text The text to write.
 		 */
-		write(text: string): void; // out
+		write(text: string): void;
 
-		// TODO: Should this be onInput instead?
 		/**
 		 * An event which fires on keystrokes in the terminal or when an extension calls
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
 		 */
-		onInput: Event<string>; // in
+		onInput: Event<string>;
 
-		// Fires when the panel area is resized, this DOES NOT fire when `dimensions` is set
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
 		 * the terminal renderer change.
