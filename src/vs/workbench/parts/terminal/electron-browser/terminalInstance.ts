@@ -65,7 +65,6 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
-	private _onRendererInputListeners: ((input: string) => void)[] = [];
 	private _onLineDataListeners: ((lineData: string) => void)[] = [];
 	private _xtermReadyPromise: TPromise<void>;
 
@@ -101,6 +100,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	private readonly _onData: Emitter<string> = new Emitter<string>();
 	public get onData(): Event<string> { return this._onData.event; }
+	private readonly _onRendererInput: Emitter<string> = new Emitter<string>();
+	public get onRendererInput(): Event<string> { return this._onRendererInput.event; }
 	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
@@ -575,7 +576,6 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm = null;
 		}
 		this._onLineDataListeners = null;
-		this._onRendererInputListeners = null;
 		if (this._processManager) {
 			this._processManager.dispose();
 		}
@@ -834,31 +834,13 @@ export class TerminalInstance implements ITerminalInstance {
 		this._shellLaunchConfig = shell;
 	}
 
-	public onRendererInput(listener: (data: string) => void): lifecycle.IDisposable {
-		this._onRendererInputListeners.push(listener);
-		return {
-			dispose: () => {
-				const i = this._onRendererInputListeners.indexOf(listener);
-				if (i >= 0) {
-					this._onRendererInputListeners.splice(i, 1);
-				}
-			}
-		};
-	}
-
 	private _sendRendererInput(input: string): void {
 		if (this._processManager) {
 			throw new Error('onRendererInput attempted to be used on a regular terminal');
 		}
 
 		// For terminal renderers onData fires on keystrokes and when sendText is called.
-		this._onRendererInputListeners.forEach(listener => {
-			try {
-				listener(input);
-			} catch (err) {
-				console.error(`onInput listener threw`, err);
-			}
-		});
+		this._onRendererInput.fire(input);
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
