@@ -49,6 +49,7 @@ import { ISingleEditOperation } from 'vs/editor/common/model';
 import { IPatternInfo, IRawSearchQuery, IRawFileMatch2, ISearchCompleteStats } from 'vs/platform/search/common/search';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { TaskExecutionDTO, TaskDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO } from 'vs/workbench/api/shared/tasks';
+import { ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 
 export interface IEnvironment {
 	isExtensionDevelopmentDebug: boolean;
@@ -339,6 +340,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 
 	// Renderer
 	$terminalRendererSetName(terminalId: number, name: string): void;
+	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
 	$terminalRendererWrite(terminalId: number, text: string): void;
 	$terminalRendererRegisterOnDataListener(terminalId: number): void;
 }
@@ -843,6 +845,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
 	$acceptTerminalRendererData(id: number, data: string): void;
+	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;
 	$acceptProcessResize(id: number, cols: number, rows: number): void;

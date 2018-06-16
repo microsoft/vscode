@@ -14,7 +14,7 @@ import { Terminal as XTermTerminal } from 'vscode-xterm';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalInstance, KEYBINDING_CONTEXT_TERMINAL_TEXT_SELECTED, TERMINAL_PANEL_ID, IShellLaunchConfig, ITerminalProcessManager, ProcessState, NEVER_MEASURE_RENDER_TIME_STORAGE_KEY, ITerminalDimensions } from 'vs/workbench/parts/terminal/common/terminal';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { TabFocus } from 'vs/editor/common/config/commonEditorConfig';
@@ -63,6 +63,7 @@ export class TerminalInstance implements ITerminalInstance {
 	private _terminalHasTextContextKey: IContextKey<boolean>;
 	private _cols: number;
 	private _rows: number;
+	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
 	private _onLineDataListeners: ((lineData: string) => void)[];
 	private _xtermReadyPromise: TPromise<void>;
@@ -76,6 +77,8 @@ export class TerminalInstance implements ITerminalInstance {
 
 	public disableLayout: boolean;
 	public get id(): number { return this._id; }
+	public get cols(): number { return this._cols; }
+	public get rows(): number { return this._rows; }
 	// TODO: Ideally processId would be merged into processReady
 	public get processId(): number | undefined { return this._processManager ? this._processManager.shellProcessId : undefined; }
 	// TODO: How does this work with detached processes?
@@ -97,6 +100,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onTitleChanged(): Event<string> { return this._onTitleChanged.event; }
 	private readonly _onRequestExtHostProcess: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
+	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
+	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -931,6 +936,21 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._xterm) {
+			this._xterm.element.style.width = terminalWidth + 'px';
+		}
+
+		this._resize();
+	}
+
+	private _resize(): void {
+		let cols = this._cols;
+		let rows = this._rows;
+		if (this._dimensionsOverride && this._dimensionsOverride.cols && this._dimensionsOverride.rows) {
+			cols = Math.min(Math.max(this._dimensionsOverride.cols, 2), this._cols);
+			rows = Math.min(Math.max(this._dimensionsOverride.rows, 2), this._rows);
+		}
+
+		if (this._xterm) {
 			const font = this._configHelper.getFont(this._xterm);
 
 			// Only apply these settings when the terminal is visible so that
@@ -946,8 +966,11 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
-			this._xterm.resize(this._cols, this._rows);
-			this._xterm.element.style.width = terminalWidth + 'px';
+			if (cols !== this._xterm.getOption('cols') || rows !== this._xterm.getOption('rows')) {
+				this._onDimensionsChanged.fire();
+			}
+
+			this._xterm.resize(cols, rows);
 			if (this._isVisible) {
 				// Force the renderer to unpause by simulating an IntersectionObserver event. This
 				// is to fix an issue where dragging the window to the top of the screen to maximize
@@ -960,7 +983,7 @@ export class TerminalInstance implements ITerminalInstance {
 		}
 
 		if (this._processManager) {
-			this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(this._cols, this._rows));
+			this._processManager.ptyProcessReady.then(() => this._processManager.setDimensions(cols, rows));
 		}
 	}
 
@@ -987,6 +1010,11 @@ export class TerminalInstance implements ITerminalInstance {
 		if (didTitleChange) {
 			this._onTitleChanged.fire(title);
 		}
+	}
+
+	public setDimensions(dimensions: ITerminalDimensions): void {
+		this._dimensionsOverride = dimensions;
+		this._resize();
 	}
 
 	private _getXtermTheme(theme?: ITheme): any {

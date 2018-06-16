@@ -150,12 +150,37 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		return this._onData && this._onData.event;
 	}
 
+	private _dimensions: vscode.TerminalDimensions | undefined;
+	public get dimensions(): vscode.TerminalDimensions { return this._dimensions; }
+	public set dimensions(dimensions: vscode.TerminalDimensions) {
+		this._checkDisposed();
+		this._dimensions = dimensions;
+		this._queueApiRequest(this._proxy.$terminalRendererSetDimensions, [dimensions]);
+		// TODO: Send overridden dimensions over to the terminal instance
+	}
+
+	private _maximumDimensions: vscode.TerminalDimensions;
+	public get maximumDimensions(): vscode.TerminalDimensions {
+		if (!this._maximumDimensions) {
+			return undefined;
+		}
+		return {
+			rows: this._maximumDimensions.rows,
+			cols: this._maximumDimensions.cols
+		};
+	}
+
+	private readonly _onDidChangeMaximumDimensions: Emitter<vscode.TerminalDimensions> = new Emitter<vscode.TerminalDimensions>();
+	public get onDidChangeMaximumDimensions(): Event<vscode.TerminalDimensions> {
+		return this._onDidChangeMaximumDimensions && this._onDidChangeMaximumDimensions.event;
+	}
+
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string
 	) {
 		super(proxy);
-		this._proxy.$createTerminalRenderer(this._name).then((id) => {
+		this._proxy.$createTerminalRenderer(this._name).then(id => {
 			this._runQueuedRequests(id);
 		});
 	}
@@ -167,6 +192,11 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 
 	public _fireOnData(data: string): void {
 		this._onData.fire(data);
+	}
+
+	public _setMaximumDimensions(cols: number, rows: number): void {
+		this._maximumDimensions = { cols, rows };
+		this._onDidChangeMaximumDimensions.fire(this.maximumDimensions);
 	}
 }
 
@@ -219,6 +249,15 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		}
 		const terminal = this._terminals[index];
 		terminal._fireOnData(data);
+	}
+
+	public $acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void {
+		const index = this._getTerminalRendererIndexById(id);
+		if (index === null) {
+			return;
+		}
+		const renderer = this._terminalRenderers[index];
+		renderer._setMaximumDimensions(cols, rows);
 	}
 
 	public $acceptTerminalRendererData(id: number, data: string): void {

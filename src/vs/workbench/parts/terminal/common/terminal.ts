@@ -176,6 +176,7 @@ export interface ITerminalService {
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
@@ -250,12 +251,27 @@ export interface ITerminalTab {
 	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export interface ITerminalDimensions {
+	/**
+	 * The columns of the terminal.
+	 */
+	readonly cols: number;
+
+	/**
+	 * The rows of the terminal.
+	 */
+	readonly rows: number;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
 	 * terminal instance.
 	 */
-	id: number;
+	readonly id: number;
+
+	readonly cols: number;
+	readonly rows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -278,6 +294,8 @@ export interface ITerminalInstance {
 	onProcessIdReady: Event<ITerminalInstance>;
 
 	onRequestExtHostProcess: Event<ITerminalInstance>;
+
+	onDimensionsChanged: Event<void>;
 
 	processReady: TPromise<void>;
 
@@ -510,6 +528,8 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;
 }

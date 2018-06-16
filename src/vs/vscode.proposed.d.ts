@@ -345,6 +345,21 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents dimensions of a terminal.
+	 */
+	export interface TerminalDimensions {
+		/**
+		 * The number of columns in the terminal.
+		 */
+		cols: number;
+
+		/**
+		 * The number of rows in the terminal.
+		 */
+		rows: number;
+	}
+
+	/**
 	 * Represents a terminal without a process where all interaction and output in the terminal is
 	 * controlled by an extension. This is similar to an output window but has the same VT sequence
 	 * compatility as the regular terminal.
@@ -355,8 +370,20 @@ declare module 'vscode' {
 		 */
 		name: string;
 
-		// Setting to undefined will reset to use the maximum available
-		// dimensions: TerminalDimensions;
+		/**
+		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
+		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
+		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
+		 */
+		dimensions: TerminalDimensions;
+
+		/**
+		 * The maximum dimensions of the terminal, this will be undefined immediately after a
+		 * terminal renderer is created and also until the terminal becomes visible in the UI.
+		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
+		 * to get notified when this value changes.
+		 */
+		readonly maximumDimensions: TerminalDimensions;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
@@ -385,7 +412,11 @@ declare module 'vscode' {
 		onData: Event<string>; // in
 
 		// Fires when the panel area is resized, this DOES NOT fire when `dimensions` is set
-		// onDidChangeDimensions: Event<TerminalDimensions>;
+		/**
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * the terminal renderer change.
+		 */
+		onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
 	export namespace window {
