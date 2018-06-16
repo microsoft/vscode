@@ -6,6 +6,7 @@
 'use strict';
 
 import * as path from 'path';
+import * as os from 'os';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as paths from 'vs/base/common/paths';
@@ -83,6 +84,12 @@ function preparePath(cwd: string, p: string): string {
 
 	// Trim whitespaces
 	p = strings.trim(strings.trim(p, ' '), '\t');
+
+	// Convert a tilde path to an absolute path
+	if (p === '~' || strings.startsWith(p, '~/')) {
+		const homedir = os.homedir();
+		p = p.replace('~', homedir); // only replaces the first occurrence
+	}
 
 	if (platform.isWindows) {
 
