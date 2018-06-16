@@ -344,19 +344,44 @@ declare module 'vscode' {
 		onData: Event<string>;
 	}
 
-	// A TerminalRender does not own a process, it's similar to an output window
-	// but it understands ANSI
+	/**
+	 * Represents a terminal without a process where all interaction and output in the terminal is
+	 * controlled by an extension. This is similar to an output window but has the same VT sequence
+	 * compatility as the regular terminal.
+	 */
 	export interface TerminalRenderer {
-		// Extensions can set the name (what appears in the dropdown)
+		/**
+		 * The name of the terminal, this will appear in the terminal selector.
+		 */
 		name: string;
 
 		// Setting to undefined will reset to use the maximum available
 		// dimensions: TerminalDimensions;
 
-		// Write to the terminal emulator
-		write(data: string): void; // out
+		/**
+		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
+		 * text to the underlying _process_, this will write the text to the terminal itself.
+		 *
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
+		 * ```
+		 *
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[10;20H*');
+		 * ```
+		 *
+		 * @param text The text to write.
+		 */
+		write(text: string): void; // out
 
-		// key press, or sendText was triggered by an extension on the terminal
+		// TODO: Should this be onInput instead?
+		/**
+		 * An event which fires on keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
+		 * corresponding VT sequence representation.
+		 */
 		onData: Event<string>; // in
 
 		// Fires when the panel area is resized, this DOES NOT fire when `dimensions` is set
