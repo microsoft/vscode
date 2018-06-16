@@ -17,7 +17,7 @@ import { ExtHostConfiguration } from 'vs/workbench/api/node/extHostConfiguration
 import { ILogService } from 'vs/platform/log/common/log';
 
 export class BaseExtHostTerminal {
-	protected _id: number;
+	public _id: number;
 	private _disposed: boolean = false;
 	private _queuedRequests: ApiRequest[] = [];
 
@@ -142,9 +142,6 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	public get onInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
-		// TODO: This is not firing on renderers as ExtHostTerminalService doesn't track them currently
-		console.log('TerminalRenderer.onInput id: ', this._id);
-		// TODO: This needs to fire for keystrokes and sendText only for renderers
 		// Tell the main side to start sending data if it's not already
 		// this._proxy.$terminalRendererRegisterOnDataListener(this._id);
 		return this._onInput && this._onInput.event;
@@ -156,7 +153,6 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._checkDisposed();
 		this._dimensions = dimensions;
 		this._queueApiRequest(this._proxy.$terminalRendererSetDimensions, [dimensions]);
-		// TODO: Send overridden dimensions over to the terminal instance
 	}
 
 	private _maximumDimensions: vscode.TerminalDimensions;
@@ -398,8 +394,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _getTerminalIndexById(id: number): number {
 		let index: number = null;
 		this._terminals.some((terminal, i) => {
-			// TODO: This shouldn't be cas
-			const thisId = (<any>terminal)._id;
+			const thisId = terminal._id;
 			if (thisId === id) {
 				index = i;
 				return true;
@@ -413,8 +408,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _getTerminalRendererIndexById(id: number): number {
 		let index: number = null;
 		this._terminalRenderers.some((renderer, i) => {
-			// TODO: This shouldn't be cas
-			const thisId = (<any>renderer)._id;
+			const thisId = renderer._id;
 			if (thisId === id) {
 				index = i;
 				return true;

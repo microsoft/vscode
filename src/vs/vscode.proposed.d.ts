@@ -363,6 +363,15 @@ declare module 'vscode' {
 	 * Represents a terminal without a process where all interaction and output in the terminal is
 	 * controlled by an extension. This is similar to an output window but has the same VT sequence
 	 * compatility as the regular terminal.
+	 *
+	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
+	 * created with all its APIs available for use by extensions. When using the Terminal object
+	 * of a TerminalRenderer it acts just like normal only the extension that created the
+	 * TerminalRenderer essentially acts as a process of a normal terminal. For example when
+	 * an [Terminal.onData](#Terminal.onData) listener is registered, that will fire when
+	 * [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
+	 * [TerminalRenderer.onInput](#TerminalRenderer.onInput) event.
 	 */
 	export interface TerminalRenderer {
 		/**
@@ -431,6 +440,11 @@ declare module 'vscode' {
 		 */
 		export const onDidOpenTerminal: Event<Terminal>;
 
+		/**
+		 * Create a [TerminalRenderer](#TerminalRenderer).
+		 *
+		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
+		 */
 		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
