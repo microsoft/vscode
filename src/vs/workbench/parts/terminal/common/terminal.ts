@@ -491,11 +491,11 @@ export interface ITerminalInstance {
 	onData(listener: (data: string) => void): IDisposable;
 
 	/**
-	 * Attach a listener to the "renderer" data event, this event fires for terminal renderers on
+	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
 	 * keystrokes and when the Terminal.sendText extension API is used.
 	 * @param listener The listener function.
 	 */
-	onRendererData(listener: (data: string) => void): IDisposable;
+	onRendererInput(listener: (data: string) => void): IDisposable;
 
 	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.

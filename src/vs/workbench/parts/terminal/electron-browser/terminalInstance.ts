@@ -813,9 +813,9 @@ export class TerminalInstance implements ITerminalInstance {
 		return this._processManager.onProcessData(data => listener(data));
 	}
 
-	public onRendererData(listener: (data: string) => void): lifecycle.IDisposable {
+	public onRendererInput(listener: (data: string) => void): lifecycle.IDisposable {
 		if (this._processManager) {
-			throw new Error('onRendererData attempted to be used on a regular terminal');
+			throw new Error('onRendererINput attempted to be used on a regular terminal');
 		}
 		// For terminal renderers onData fires on keystrokes and when sendText is called.
 		// TODO: Handle sendText case

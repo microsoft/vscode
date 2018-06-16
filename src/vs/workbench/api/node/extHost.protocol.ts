@@ -342,7 +342,7 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$terminalRendererSetName(terminalId: number, name: string): void;
 	$terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void;
 	$terminalRendererWrite(terminalId: number, text: string): void;
-	$terminalRendererRegisterOnDataListener(terminalId: number): void;
+	$terminalRendererRegisterOnInputListener(terminalId: number): void;
 }
 
 export interface TransferQuickPickItems extends IQuickPickItem {
@@ -844,7 +844,7 @@ export interface ExtHostTerminalServiceShape {
 	$acceptTerminalOpened(id: number, name: string): void;
 	$acceptTerminalProcessId(id: number, processId: number): void;
 	$acceptTerminalProcessData(id: number, data: string): void;
-	$acceptTerminalRendererData(id: number, data: string): void;
+	$acceptTerminalRendererInput(id: number, data: string): void;
 	$acceptTerminalRendererDimensions(id: number, cols: number, rows: number): void;
 	$createProcess(id: number, shellLaunchConfig: ShellLaunchConfigDto, cols: number, rows: number): void;
 	$acceptProcessInput(id: number, data: string): void;

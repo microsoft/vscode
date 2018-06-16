@@ -17,7 +17,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
 	private _dataListeners: { [id: number]: IDisposable } = {};
-	private _rendererDataListeners: { [id: number]: IDisposable } = {};
+	private _rendererInputListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
 		extHostContext: IExtHostContext,
@@ -109,11 +109,11 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		}
 	}
 
-	public $terminalRendererRegisterOnDataListener(terminalId: number): void {
+	public $terminalRendererRegisterOnInputListener(terminalId: number): void {
 		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
-			this._rendererDataListeners[terminalId] = terminalInstance.onRendererData(data => this._onTerminalRendererData(terminalId, data));
-			terminalInstance.onDisposed(() => delete this._dataListeners[terminalId]);
+			this._rendererInputListeners[terminalId] = terminalInstance.onRendererInput(data => this._onTerminalRendererInput(terminalId, data));
+			terminalInstance.onDisposed(() => delete this._rendererInputListeners[terminalId]);
 		}
 	}
 
@@ -136,8 +136,8 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
 	}
 
-	private _onTerminalRendererData(terminalId: number, data: string): void {
-		this._proxy.$acceptTerminalRendererData(terminalId, data);
+	private _onTerminalRendererInput(terminalId: number, data: string): void {
+		this._proxy.$acceptTerminalRendererInput(terminalId, data);
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {

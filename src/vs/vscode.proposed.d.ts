@@ -409,7 +409,7 @@ declare module 'vscode' {
 		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
 		 * corresponding VT sequence representation.
 		 */
-		onData: Event<string>; // in
+		onInput: Event<string>; // in
 
 		// Fires when the panel area is resized, this DOES NOT fire when `dimensions` is set
 		/**

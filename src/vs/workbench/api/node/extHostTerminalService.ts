@@ -138,16 +138,16 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._queueApiRequest(this._proxy.$terminalRendererSetName, [this._name]);
 	}
 
-	private readonly _onData: Emitter<string> = new Emitter<string>();
-	public get onData(): Event<string> {
+	private readonly _onInput: Emitter<string> = new Emitter<string>();
+	public get onInput(): Event<string> {
 		this._checkDisposed();
-		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnDataListener, [this._id]);
+		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
 		// TODO: This is not firing on renderers as ExtHostTerminalService doesn't track them currently
-		console.log('TerminalRenderer.onData id: ', this._id);
+		console.log('TerminalRenderer.onInput id: ', this._id);
 		// TODO: This needs to fire for keystrokes and sendText only for renderers
 		// Tell the main side to start sending data if it's not already
 		// this._proxy.$terminalRendererRegisterOnDataListener(this._id);
-		return this._onData && this._onData.event;
+		return this._onInput && this._onInput.event;
 	}
 
 	private _dimensions: vscode.TerminalDimensions | undefined;
@@ -190,8 +190,8 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._queueApiRequest(this._proxy.$terminalRendererWrite, [data]);
 	}
 
-	public _fireOnData(data: string): void {
-		this._onData.fire(data);
+	public _fireOnInput(data: string): void {
+		this._onInput.fire(data);
 	}
 
 	public _setMaximumDimensions(cols: number, rows: number): void {
@@ -260,13 +260,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		renderer._setMaximumDimensions(cols, rows);
 	}
 
-	public $acceptTerminalRendererData(id: number, data: string): void {
+	public $acceptTerminalRendererInput(id: number, data: string): void {
 		const index = this._getTerminalRendererIndexById(id);
 		if (index === null) {
 			return;
 		}
 		const renderer = this._terminalRenderers[index];
-		renderer._fireOnData(data);
+		renderer._fireOnInput(data);
 	}
 
 	public $acceptTerminalClosed(id: number): void {
