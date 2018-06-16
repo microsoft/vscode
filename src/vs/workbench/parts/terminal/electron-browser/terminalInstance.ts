@@ -65,7 +65,8 @@ export class TerminalInstance implements ITerminalInstance {
 	private _rows: number;
 	private _dimensionsOverride: ITerminalDimensions;
 	private _windowsShellHelper: WindowsShellHelper;
-	private _onLineDataListeners: ((lineData: string) => void)[];
+	private _onRendererInputListeners: ((input: string) => void)[] = [];
+	private _onLineDataListeners: ((lineData: string) => void)[] = [];
 	private _xtermReadyPromise: TPromise<void>;
 
 	private _disposables: lifecycle.IDisposable[];
@@ -121,7 +122,6 @@ export class TerminalInstance implements ITerminalInstance {
 	) {
 		this._disposables = [];
 		this._skipTerminalCommands = [];
-		this._onLineDataListeners = [];
 		this._isExiting = false;
 		this._hadFocusOnExit = false;
 		this._isVisible = false;
@@ -291,6 +291,16 @@ export class TerminalInstance implements ITerminalInstance {
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		}
+
+		// Register listener to trigger the onInput ext API if the terminal is a renderer only
+		if (this._shellLaunchConfig.isRendererOnly) {
+			const listener = (data) => this._sendRendererInput(data);
+			this._xterm.on('data', listener);
+			this._disposables.push({
+				dispose: () => this._xterm.off('data', listener)
+			});
+		}
+
 		this._commandTracker = new TerminalCommandTracker(this._xterm);
 		this._disposables.push(this._themeService.onThemeChange(theme => this._updateTheme(theme)));
 	}
@@ -562,6 +572,8 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
+		this._onLineDataListeners = null;
+		this._onRendererInputListeners = null;
 		if (this._processManager) {
 			this._processManager.dispose();
 		}
@@ -599,14 +611,23 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public sendText(text: string, addNewLine: boolean): void {
-		this._processManager.ptyProcessReady.then(() => {
-			// Normalize line endings to 'enter' press.
-			text = text.replace(TerminalInstance.EOL_REGEX, '\r');
-			if (addNewLine && text.substr(text.length - 1) !== '\r') {
-				text += '\r';
+		// Normalize line endings to 'enter' press.
+		text = text.replace(TerminalInstance.EOL_REGEX, '\r');
+		if (addNewLine && text.substr(text.length - 1) !== '\r') {
+			text += '\r';
+		}
+
+		if (this._shellLaunchConfig.isRendererOnly) {
+			// If the terminal is a renderer only, fire the onInput ext API
+			this._sendRendererInput(text);
+		} else {
+			// If the terminal has a process, send it to the process
+			if (this._processManager) {
+				this._processManager.ptyProcessReady.then(() => {
+					this._processManager.write(text);
+				});
 			}
-			this._processManager.write(text);
-		});
+		}
 	}
 
 	public setVisible(visible: boolean): void {
@@ -814,15 +835,30 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	public onRendererInput(listener: (data: string) => void): lifecycle.IDisposable {
-		if (this._processManager) {
-			throw new Error('onRendererINput attempted to be used on a regular terminal');
-		}
-		// For terminal renderers onData fires on keystrokes and when sendText is called.
-		// TODO: Handle sendText case
-		this._xterm.on('data', listener);
+		this._onRendererInputListeners.push(listener);
 		return {
-			dispose: () => this._xterm.off('data', listener)
+			dispose: () => {
+				const i = this._onRendererInputListeners.indexOf(listener);
+				if (i >= 0) {
+					this._onRendererInputListeners.splice(i, 1);
+				}
+			}
 		};
+	}
+
+	private _sendRendererInput(input: string): void {
+		if (this._processManager) {
+			throw new Error('onRendererInput attempted to be used on a regular terminal');
+		}
+
+		// For terminal renderers onData fires on keystrokes and when sendText is called.
+		this._onRendererInputListeners.forEach(listener => {
+			try {
+				listener(input);
+			} catch (err) {
+				console.error(`onInput listener threw`, err);
+			}
+		});
 	}
 
 	public onLineData(listener: (lineData: string) => void): lifecycle.IDisposable {
