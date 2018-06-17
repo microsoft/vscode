@@ -155,14 +155,14 @@ export class TerminalInstance implements ITerminalInstance {
 			}
 		});
 
-		this._configurationService.onDidChangeConfiguration(e => {
+		this.addDisposable(this._configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('terminal.integrated')) {
 				this.updateConfig();
 			}
 			if (e.affectsConfiguration('editor.accessibilitySupport')) {
 				this.updateAccessibilitySupport();
 			}
-		});
+		}));
 	}
 
 	public addDisposable(disposable: lifecycle.IDisposable): void {
@@ -558,18 +558,21 @@ export class TerminalInstance implements ITerminalInstance {
 	public dispose(): void {
 		this._logService.trace(`terminalInstance#dispose (id: ${this.id})`);
 
-		if (this._windowsShellHelper) {
-			this._windowsShellHelper.dispose();
-		}
-		if (this._linkHandler) {
-			this._linkHandler.dispose();
-		}
+		this._windowsShellHelper = lifecycle.dispose(this._windowsShellHelper);
+		this._linkHandler = lifecycle.dispose(this._linkHandler);
+		this._commandTracker = lifecycle.dispose(this._commandTracker);
+		this._widgetManager = lifecycle.dispose(this._widgetManager);
+
 		if (this._xterm && this._xterm.element) {
 			this._hadFocusOnExit = dom.hasClass(this._xterm.element, 'focus');
 		}
 		if (this._wrapperElement) {
+			if ((<any>this._wrapperElement).xterm) {
+				(<any>this._wrapperElement).xterm = null;
+			}
 			this._container.removeChild(this._wrapperElement);
 			this._wrapperElement = null;
+			this._xtermElement = null;
 		}
 		if (this._xterm) {
 			const buffer = (<any>this._xterm.buffer);
@@ -577,9 +580,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xterm.dispose();
 			this._xterm = null;
 		}
-		if (this._processManager) {
-			this._processManager.dispose();
-		}
+		this._processManager = lifecycle.dispose(this._processManager);
 		if (!this._isDisposed) {
 			this._isDisposed = true;
 			this._onDisposed.fire(this);

@@ -121,6 +121,7 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
+		this._xterm = null;
 		this._hoverDisposables = dispose(this._hoverDisposables);
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}

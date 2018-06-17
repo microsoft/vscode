@@ -71,9 +71,10 @@ export class KillTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		const terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			this.terminalService.getActiveInstance().dispose();
+		console.log('kill');
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.dispose();
 			if (this.terminalService.terminalInstances.length > 0) {
 				this.terminalService.showPanel(true);
 			}
