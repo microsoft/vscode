@@ -587,9 +587,11 @@ suite('window namespace tests', () => {
 		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
 			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
 				assert.equal(active, terminal);
+				assert.equal(active, window.activeTerminal);
 				reg1.dispose();
 				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
 					assert.equal(active, undefined);
+					assert.equal(active, window.activeTerminal);
 					reg2.dispose();
 					done();
 				});
