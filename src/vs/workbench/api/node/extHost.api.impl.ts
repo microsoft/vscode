@@ -331,6 +331,9 @@ export function createApiFactory(
 			get visibleTextEditors() {
 				return extHostEditors.getVisibleTextEditors();
 			},
+			get activeTerminal() {
+				return proposedApiFunction(extension, extHostTerminalService.activeTerminal);
+			},
 			get terminals() {
 				return proposedApiFunction(extension, extHostTerminalService.terminals);
 			},
@@ -371,6 +374,9 @@ export function createApiFactory(
 			},
 			onDidOpenTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostTerminalService.onDidOpenTerminal(listener, thisArg, disposables);
+			}),
+			onDidChangeActiveTerminal: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostTerminalService.onDidChangeActiveTerminal(listener, thisArg, disposables);
 			}),
 			get state() {
 				return extHostWindow.state;

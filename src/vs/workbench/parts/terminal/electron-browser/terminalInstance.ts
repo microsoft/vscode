@@ -109,6 +109,8 @@ export class TerminalInstance implements ITerminalInstance {
 	public get onRequestExtHostProcess(): Event<ITerminalInstance> { return this._onRequestExtHostProcess.event; }
 	private readonly _onDimensionsChanged: Emitter<void> = new Emitter<void>();
 	public get onDimensionsChanged(): Event<void> { return this._onDimensionsChanged.event; }
+	private readonly _onFocus: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onFocus(): Event<ITerminalInstance> { return this._onFocus.event; }
 
 	public constructor(
 		private readonly _terminalFocusContextKey: IContextKey<boolean>,
@@ -297,6 +299,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// TODO: How does the cwd work on detached processes?
 			this._linkHandler = this._instantiationService.createInstance(TerminalLinkHandler, this._xterm, platform.platform, this._processManager.initialCwd);
 		}
+		this._xterm.on('focus', () => this._onFocus.fire(this));
 
 		// Register listener to trigger the onInput ext API if the terminal is a renderer only
 		if (this._shellLaunchConfig.isRendererOnly) {

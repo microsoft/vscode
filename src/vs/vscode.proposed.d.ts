@@ -465,6 +465,21 @@ declare module 'vscode' {
 		export let terminals: Terminal[];
 
 		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 *
+		 * @readonly
+		 */
+		export let activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active editor changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
+
+		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the
 		 * [createTerminal](#window.createTerminal) API or commands.
 		 */

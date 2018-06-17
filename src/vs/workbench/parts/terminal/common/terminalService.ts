@@ -47,6 +47,8 @@ export abstract class TerminalService implements ITerminalService {
 	public get onInstancesChanged(): Event<void> { return this._onInstancesChanged.event; }
 	protected readonly _onInstanceTitleChanged: Emitter<string> = new Emitter<string>();
 	public get onInstanceTitleChanged(): Event<string> { return this._onInstanceTitleChanged.event; }
+	protected readonly _onActiveInstanceChanged: Emitter<ITerminalInstance> = new Emitter<ITerminalInstance>();
+	public get onActiveInstanceChanged(): Event<ITerminalInstance> { return this._onActiveInstanceChanged.event; }
 	protected readonly _onTabDisposed: Emitter<ITerminalTab> = new Emitter<ITerminalTab>();
 	public get onTabDisposed(): Event<ITerminalTab> { return this._onTabDisposed.event; }
 
@@ -165,6 +167,7 @@ export abstract class TerminalService implements ITerminalService {
 		// launch.
 		if (this._terminalTabs.length === 0 && !this._isShuttingDown) {
 			this.hidePanel();
+			this._onActiveInstanceChanged.fire(undefined);
 		}
 
 		// Fire events
@@ -291,6 +294,7 @@ export abstract class TerminalService implements ITerminalService {
 		instance.addDisposable(instance.onTitleChanged(this._onInstanceTitleChanged.fire, this._onInstanceTitleChanged));
 		instance.addDisposable(instance.onProcessIdReady(this._onInstanceProcessIdReady.fire, this._onInstanceProcessIdReady));
 		instance.addDisposable(instance.onDimensionsChanged(() => this._onInstanceDimensionsChanged.fire(instance)));
+		instance.addDisposable(instance.onFocus(this._onActiveInstanceChanged.fire, this._onActiveInstanceChanged));
 	}
 
 	private _getTabForInstance(instance: ITerminalInstance): ITerminalTab {

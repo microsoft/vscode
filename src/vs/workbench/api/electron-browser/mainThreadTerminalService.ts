@@ -32,6 +32,7 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
 		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
+		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -128,6 +129,10 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 				this._onTerminalData(terminalId, data);
 			}));
 		}
+	}
+
+	private _onActiveTerminalChanged(terminalId: number | undefined): void {
+		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
 	private _onTerminalData(terminalId: number, data: string): void {

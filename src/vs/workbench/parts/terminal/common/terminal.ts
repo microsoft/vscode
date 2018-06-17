@@ -185,6 +185,7 @@ export interface ITerminalService {
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
+	onActiveInstanceChanged: Event<ITerminalInstance>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
@@ -301,6 +302,8 @@ export interface ITerminalInstance {
 	onRequestExtHostProcess: Event<ITerminalInstance>;
 
 	onDimensionsChanged: Event<void>;
+
+	onFocus: Event<ITerminalInstance>;
 
 	/**
 	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape

@@ -181,6 +181,14 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 
 	public get terminal(): Promise<ExtHostTerminal> {
 		console.log('terminal ' + this._id);
+
+
+
+		// TODO: Focus is not happening ever time for fake shell exmaple
+		// This is happening because this._id is not ready, this property needs similar treatment to the api requests
+		// Perhaps add a promise based one?
+
+
 		return this._fetchTerminal(this._id);
 	}
 
@@ -212,16 +220,20 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 
 export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	private _proxy: MainThreadTerminalServiceShape;
+	private _activeTerminal: ExtHostTerminal;
 	private _terminals: ExtHostTerminal[] = [];
 	private _terminalProcesses: { [id: number]: cp.ChildProcess } = {};
 	private _terminalRenderers: ExtHostTerminalRenderer[] = [];
 
+	public get activeTerminal(): ExtHostTerminal { return this._activeTerminal; }
 	public get terminals(): ExtHostTerminal[] { return this._terminals; }
 
 	private readonly _onDidCloseTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidCloseTerminal(): Event<vscode.Terminal> { return this._onDidCloseTerminal && this._onDidCloseTerminal.event; }
 	private readonly _onDidOpenTerminal: Emitter<vscode.Terminal> = new Emitter<vscode.Terminal>();
 	public get onDidOpenTerminal(): Event<vscode.Terminal> { return this._onDidOpenTerminal && this._onDidOpenTerminal.event; }
+	private readonly _onDidChangeActiveTerminal: Emitter<vscode.Terminal | undefined> = new Emitter<vscode.Terminal | undefined>();
+	public get onDidChangeActiveTerminal(): Event<vscode.Terminal | undefined> { return this._onDidChangeActiveTerminal && this._onDidChangeActiveTerminal.event; }
 
 	constructor(
 		mainContext: IMainContext,
@@ -249,6 +261,21 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const renderer = new ExtHostTerminalRenderer(this._proxy, name, (id) => this._getTerminalByIdEventually(id));
 		this._terminalRenderers.push(renderer);
 		return renderer;
+	}
+
+	public $acceptActiveTerminalChanged(id: number | null): void {
+		const original = this._activeTerminal;
+		if (id === null) {
+			this._activeTerminal = undefined;
+		} else {
+			const terminal = this._getTerminalById(id);
+			if (terminal) {
+				this._activeTerminal = terminal;
+			}
+		}
+		if (original !== this._activeTerminal) {
+			this._onDidChangeActiveTerminal.fire(this._activeTerminal);
+		}
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
