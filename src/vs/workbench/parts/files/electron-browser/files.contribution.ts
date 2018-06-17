@@ -34,7 +34,6 @@ import { DataUriEditorInput } from 'vs/workbench/common/editor/dataUriEditorInpu
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ToggleAutoSaveAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 
 // Viewlet Action
 export class OpenExplorerViewletAction extends ToggleViewletAction {
@@ -73,9 +72,6 @@ registry.registerWorkbenchAction(
 	'View: Show Explorer',
 	nls.localize('view', "View")
 );
-
-// Register Action to Toggle Auto Save
-registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, ToggleAutoSaveAction.LABEL), 'Toggle Auto Save', nls.localize('file', "File"));
 
 // Register file editors
 Registry.as<IEditorRegistry>(EditorExtensions.Editors).registerEditor(

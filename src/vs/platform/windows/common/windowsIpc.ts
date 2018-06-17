@@ -179,7 +179,6 @@ export class WindowsChannelClient implements IWindowsService {
 	private _onWindowUnmaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowUnmaximize');
 	get onWindowUnmaximize(): Event<number> { return this._onWindowUnmaximize; }
 
-
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
 	}

@@ -356,11 +356,8 @@ export class Workbench extends Disposable implements IPartService {
 		// List
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
 
-		// Context Menu
-		const hasCustomTitle = this.getCustomTitleBarStyle() === 'custom';
-
 		// Use themable context menus when custom titlebar is enabled to match custom menubar
-		if (!isMacintosh && hasCustomTitle) {
+		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService));
 		} else {
 			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
@@ -411,6 +408,7 @@ export class Workbench extends Disposable implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this._register(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
+
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
 
@@ -1017,9 +1015,10 @@ export class Workbench extends Disposable implements IPartService {
 		});
 
 		this.menubarPart.create(menubarContainer.getHTMLElement());
-		this.menubarPart.onVisibilityChange((dimension => {
+
+		this._register(this.menubarPart.onVisibilityChange((dimension => {
 			this._onMenubarVisibilityChange.fire(dimension);
-		}));
+		})));
 	}
 
 	private createActivityBarPart(): void {
@@ -1133,10 +1132,10 @@ export class Workbench extends Disposable implements IPartService {
 
 	//#region IPartService
 
-	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
+	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
 
-	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = new Emitter<DOM.Dimension>();
+	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = this._register(new Emitter<DOM.Dimension>());
 	get onMenubarVisibilityChange(): Event<DOM.Dimension> { return this._onMenubarVisibilityChange.event; }
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
@@ -1187,9 +1186,9 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
+				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return this.getCustomTitleBarStyle() && !this.menubarHidden;
+				return this.getCustomTitleBarStyle() === 'custom' && !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:

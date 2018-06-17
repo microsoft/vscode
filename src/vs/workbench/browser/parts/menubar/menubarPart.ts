@@ -18,7 +18,7 @@ import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/commo
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
-import { EventType, Dimension } from 'vs/base/browser/dom';
+import { EventType, Dimension, toggleClass } from 'vs/base/browser/dom';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
@@ -630,7 +630,7 @@ export class MenubarPart extends Part {
 				this.container.style('background-color', null);
 			}
 
-			this.container.getHTMLElement().classList.toggle('light', Color.fromHex(bgColor).isLighter());
+			toggleClass(this.container.getHTMLElement(), 'light', Color.fromHex(bgColor).isLighter());
 		}
 	}
 

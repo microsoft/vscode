@@ -27,7 +27,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_FOREGROUND, TITLE_BAR_INACTIVE_BACKGROUND, TITLE_BAR_BORDER } from 'vs/workbench/common/theme';
-import { isMacintosh, isWindows } from 'vs/base/common/platform';
+import { isMacintosh, isWindows, isLinux } from 'vs/base/common/platform';
 import URI from 'vs/base/common/uri';
 import { Color } from 'vs/base/common/color';
 import { trim } from 'vs/base/common/strings';
@@ -48,6 +48,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	private title: Builder;
 	private windowControls: Builder;
 	private appIcon: Builder;
+
 	private pendingTitle: string;
 	private representedFileName: string;
 	private menubarWidth: number;
@@ -58,7 +59,7 @@ export class TitlebarPart extends Part implements ITitleService {
 		controlsWidth?: number;
 		appIconWidth?: number;
 		appIconLeftPadding?: number;
-	} = {};
+	} = Object.create(null);
 
 	private isInactive: boolean;
 
@@ -248,13 +249,14 @@ export class TitlebarPart extends Part implements ITitleService {
 	public createContentArea(parent: HTMLElement): HTMLElement {
 		this.titleContainer = $(parent);
 
+		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			// App Icon
 			this.appIcon = $(this.titleContainer).img({
 				class: 'window-appicon',
 				src: paths.join(this.environmentService.appRoot, isWindows ? 'resources/win32/code.ico' : 'resources/linux/code.png')
-			}).on(EventType.DBLCLICK, (e) => {
+			}).on(EventType.DBLCLICK, e => {
 				EventHelper.stop(e, true);
+
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
@@ -284,29 +286,32 @@ export class TitlebarPart extends Part implements ITitleService {
 			}
 		});
 
+		// Window Controls (Windows/Linux)
 		if (!isMacintosh) {
 			this.windowControls = $(this.titleContainer).div({ class: 'window-controls-container' });
 
+			// Minimize
 			$(this.windowControls).div({ class: 'window-icon window-minimize' }).on(EventType.CLICK, () => {
 				this.windowService.minimizeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			let maxRestore = $(this.windowControls).div({ class: 'window-icon window-max-restore' });
-			maxRestore.on(EventType.CLICK, (e, builder) => {
+			// Restore
+			$(this.windowControls).div({ class: 'window-icon window-max-restore' }).on(EventType.CLICK, () => {
 				this.windowService.isMaximized().then((maximized) => {
 					if (maximized) {
 						return this.windowService.unmaximizeWindow();
-					} else {
-						return this.windowService.maximizeWindow();
 					}
+
+					return this.windowService.maximizeWindow();
 				}).then(null, errors.onUnexpectedError);
 			});
 
+			// Close
 			$(this.windowControls).div({ class: 'window-icon window-close' }).on(EventType.CLICK, () => {
 				this.windowService.closeWindow().then(null, errors.onUnexpectedError);
 			});
 
-			let isMaximized = this.windowService.getConfiguration().maximized ? true : false;
+			const isMaximized = this.windowService.getConfiguration().maximized ? true : false;
 			this.onDidChangeMaximized(isMaximized);
 			this.windowService.onDidChangeMaximize(this.onDidChangeMaximized, this);
 		}
@@ -326,17 +331,17 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private onDidChangeMaximized(maximized: boolean) {
-		let element = $(this.titleContainer).getHTMLElement().querySelector('.window-max-restore');
+		const element = $(this.titleContainer).getHTMLElement().querySelector('.window-max-restore') as HTMLElement;
 		if (!element) {
 			return;
 		}
 
 		if (maximized) {
-			removeClass(<HTMLElement>element, 'window-maximize');
-			addClass(<HTMLElement>element, 'window-unmaximize');
+			removeClass(element, 'window-maximize');
+			addClass(element, 'window-unmaximize');
 		} else {
-			removeClass(<HTMLElement>element, 'window-unmaximize');
-			addClass(<HTMLElement>element, 'window-maximize');
+			removeClass(element, 'window-unmaximize');
+			addClass(element, 'window-maximize');
 		}
 	}
 
@@ -345,14 +350,16 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// Part container
 		if (this.titleContainer) {
-			const bgColor = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
-			this.titleContainer.style('color', this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND));
-			this.titleContainer.style('background-color', bgColor);
-			if (Color.fromHex(bgColor).isLighter()) {
+			const titleBackground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_BACKGROUND : TITLE_BAR_ACTIVE_BACKGROUND);
+			this.titleContainer.style('background-color', titleBackground);
+			if (Color.fromHex(titleBackground).isLighter()) {
 				this.titleContainer.addClass('light');
 			} else {
 				this.titleContainer.removeClass('light');
 			}
+
+			const titleForeground = this.getColor(this.isInactive ? TITLE_BAR_INACTIVE_FOREGROUND : TITLE_BAR_ACTIVE_FOREGROUND);
+			this.titleContainer.style('color', titleForeground);
 
 			const titleBorder = this.getColor(TITLE_BAR_BORDER);
 			this.titleContainer.style('border-bottom', titleBorder ? `1px solid ${titleBorder}` : null);
@@ -423,6 +430,7 @@ export class TitlebarPart extends Part implements ITitleService {
 	}
 
 	private updateLayout() {
+
 		// To prevent zooming we need to adjust the font size with the zoom factor
 		if (typeof this.initialSizing.titleFontSize !== 'number') {
 			this.initialSizing.titleFontSize = parseInt(this.titleContainer.getComputedStyle().fontSize, 10);
@@ -439,7 +447,8 @@ export class TitlebarPart extends Part implements ITitleService {
 			'line-height': `${newHeight}px`
 		});
 
-		if (!isMacintosh) {
+		// Windows/Linux specific layout
+		if (isWindows || isLinux) {
 			if (typeof this.initialSizing.controlsWidth !== 'number') {
 				this.initialSizing.controlsWidth = parseInt(this.windowControls.getComputedStyle().width, 10);
 			}
@@ -471,8 +480,6 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (newAppIconWidth + this.menubarWidth < leftSideTitle) {
 				bufferWidth = 0;
 			}
-
-
 
 			// Adjust app icon mimic menubar
 			this.appIcon.style({

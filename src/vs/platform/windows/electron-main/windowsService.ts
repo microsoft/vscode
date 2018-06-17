@@ -341,6 +341,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	}
 
 	minimizeWindow(windowId: number): TPromise<void> {
+		this.logService.trace('windowsService#minimizeWindow', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
 		if (codeWindow) {

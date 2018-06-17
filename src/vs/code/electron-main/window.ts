@@ -385,12 +385,18 @@ export class CodeWindow implements ICodeWindow {
 
 		// Window (Un)Maximize
 		this._win.on('maximize', (e) => {
-			this.currentConfig.maximized = true;
+			if (this.currentConfig) {
+				this.currentConfig.maximized = true;
+			}
+
 			app.emit('browser-window-maximize', e, this._win);
 		});
 
 		this._win.on('unmaximize', (e) => {
-			this.currentConfig.maximized = false;
+			if (this.currentConfig) {
+				this.currentConfig.maximized = false;
+			}
+
 			app.emit('browser-window-unmaximize', e, this._win);
 		});
 
@@ -596,7 +602,6 @@ export class CodeWindow implements ICodeWindow {
 
 		// Set fullscreen state
 		windowConfiguration.fullscreen = this._win.isFullScreen();
-		windowConfiguration.maximized = this._win.isMaximized();
 
 		// Set Accessibility Config
 		let autoDetectHighContrast = true;
@@ -609,6 +614,9 @@ export class CodeWindow implements ICodeWindow {
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
+
+		// Title style related
+		windowConfiguration.maximized = this._win.isMaximized();
 		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;
 
 		// Perf Counters

@@ -434,7 +434,7 @@ export class WorkbenchLayout extends Disposable implements IVerticalSashLayoutPr
 
 		this.statusbarHeight = isStatusbarHidden ? 0 : this.partLayoutInfo.statusbar.height;
 		this.titlebarHeight = isTitlebarHidden ? 0 : this.partLayoutInfo.titlebar.height / getZoomFactor(); // adjust for zoom prevention
-		this.menubarHeight = isMenubarHidden ? 0 : this.partLayoutInfo.menubar.height / getZoomFactor();
+		this.menubarHeight = isMenubarHidden ? 0 : this.partLayoutInfo.menubar.height / getZoomFactor(); // adjust for zoom prevention
 		this.headingHeight = Math.max(this.menubarHeight, this.titlebarHeight);
 
 		this.sidebarHeight = this.workbenchSize.height - this.statusbarHeight - this.headingHeight;

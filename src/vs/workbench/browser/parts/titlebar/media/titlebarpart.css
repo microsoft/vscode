@@ -29,9 +29,8 @@
 	zoom: 1; /* prevent zooming */
 }
 
-/***********************\
-| Windows and Linux CSS |
-\***********************/
+/* Windows/Linux: Rules for custom title (icon, window controls)  */
+
 .monaco-workbench.windows > .part.titlebar,
 .monaco-workbench.linux > .part.titlebar {
 	padding: 0;
