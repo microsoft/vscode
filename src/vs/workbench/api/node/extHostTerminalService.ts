@@ -179,9 +179,15 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		return this._onDidChangeMaximumDimensions && this._onDidChangeMaximumDimensions.event;
 	}
 
+	public get terminal(): Promise<ExtHostTerminal> {
+		console.log('terminal ' + this._id);
+		return this._fetchTerminal(this._id);
+	}
+
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
-		private _name: string
+		private _name: string,
+		private _fetchTerminal: (id: number) => Promise<ExtHostTerminal>
 	) {
 		super(proxy);
 		this._proxy.$createTerminalRenderer(this._name).then(id => {
@@ -240,7 +246,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
-		const renderer = new ExtHostTerminalRenderer(this._proxy, name);
+		const renderer = new ExtHostTerminalRenderer(this._proxy, name, (id) => this._getTerminalByIdEventually(id));
 		this._terminalRenderers.push(renderer);
 		return renderer;
 	}
@@ -393,6 +399,25 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 
 		// Send exit event to main side
 		this._proxy.$sendProcessExit(id, exitCode);
+	}
+
+	private _getTerminalByIdEventually(id: number, retries: number = 3): Promise<ExtHostTerminal> {
+		return new Promise(c => {
+			if (retries === 0) {
+				c(undefined);
+				return;
+			}
+
+			const terminal = this._getTerminalById(id);
+			if (terminal) {
+				c(terminal);
+			} else {
+				// This should only be needed immediately after createTerminalRenderer is called
+				setTimeout(() => {
+					c(this._getTerminalByIdEventually(retries - 1));
+				}, 100);
+			}
+		});
 	}
 
 	private _getTerminalById(id: number): ExtHostTerminal {
