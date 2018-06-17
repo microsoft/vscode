@@ -21,12 +21,23 @@ const RENDERER_NO_PROCESS_ID = -1;
 
 export class BaseExtHostTerminal {
 	public _id: number;
+	protected _idPromise: Promise<number>;
+	private _idPromiseComplete: (value: number) => any;
 	private _disposed: boolean = false;
 	private _queuedRequests: ApiRequest[] = [];
 
 	constructor(
-		protected _proxy: MainThreadTerminalServiceShape
+		protected _proxy: MainThreadTerminalServiceShape,
+		id?: number
 	) {
+		this._idPromise = new Promise<number>(c => {
+			if (id !== undefined) {
+				this._id = id;
+				c(id);
+			} else {
+				this._idPromiseComplete = c;
+			}
+		});
 	}
 
 	public dispose(): void {
@@ -53,6 +64,7 @@ export class BaseExtHostTerminal {
 
 	protected _runQueuedRequests(id: number): void {
 		this._id = id;
+		this._idPromiseComplete(id);
 		this._queuedRequests.forEach((r) => {
 			r.run(this._proxy, this._id);
 		});
@@ -77,10 +89,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 		id?: number,
 		pid?: number
 	) {
-		super(proxy);
-		if (id) {
-			this._id = id;
-		}
+		super(proxy, id);
 		this._pidPromise = new Promise<number>(c => {
 			if (pid === RENDERER_NO_PROCESS_ID) {
 				c(undefined);
@@ -180,16 +189,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	}
 
 	public get terminal(): Promise<ExtHostTerminal> {
-		console.log('terminal ' + this._id);
-
-
-
-		// TODO: Focus is not happening ever time for fake shell exmaple
-		// This is happening because this._id is not ready, this property needs similar treatment to the api requests
-		// Perhaps add a promise based one?
-
-
-		return this._fetchTerminal(this._id);
+		return this._idPromise.then(id => this._fetchTerminal(id));
 	}
 
 	constructor(
@@ -428,7 +428,7 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		this._proxy.$sendProcessExit(id, exitCode);
 	}
 
-	private _getTerminalByIdEventually(id: number, retries: number = 3): Promise<ExtHostTerminal> {
+	private _getTerminalByIdEventually(id: number, retries: number = 5): Promise<ExtHostTerminal> {
 		return new Promise(c => {
 			if (retries === 0) {
 				c(undefined);
@@ -439,10 +439,11 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			if (terminal) {
 				c(terminal);
 			} else {
-				// This should only be needed immediately after createTerminalRenderer is called
+				// This should only be needed immediately after createTerminalRenderer is called as
+				// the ExtHostTerminal has not yet been iniitalized
 				setTimeout(() => {
-					c(this._getTerminalByIdEventually(retries - 1));
-				}, 100);
+					c(this._getTerminalByIdEventually(id, retries - 1));
+				}, 200);
 			}
 		});
 	}
