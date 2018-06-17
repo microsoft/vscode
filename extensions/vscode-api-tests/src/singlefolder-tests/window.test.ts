@@ -583,5 +583,20 @@ suite('window namespace tests', () => {
 			});
 			const renderer = window.createTerminalRenderer('foo');
 		});
+
+		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+				assert.equal(active, terminal);
+				reg1.dispose();
+				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+					assert.equal(active, undefined);
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal();
+			terminal.show();
+		});
 	});
 });
