@@ -274,6 +274,9 @@ export class ModelServiceImpl implements IModelService {
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
 			}
+			if (tabSize < 1) {
+				tabSize = 1;
+			}
 		}
 
 		let insertSpaces = EDITOR_MODEL_DEFAULTS.insertSpaces;
