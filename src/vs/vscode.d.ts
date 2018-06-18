@@ -3939,6 +3939,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional metadata about the type of a diagnostic.
+	 */
+	export enum DiagnosticTag {
+		/**
+		 * Unused or unnecessary code.
+		 *
+		 * Diagnostics with this tag are rendered faded out. The amount of fading
+		 * is controlled by the `"editorUnnecessaryCode.opacity"` theme color. For
+		 * example, `"editorUnnecessaryCode.opacity": "#000000c0" will render the
+		 * code with 75% opacity. For high contrast themes, use the
+		 * `"editorUnnecessaryCode.border"` the color to underline unnecessary code
+		 * instead of fading it out.
+		 */
+		Unnecessary = 1,
+	}
+
+	/**
 	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
 	 * are only valid in the scope of a file.
 	 */
@@ -3977,6 +3994,11 @@ declare module 'vscode' {
 		 * a scope collide all definitions can be marked via this property.
 		 */
 		relatedInformation?: DiagnosticRelatedInformation[];
+
+		/**
+		 * Additional metadata about the diagnostic.
+		 */
+		tags?: DiagnosticTag[];
 
 		/**
 		 * Creates a new diagnostic object.

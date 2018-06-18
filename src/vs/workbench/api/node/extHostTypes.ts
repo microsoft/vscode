@@ -750,7 +750,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
-	customTags?: DiagnosticTag[];
+	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;

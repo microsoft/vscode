@@ -154,7 +154,7 @@ export default class LanguageProvider {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
-				diag.customTags = undefined;
+				diag.tags = undefined;
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
 				}

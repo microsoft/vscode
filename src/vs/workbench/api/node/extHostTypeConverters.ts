@@ -111,7 +111,7 @@ export namespace Diagnostic {
 			code: String(value.code),
 			severity: DiagnosticSeverity.from(value.severity),
 			relatedInformation: value.relatedInformation && value.relatedInformation.map(DiagnosticRelatedInformation.from),
-			customTags: Array.isArray(value.customTags) ? value.customTags.map(DiagnosticTag.from) : undefined,
+			tags: Array.isArray(value.tags) ? value.tags.map(DiagnosticTag.from) : undefined,
 		};
 	}
 }
