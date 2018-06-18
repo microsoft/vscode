@@ -5,7 +5,7 @@
 
 import { SplitView, Sizing, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
-import { Event } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 export class CenteredViewLayout {
@@ -44,6 +44,7 @@ export class CenteredViewLayout {
 		if (this.splitView) {
 			this.splitView.removeView(1);
 			this.splitView.addView(this.getView(), Sizing.Distribute, 1);
+			this.splitView.distributeViewSizes();
 		}
 	}
 
@@ -52,12 +53,16 @@ export class CenteredViewLayout {
 			element: this.view.element,
 			maximumSize: this.view.maximumWidth,
 			minimumSize: this.view.minimumWidth,
-			onDidChange: Event.None,
+			onDidChange: mapEvent(this.view.onDidChange, ({ width }) => width),
 			layout: size => this.view.layout(size, this.height)
 		};
 	}
 
 	activate(active: boolean): void {
+		if (active === !!this.splitView) {
+			return;
+		}
+
 		if (active) {
 			this.element = $('.centered-view-layout');
 			this.container.removeChild(this.view.element);

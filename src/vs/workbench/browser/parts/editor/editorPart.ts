@@ -732,7 +732,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 			maximumWidth: this.gridWidget.maximumWidth,
 			minimumHeight: this.gridWidget.minimumHeight,
 			maximumHeight: this.gridWidget.minimumHeight,
-			onDidChange: Event.None
+			onDidChange: this.gridWidget.onDidChange
 		};
 	}
 
