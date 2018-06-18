@@ -2494,7 +2494,7 @@ declare module 'vscode' {
 		range: Range;
 
 		/**
-		 * The range that should be selected and reveal when this symbol is being pciked, e.g the name of a function.
+		 * The range that should be selected and reveal when this symbol is being picked, e.g the name of a function.
 		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
 		 */
 		selectionRange: Range;
