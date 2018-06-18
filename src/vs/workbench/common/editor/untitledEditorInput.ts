@@ -205,7 +205,7 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 			const data = this.cachedModel.createSnapshot().read();
 			fileName = data.split('\n')[0];
 		}
-		catch (error) {
+		catch (e) {
 			fileName = this.getName();
 		}
 		if (!this.hasAssociatedFilePath) {
