@@ -134,7 +134,7 @@ export interface ProblemMatcher {
 	pattern: ProblemPattern | ProblemPattern[];
 	severity?: Severity;
 	watching?: WatchingMatcher;
-	fileSystemScheme?: string;
+	uriProvider?: (path: string) => URI;
 }
 
 export interface NamedProblemMatcher extends ProblemMatcher {
@@ -196,8 +196,8 @@ export function getResource(filename: string, matcher: ProblemMatcher): URI {
 	if (fullPath[0] !== '/') {
 		fullPath = '/' + fullPath;
 	}
-	if (matcher.fileSystemScheme !== void 0) {
-		return URI.parse(`${matcher.fileSystemScheme}://${fullPath}`);
+	if (matcher.uriProvider !== void 0) {
+		return matcher.uriProvider(fullPath);
 	} else {
 		return URI.file(fullPath);
 	}

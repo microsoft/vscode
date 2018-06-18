@@ -970,13 +970,13 @@ export class TerminalTaskSystem implements ITaskSystem {
 			}
 			let taskSystemInfo: TaskSystemInfo = resolver.taskSystemInfo;
 			let hasFilePrefix = matcher.filePrefix !== void 0;
-			let hasScheme = taskSystemInfo !== void 0 && taskSystemInfo.fileSystemScheme !== void 0 && taskSystemInfo.fileSystemScheme !== 'file';
-			if (!hasFilePrefix && !hasScheme) {
+			let hasUriProvider = taskSystemInfo !== void 0 && taskSystemInfo.uriProvider !== void 0;
+			if (!hasFilePrefix && !hasUriProvider) {
 				result.push(matcher);
 			} else {
 				let copy = Objects.deepClone(matcher);
-				if (hasScheme) {
-					copy.fileSystemScheme = taskSystemInfo.fileSystemScheme;
+				if (hasUriProvider) {
+					copy.uriProvider = taskSystemInfo.uriProvider;
 				}
 				if (hasFilePrefix) {
 					copy.filePrefix = this.resolveVariable(resolver, copy.filePrefix);
