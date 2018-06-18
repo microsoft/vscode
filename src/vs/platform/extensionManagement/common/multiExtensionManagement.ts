@@ -23,10 +23,9 @@ export class MulitExtensionManagementService implements IExtensionManagementServ
 	private readonly servers: IExtensionManagementServer[];
 
 	constructor(
-		servers: IExtensionManagementServer[],
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) {
-		this.servers = servers ? servers : this.extensionManagementServerService.extensionManagementServers;
+		this.servers = this.extensionManagementServerService.extensionManagementServers;
 		this.onInstallExtension = this.servers.reduce((emitter: EventMultiplexer<InstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onInstallExtension); return emitter; }, new EventMultiplexer<InstallExtensionEvent>()).event;
 		this.onDidInstallExtension = this.servers.reduce((emitter: EventMultiplexer<DidInstallExtensionEvent>, server) => { emitter.add(server.extensionManagementService.onDidInstallExtension); return emitter; }, new EventMultiplexer<DidInstallExtensionEvent>()).event;
 		this.onUninstallExtension = this.servers.reduce((emitter: EventMultiplexer<IExtensionIdentifier>, server) => { emitter.add(server.extensionManagementService.onUninstallExtension); return emitter; }, new EventMultiplexer<IExtensionIdentifier>()).event;
