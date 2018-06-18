@@ -43,9 +43,6 @@ if (isTempPortable) {
 	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
 }
 
-console.log('portableDataPath', portableDataPath);
-console.log('isPortable', isPortable);
-
 //#region Add support for using node_modules.asar
 (function () {
 	const path = require('path');
