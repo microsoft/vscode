@@ -423,11 +423,11 @@ export class SettingsRenderer implements IRenderer {
 		resetButton.element.classList.add('setting-reset-button');
 		resetButton.element.tabIndex = isSelected ? 0 : -1;
 
-		attachButtonStyler(resetButton, this.themeService, {
+		template.toDispose.push(attachButtonStyler(resetButton, this.themeService, {
 			buttonBackground: Color.transparent.toString(),
 			buttonHoverBackground: Color.transparent.toString(),
 			buttonForeground: editorActiveLinkForeground
-		});
+		}));
 
 		template.toDispose.push(resetButton.onDidClick(e => {
 			this._onDidChangeSetting.fire({ key: element.setting.key, value: undefined });

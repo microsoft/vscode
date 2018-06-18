@@ -54,13 +54,13 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTree: WorkbenchTree;
 	private treeDataSource: SettingsDataSource;
 
-	private delayedModifyLogging: Delayer<void>;
 	private delayedFilterLogging: Delayer<void>;
 	private localSearchDelayer: Delayer<void>;
 	private remoteSearchThrottle: ThrottledDelayer<void>;
 	private searchInProgress: TPromise<void>;
 
-	private pendingSettingModifiedReport: { key: string, value: any };
+	private settingUpdateDelayer: Delayer<void>;
+	private pendingSettingUpdate: { key: string, value: any };
 
 	private selectedElement: TreeElement;
 
@@ -81,11 +81,12 @@ export class SettingsEditor2 extends BaseEditor {
 		@IContextKeyService contextKeyService: IContextKeyService
 	) {
 		super(SettingsEditor2.ID, telemetryService, themeService);
-		this.delayedModifyLogging = new Delayer<void>(1000);
 		this.delayedFilterLogging = new Delayer<void>(1000);
 		this.localSearchDelayer = new Delayer(100);
 		this.remoteSearchThrottle = new ThrottledDelayer(200);
 		this.viewState = { settingsTarget: ConfigurationTarget.USER };
+
+		this.settingUpdateDelayer = new Delayer<void>(500);
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
@@ -320,31 +321,36 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onDidChangeSetting(key: string, value: any): void {
-		// ConfigurationService displays the error if this fails.
-		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
-		this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
-			.then(() => this.refreshTreeAndMaintainFocus());
-
-		const reportModifiedProps = {
-			key,
-			query: this.searchWidget.getValue(),
-			searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
-			rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
-			showConfiguredOnly: this.viewState.showConfiguredOnly,
-			isReset: typeof value === 'undefined',
-			settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
-		};
-
-		if (this.pendingSettingModifiedReport && key !== this.pendingSettingModifiedReport.key) {
-			this.reportModifiedSetting(reportModifiedProps);
+		if (this.pendingSettingUpdate && this.pendingSettingUpdate.key !== key) {
+			this.updateChangedSetting(key, value);
 		}
 
-		this.pendingSettingModifiedReport = { key, value };
-		this.delayedModifyLogging.trigger(() => this.reportModifiedSetting(reportModifiedProps));
+		this.pendingSettingUpdate = { key, value };
+		this.settingUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+	}
+
+	private updateChangedSetting(key: string, value: any): TPromise<void> {
+		// ConfigurationService displays the error if this fails.
+		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
+		return this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
+			.then(() => this.refreshTreeAndMaintainFocus())
+			.then(() => {
+				const reportModifiedProps = {
+					key,
+					query: this.searchWidget.getValue(),
+					searchResults: this.searchResultModel && this.searchResultModel.getUniqueResults(),
+					rawResults: this.searchResultModel && this.searchResultModel.getRawResults(),
+					showConfiguredOnly: this.viewState.showConfiguredOnly,
+					isReset: typeof value === 'undefined',
+					settingsTarget: this.settingsTargetsWidget.settingsTarget as SettingsTarget
+				};
+
+				return this.reportModifiedSetting(reportModifiedProps);
+			});
 	}
 
 	private reportModifiedSetting(props: { key: string, query: string, searchResults: ISearchResult[], rawResults: ISearchResult[], showConfiguredOnly: boolean, isReset: boolean, settingsTarget: SettingsTarget }): void {
-		this.pendingSettingModifiedReport = null;
+		this.pendingSettingUpdate = null;
 
 		const remoteResult = props.searchResults && props.searchResults[SearchResultIdx.Remote];
 		const localResult = props.searchResults && props.searchResults[SearchResultIdx.Local];
