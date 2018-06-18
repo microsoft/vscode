@@ -5,6 +5,7 @@
 
 .monaco-workbench > .part.statusbar {
 	box-sizing: border-box;
+	cursor: default;
 	width: 100%;
 	height: 22px;
 	font-size: 12px;
