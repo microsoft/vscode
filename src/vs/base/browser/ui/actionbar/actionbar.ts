@@ -279,9 +279,9 @@ export class ActionItem extends BaseActionItem {
 		if (this.options.label) {
 			let label = this.getAction().label;
 			if (label && this.options.isMenu) {
-				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '<u>$1</u>');
+				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '$1\u0332');
 			}
-			this.$e.innerHtml(label);
+			this.$e.text(label);
 		}
 	}
 
