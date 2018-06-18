@@ -483,11 +483,11 @@ suite('ExtensionsTipsService Test', () => {
 			}
 		});
 
-		testObject = instantiationService.createInstance(ExtensionTipsService);
-		testObject.onRecommendationChange(changeHandlerTarget);
-		testObject.ignoreExtensionRecommendation(ignoredExtensionId);
+		return setUpFolderWorkspace('myFolder', []).then(() => {
+			testObject = instantiationService.createInstance(ExtensionTipsService);
+			testObject.onRecommendationChange(changeHandlerTarget);
+			testObject.ignoreExtensionRecommendation(ignoredExtensionId);
 
-		return TPromise.as(null).then(() => {
 			assert.ok(changeHandlerTarget.calledOnce);
 			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ id: 'Some.Extension', isRecommended: false }));
 			assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
