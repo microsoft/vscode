@@ -41,6 +41,9 @@ let app = require('electron').app;
 // TODO@Ben Electron 2.0.x: prevent localStorage migration from SQLite to LevelDB due to issues
 app.commandLine.appendSwitch('disable-mojo-local-storage');
 
+// TODO@Ben Electron 2.0.x: force srgb color profile (for https://github.com/Microsoft/vscode/issues/51791)
+app.commandLine.appendSwitch('force-color-profile', 'srgb');
+
 let fs = require('fs');
 let path = require('path');
 let minimist = require('minimist');
