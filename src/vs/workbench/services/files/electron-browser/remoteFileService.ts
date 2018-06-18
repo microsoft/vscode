@@ -537,15 +537,6 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
-	rename(resource: URI, newName: string): TPromise<IFileStat, any> {
-		if (resource.scheme === Schemas.file) {
-			return super.rename(resource, newName);
-		} else {
-			const target = resource.with({ path: posix.join(resource.path, '..', newName) });
-			return this._doMoveWithInScheme(resource, target, false);
-		}
-	}
-
 	moveFile(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		if (source.scheme !== target.scheme) {
 			return this._doMoveAcrossScheme(source, target);

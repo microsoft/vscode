@@ -73,6 +73,7 @@ import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService
 import { ICodeEditor, IDiffEditor } from 'vs/editor/browser/editorBrowser';
 import { IDecorationRenderOptions } from 'vs/editor/common/editorCommon';
 import { EditorGroup } from 'vs/workbench/common/editor/editorGroup';
+import { Dimension } from 'vs/base/browser/dom';
 
 export function createFileInput(instantiationService: IInstantiationService, resource: URI): FileEditorInput {
 	return instantiationService.createInstance(FileEditorInput, resource, void 0);
@@ -374,10 +375,15 @@ export class TestPartService implements IPartService {
 	public _serviceBrand: any;
 
 	private _onTitleBarVisibilityChange = new Emitter<void>();
+	private _onMenubarVisibilityChange = new Emitter<Dimension>();
 	private _onEditorLayout = new Emitter<IDimension>();
 
 	public get onTitleBarVisibilityChange(): Event<void> {
 		return this._onTitleBarVisibilityChange.event;
+	}
+
+	public get onMenubarVisibilityChange(): Event<Dimension> {
+		return this._onMenubarVisibilityChange.event;
 	}
 
 	public get onEditorLayout(): Event<IDimension> {
@@ -835,10 +841,6 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
-	rename(resource: URI, newName: string): TPromise<IFileStat> {
-		return TPromise.as(null);
-	}
-
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
 	registerProvider(scheme: string, provider) {
@@ -959,8 +961,13 @@ export class TestWindowService implements IWindowService {
 	public _serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean> = new Emitter<boolean>().event;
+	onDidChangeMaximize: Event<boolean>;
 
 	isFocused(): TPromise<boolean> {
+		return TPromise.as(false);
+	}
+
+	isMaximized(): TPromise<boolean> {
 		return TPromise.as(false);
 	}
 
@@ -1025,6 +1032,18 @@ export class TestWindowService implements IWindowService {
 	}
 
 	focusWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	maximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	unmaximizeWindow(): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	minimizeWindow(): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 
@@ -1105,6 +1124,8 @@ export class TestWindowsService implements IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);
@@ -1187,6 +1208,10 @@ export class TestWindowsService implements IWindowsService {
 	}
 
 	maximizeWindow(windowId: number): TPromise<void> {
+		return TPromise.as(void 0);
+	}
+
+	minimizeWindow(windowId: number): TPromise<void> {
 		return TPromise.as(void 0);
 	}
 

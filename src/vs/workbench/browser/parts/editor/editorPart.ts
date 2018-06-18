@@ -8,7 +8,7 @@
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass, clearNode } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
 import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
@@ -83,6 +83,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private groupViews: Map<GroupIdentifier, IEditorGroupView> = new Map<GroupIdentifier, IEditorGroupView>();
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
+	private container: HTMLElement;
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 
 	private _whenRestored: TPromise<void>;
@@ -321,7 +322,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	applyLayout(layout: EditorGroupLayout): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.element);
+		const gridHasFocus = isAncestor(document.activeElement, this.container);
 
 		// Determine how many groups we need overall
 		let layoutGroupsCount = 0;
@@ -543,7 +544,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doRemoveEmptyGroup(groupView: IEditorGroupView): void {
-		const gridHasFocus = isAncestor(document.activeElement, this.gridWidget.element);
+		const gridHasFocus = isAncestor(document.activeElement, this.container);
 
 		// Activate next group if the removed one was active
 		if (this._activeGroup === groupView) {
@@ -696,25 +697,25 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	protected updateStyles(): void {
-		this.gridWidget.element.style.backgroundColor = this.getColor(editorBackground);
+		this.container.style.backgroundColor = this.getColor(editorBackground);
 
 		this.gridWidget.style({ separatorBorder: this.gridSeparatorBorder });
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
 
+		// Container
+		this.container = document.createElement('div');
+		addClass(this.container, 'content');
+		parent.appendChild(this.container);
+
 		// Grid control
 		this.doCreateGridControl();
 
-		// Container
-		addClass(this.gridWidget.element, 'content');
-		parent.appendChild(this.gridWidget.element);
-
-
 		// Drop support
-		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.gridWidget.element));
+		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
 
-		return this.gridWidget.element;
+		return this.container;
 	}
 
 	private doCreateGridControl(): void {
@@ -756,8 +757,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this._activeGroup.focus();
 			} catch (error) {
 				if (this.gridWidget) {
-					clearNode(this.gridWidget.element);
-					this.gridWidget.dispose();
 					this.doSetGridWidget();
 				}
 
@@ -772,12 +771,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
-
-		// Dispose old
-		if (this.gridWidget) {
-			this.gridWidget.dispose();
-		}
-
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
 		if (editorGroupViewsToReuse) {
@@ -787,7 +780,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		// Create new
-		this.doSetGridWidget(SerializableGrid.deserialize(serializedGrid, {
+		const gridWidget = SerializableGrid.deserialize(serializedGrid, {
 			fromJSON: (serializedEditorGroup: ISerializedEditorGroup) => {
 				let groupView: IEditorGroupView;
 				if (reuseGroupViews.length > 0) {
@@ -802,13 +795,21 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 				return groupView;
 			}
-		}, { styles: { separatorBorder: this.gridSeparatorBorder } }));
+		}, { styles: { separatorBorder: this.gridSeparatorBorder } });
+
+		// Set it
+		this.doSetGridWidget(gridWidget);
 	}
 
 	private doSetGridWidget(gridWidget?: SerializableGrid<IEditorGroupView>): void {
+		if (this.gridWidget) {
+			this.gridWidget.dispose();
+		}
+
 		this.gridWidget = gridWidget;
 
 		if (gridWidget) {
+			this.container.appendChild(gridWidget.element);
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
@@ -933,7 +934,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private updateContainer(): void {
-		toggleClass(this.gridWidget.element, 'empty', this.isEmpty());
+		toggleClass(this.container, 'empty', this.isEmpty());
 	}
 
 	private isEmpty(): boolean {
@@ -1006,7 +1007,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Grid widget
 		if (this.gridWidget) {
-			this.gridWidget = dispose(this.gridWidget);
+			this.gridWidget.dispose();
 		}
 
 		super.dispose();

@@ -166,11 +166,15 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		let useCustomTitleStyle = false;
-		if (isMacintosh && (!windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom')) {
+		if (isMacintosh) {
+			useCustomTitleStyle = !windowConfig || !windowConfig.titleBarStyle || windowConfig.titleBarStyle === 'custom'; // Default to custom on macOS
+
 			const isDev = !this.environmentService.isBuilt || !!config.extensionDevelopmentPath;
-			if (!isDev) {
-				useCustomTitleStyle = true; // not enabled when developing due to https://github.com/electron/electron/issues/3647
+			if (isDev) {
+				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+		} else {
+			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
 		}
 
 		if (useNativeTabs) {
@@ -180,6 +184,9 @@ export class CodeWindow implements ICodeWindow {
 		if (useCustomTitleStyle) {
 			options.titleBarStyle = 'hidden';
 			this.hiddenTitleBarStyle = true;
+			if (!isMacintosh) {
+				options.frame = false;
+			}
 		}
 
 		// Create the browser window.
@@ -374,6 +381,23 @@ export class CodeWindow implements ICodeWindow {
 		// Window Focus
 		this._win.on('focus', () => {
 			this._lastFocusTime = Date.now();
+		});
+
+		// Window (Un)Maximize
+		this._win.on('maximize', (e) => {
+			if (this.currentConfig) {
+				this.currentConfig.maximized = true;
+			}
+
+			app.emit('browser-window-maximize', e, this._win);
+		});
+
+		this._win.on('unmaximize', (e) => {
+			if (this.currentConfig) {
+				this.currentConfig.maximized = false;
+			}
+
+			app.emit('browser-window-unmaximize', e, this._win);
 		});
 
 		// Window Fullscreen
@@ -590,6 +614,10 @@ export class CodeWindow implements ICodeWindow {
 		// Theme
 		windowConfiguration.baseTheme = this.getBaseTheme();
 		windowConfiguration.backgroundColor = this.getBackgroundColor();
+
+		// Title style related
+		windowConfiguration.maximized = this._win.isMaximized();
+		windowConfiguration.frameless = this.hasHiddenTitleBarStyle() && !isMacintosh;
 
 		// Perf Counters
 		windowConfiguration.perfEntries = exportEntries();
