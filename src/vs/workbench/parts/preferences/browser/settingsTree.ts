@@ -22,7 +22,7 @@ import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from '
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
@@ -784,5 +784,15 @@ export class SearchResultModel {
 			});
 
 		return flatSettings;
+	}
+}
+
+export class NonExpandableTree extends WorkbenchTree {
+	expand(): TPromise<any, any> {
+		return TPromise.wrap(null);
+	}
+
+	collapse(): TPromise<any, any> {
+		return TPromise.wrap(null);
 	}
 }
