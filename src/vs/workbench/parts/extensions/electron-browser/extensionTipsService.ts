@@ -848,7 +848,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						for (let j = 0; j < allRecommendations.length && !foundRemote; j++) {
 							if (Array.isArray(allRecommendations[j].remoteSet) && allRecommendations[j].remoteSet.indexOf(hashedRemotes[i]) > -1) {
 								foundRemote = true;
-								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(this.isExtensionAllowedToBeRecommended) || [];
+								this._dynamicWorkspaceRecommendations = allRecommendations[j].recommendations.filter(id => this.isExtensionAllowedToBeRecommended(id)) || [];
 								this.storageService.store(storageKey, JSON.stringify({
 									recommendations: this._dynamicWorkspaceRecommendations,
 									timestamp: Date.now()
