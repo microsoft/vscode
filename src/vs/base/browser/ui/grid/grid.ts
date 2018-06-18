@@ -10,6 +10,7 @@ import { Orientation } from 'vs/base/browser/ui/sash/sash';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { orthogonal, IView, GridView, Sizing as GridViewSizing, Box, IGridViewStyles } from './gridview';
+import { Event } from 'vs/base/common/event';
 
 export { Orientation } from './gridview';
 
@@ -192,14 +193,16 @@ export class Grid<T extends IView> implements IDisposable {
 
 	get minimumWidth(): number { return this.gridview.minimumWidth; }
 	get minimumHeight(): number { return this.gridview.minimumHeight; }
-
 	get maximumWidth(): number { return this.gridview.maximumWidth; }
 	get maximumHeight(): number { return this.gridview.maximumHeight; }
+	get onDidChange(): Event<{ width: number; height: number; }> { return this.gridview.onDidChange; }
 
-	public sashResetSizing: Sizing = Sizing.Distribute;
+	get element(): HTMLElement { return this.gridview.element; }
 
-	constructor(container: HTMLElement, view: T, options: IGridOptions = {}) {
-		this.gridview = new GridView(container, options);
+	sashResetSizing: Sizing = Sizing.Distribute;
+
+	constructor(view: T, options: IGridOptions = {}) {
+		this.gridview = new GridView(options);
 		this.disposables.push(this.gridview);
 
 		this.gridview.onDidSashReset(this.doResetViewSize, this, this.disposables);
@@ -439,7 +442,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 		return SerializableGrid.getFirstLeaf(node.children[0]);
 	}
 
-	static deserialize<T extends ISerializableView>(container: HTMLElement, json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
+	static deserialize<T extends ISerializableView>(json: ISerializedGrid, deserializer: IViewDeserializer<T>, options: IGridOptions = {}): SerializableGrid<T> {
 		if (typeof json.orientation !== 'number') {
 			throw new Error('Invalid JSON: \'orientation\' property must be a number.');
 		} else if (typeof json.width !== 'number') {
@@ -460,7 +463,7 @@ export class SerializableGrid<T extends ISerializableView> extends Grid<T> {
 			throw new Error('Invalid serialized state, first leaf not found');
 		}
 
-		const result = new SerializableGrid<T>(container, firstLeaf.view, options);
+		const result = new SerializableGrid<T>(firstLeaf.view, options);
 		result.orientation = orientation;
 		result.restoreViews(firstLeaf.view, orientation, root);
 		result.initialLayoutContext = { width, height, root };

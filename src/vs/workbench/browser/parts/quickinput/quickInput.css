@@ -12,6 +12,28 @@
 	margin-left: -300px;
 }
 
+.quick-input-titlebar {
+	display: flex;
+}
+
+.quick-input-title {
+	flex: 1;
+	padding: 3px 11px;
+}
+
+.quick-input-action-bar {
+	display: flex;
+	margin-right: 6px;
+}
+
+.quick-input-action-bar .action-label.icon {
+	margin: 0 0 0 5px;
+	width: 16px;
+	height: 100%;
+	background-position: center;
+	background-repeat: no-repeat;
+}
+
 .quick-input-header {
 	display: flex;
 	padding: 6px 6px 4px 6px;

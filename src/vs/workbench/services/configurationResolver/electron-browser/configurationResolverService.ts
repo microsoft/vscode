@@ -7,27 +7,22 @@ import uri from 'vs/base/common/uri';
 import * as nls from 'vs/nls';
 import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
-import * as objects from 'vs/base/common/objects';
 import { Schemas } from 'vs/base/common/network';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { sequence } from 'vs/base/common/async';
 import { toResource } from 'vs/workbench/common/editor';
 import { IStringDictionary, size } from 'vs/base/common/collections';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceFolder, IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { VariableResolver } from 'vs/workbench/services/configurationResolver/node/variableResolver';
+import { AbstractVariableResolverService } from 'vs/workbench/services/configurationResolver/node/variableResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { DiffEditorInput } from 'vs/workbench/common/editor/diffEditorInput';
 import { isUndefinedOrNull } from 'vs/base/common/types';
 
-export class ConfigurationResolverService implements IConfigurationResolverService {
-
-	_serviceBrand: any;
-	private resolver: VariableResolver;
+export class ConfigurationResolverService extends AbstractVariableResolverService {
 
 	constructor(
 		envVariables: platform.IProcessEnvironment,
@@ -37,7 +32,7 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		@ICommandService private commandService: ICommandService,
 		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
 	) {
-		this.resolver = new VariableResolver({
+		super({
 			getFolderUri: (folderName: string): uri => {
 				const folder = workspaceContextService.getWorkspace().folders.filter(f => f.name === folderName).pop();
 				return folder ? folder.uri : undefined;
@@ -84,21 +79,10 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 		}, envVariables);
 	}
 
-	public resolve(root: IWorkspaceFolder, value: string): string;
-	public resolve(root: IWorkspaceFolder, value: string[]): string[];
-	public resolve(root: IWorkspaceFolder, value: IStringDictionary<string>): IStringDictionary<string>;
-	public resolve(root: IWorkspaceFolder, value: any): any {
-		return this.resolver.resolveAny(root ? root.uri : undefined, value);
-	}
-
-	public resolveAny(root: IWorkspaceFolder, value: any, commandValueMapping?: IStringDictionary<string>): any {
-		return this.resolver.resolveAny(root ? root.uri : undefined, value, commandValueMapping);
-	}
-
 	public resolveWithCommands(folder: IWorkspaceFolder, config: any, variables?: IStringDictionary<string>): TPromise<any> {
 
 		// then substitute remaining variables in VS Code core
-		config = this.substituteVariables(folder, config);
+		config = this.resolveAny(folder, config);
 
 		// now evaluate command variables (which might have a UI)
 		return this.executeCommandVariables(config, variables).then(commandValueMapping => {
@@ -109,37 +93,18 @@ export class ConfigurationResolverService implements IConfigurationResolverServi
 
 			// finally substitute evaluated command variables (if there are any)
 			if (size<string>(commandValueMapping) > 0) {
-				return this.substituteVariables(folder, config, commandValueMapping);
+				return this.resolveAny(folder, config, commandValueMapping);
 			} else {
 				return config;
 			}
 		});
 	}
 
-	private substituteVariables(workspaceFolder: IWorkspaceFolder, config: any, commandValueMapping?: IStringDictionary<string>): any {
-
-		const result = objects.deepClone(config) as any;
-
-		// hoist platform specific attributes to top level
-		if (platform.isWindows && result.windows) {
-			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
-		} else if (platform.isMacintosh && result.osx) {
-			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
-		} else if (platform.isLinux && result.linux) {
-			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
-		}
-
-		// delete all platform specific sections
-		delete result.windows;
-		delete result.osx;
-		delete result.linux;
-
-		// substitute all variables in string values
-		return this.resolveAny(workspaceFolder, result, commandValueMapping);
-	}
-
 	/**
-	 * Finds and executes all command variables (see #6569)
+	 * Finds and executes all command variables in the given configuration and returns their values as a dictionary.
+	 * Please note: this method does not substitute the command variables (so the configuration is not modified).
+	 * The returned dictionary can be passed to "resolvePlatform" for the substitution.
+	 * See #6569.
 	 */
 	private executeCommandVariables(configuration: any, variableToCommandMap: IStringDictionary<string>): TPromise<IStringDictionary<string>> {
 

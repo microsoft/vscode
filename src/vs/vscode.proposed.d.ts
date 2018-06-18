@@ -387,6 +387,11 @@ declare module 'vscode' {
 		name: string;
 
 		/**
+		 * More detail for this symbol, e.g the signature of a function.
+		 */
+		detail: string;
+
+		/**
 		 * The kind of this symbol.
 		 */
 		kind: SymbolKind;
@@ -411,11 +416,12 @@ declare module 'vscode' {
 		 * Creates a new document symbol.
 		 *
 		 * @param name The name of the symbol.
+		 * @param detail Details for the symbol.
 		 * @param kind The kind of the symbol.
 		 * @param fullRange The full range of the symbol.
 		 * @param gotoRange The range that should be reveal.
 		 */
-		constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
+		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {
@@ -449,6 +455,12 @@ declare module 'vscode' {
 
 	export interface QuickInput {
 
+		title: string | undefined;
+
+		step: number | undefined;
+
+		totalSteps: number | undefined;
+
 		enabled: boolean;
 
 		busy: boolean;
@@ -468,7 +480,7 @@ declare module 'vscode' {
 
 		value: string;
 
-		placeholder: string;
+		placeholder: string | undefined;
 
 		readonly onDidChangeValue: Event<string>;
 
@@ -499,21 +511,21 @@ declare module 'vscode' {
 
 		value: string;
 
-		placeholder: string;
+		placeholder: string | undefined;
 
 		password: boolean;
 
 		readonly onDidChangeValue: Event<string>;
 
-		readonly onDidAccept: Event<string>;
+		readonly onDidAccept: Event<void>;
 
 		buttons: ReadonlyArray<QuickInputButton>;
 
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
-		prompt: string;
+		prompt: string | undefined;
 
-		validationMessage: string;
+		validationMessage: string | undefined;
 	}
 
 	export interface QuickInputButton {
@@ -553,33 +565,6 @@ declare module 'vscode' {
 		export const onDidRenameResource: Event<ResourceRenamedEvent>;
 	}
 	//#endregion
-
-	//#region mjbvz: Code action trigger
-
-	/**
-	 * How a [code action provider](#CodeActionProvider) was triggered
-	 */
-	export enum CodeActionTrigger {
-		/**
-		 * Provider was triggered automatically by VS Code.
-		 */
-		Automatic = 1,
-
-		/**
-		 * User requested code actions.
-		 */
-		Manual = 2,
-	}
-
-	interface CodeActionContext {
-		/**
-		 * How the code action provider was triggered.
-		 */
-		triggerKind?: CodeActionTrigger;
-	}
-
-	//#endregion
-
 
 	//#region Matt: WebView Serializer
 

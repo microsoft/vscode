@@ -9,7 +9,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
-import { ThemeIcon } from 'vs/platform/theme/common/themeService';
 import { Event } from 'vs/base/common/event';
 
 export interface IQuickPickItem {
@@ -89,6 +88,11 @@ export interface IInputOptions {
 
 export interface IQuickInput {
 
+	title: string | undefined;
+
+	step: number | undefined;
+
+	totalSteps: number | undefined;
 
 	enabled: boolean;
 
@@ -109,15 +113,15 @@ export interface IQuickPick extends IQuickInput {
 
 	value: string;
 
-	placeholder: string;
+	placeholder: string | undefined;
 
-	readonly onDidValueChange: Event<string>;
+	readonly onDidChangeValue: Event<string>;
 
 	readonly onDidAccept: Event<string>;
 
 	buttons: ReadonlyArray<IQuickInputButton>;
 
-	readonly onDidTriggerCommand: Event<IQuickInputButton>;
+	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
 	items: ReadonlyArray<IQuickPickItem>;
 
@@ -142,7 +146,7 @@ export interface IInputBox extends IQuickInput {
 
 	valueSelection: Readonly<[number, number]>;
 
-	placeholder: string;
+	placeholder: string | undefined;
 
 	password: boolean;
 
@@ -154,13 +158,13 @@ export interface IInputBox extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
-	prompt: string;
+	prompt: string | undefined;
 
-	validationMessage: string;
+	validationMessage: string | undefined;
 }
 
 export interface IQuickInputButton {
-	iconPath: string | URI | { light: string | URI; dark: string | URI } | ThemeIcon;
+	iconPath: { dark: URI; light?: URI; };
 	tooltip?: string | undefined;
 }
 

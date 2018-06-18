@@ -12,6 +12,7 @@ export const OutlineViewFiltered = new RawContextKey('outlineFiltered', false);
 export const OutlineViewFocused = new RawContextKey('outlineFocused', false);
 
 export enum OutlineConfigKeys {
+	'icons' = 'outline.icons',
 	'problemsEnabled' = 'outline.problems.enabled',
 	'problemsColors' = 'outline.problems.colors',
 	'problemsBadges' = 'outline.problems.badges'

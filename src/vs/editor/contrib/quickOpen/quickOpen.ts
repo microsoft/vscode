@@ -47,6 +47,7 @@ function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideCo
 		bucket.push({
 			kind: entry.kind,
 			name: entry.name,
+			detail: entry.detail,
 			containerName: entry.containerName || overrideContainerLabel,
 			fullRange: entry.fullRange,
 			identifierRange: entry.identifierRange,

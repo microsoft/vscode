@@ -4873,6 +4873,7 @@ declare namespace monaco.languages {
 
 	export interface DocumentSymbol {
 		name: string;
+		detail: string;
 		kind: SymbolKind;
 		containerName?: string;
 		fullRange: IRange;
@@ -4885,7 +4886,7 @@ declare namespace monaco.languages {
 	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
-		extensionId?: string;
+		displayName?: string;
 		/**
 		 * Provide symbol information for the given document.
 		 */
@@ -5219,7 +5220,7 @@ declare namespace monaco.languages {
 		firstLine?: string;
 		aliases?: string[];
 		mimetypes?: string[];
-		configuration?: string;
+		configuration?: Uri;
 	}
 	/**
 	 * A Monarch language definition

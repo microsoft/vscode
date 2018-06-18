@@ -883,17 +883,23 @@ export class SymbolInformation {
 
 export class DocumentSymbol {
 	name: string;
+	detail: string;
 	kind: SymbolKind;
 	fullRange: Range;
 	gotoRange: Range;
 	children: DocumentSymbol[];
 
-	constructor(name: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+	constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
 		this.name = name;
+		this.detail = detail;
 		this.kind = kind;
 		this.fullRange = fullRange;
 		this.gotoRange = gotoRange;
 		this.children = [];
+
+		if (!this.fullRange.contains(this.gotoRange)) {
+			throw new Error('gotoRange must be contained in fullRange');
+		}
 	}
 }
 
@@ -1114,9 +1120,16 @@ export class CompletionList {
 
 export enum ViewColumn {
 	Active = -1,
+	Beside = -2,
 	One = 1,
 	Two = 2,
-	Three = 3
+	Three = 3,
+	Four = 4,
+	Five = 5,
+	Six = 6,
+	Seven = 7,
+	Eight = 8,
+	Nine = 9
 }
 
 export enum StatusBarAlignment {

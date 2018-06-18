@@ -10,7 +10,7 @@ import { Event, anyEvent, Emitter, mapEvent, Relay } from 'vs/base/common/event'
 import { Orientation, Sash } from 'vs/base/browser/ui/sash/sash';
 import { SplitView, IView as ISplitView, Sizing, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
-import { $, append } from 'vs/base/browser/dom';
+import { $ } from 'vs/base/browser/dom';
 import { tail2 as tail } from 'vs/base/common/arrays';
 import { Color } from 'vs/base/common/color';
 
@@ -104,11 +104,11 @@ class BranchNode implements ISplitView, IDisposable {
 	}
 
 	get minimumOrthogonalSize(): number {
-		return this.children.length === 0 ? 0 : this.children.reduce((r, c) => r + c.minimumSize, 0);
+		return this.splitview.minimumSize;
 	}
 
 	get maximumOrthogonalSize(): number {
-		return this.children.length === 0 ? Number.POSITIVE_INFINITY : this.children.reduce((r, c) => r + c.maximumSize, 0);
+		return this.splitview.maximumSize;
 	}
 
 	get minimumWidth(): number {
@@ -363,7 +363,7 @@ class LeafNode implements ISplitView, IDisposable {
 	}
 
 	get onDidChange(): Event<number> {
-		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? ({ width }) => width : ({ height }) => height);
+		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
 	}
 
 	set orthogonalStartSash(sash: Sash) {
@@ -418,7 +418,7 @@ function flipNode<T extends Node>(node: T, size: number, orthogonalSize: number)
 
 export class GridView implements IDisposable {
 
-	private element: HTMLElement;
+	readonly element: HTMLElement;
 	private styles: IGridViewStyles;
 
 	private _root: BranchNode;
@@ -442,6 +442,7 @@ export class GridView implements IDisposable {
 		this._root = root;
 		this.element.appendChild(root.element);
 		this.onDidSashResetRelay.input = root.onDidSashReset;
+		this._onDidChange.input = mapEvent(root.onDidChange, () => undefined); // TODO
 	}
 
 	get orientation(): Orientation {
@@ -459,32 +460,19 @@ export class GridView implements IDisposable {
 		this.root.orthogonalLayout(orthogonalSize);
 	}
 
-	get width(): number {
-		return this.root.width;
-	}
+	get width(): number { return this.root.width; }
+	get height(): number { return this.root.height; }
 
-	get height(): number {
-		return this.root.height;
-	}
+	get minimumWidth(): number { return this.root.minimumWidth; }
+	get minimumHeight(): number { return this.root.minimumHeight; }
+	get maximumWidth(): number { return this.root.maximumHeight; }
+	get maximumHeight(): number { return this.root.maximumHeight; }
 
-	get minimumWidth(): number {
-		return this.root.minimumWidth;
-	}
+	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	readonly onDidChange = this._onDidChange.event;
 
-	get minimumHeight(): number {
-		return this.root.minimumHeight;
-	}
-
-	get maximumWidth(): number {
-		return this.root.maximumHeight;
-	}
-
-	get maximumHeight(): number {
-		return this.root.maximumHeight;
-	}
-
-	constructor(container: HTMLElement, options: IGridViewOptions = {}) {
-		this.element = append(container, $('.monaco-grid-view'));
+	constructor(options: IGridViewOptions = {}) {
+		this.element = $('.monaco-grid-view');
 		this.styles = options.styles || defaultStyles;
 		this.root = new BranchNode(Orientation.VERTICAL, this.styles);
 	}
@@ -757,7 +745,5 @@ export class GridView implements IDisposable {
 		if (this.element && this.element.parentElement) {
 			this.element.parentElement.removeChild(this.element);
 		}
-
-		this.element = null;
 	}
 }

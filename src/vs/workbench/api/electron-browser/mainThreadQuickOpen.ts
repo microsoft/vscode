@@ -8,17 +8,18 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { IPickOptions, IInputOptions, IQuickInputService, IQuickInput } from 'vs/platform/quickinput/common/quickInput';
 import { InputBoxOptions } from 'vscode';
-import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, MyQuickPickItems, MainContext, IExtHostContext, TransferQuickInput } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadQuickOpenShape, ExtHostQuickOpenShape, TransferQuickPickItems, MainContext, IExtHostContext, TransferQuickInput, TransferQuickInputButton } from 'vs/workbench/api/node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
+import URI from 'vs/base/common/uri';
 
 @extHostNamedCustomer(MainContext.MainThreadQuickOpen)
 export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 
 	private _proxy: ExtHostQuickOpenShape;
 	private _quickInputService: IQuickInputService;
-	private _doSetItems: (items: MyQuickPickItems[]) => any;
+	private _doSetItems: (items: TransferQuickPickItems[]) => any;
 	private _doSetError: (error: Error) => any;
-	private _contents: TPromise<MyQuickPickItems[]>;
+	private _contents: TPromise<TransferQuickPickItems[]>;
 	private _token: number = 0;
 
 	constructor(
@@ -35,7 +36,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 	$show(options: IPickOptions): TPromise<number | number[]> {
 		const myToken = ++this._token;
 
-		this._contents = new TPromise<MyQuickPickItems[]>((c, e) => {
+		this._contents = new TPromise<TransferQuickPickItems[]>((c, e) => {
 			this._doSetItems = (items) => {
 				if (myToken === this._token) {
 					c(items);
@@ -57,7 +58,7 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				return undefined;
 			}, undefined, progress => {
 				if (progress) {
-					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+					this._proxy.$onItemSelected((<TransferQuickPickItems>progress).handle);
 				}
 			});
 		} else {
@@ -68,13 +69,13 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				return undefined;
 			}, undefined, progress => {
 				if (progress) {
-					this._proxy.$onItemSelected((<MyQuickPickItems>progress).handle);
+					this._proxy.$onItemSelected((<TransferQuickPickItems>progress).handle);
 				}
 			});
 		}
 	}
 
-	$setItems(items: MyQuickPickItems[]): TPromise<any> {
+	$setItems(items: TransferQuickPickItems[]): TPromise<any> {
 		if (this._doSetItems) {
 			this._doSetItems(items);
 		}
@@ -125,16 +126,34 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					this._proxy.$onDidAccept(sessionId);
 				});
 				input.onDidChangeActive(items => {
-					this._proxy.$onDidChangeActive(sessionId, items.map(item => (item as MyQuickPickItems).handle));
+					this._proxy.$onDidChangeActive(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
 				});
 				input.onDidChangeSelection(items => {
-					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as MyQuickPickItems).handle));
+					this._proxy.$onDidChangeSelection(sessionId, items.map(item => (item as TransferQuickPickItems).handle));
+				});
+				input.onDidTriggerButton(button => {
+					this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+				});
+				input.onDidChangeValue(value => {
+					this._proxy.$onDidChangeValue(sessionId, value);
+				});
+				input.onDidHide(() => {
+					this._proxy.$onDidHide(sessionId);
 				});
 				session = input;
 			} else {
 				const input = this._quickInputService.createInputBox();
 				input.onDidAccept(() => {
 					this._proxy.$onDidAccept(sessionId);
+				});
+				input.onDidTriggerButton(button => {
+					this._proxy.$onDidTriggerButton(sessionId, (button as TransferQuickInputButton).handle);
+				});
+				input.onDidChangeValue(value => {
+					this._proxy.$onDidChangeValue(sessionId, value);
+				});
+				input.onDidHide(() => {
+					this._proxy.$onDidHide(sessionId);
 				});
 				session = input;
 			}
@@ -150,6 +169,15 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 				} else {
 					session.hide();
 				}
+			} else if (param === 'buttons') {
+				params.buttons.forEach(button => {
+					const iconPath = button.iconPath;
+					iconPath.dark = URI.revive(iconPath.dark);
+					if (iconPath.light) {
+						iconPath.light = URI.revive(iconPath.light);
+					}
+				});
+				session[param] = params[param];
 			} else {
 				session[param] = params[param];
 			}

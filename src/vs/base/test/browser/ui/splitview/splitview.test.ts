@@ -380,7 +380,7 @@ suite('Splitview', () => {
 		splitview.addView(view3, 25);
 
 		splitview.layout(200);
-		assert.deepEqual([Math.round(view1.size), Math.round(view2.size), Math.round(view3.size)], [67, 67, 67]);
+		assert.deepEqual([view1.size, view2.size, view3.size], [67, 67, 66]);
 
 		splitview.dispose();
 		view3.dispose();

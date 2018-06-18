@@ -26,7 +26,7 @@ import * as modes from 'vs/editor/common/modes';
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/parts/debug/common/debug';
 
-import { IQuickPickItem, IPickOptions } from 'vs/platform/quickinput/common/quickInput';
+import { IQuickPickItem, IPickOptions, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
 import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
@@ -336,7 +336,11 @@ export interface MainThreadTerminalServiceShape extends IDisposable {
 	$sendProcessExit(terminalId: number, exitCode: number): void;
 }
 
-export interface MyQuickPickItems extends IQuickPickItem {
+export interface TransferQuickPickItems extends IQuickPickItem {
+	handle: number;
+}
+
+export interface TransferQuickInputButton extends IQuickInputButton {
 	handle: number;
 }
 
@@ -363,9 +367,9 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	placeholder?: string;
 
-	commands?: TransferQuickInputCommand[];
+	buttons?: TransferQuickInputButton[];
 
-	items?: MyQuickPickItems[];
+	items?: TransferQuickPickItems[];
 
 	canSelectMany?: boolean;
 
@@ -386,21 +390,16 @@ export interface TransferInputBox extends BaseTransferQuickInput {
 
 	password?: boolean;
 
-	commands?: TransferQuickInputCommand[];
+	buttons?: TransferQuickInputButton[];
 
 	prompt?: string;
 
 	validationMessage?: string;
 }
 
-export interface TransferQuickInputCommand {
-	iconPath: { light: string; dark: string; };
-	tooltip?: string | undefined;
-}
-
 export interface MainThreadQuickOpenShape extends IDisposable {
 	$show(options: IPickOptions): TPromise<number | number[]>;
-	$setItems(items: MyQuickPickItems[]): TPromise<any>;
+	$setItems(items: TransferQuickPickItems[]): TPromise<any>;
 	$setError(error: Error): TPromise<any>;
 	$input(options: vscode.InputBoxOptions, validateInput: boolean): TPromise<string>;
 	$createOrUpdate(params: TransferQuickInput): TPromise<void>;
@@ -429,15 +428,22 @@ export interface MainThreadWebviewsShape extends IDisposable {
 	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void;
 	$setTitle(handle: WebviewPanelHandle, value: string): void;
 	$setHtml(handle: WebviewPanelHandle, value: string): void;
+	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void;
 	$postMessage(handle: WebviewPanelHandle, value: any): Thenable<boolean>;
 
 	$registerSerializer(viewType: string): void;
 	$unregisterSerializer(viewType: string): void;
 }
 
+export interface WebviewPanelViewState {
+	readonly active: boolean;
+	readonly visible: boolean;
+	readonly position: EditorViewColumn;
+}
+
 export interface ExtHostWebviewsShape {
 	$onMessage(handle: WebviewPanelHandle, message: any): void;
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, active: boolean, position: EditorViewColumn): void;
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void;
 	$onDidDisposeWebviewPanel(handle: WebviewPanelHandle): Thenable<void>;
 	$deserializeWebviewPanel(newWebviewHandle: WebviewPanelHandle, viewType: string, title: string, state: any, position: EditorViewColumn, options: vscode.WebviewOptions): Thenable<void>;
 }
@@ -819,6 +825,9 @@ export interface ExtHostQuickOpenShape {
 	$onDidChangeActive(sessionId: number, handles: number[]): void;
 	$onDidChangeSelection(sessionId: number, handles: number[]): void;
 	$onDidAccept(sessionId: number): void;
+	$onDidChangeValue(sessionId: number, value: string): void;
+	$onDidTriggerButton(sessionId: number, handle: number): void;
+	$onDidHide(sessionId: number): void;
 }
 
 export interface ShellLaunchConfigDto {
@@ -853,7 +862,7 @@ export interface ExtHostTaskShape {
 	$onDidStartTaskProcess(value: TaskProcessStartedDTO): void;
 	$onDidEndTaskProcess(value: TaskProcessEndedDTO): void;
 	$OnDidEndTask(execution: TaskExecutionDTO): void;
-	$resolveVariables(workspaceFolder: URI, variables: string[]): TPromise<any>;
+	$resolveVariables(workspaceFolder: UriComponents, variables: string[]): TPromise<any>;
 }
 
 export interface IBreakpointDto {

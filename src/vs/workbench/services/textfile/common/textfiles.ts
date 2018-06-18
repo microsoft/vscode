@@ -237,13 +237,16 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
-	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
-	onFilesAssociationChange: Event<void>;
+
+	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
+	readonly onFilesAssociationChange: Event<void>;
+
+	readonly isHotExitEnabled: boolean;
 
 	/**
 	 * Access to the manager of text file editor models providing further methods to work with them.
 	 */
-	models: ITextFileEditorModelManager;
+	readonly models: ITextFileEditorModelManager;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
@@ -308,6 +311,16 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
 
 	/**
+	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 */
+	delete(resource: URI, useTrash?: boolean): TPromise<void>;
+
+	/**
+	 * Move a file. If the file is dirty, its contents will be preserved and restored.
+	 */
+	move(source: URI, target: URI, overwrite?: boolean): TPromise<void>;
+
+	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
 	 * @param resources the resources of the files to ask for confirmation or null if
@@ -324,9 +337,4 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
-
-	/**
-	 * Convinient fast access to the hot exit file setting.
-	 */
-	isHotExitEnabled: boolean;
 }

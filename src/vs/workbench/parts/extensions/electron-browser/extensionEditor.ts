@@ -31,7 +31,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -247,6 +247,12 @@ export class ExtensionEditor extends BaseEditor {
 				if (action.id === DisableAction.ID) {
 					return (<DisableAction>action).actionItem;
 				}
+				if (action.id === MultiServerInstallAction.ID) {
+					return (<MultiServerInstallAction>action).actionItem;
+				}
+				if (action.id === MultiServerUpdateAction.ID) {
+					return (<MultiServerUpdateAction>action).actionItem;
+				}
 				return null;
 			}
 		});
@@ -268,6 +274,7 @@ export class ExtensionEditor extends BaseEditor {
 	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
+		const servers = input.servers;
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
@@ -351,8 +358,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const installAction = servers.length === 1 ? this.instantiationService.createInstance(CombinedInstallAction, servers[0]) : this.instantiationService.createInstance(MultiServerInstallAction);
+		const updateAction = servers.length === 1 ? this.instantiationService.createInstance(UpdateAction, servers[0]) : this.instantiationService.createInstance(MultiServerUpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
