@@ -124,10 +124,10 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
+	padding-top: 5px;
 	cursor: default;
 	white-space: normal;
 	height: 100%;
-	min-height: 75px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
@@ -148,7 +148,6 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
-	margin-top: 2px;
 	line-height: initial;
 }
 
@@ -176,18 +175,19 @@
 	opacity: 0.7;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
-	opacity: 0.7;
-	margin-top: 3px;
-	overflow: hidden;
-	white-space: nowrap;
-	text-overflow: ellipsis;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
 	padding-left: 15px;
 	opacity: 0;
 	max-width: 800px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-description {
+	opacity: 0.7;
+	margin-top: 3px;
+	overflow: hidden;
+	white-space: pre;
+	text-overflow: ellipsis;
+	height: 18px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
@@ -196,15 +196,24 @@
 	white-space: pre-wrap;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > *:first-child {
-	min-width: 250px;
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
+	margin-top: 5px;
+	margin-bottom: 9px; /* Needed when measuring an expanded row */
+	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	margin-top: 10px;
-	margin-bottom: 8px;
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+	min-width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
+	flex: 1;
+	min-width: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > *:first-child {
+	width: 100%;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
@@ -231,7 +240,7 @@
 	visibility: hidden;
 	width: initial;
 
-	padding-top: 0px; /* So focus outline doesn't overlap the control above */
+	padding-top: 2px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {

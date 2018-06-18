@@ -17,6 +17,7 @@ import { isValidLocalization, ILocalizationsService, LanguageType } from 'vs/pla
 import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
+import { Schemas } from 'vs/base/common/network';
 
 interface ILanguagePack {
 	hash: string;
@@ -138,7 +139,7 @@ class LanguagePacksCache extends Disposable {
 	private createLanguagePacksFromExtension(languagePacks: { [language: string]: ILanguagePack }, extension: ILocalExtension): void {
 		const extensionIdentifier = { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid };
 		for (const localizationContribution of extension.manifest.contributes.localizations) {
-			if (isValidLocalization(localizationContribution)) {
+			if (extension.location.scheme === Schemas.file && isValidLocalization(localizationContribution)) {
 				let languagePack = languagePacks[localizationContribution.languageId];
 				if (!languagePack) {
 					languagePack = { hash: '', extensions: [], translations: {} };

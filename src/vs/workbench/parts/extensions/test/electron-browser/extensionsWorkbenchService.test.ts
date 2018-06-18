@@ -8,7 +8,6 @@
 import * as sinon from 'sinon';
 import * as assert from 'assert';
 import * as fs from 'fs';
-import * as path from 'path';
 import { assign } from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { generateUuid } from 'vs/base/common/uuid';
@@ -194,8 +193,8 @@ suite('ExtensionsWorkbenchService Test', () => {
 		assert.equal('1.1.0', actual.version);
 		assert.equal('1.1.0', actual.latestVersion);
 		assert.equal('localDescription1', actual.description);
-		assert.equal(expected1.location.with({ path: path.join(expected1.location.path, 'localIcon1') }).toString(), actual.iconUrl);
-		assert.equal(expected1.location.with({ path: path.join(expected1.location.path, 'localIcon1') }).toString(), actual.iconUrlFallback);
+		assert.equal('file:///localPath1/localIcon1', actual.iconUrl);
+		assert.equal('file:///localPath1/localIcon1', actual.iconUrlFallback);
 		assert.equal(null, actual.licenseUrl);
 		assert.equal(ExtensionState.Installed, actual.state);
 		assert.equal(null, actual.installCount);
