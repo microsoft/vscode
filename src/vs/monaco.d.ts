@@ -4876,8 +4876,8 @@ declare namespace monaco.languages {
 		detail: string;
 		kind: SymbolKind;
 		containerName?: string;
-		fullRange: IRange;
-		identifierRange: IRange;
+		range: IRange;
+		selectionRange: IRange;
 		children?: DocumentSymbol[];
 	}
 

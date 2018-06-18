@@ -374,8 +374,8 @@ export namespace DocumentSymbol {
 		let result: modes.DocumentSymbol = {
 			name: info.name,
 			detail: info.detail,
-			fullRange: Range.from(info.fullRange),
-			identifierRange: Range.from(info.gotoRange),
+			range: Range.from(info.range),
+			selectionRange: Range.from(info.selectionRange),
 			kind: SymbolKind.from(info.kind)
 		};
 		if (info.children) {
@@ -388,8 +388,8 @@ export namespace DocumentSymbol {
 			info.name,
 			info.detail,
 			SymbolKind.to(info.kind),
-			Range.to(info.fullRange),
-			Range.to(info.identifierRange),
+			Range.to(info.range),
+			Range.to(info.selectionRange),
 		);
 		if (info.children) {
 			result.children = info.children.map(to) as any;

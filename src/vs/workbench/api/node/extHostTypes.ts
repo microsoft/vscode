@@ -885,20 +885,20 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
-	fullRange: Range;
-	gotoRange: Range;
+	range: Range;
+	selectionRange: Range;
 	children: DocumentSymbol[];
 
-	constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
 		this.name = name;
 		this.detail = detail;
 		this.kind = kind;
-		this.fullRange = fullRange;
-		this.gotoRange = gotoRange;
+		this.range = range;
+		this.selectionRange = selectionRange;
 		this.children = [];
 
-		if (!this.fullRange.contains(this.gotoRange)) {
-			throw new Error('gotoRange must be contained in fullRange');
+		if (!this.range.contains(this.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
 		}
 	}
 }

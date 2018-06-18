@@ -397,15 +397,15 @@ declare module 'vscode' {
 		kind: SymbolKind;
 
 		/**
-		 * The full range of this symbol not including leading/trailing whitespace but everything else.
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g comments and code.
 		 */
-		fullRange: Range;
+		range: Range;
 
 		/**
-		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
+		 * The range that should be selected and reveal when this symbol is being pciked, e.g the name of a function.
 		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
 		 */
-		gotoRange: Range;
+		selectionRange: Range;
 
 		/**
 		 * Children of this symbol, e.g. properties of a class.
@@ -418,10 +418,10 @@ declare module 'vscode' {
 		 * @param name The name of the symbol.
 		 * @param detail Details for the symbol.
 		 * @param kind The kind of the symbol.
-		 * @param fullRange The full range of the symbol.
-		 * @param gotoRange The range that should be reveal.
+		 * @param range The full range of the symbol.
+		 * @param selectionRange The range that should be reveal.
 		 */
-		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
+		constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range);
 	}
 
 	export interface DocumentSymbolProvider {

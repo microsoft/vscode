@@ -49,7 +49,7 @@ export class OutlineItemComparator implements ISorter {
 					return a.symbol.name.localeCompare(b.symbol.name);
 				case OutlineItemCompareType.ByPosition:
 				default:
-					return Range.compareRangesUsingStarts(a.symbol.fullRange, b.symbol.fullRange);
+					return Range.compareRangesUsingStarts(a.symbol.range, b.symbol.range);
 			}
 		}
 

@@ -648,8 +648,8 @@ export interface DocumentSymbol {
 	detail: string;
 	kind: SymbolKind;
 	containerName?: string;
-	fullRange: IRange;
-	identifierRange: IRange;
+	range: IRange;
+	selectionRange: IRange;
 	children?: DocumentSymbol[];
 }
 
