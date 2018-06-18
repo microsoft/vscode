@@ -14,6 +14,7 @@ import * as languageIds from '../utils/languageModeIds';
 import * as typeConverters from '../utils/typeConverters';
 import FileConfigurationManager from './fileConfigurationManager';
 import * as fileSchemes from '../utils/fileSchemes';
+import { escapeRegExp } from '../utils/regexp';
 
 const localize = nls.loadMessageBundle();
 
@@ -222,29 +223,45 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.map((edit: Proto.FileCodeEdits) => this.fixEdit(edit, isDirectoryRename)));
+		const edits: Proto.FileCodeEdits[] = [];
+		for (const edit of response.body) {
+			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
+		}
+		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, edits);
 	}
 
-	private fixEdit(
+	private async fixEdit(
 		edit: Proto.FileCodeEdits,
-		isDirectoryRename: boolean
-	): Proto.FileCodeEdits {
+		isDirectoryRename: boolean,
+		oldFile: string,
+		newFile: string,
+	): Promise<Proto.FileCodeEdits> {
 		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
 			return edit;
 		}
 
+		const document = await vscode.workspace.openTextDocument(edit.fileName);
+		const oldFileRe = new RegExp('/' + escapeRegExp(path.basename(oldFile)) + '/');
+
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
 		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
-			const match = change.newText.match(/\w\/[^\/]+$/g);
+			const existingText = document.getText(typeConverters.Range.fromTextSpan(change));
+			const existingMatch = existingText.match(oldFileRe);
+			if (!existingMatch) {
+				return change;
+			}
+
+			const match = new RegExp('/' + escapeRegExp(path.basename(newFile)) + '/(.+)$', 'g').exec(change.newText);
 			if (!match) {
 				return change;
 			}
+
 			return {
-				newText: change.newText.slice(0, -match[0].length),
+				newText: change.newText.slice(0, -match[1].length),
 				start: change.start,
 				end: {
 					line: change.end.line,
-					offset: change.end.offset - match[0].length
+					offset: change.end.offset - match[1].length
 				}
 			};
 		});
