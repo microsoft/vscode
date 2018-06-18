@@ -130,17 +130,27 @@ function doCopyFile(source: string, target: string, mode: number, callback: (err
 }
 
 export function mkdirp(path: string, mode?: number): TPromise<boolean> {
-	const mkdir = () => nfcall(fs.mkdir, path, mode)
-		.then(null, (err: NodeJS.ErrnoException) => {
-			if (err.code === 'EEXIST') {
-				return nfcall(fs.stat, path)
-					.then((stat: fs.Stats) => stat.isDirectory
-						? null
-						: TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`)));
+	const mkdir = () => {
+		return nfcall(fs.mkdir, path, mode).then(null, (mkdirErr: NodeJS.ErrnoException) => {
+
+			// ENOENT: a parent folder does not exist yet
+			if (mkdirErr.code === 'ENOENT') {
+				return TPromise.wrapError(mkdirErr);
 			}
 
-			return TPromise.wrapError<boolean>(err);
+			// Any other error: check if folder exists and
+			// return normally in that case if its a folder
+			return nfcall(fs.stat, path).then((stat: fs.Stats) => {
+				if (!stat.isDirectory()) {
+					return TPromise.wrapError(new Error(`'${path}' exists and is not a directory.`));
+				}
+
+				return null;
+			}, statErr => {
+				return TPromise.wrapError(mkdirErr); // bubble up original mkdir error
+			});
 		});
+	};
 
 	// stop at root
 	if (path === paths.dirname(path)) {
@@ -149,10 +159,14 @@ export function mkdirp(path: string, mode?: number): TPromise<boolean> {
 
 	// recursively mkdir
 	return mkdir().then(null, (err: NodeJS.ErrnoException) => {
+
+		// ENOENT: a parent folder does not exist yet, continue
+		// to create the parent folder and then try again.
 		if (err.code === 'ENOENT') {
 			return mkdirp(paths.dirname(path), mode).then(mkdir);
 		}
 
+		// Any other error
 		return TPromise.wrapError<boolean>(err);
 	});
 }
