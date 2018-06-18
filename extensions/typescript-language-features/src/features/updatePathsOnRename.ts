@@ -235,7 +235,7 @@ export class UpdateImportsOnFileRenameHandler {
 
 		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
 		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
-			const match = change.newText.match(/\/[^\/]+$/g);
+			const match = change.newText.match(/\w\/[^\/]+$/g);
 			if (!match) {
 				return change;
 			}
