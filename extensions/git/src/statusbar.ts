@@ -75,10 +75,7 @@ class SyncStatusBar {
 			this.repository.operations.isRunning(Operation.Push) ||
 			this.repository.operations.isRunning(Operation.Pull);
 
-		this.state = {
-			...this.state,
-			isSyncRunning: isSyncRunning
-		};
+		this.state = { ...this.state, isSyncRunning };
 	}
 
 	private onModelChange(): void {
