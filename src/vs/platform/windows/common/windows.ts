@@ -103,6 +103,8 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -131,6 +133,7 @@ export interface IWindowsService {
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
+	minimizeWindow(windowId: number): TPromise<void>;
 	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	quit(): TPromise<void>;
@@ -181,6 +184,7 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean>;
+	onDidChangeMaximize: Event<boolean>;
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
@@ -203,6 +207,10 @@ export interface IWindowService {
 	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
+	isMaximized(): TPromise<boolean>;
+	maximizeWindow(): TPromise<void>;
+	unmaximizeWindow(): TPromise<void>;
+	minimizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
@@ -326,9 +334,11 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
+	maximized?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
 	backgroundColor?: string;
+	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
 	perfEntries: PerformanceEntry[];
