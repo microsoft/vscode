@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadEditors', () => {
 
@@ -74,7 +75,7 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 
-		const bulkEditService = new BulkEditService(modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(NullLogService as any, modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
