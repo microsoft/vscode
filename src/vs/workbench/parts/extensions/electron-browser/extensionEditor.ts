@@ -392,7 +392,7 @@ export class ExtensionEditor extends BaseEditor {
 		ignoreAction.extension = extension;
 
 		this.extensionTipsService.onRecommendationChange(change => {
-			if (change.id.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
 				addClass(this.header, 'ignored');
 				removeClass(this.header, 'recommended');
 				this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");

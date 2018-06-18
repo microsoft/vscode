@@ -171,7 +171,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		this.updateRecommendedness(extension, data);
 		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
-			if (change.id.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
 				this.updateRecommendedness(extension, data);
 			}
 		}));
