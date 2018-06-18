@@ -35,7 +35,7 @@ class TypeScriptDocumentSymbolProvider implements vscode.DocumentSymbolProvider 
 	public constructor(
 		private readonly client: ITypeScriptServiceClient) { }
 
-	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<any> { // todo@joh `any[]` temporary hack to make typescript happy...
+	public async provideDocumentSymbols(resource: vscode.TextDocument, token: vscode.CancellationToken): Promise<vscode.DocumentSymbol[] | vscode.SymbolInformation[]> {
 		const filepath = this.client.toPath(resource.uri);
 		if (!filepath) {
 			return [];
