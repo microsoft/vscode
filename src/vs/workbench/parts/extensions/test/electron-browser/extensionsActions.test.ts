@@ -14,7 +14,7 @@ import * as ExtensionsActions from 'vs/workbench/parts/extensions/electron-brows
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServer, IExtensionManagementServerService
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServer, IExtensionManagementServerService, RecommendationChangeNotification
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -52,6 +52,7 @@ suite('ExtensionsActions Test', () => {
 		didInstallEvent = new Emitter<DidInstallExtensionEvent>();
 		uninstallEvent = new Emitter<IExtensionIdentifier>();
 		didUninstallEvent = new Emitter<DidUninstallExtensionEvent>();
+		let ignoreEvent = new Emitter<RecommendationChangeNotification>();
 
 		instantiationService = new TestInstantiationService();
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
@@ -76,6 +77,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
 		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
+		instantiationService.stub(IExtensionTipsService, 'onRecommendationChange', ignoreEvent.event);
 		instantiationService.stub(IURLService, URLService);
 	});
 

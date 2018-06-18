@@ -244,11 +244,13 @@ suite('ExtensionsTipsService Test', () => {
 		});
 	});
 
-	teardown((done) => {
+	teardown(done => {
 		(<ExtensionTipsService>testObject).dispose();
 		(<ExtensionsWorkbenchService>extensionsWorkbenchService).dispose();
 		if (parentResource) {
 			extfs.del(parentResource, os.tmpdir(), () => { }, done);
+		} else {
+			done();
 		}
 	});
 
@@ -445,6 +447,7 @@ suite('ExtensionsTipsService Test', () => {
 
 		instantiationService.stub(IStorageService, {
 			get: storageGetterStub,
+			store: () => { },
 			getBoolean: (a, _, c) => a === 'extensionsAssistant/workspaceRecommendationsIgnore' || c
 		});
 
@@ -462,7 +465,7 @@ suite('ExtensionsTipsService Test', () => {
 				const recommendations = testObject.getAllIgnoredRecommendations();
 				assert.deepStrictEqual(recommendations,
 					{
-						global: ['mockpublisher1.mockextension1', 'mockpublisher2.mockextension2'],
+						global: ['mockpublisher2.mockextension2', 'mockpublisher1.mockextension1'],
 						workspace: []
 					});
 			});
@@ -484,9 +487,11 @@ suite('ExtensionsTipsService Test', () => {
 		testObject.onRecommendationChange(changeHandlerTarget);
 		testObject.ignoreExtensionRecommendation(ignoredExtensionId);
 
-		assert.ok(changeHandlerTarget.calledOnce);
-		assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ id: 'Some.Extension', isRecommended: false }));
-		assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
+		return TPromise.as(null).then(() => {
+			assert.ok(changeHandlerTarget.calledOnce);
+			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ id: 'Some.Extension', isRecommended: false }));
+			assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
+		});
 	});
 
 	test('ExtensionTipsService: Get file based recommendations from storage (old format)', () => {

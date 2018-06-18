@@ -67,7 +67,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private proactiveRecommendationsFetched: boolean = false;
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
-	get onRecommendationChange(): Event<RecommendationChangeNotification> { return this._onRecommendationChange.event; }
+	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
