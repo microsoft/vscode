@@ -840,10 +840,6 @@ export class TestFileService implements IFileService {
 		return TPromise.as(null);
 	}
 
-	rename(resource: URI, newName: string): TPromise<IFileStat> {
-		return TPromise.as(null);
-	}
-
 	onDidChangeFileSystemProviderRegistrations = Event.None;
 
 	registerProvider(scheme: string, provider) {
