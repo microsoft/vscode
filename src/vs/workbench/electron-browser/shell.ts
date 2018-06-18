@@ -496,7 +496,11 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, () => this.layout()));
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, e => {
+			if (e.target === window) {
+				this.layout();
+			}
+		}));
 	}
 
 	public onUnexpectedError(error: any): void {
