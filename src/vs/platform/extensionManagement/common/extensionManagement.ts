@@ -386,6 +386,11 @@ export interface IExtensionsConfigContent {
 	unwantedRecommendations: string[];
 }
 
+export type RecommendationChangeNotification = {
+	id: string,
+	isRecommended: boolean
+};
+
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
@@ -399,7 +404,7 @@ export interface IExtensionTipsService {
 	getRecommendationsForExtension(extension: string): string[];
 	getAllIgnoredRecommendations(): IIgnoredRecommendations;
 	ignoreExtensionRecommendation(extensionId: string): void;
-	onRecommendationChange: Event<void>;
+	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
 export enum ExtensionRecommendationReason {

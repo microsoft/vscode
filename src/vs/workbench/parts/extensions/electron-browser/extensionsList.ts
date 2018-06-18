@@ -170,7 +170,11 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		}
 
 		this.updateRecommendedness(extension, data);
-		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(() => this.updateRecommendedness(extension, data)));
+		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
+			if (change.id.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+				this.updateRecommendedness(extension, data);
+			}
+		}));
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;

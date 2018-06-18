@@ -391,10 +391,12 @@ export class ExtensionEditor extends BaseEditor {
 		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
 		ignoreAction.extension = extension;
 
-		this.extensionTipsService.onRecommendationChange(() => {
-			addClass(this.header, 'ignored');
-			removeClass(this.header, 'recommended');
-			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+		this.extensionTipsService.onRecommendationChange(change => {
+			if (change.id.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+				addClass(this.header, 'ignored');
+				removeClass(this.header, 'recommended');
+				this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+			}
 		});
 
 		this.ignoreActionbar.clear();
