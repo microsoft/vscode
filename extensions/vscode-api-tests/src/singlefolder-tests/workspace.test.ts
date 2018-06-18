@@ -10,7 +10,6 @@ import * as vscode from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
-import { networkInterfaces } from 'os';
 
 suite('workspace-namespace', () => {
 
@@ -554,18 +553,18 @@ suite('workspace-namespace', () => {
 		assert.equal(success, false);
 	});
 
-	// test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
-	// 	const oldUri = await createRandomFile();
-	// 	const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
-	// 	edit.renameFile(oldUri, newUri);
-	// 	edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
+	test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
+		const oldUri = await createRandomFile();
+		const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
+		edit.renameFile(oldUri, newUri);
+		edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
 
-	// 	let success = await vscode.workspace.applyEdit(edit);
-	// 	assert.equal(success, true);
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
 
-	// 	let doc = await vscode.workspace.openTextDocument(newUri);
-	// 	assert.equal(doc.getText(), 'AFTERBEFORE');
-	// });
+		// let doc = await vscode.workspace.openTextDocument(newUri);
+		// assert.equal(doc.getText(), 'AFTERBEFORE');
+	});
 });
