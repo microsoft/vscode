@@ -146,7 +146,7 @@ const optionsHelp: { [name: string]: string; } = {
 	'-a, --add <dir>': localize('add', "Add folder(s) to the last active window."),
 	'-g, --goto <file:line[:character]>': localize('goto', "Open a file at the path on the specified line and character position."),
 	'-n, --new-window': localize('newWindow', "Force to open a new window."),
-	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in the last active window."),
+	'-r, --reuse-window': localize('reuseWindow', "Force to open a file or folder in an already opened window."),
 	'-w, --wait': localize('wait', "Wait for the files to be closed before returning."),
 	'--locale <locale>': localize('locale', "The locale to use (e.g. en-US or zh-TW)."),
 	'--user-data-dir <dir>': localize('userDataDir', "Specifies the directory that user data is kept in. Can be used to open multiple distinct instances of Code."),
