@@ -202,6 +202,7 @@
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
+			"outputCapture": "std",
 			"args": [
 				"--delay",
 				"--timeout",
