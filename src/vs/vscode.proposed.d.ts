@@ -727,4 +727,19 @@ declare module 'vscode' {
 	}
 
 	//#endregion
+
+	//#region Matt: Deinition range
+
+	export interface DefinitionLink {
+		origin?: Range;
+		uri: Uri;
+		range: Range;
+		selectionRange?: Range;
+	}
+
+	export interface DefinitionProvider {
+		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
+	}
+
+	//#endregion
 }

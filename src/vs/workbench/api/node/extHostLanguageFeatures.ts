@@ -150,17 +150,32 @@ class DefinitionAdapter {
 		private readonly _provider: vscode.DefinitionProvider
 	) { }
 
-	provideDefinition(resource: URI, position: IPosition): TPromise<modes.Definition> {
+	provideDefinition(resource: URI, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		let doc = this._documents.getDocumentData(resource).document;
 		let pos = typeConvert.Position.to(position);
-		return asWinJsPromise(token => this._provider.provideDefinition(doc, pos, token)).then(value => {
+
+		return asWinJsPromise(token => this._provider.provideDefinition2 ? this._provider.provideDefinition2(doc, pos, token) : this._provider.provideDefinition(doc, pos, token)).then((value): modes.DefinitionLink[] => {
 			if (Array.isArray(value)) {
-				return value.map(typeConvert.location.from);
+				return (value as (vscode.DefinitionLink | vscode.Location)[]).map(x => DefinitionAdapter.convertDefinitionLink(position, x));
 			} else if (value) {
-				return typeConvert.location.from(value);
+				return [DefinitionAdapter.convertDefinitionLink(position, value)];
 			}
 			return undefined;
 		});
+	}
+
+	private static convertDefinitionLink(position: IPosition, value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+		const definitionLink = <vscode.DefinitionLink>value;
+		return {
+			origin: definitionLink.origin
+				? typeConvert.Range.from(definitionLink.origin)
+				: undefined,
+			uri: value.uri,
+			range: typeConvert.Range.from(value.range),
+			selectionRange: definitionLink.selectionRange
+				? typeConvert.Range.from(definitionLink.selectionRange)
+				: undefined,
+		};
 	}
 }
 
@@ -974,7 +989,7 @@ export class ExtHostLanguageFeatures implements ExtHostLanguageFeaturesShape {
 		return this._createDisposable(handle);
 	}
 
-	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.Definition> {
+	$provideDefinition(handle: number, resource: UriComponents, position: IPosition): TPromise<modes.DefinitionLink[]> {
 		return this._withAdapter(handle, DefinitionAdapter, adapter => adapter.provideDefinition(URI.revive(resource), position));
 	}
 
