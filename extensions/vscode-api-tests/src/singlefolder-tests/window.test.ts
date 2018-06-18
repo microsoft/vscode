@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -557,37 +557,143 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('createTerminal, Terminal.name', () => {
-		const terminal = window.createTerminal('foo');
-		assert.equal(terminal.name, 'foo');
+	suite('Terminal', () => {
+		test('createTerminal, Terminal.name', () => {
+			const terminal = window.createTerminal('foo');
+			assert.equal(terminal.name, 'foo');
 
-		assert.throws(() => {
-			(<any>terminal).name = 'bar';
-		}, 'Terminal.name should be readonly');
-	});
-
-	test('terminal, sendText immediately after createTerminal should not throw', () => {
-		const terminal = window.createTerminal();
-		assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-	});
-
-	test('terminal, onDidCloseTerminal event fires when terminal is disposed', (done) => {
-		const terminal = window.createTerminal();
-		window.onDidCloseTerminal((eventTerminal) => {
-			assert.equal(terminal, eventTerminal);
-			done();
+			assert.throws(() => {
+				(<any>terminal).name = 'bar';
+			}, 'Terminal.name should be readonly');
+			terminal.dispose();
 		});
-		terminal.dispose();
-	});
 
-	test('terminal, processId immediately after createTerminal should fetch the pid', (done) => {
-		window.createTerminal().processId.then(id => {
-			assert.ok(id > 0);
-			done();
+		test('sendText immediately after createTerminal should not throw', () => {
+			const terminal = window.createTerminal();
+			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+			terminal.dispose();
 		});
-	});
 
-	test('terminal, name should set terminal.name', () => {
-		assert.equal(window.createTerminal('foo').name, 'foo');
+		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
+			const terminal = window.createTerminal();
+			const reg = window.onDidCloseTerminal((eventTerminal) => {
+				assert.equal(terminal, eventTerminal);
+				reg.dispose();
+				done();
+			});
+			terminal.dispose();
+		});
+
+		test('processId immediately after createTerminal should fetch the pid', (done) => {
+			const terminal = window.createTerminal();
+			terminal.processId.then(id => {
+				assert.ok(id > 0);
+				terminal.dispose();
+				done();
+			});
+		});
+
+		test('name in constructor should set terminal.name', () => {
+			const terminal = window.createTerminal('a');
+			assert.equal(terminal.name, 'a');
+			terminal.dispose();
+		});
+
+		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				assert.equal(term.name, 'b');
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal('b');
+		});
+
+		test('createTerminalRenderer should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				assert.equal(term.name, 'c');
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+				term.dispose();
+			});
+			window.createTerminalRenderer('c');
+		});
+
+		test('terminal renderers should get maximum dimensions set when shown', (done) => {
+			let terminal: Terminal;
+			const reg1 = window.onDidOpenTerminal(term => {
+				reg1.dispose();
+				term.show();
+				terminal = term;
+			});
+			const renderer = window.createTerminalRenderer('foo');
+			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
+				assert.ok(dimensions.cols > 0);
+				assert.ok(dimensions.rows > 0);
+				reg2.dispose();
+				const reg3 = window.onDidCloseTerminal(() => {
+					reg3.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+		});
+
+		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				reg1.dispose();
+				const reg2 = terminal.onData(data => {
+					assert.equal(data, 'bar');
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+				renderer.write('bar');
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				reg1.dispose();
+				const reg2 = renderer.onInput(data => {
+					assert.equal(data, 'bar');
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+				terminal.sendText('bar', false);
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+				assert.equal(active, terminal);
+				assert.equal(active, window.activeTerminal);
+				reg1.dispose();
+				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+					assert.equal(active, undefined);
+					assert.equal(active, window.activeTerminal);
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal();
+			terminal.show();
+		});
 	});
 });

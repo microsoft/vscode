@@ -5,7 +5,7 @@
 'use strict';
 
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest } from 'vs/workbench/parts/terminal/common/terminal';
+import { ITerminalService, ITerminalInstance, IShellLaunchConfig, ITerminalProcessExtHostProxy, ITerminalProcessExtHostRequest, ITerminalDimensions, EXT_HOST_CREATION_DELAY } from 'vs/workbench/parts/terminal/common/terminal';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtHostContext, ExtHostTerminalServiceShape, MainThreadTerminalServiceShape, MainContext, IExtHostContext, ShellLaunchConfigDto } from '../node/extHost.protocol';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
@@ -16,22 +16,23 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	private _proxy: ExtHostTerminalServiceShape;
 	private _toDispose: IDisposable[] = [];
 	private _terminalProcesses: { [id: number]: ITerminalProcessExtHostProxy } = {};
-	private _dataListeners: { [id: number]: IDisposable } = {};
 
 	constructor(
 		extHostContext: IExtHostContext,
 		@ITerminalService private terminalService: ITerminalService
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostTerminalService);
-		this._toDispose.push(terminalService.onInstanceCreated((terminalInstance) => {
+		this._toDispose.push(terminalService.onInstanceCreated((instance) => {
 			// Delay this message so the TerminalInstance constructor has a chance to finish and
 			// return the ID normally to the extension host. The ID that is passed here will be used
 			// to register non-extension API terminals in the extension host.
-			setTimeout(() => this._onTerminalOpened(terminalInstance), 100);
+			setTimeout(() => this._onTerminalOpened(instance), EXT_HOST_CREATION_DELAY);
 		}));
-		this._toDispose.push(terminalService.onInstanceDisposed(terminalInstance => this._onTerminalDisposed(terminalInstance)));
-		this._toDispose.push(terminalService.onInstanceProcessIdReady(terminalInstance => this._onTerminalProcessIdReady(terminalInstance)));
+		this._toDispose.push(terminalService.onInstanceDisposed(instance => this._onTerminalDisposed(instance)));
+		this._toDispose.push(terminalService.onInstanceProcessIdReady(instance => this._onTerminalProcessIdReady(instance)));
+		this._toDispose.push(terminalService.onInstanceDimensionsChanged(instance => this._onInstanceDimensionsChanged(instance)));
 		this._toDispose.push(terminalService.onInstanceRequestExtHostProcess(request => this._onTerminalRequestExtHostProcess(request)));
+		this._toDispose.push(terminalService.onActiveInstanceChanged(instance => this._onActiveTerminalChanged(instance ? instance.id : undefined)));
 
 		// Set initial ext host state
 		this.terminalService.terminalInstances.forEach(t => {
@@ -60,8 +61,13 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 		return TPromise.as(this.terminalService.createTerminal(shellLaunchConfig).id);
 	}
 
+	public $createTerminalRenderer(name: string): TPromise<number> {
+		const instance = this.terminalService.createTerminalRenderer(name);
+		return TPromise.as(instance.id);
+	}
+
 	public $show(terminalId: number, preserveFocus: boolean): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			this.terminalService.setActiveInstance(terminalInstance);
 			this.terminalService.showPanel(!preserveFocus);
@@ -75,29 +81,66 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 	}
 
 	public $dispose(terminalId: number): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			terminalInstance.dispose();
 		}
 	}
 
+	public $terminalRendererWrite(terminalId: number, text: string): void {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
+			terminalInstance.write(text);
+		}
+	}
+
+	public $terminalRendererSetName(terminalId: number, name: string): void {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
+			terminalInstance.setTitle(name, false);
+		}
+	}
+
+	public $terminalRendererSetDimensions(terminalId: number, dimensions: ITerminalDimensions): void {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance && terminalInstance.shellLaunchConfig.isRendererOnly) {
+			terminalInstance.setDimensions(dimensions);
+		}
+	}
+
+	public $terminalRendererRegisterOnInputListener(terminalId: number): void {
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		if (terminalInstance) {
+			terminalInstance.addDisposable(terminalInstance.onRendererInput(data => this._onTerminalRendererInput(terminalId, data)));
+		}
+	}
+
 	public $sendText(terminalId: number, text: string, addNewLine: boolean): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
 			terminalInstance.sendText(text, addNewLine);
 		}
 	}
 
 	public $registerOnDataListener(terminalId: number): void {
-		let terminalInstance = this.terminalService.getInstanceFromId(terminalId);
+		const terminalInstance = this.terminalService.getInstanceFromId(terminalId);
 		if (terminalInstance) {
-			this._dataListeners[terminalId] = terminalInstance.onData(data => this._onTerminalData(terminalId, data));
-			terminalInstance.onDisposed(instance => delete this._dataListeners[terminalId]);
+			terminalInstance.addDisposable(terminalInstance.onData(data => {
+				this._onTerminalData(terminalId, data);
+			}));
 		}
+	}
+
+	private _onActiveTerminalChanged(terminalId: number | undefined): void {
+		this._proxy.$acceptActiveTerminalChanged(terminalId);
 	}
 
 	private _onTerminalData(terminalId: number, data: string): void {
 		this._proxy.$acceptTerminalProcessData(terminalId, data);
+	}
+
+	private _onTerminalRendererInput(terminalId: number, data: string): void {
+		this._proxy.$acceptTerminalRendererInput(terminalId, data);
 	}
 
 	private _onTerminalDisposed(terminalInstance: ITerminalInstance): void {
@@ -110,6 +153,14 @@ export class MainThreadTerminalService implements MainThreadTerminalServiceShape
 
 	private _onTerminalProcessIdReady(terminalInstance: ITerminalInstance): void {
 		this._proxy.$acceptTerminalProcessId(terminalInstance.id, terminalInstance.processId);
+	}
+
+	private _onInstanceDimensionsChanged(instance: ITerminalInstance): void {
+		// Only send the dimensions if the terminal is a renderer only as there is no API to access
+		// dimensions on a plain Terminal.
+		if (instance.shellLaunchConfig.isRendererOnly) {
+			this._proxy.$acceptTerminalRendererDimensions(instance.id, instance.cols, instance.rows);
+		}
 	}
 
 	private _onTerminalRequestExtHostProcess(request: ITerminalProcessExtHostRequest): void {

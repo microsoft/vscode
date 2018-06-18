@@ -71,9 +71,10 @@ export class KillTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
-		if (terminalInstance) {
-			this.terminalService.getActiveInstance().dispose();
+		console.log('kill');
+		const instance = this.terminalService.getActiveInstance();
+		if (instance) {
+			instance.dispose();
 			if (this.terminalService.terminalInstances.length > 0) {
 				this.terminalService.showPanel(true);
 			}
@@ -121,7 +122,7 @@ export class CopyTerminalSelectionAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.copySelection();
 		}
@@ -142,7 +143,7 @@ export class SelectAllTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.selectAll();
 		}
@@ -161,7 +162,7 @@ export abstract class BaseSendTextTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this._terminalService.getActiveInstance();
+		const terminalInstance = this._terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.sendText(this._text, false);
 		}
@@ -598,7 +599,7 @@ export class RunSelectedTextInTerminalAction extends Action {
 		if (selection.isEmpty()) {
 			text = editor.getModel().getLineContent(selection.selectionStartLineNumber).trim();
 		} else {
-			let endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
+			const endOfLinePreference = os.EOL === '\n' ? EndOfLinePreference.LF : EndOfLinePreference.CRLF;
 			text = editor.getModel().getValueInRange(selection, endOfLinePreference);
 		}
 		instance.sendText(text, true);
@@ -695,7 +696,7 @@ export class ScrollDownTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollDownLine();
 		}
@@ -716,7 +717,7 @@ export class ScrollDownPageTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollDownPage();
 		}
@@ -737,7 +738,7 @@ export class ScrollToBottomTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollToBottom();
 		}
@@ -758,7 +759,7 @@ export class ScrollUpTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUpLine();
 		}
@@ -779,7 +780,7 @@ export class ScrollUpPageTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollUpPage();
 		}
@@ -800,7 +801,7 @@ export class ScrollToTopTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.scrollToTop();
 		}
@@ -821,7 +822,7 @@ export class ClearTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance) {
 			terminalInstance.clear();
 		}
@@ -842,7 +843,7 @@ export class ClearSelectionTerminalAction extends Action {
 	}
 
 	public run(event?: any): TPromise<any> {
-		let terminalInstance = this.terminalService.getActiveInstance();
+		const terminalInstance = this.terminalService.getActiveInstance();
 		if (terminalInstance && terminalInstance.hasSelection()) {
 			terminalInstance.clearSelection();
 		}
@@ -959,7 +960,7 @@ export class QuickOpenActionTermContributor extends ActionBarContributor {
 	}
 
 	public getActions(context: any): IAction[] {
-		let actions: Action[] = [];
+		const actions: Action[] = [];
 		if (context.element instanceof TerminalEntry) {
 			actions.push(this.instantiationService.createInstance(RenameTerminalQuickOpenAction, RenameTerminalQuickOpenAction.ID, RenameTerminalQuickOpenAction.LABEL, context.element));
 			actions.push(this.instantiationService.createInstance(QuickKillTerminalAction, QuickKillTerminalAction.ID, QuickKillTerminalAction.LABEL, context.element));
