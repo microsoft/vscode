@@ -13,6 +13,12 @@ export interface ITOCEntry {
 	settings?: (string | ISetting)[];
 }
 
+export const commonlyUsedData: ITOCEntry = {
+	id: 'commonlyUsed',
+	label: 'Commonly Used',
+	settings: ['files.autoSave', 'editor.fontSize', 'editor.fontFamily', 'editor.tabSize', 'editor.renderWhitespace', 'editor.cursorStyle', 'editor.multiCursorModifier', 'editor.insertSpaces', 'editor.wordWrap', 'files.exclude', 'files.associations']
+};
+
 export const tocData: ITOCEntry = {
 	id: 'root',
 	label: 'root',

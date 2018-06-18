@@ -69,6 +69,13 @@ export class SettingsTreeSettingElement extends SettingsTreeElement {
 	enum?: string[];
 }
 
+export interface ITOCEntry {
+	id: string;
+	label: string;
+	children?: ITOCEntry[];
+	settings?: (string | ISetting)[];
+}
+
 export class SettingsTreeModel {
 	private _root: SettingsTreeElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
@@ -76,11 +83,9 @@ export class SettingsTreeModel {
 	constructor(
 		private viewState: ISettingsEditorViewState,
 		tocRoot: ITOCEntry,
-		allSettings: ISettingsGroup[],
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		const resolvedTOC = resolveSettingsTree(tocRoot, allSettings);
-		this._root = this.createSettingsTreeGroupElement(resolvedTOC);
+		this._root = this.createSettingsTreeGroupElement(tocRoot);
 	}
 
 	get root(): SettingsTreeElement {
@@ -116,7 +121,7 @@ export class SettingsTreeModel {
 
 function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
 	const element = new SettingsTreeSettingElement();
-	element.id = setting.key;
+	element.id = parent.id + '_' + setting.key;
 	element.parent = parent;
 
 	const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, settingsTarget, configurationService);
@@ -158,7 +163,7 @@ function inspectSetting(key: string, target: SettingsTarget, configurationServic
 	return { isConfigured, inspected, targetSelector };
 }
 
-function resolveSettingsTree(tocData: ITOCEntry, settingsGroups: ISettingsGroup[]): ITOCEntry {
+export function resolveSettingsTree(tocData: ITOCEntry, settingsGroups: ISettingsGroup[]): ITOCEntry {
 	return _resolveSettingsTree(tocData, getFlatSettings(settingsGroups));
 }
 
@@ -550,6 +555,7 @@ export class SettingsRenderer implements IRenderer {
 	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
 		template.valueElement.innerHTML = '';
+
 		const valueControlElement = DOM.append(template.valueElement, $('.setting-item-control'));
 		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			valueControlElement.classList.add('setting-type-enum');

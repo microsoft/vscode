@@ -29,8 +29,8 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { tocData, commonlyUsedData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -469,7 +469,12 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private onConfigUpdate(): TPromise<void> {
-		this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, tocData, this.defaultSettingsEditorModel.settingsGroups.slice(1));
+		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
+		const resolvedSettingsRoot = resolveSettingsTree(tocData, groups);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedData, groups);
+		resolvedSettingsRoot.children.unshift(commonlyUsed);
+
+		this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
 
 		if (!this.searchResultModel) {
 			this.settingsTree.setInput(this.settingsTreeModel.root);
