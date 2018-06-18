@@ -74,7 +74,6 @@ export interface IProductConfiguration {
 	};
 	logUploaderUrl: string;
 	portable?: string;
-	portableTemp?: string;
 }
 
 export interface ISurveyData {

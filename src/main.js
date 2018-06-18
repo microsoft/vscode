@@ -27,19 +27,24 @@ function getApplicationPath() {
 	}
 }
 
-function getPortableDataPath() {
-	return path.join(path.dirname(getApplicationPath()), product.portable);
+const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+const portableDataPath = process.env['VSCODE_PORTABLE'] || path.join(path.dirname(getApplicationPath()), portableDataName);
+const isPortable = fs.existsSync(portableDataPath);
+const portableTempPath = path.join(portableDataPath, 'tmp');
+const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+
+if (isPortable) {
+	process.env['VSCODE_PORTABLE'] = portableDataPath;
+} else {
+	delete process.env['VSCODE_PORTABLE'];
 }
 
-if (product.portable && product.portableTemp) {
-	const portablePath = getPortableDataPath();
-	try { fs.mkdirSync(portablePath); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
-
-	const tmpdir = path.join(portablePath, 'tmp');
-	try { fs.mkdirSync(tmpdir); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
-
-	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = tmpdir;
+if (isTempPortable) {
+	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
 }
+
+console.log('portableDataPath', portableDataPath);
+console.log('isPortable', isPortable);
 
 //#region Add support for using node_modules.asar
 (function () {
@@ -377,8 +382,8 @@ function getNodeCachedDataDir() {
 //#endregion
 
 function getUserDataPath() {
-	if (product.portable) {
-		return path.join(getPortableDataPath(), 'user-data');
+	if (isPortable) {
+		return path.join(portableDataPath, 'user-data');
 	}
 
 	return path.resolve(args['user-data-dir'] || paths.getDefaultUserDataPath(process.platform));

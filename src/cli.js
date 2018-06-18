@@ -20,18 +20,20 @@ function getApplicationPath() {
 	}
 }
 
-function getPortableDataPath() {
-	return path.join(path.dirname(getApplicationPath()), product.portable);
+const portableDataName = product.portable || `${product.applicationName}-portable-data`;
+const portableDataPath = path.join(path.dirname(getApplicationPath()), portableDataName);
+const isPortable = fs.existsSync(portableDataPath);
+const portableTempPath = path.join(portableDataPath, 'tmp');
+const isTempPortable = isPortable && fs.existsSync(portableTempPath);
+
+if (isPortable) {
+	process.env['VSCODE_PORTABLE'] = portableDataPath;
+} else {
+	delete process.env['VSCODE_PORTABLE'];
 }
 
-if (product.portable && product.portableTemp) {
-	const portablePath = getPortableDataPath();
-	try { fs.mkdirSync(portablePath); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
-
-	const tmpdir = path.join(portablePath, 'tmp');
-	try { fs.mkdirSync(tmpdir); } catch (err) { if (err.code !== 'EEXIST') { throw err; } }
-
-	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = tmpdir;
+if (isTempPortable) {
+	process.env[process.platform === 'win32' ? 'TEMP' : 'TMPDIR'] = portableTempPath;
 }
 
 //#region Add support for using node_modules.asar

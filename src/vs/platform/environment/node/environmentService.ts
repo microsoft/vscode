@@ -90,20 +90,9 @@ export class EnvironmentService implements IEnvironmentService {
 	get userHome(): string { return os.homedir(); }
 
 	@memoize
-	private get appPath(): string {
-		if (process.env['VSCODE_DEV']) {
-			return this.appRoot;
-		} else if (process.platform === 'darwin') {
-			return path.dirname(path.dirname(path.dirname(this.appRoot)));
-		} else {
-			return path.dirname(path.dirname(this.appRoot));
-		}
-	}
-
-	@memoize
 	get userDataPath(): string {
-		if (product.portable) {
-			return path.join(path.dirname(this.appPath), product.portable, 'user-data');
+		if (process.env['VSCODE_PORTABLE']) {
+			return path.join(process.env['VSCODE_PORTABLE'], 'user-data');
 		}
 
 		return parseUserDataDir(this._args, process);
@@ -151,8 +140,8 @@ export class EnvironmentService implements IEnvironmentService {
 			return fromArgs;
 		} else if (process.env['VSCODE_EXTENSIONS']) {
 			return process.env['VSCODE_EXTENSIONS'];
-		} else if (product.portable) {
-			return path.join(path.dirname(this.appPath), product.portable, 'extensions');
+		} else if (process.env['VSCODE_PORTABLE']) {
+			return path.join(process.env['VSCODE_PORTABLE'], 'extensions');
 		} else {
 			return path.join(this.userHome, product.dataFolderName, 'extensions');
 		}
