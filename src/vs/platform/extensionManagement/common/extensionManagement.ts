@@ -398,7 +398,7 @@ export interface IExtensionTipsService {
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
 	getAllIgnoredRecommendations(): IIgnoredRecommendations;
-	ignoreExtensionRecommendation(extensionId: string): TPromise<void>;
+	ignoreExtensionRecommendation(extensionId: string): void;
 	onRecommendationChange: Event<void>;
 }
 

@@ -1508,7 +1508,8 @@ export class IgnoreExtensionRecommendationAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.extensionsTipsService.ignoreExtensionRecommendation(this.extension.id);
+		this.extensionsTipsService.ignoreExtensionRecommendation(this.extension.id);
+		return TPromise.as(null);
 	}
 
 	dispose(): void {
