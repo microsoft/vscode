@@ -5,7 +5,11 @@
 	},
 	"brackets": [
 		["<", ">"]
-	]
+	],
+	"indentationRules": {
+		"increaseIndentPattern": "^\\s*<(([^!/?]|%)(?!.+?([/%]>|</.+?>))|[%!]--\\s*$)",
+		"decreaseIndentPattern": "^\\s*(</[^>]+>|-->|--%>)"
+	}
 
 	// enhancedBrackets: [{
 	// 	tokenType: 'tag.tag-$1.xml',

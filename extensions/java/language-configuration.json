@@ -29,5 +29,9 @@
 			"start": "^\\s*//\\s*(?:(?:#?region\\b)|(?:<editor-fold\\b))",
 			"end": "^\\s*//\\s*(?:(?:#?endregion\\b)|(?:</editor-fold>))"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{(\\}|[^}\"']*)$|^\\s*(public|private|protected):\\s*$",
+		"decreaseIndentPattern": "^(.*\\*/)?\\s*\\}|^\\s*(public|private|protected):\\s*$"
 	}
 }

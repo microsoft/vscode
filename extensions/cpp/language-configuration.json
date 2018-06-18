@@ -28,5 +28,9 @@
 			"start": "^\\s*#pragma\\s+region\\b",
 			"end": "^\\s*#pragma\\s+endregion\\b"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{[^}\"']*$|^.*\\([^\\)\"']*$|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$|^\\s*\\{\\}$",
+		"decreaseIndentPattern": "^\\s*(\\s*/[*].*[*]/\\s*)*\\}|^\\s*(\\s*/[*].*[*]/\\s*)*\\)|^\\s*(public|private|protected):\\s*$|^\\s*@(public|private|protected)\\s*$",
 	}
 }

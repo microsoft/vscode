@@ -24,5 +24,9 @@
 			"start": "^\\s*(::\\s*|REM\\s+)#region",
 			"end": "^\\s*(::\\s*|REM\\s+)#endregion"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*(\\([^\\)]*)$",
+		"decreaseIndentPattern": "^\\s*\\)\\s*$"
 	}
 }

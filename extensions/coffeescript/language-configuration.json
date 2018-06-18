@@ -28,5 +28,9 @@
 			"start": "^\\s*#region\\b",
 			"end": "^\\s*#endregion\\b"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^\\s*((.*[^.])?\\bclass(\\s|$)|[a-zA-Z\\$_](\\w|\\$|:|\\.)*\\s*(?=\\:(\\s*\\(.*\\))?\\s*((=|-)>\\s*$))|[a-zA-Z\\$_](\\w|\\$|\\.)*\\s*(:|=)\\s*((if|while)(?!.*?then)|for|$)|\\b(if|else|unless|while|when)\\b(?!.*?then)|\\b(for|loop)\\b|\\b(try|finally|catch|((catch|switch)\\s+\\S.*))\\b\\s*$|.*[-=]>\\s*$|.*[\\{\\[]\\s*$|.*:\\s*$)",
+		"decreaseIndentPattern": "^\\s*(\\}|\\]|\\b(else|catch|finally)\\b)$"
 	}
 }

@@ -22,5 +22,9 @@
 		["\"", "\""],
 		["'", "'"],
 		["`", "`"]
-	]
+	],
+	"indentationRules": {
+		"increaseIndentPattern": "^\\s*(else|case)\\b|^.*(\\{|\\b(then|do)\\b)$",
+		"decreaseIndentPattern": "^\\s*(\\}|(elif|else|fi|esac|done)\\b)"
+	}
 }

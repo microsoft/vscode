@@ -28,5 +28,9 @@
 			"start": "^\\s*#[rR]egion\\b",
 			"end": "^\\s*#[eE]nd[rR]egion\\b"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{[^}\"']*$|^.*\\([^)\"']*$|^\\s*\\{\\}$|^\\s*\\(\\)$",
+		"decreaseIndentPattern": "^(.*\\*/)?\\s*[\\}\\)]([^}{\"']*[\\{\\(]|\\s*while\\s*\\(.*)?[;\\s]*(//.*|/\\*.*\\*/\\s*)?$"
 	}
 }

@@ -6,5 +6,8 @@
 		["{", "}"],
 		["[", "]"],
 		["(", ")"]
-	]
+	],
+	"indentationRules": {
+		"increaseIndentPattern": "^[^\\t ]+:"
+	}
 }

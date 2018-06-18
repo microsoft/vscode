@@ -23,5 +23,9 @@
 	],
 	"folding": {
 		"offSide": true
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^\\s*(([\\w#.-]+(\\(.*?\\))?(:\\s*[\\w#.-]+(\\(.*?\\))?)*\\.?$)|(:[a-z]\\w*($|\\())|(//-?$)|(-\\s+(if|else|while)(\\s+|$))|((for|if|elseif|else|each|until|while|unless|case|when|block|append|prepend)(\\s+|$)))",
+		"decreaseIndentPattern": "^\\s*(- )?(else)\\b.*$"
 	}
 }

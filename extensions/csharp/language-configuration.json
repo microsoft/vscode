@@ -29,5 +29,9 @@
 			"start": "^\\s*#region\\b",
 			"end": "^\\s*#endregion\\b"
 		}
+	},
+	"indentationRules": {
+		"increaseIndentPattern": "^.*\\{[^}\"']*$|^\\s*\\{\\}$",
+		"decreaseIndentPattern": "^(.*\\*/)?\\s*\\}([^}{\"']*\\{|\\s*while\\s*\\(.*)?[;\\s]*(//.*|/\\*.*\\*/\\s*)?$"
 	}
 }
