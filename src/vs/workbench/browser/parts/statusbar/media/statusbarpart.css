@@ -53,7 +53,6 @@
 }
 
 .monaco-workbench > .part.statusbar > .statusbar-entry > span {
-	cursor: default;
 	height: 100%;
 }
 
