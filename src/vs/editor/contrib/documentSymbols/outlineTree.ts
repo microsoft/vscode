@@ -310,7 +310,7 @@ export class OutlineController extends WorkbenchTreeController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
 
-		const payload = { origin: origin, originalEvent: event };
+		const payload = { origin: origin, originalEvent: event, didClickElement: false };
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
@@ -322,13 +322,13 @@ export class OutlineController extends WorkbenchTreeController {
 			}
 			event.stopPropagation();
 
+			payload.didClickElement = element instanceof OutlineElement && !this.isClickOnTwistie(event);
+
 			tree.domFocus();
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			const didClickElement = element instanceof OutlineElement && !this.isClickOnTwistie(event);
-
-			if (!didClickElement) {
+			if (!payload.didClickElement) {
 				if (tree.isExpanded(element)) {
 					tree.collapse(element).then(null, onUnexpectedError);
 				} else {
