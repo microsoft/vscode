@@ -8,6 +8,16 @@ import { $ } from 'vs/base/browser/dom';
 import { Event, mapEvent } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 
+function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
+	return {
+		element: view.element,
+		maximumSize: view.maximumWidth,
+		minimumSize: view.minimumWidth,
+		onDidChange: mapEvent(view.onDidChange, widthAndHeight => widthAndHeight ? widthAndHeight.width : 0),
+		layout: size => view.layout(size, getHeight())
+	};
+}
+
 export class CenteredViewLayout {
 
 	private splitView: SplitView;
@@ -43,19 +53,9 @@ export class CenteredViewLayout {
 		this.view = view;
 		if (this.splitView) {
 			this.splitView.removeView(1);
-			this.splitView.addView(this.getView(), Sizing.Distribute, 1);
+			this.splitView.addView(toSplitViewView(this.view, () => this.height), Sizing.Distribute, 1);
 			this.splitView.distributeViewSizes();
 		}
-	}
-
-	private getView(): ISplitViewView {
-		return {
-			element: this.view.element,
-			maximumSize: this.view.maximumWidth,
-			minimumSize: this.view.minimumWidth,
-			onDidChange: mapEvent(this.view.onDidChange, ({ width }) => width),
-			layout: size => this.view.layout(size, this.height)
-		};
 	}
 
 	activate(active: boolean): void {
@@ -82,7 +82,7 @@ export class CenteredViewLayout {
 			});
 
 			this.splitView.addView(getEmptyView(), Sizing.Distribute);
-			this.splitView.addView(this.getView(), Sizing.Distribute);
+			this.splitView.addView(toSplitViewView(this.view, () => this.height), Sizing.Distribute);
 			this.splitView.addView(getEmptyView(), Sizing.Distribute);
 		} else {
 			this.splitView.dispose();
