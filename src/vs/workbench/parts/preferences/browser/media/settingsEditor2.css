@@ -16,7 +16,7 @@
 
 /* header styling */
 .settings-editor > .settings-editor-right > .settings-header {
-	padding-left: 15px;
+	padding-left: 5px;
 	padding-right: 5px;
 	max-width: 1000px;
 	box-sizing: border-box;
@@ -128,6 +128,7 @@
 .settings-editor > .settings-toc-container {
 	width: 175px;
 	margin-top: 114px;
+	margin-right: 5px;
 }
 
 .settings-editor.search-mode > .settings-toc-container .monaco-tree {
@@ -137,6 +138,7 @@
 .settings-editor > .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
+	line-height: 22px;
 }
 
 .settings-editor > .settings-editor-right > .settings-body .settings-tree-container {
@@ -147,7 +149,8 @@
 }
 
 .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item {
-	padding-top: 5px;
+	padding-top: 4px;
+	padding-left: 5px;
 	cursor: default;
 	white-space: normal;
 	height: 100%;
@@ -158,22 +161,6 @@
 .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
 	background-color: rgba(130, 130, 130, 0.04);
 }
-
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item > .setting-item-left {
-	flex: 1;
-	padding-top: 3px;
-	padding-bottom: 12px;
-}
-
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
-	min-width: 180px;
-	margin: 21px 10px 0px 5px;
-}
-
-/* .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-title {
-	margin-top: 2px;
-	line-height: initial;
-} */
 
 .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
 	font-style: italic;
@@ -222,7 +209,7 @@
 
 .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value {
 	margin-top: 5px;
-	margin-bottom: 9px; /* Needed when measuring an expanded row */
+	margin-bottom: 7px; /* Needed when measuring an expanded row */
 	display: flex;
 }
 
@@ -242,15 +229,15 @@
 	display: inline-block;
 }
 
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:hover,
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:active {
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control > .edit-in-settings-button,
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control > .edit-in-settings-button:hover,
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control > .edit-in-settings-button:active {
 	margin: auto;
 	text-align: left;
 	text-decoration: underline;
 }
 
-.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control > .edit-in-settings-button + .setting-reset-button.monaco-button {
 	display: none;
 }
 
@@ -286,22 +273,19 @@
 	padding-right: 10px;
 }
 
-/*
-	Ensure the is-configured indicators can appear outside of the list items themselves:
-	- Disable overflow: hidden on the listrow
-	- Allocate some space with a margin on the list-row
-	- Make up for that space with a negative margin on the settings-body
-
-	This is risky, consider a different approach
-*/
-.settings-editor .settings-tree-container .setting-item {
-	overflow: visible;
-}
-
 .settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	padding: 5px 0px;
-	font-size: 13px;
+	padding-left: 5px !important;
+}
+
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .settings-group-level-1 {
+	padding-top: 16px;
+	font-size: 24px;
+}
+
+.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .settings-group-level-2 {
+	padding-top: 16px;
+	font-size: 20px;
 }
 
 .settings-editor > .settings-editor-right > .settings-body .settings-feedback-button {

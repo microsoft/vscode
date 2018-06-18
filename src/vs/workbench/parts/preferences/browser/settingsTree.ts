@@ -53,6 +53,7 @@ export abstract class SettingsTreeElement {
 export class SettingsTreeGroupElement extends SettingsTreeElement {
 	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
 	label: string;
+	level: number;
 }
 
 export class SettingsTreeSettingElement extends SettingsTreeElement {
@@ -110,6 +111,7 @@ export class SettingsTreeModel {
 		element.id = tocEntry.id;
 		element.label = tocEntry.label;
 		element.parent = parent;
+		element.level = this.getDepth(element);
 
 		if (tocEntry.children) {
 			element.children = tocEntry.children.map(child => this.createSettingsTreeGroupElement(child, element));
@@ -119,6 +121,14 @@ export class SettingsTreeModel {
 
 		this._treeElementsById.set(element.id, element);
 		return element;
+	}
+
+	private getDepth(element: SettingsTreeElement): number {
+		if (element.parent) {
+			return 1 + this.getDepth(element.parent);
+		} else {
+			return 0;
+		}
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
@@ -371,7 +381,6 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 interface IGroupTitleTemplate extends IDisposableTemplate {
 	context?: SettingsTreeGroupElement;
 	parent: HTMLElement;
-	labelElement: HTMLElement;
 }
 
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
@@ -404,7 +413,7 @@ export class SettingsRenderer implements IRenderer {
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			return 30;
+			return 40 + (4 * element.level);
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
@@ -457,12 +466,9 @@ export class SettingsRenderer implements IRenderer {
 	private renderGroupTitleTemplate(container: HTMLElement): IGroupTitleTemplate {
 		DOM.addClass(container, 'group-title');
 
-		const labelElement = DOM.append(container, $('h3.settings-group-title-label'));
-
 		const toDispose = [];
 		const template: IGroupTitleTemplate = {
 			parent: container,
-			labelElement,
 			toDispose
 		};
 
@@ -514,9 +520,15 @@ export class SettingsRenderer implements IRenderer {
 		}
 
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
-			(<IGroupTitleTemplate>template).labelElement.textContent = (<SettingsTreeGroupElement>element).label;
-			return;
+			return this.renderGroupElement(<SettingsTreeGroupElement>element, template);
 		}
+	}
+
+	private renderGroupElement(element: SettingsTreeGroupElement, template: IGroupTitleTemplate): void {
+		template.parent.innerHTML = '';
+		const labelElement = DOM.append(template.parent, $('h3.settings-group-title-label'));
+		labelElement.classList.add(`settings-group-level-${element.level}`);
+		labelElement.textContent = (<SettingsTreeGroupElement>element).label;
 	}
 
 	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {

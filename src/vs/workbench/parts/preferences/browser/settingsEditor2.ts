@@ -284,8 +284,8 @@ export class SettingsEditor2 extends BaseEditor {
 			{
 				ariaLabel: localize('treeAriaLabel', "Settings"),
 				showLoading: false,
-				// indentPixels: 0,
-				twistiePixels: 15,
+				indentPixels: 0,
+				twistiePixels: 0,
 			});
 
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
