@@ -53,7 +53,7 @@ import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderW
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
 import { IPosition, Position as EditorPosition } from 'vs/editor/common/core/position';
-import { ICommandAction, IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { MockContextKeyService, MockKeybindingService } from 'vs/platform/keybinding/test/common/mockKeybindingService';
@@ -1059,7 +1059,7 @@ export class TestWindowService implements IWindowService {
 		return TPromise.wrap(void 0);
 	}
 
-	updateTouchBar(items: ICommandAction[][]): Promise<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 }
@@ -1266,7 +1266,7 @@ export class TestWindowsService implements IWindowsService {
 		return TPromise.as(void 0);
 	}
 
-	updateTouchBar(windowId: number, items: ICommandAction[][]): Promise<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): Promise<void> {
 		return TPromise.as(void 0);
 	}
 

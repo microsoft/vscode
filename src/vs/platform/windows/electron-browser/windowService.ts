@@ -9,7 +9,7 @@ import { Event, filterEvent, mapEvent, anyEvent } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWindowService, IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, IMessageBoxResult, IWindowConfiguration, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
@@ -137,7 +137,7 @@ export class WindowService implements IWindowService {
 		return this.windowsService.showOpenDialog(this.windowId, options);
 	}
 
-	updateTouchBar(items: ICommandAction[][]): TPromise<void> {
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.windowsService.updateTouchBar(this.windowId, items);
 	}
 }
