@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./centeredViewLayout';
+
 import { SplitView, Sizing, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
 import { Event, mapEvent } from 'vs/base/common/event';
