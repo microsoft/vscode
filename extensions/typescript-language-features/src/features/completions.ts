@@ -37,7 +37,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
 			// https://github.com/Microsoft/vscode/issues/40325
-			this.sortText = '\0' + tsEntry.sortText;
+			this.sortText = tsEntry.sortText;
+			this.preselect = true;
 		} else if (tsEntry.source) {
 			// De-prioritze auto-imports
 			// https://github.com/Microsoft/vscode/issues/40311

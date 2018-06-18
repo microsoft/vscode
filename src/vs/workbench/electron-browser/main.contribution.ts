@@ -223,7 +223,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['right', 'down'],
 			'default': 'right',
-			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the rigth hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
+			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
 		},
 		'workbench.editor.closeEmptyGroups': {
 			'type': 'boolean',
@@ -436,10 +436,9 @@ configurationRegistry.registerConfiguration({
 		'window.titleBarStyle': {
 			'type': 'string',
 			'enum': ['native', 'custom'],
-			'default': 'custom',
+			'default': isMacintosh ? 'custom' : 'native',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply."),
-			'included': isMacintosh
+			'description': nls.localize('titleBarStyle', "Adjust the appearance of the window title bar. Changes require a full restart to apply.")
 		},
 		'window.nativeTabs': {
 			'type': 'boolean',

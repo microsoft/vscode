@@ -32,7 +32,7 @@ export abstract class TreeElement {
 		} else {
 			candidateId = `${container.id}/${candidate.name}`;
 			if (container.children[candidateId] !== void 0) {
-				candidateId = `${container.id}/${candidate.name}_${candidate.fullRange.startLineNumber}_${candidate.fullRange.startColumn}`;
+				candidateId = `${container.id}/${candidate.name}_${candidate.range.startLineNumber}_${candidate.range.startColumn}`;
 			}
 		}
 
@@ -131,7 +131,7 @@ export class OutlineGroup extends TreeElement {
 	private _getItemEnclosingPosition(position: IPosition, children: { [id: string]: OutlineElement }): OutlineElement {
 		for (let key in children) {
 			let item = children[key];
-			if (!Range.containsPosition(item.symbol.fullRange, position)) {
+			if (!Range.containsPosition(item.symbol.range, position)) {
 				continue;
 			}
 			return this._getItemEnclosingPosition(position, item.children) || item;
@@ -150,11 +150,11 @@ export class OutlineGroup extends TreeElement {
 		item.marker = undefined;
 
 		// find the proper start index to check for item/marker overlap.
-		let idx = binarySearch<IRange>(markers, item.symbol.fullRange, Range.compareRangesUsingStarts);
+		let idx = binarySearch<IRange>(markers, item.symbol.range, Range.compareRangesUsingStarts);
 		let start: number;
 		if (idx < 0) {
 			start = ~idx;
-			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.fullRange)) {
+			if (start > 0 && Range.areIntersecting(markers[start - 1], item.symbol.range)) {
 				start -= 1;
 			}
 		} else {
@@ -164,7 +164,7 @@ export class OutlineGroup extends TreeElement {
 		let myMarkers: IMarker[] = [];
 		let myTopSev: MarkerSeverity;
 
-		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.fullRange)) {
+		while (start < markers.length && Range.areIntersecting(markers[start], item.symbol.range)) {
 			// remove markers intersecting with this outline element
 			// and store them in a 'private' array.
 			let marker = markers.splice(start, 1)[0];

@@ -69,8 +69,8 @@ class OutlineAdapter {
 				name: info[i].name,
 				kind: typeConvert.SymbolKind.from(info[i].kind),
 				containerName: info[i].containerName,
-				fullRange: typeConvert.Range.from(info[i].location.range),
-				identifierRange: typeConvert.Range.from(info[i].location.range),
+				range: typeConvert.Range.from(info[i].location.range),
+				selectionRange: typeConvert.Range.from(info[i].location.range),
 				children: []
 			};
 
@@ -81,7 +81,7 @@ class OutlineAdapter {
 					break;
 				}
 				let parent = parentStack[parentStack.length - 1];
-				if (EditorRange.containsRange(parent.fullRange, element.fullRange) && !EditorRange.equalsRange(parent.fullRange, element.fullRange)) {
+				if (EditorRange.containsRange(parent.range, element.range) && !EditorRange.equalsRange(parent.range, element.range)) {
 					parent.children.push(element);
 					parentStack.push(element);
 					break;
@@ -662,6 +662,7 @@ class SuggestAdapter {
 			documentation: item.documentation,
 			filterText: item.filterText,
 			sortText: item.sortText,
+			preselect: item.preselect,
 			//
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),

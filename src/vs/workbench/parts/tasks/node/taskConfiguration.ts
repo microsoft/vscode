@@ -1257,7 +1257,7 @@ namespace ConfiguringTask {
 		if (taskIdentifier === void 0) {
 			context.problemReporter.error(nls.localize(
 				'ConfigurationParser.incorrectType',
-				'Error: the task configuration \'{0}\' is using and unknown type. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
+				'Error: the task configuration \'{0}\' is using an unknown type. The task configuration will be ignored.', JSON.stringify(external, undefined, 0)
 			));
 			return undefined;
 		}

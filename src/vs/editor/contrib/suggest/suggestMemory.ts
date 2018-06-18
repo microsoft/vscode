@@ -24,7 +24,7 @@ export abstract class Memory {
 				// stop when leaving the group of top matches
 				break;
 			}
-			if (suggestion.autoSelect) {
+			if (suggestion.preselect) {
 				// stop when seeing an auto-select-item
 				return i;
 			}

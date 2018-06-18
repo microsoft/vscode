@@ -267,6 +267,7 @@ export class OutlinePanel extends ViewletPanel {
 	dispose(): void {
 		dispose(this._disposables);
 		dispose(this._requestOracle);
+		dispose(this._editorDisposables);
 		super.dispose();
 	}
 
@@ -506,7 +507,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
-			OutlineTreeState.restore(this._tree, state);
+			OutlineTreeState.restore(this._tree, state, this);
 		}
 
 		this._input.enable();
@@ -521,7 +522,7 @@ export class OutlinePanel extends ViewletPanel {
 
 			this._contextKeyFiltered.set(pattern.length > 0);
 
-			if (!beforePatternState) {
+			if (pattern && !beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
 			let item = model.updateMatches(pattern);
@@ -534,7 +535,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 
 			if (!pattern && beforePatternState) {
-				await OutlineTreeState.restore(this._tree, beforePatternState);
+				await OutlineTreeState.restore(this._tree, beforePatternState, this);
 				beforePatternState = undefined;
 			}
 		};
@@ -548,7 +549,7 @@ export class OutlinePanel extends ViewletPanel {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
-			if (e.payload === this) {
+			if (e.payload === this || e.payload && !e.payload.didClickElement) {
 				return;
 			}
 			let [first] = e.selection;
@@ -630,11 +631,11 @@ export class OutlinePanel extends ViewletPanel {
 	private async _revealTreeSelection(model: OutlineModel, element: OutlineElement, focus: boolean, aside: boolean): TPromise<void> {
 
 		let input = this._editorService.createInput({ resource: model.textModel.uri });
-		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(element.symbol.identifierRange), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
+		await this._editorService.openEditor(input, { preserveFocus: !focus, selection: Range.collapseToStart(element.symbol.selectionRange), revealInCenterIfOutsideViewport: true, forceOpen: true }, aside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
 	private async _revealEditorSelection(model: OutlineModel, selection: Selection): TPromise<void> {
-		if (!this._outlineViewState.followCursor && !this._tree.getInput()) {
+		if (!this._outlineViewState.followCursor || !this._tree.getInput()) {
 			return;
 		}
 		let item = model.getItemEnclosingPosition({

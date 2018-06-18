@@ -39,7 +39,7 @@ export function getDocumentSymbols(model: ITextModel): TPromise<DocumentSymbol[]
 }
 
 function compareEntriesUsingStart(a: DocumentSymbol, b: DocumentSymbol): number {
-	return Range.compareRangesUsingStarts(a.fullRange, b.fullRange);
+	return Range.compareRangesUsingStarts(a.range, b.range);
 }
 
 function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideContainerLabel: string): void {
@@ -49,8 +49,8 @@ function flatten(bucket: DocumentSymbol[], entries: DocumentSymbol[], overrideCo
 			name: entry.name,
 			detail: entry.detail,
 			containerName: entry.containerName || overrideContainerLabel,
-			fullRange: entry.fullRange,
-			identifierRange: entry.identifierRange,
+			range: entry.range,
+			selectionRange: entry.selectionRange,
 			children: undefined, // we flatten it...
 		});
 		if (entry.children) {

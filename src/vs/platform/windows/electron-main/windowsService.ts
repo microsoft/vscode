@@ -20,7 +20,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycle
 import { IWindowsMainService, ISharedProcess } from 'vs/platform/windows/electron-main/windows';
 import { IHistoryMainService, IRecentlyOpened } from 'vs/platform/history/common/history';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { Schemas } from 'vs/base/common/network';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { isWindows } from 'vs/base/common/platform';
@@ -39,6 +39,8 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 	);
 
 	readonly onWindowBlur: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-blur', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowMaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-maximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
+	readonly onWindowUnmaximize: Event<number> = filterEvent(fromNodeEventEmitter(app, 'browser-window-unmaximize', (_, w: Electron.BrowserWindow) => w.id), id => !!this.windowsMainService.getWindowById(id));
 
 	constructor(
 		private sharedProcess: ISharedProcess,
@@ -139,7 +141,7 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 		return TPromise.as(null);
 	}
 
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		this.logService.trace('windowsService#updateTouchBar', windowId);
 		const codeWindow = this.windowsMainService.getWindowById(windowId);
 
@@ -333,6 +335,17 @@ export class WindowsService implements IWindowsService, IURLHandler, IDisposable
 
 		if (codeWindow) {
 			codeWindow.win.unmaximize();
+		}
+
+		return TPromise.as(null);
+	}
+
+	minimizeWindow(windowId: number): TPromise<void> {
+		this.logService.trace('windowsService#minimizeWindow', windowId);
+		const codeWindow = this.windowsMainService.getWindowById(windowId);
+
+		if (codeWindow) {
+			codeWindow.win.minimize();
 		}
 
 		return TPromise.as(null);

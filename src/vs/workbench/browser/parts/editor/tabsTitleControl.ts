@@ -168,6 +168,7 @@ export class TabsTitleControl extends TitleControl {
 
 				// Return if the target is not on the tabs container
 				if (e.target !== this.tabsContainer) {
+					this.updateDropFeedback(this.tabsContainer, false); // fixes https://github.com/Microsoft/vscode/issues/52093
 					return;
 				}
 

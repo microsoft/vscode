@@ -16,7 +16,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IProgressService, LongRunningOperation } from 'vs/platform/progress/common/progress';
 import { toWinJsPromise } from 'vs/base/common/async';
-import { IEditorGroupView } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupView, DEFAULT_EDITOR_MIN_DIMENSIONS, DEFAULT_EDITOR_MAX_DIMENSIONS } from 'vs/workbench/browser/parts/editor/editor';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IOpenEditorResult {
@@ -26,16 +26,23 @@ export interface IOpenEditorResult {
 
 export class EditorControl extends Disposable {
 
+	get minimumWidth() { return this._activeControl ? this._activeControl.minimumWidth : DEFAULT_EDITOR_MIN_DIMENSIONS.width; }
+	get minimumHeight() { return this._activeControl ? this._activeControl.minimumHeight : DEFAULT_EDITOR_MIN_DIMENSIONS.height; }
+	get maximumWidth() { return this._activeControl ? this._activeControl.maximumWidth : DEFAULT_EDITOR_MAX_DIMENSIONS.width; }
+	get maximumHeight() { return this._activeControl ? this._activeControl.maximumHeight : DEFAULT_EDITOR_MAX_DIMENSIONS.height; }
+
 	private _onDidFocus: Emitter<void> = this._register(new Emitter<void>());
 	get onDidFocus(): Event<void> { return this._onDidFocus.event; }
 
-	private activeControlFocusListener: IDisposable;
-
-	private dimension: Dimension;
-	private editorOperation: LongRunningOperation;
+	private _onDidSizeConstraintsChange = this._register(new Emitter<{ width: number; height: number; }>());
+	get onDidSizeConstraintsChange(): Event<{ width: number; height: number; }> { return this._onDidSizeConstraintsChange.event; }
 
 	private _activeControl: BaseEditor;
 	private controls: BaseEditor[] = [];
+
+	private activeControlDisposeables: IDisposable[] = [];
+	private dimension: Dimension;
+	private editorOperation: LongRunningOperation;
 
 	constructor(
 		private parent: HTMLElement,
@@ -76,15 +83,12 @@ export class EditorControl extends Disposable {
 		// Create editor
 		const control = this.doCreateEditorControl(descriptor);
 
-		// Remember editor as active
-		this._activeControl = control;
+		// Set editor as active
+		this.doSetActiveControl(control);
 
 		// Show editor
 		this.parent.appendChild(control.getContainer());
 		show(control.getContainer());
-
-		// Track focus
-		this.activeControlFocusListener = control.onDidFocus(() => this._onDidFocus.fire());
 
 		// Indicate to editor that it is now visible
 		control.setVisible(true, this.groupView);
@@ -127,6 +131,22 @@ export class EditorControl extends Disposable {
 		this.controls.push(control);
 
 		return control;
+	}
+
+	private doSetActiveControl(control: BaseEditor) {
+		this._activeControl = control;
+
+		// Clear out previous active control listeners
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
+
+		// Listen to control changes
+		if (control) {
+			this.activeControlDisposeables.push(control.onDidSizeConstraintsChange(e => this._onDidSizeConstraintsChange.fire(e)));
+			this.activeControlDisposeables.push(control.onDidFocus(() => this._onDidFocus.fire()));
+		}
+
+		// Indicate that size constraints could have changed due to new editor
+		this._onDidSizeConstraintsChange.fire();
 	}
 
 	private doSetInput(control: BaseEditor, editor: EditorInput, options: EditorOptions): TPromise<boolean> {
@@ -196,10 +216,7 @@ export class EditorControl extends Disposable {
 		this._activeControl.setVisible(false, this.groupView);
 
 		// Clear active control
-		this._activeControl = null;
-
-		// Clear focus listener
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+		this.doSetActiveControl(null);
 	}
 
 	closeEditor(editor: EditorInput): void {
@@ -223,7 +240,7 @@ export class EditorControl extends Disposable {
 	}
 
 	dispose(): void {
-		this.activeControlFocusListener = dispose(this.activeControlFocusListener);
+		this.activeControlDisposeables = dispose(this.activeControlDisposeables);
 
 		super.dispose();
 	}

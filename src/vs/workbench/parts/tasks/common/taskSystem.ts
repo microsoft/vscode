@@ -4,6 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import URI from 'vs/base/common/uri';
 import Severity from 'vs/base/common/severity';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { TerminateResponse } from 'vs/base/common/processes';
@@ -103,9 +104,9 @@ export interface TaskTerminateResponse extends TerminateResponse {
 }
 
 export interface TaskSystemInfo {
-	fileSystemScheme: string;
 	platform: Platform;
 	context: any;
+	uriProvider: (this: void, path: string) => URI;
 	resolveVariables(workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>>;
 }
 

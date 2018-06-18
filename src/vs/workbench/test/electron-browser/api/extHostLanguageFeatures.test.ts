@@ -182,7 +182,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 				let entry = value[0];
 				assert.equal(entry.name, 'test');
-				assert.deepEqual(entry.fullRange, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});

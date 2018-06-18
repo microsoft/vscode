@@ -197,7 +197,7 @@ export class QuickOutlineAction extends BaseEditorQuickOpenAction {
 				}
 
 				// Add
-				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, element.fullRange, highlights, editor, controller));
+				results.push(this.symbolEntry(label, symbolKindToCssClass(element.kind), description, element.range, highlights, editor, controller));
 			}
 		}
 

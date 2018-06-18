@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.25.0",
-  "distro": "680459b2b8617926a325b0e74e96429c21969bf5",
+  "distro": "5f30bb6859641677a2676f623f994f923e609469",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -48,7 +48,7 @@
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
-    "vscode-textmate": "^3.3.3",
+    "vscode-textmate": "^4.0.0-next.2",
     "vscode-xterm": "3.5.0-beta12",
     "yauzl": "^2.9.1"
   },
