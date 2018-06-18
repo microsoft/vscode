@@ -36,7 +36,6 @@ import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IInstantiationService, ServicesAccessor, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { ITextModel } from 'vs/editor/common/model';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { COPY_PATH_COMMAND_ID, REVEAL_IN_EXPLORER_COMMAND_ID, SAVE_ALL_COMMAND_ID, SAVE_ALL_LABEL, SAVE_ALL_IN_GROUP_COMMAND_ID } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ITextModelService, ITextModelContentProvider } from 'vs/editor/common/services/resolverService';
@@ -289,8 +288,7 @@ class RenameFileAction extends BaseRenameAction {
 		element: ExplorerItem,
 		@IFileService fileService: IFileService,
 		@INotificationService notificationService: INotificationService,
-		@ITextFileService textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService
+		@ITextFileService textFileService: ITextFileService
 	) {
 		super(RenameFileAction.ID, nls.localize('rename', "Rename"), element, fileService, notificationService, textFileService);
 
@@ -298,43 +296,10 @@ class RenameFileAction extends BaseRenameAction {
 	}
 
 	public runAction(newName: string): TPromise<any> {
-		const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, this.element.resource, !isLinux /* ignorecase */));
-		const dirtyRenamed: URI[] = [];
-		return TPromise.join(dirty.map(d => {
-			let renamed: URI;
+		const parentResource = this.element.parent.resource;
+		const targetResource = parentResource.with({ path: paths.join(parentResource.path, newName) });
 
-			// If the dirty file itself got moved, just reparent it to the target folder
-			const targetPath = paths.join(this.element.parent.resource.path, newName);
-			if (this.element.resource.toString() === d.toString()) {
-				renamed = this.element.parent.resource.with({ path: targetPath });
-			}
-
-			// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated
-			else {
-				renamed = this.element.parent.resource.with({ path: paths.join(targetPath, d.path.substr(this.element.resource.path.length + 1)) });
-			}
-
-			dirtyRenamed.push(renamed);
-
-			const model = this.textFileService.models.get(d);
-
-			return this.backupFileService.backupResource(renamed, model.createSnapshot(), model.getVersionId());
-		}))
-
-			// 2. soft revert all dirty since we have backed up their contents
-			.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
-
-			// 3.) run the rename operation
-			.then(() => this.fileService.rename(this.element.resource, newName).then(null, (error: Error) => {
-				return TPromise.join(dirtyRenamed.map(d => this.backupFileService.discardResourceBackup(d))).then(() => {
-					this.onErrorWithRetry(error, () => this.runAction(newName));
-				});
-			}))
-
-			// 4.) resolve those that were dirty to load their previous dirty contents from disk
-			.then(() => {
-				return TPromise.join(dirtyRenamed.map(t => this.textFileService.models.loadOrCreate(t)));
-			});
+		return this.textFileService.move(this.element.resource, targetResource);
 	}
 }
 
