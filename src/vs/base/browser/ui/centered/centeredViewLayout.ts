@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { SplitView, Sizing, IView, Orientation } from 'vs/base/browser/ui/splitview/splitview';
+import { SplitView, Sizing, IView, Orientation, ISplitViewStyles } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
 import { Event } from 'vs/base/common/event';
 
@@ -31,6 +31,10 @@ export class CenteredViewLayout {
 
 	isActive(): boolean {
 		return this.active;
+	}
+
+	styles(style: ISplitViewStyles): void {
+		this.splitView.style(style);
 	}
 
 	activate(active: boolean): void {
