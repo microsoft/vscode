@@ -711,9 +711,16 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		addClass(this.container, 'content');
 		parent.appendChild(this.container);
 
-		// Grid control
+		// Grid control with center layout
 		this.doCreateGridControl();
-		this.container.appendChild(this.gridWidget.element);
+		this.centeredViewLayout = new CenteredViewLayout(this.container, {
+			element: this.gridWidget.element,
+			layout: size => this.gridWidget.layout(size, this.dimension ? this.dimension.height : this.gridWidget.maximumHeight),
+			minimumSize: this.gridWidget.minimumWidth,
+			maximumSize: this.gridWidget.maximumWidth,
+			onDidChange: Event.None
+		});
+		addClass(this.centeredViewLayout.element, 'content');
 
 		// Drop support
 		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
@@ -722,28 +729,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	centerLayout(active: boolean): void {
-		if (!active && this.centeredViewLayout) {
-			this.container.removeChild(this.centeredViewLayout.element);
-			this.container.appendChild(this.gridWidget.element);
-			this.centeredViewLayout.dispose();
-			this.centeredViewLayout = undefined;
-		}
-
-		toggleClass(this.gridWidget.element, 'content', !active);
-		if (active) {
-			this.centeredViewLayout = new CenteredViewLayout(this.container, {
-				element: this.gridWidget.element,
-				layout: size => this.gridWidget.layout(size, this.dimension ? this.dimension.height : this.gridWidget.maximumHeight),
-				minimumSize: this.gridWidget.minimumWidth,
-				maximumSize: this.gridWidget.maximumWidth,
-				onDidChange: Event.None
-			});
-			addClass(this.centeredViewLayout.element, 'content');
-		}
+		this.centeredViewLayout.activate(active);
 	}
 
 	isLayoutCentered(): boolean {
-		return !!this.centeredViewLayout;
+		return this.centeredViewLayout.isActive();
 	}
 
 	private doCreateGridControl(): void {

@@ -11,6 +11,7 @@ export class CenteredViewLayout {
 
 	private splitView: SplitView;
 	readonly element: HTMLElement;
+	private active: boolean;
 
 	constructor(container: HTMLElement, view: IView) {
 		this.element = $('.centered-view-layout');
@@ -20,23 +21,35 @@ export class CenteredViewLayout {
 			inverseAltBehavior: true,
 			orientation: Orientation.HORIZONTAL
 		});
-		const addEmptyView = () => {
-			this.splitView.addView({
+
+		this.splitView.addView(view, Sizing.Distribute);
+	}
+
+	layout(size: number): void {
+		this.splitView.layout(size);
+	}
+
+	isActive(): boolean {
+		return this.active;
+	}
+
+	activate(active: boolean): void {
+		this.active = active;
+		if (this.active) {
+			const emptyView = {
 				element: $('.'),
 				layout: () => undefined,
 				minimumSize: 20,
 				maximumSize: Number.POSITIVE_INFINITY,
 				onDidChange: Event.None
-			}, Sizing.Distribute);
-		};
+			};
 
-		addEmptyView();
-		this.splitView.addView(view, Sizing.Distribute);
-		addEmptyView();
-	}
-
-	layout(size: number): void {
-		this.splitView.layout(size);
+			this.splitView.addView(emptyView, Sizing.Distribute, 0);
+			this.splitView.addView(emptyView, Sizing.Distribute);
+		} else {
+			this.splitView.removeView(0);
+			this.splitView.removeView(1);
+		}
 	}
 
 	dispose(): void {
