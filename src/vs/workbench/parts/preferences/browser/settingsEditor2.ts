@@ -45,6 +45,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private defaultSettingsEditorModel: DefaultSettingsEditorModel;
 
+	private rootElement: HTMLElement;
 	private headerContainer: HTMLElement;
 	private searchWidget: SearchWidget;
 	private settingsTargetsWidget: SettingsTargetsWidget;
@@ -100,10 +101,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	createEditor(parent: HTMLElement): void {
-		const settingsEditorElement = DOM.append(parent, $('.settings-editor'));
-		this.createTOC(settingsEditorElement);
+		this.rootElement = DOM.append(parent, $('.settings-editor'));
+		this.createTOC(this.rootElement);
 
-		const settingsEditorRightElement = DOM.append(settingsEditorElement, $('.settings-editor-right'));
+		const settingsEditorRightElement = DOM.append(this.rootElement, $('.settings-editor-right'));
 		this.createHeader(settingsEditorRightElement);
 		this.createBody(settingsEditorRightElement);
 	}
@@ -465,7 +466,7 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private toggleSearchMode(): void {
-		DOM.toggleClass(this.getContainer(), 'search-mode', !!this.searchResultModel);
+		DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
 	}
 
 	private onConfigUpdate(): TPromise<void> {
@@ -474,9 +475,10 @@ export class SettingsEditor2 extends BaseEditor {
 		const commonlyUsed = resolveSettingsTree(commonlyUsedData, groups);
 		resolvedSettingsRoot.children.unshift(commonlyUsed);
 
-		this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
-
-		if (!this.searchResultModel) {
+		if (this.settingsTreeModel) {
+			this.settingsTreeModel.update(resolvedSettingsRoot);
+		} else {
+			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
 			this.settingsTree.setInput(this.settingsTreeModel.root);
 			this.tocTree.setInput(this.settingsTreeModel.root);
 		}
@@ -492,18 +494,22 @@ export class SettingsEditor2 extends BaseEditor {
 			(<HTMLInputElement>document.activeElement).selectionStart :
 			null;
 
-		return this.settingsTree.refresh().then(() => {
-			if (focusedRowId) {
-				const rowSelector = `.setting-item#${focusedRowId}`;
-				const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a`);
-				if (inputElementToFocus) {
-					inputElementToFocus.focus();
-					if (typeof selection === 'number') {
-						(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
+		return this.settingsTree.refresh()
+			.then(() => {
+				if (focusedRowId) {
+					const rowSelector = `.setting-item#${focusedRowId}`;
+					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a`);
+					if (inputElementToFocus) {
+						inputElementToFocus.focus();
+						if (typeof selection === 'number') {
+							(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
+						}
 					}
 				}
-			}
-		});
+			})
+			.then(() => {
+				return this.tocTree.refresh();
+			});
 	}
 
 	private onSearchInputChanged(): void {

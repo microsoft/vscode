@@ -77,7 +77,7 @@ export interface ITOCEntry {
 }
 
 export class SettingsTreeModel {
-	private _root: SettingsTreeElement;
+	private _root: SettingsTreeGroupElement;
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
 
 	constructor(
@@ -85,11 +85,20 @@ export class SettingsTreeModel {
 		tocRoot: ITOCEntry,
 		@IConfigurationService private configurationService: IConfigurationService
 	) {
-		this._root = this.createSettingsTreeGroupElement(tocRoot);
+		this.update(tocRoot);
 	}
 
 	get root(): SettingsTreeElement {
 		return this._root;
+	}
+
+	update(newTocRoot: ITOCEntry): void {
+		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
+		if (this._root) {
+			this._root.children = newRoot.children;
+		} else {
+			this._root = newRoot;
+		}
 	}
 
 	getElementById(id: string): SettingsTreeElement {
@@ -119,9 +128,13 @@ export class SettingsTreeModel {
 	}
 }
 
+function sanitizeId(id: string): string {
+	return id.replace(/[\.\/]/, '_');
+}
+
 function createSettingsTreeSettingElement(setting: ISetting, parent: any, settingsTarget: SettingsTarget, configurationService: IConfigurationService): SettingsTreeSettingElement {
 	const element = new SettingsTreeSettingElement();
-	element.id = parent.id + '_' + setting.key;
+	element.id = sanitizeId(parent.id + '_' + setting.key);
 	element.parent = parent;
 
 	const { isConfigured, inspected, targetSelector } = inspectSetting(setting.key, settingsTarget, configurationService);
@@ -522,7 +535,6 @@ export class SettingsRenderer implements IRenderer {
 		template.descriptionElement.textContent = element.description;
 
 		this.renderValue(element, isSelected, template);
-
 		const resetButton = new Button(template.valueElement);
 		const resetText = localize('resetButtonTitle', "reset");
 		resetButton.label = resetText;
