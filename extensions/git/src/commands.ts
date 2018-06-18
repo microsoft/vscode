@@ -1355,7 +1355,7 @@ export class CommandCenter {
 
 		const remoteCharCnt = remotePick.label.length;
 
-		repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -1451,7 +1451,7 @@ export class CommandCenter {
 			return;
 		}
 
-		repository.pushTo(pick.label, branchName);
+		await repository.pushTo(pick.label, branchName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
