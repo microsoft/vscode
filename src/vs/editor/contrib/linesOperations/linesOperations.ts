@@ -410,6 +410,7 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
 
 		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
+			endCursorState.push(new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn));
 			return EditOperation.replace(range, '');
 		});
 
