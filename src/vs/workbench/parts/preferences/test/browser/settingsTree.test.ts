@@ -81,5 +81,20 @@ suite('SettingsTree', () => {
 				category: '',
 				label: 'Etc'
 			});
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('fooBar.etc', 'fooBar'),
+			{
+				category: '',
+				label: 'Etc'
+			});
+
+
+		assert.deepEqual(
+			settingKeyToDisplayFormat('fooBar.somethingElse.etc', 'fooBar'),
+			{
+				category: 'Something Else',
+				label: 'Etc'
+			});
 	});
 });

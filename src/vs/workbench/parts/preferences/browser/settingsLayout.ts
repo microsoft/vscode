@@ -48,7 +48,7 @@ export const tocData: ITOCEntry = {
 					settings: ['editor.format*']
 				},
 				{
-					id: 'editor/diff',
+					id: 'editor/diffEditor',
 					label: 'Diff Editor',
 					settings: ['diffEditor.*']
 				},

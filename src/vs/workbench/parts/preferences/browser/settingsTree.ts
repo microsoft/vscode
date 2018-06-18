@@ -288,13 +288,7 @@ export class SettingsDataSource implements IDataSource {
 }
 
 export function settingKeyToDisplayFormat(key: string, groupId = ''): { category: string, label: string } {
-	groupId = groupId.replace(/\//g, '.');
-
-	let label = key
-		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
-		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
-		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
-
+	let label = wordifyKey(key);
 	const lastDotIdx = label.lastIndexOf('.');
 	let category = '';
 	if (lastDotIdx >= 0) {
@@ -302,12 +296,22 @@ export function settingKeyToDisplayFormat(key: string, groupId = ''): { category
 		label = label.substr(lastDotIdx + 1);
 	}
 
+	groupId = wordifyKey(groupId.replace(/\//g, '.'));
 	category = trimCategoryForGroup(category, groupId);
 
 	return { category, label };
 }
 
+function wordifyKey(key: string): string {
+	return key
+		.replace(/\.([a-z])/g, (match, p1) => `.${p1.toUpperCase()}`)
+		.replace(/([a-z])([A-Z])/g, '$1 $2') // fooBar => foo Bar
+		.replace(/^[a-z]/g, match => match.toUpperCase()); // foo => Foo
+}
+
 function trimCategoryForGroup(category: string, groupId: string): string {
+	// const categoryWithoutSpaces = category.replace(/ /g, '');
+
 	const doTrim = forward => {
 		const parts = groupId.split('.');
 		while (parts.length) {
@@ -315,6 +319,10 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 			if (reg.test(category)) {
 				return category.replace(reg, '');
 			}
+
+			// if (reg.test(categoryWithoutSpaces)) {
+			// 	return categoryWithoutSpaces.replace(reg, '');
+			// }
 
 			if (forward) {
 				parts.pop();
