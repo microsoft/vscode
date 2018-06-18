@@ -99,11 +99,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
 
 		this.loadRecommendationsPromise = this.getWorkspaceRecommendations()
-			.then(() => {
+			.then(result => {
 				// these must be called after workspace configs have been refreshed.
 				this.getCachedDynamicWorkspaceRecommendations();
 				this._suggestFileBasedRecommendations();
-				return this._suggestWorkspaceRecommendations();
+				return this._suggestWorkspaceRecommendations(result);
 			}).then(() => {
 				this._modelService.onModelAdded(this._suggest, this, this._disposables);
 				this._modelService.getModels().forEach(model => this._suggest(model));
@@ -314,7 +314,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this.getWorkspaceRecommendations().then(result => {
 				// Suggest only if at least one of the newly added recommendations was not suggested before
 				if (result.some(e => oldWorkspaceRecommended.indexOf(e) === -1)) {
-					this._suggestWorkspaceRecommendations();
+					this._suggestWorkspaceRecommendations(result);
 				}
 			});
 		}
@@ -620,86 +620,84 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private _suggestWorkspaceRecommendations(): TPromise<any> {
+	private _suggestWorkspaceRecommendations(allRecommendations: string[]): void {
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
-		return this.getWorkspaceRecommendations().then(allRecommendations => {
-			if (!allRecommendations.length || config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
-				return;
+		if (!allRecommendations.length || config.ignoreRecommendations || config.showRecommendationsOnlyOnDemand || this.storageService.getBoolean(storageKey, StorageScope.WORKSPACE, false)) {
+			return;
+		}
+
+		return this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
+			const recommendations = allRecommendations
+				.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
+
+			if (!recommendations.length) {
+				return TPromise.as(void 0);
 			}
 
-			return this.extensionsService.getInstalled(LocalExtensionType.User).done(local => {
-				const recommendations = allRecommendations
-					.filter(id => local.every(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}` !== id));
-
-				if (!recommendations.length) {
-					return TPromise.as(void 0);
-				}
-
-				return new TPromise<void>(c => {
-					this.notificationService.prompt(
-						Severity.Info,
-						localize('workspaceRecommended', "This workspace has extension recommendations."),
-						[{
-							label: localize('installAll', "Install All"),
-							run: () => {
-								/* __GDPR__
-								"extensionWorkspaceRecommendations:popup" : {
-									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-								}
-								*/
-								this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
-
-								const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
-								installAllAction.run();
-								installAllAction.dispose();
-
-								c(void 0);
+			return new TPromise<void>(c => {
+				this.notificationService.prompt(
+					Severity.Info,
+					localize('workspaceRecommended', "This workspace has extension recommendations."),
+					[{
+						label: localize('installAll', "Install All"),
+						run: () => {
+							/* __GDPR__
+							"extensionWorkspaceRecommendations:popup" : {
+								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
-						}, {
-							label: localize('showRecommendations', "Show Recommendations"),
-							run: () => {
-								/* __GDPR__
-									"extensionWorkspaceRecommendations:popup" : {
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-									}
-								*/
-								this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'install' });
 
-								const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
-								showAction.run();
-								showAction.dispose();
+							const installAllAction = this.instantiationService.createInstance(InstallWorkspaceRecommendedExtensionsAction, InstallWorkspaceRecommendedExtensionsAction.ID, localize('installAll', "Install All"));
+							installAllAction.run();
+							installAllAction.dispose();
 
-								c(void 0);
-							}
-						}, {
-							label: choiceNever,
-							isSecondary: true,
-							run: () => {
-								/* __GDPR__
-									"extensionWorkspaceRecommendations:popup" : {
-										"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
-									}
-								*/
-								this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
-								this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
-
-								c(void 0);
-							}
-						}],
-						() => {
+							c(void 0);
+						}
+					}, {
+						label: localize('showRecommendations', "Show Recommendations"),
+						run: () => {
 							/* __GDPR__
 								"extensionWorkspaceRecommendations:popup" : {
 									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 								}
 							*/
-							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'show' });
+
+							const showAction = this.instantiationService.createInstance(ShowRecommendedExtensionsAction, ShowRecommendedExtensionsAction.ID, localize('showRecommendations', "Show Recommendations"));
+							showAction.run();
+							showAction.dispose();
 
 							c(void 0);
 						}
-					);
-				});
+					}, {
+						label: choiceNever,
+						isSecondary: true,
+						run: () => {
+							/* __GDPR__
+								"extensionWorkspaceRecommendations:popup" : {
+									"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+								}
+							*/
+							this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'neverShowAgain' });
+							this.storageService.store(storageKey, true, StorageScope.WORKSPACE);
+
+							c(void 0);
+						}
+					}],
+					() => {
+						/* __GDPR__
+							"extensionWorkspaceRecommendations:popup" : {
+								"userReaction" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+							}
+						*/
+						this.telemetryService.publicLog('extensionWorkspaceRecommendations:popup', { userReaction: 'cancelled' });
+
+						c(void 0);
+					}
+				);
 			});
 		});
 	}
