@@ -17,7 +17,7 @@ import * as DOM from 'vs/base/browser/dom';
 import * as types from 'vs/base/common/types';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeyCode, KeyMod, KeyCodeUtils } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
 import { Event, Emitter } from 'vs/base/common/event';
 
@@ -380,10 +380,6 @@ export class ActionBar implements IActionRunner {
 
 	// Items
 	public items: IActionItem[];
-	private mnemonics: {
-		[index: number]: IAction;
-	} = {};
-
 	private focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
 
@@ -457,8 +453,6 @@ export class ActionBar implements IActionRunner {
 				this.focusNext();
 			} else if (event.equals(KeyCode.Escape)) {
 				this.cancel();
-			} else if (this.mnemonics[event.keyCode]) {
-				this.run(this.mnemonics[event.keyCode]);
 			} else if (event.equals(KeyCode.Enter) || event.equals(KeyCode.Space)) {
 				// Nothing, just staying out of the else branch
 			} else {
@@ -571,12 +565,12 @@ export class ActionBar implements IActionRunner {
 		return this.domNode;
 	}
 
-	private _addMnemonic(action: IAction): void {
+	private _addMnemonic(action: IAction, actionItemElement: HTMLElement): void {
 		let matches = BaseActionItem.MNEMONIC_REGEX.exec(action.label);
 		if (matches && matches.length === 2) {
 			let mnemonic = matches[1];
 
-			this.mnemonics[KeyCodeUtils.fromString(mnemonic)] = action;
+			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
 		}
 	}
 
@@ -597,7 +591,7 @@ export class ActionBar implements IActionRunner {
 				e.stopPropagation();
 			});
 
-			this._addMnemonic(action);
+			this._addMnemonic(action, actionItemElement);
 
 			let item: IActionItem = null;
 

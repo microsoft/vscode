@@ -14,7 +14,7 @@ import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } f
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -23,10 +23,8 @@ import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/wor
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
 import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
-import { KeyCode, KeyCodeUtils, KeyMod } from 'vs/base/common/keyCodes';
+import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
-import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import URI from 'vs/base/common/uri';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
 import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -291,20 +289,8 @@ export class MenubarPart extends Part {
 		}
 	}
 
-	private registerMnemonic(menuIndex: number, keyCode: KeyCode): void {
-		KeybindingsRegistry.registerCommandAndKeybindingRule({
-			id: 'menubar.mnemonics.' + menuIndex,
-			weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-			when: ContextKeyExpr.has('config.window.enableMenuBarMnemonics'),
-			primary: null,
-			win: { primary: KeyMod.Alt | keyCode },
-			handler: (accessor, resource: URI | object) => {
-				if (!this.focusedMenu) {
-					this.isFocused = true;
-					this.toggleCustomMenu(menuIndex);
-				}
-			}
-		});
+	private registerMnemonic(topLevelElement: HTMLElement, mnemonic: string): void {
+		topLevelElement.accessKey = mnemonic.toLocaleLowerCase();
 	}
 
 	private setCheckedStatus(action: IAction | IMenubarMenuItemAction) {
@@ -384,7 +370,7 @@ export class MenubarPart extends Part {
 
 			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
 			if (mnemonic) {
-				this.registerMnemonic(menuIndex, KeyCodeUtils.fromString(mnemonic));
+				this.registerMnemonic(titleElement.getHTMLElement(), mnemonic);
 			}
 
 			this.customMenus.push({
