@@ -186,7 +186,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 
 		return TPromise.as(false); // Don't veto shutdown
-
 	}
 
 	private createWebviewEventDelegate(handle: WebviewPanelHandle) {
@@ -224,7 +223,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 		if (newActiveWebview && newActiveWebview.handle === this._activeWebview) {
 			// Webview itself unchanged but position may have changed
-			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group));
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
+				active: true,
+				visible: true,
+				position: editorGroupToViewColumn(this._editorGroupService, newActiveWebview.input.group)
+			});
 			return;
 		}
 
@@ -232,13 +235,21 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		if (typeof this._activeWebview !== 'undefined') {
 			const oldActiveWebview = this._webviews.get(this._activeWebview);
 			if (oldActiveWebview) {
-				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, false, editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group));
+				this._proxy.$onDidChangeWebviewPanelViewState(this._activeWebview, {
+					active: false,
+					visible: this._editorService.visibleControls.some(editor => editor.input && editor.input.matches(oldActiveWebview)),
+					position: editorGroupToViewColumn(this._editorGroupService, oldActiveWebview.group),
+				});
 			}
 		}
 
 		// Then for newly active
 		if (newActiveWebview) {
-			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, true, editorGroupToViewColumn(this._editorGroupService, activeEditor.group));
+			this._proxy.$onDidChangeWebviewPanelViewState(newActiveWebview.handle, {
+				active: true,
+				visible: true,
+				position: editorGroupToViewColumn(this._editorGroupService, activeEditor.group)
+			});
 			this._activeWebview = newActiveWebview.handle;
 		} else {
 			this._activeWebview = undefined;
@@ -246,22 +257,23 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 	}
 
 	private onVisibleEditorsChanged(): void {
-		for (const workbenchEditor of this._editorService.visibleControls) {
-			if (!workbenchEditor.input) {
-				return;
-			}
+		this._webviews.forEach((input, handle) => {
+			for (const workbenchEditor of this._editorService.visibleControls) {
+				if (workbenchEditor.input && workbenchEditor.input.matches(input)) {
+					const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
 
-			this._webviews.forEach((input, handle) => {
-				const inputPosition = editorGroupToViewColumn(this._editorGroupService, input.group);
-				const editorPosition = editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
-
-				if (workbenchEditor.input.matches(input) && inputPosition !== editorPosition) {
 					input.updateGroup(workbenchEditor.group.id);
-					this._proxy.$onDidChangeWebviewPanelViewState(handle, handle === this._activeWebview, editorPosition);
+					this._proxy.$onDidChangeWebviewPanelViewState(handle, {
+						active: handle === this._activeWebview,
+						visible: true,
+						position: editorPosition
+					});
+					break;
 				}
-			});
-		}
+			}
+		});
 	}
+
 	private onDidClickLink(handle: WebviewPanelHandle, link: URI): void {
 		if (!link) {
 			return;

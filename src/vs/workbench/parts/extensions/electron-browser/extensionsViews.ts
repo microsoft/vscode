@@ -18,7 +18,7 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
+import { Delegate, Renderer } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -31,7 +31,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -545,6 +545,10 @@ export class ExtensionsListView extends ViewletPanel {
 		return /@installed/i.test(query);
 	}
 
+	static isGroupByServersExtensionsQuery(query: string): boolean {
+		return !!Query.parse(query).groupBy;
+	}
+
 	static isOutdatedExtensionsQuery(query: string): boolean {
 		return /@outdated/i.test(query);
 	}
@@ -590,6 +594,18 @@ export class InstalledExtensionsView extends ExtensionsListView {
 		let searchInstalledQuery = '@installed';
 		searchInstalledQuery = query ? searchInstalledQuery + ' ' + query : searchInstalledQuery;
 		return super.show(searchInstalledQuery);
+	}
+}
+
+export class GroupByServerExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		query = query.replace(/@group:server/g, '').trim();
+		query = query ? query : '@installed';
+		if (!InstalledExtensionsView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+			query = query += ' @installed';
+		}
+		return super.show(query.trim());
 	}
 }
 

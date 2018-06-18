@@ -23,7 +23,7 @@ import { isLinux, isMacintosh, isWindows } from 'vs/base/common/platform';
 import { ICodeWindow, IWindowState, WindowMode } from 'vs/platform/windows/electron-main/windows';
 import { IWorkspaceIdentifier, IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { IBackupMainService } from 'vs/platform/backup/common/backup';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { mark, exportEntries } from 'vs/base/common/performance';
 import { resolveMarketplaceHeaders } from 'vs/platform/extensionManagement/node/extensionGalleryService';
 
@@ -916,7 +916,7 @@ export class CodeWindow implements ICodeWindow {
 		}
 	}
 
-	public updateTouchBar(groups: ICommandAction[][]): void {
+	public updateTouchBar(groups: ISerializableCommandAction[][]): void {
 		if (!isMacintosh) {
 			return; // only supported on macOS
 		}
@@ -945,7 +945,7 @@ export class CodeWindow implements ICodeWindow {
 		this._win.setTouchBar(new TouchBar({ items: this.touchBarGroups }));
 	}
 
-	private createTouchBarGroup(items: ICommandAction[] = []): Electron.TouchBarSegmentedControl {
+	private createTouchBarGroup(items: ISerializableCommandAction[] = []): Electron.TouchBarSegmentedControl {
 
 		// Group Segments
 		const segments = this.createTouchBarGroupSegments(items);
@@ -963,11 +963,11 @@ export class CodeWindow implements ICodeWindow {
 		return control;
 	}
 
-	private createTouchBarGroupSegments(items: ICommandAction[] = []): ITouchBarSegment[] {
+	private createTouchBarGroupSegments(items: ISerializableCommandAction[] = []): ITouchBarSegment[] {
 		const segments: ITouchBarSegment[] = items.map(item => {
 			let icon: Electron.NativeImage;
 			if (item.iconLocation && item.iconLocation.dark.scheme === 'file') {
-				icon = nativeImage.createFromPath(item.iconLocation.dark.fsPath);
+				icon = nativeImage.createFromPath(URI.revive(item.iconLocation.dark).fsPath);
 				if (icon.isEmpty()) {
 					icon = void 0;
 				}

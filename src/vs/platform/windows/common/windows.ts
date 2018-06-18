@@ -13,7 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { PerformanceEntry } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -144,7 +144,7 @@ export interface IWindowsService {
 	toggleWindowTabsBar(): TPromise<void>;
 
 	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void>;
 
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
@@ -192,7 +192,7 @@ export interface IWindowService {
 	openDevTools(options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
-	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;

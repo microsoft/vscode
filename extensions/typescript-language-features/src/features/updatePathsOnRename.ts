@@ -87,12 +87,13 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		if (await this.confirmActionWithUser(document)) {
+		if (await this.confirmActionWithUser(newResource, document)) {
 			await vscode.workspace.applyEdit(edits);
 		}
 	}
 
 	private async confirmActionWithUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		const config = this.getConfiguration(newDocument);
@@ -104,7 +105,7 @@ export class UpdateImportsOnFileRenameHandler {
 				return false;
 			case UpdateImportsOnFileMoveSetting.Prompt:
 			default:
-				return this.promptUser(newDocument);
+				return this.promptUser(newResource, newDocument);
 		}
 	}
 
@@ -113,6 +114,7 @@ export class UpdateImportsOnFileRenameHandler {
 	}
 
 	private async promptUser(
+		newResource: vscode.Uri,
 		newDocument: vscode.TextDocument
 	): Promise<boolean> {
 		enum Choice {
@@ -128,7 +130,7 @@ export class UpdateImportsOnFileRenameHandler {
 		}
 
 		const response = await vscode.window.showInformationMessage<Item>(
-			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newDocument.fileName)), {
+			localize('prompt', "Automatically update imports for moved file: '{0}'?", path.basename(newResource.fsPath)), {
 				modal: true,
 			},
 			{
@@ -207,6 +209,7 @@ export class UpdateImportsOnFileRenameHandler {
 		oldFile: string,
 		newFile: string,
 	) {
+		const isDirectoryRename = fs.lstatSync(newFile).isDirectory();
 		await this.fileConfigurationManager.ensureConfigurationForDocument(document, undefined);
 
 		const args: Proto.GetEditsForFileRenameRequestArgs = {
@@ -219,7 +222,37 @@ export class UpdateImportsOnFileRenameHandler {
 			return;
 		}
 
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
+		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.map((edit: Proto.FileCodeEdits) => this.fixEdit(edit, isDirectoryRename)));
+	}
+
+	private fixEdit(
+		edit: Proto.FileCodeEdits,
+		isDirectoryRename: boolean
+	): Proto.FileCodeEdits {
+		if (!isDirectoryRename || this.client.apiVersion.gte(API.v300)) {
+			return edit;
+		}
+
+		// Workaround for https://github.com/Microsoft/TypeScript/issues/24968
+		const textChanges = edit.textChanges.map((change): Proto.CodeEdit => {
+			const match = change.newText.match(/\/[^\/]+$/g);
+			if (!match) {
+				return change;
+			}
+			return {
+				newText: change.newText.slice(0, -match[0].length),
+				start: change.start,
+				end: {
+					line: change.end.line,
+					offset: change.end.offset - match[0].length
+				}
+			};
+		});
+
+		return {
+			fileName: edit.fileName,
+			textChanges
+		};
 	}
 }
 

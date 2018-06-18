@@ -75,6 +75,16 @@ export class PreferencesEditor extends BaseEditor {
 
 	private lastFocusedWidget: SearchWidget | SideBySidePreferencesWidget = null;
 
+	get minimumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.minimumWidth : 0; }
+	get maximumWidth(): number { return this.sideBySidePreferencesWidget ? this.sideBySidePreferencesWidget.maximumWidth : Number.POSITIVE_INFINITY; }
+
+	// these setters need to exist because this extends from BaseEditor
+	set minimumWidth(value: number) { /*noop*/ }
+	set maximumWidth(value: number) { /*noop*/ }
+
+	private _onDidCreateWidget = new Emitter<{ width: number; height: number; }>();
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = this._onDidCreateWidget.event;
+
 	constructor(
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -122,6 +132,7 @@ export class PreferencesEditor extends BaseEditor {
 
 		const editorsContainer = DOM.append(parent, DOM.$('.preferences-editors-container'));
 		this.sideBySidePreferencesWidget = this._register(this.instantiationService.createInstance(SideBySidePreferencesWidget, editorsContainer));
+		this._onDidCreateWidget.fire();
 		this._register(this.sideBySidePreferencesWidget.onFocus(() => this.lastFocusedWidget = this.sideBySidePreferencesWidget));
 		this._register(this.sideBySidePreferencesWidget.onDidSettingsTargetChange(target => this.switchSettings(target)));
 
@@ -325,6 +336,11 @@ export class PreferencesEditor extends BaseEditor {
 			this.telemetryService.publicLog('defaultSettings.filter', data);
 			this._lastReportedFilter = filter;
 		}
+	}
+
+	dispose(): void {
+		this._onDidCreateWidget.dispose();
+		super.dispose();
 	}
 }
 
@@ -754,6 +770,9 @@ class SideBySidePreferencesWidget extends Widget {
 
 	private lastFocusedEditor: BaseEditor;
 	private splitview: SplitView;
+
+	get minimumWidth(): number { return this.splitview.minimumSize; }
+	get maximumWidth(): number { return this.splitview.maximumSize; }
 
 	constructor(
 		parentElement: HTMLElement,

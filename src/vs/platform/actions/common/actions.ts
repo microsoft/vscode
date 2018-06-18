@@ -13,19 +13,26 @@ import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/commo
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { Event } from 'vs/base/common/event';
-import URI from 'vs/base/common/uri';
+import URI, { UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
 	original: string;
 }
 
-export interface ICommandAction {
+export interface IBaseCommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
+}
+
+export interface ICommandAction extends IBaseCommandAction {
 	iconLocation?: { dark: URI; light?: URI; };
 	precondition?: ContextKeyExpr;
+}
+
+export interface ISerializableCommandAction extends IBaseCommandAction {
+	iconLocation?: { dark: UriComponents; light?: UriComponents; };
 }
 
 export interface IMenuItem {

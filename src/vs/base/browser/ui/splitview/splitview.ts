@@ -148,6 +148,14 @@ export class SplitView implements IDisposable {
 		return this.viewItems.length;
 	}
 
+	get minimumSize(): number {
+		return this.viewItems.reduce((r, item) => r + item.view.minimumSize, 0);
+	}
+
+	get maximumSize(): number {
+		return this.length === 0 ? Number.POSITIVE_INFINITY : this.viewItems.reduce((r, item) => r + item.view.maximumSize, 0);
+	}
+
 	private _orthogonalStartSash: Sash | undefined;
 	get orthogonalStartSash(): Sash | undefined { return this._orthogonalStartSash; }
 	set orthogonalStartSash(sash: Sash | undefined) {

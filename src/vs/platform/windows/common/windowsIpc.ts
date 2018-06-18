@@ -11,7 +11,7 @@ import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/i
 import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
@@ -42,7 +42,7 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'moveWindowTabToNewWindow', arg: number): TPromise<void>;
 	call(command: 'mergeAllWindowTabs', arg: number): TPromise<void>;
 	call(command: 'toggleWindowTabsBar', arg: number): TPromise<void>;
-	call(command: 'updateTouchBar', arg: [number, ICommandAction[][]]): TPromise<void>;
+	call(command: 'updateTouchBar', arg: [number, ISerializableCommandAction[][]]): TPromise<void>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
@@ -345,7 +345,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('startCrashReporter', config);
 	}
 
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 

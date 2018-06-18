@@ -304,8 +304,7 @@ class CodeActionAdapter {
 
 		const codeActionContext: vscode.CodeActionContext = {
 			diagnostics: allDiagnostics,
-			only: context.only ? new CodeActionKind(context.only) : undefined,
-			triggerKind: context.trigger,
+			only: context.only ? new CodeActionKind(context.only) : undefined
 		};
 
 		return asWinJsPromise(token =>

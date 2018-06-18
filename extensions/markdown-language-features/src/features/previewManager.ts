@@ -142,8 +142,8 @@ export class MarkdownPreviewManager implements vscode.WebviewPanelSerializer {
 
 		preview.onDidChangeViewState(({ webviewPanel }) => {
 			disposeAll(this._previews.filter(otherPreview => preview !== otherPreview && preview!.matches(otherPreview)));
-			this.setPreviewActiveContext(webviewPanel.visible);
-			this._activePreview = webviewPanel.visible ? preview : undefined;
+			this.setPreviewActiveContext(webviewPanel.active);
+			this._activePreview = webviewPanel.active ? preview : undefined;
 		});
 
 		return preview;

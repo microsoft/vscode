@@ -9,7 +9,7 @@ import 'vs/css!./media/editorgroupview';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { EditorGroup, IEditorOpenOptions, EditorCloseEvent, ISerializedEditorGroup, isSerializedEditorGroup } from 'vs/workbench/common/editor/editorGroup';
 import { EditorInput, EditorOptions, GroupIdentifier, ConfirmResult, SideBySideEditorInput, CloseDirection, IEditorCloseEvent, EditorGroupActiveEditorDirtyContext } from 'vs/workbench/common/editor';
-import { Event, Emitter, once } from 'vs/base/common/event';
+import { Event, Emitter, once, Relay } from 'vs/base/common/event';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, addClasses, Dimension, trackFocus, toggleClass, removeClass, addDisposableListener, EventType, EventHelper, findParentWithClass, clearNode, isAncestor } from 'vs/base/browser/dom';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -34,7 +34,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { RunOnceWorker } from 'vs/base/common/async';
 import { EventType as TouchEventType, GestureEvent } from 'vs/base/browser/touch';
 import { TitleControl } from 'vs/workbench/browser/parts/editor/titleControl';
-import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, EDITOR_MIN_DIMENSIONS, EDITOR_MAX_DIMENSIONS, getActiveTextEditorOptions, IEditorOpeningEvent, BREAD_CRUMBS_HEIGHT } from 'vs/workbench/browser/parts/editor/editor';
+import { IEditorGroupsAccessor, IEditorGroupView, IEditorPartOptionsChangeEvent, EDITOR_TITLE_HEIGHT, BREAD_CRUMBS_HEIGHT, getActiveTextEditorOptions, IEditorOpeningEvent } from 'vs/workbench/browser/parts/editor/editor';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { join } from 'vs/base/common/paths';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
@@ -209,6 +209,7 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 		// Editor control
 		this.editorControl = this._register(this.scopedInstantiationService.createInstance(EditorControl, this.editorContainer, this));
+		this._onDidChange.input = this.editorControl.onDidSizeConstraintsChange;
 
 		// Track Focus
 		this.doTrackFocus();
@@ -1361,12 +1362,13 @@ export class EditorGroupView extends Themable implements IEditorGroupView {
 
 	readonly element: HTMLElement = document.createElement('div');
 
-	readonly minimumWidth = EDITOR_MIN_DIMENSIONS.width;
-	readonly minimumHeight = EDITOR_MIN_DIMENSIONS.height;
-	readonly maximumWidth = EDITOR_MAX_DIMENSIONS.width;
-	readonly maximumHeight = EDITOR_MAX_DIMENSIONS.height;
+	get minimumWidth(): number { return this.editorControl.minimumWidth; }
+	get minimumHeight(): number { return this.editorControl.minimumHeight; }
+	get maximumWidth(): number { return this.editorControl.maximumWidth; }
+	get maximumHeight(): number { return this.editorControl.maximumHeight; }
 
-	get onDidChange() { return Event.None; } // only needed if minimum sizes ever change
+	private _onDidChange = this._register(new Relay<{ width: number; height: number; }>());
+	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
 
 	layout(width: number, height: number): void {
 		this.dimension = new Dimension(width, height);

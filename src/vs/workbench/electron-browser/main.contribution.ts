@@ -223,7 +223,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'string',
 			'enum': ['right', 'down'],
 			'default': 'right',
-			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the rigth hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
+			'description': nls.localize('sideBySideDirection', "Controls the default direction of editors that are opened side by side (e.g. from the explorer). By default, editors will open on the right hand side of the currently active one. If changed to open down, the editors will open below the currently active one.")
 		},
 		'workbench.editor.closeEmptyGroups': {
 			'type': 'boolean',
