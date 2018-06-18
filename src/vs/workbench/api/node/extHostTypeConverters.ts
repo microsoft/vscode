@@ -24,6 +24,7 @@ import * as languageSelector from 'vs/editor/common/modes/languageSelector';
 import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
+import { ExtHostDocumentsAndEditors } from 'vs/workbench/api/node/extHostDocumentsAndEditors';
 
 export interface PositionLike {
 	line: number;
@@ -269,7 +270,7 @@ export const TextEdit = {
 };
 
 export namespace WorkspaceEdit {
-	export function from(value: vscode.WorkspaceEdit): modes.WorkspaceEdit {
+	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
 		const result: modes.WorkspaceEdit = {
 			edits: []
 		};
@@ -277,7 +278,8 @@ export namespace WorkspaceEdit {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
-				result.edits.push({ resource: uri, edits: uriOrEdits.map(TextEdit.from) });
+				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
+				result.edits.push({ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
 				result.edits.push({ oldUri: uri, newUri: uriOrEdits });

@@ -10,6 +10,7 @@ import * as vscode from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
 import { join, basename } from 'path';
 import * as fs from 'fs';
+import { networkInterfaces } from 'os';
 
 suite('workspace-namespace', () => {
 
@@ -520,42 +521,51 @@ suite('workspace-namespace', () => {
 	});
 
 
-	// test('applyEdit should fail when editing deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+	test('applyEdit should fail when editing deleted resource', async () => {
+		const resource = await createRandomFile();
 
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit should fail when renaming deleted resource', async () => {
+		const resource = await createRandomFile();
+
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.renameFile(resource, resource);
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit should fail when editing renamed from resource', async () => {
+		const resource = await createRandomFile();
+		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+		const edit = new vscode.WorkspaceEdit();
+		edit.renameFile(resource, newResource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	// test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
+	// 	const oldUri = await createRandomFile();
+	// 	const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
 	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow edit of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+	// 	edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
+	// 	edit.renameFile(oldUri, newUri);
+	// 	edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
 
-	// test('applyEdit should fail when renaming deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+	// 	let success = await vscode.workspace.applyEdit(edit);
+	// 	assert.equal(success, true);
 
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.renameResource(resource, resource);
-	// 		assert.fail(false, 'Should disallow rename of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
-
-	// test('applyEdit should fail when editing renamed from resource', async () => {
-	// 	const resource = await createRandomFile();
-	// 	const newResource = vscode.Uri.parse(resource.fsPath + '.1');
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.renameResource(resource, newResource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow editing renamed file');
-	// 	} catch {
-	// 		// noop
-	// 	}
+	// 	let doc = await vscode.workspace.openTextDocument(newUri);
+	// 	assert.equal(doc.getText(), 'AFTERBEFORE');
 	// });
 });
