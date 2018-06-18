@@ -113,8 +113,8 @@ export class CursorUndo extends EditorAction {
 	constructor() {
 		super({
 			id: 'cursorUndo',
-			label: nls.localize('cursor.undo', "Remove Selection of Last Find Match"),
-			alias: 'Remove Selection of Last Find Match',
+			label: nls.localize('cursor.undo', "Soft Undo"),
+			alias: 'Soft Undo',
 			precondition: null,
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
