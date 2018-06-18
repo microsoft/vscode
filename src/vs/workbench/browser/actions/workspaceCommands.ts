@@ -198,6 +198,13 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		options.matchOnDescription = true;
 	}
 
+	let filteredFolderPicks: IFilePickOpenEntry[];
+	if (typeof options.filterPicks !== 'function') {
+		filteredFolderPicks = folderPicks;
+	} else {
+		filteredFolderPicks = folderPicks.filter(options.filterPicks);
+	}
+
 	let token: CancellationToken;
 	if (args) {
 		token = args[1];
@@ -207,7 +214,7 @@ CommandsRegistry.registerCommand(PICK_WORKSPACE_FOLDER_COMMAND_ID, function (acc
 		token = CancellationToken.None;
 	}
 
-	return quickOpenService.pick(folderPicks, options, token).then(pick => {
+	return quickOpenService.pick(filteredFolderPicks, options, token).then(pick => {
 		if (!pick) {
 			return void 0;
 		}

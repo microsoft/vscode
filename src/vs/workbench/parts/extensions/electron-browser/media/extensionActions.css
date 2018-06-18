@@ -34,10 +34,18 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.disable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.add-to-workspace-recommendations:not(.adding),
+.monaco-action-bar .action-item.disabled .action-label.extension-action.add-to-workspace-recommendations:not(.added),
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
-.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.recommend {
+.monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
 	display: none;
+}
+
+.monaco-action-bar .action-item.disabled .action-label.extension-action.add-to-workspace-recommendations.adding,
+.monaco-action-bar .action-item.disabled .action-label.extension-action.add-to-workspace-recommendations.added {
+	display: block;
+	pointer-events: none;
+	cursor: default;
 }
 
 .monaco-action-bar .action-item .action-label.disable-status,

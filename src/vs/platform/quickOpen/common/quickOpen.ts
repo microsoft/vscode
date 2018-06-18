@@ -84,6 +84,11 @@ export interface IPickOptions {
 	 * a context key to set when this picker is active
 	 */
 	contextKey?: string;
+
+	/**
+	 * allows to filter the entries that will be displayed
+	 */
+	filterPicks?: (pick: IPickOpenEntry, index?: number, array?: IPickOpenEntry[]) => boolean;
 }
 
 export interface IShowOptions {
