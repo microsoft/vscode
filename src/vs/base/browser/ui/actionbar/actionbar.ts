@@ -278,7 +278,7 @@ export class ActionItem extends BaseActionItem {
 	public _updateLabel(): void {
 		if (this.options.label) {
 			let label = this.getAction().label;
-			if (label) {
+			if (label && this.options.isMenu) {
 				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '<u>$1</u>');
 			}
 			this.$e.innerHtml(label);
@@ -591,7 +591,9 @@ export class ActionBar implements IActionRunner {
 				e.stopPropagation();
 			});
 
-			this._addMnemonic(action, actionItemElement);
+			if (options.isMenu) {
+				this._addMnemonic(action, actionItemElement);
+			}
 
 			let item: IActionItem = null;
 
