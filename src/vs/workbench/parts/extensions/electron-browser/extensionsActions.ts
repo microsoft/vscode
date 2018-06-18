@@ -45,7 +45,7 @@ import { INotificationService, Severity } from 'vs/platform/notification/common/
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IQuickOpenService, IPickOpenEntry, IPickOptions, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
+import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
@@ -1933,14 +1933,12 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
-	private foldersRecommendations: { [folderName: string]: string[] } = {};
-
 	private disposables: IDisposable[] = [];
 
 	constructor(
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IJSONEditingService jsonEditingService: IJSONEditingService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@ICommandService private commandService: ICommandService,
@@ -1975,17 +1973,10 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			const getFoldersRecommendedExtensionsPromises = configurationFiles.map(configurationFile => {
 				return this.getFolderRecommendedExtensions(configurationFile);
 			});
-			this.foldersRecommendations = {};
 			Promise.all(getFoldersRecommendedExtensionsPromises).then(foldersRecommendationsArray => {
-				this.foldersRecommendations = foldersRecommendationsArray.reduce((previous, current, currentIndex) => {
-					const folderName = folders[currentIndex].name;
-					previous[folderName] = current;
-					return previous;
-				}, {});
-
-				// Don't enable the button if the selected extension is already
-				// recommended in all the folders of the current workspace
-				this.enabled = !foldersRecommendationsArray.every((recommendations: string[]) => {
+				// Don't enable the button if the selected extension is
+				// recommended in ANY the folders of the current workspace
+				this.enabled = !foldersRecommendationsArray.some((recommendations: string[]) => {
 					return recommendations.some(r => r === this.extension.id);
 				});
 				if (this.class === AddToWorkspaceRecommendationsAction.AddingClass) {
@@ -2005,15 +1996,9 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		this.label = AddToWorkspaceRecommendationsAction.AddingLabel;
 		this.class = AddToWorkspaceRecommendationsAction.AddingClass;
 		const folders = this.contextService.getWorkspace().folders;
-		const pickOptions: IPickOptions = {
-			filterPicks: (pick: IFilePickOpenEntry, index: number) => {
-				const folderName = folders[index].name;
-				return !this.foldersRecommendations[folderName].some(r => r === this.extension.id);
-			}
-		};
 		const pickFolderPromise = folders.length === 1
 			? TPromise.as(folders[0])
-			: this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID, [pickOptions]);
+			: this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
 		return pickFolderPromise
 			.then(async workspaceFolder => {
 				if (workspaceFolder) {
