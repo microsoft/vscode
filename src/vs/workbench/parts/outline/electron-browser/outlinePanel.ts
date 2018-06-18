@@ -267,6 +267,7 @@ export class OutlinePanel extends ViewletPanel {
 	dispose(): void {
 		dispose(this._disposables);
 		dispose(this._requestOracle);
+		dispose(this._editorDisposables);
 		super.dispose();
 	}
 
