@@ -30,6 +30,7 @@ import { SidebarPart } from 'vs/workbench/browser/parts/sidebar/sidebarPart';
 import { PanelPart } from 'vs/workbench/browser/parts/panel/panelPart';
 import { StatusbarPart } from 'vs/workbench/browser/parts/statusbar/statusbarPart';
 import { TitlebarPart } from 'vs/workbench/browser/parts/titlebar/titlebarPart';
+import { MenubarPart } from 'vs/workbench/browser/parts/menubar/menubarPart';
 import { EditorPart } from 'vs/workbench/browser/parts/editor/editorPart';
 import { WorkbenchLayout } from 'vs/workbench/browser/layout';
 import { IActionBarRegistry, Extensions as ActionBarExtensions } from 'vs/workbench/browser/actions';
@@ -41,7 +42,8 @@ import { getServices } from 'vs/platform/instantiation/common/extensions';
 import { Position, Parts, IPartService, ILayoutOptions, IDimension } from 'vs/workbench/services/part/common/partService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { ContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as NativeContextMenuService } from 'vs/workbench/services/contextview/electron-browser/contextmenuService';
+import { ContextMenuService as HTMLContextMenuService } from 'vs/platform/contextview/browser/contextMenuService';
 import { WorkbenchKeybindingService } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { WorkspaceService, DefaultConfigurationExportHelper } from 'vs/workbench/services/configuration/node/configurationService';
@@ -77,11 +79,11 @@ import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { ShutdownReason } from 'vs/platform/lifecycle/common/lifecycle';
 import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecycleService';
-import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath } from 'vs/platform/windows/common/windows';
+import { IWindowService, IWindowConfiguration as IWindowSettings, IWindowConfiguration, IPath, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
 import { IMenuService, SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { MenuService } from 'vs/workbench/services/actions/common/menuService';
-import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
+import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkbenchActionRegistry, Extensions } from 'vs/workbench/common/actions';
 import { OpenRecentAction, ToggleDevToolsAction, ReloadWindowAction, ShowPreviousWindowTab, MoveWindowTabToNewWindow, MergeAllWindowTabs, ShowNextWindowTab, ToggleWindowTabsBar, ReloadWindowWithExtensionsDisabledAction } from 'vs/workbench/electron-browser/actions';
@@ -111,6 +113,9 @@ import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/co
 import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
+import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { TelemetryService } from 'vs/platform/telemetry/common/telemetryService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 
@@ -146,7 +151,8 @@ const Identifiers = {
 	SIDEBAR_PART: 'workbench.parts.sidebar',
 	PANEL_PART: 'workbench.parts.panel',
 	EDITOR_PART: 'workbench.parts.editor',
-	STATUSBAR_PART: 'workbench.parts.statusbar'
+	STATUSBAR_PART: 'workbench.parts.statusbar',
+	MENUBAR_PART: 'workbench.parts.menubar'
 };
 
 function getWorkbenchStateString(state: WorkbenchState): string {
@@ -169,6 +175,7 @@ interface IZenMode {
 export class Workbench extends Disposable implements IPartService {
 
 	private static readonly sidebarHiddenStorageKey = 'workbench.sidebar.hidden';
+	private static readonly menubarVisibilityConfigurationKey = 'window.menuBarVisibility';
 	private static readonly sidebarRestoreStorageKey = 'workbench.sidebar.restore';
 	private static readonly panelHiddenStorageKey = 'workbench.panel.hidden';
 	private static readonly zenModeActiveStorageKey = 'workbench.zenmode.active';
@@ -202,6 +209,7 @@ export class Workbench extends Disposable implements IPartService {
 	private workbenchLayout: WorkbenchLayout;
 
 	private titlebarPart: TitlebarPart;
+	private menubarPart: MenubarPart;
 	private activitybarPart: ActivitybarPart;
 	private sidebarPart: SidebarPart;
 	private panelPart: PanelPart;
@@ -217,6 +225,7 @@ export class Workbench extends Disposable implements IPartService {
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
+	private menubarHidden: boolean;
 	private zenMode: IZenMode;
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
@@ -240,7 +249,9 @@ export class Workbench extends Disposable implements IPartService {
 		@IWorkbenchThemeService private themeService: WorkbenchThemeService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWindowService private windowService: IWindowService,
-		@INotificationService private notificationService: NotificationService
+		@INotificationService private notificationService: NotificationService,
+		@IContextViewService private contextViewService: ContextViewService,
+		@ITelemetryService private telemetryService: TelemetryService
 	) {
 		super();
 
@@ -344,8 +355,12 @@ export class Workbench extends Disposable implements IPartService {
 		// List
 		serviceCollection.set(IListService, this.instantiationService.createInstance(ListService));
 
-		// Context Menu
-		serviceCollection.set(IContextMenuService, new SyncDescriptor(ContextMenuService));
+		// Use themable context menus when custom titlebar is enabled to match custom menubar
+		if (!isMacintosh && this.getCustomTitleBarStyle() === 'custom') {
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(HTMLContextMenuService, null, this.telemetryService, this.notificationService, this.contextViewService));
+		} else {
+			serviceCollection.set(IContextMenuService, new SyncDescriptor(NativeContextMenuService));
+		}
 
 		// Menus/Actions
 		serviceCollection.set(IMenuService, new SyncDescriptor(MenuService));
@@ -392,8 +407,12 @@ export class Workbench extends Disposable implements IPartService {
 		this.titlebarPart = this.instantiationService.createInstance(TitlebarPart, Identifiers.TITLEBAR_PART);
 		this._register(toDisposable(() => this.titlebarPart.shutdown()));
 		serviceCollection.set(ITitleService, this.titlebarPart);
+
 		// History
 		serviceCollection.set(IHistoryService, new SyncDescriptor(HistoryService));
+
+		// Menubar
+		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
 
 		// Backup File Service
 		this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
@@ -561,6 +580,9 @@ export class Workbench extends Disposable implements IPartService {
 				this.setActivityBarHidden(newActivityBarHiddenValue, skipLayout);
 			}
 		}
+
+		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
+		this.setMenubarHidden(newMenubarVisibility, skipLayout);
 	}
 
 	//#endregion
@@ -825,6 +847,10 @@ export class Workbench extends Disposable implements IPartService {
 		// Panel position
 		this.setPanelPositionFromStorageOrConfig();
 
+		// Menubar visibility
+		const menuBarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
+		this.setMenubarHidden(menuBarVisibility, true);
+
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
 		this.statusBarHidden = !statusBarVisible;
@@ -854,12 +880,8 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	private getCustomTitleBarStyle(): 'custom' {
-		if (!isMacintosh) {
-			return null; // custom title bar is only supported on Mac currently
-		}
-
 		const isDev = !this.environmentService.isBuilt || this.environmentService.isExtensionDevelopment;
-		if (isDev) {
+		if (isMacintosh && isDev) {
 			return null; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 		}
 
@@ -914,6 +936,7 @@ export class Workbench extends Disposable implements IPartService {
 			this.workbench.getHTMLElement(),
 			{
 				titlebar: this.titlebarPart,
+				menubar: this.menubarPart,
 				activitybar: this.activitybarPart,
 				editor: this.editorPart,
 				sidebar: this.sidebarPart,
@@ -956,6 +979,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Create Parts
 		this.createTitlebarPart();
+		this.createMenubarPart();
 		this.createActivityBarPart();
 		this.createSidebarPart();
 		this.createEditorPart();
@@ -977,6 +1001,20 @@ export class Workbench extends Disposable implements IPartService {
 		});
 
 		this.titlebarPart.create(titlebarContainer.getHTMLElement());
+	}
+
+	private createMenubarPart(): void {
+		const menubarContainer = $(this.workbench).div({
+			'class': ['part', 'menubar'],
+			id: Identifiers.MENUBAR_PART,
+			role: 'menubar'
+		});
+
+		this.menubarPart.create(menubarContainer.getHTMLElement());
+
+		this._register(this.menubarPart.onVisibilityChange((dimension => {
+			this._onMenubarVisibilityChange.fire(dimension);
+		})));
 	}
 
 	private createActivityBarPart(): void {
@@ -1090,8 +1128,11 @@ export class Workbench extends Disposable implements IPartService {
 
 	//#region IPartService
 
-	private _onTitleBarVisibilityChange: Emitter<void> = new Emitter<void>();
+	private _onTitleBarVisibilityChange: Emitter<void> = this._register(new Emitter<void>());
 	get onTitleBarVisibilityChange(): Event<void> { return this._onTitleBarVisibilityChange.event; }
+
+	private _onMenubarVisibilityChange: Emitter<DOM.Dimension> = this._register(new Emitter<DOM.Dimension>());
+	get onMenubarVisibilityChange(): Event<DOM.Dimension> { return this._onMenubarVisibilityChange.event; }
 
 	get onEditorLayout(): Event<IDimension> { return this.editorPart.onDidLayout; }
 
@@ -1114,6 +1155,9 @@ export class Workbench extends Disposable implements IPartService {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
 				container = this.titlebarPart.getContainer();
+				break;
+			case Parts.MENUBAR_PART:
+				container = this.menubarPart.getContainer();
 				break;
 			case Parts.ACTIVITYBAR_PART:
 				container = this.activitybarPart.getContainer();
@@ -1138,7 +1182,9 @@ export class Workbench extends Disposable implements IPartService {
 	isVisible(part: Parts): boolean {
 		switch (part) {
 			case Parts.TITLEBAR_PART:
-				return this.getCustomTitleBarStyle() && !browser.isFullscreen();
+				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
+			case Parts.MENUBAR_PART:
+				return this.getCustomTitleBarStyle() === 'custom' && !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1405,6 +1451,14 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Layout
 		this.workbenchLayout.layout();
+	}
+
+	setMenubarHidden(visibility: MenuBarVisibility, skipLayout: boolean): void {
+		this.menubarHidden = visibility === 'hidden' || (visibility === 'default' && browser.isFullscreen());
+
+		if (!skipLayout) {
+			this.workbenchLayout.layout();
+		}
 	}
 
 	getPanelPosition(): Position {

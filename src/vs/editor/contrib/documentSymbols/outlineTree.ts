@@ -5,6 +5,7 @@
 'use strict';
 
 import * as dom from 'vs/base/browser/dom';
+import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
@@ -12,20 +13,15 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
-import 'vs/css!./media/symbol-icons';
 import { Range } from 'vs/editor/common/core/range';
 import { symbolKindToCssClass, SymbolKind } from 'vs/editor/common/modes';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from '../common/outlineModel';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { OutlineElement, OutlineGroup, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 import { listErrorForeground, listWarningForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { OutlineConfigKeys } from 'vs/workbench/parts/outline/electron-browser/outline';
 
 export enum OutlineItemCompareType {
 	ByPosition,
@@ -126,10 +122,10 @@ export interface OutlineTemplate {
 
 export class OutlineRenderer implements IRenderer {
 
+	renderProblemColors = true;
+	renderProblemBadges = true;
+
 	constructor(
-		@IExtensionService readonly _extensionService: IExtensionService,
-		@IEnvironmentService readonly _environmentService: IEnvironmentService,
-		@IWorkspaceContextService readonly _contextService: IWorkspaceContextService,
 		@IThemeService readonly _themeService: IThemeService,
 		@IConfigurationService readonly _configurationService: IConfigurationService
 	) {
@@ -173,18 +169,7 @@ export class OutlineRenderer implements IRenderer {
 
 		}
 		if (element instanceof OutlineGroup) {
-			this._extensionService.getExtensions().then(all => {
-				let found = false;
-				for (let i = 0; !found && i < all.length; i++) {
-					const extension = all[i];
-					if (extension.id === element.provider.extensionId) {
-						template.label.set(extension.displayName);
-						break;
-					}
-				}
-			}, _err => {
-				template.label.set(element.provider.extensionId);
-			});
+			template.label.set(element.provider.displayName || localize('provider', "Outline Provider"));
 		}
 	}
 
@@ -200,14 +185,14 @@ export class OutlineRenderer implements IRenderer {
 		const color = this._themeService.getTheme().getColor(topSev === MarkerSeverity.Error ? listErrorForeground : listWarningForeground).toString();
 
 		// color of the label
-		if (this._configurationService.getValue(OutlineConfigKeys.problemsColors)) {
+		if (this.renderProblemColors) {
 			template.labelContainer.style.setProperty('--outline-element-color', color);
 		} else {
 			template.labelContainer.style.removeProperty('--outline-element-color');
 		}
 
 		// badge with color/rollup
-		if (!this._configurationService.getValue(OutlineConfigKeys.problemsBadges)) {
+		if (!this.renderProblemBadges) {
 			dom.hide(template.decoration);
 
 		} else if (count > 0) {
@@ -296,7 +281,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
@@ -316,8 +301,8 @@ export class OutlineTreeState {
 		// selection & focus
 		let selected = model.getItemById(state.selected);
 		let focused = model.getItemById(state.focused);
-		tree.setSelection([selected]);
-		tree.setFocus(focused);
+		tree.setSelection([selected], eventPayload);
+		tree.setFocus(focused, eventPayload);
 	}
 }
 

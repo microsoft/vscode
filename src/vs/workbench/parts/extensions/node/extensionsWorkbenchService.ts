@@ -155,14 +155,14 @@ class Extension implements IExtension {
 		if (this.type === LocalExtensionType.System) {
 			if (this.local.manifest && this.local.manifest.contributes) {
 				if (Array.isArray(this.local.manifest.contributes.themes) && this.local.manifest.contributes.themes.length) {
-					return require.toUrl('../browser/media/theme-icon.png');
+					return require.toUrl('../electron-browser/media/theme-icon.png');
 				}
 				if (Array.isArray(this.local.manifest.contributes.languages) && this.local.manifest.contributes.languages.length) {
-					return require.toUrl('../browser/media/language-icon.png');
+					return require.toUrl('../electron-browser/media/language-icon.png');
 				}
 			}
 		}
-		return require.toUrl('../browser/media/defaultIcon.png');
+		return require.toUrl('../electron-browser/media/defaultIcon.png');
 	}
 
 	get repository(): string {
@@ -241,7 +241,6 @@ class Extension implements IExtension {
 		if (this.type === LocalExtensionType.System) {
 			return TPromise.as(`# ${this.displayName || this.name}
 **Notice** This is a an extension that is bundled with Visual Studio Code.
-
 ${this.description}
 `);
 		}
@@ -331,7 +330,6 @@ class ExtensionDependencies implements IExtensionDependencies {
 export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, IURLHandler {
 
 	private static readonly SyncPeriod = 1000 * 60 * 60 * 12; // 12 hours
-
 	_serviceBrand: any;
 	private stateProvider: IExtensionStateProvider<ExtensionState>;
 	private installing: Extension[] = [];

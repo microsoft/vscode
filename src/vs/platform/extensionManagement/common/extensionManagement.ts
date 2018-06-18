@@ -312,6 +312,19 @@ export interface IExtensionManagementService {
 	updateMetadata(local: ILocalExtension, metadata: IGalleryMetadata): TPromise<ILocalExtension>;
 }
 
+export const IExtensionManagementServerService = createDecorator<IExtensionManagementServerService>('extensionManagementServerService');
+
+export interface IExtensionManagementServer {
+	extensionManagementService: IExtensionManagementService;
+	location: URI;
+}
+
+export interface IExtensionManagementServerService {
+	_serviceBrand: any;
+	readonly extensionManagementServers: IExtensionManagementServer[];
+	getExtensionManagementServer(location: URI): IExtensionManagementServer;
+}
+
 export enum EnablementState {
 	Disabled,
 	WorkspaceDisabled,

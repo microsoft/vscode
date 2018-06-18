@@ -33,6 +33,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { IModelContentChangedEvent } from 'vs/editor/common/model/textModelEvents';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
+import { OutlineElement, OutlineModel, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
 import { localize } from 'vs/nls';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ContextKeyExpr, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
@@ -48,12 +49,11 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ViewletPanel } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
+import { IViewsService } from 'vs/workbench/common/views';
 import { ACTIVE_GROUP, IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { KeyboardMapperFactory } from 'vs/workbench/services/keybinding/electron-browser/keybindingService';
 import { OutlineConfigKeys, OutlineViewFiltered, OutlineViewFocused, OutlineViewId } from './outline';
-import { OutlineElement, OutlineModel, TreeElement } from '../common/outlineModel';
-import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from './outlineTree';
-import { IViewsService } from 'vs/workbench/common/views';
+import { OutlineController, OutlineDataSource, OutlineItemComparator, OutlineItemCompareType, OutlineItemFilter, OutlineRenderer, OutlineTreeState } from '../../../../editor/contrib/documentSymbols/outlineTree';
 
 class RequestState {
 
@@ -235,6 +235,7 @@ export class OutlinePanel extends ViewletPanel {
 	private _progressBar: ProgressBar;
 	private _tree: WorkbenchTree;
 	private _treeDataSource: OutlineDataSource;
+	private _treeRenderer: OutlineRenderer;
 	private _treeFilter: OutlineItemFilter;
 	private _treeComparator: OutlineItemComparator;
 	private _treeStates = new LRUCache<string, OutlineTreeState>(10);
@@ -348,11 +349,15 @@ export class OutlinePanel extends ViewletPanel {
 				return false;
 			}
 		};
-		const renderer = this._instantiationService.createInstance(OutlineRenderer);
+
+		this._treeRenderer = this._instantiationService.createInstance(OutlineRenderer);
 		this._treeDataSource = new OutlineDataSource();
 		this._treeComparator = new OutlineItemComparator(this._outlineViewState.sortBy);
 		this._treeFilter = new OutlineItemFilter();
-		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, renderer, dataSource: this._treeDataSource, sorter: this._treeComparator, filter: this._treeFilter }, {});
+		this._tree = this._instantiationService.createInstance(WorkbenchTree, treeContainer, { controller, renderer: this._treeRenderer, dataSource: this._treeDataSource, sorter: this._treeComparator, filter: this._treeFilter }, {});
+
+		this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+		this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 
 		this._disposables.push(this._tree, this._input);
 		this._disposables.push(this._outlineViewState.onDidChange(this._onDidChangeUserState, this));
@@ -501,7 +506,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
-			OutlineTreeState.restore(this._tree, state);
+			OutlineTreeState.restore(this._tree, state, this);
 		}
 
 		this._input.enable();
@@ -516,7 +521,7 @@ export class OutlinePanel extends ViewletPanel {
 
 			this._contextKeyFiltered.set(pattern.length > 0);
 
-			if (!beforePatternState) {
+			if (pattern && !beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
 			let item = model.updateMatches(pattern);
@@ -529,7 +534,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 
 			if (!pattern && beforePatternState) {
-				await OutlineTreeState.restore(this._tree, beforePatternState);
+				await OutlineTreeState.restore(this._tree, beforePatternState, this);
 				beforePatternState = undefined;
 			}
 		};
@@ -589,6 +594,8 @@ export class OutlinePanel extends ViewletPanel {
 
 		this._editorDisposables.push(this.configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration(OutlineConfigKeys.problemsBadges) || e.affectsConfiguration(OutlineConfigKeys.problemsColors)) {
+				this._treeRenderer.renderProblemColors = this._configurationService.getValue(OutlineConfigKeys.problemsColors);
+				this._treeRenderer.renderProblemBadges = this._configurationService.getValue(OutlineConfigKeys.problemsBadges);
 				this._tree.refresh(undefined, true);
 				return;
 			}

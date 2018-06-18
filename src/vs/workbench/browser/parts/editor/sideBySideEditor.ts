@@ -16,13 +16,32 @@ import { IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/br
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { SplitView, Sizing, Orientation } from 'vs/base/browser/ui/splitview/splitview';
-import { Event } from 'vs/base/common/event';
+import { Event, Relay, anyEvent, mapEvent, Emitter } from 'vs/base/common/event';
 
 export class SideBySideEditor extends BaseEditor {
 
-	public static readonly ID: string = 'workbench.editor.sidebysideEditor';
+	static readonly ID: string = 'workbench.editor.sidebysideEditor';
 
-	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
+	get minimumMasterWidth() { return this.masterEditor ? this.masterEditor.minimumWidth : 0; }
+	get maximumMasterWidth() { return this.masterEditor ? this.masterEditor.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumMasterHeight() { return this.masterEditor ? this.masterEditor.minimumHeight : 0; }
+	get maximumMasterHeight() { return this.masterEditor ? this.masterEditor.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	get minimumDetailsWidth() { return this.detailsEditor ? this.detailsEditor.minimumWidth : 0; }
+	get maximumDetailsWidth() { return this.detailsEditor ? this.detailsEditor.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumDetailsHeight() { return this.detailsEditor ? this.detailsEditor.minimumHeight : 0; }
+	get maximumDetailsHeight() { return this.detailsEditor ? this.detailsEditor.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	// these setters need to exist because this extends from BaseEditor
+	set minimumWidth(value: number) { /* noop */ }
+	set maximumWidth(value: number) { /* noop */ }
+	set minimumHeight(value: number) { /* noop */ }
+	set maximumHeight(value: number) { /* noop */ }
+
+	get minimumWidth() { return this.minimumMasterWidth + this.minimumDetailsWidth; }
+	get maximumWidth() { return this.maximumMasterWidth + this.maximumDetailsWidth; }
+	get minimumHeight() { return this.minimumMasterHeight + this.minimumDetailsHeight; }
+	get maximumHeight() { return this.maximumMasterHeight + this.maximumDetailsHeight; }
 
 	protected masterEditor: BaseEditor;
 	private masterEditorContainer: HTMLElement;
@@ -31,6 +50,11 @@ export class SideBySideEditor extends BaseEditor {
 	private detailsEditorContainer: HTMLElement;
 
 	private splitview: SplitView;
+	private dimension: DOM.Dimension = new DOM.Dimension(0, 0);
+
+	private onDidCreateEditors = this._register(new Emitter<{ width: number; height: number; }>());
+	private _onDidSizeConstraintsChange = this._register(new Relay<{ width: number; height: number; }>());
+	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = anyEvent(this.onDidCreateEditors.event, this._onDidSizeConstraintsChange.event);
 
 	constructor(
 		@ITelemetryService telemetryService: ITelemetryService,
@@ -50,7 +74,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.detailsEditorContainer = DOM.$('.details-editor-container');
 		this.splitview.addView({
 			element: this.detailsEditorContainer,
-			layout: size => this.detailsEditor && this.detailsEditor.layout(new DOM.Dimension(size, this.dimension.height - 34 /* height of header container */)),
+			layout: size => this.detailsEditor && this.detailsEditor.layout(new DOM.Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -59,7 +83,7 @@ export class SideBySideEditor extends BaseEditor {
 		this.masterEditorContainer = DOM.$('.master-editor-container');
 		this.splitview.addView({
 			element: this.masterEditorContainer,
-			layout: size => this.masterEditor && this.masterEditor.layout(new DOM.Dimension(size, this.dimension.height - 34 /* height of header container */)),
+			layout: size => this.masterEditor && this.masterEditor.layout(new DOM.Dimension(size, this.dimension.height)),
 			minimumSize: 220,
 			maximumSize: Number.POSITIVE_INFINITY,
 			onDidChange: Event.None
@@ -68,13 +92,13 @@ export class SideBySideEditor extends BaseEditor {
 		this.updateStyles();
 	}
 
-	public setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+	setInput(newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		const oldInput = <SideBySideEditorInput>this.input;
 		return super.setInput(newInput, options, token)
 			.then(() => this.updateInput(oldInput, newInput, options, token));
 	}
 
-	public setOptions(options: EditorOptions): void {
+	setOptions(options: EditorOptions): void {
 		if (this.masterEditor) {
 			this.masterEditor.setOptions(options);
 		}
@@ -90,7 +114,7 @@ export class SideBySideEditor extends BaseEditor {
 		super.setEditorVisible(visible, group);
 	}
 
-	public clearInput(): void {
+	clearInput(): void {
 		if (this.masterEditor) {
 			this.masterEditor.clearInput();
 		}
@@ -101,33 +125,33 @@ export class SideBySideEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public focus(): void {
+	focus(): void {
 		if (this.masterEditor) {
 			this.masterEditor.focus();
 		}
 	}
 
-	public layout(dimension: DOM.Dimension): void {
+	layout(dimension: DOM.Dimension): void {
 		this.dimension = dimension;
 		this.splitview.layout(dimension.width);
 	}
 
-	public getControl(): IEditorControl {
+	getControl(): IEditorControl {
 		if (this.masterEditor) {
 			return this.masterEditor.getControl();
 		}
 		return null;
 	}
 
-	public getMasterEditor(): IEditor {
+	getMasterEditor(): IEditor {
 		return this.masterEditor;
 	}
 
-	public getDetailsEditor(): IEditor {
+	getDetailsEditor(): IEditor {
 		return this.detailsEditor;
 	}
 
-	public supportsCenteredLayout(): boolean {
+	supportsCenteredLayout(): boolean {
 		return false;
 	}
 
@@ -163,10 +187,18 @@ export class SideBySideEditor extends BaseEditor {
 	private onEditorsCreated(details: BaseEditor, master: BaseEditor, detailsInput: EditorInput, masterInput: EditorInput, options: EditorOptions, token: CancellationToken): TPromise<void> {
 		this.detailsEditor = details;
 		this.masterEditor = master;
+
+		this._onDidSizeConstraintsChange.input = anyEvent(
+			mapEvent(details.onDidSizeConstraintsChange, () => undefined),
+			mapEvent(master.onDidSizeConstraintsChange, () => undefined)
+		);
+
+		this.onDidCreateEditors.fire();
+
 		return TPromise.join([this.detailsEditor.setInput(detailsInput, null, token), this.masterEditor.setInput(masterInput, options, token)]).then(() => this.focus());
 	}
 
-	public updateStyles(): void {
+	updateStyles(): void {
 		super.updateStyles();
 
 		if (this.masterEditorContainer) {
@@ -179,16 +211,19 @@ export class SideBySideEditor extends BaseEditor {
 			this.detailsEditor.dispose();
 			this.detailsEditor = null;
 		}
+
 		if (this.masterEditor) {
 			this.masterEditor.dispose();
 			this.masterEditor = null;
 		}
+
 		this.detailsEditorContainer.innerHTML = '';
 		this.masterEditorContainer.innerHTML = '';
 	}
 
-	public dispose(): void {
+	dispose(): void {
 		this.disposeEditors();
+
 		super.dispose();
 	}
 }
