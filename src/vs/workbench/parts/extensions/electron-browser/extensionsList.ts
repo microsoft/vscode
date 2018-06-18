@@ -156,8 +156,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			toggleClass(data.root, 'disabled', installed ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
 		});
 
-
-
 		const onError = once(domEvent(data.icon, 'error'));
 		onError(() => data.icon.src = extension.iconUrlFallback, null, data.extensionDisposables);
 		data.icon.src = extension.iconUrl;
@@ -169,10 +167,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		this.updateRecommendedness(extension, data);
+		this.updateRecommendationStatus(extension, data);
 		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
-			if (change.id.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
-				this.updateRecommendedness(extension, data);
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+				this.updateRecommendationStatus(extension, data);
 			}
 		}));
 
@@ -189,7 +187,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		});
 	}
 
-	private updateRecommendedness(extension: IExtension, data: ITemplateData) {
+	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 
 		if (!extRecommendations[extension.id.toLowerCase()]) {

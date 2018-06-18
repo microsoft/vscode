@@ -387,7 +387,7 @@ export interface IExtensionsConfigContent {
 }
 
 export type RecommendationChangeNotification = {
-	id: string,
+	extensionId: string,
 	isRecommended: boolean
 };
 
