@@ -155,6 +155,22 @@ suite('Editor Contrib - Line Operations', () => {
 				});
 		});
 
+		test('should move to previous line if at the start of a line', function () {
+			withTestCodeEditor(
+				[
+					'one',
+					'two',
+					'three'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let deleteAllLeftAction = new DeleteAllLeftAction();
+
+					editor.setSelections([new Selection(2, 1, 2, 1), new Selection(3, 1, 3, 1)]);
+					deleteAllLeftAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'onetwothree', '001');
+				});
+		});
+
 		test('should work in multi cursor mode', function () {
 			withTestCodeEditor(
 				[
