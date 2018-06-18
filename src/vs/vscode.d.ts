@@ -6160,6 +6160,18 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * The event that is fired when there is a change in [tree view's selections](#TreeView.selections)
+	 */
+	export interface TreeViewSelectionChangeEvent<T> {
+
+		/**
+		 * Selected elements.
+		 */
+		selections: T[];
+
+	}
+
+	/**
 	 * Represents a Tree view
 	 */
 	export interface TreeView<T> extends Disposable {
@@ -6173,6 +6185,11 @@ declare module 'vscode' {
 		 * Event that is fired when an element is collapsed
 		 */
 		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
+
+		/**
+		 * Event that is fired when the selection has changed
+		 */
+		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
 
 		/**
 		 * Currently selected elements.

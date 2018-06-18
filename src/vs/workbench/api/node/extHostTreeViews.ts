@@ -17,6 +17,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { equals } from 'vs/base/common/arrays';
 
 type TreeItemHandle = string;
 
@@ -51,6 +52,7 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		return {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
+			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
 			get selection() { return treeView.selectedElements; },
 			reveal: (element: T, options?: { select?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
@@ -113,14 +115,17 @@ class ExtHostTreeView<T> extends Disposable {
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
-	private _selectedElements: T[] = [];
-	get selectedElements(): T[] { return this._selectedElements; }
+	private _selectedHandles: TreeItemHandle[] = [];
+	get selectedElements(): T[] { return this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
 
 	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
 
 	private _onDidCollapseElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidCollapseElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidCollapseElement.event;
+
+	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
+	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
 
 	private refreshPromise: TPromise<void> = TPromise.as(null);
 
@@ -182,7 +187,10 @@ class ExtHostTreeView<T> extends Disposable {
 	}
 
 	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		this._selectedElements = treeItemHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element));
+		if (!equals(this._selectedHandles, treeItemHandles)) {
+			this._selectedHandles = treeItemHandles;
+			this._onDidChangeSelection.fire({ selections: this.selectedElements });
+		}
 	}
 
 	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {
