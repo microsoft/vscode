@@ -25,7 +25,6 @@ interface IDropOperation {
 class DropOverlay extends Themable {
 
 	private static OVERLAY_ID = 'monaco-workbench-editor-drop-overlay';
-	private static EDGE_DISTANCE_THRESHOLD = 0.3;
 
 	private container: HTMLElement;
 	private overlay: HTMLElement;
@@ -253,46 +252,84 @@ class DropOverlay extends Themable {
 		const groupViewWidth = this.groupView.element.clientWidth;
 		const groupViewHeight = this.groupView.element.clientHeight;
 
-		const topEdgeDistance = mousePosY;
-		const leftEdgeDistance = mousePosX;
-		const rightEdgeDistance = groupViewWidth - mousePosX;
-		const bottomEdgeDistance = groupViewHeight - mousePosY;
+		const edgeWidthThreshold = groupViewWidth * 0.2; 	// offer to split 20% around center width
+		const edgeHeightThreshold = groupViewHeight * 0.2; 	// offer to split 20% around center height
 
-		const edgeWidthThreshold = groupViewWidth * DropOverlay.EDGE_DISTANCE_THRESHOLD;
-		const edgeHeightThreshold = groupViewHeight * DropOverlay.EDGE_DISTANCE_THRESHOLD;
+		const splitWidthThreshold = groupViewWidth / 3;		// offer to split left/right at 33%
+		const splitHeightThreshold = groupViewHeight / 3;	// offer to split up/down at 33%
 
-		// Find new split location given edge distance and thresholds
+		// No split if mouse is above certain threshold in the center of the view
 		let splitDirection: GroupDirection;
-		switch (Math.min(topEdgeDistance, leftEdgeDistance, rightEdgeDistance, bottomEdgeDistance)) {
-			case topEdgeDistance:
-				if (topEdgeDistance < edgeHeightThreshold) {
-					splitDirection = GroupDirection.UP;
-					this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
-				}
-				break;
-			case bottomEdgeDistance:
-				if (bottomEdgeDistance < edgeHeightThreshold) {
-					splitDirection = GroupDirection.DOWN;
-					this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
-				}
-				break;
-			case leftEdgeDistance:
-				if (leftEdgeDistance < edgeWidthThreshold) {
-					splitDirection = GroupDirection.LEFT;
-					this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
-				}
-				break;
-			case rightEdgeDistance:
-				if (rightEdgeDistance < edgeWidthThreshold) {
-					splitDirection = GroupDirection.RIGHT;
-					this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
-				}
-				break;
+		if (
+			mousePosX > edgeWidthThreshold && mousePosX < groupViewWidth - edgeWidthThreshold &&
+			mousePosY > edgeHeightThreshold && mousePosY < groupViewHeight - edgeHeightThreshold
+		) {
+			splitDirection = void 0;
 		}
 
-		// No split, position overlay over entire group
-		if (typeof splitDirection !== 'number') {
-			this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
+		// Offer to split otherwise
+		else {
+
+			// User prefers to split vertically: offer a larger hitzone
+			// for this direction like so:
+			// ----------------------------------------------
+			// |		|		SPLIT UP		|			|
+			// | SPLIT 	|-----------------------|	SPLIT	|
+			// |		|		  MERGE			|			|
+			// | LEFT	|-----------------------|	RIGHT	|
+			// |		|		SPLIT DOWN		|			|
+			// ----------------------------------------------
+			const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
+			if (preferSplitVertically) {
+				if (mousePosX < splitWidthThreshold) {
+					splitDirection = GroupDirection.LEFT;
+				} else if (mousePosX > splitWidthThreshold * 2) {
+					splitDirection = GroupDirection.RIGHT;
+				} else if (mousePosY < groupViewHeight / 2) {
+					splitDirection = GroupDirection.UP;
+				} else {
+					splitDirection = GroupDirection.DOWN;
+				}
+			}
+
+			// User prefers to split horizontally: offer a larger hitzone
+			// for this direction like so:
+			// ----------------------------------------------
+			// |				SPLIT UP					|
+			// |--------------------------------------------|
+			// |  SPLIT LEFT  |	   MERGE	|  SPLIT RIGHT  |
+			// |--------------------------------------------|
+			// |				SPLIT DOWN					|
+			// ----------------------------------------------
+			else {
+				if (mousePosY < splitHeightThreshold) {
+					splitDirection = GroupDirection.UP;
+				} else if (mousePosY > splitHeightThreshold * 2) {
+					splitDirection = GroupDirection.DOWN;
+				} else if (mousePosX < groupViewWidth / 2) {
+					splitDirection = GroupDirection.LEFT;
+				} else {
+					splitDirection = GroupDirection.RIGHT;
+				}
+			}
+		}
+
+		// Draw overlay based on split direction
+		switch (splitDirection) {
+			case GroupDirection.UP:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '50%' });
+				break;
+			case GroupDirection.DOWN:
+				this.doPositionOverlay({ top: '50%', left: '0', width: '100%', height: '50%' });
+				break;
+			case GroupDirection.LEFT:
+				this.doPositionOverlay({ top: '0', left: '0', width: '50%', height: '100%' });
+				break;
+			case GroupDirection.RIGHT:
+				this.doPositionOverlay({ top: '0', left: '50%', width: '50%', height: '100%' });
+				break;
+			default:
+				this.doPositionOverlay({ top: '0', left: '0', width: '100%', height: '100%' });
 		}
 
 		// Make sure the overlay is visible now
