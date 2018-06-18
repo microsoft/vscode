@@ -45,6 +45,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super(themeService);
 
 		this.registerListeners();
+		this.updateStyles();
 	}
 
 	private registerListeners(): void {
@@ -102,8 +103,8 @@ export function isStatusbarInDebugMode(debugService: IDebugService): boolean {
 		return false;
 	}
 
-	const process = debugService.getViewModel().focusedProcess;
-	const isRunningWithoutDebug = process && process.configuration && process.configuration.noDebug;
+	const session = debugService.getViewModel().focusedSession;
+	const isRunningWithoutDebug = session && session.configuration && session.configuration.noDebug;
 	if (isRunningWithoutDebug) {
 		return false;
 	}

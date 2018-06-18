@@ -34,7 +34,7 @@ export class MoveLinesCommand implements ICommand {
 
 	public getEditOperations(model: ITextModel, builder: IEditOperationBuilder): void {
 
-		var modelLineCount = model.getLineCount();
+		let modelLineCount = model.getLineCount();
 
 		if (this._isMovingDown && this._selection.endLineNumber === modelLineCount) {
 			return;
@@ -44,7 +44,7 @@ export class MoveLinesCommand implements ICommand {
 		}
 
 		this._moveEndPositionDown = false;
-		var s = this._selection;
+		let s = this._selection;
 
 		if (s.startLineNumber < s.endLineNumber && s.endColumn === 1) {
 			this._moveEndPositionDown = true;
@@ -64,13 +64,13 @@ export class MoveLinesCommand implements ICommand {
 			getLanguageIdAtPosition: (lineNumber: number, column: number) => {
 				return model.getLanguageIdAtPosition(lineNumber, column);
 			},
-			getLineContent: null
+			getLineContent: <(lineNumber: number) => string>null,
 		};
 
 		if (s.startLineNumber === s.endLineNumber && model.getLineMaxColumn(s.startLineNumber) === 1) {
 			// Current line is empty
-			var lineNumber = s.startLineNumber;
-			var otherLineNumber = (this._isMovingDown ? lineNumber + 1 : lineNumber - 1);
+			let lineNumber = s.startLineNumber;
+			let otherLineNumber = (this._isMovingDown ? lineNumber + 1 : lineNumber - 1);
 
 			if (model.getLineMaxColumn(otherLineNumber) === 1) {
 				// Other line number is empty too, so no editing is needed
@@ -88,8 +88,8 @@ export class MoveLinesCommand implements ICommand {
 
 		} else {
 
-			var movingLineNumber: number,
-				movingLineText: string;
+			let movingLineNumber: number;
+			let movingLineText: string;
 
 			if (this._isMovingDown) {
 				movingLineNumber = s.endLineNumber + 1;
@@ -342,7 +342,7 @@ export class MoveLinesCommand implements ICommand {
 	}
 
 	public computeCursorState(model: ITextModel, helper: ICursorStateComputerData): Selection {
-		var result = helper.getTrackedSelection(this._selectionId);
+		let result = helper.getTrackedSelection(this._selectionId);
 
 		if (this._moveEndPositionDown) {
 			result = result.setEndPosition(result.endLineNumber + 1, 1);

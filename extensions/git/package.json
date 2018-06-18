@@ -834,6 +834,23 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
         }
       ],
+      "editor/context": [
+        {
+          "command": "git.stageSelectedRanges",
+          "group": "2_git@1",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.unstageSelectedRanges",
+          "group": "2_git@2",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        },
+        {
+          "command": "git.revertSelectedRanges",
+          "group": "2_git@3",
+          "when": "isInDiffRightEditor && config.git.enabled && gitOpenRepositoryCount != 0 && isInDiffEditor && resourceScheme =~ /^git$|^file$/"
+        }
+      ],
       "scm/change/title": [
         {
           "command": "git.stageChange",
@@ -861,7 +878,7 @@
           ],
           "description": "%config.path%",
           "default": null,
-          "isExecutable": true
+          "scope": "application"
         },
         "git.autoRepositoryDetection": {
           "type": "boolean",
@@ -964,10 +981,25 @@
           "scope": "resource",
           "default": true,
           "description": "%config.detectSubmodules%"
+        },
+        "git.detectSubmodulesLimit": {
+          "type": "number",
+          "scope": "resource",
+          "default": 10,
+          "description": "%config.detectSubmodulesLimit%"
         }
       }
     },
     "colors": [
+      {
+        "id": "gitDecoration.addedResourceForeground",
+        "description": "%colors.added%",
+        "defaults": {
+          "light": "#587c0c",
+          "dark": "#81b88b",
+          "highContrast": "#1b5225"
+        }
+      },
       {
         "id": "gitDecoration.modifiedResourceForeground",
         "description": "%colors.modified%",
@@ -1059,6 +1091,17 @@
           ".rej"
         ],
         "configuration": "./languages/diff.language-configuration.json"
+      },
+      {
+        "id": "ignore",
+        "aliases": [
+          "Ignore",
+          "ignore"
+        ],
+        "filenames": [
+          ".gitignore"
+        ],
+        "configuration": "./languages/ignore.language-configuration.json"
       }
     ],
     "grammars": [
@@ -1076,6 +1119,11 @@
         "language": "diff",
         "scopeName": "source.diff",
         "path": "./syntaxes/diff.tmLanguage.json"
+      },
+      {
+        "language": "ignore",
+        "scopeName": "source.ignore",
+        "path": "./syntaxes/ignore.tmLanguage.json"
       }
     ],
     "configurationDefaults": {
@@ -1090,7 +1138,8 @@
     "byline": "^5.0.0",
     "file-type": "^7.2.0",
     "iconv-lite": "0.4.19",
-    "vscode-extension-telemetry": "0.0.15",
+    "jschardet": "^1.6.0",
+    "vscode-extension-telemetry": "0.0.17",
     "vscode-nls": "^3.2.1",
     "which": "^1.3.0"
   },

@@ -34,6 +34,7 @@
 	flex: 1;
 	padding-left: 20px;
 	overflow: hidden;
+	user-select: text;
 }
 
 .extension-editor > .header > .details > .title {
@@ -77,6 +78,7 @@
 	margin-left: 10px;
 	padding: 0px 4px;
 	border-radius: 4px;
+	user-select: none;
 }
 
 .extension-editor > .header > .details > .subtitle {
@@ -122,6 +124,7 @@
 
 .extension-editor > .header > .details > .actions > .monaco-action-bar > .actions-container > .action-item > .action-label {
 	font-weight: 600;
+	margin: 4px;
 	padding: 1px 6px;
 }
 
@@ -131,7 +134,7 @@
 
 .extension-editor > .header.recommended > .details > .recommendation {
 	display: block;
-	margin-top: 10px;
+	margin-top: 2px;
 	font-size: 13px;
 }
 

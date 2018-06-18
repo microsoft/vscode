@@ -11,10 +11,9 @@ import * as arrays from 'vs/base/common/arrays';
 import { WalkThroughInput } from 'vs/workbench/parts/welcome/walkThrough/node/walkThroughInput';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { onUnexpectedError, isPromiseCanceledError } from 'vs/base/common/errors';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
@@ -51,7 +50,7 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 	constructor(
 		@IInstantiationService instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IBackupFileService backupFileService: IBackupFileService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@ILifecycleService lifecycleService: ILifecycleService,
@@ -60,8 +59,8 @@ export class WelcomePageContribution implements IWorkbenchContribution {
 		const enabled = isWelcomePageEnabled(configurationService);
 		if (enabled && lifecycleService.startupKind !== StartupKind.ReloadedWindow) {
 			backupFileService.hasBackups().then(hasBackups => {
-				const activeInput = editorService.getActiveEditorInput();
-				if (!activeInput && !hasBackups) {
+				const activeEditor = editorService.activeEditor;
+				if (!activeEditor && !hasBackups) {
 					return instantiationService.createInstance(WelcomePage)
 						.openEditor();
 				}
@@ -117,7 +116,7 @@ const extensionPacks: ExtensionSuggestion[] = [
 	// { name: localize('welcomePage.go', "Go"), id: 'lukehoban.go' },
 	{ name: localize('welcomePage.php', "PHP"), id: 'felixfbecker.php-pack' },
 	{ name: localize('welcomePage.azure', "Azure"), title: localize('welcomePage.showAzureExtensions', "Show Azure extensions"), id: 'workbench.extensions.action.showAzureExtensions', isCommand: true },
-	{ name: localize('welcomePage.docker', "Docker"), id: 'PeterJausovec.vscode-docker' },
+	{ name: localize('welcomePage.docker', "Docker"), id: 'peterjausovec.vscode-docker' },
 ];
 
 const keymapExtensions: ExtensionSuggestion[] = [
@@ -218,10 +217,9 @@ class WelcomePage {
 	readonly editorInput: WalkThroughInput;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IWindowService private windowService: IWindowService,
-		@IWindowsService private windowsService: IWindowsService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
@@ -253,7 +251,7 @@ class WelcomePage {
 	}
 
 	public openEditor() {
-		return this.editorService.openEditor(this.editorInput, { pinned: false }, Position.ONE);
+		return this.editorService.openEditor(this.editorInput, { pinned: false });
 	}
 
 	private onReady(container: HTMLElement, recentlyOpened: TPromise<{ files: string[]; workspaces: (IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier)[]; }>, installedExtensions: TPromise<IExtensionStatus[]>): void {
@@ -317,7 +315,7 @@ class WelcomePage {
 						id: 'openRecentFolder',
 						from: telemetryFrom
 					});
-					this.windowsService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
+					this.windowService.openWindow([wsPath], { forceNewWindow: e.ctrlKey || e.metaKey });
 					e.preventDefault();
 					e.stopPropagation();
 				});
@@ -427,9 +425,12 @@ class WelcomePage {
 						});
 				});
 
-			this.notificationService.prompt(Severity.Info, strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name), [localize('ok', "OK"), localize('details', "Details")]).then(choice => {
-				switch (choice) {
-					case 0 /* OK */:
+			this.notificationService.prompt(
+				Severity.Info,
+				strings.reloadAfterInstall.replace('{0}', extensionSuggestion.name),
+				[{
+					label: localize('ok', "OK"),
+					run: () => {
 						const messageDelay = TPromise.timeout(300);
 						messageDelay.then(() => {
 							this.notificationService.info(strings.installing.replace('{0}', extensionSuggestion.name));
@@ -491,8 +492,10 @@ class WelcomePage {
 								});
 								this.notificationService.error(err);
 							});
-						break;
-					case 1 /* Details */:
+					}
+				}, {
+					label: localize('details', "Details"),
+					run: () => {
 						/* __GDPR__FRAGMENT__
 							"WelcomePageDetails-1" : {
 								"from" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
@@ -506,9 +509,9 @@ class WelcomePage {
 						this.extensionsWorkbenchService.queryGallery({ names: [extensionSuggestion.id] })
 							.then(result => this.extensionsWorkbenchService.open(result.firstPage[0]))
 							.then(null, onUnexpectedError);
-						break;
-				}
-			});
+					}
+				}]
+			);
 		}).then(null, err => {
 			/* __GDPR__FRAGMENT__
 				"WelcomePageInstalled-6" : {
@@ -575,8 +578,8 @@ export class WelcomeInputFactory implements IEditorInputFactory {
 
 // theming
 
-const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
-const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
+export const buttonBackground = registerColor('welcomePage.buttonBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonBackground', 'Background color for the buttons on the Welcome page.'));
+export const buttonHoverBackground = registerColor('welcomePage.buttonHoverBackground', { dark: null, light: null, hc: null }, localize('welcomePage.buttonHoverBackground', 'Hover background color for the buttons on the Welcome page.'));
 
 registerThemingParticipant((theme, collector) => {
 	const foregroundColor = theme.getColor(foreground);

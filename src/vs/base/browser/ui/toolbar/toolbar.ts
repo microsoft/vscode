@@ -8,7 +8,6 @@
 import 'vs/css!./toolbar';
 import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Builder, $ } from 'vs/base/browser/builder';
 import { Action, IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, ActionsOrientation, IActionItemProvider } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextMenuProvider, DropdownMenuActionItem } from 'vs/base/browser/ui/dropdown/dropdown';
@@ -45,7 +44,7 @@ export class ToolBar {
 		element.className = 'monaco-toolbar';
 		container.appendChild(element);
 
-		this.actionBar = new ActionBar($(element), {
+		this.actionBar = new ActionBar(element, {
 			orientation: options.orientation,
 			ariaLabel: options.ariaLabel,
 			actionRunner: options.actionRunner,
@@ -94,8 +93,16 @@ export class ToolBar {
 		}
 	}
 
-	public getContainer(): Builder {
+	public getContainer(): HTMLElement {
 		return this.actionBar.getContainer();
+	}
+
+	public getItemsWidth(): number {
+		let itemsWidth = 0;
+		for (let i = 0; i < this.actionBar.length(); i++) {
+			itemsWidth += this.actionBar.getWidth(i);
+		}
+		return itemsWidth;
 	}
 
 	public setAriaLabel(label: string): void {

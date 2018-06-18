@@ -9,7 +9,7 @@ import { DeleteLinesCommand } from 'vs/editor/contrib/linesOperations/deleteLine
 import { testCommand } from 'vs/editor/test/browser/testCommand';
 
 function createFromSelection(selection: Selection): DeleteLinesCommand {
-	var endLineNumber = selection.endLineNumber;
+	let endLineNumber = selection.endLineNumber;
 	if (selection.startLineNumber < selection.endLineNumber && selection.endColumn === 1) {
 		endLineNumber -= 1;
 	}

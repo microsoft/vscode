@@ -2,10 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import * as platform from 'vs/base/common/platform';
 import { RawContextKey, ContextKeyExpr, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
@@ -35,6 +35,7 @@ export const KEYBINDING_CONTEXT_TERMINAL_FIND_WIDGET_INPUT_NOT_FOCUSED: ContextK
 
 export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWorkspaceShellAllowed';
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
+export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
@@ -45,6 +46,10 @@ export const TerminalCursorStyle = {
 };
 
 export const TERMINAL_CONFIG_SECTION = 'terminal.integrated';
+
+export const DEFAULT_LETTER_SPACING = 0;
+export const MINIMUM_LETTER_SPACING = -5;
+export const DEFAULT_LINE_HEIGHT = 1.0;
 
 export type FontWeight = 'normal' | 'bold' | '100' | '200' | '300' | '400' | '500' | '600' | '700' | '800' | '900';
 
@@ -60,14 +65,17 @@ export interface ITerminalConfiguration {
 		windows: string[];
 	};
 	macOptionIsMeta: boolean;
+	rendererType: 'auto' | 'canvas' | 'dom';
 	rightClickBehavior: 'default' | 'copyPaste' | 'selectWord';
 	cursorBlinking: boolean;
 	cursorStyle: string;
+	drawBoldTextInBrightColors: boolean;
 	fontFamily: string;
 	fontWeight: FontWeight;
 	fontWeightBold: FontWeight;
 	// fontLigatures: boolean;
 	fontSize: number;
+	letterSpacing: number;
 	lineHeight: number;
 	setLocaleVariables: boolean;
 	scrollback: number;
@@ -82,6 +90,7 @@ export interface ITerminalConfiguration {
 	};
 	showExitAlert: boolean;
 	experimentalRestore: boolean;
+	experimentalTextureCachingStrategy: 'static' | 'dynamic';
 }
 
 export interface ITerminalConfigHelper {
@@ -90,7 +99,7 @@ export interface ITerminalConfigHelper {
 	/**
 	 * Merges the default shell path and args into the provided launch configuration
 	 */
-	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig): void;
+	mergeDefaultShellPathAndArgs(shell: IShellLaunchConfig, platformOverride?: platform.Platform): void;
 	/** Sets whether a workspace shell configuration is allowed or not */
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
 }
@@ -98,32 +107,42 @@ export interface ITerminalConfigHelper {
 export interface ITerminalFont {
 	fontFamily: string;
 	fontSize: number;
+	letterSpacing: number;
 	lineHeight: number;
 	charWidth?: number;
 	charHeight?: number;
 }
 
 export interface IShellLaunchConfig {
-	/** The name of the terminal, if this is not set the name of the process will be used. */
+	/**
+	 * The name of the terminal, if this is not set the name of the process will be used.
+	 */
 	name?: string;
-	/** The shell executable (bash, cmd, etc.). */
+
+	/**
+	 * The shell executable (bash, cmd, etc.).
+	 */
 	executable?: string;
+
 	/**
 	 * The CLI arguments to use with executable, a string[] is in argv format and will be escaped,
 	 * a string is in "CommandLine" pre-escaped format and will be used as is. The string option is
 	 * only supported on Windows and will throw an exception if used on macOS or Linux.
 	 */
 	args?: string[] | string;
+
 	/**
 	 * The current working directory of the terminal, this overrides the `terminal.integrated.cwd`
 	 * settings key.
 	 */
 	cwd?: string;
+
 	/**
 	 * A custom environment for the terminal, if this is not set the environment will be inherited
 	 * from the VS Code process.
 	 */
 	env?: { [key: string]: string };
+
 	/**
 	 * Whether to ignore a custom cwd from the `terminal.integrated.cwd` settings key (eg. if the
 	 * shell is being launched by an extension).
@@ -149,14 +168,26 @@ export interface ITerminalService {
 	configHelper: ITerminalConfigHelper;
 	onActiveTabChanged: Event<void>;
 	onTabDisposed: Event<ITerminalTab>;
+	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
-	createInstance(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a terminal.
+	 * @param shell The shell launch configuration to use.
+	 * @param wasNewTerminalAction Whether this was triggered by a new terminal action, if so a
+	 * default shell selection dialog may display.
+	 */
+	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+	/**
+	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
+	 */
+	createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance;
 	getInstanceFromId(terminalId: number): ITerminalInstance;
 	getInstanceFromIndex(terminalIndex: number): ITerminalInstance;
 	getTabLabels(): string[];
@@ -164,7 +195,7 @@ export interface ITerminalService {
 	setActiveInstance(terminalInstance: ITerminalInstance): void;
 	setActiveInstanceByIndex(terminalIndex: number): void;
 	getActiveOrCreateInstance(wasNewTerminalAction?: boolean): ITerminalInstance;
-	splitInstance(instance: ITerminalInstance): void;
+	splitInstance(instance: ITerminalInstance, shell?: IShellLaunchConfig): void;
 
 	getActiveTab(): ITerminalTab;
 	setActiveTabToNext(): void;
@@ -175,12 +206,12 @@ export interface ITerminalService {
 	hidePanel(): void;
 	focusFindWidget(): TPromise<void>;
 	hideFindWidget(): void;
-	showNextFindTermFindWidget(): void;
-	showPreviousFindTermFindWidget(): void;
 
 	setContainers(panelContainer: HTMLElement, terminalContainer: HTMLElement): void;
 	selectDefaultWindowsShell(): TPromise<string>;
 	setWorkspaceShellAllowed(isAllowed: boolean): void;
+
+	requestExtHostProcess(proxy: ITerminalProcessExtHostProxy, shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number): void;
 }
 
 export const enum Direction {
@@ -216,9 +247,10 @@ export interface ITerminalInstance {
 	id: number;
 
 	/**
-	 * The process ID of the shell process.
+	 * The process ID of the shell process, this is undefined when there is no process associated
+	 * with this terminal.
 	 */
-	processId: number;
+	processId: number | undefined;
 
 	/**
 	 * An event that fires when the terminal instance's title changes.
@@ -233,6 +265,10 @@ export interface ITerminalInstance {
 	onFocused: Event<ITerminalInstance>;
 
 	onProcessIdReady: Event<ITerminalInstance>;
+
+	onRequestExtHostProcess: Event<ITerminalInstance>;
+
+	processReady: TPromise<void>;
 
 	/**
 	 * The title of the terminal. This is either title or the process currently running or an
@@ -266,6 +302,12 @@ export interface ITerminalInstance {
 	 * resize events.
 	 */
 	disableLayout: boolean;
+
+	/**
+	 * An object that tracks when commands are run and enables navigating and selecting between
+	 * them.
+	 */
+	readonly commandTracker: ITerminalCommandTracker;
 
 	/**
 	 * Dispose the terminal instance, removing it from the panel/service and freeing up resources.
@@ -407,6 +449,13 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
+	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * sequecnes.
+	 * @param listener  The listener function.
+	 */
+	onData(listener: (data: string) => void): IDisposable;
+
+	/**
 	 * Attach a listener to listen for new lines added to this terminal instance.
 	 *
 	 * @param listener The listener function which takes new line strings added to the terminal,
@@ -439,4 +488,70 @@ export interface ITerminalInstance {
 	setTitle(title: string, eventFromProcess: boolean): void;
 
 	addDisposable(disposable: IDisposable): void;
+}
+
+export interface ITerminalCommandTracker {
+	scrollToPreviousCommand(): void;
+	scrollToNextCommand(): void;
+	selectToPreviousCommand(): void;
+	selectToNextCommand(): void;
+	selectToPreviousLine(): void;
+	selectToNextLine(): void;
+}
+
+export interface ITerminalProcessManager extends IDisposable {
+	readonly processState: ProcessState;
+	readonly ptyProcessReady: TPromise<void>;
+	readonly shellProcessId: number;
+	readonly initialCwd: string;
+
+	readonly onProcessReady: Event<void>;
+	readonly onProcessData: Event<string>;
+	readonly onProcessTitle: Event<string>;
+	readonly onProcessExit: Event<number>;
+
+	addDisposable(disposable: IDisposable);
+	createProcess(shellLaunchConfig: IShellLaunchConfig, cols: number, rows: number);
+	write(data: string): void;
+	setDimensions(cols: number, rows: number): void;
+}
+
+export enum ProcessState {
+	// The process has not been initialized yet.
+	UNINITIALIZED,
+	// The process is currently launching, the process is marked as launching
+	// for a short duration after being created and is helpful to indicate
+	// whether the process died as a result of bad shell and args.
+	LAUNCHING,
+	// The process is running normally.
+	RUNNING,
+	// The process was killed during launch, likely as a result of bad shell and
+	// args.
+	KILLED_DURING_LAUNCH,
+	// The process was killed by the user (the event originated from VS Code).
+	KILLED_BY_USER,
+	// The process was killed by itself, for example the shell crashed or `exit`
+	// was run.
+	KILLED_BY_PROCESS
+}
+
+
+export interface ITerminalProcessExtHostProxy extends IDisposable {
+	readonly terminalId: number;
+
+	emitData(data: string): void;
+	emitTitle(title: string): void;
+	emitPid(pid: number): void;
+	emitExit(exitCode: number): void;
+
+	onInput(listener: (data: string) => void): void;
+	onResize(listener: (cols: number, rows: number) => void): void;
+	onShutdown(listener: () => void): void;
+}
+
+export interface ITerminalProcessExtHostRequest {
+	proxy: ITerminalProcessExtHostProxy;
+	shellLaunchConfig: IShellLaunchConfig;
+	cols: number;
+	rows: number;
 }

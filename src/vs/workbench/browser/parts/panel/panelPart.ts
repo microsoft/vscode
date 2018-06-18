@@ -5,9 +5,9 @@
 
 import 'vs/css!./media/panelpart';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IAction, Action } from 'vs/base/common/actions';
+import { IAction } from 'vs/base/common/actions';
 import { Event } from 'vs/base/common/event';
-import { Builder, Dimension } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -20,16 +20,21 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
+import { ClosePanelAction, TogglePanelPositionAction, PanelActivityAction, ToggleMaximizedPanelAction, TogglePanelAction } from 'vs/workbench/browser/parts/panel/panelActions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { PANEL_BACKGROUND, PANEL_BORDER, PANEL_ACTIVE_TITLE_FOREGROUND, PANEL_INACTIVE_TITLE_FOREGROUND, PANEL_ACTIVE_TITLE_BORDER, PANEL_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { activeContrastBorder, focusBorder, contrastBorder, editorBackground, badgeBackground, badgeForeground } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
 import { ToggleCompositePinnedAction } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
-import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
-import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import { IBadge } from 'vs/workbench/services/activity/common/activity';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { Dimension } from 'vs/base/browser/dom';
+import { localize } from 'vs/nls';
+import { dispose, IDisposable } from 'vs/base/common/lifecycle';
+import { RawContextKey, IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+
+const ActivePanleContextId = 'activePanel';
+export const ActivePanelContext = new RawContextKey<string>(ActivePanleContextId, '');
 
 export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
@@ -39,10 +44,12 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 
 	public _serviceBrand: any;
 
+	private activePanelContextKey: IContextKey<string>;
 	private blockOpeningPanel: boolean;
 	private compositeBar: CompositeBar;
+	private compositeActions: { [compositeId: string]: { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } };
 	private dimension: Dimension;
-	private toolbarWidth = new Map<string, number>();
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		id: string,
@@ -53,7 +60,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		@IPartService partService: IPartService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@IThemeService themeService: IThemeService
+		@IThemeService themeService: IThemeService,
+		@IContextKeyService contextKeyService: IContextKeyService,
 	) {
 		super(
 			notificationService,
@@ -74,17 +82,19 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			{ hasTitle: true }
 		);
 
+		this.compositeActions = Object.create(null);
 		this.compositeBar = this.instantiationService.createInstance(CompositeBar, {
 			icon: false,
 			storageId: PanelPart.PINNED_PANELS,
 			orientation: ActionsOrientation.HORIZONTAL,
-			composites: this.getPanels(),
 			openComposite: (compositeId: string) => this.openPanel(compositeId, true),
-			getActivityAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
-			getCompositePinnedAction: (compositeId: string) => new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar),
+			getActivityAction: (compositeId: string) => this.getCompositeActions(compositeId).activityAction,
+			getCompositePinnedAction: (compositeId: string) => this.getCompositeActions(compositeId).pinnedAction,
 			getOnCompositeClickAction: (compositeId: string) => this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+			getContextMenuActions: () => [this.instantiationService.createInstance(TogglePanelAction, TogglePanelAction.ID, localize('hidePanel', "Hide Panel"))],
 			getDefaultCompositeId: () => Registry.as<PanelRegistry>(PanelExtensions.Panels).getDefaultPanelId(),
 			hidePart: () => this.partService.setPanelHidden(true),
+			compositeSize: 0,
 			overflowActionSize: 44,
 			colors: {
 				backgroundColor: PANEL_BACKGROUND,
@@ -94,11 +104,19 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			}
 		});
 		this.toUnbind.push(this.compositeBar);
+		for (const panel of this.getPanels()) {
+			this.compositeBar.addComposite(panel);
+		}
+		this.activePanelContextKey = ActivePanelContext.bindTo(contextKeyService);
+		this.onDidPanelOpen(this._onDidPanelOpen, this, this.disposables);
+		this.onDidPanelClose(this._onDidPanelClose, this, this.disposables);
 
 		this.registerListeners();
 	}
 
 	private registerListeners(): void {
+
+		this.toUnbind.push(this.registry.onDidRegister(panelDescriptor => this.compositeBar.addComposite(panelDescriptor)));
 
 		// Activate panel action on opening of a panel
 		this.toUnbind.push(this.onDidPanelOpen(panel => {
@@ -106,10 +124,21 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			// Need to relayout composite bar since different panels have different action bar width
 			this.layoutCompositeBar();
 		}));
-		this.toUnbind.push(this.compositeBar.onDidContextMenu(e => this.showContextMenu(e)));
 
 		// Deactivate panel action on close
 		this.toUnbind.push(this.onDidPanelClose(panel => this.compositeBar.deactivateComposite(panel.getId())));
+	}
+
+	private _onDidPanelOpen(panel: IPanel): void {
+		this.activePanelContextKey.set(panel.getId());
+	}
+
+	private _onDidPanelClose(panel: IPanel): void {
+		const id = panel.getId();
+
+		if (this.activePanelContextKey.get() === id) {
+			this.activePanelContextKey.reset();
+		}
 	}
 
 	public get onDidPanelOpen(): Event<IPanel> {
@@ -123,11 +152,11 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 	public updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 		container.style('background-color', this.getColor(PANEL_BACKGROUND));
 		container.style('border-left-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 
-		const title = this.getTitleArea();
+		const title = $(this.getTitleArea());
 		title.style('border-top-color', this.getColor(PANEL_BORDER) || this.getColor(contrastBorder));
 	}
 
@@ -158,17 +187,6 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.getPanels().filter(p => p.id === panelId).pop();
 	}
 
-	private showContextMenu(e: MouseEvent): void {
-		const event = new StandardMouseEvent(e);
-		const actions: Action[] = this.getPanels().map(panel => this.instantiationService.createInstance(ToggleCompositePinnedAction, panel, this.compositeBar));
-
-		this.contextMenuService.showContextMenu({
-			getAnchor: () => { return { x: event.posx, y: event.posy }; },
-			getActions: () => TPromise.as(actions),
-			onHide: () => dispose(actions)
-		});
-	}
-
 	public getPanels(): PanelDescriptor[] {
 		return Registry.as<PanelRegistry>(PanelExtensions.Panels).getPanels()
 			.filter(p => p.enabled)
@@ -182,7 +200,7 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 			if (enabled) {
 				this.compositeBar.addComposite(descriptor);
 			} else {
-				this.compositeBar.removeComposite(id);
+				this.removeComposite(id);
 			}
 		}
 	}
@@ -207,8 +225,8 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		return this.hideActiveComposite().then(composite => void 0);
 	}
 
-	protected createTitleLabel(parent: Builder): ICompositeTitleLabel {
-		const titleArea = this.compositeBar.create(parent.getHTMLElement());
+	protected createTitleLabel(parent: HTMLElement): ICompositeTitleLabel {
+		const titleArea = this.compositeBar.create(parent);
 		titleArea.classList.add('panel-switcher-container');
 
 		return {
@@ -252,16 +270,39 @@ export class PanelPart extends CompositePart<Panel> implements IPanelService {
 		}
 	}
 
+	private getCompositeActions(compositeId: string): { activityAction: PanelActivityAction, pinnedAction: ToggleCompositePinnedAction } {
+		let compositeActions = this.compositeActions[compositeId];
+		if (!compositeActions) {
+			compositeActions = {
+				activityAction: this.instantiationService.createInstance(PanelActivityAction, this.getPanel(compositeId)),
+				pinnedAction: new ToggleCompositePinnedAction(this.getPanel(compositeId), this.compositeBar)
+			};
+			this.compositeActions[compositeId] = compositeActions;
+		}
+		return compositeActions;
+	}
+
+	private removeComposite(compositeId: string): void {
+		this.compositeBar.removeComposite(compositeId);
+		const compositeActions = this.compositeActions[compositeId];
+		if (compositeActions) {
+			compositeActions.activityAction.dispose();
+			compositeActions.pinnedAction.dispose();
+			delete this.compositeActions[compositeId];
+		}
+	}
+
 	private getToolbarWidth(): number {
 		const activePanel = this.getActivePanel();
 		if (!activePanel) {
 			return 0;
 		}
-		if (!this.toolbarWidth.has(activePanel.getId())) {
-			this.toolbarWidth.set(activePanel.getId(), this.toolBar.getContainer().getHTMLElement().offsetWidth);
-		}
+		return this.toolBar.getItemsWidth();
+	}
 
-		return this.toolbarWidth.get(activePanel.getId());
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
 	}
 }
 

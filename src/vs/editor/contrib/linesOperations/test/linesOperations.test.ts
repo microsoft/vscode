@@ -8,12 +8,12 @@ import * as assert from 'assert';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Position } from 'vs/editor/common/core/position';
 import { Handler } from 'vs/editor/common/editorCommon';
-import { ITextModel, DefaultEndOfLine } from 'vs/editor/common/model';
+import { ITextModel } from 'vs/editor/common/model';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { DeleteAllLeftAction, JoinLinesAction, TransposeAction, UpperCaseAction, LowerCaseAction, DeleteAllRightAction, InsertLineBeforeAction, InsertLineAfterAction, IndentLinesAction, SortLinesAscendingAction, SortLinesDescendingAction } from 'vs/editor/contrib/linesOperations/linesOperations';
 import { Cursor } from 'vs/editor/common/controller/cursor';
-import { TextModel } from 'vs/editor/common/model/textModel';
 import { CoreEditingCommands } from 'vs/editor/browser/controller/coreCommands';
+import { createTextModel } from 'vs/editor/test/common/editorTestUtils';
 
 suite('Editor Contrib - Line Operations', () => {
 	suite('SortLinesAscendingAction', () => {
@@ -357,6 +357,23 @@ suite('Editor Contrib - Line Operations', () => {
 					joinLinesAction.run(null, editor);
 					assert.equal(model.getLineContent(5), 'hello world', '009');
 					assert.deepEqual(editor.getSelection().toString(), new Selection(5, 1, 5, 3).toString(), '010');
+				});
+		});
+
+		test('#50471 Join lines at the end of document', function () {
+			withTestCodeEditor(
+				[
+					'hello',
+					'world'
+				], {}, (editor, cursor) => {
+					let model = editor.getModel();
+					let joinLinesAction = new JoinLinesAction();
+
+					editor.setSelection(new Selection(2, 1, 2, 1));
+					joinLinesAction.run(null, editor);
+					assert.equal(model.getLineContent(1), 'hello', '001');
+					assert.equal(model.getLineContent(2), 'world', '002');
+					assert.deepEqual(editor.getSelection().toString(), new Selection(2, 6, 2, 6).toString(), '003');
 				});
 		});
 
@@ -841,16 +858,12 @@ suite('Editor Contrib - Line Operations', () => {
 
 	test('Bug 18276:[editor] Indentation broken when selection is empty', () => {
 
-		let model = TextModel.createFromString(
+		let model = createTextModel(
 			[
 				'function baz() {'
 			].join('\n'),
 			{
-				defaultEOL: DefaultEndOfLine.LF,
-				detectIndentation: false,
 				insertSpaces: false,
-				tabSize: 4,
-				trimAutoWhitespace: true
 			}
 		);
 

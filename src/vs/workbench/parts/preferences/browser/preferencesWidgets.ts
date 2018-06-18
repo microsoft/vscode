@@ -5,7 +5,7 @@
 
 import { localize } from 'vs/nls';
 import URI from 'vs/base/common/uri';
-import { Dimension, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -17,7 +17,7 @@ import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, OverlayWidgetPosit
 import { InputBox, IInputOptions } from 'vs/base/browser/ui/inputbox/inputBox';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IContextViewService, IContextMenuService } from 'vs/platform/contextview/browser/contextView';
-import { ISettingsGroup } from 'vs/workbench/parts/preferences/common/preferences';
+import { ISettingsGroup } from 'vs/workbench/services/preferences/common/preferences';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IAction, Action } from 'vs/base/common/actions';
@@ -25,9 +25,9 @@ import { attachInputBoxStyler, attachStylerCallback } from 'vs/platform/theme/co
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Position } from 'vs/editor/common/core/position';
 import { ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder } from 'vs/platform/theme/common/colorRegistry';
+import { buttonBackground, buttonForeground, badgeForeground, badgeBackground, contrastBorder, errorForeground, focusBorder, activeContrastBorder, editorBackground, editorForeground } from 'vs/platform/theme/common/colorRegistry';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { Separator, ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, ActionsOrientation, BaseActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IMarginData } from 'vs/editor/browser/controller/mouseTarget';
@@ -420,7 +420,6 @@ export class FolderSettingsActionItem extends BaseActionItem {
 		const actions: IAction[] = [];
 		const workspaceFolders = this.contextService.getWorkspace().folders;
 		if (this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE && workspaceFolders.length > 0) {
-			actions.push(new Separator());
 			actions.push(...workspaceFolders.map((folder, index) => {
 				const folderCount = this._folderSettingCounts.get(folder.uri.toString());
 				return <IAction>{
@@ -634,7 +633,8 @@ export class SearchWidget extends Widget {
 	}
 
 	public showMessage(message: string, count: number): void {
-		if (this.countElement) {
+		// Avoid setting the aria-label unnecessarily, the screenreader will read the count every time it's set, since it's aria-live:assertive. #50968
+		if (this.countElement && message !== this.countElement.textContent) {
 			this.countElement.textContent = message;
 			this.inputBox.inputElement.setAttribute('aria-label', message);
 			DOM.toggleClass(this.countElement, 'no-results', count === 0);
@@ -649,7 +649,7 @@ export class SearchWidget extends Widget {
 		this.countElement.style.color = color ? color.toString() : null;
 	}
 
-	public layout(dimension: Dimension) {
+	public layout(dimension: DOM.Dimension) {
 		if (dimension.width < 400) {
 			if (this.countElement) {
 				DOM.addClass(this.countElement, 'hide');
@@ -727,9 +727,14 @@ export class FloatingClickWidget extends Widget implements IOverlayWidget {
 
 	public render() {
 		this._domNode = DOM.$('.floating-click-widget');
-		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground }, colors => {
-			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : null;
-			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : null;
+		this._register(attachStylerCallback(this.themeService, { buttonBackground, buttonForeground, editorBackground, editorForeground, contrastBorder }, colors => {
+			this._domNode.style.backgroundColor = colors.buttonBackground ? colors.buttonBackground.toString() : colors.editorBackground.toString();
+			this._domNode.style.color = colors.buttonForeground ? colors.buttonForeground.toString() : colors.editorForeground.toString();
+
+			const borderColor = colors.contrastBorder ? colors.contrastBorder.toString() : null;
+			this._domNode.style.borderWidth = borderColor ? '1px' : null;
+			this._domNode.style.borderStyle = borderColor ? 'solid' : null;
+			this._domNode.style.borderColor = borderColor;
 		}));
 
 		DOM.append(this._domNode, DOM.$('')).textContent = this.label;

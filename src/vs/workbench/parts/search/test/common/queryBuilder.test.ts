@@ -7,18 +7,15 @@
 import * as assert from 'assert';
 import { IExpression } from 'vs/base/common/glob';
 import * as paths from 'vs/base/common/paths';
-import * as arrays from 'vs/base/common/arrays';
 import uri from 'vs/base/common/uri';
-import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceContextService, Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
-import { QueryBuilder, ISearchPathsResult } from 'vs/workbench/parts/search/common/queryBuilder';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
+import { IFolderQuery, IPatternInfo, ISearchQuery, QueryType } from 'vs/platform/search/common/search';
+import { IWorkspaceContextService, toWorkspaceFolders, Workspace } from 'vs/platform/workspace/common/workspace';
+import { ISearchPathsResult, QueryBuilder } from 'vs/workbench/parts/search/common/queryBuilder';
 import { TestContextService, TestEnvironmentService } from 'vs/workbench/test/workbenchTestServices';
-
-
-import { ISearchQuery, QueryType, IPatternInfo, IFolderQuery } from 'vs/platform/search/common/search';
 
 const DEFAULT_USER_CONFIG = { useRipgrep: true, useIgnoreFiles: true };
 const DEFAULT_QUERY_PROPS = { useRipgrep: true, disregardIgnoreFiles: false };
@@ -44,8 +41,8 @@ suite('QueryBuilder', () => {
 		mockContextService = new TestContextService();
 		mockWorkspace = new Workspace('workspace', 'workspace', toWorkspaceFolders([{ path: ROOT_1_URI.fsPath }]));
 		mockContextService.setWorkspace(mockWorkspace);
-		instantiationService.stub(IWorkspaceContextService, mockContextService);
 
+		instantiationService.stub(IWorkspaceContextService, mockContextService);
 		instantiationService.stub(IEnvironmentService, TestEnvironmentService);
 
 		queryBuilder = instantiationService.createInstance(QueryBuilder);
@@ -342,18 +339,18 @@ suite('QueryBuilder', () => {
 				assert.deepEqual(
 					queryBuilder.parseSearchPaths(includePattern),
 					<ISearchPathsResult>{
-						pattern: patternsToIExpression(...arrays.flatten(expectedPatterns.map(globalGlob)))
+						pattern: patternsToIExpression(...expectedPatterns)
 					},
 					includePattern);
 			}
 
 			[
-				['a', ['a']],
-				['a/b', ['a/b']],
-				['a/b,  c', ['a/b', 'c']],
-				['a,.txt', ['a', '*.txt']],
-				['a,,,b', ['a', 'b']],
-				['**/a,b/**', ['**/a', 'b/**']]
+				['a', ['**/a/**', '**/a']],
+				['a/b', ['**/a/b', '**/a/b/**']],
+				['a/b,  c', ['**/a/b', '**/c', '**/a/b/**', '**/c/**']],
+				['a,.txt', ['**/a', '**/a/**', '**/*.txt', '**/*.txt/**']],
+				['a,,,b', ['**/a', '**/a/**', '**/b', '**/b/**']],
+				['**/a,b/**', ['**/a', '**/a/**', '**/b/**']]
 			].forEach(([includePattern, expectedPatterns]) => testSimpleIncludes(<string>includePattern, <string[]>expectedPatterns));
 		});
 
@@ -433,6 +430,32 @@ suite('QueryBuilder', () => {
 						}]
 					}
 				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
+		test('includes with tilde', () => {
+			const userHome = TestEnvironmentService.userHome;
+			const cases: [string, ISearchPathsResult][] = [
+				[
+					'~/foo/bar',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }]
+					}
+				],
+				[
+					'~/foo/bar, a',
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri(userHome, '/foo/bar') }],
+						pattern: patternsToIExpression(...globalGlob('a'))
+					}
+				],
+				[
+					fixPath('/foo/~/bar'),
+					<ISearchPathsResult>{
+						searchPaths: [{ searchPath: getUri('/foo/~/bar') }]
+					}
+				],
 			];
 			cases.forEach(testIncludesDataItem);
 		});
@@ -523,6 +546,33 @@ suite('QueryBuilder', () => {
 								searchPath: getUri(ROOT_2),
 								pattern: '**/*.txt'
 							}]
+					}
+				]
+			];
+			cases.forEach(testIncludesDataItem);
+		});
+
+		test('include ./foldername', () => {
+			const ROOT_2 = '/project/root2';
+			const ROOT_1_FOLDERNAME = 'foldername';
+			mockWorkspace.folders = toWorkspaceFolders([{ path: ROOT_1_URI.fsPath, name: ROOT_1_FOLDERNAME }, { path: getUri(ROOT_2).fsPath }]);
+			mockWorkspace.configuration = uri.file(fixPath('config'));
+
+			const cases: [string, ISearchPathsResult][] = [
+				[
+					'./foldername',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(ROOT_1)
+						}]
+					}
+				],
+				[
+					'./foldername/foo',
+					<ISearchPathsResult>{
+						searchPaths: [{
+							searchPath: getUri(paths.join(ROOT_1, 'foo'))
+						}]
 					}
 				]
 			];
@@ -825,14 +875,16 @@ function patternsToIExpression(...patterns: string[]): IExpression {
 		undefined;
 }
 
-function getUri(slashPath: string): uri {
-	return uri.file(fixPath(slashPath));
+function getUri(...slashPathParts: string[]): uri {
+	return uri.file(fixPath(...slashPathParts));
 }
 
-function fixPath(slashPath: string): string {
-	return process.platform === 'win32' ?
-		(slashPath.match(/^c:/) ? slashPath : paths.join('c:', ...slashPath.split('/'))) :
-		slashPath;
+function fixPath(...slashPathParts: string[]): string {
+	if (process.platform === 'win32' && slashPathParts.length && !slashPathParts[0].match(/^c:/i)) {
+		slashPathParts.unshift('c:');
+	}
+
+	return paths.join(...slashPathParts);
 }
 
 function normalizeExpression(expression: IExpression): IExpression {

@@ -76,7 +76,8 @@
 			"scope": [
 				"variable",
 				"meta.definition.variable.name",
-				"support.variable"
+				"support.variable",
+				"entity.name.variable"
 			],
 			"settings": {
 				"foreground": "#001080"
@@ -156,7 +157,7 @@
 		{
 			"scope": "constant.character.escape",
 			"settings": {
-				"foreground": "#a31515"
+				"foreground": "#ff0000"
 			}
 		}
 

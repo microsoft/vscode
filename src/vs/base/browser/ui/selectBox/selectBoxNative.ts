@@ -91,6 +91,10 @@ export class SelectBoxNative implements ISelectBoxDelegate {
 	public select(index: number): void {
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}

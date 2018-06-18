@@ -13,14 +13,18 @@ import * as JSONContributionRegistry from 'vs/platform/jsonschemas/common/jsonCo
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
-import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService, FOLDER_SETTINGS_PATH, DEFAULT_SETTINGS_EDITOR_SETTING } from 'vs/workbench/services/preferences/common/preferences';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService, IOpenEditorOverride } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorOptions, ITextEditorOptions } from 'vs/platform/editor/common/editor';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 import { endsWith } from 'vs/base/common/strings';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { IEditorOpeningEvent } from 'vs/workbench/common/editor';
+import { IEditorInput } from 'vs/workbench/common/editor';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { isEqual } from 'vs/base/common/paths';
+import { isLinux } from 'vs/base/common/platform';
 
 const schemaRegistry = Registry.as<JSONContributionRegistry.IJSONContributionRegistry>(JSONContributionRegistry.Extensions.JSONContribution);
 
@@ -33,7 +37,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		@ITextModelService private textModelResolverService: ITextModelService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IModeService private modeService: IModeService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IWorkspaceContextService private workspaceService: IWorkspaceContextService,
 		@IConfigurationService private configurationService: IConfigurationService
@@ -55,32 +59,30 @@ export class PreferencesContribution implements IWorkbenchContribution {
 
 		// install editor opening listener unless user has disabled this
 		if (!!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)) {
-			this.editorOpeningListener = this.editorGroupService.onEditorOpening(e => this.onEditorOpening(e));
+			this.editorOpeningListener = this.editorService.overrideOpenEditor((editor, options, group) => this.onEditorOpening(editor, options, group));
 		}
 	}
 
-	private onEditorOpening(event: IEditorOpeningEvent): void {
-		const resource = event.input.getResource();
+	private onEditorOpening(editor: IEditorInput, options: IEditorOptions | ITextEditorOptions, group: IEditorGroup): IOpenEditorOverride {
+		const resource = editor.getResource();
 		if (
 			!resource || resource.scheme !== 'file' ||									// require a file path opening
 			!endsWith(resource.fsPath, 'settings.json') ||								// file must end in settings.json
 			!this.configurationService.getValue(DEFAULT_SETTINGS_EDITOR_SETTING)	// user has not disabled default settings editor
 		) {
-			return;
+			return void 0;
 		}
 
 		// If the file resource was already opened before in the group, do not prevent
 		// the opening of that resource. Otherwise we would have the same settings
 		// opened twice (https://github.com/Microsoft/vscode/issues/36447)
-		const stacks = this.editorGroupService.getStacksModel();
-		const group = stacks.groupAt(event.position);
-		if (group && group.contains(event.input)) {
-			return;
+		if (group.isOpened(editor)) {
+			return void 0;
 		}
 
 		// Global User Settings File
-		if (resource.fsPath === this.environmentService.appSettingsPath) {
-			return event.prevent(() => this.preferencesService.openGlobalSettings(event.options, event.position));
+		if (isEqual(resource.fsPath, this.environmentService.appSettingsPath, !isLinux)) {
+			return { override: this.preferencesService.openGlobalSettings(options, group) };
 		}
 
 		// Single Folder Workspace Settings File
@@ -88,7 +90,7 @@ export class PreferencesContribution implements IWorkbenchContribution {
 		if (state === WorkbenchState.FOLDER) {
 			const folders = this.workspaceService.getWorkspace().folders;
 			if (resource.fsPath === folders[0].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-				return event.prevent(() => this.preferencesService.openWorkspaceSettings(event.options, event.position));
+				return { override: this.preferencesService.openWorkspaceSettings(options, group) };
 			}
 		}
 
@@ -97,10 +99,12 @@ export class PreferencesContribution implements IWorkbenchContribution {
 			const folders = this.workspaceService.getWorkspace().folders;
 			for (let i = 0; i < folders.length; i++) {
 				if (resource.fsPath === folders[i].toResource(FOLDER_SETTINGS_PATH).fsPath) {
-					return event.prevent(() => this.preferencesService.openFolderSettings(folders[i].uri, event.options, event.position));
+					return { override: this.preferencesService.openFolderSettings(folders[i].uri, options, group) };
 				}
 			}
 		}
+
+		return void 0;
 	}
 
 	private start(): void {

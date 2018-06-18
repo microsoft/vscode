@@ -21,8 +21,22 @@ suite('ExtHostTypes', function () {
 	test('URI, toJSON', function () {
 
 		let uri = URI.parse('file:///path/test.file');
-		let data = uri.toJSON();
-		assert.deepEqual(data, {
+		assert.deepEqual(uri.toJSON(), {
+			$mid: 1,
+			scheme: 'file',
+			path: '/path/test.file'
+		});
+
+		assert.ok(uri.fsPath);
+		assert.deepEqual(uri.toJSON(), {
+			$mid: 1,
+			scheme: 'file',
+			path: '/path/test.file',
+			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+		});
+
+		assert.ok(uri.toString());
+		assert.deepEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
@@ -182,8 +196,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => (range as any).start = null);
-		assert.throws(() => (range as any).start = new types.Position(0, 3));
+		assert.throws(() => { (range as any).start = null; });
+		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
 	test('Range, toJSON', function () {
@@ -342,15 +356,15 @@ suite('ExtHostTypes', function () {
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
 		assert.equal(edit.size, 1);
-		assertToJSON(edit, [[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
+		assertToJSON(edit, [[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
 		assert.equal(edit.size, 2);
 		assertToJSON(edit, [
-			[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
-			[URI.parse('file:///b.ts').toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
+			[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
+			[b.toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
 		]);
 
 		edit.set(b, undefined);
@@ -512,5 +526,11 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+	});
+
+	test('instanceof doesn\'t work for FileSystemError #49386', function () {
+		const error = types.FileSystemError.Unavailable('foo');
+		assert.ok(error instanceof Error);
+		assert.ok(error instanceof types.FileSystemError);
 	});
 });

@@ -54,7 +54,7 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		this._argumentProcessors.push(processor);
 	}
 
-	registerCommand(id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
+	registerCommand(global: boolean, id: string, callback: <T>(...args: any[]) => T | Thenable<T>, thisArg?: any, description?: ICommandHandlerDescription): extHostTypes.Disposable {
 		this._logService.trace('ExtHostCommands#registerCommand', id);
 
 		if (!id.trim().length) {
@@ -66,11 +66,15 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 		}
 
 		this._commands.set(id, { callback, thisArg, description });
-		this._proxy.$registerCommand(id);
+		if (global) {
+			this._proxy.$registerCommand(id);
+		}
 
 		return new extHostTypes.Disposable(() => {
 			if (this._commands.delete(id)) {
-				this._proxy.$unregisterCommand(id);
+				if (global) {
+					this._proxy.$unregisterCommand(id);
+				}
 			}
 		});
 	}
@@ -88,10 +92,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			args = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
-					return extHostTypeConverter.fromPosition(value);
+					return extHostTypeConverter.Position.from(value);
 				}
 				if (value instanceof extHostTypes.Range) {
-					return extHostTypeConverter.fromRange(value);
+					return extHostTypeConverter.Range.from(value);
 				}
 				if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);
@@ -127,6 +131,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
+
 		if (!this._commands.has(id)) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {
@@ -161,15 +167,16 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 export class CommandsConverter {
 
+	private readonly _delegatingCommandId: string;
 	private _commands: ExtHostCommands;
 	private _heap: ExtHostHeapService;
 
 	// --- conversion between internal and api commands
 	constructor(commands: ExtHostCommands, heap: ExtHostHeapService) {
-
+		this._delegatingCommandId = `_internal_command_delegation_${Date.now()}`;
 		this._commands = commands;
 		this._heap = heap;
-		this._commands.registerCommand('_internal_command_delegation', this._executeConvertedCommand, this);
+		this._commands.registerCommand(true, this._delegatingCommandId, this._executeConvertedCommand, this);
 	}
 
 	toInternal(command: vscode.Command): modes.Command {
@@ -190,7 +197,7 @@ export class CommandsConverter {
 			const id = this._heap.keep(command);
 			ObjectIdentifier.mixin(result, id);
 
-			result.id = '_internal_command_delegation';
+			result.id = this._delegatingCommandId;
 			result.arguments = [id];
 		}
 

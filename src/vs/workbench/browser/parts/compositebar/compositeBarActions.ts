@@ -127,7 +127,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
-		action.onDidChangeBadge(this.handleBadgeChangeEvenet, this, this._callOnDispose);
+		action.onDidChangeBadge(this.updateBadge, this, this._callOnDispose);
 	}
 
 	protected get activity(): IActivity {
@@ -193,23 +193,28 @@ export class ActivityActionItem extends BaseActionItem {
 			this.$label.text(this.getAction().label);
 		}
 
-		this.$badge = this.builder.clone().div({ 'class': 'badge' }, (badge: Builder) => {
+		this.$badge = this.builder.clone().div({ 'class': 'badge' }, badge => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
 
 		this.$badge.hide();
 
 		this.updateStyles();
+		this.updateBadge();
 	}
 
 	private onThemeChange(theme: ITheme): void {
 		this.updateStyles();
 	}
 
-	protected updateBadge(badge: IBadge, clazz?: string): void {
-		if (!this.$badge || !this.$badgeContent) {
+	protected updateBadge(): void {
+		const action = this.getAction();
+		if (!this.$badge || !this.$badgeContent || !(action instanceof ActivityAction)) {
 			return;
 		}
+
+		const badge = action.getBadge();
+		const clazz = action.getClass();
 
 		this.badgeDisposable.dispose();
 		this.badgeDisposable = empty;
@@ -273,13 +278,6 @@ export class ActivityActionItem extends BaseActionItem {
 				b.title(title);
 			}
 		});
-	}
-
-	private handleBadgeChangeEvenet(): void {
-		const action = this.getAction();
-		if (action instanceof ActivityAction) {
-			this.updateBadge(action.getBadge(), action.getClass());
-		}
 	}
 
 	public dispose(): void {
@@ -445,6 +443,9 @@ export class CompositeActionItem extends ActivityActionItem {
 	public render(container: HTMLElement): void {
 		super.render(container);
 
+		this._updateChecked();
+		this._updateEnabled();
+
 		this.$container.on('contextmenu', e => {
 			dom.EventHelper.stop(e, true);
 
@@ -564,11 +565,13 @@ export class CompositeActionItem extends ActivityActionItem {
 
 	protected _updateClass(): void {
 		if (this.cssClass) {
-			this.$badge.removeClass(this.cssClass);
+			this.$label.removeClass(this.cssClass);
 		}
 
 		this.cssClass = this.getAction().class;
-		this.$badge.addClass(this.cssClass);
+		if (this.cssClass) {
+			this.$label.addClass(this.cssClass);
+		}
 	}
 
 	protected _updateChecked(): void {

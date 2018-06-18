@@ -16,6 +16,14 @@ export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
+export function tail2<T>(arr: T[]): [T[], T] {
+	if (arr.length === 0) {
+		throw new Error('Invalid tail call');
+	}
+
+	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
+}
+
 export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
@@ -53,7 +61,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * are located before all elements where p(x) is true.
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
-export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
+export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
 	if (high === 0) {
 		return 0; // no children
@@ -267,7 +275,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirst(result, e => compare(element, e) < 0);
+			const j = findFirstInSorted(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
@@ -338,7 +346,7 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
-export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
+export function firstIndex<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
 
@@ -350,7 +358,7 @@ export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
 	return -1;
 }
 
-export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T = null): T {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }

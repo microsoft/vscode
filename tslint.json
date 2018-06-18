@@ -410,6 +410,18 @@
 				]
 			},
 			{
+				"target": "**/vs/code/electron-browser/**",
+				"restrictions": [
+					"vs/nls",
+					"vs/css!./**/*",
+					"vs/nls",
+					"**/vs/base/**",
+					"**/vs/platform/**",
+					"**/vs/code/**",
+					"*" // node modules
+				]
+			},
+			{
 				"target": "**/vs/code/**",
 				"restrictions": [
 					"vs/nls",
@@ -431,6 +443,13 @@
 				]
 			},
 			{
+				"target": "**/test/smoke2/**",
+				"restrictions": [
+					"**/test/smoke2/**",
+					"*"
+				]
+			},
+			{
 				"target": "{**/**.test.ts,**/test/**}",
 				"restrictions": "{**/vs/**,assert,sinon,crypto}"
 			},
@@ -440,7 +459,8 @@
 			}
 		],
 		"duplicate-imports": true,
-		"translation-remind": true
+		"translation-remind": true,
+		"no-standalone-editor": true
 	},
 	"defaultSeverity": "warning"
 }

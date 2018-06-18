@@ -33,9 +33,10 @@ import { IWorkspacesMainService, IWorkspaceIdentifier, ISingleFolderWorkspaceIde
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
-import { normalizeNFC } from 'vs/base/common/strings';
+import { normalizeNFC } from 'vs/base/common/normalization';
 import URI from 'vs/base/common/uri';
 import { Queue } from 'vs/base/common/async';
+import { exists } from 'vs/base/node/pfs';
 
 enum WindowError {
 	UNRESPONSIVE,
@@ -168,7 +169,7 @@ export class WindowsManager implements IWindowsMainService {
 		});
 
 		// React to workbench loaded events from windows
-		ipc.on('vscode:workbenchLoaded', (_event: any, windowId: number) => {
+		ipc.on('vscode:workbenchLoaded', (event: any, windowId: number) => {
 			this.logService.trace('IPC#vscode-workbenchLoaded');
 
 			const win = this.getWindowById(windowId);
@@ -509,7 +510,6 @@ export class WindowsManager implements IWindowsMainService {
 				reuseWindow: openConfig.forceReuseWindow,
 				context: openConfig.context,
 				filePath: fileToCheck && fileToCheck.filePath,
-				userHome: this.environmentService.userHome,
 				workspaceResolver: workspace => this.workspacesMainService.resolveWorkspaceSync(workspace.configPath)
 			});
 
@@ -536,7 +536,7 @@ export class WindowsManager implements IWindowsMainService {
 				else {
 
 					// Do open files
-					usedWindows.push(this.doOpenFilesInExistingWindow(bestWindowOrFolder, filesToOpen, filesToCreate, filesToDiff, filesToWait));
+					usedWindows.push(this.doOpenFilesInExistingWindow(openConfig, bestWindowOrFolder, filesToOpen, filesToCreate, filesToDiff, filesToWait));
 
 					// Reset these because we handled them
 					filesToOpen = [];
@@ -582,7 +582,7 @@ export class WindowsManager implements IWindowsMainService {
 				const windowOnWorkspace = windowsOnWorkspace[0];
 
 				// Do open files
-				usedWindows.push(this.doOpenFilesInExistingWindow(windowOnWorkspace, filesToOpen, filesToCreate, filesToDiff, filesToWait));
+				usedWindows.push(this.doOpenFilesInExistingWindow(openConfig, windowOnWorkspace, filesToOpen, filesToCreate, filesToDiff, filesToWait));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -622,7 +622,7 @@ export class WindowsManager implements IWindowsMainService {
 				const windowOnFolderPath = windowsOnFolderPath[0];
 
 				// Do open files
-				usedWindows.push(this.doOpenFilesInExistingWindow(windowOnFolderPath, filesToOpen, filesToCreate, filesToDiff, filesToWait));
+				usedWindows.push(this.doOpenFilesInExistingWindow(openConfig, windowOnFolderPath, filesToOpen, filesToCreate, filesToDiff, filesToWait));
 
 				// Reset these because we handled them
 				filesToOpen = [];
@@ -694,11 +694,12 @@ export class WindowsManager implements IWindowsMainService {
 		return arrays.distinct(usedWindows);
 	}
 
-	private doOpenFilesInExistingWindow(window: ICodeWindow, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor): ICodeWindow {
+	private doOpenFilesInExistingWindow(configuration: IOpenConfiguration, window: ICodeWindow, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor): ICodeWindow {
 		window.focus(); // make sure window has focus
 
 		window.ready().then(readyWindow => {
-			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff, filesToWait });
+			const termProgram = configuration.userEnv ? configuration.userEnv['TERM_PROGRAM'] : void 0;
+			readyWindow.send('vscode:openFiles', { filesToOpen, filesToCreate, filesToDiff, filesToWait, termProgram });
 		});
 
 		return window;
@@ -714,7 +715,11 @@ export class WindowsManager implements IWindowsMainService {
 		return window;
 	}
 
-	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, openInNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor, windowToUse?: ICodeWindow): ICodeWindow {
+	private doOpenFolderOrWorkspace(openConfig: IOpenConfiguration, folderOrWorkspace: IPathToOpen, forceNewWindow: boolean, filesToOpen: IPath[], filesToCreate: IPath[], filesToDiff: IPath[], filesToWait: IPathsToWaitFor, windowToUse?: ICodeWindow): ICodeWindow {
+		if (!forceNewWindow && !windowToUse && typeof openConfig.contextWindowId === 'number') {
+			windowToUse = this.getWindowById(openConfig.contextWindowId); // fix for https://github.com/Microsoft/vscode/issues/49587
+		}
+
 		const browserWindow = this.openInBrowserWindow({
 			userEnv: openConfig.userEnv,
 			cli: openConfig.cli,
@@ -725,7 +730,7 @@ export class WindowsManager implements IWindowsMainService {
 			filesToCreate,
 			filesToDiff,
 			filesToWait,
-			forceNewWindow: openInNewWindow,
+			forceNewWindow,
 			windowToUse
 		});
 
@@ -1229,9 +1234,12 @@ export class WindowsManager implements IWindowsMainService {
 			}
 		}
 
+		// Compute x/y based on display bounds
+		// Note: important to use Math.round() because Electron does not seem to be too happy about
+		// display coordinates that are not absolute numbers.
 		let state = defaultWindowState() as INewWindowState;
-		state.x = displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2);
-		state.y = displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2);
+		state.x = Math.round(displayToUse.bounds.x + (displayToUse.bounds.width / 2) - (state.width / 2));
+		state.y = Math.round(displayToUse.bounds.y + (displayToUse.bounds.height / 2) - (state.height / 2));
 
 		// Check for newWindowDimensions setting and adjust accordingly
 		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
@@ -1374,8 +1382,8 @@ export class WindowsManager implements IWindowsMainService {
 		return getLastActiveWindow(WindowsManager.WINDOWS);
 	}
 
-	public openNewWindow(context: OpenContext): void {
-		this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
+	public openNewWindow(context: OpenContext): ICodeWindow[] {
+		return this.open({ context, cli: this.environmentService.args, forceNewWindow: true, forceEmpty: true });
 	}
 
 	public waitForWindowCloseOrLoad(windowId: number): TPromise<void> {
@@ -1697,6 +1705,7 @@ class Dialogs {
 	}
 
 	public showSaveDialog(options: Electron.SaveDialogOptions, window?: ICodeWindow): TPromise<string> {
+
 		function normalizePath(path: string): string {
 			if (path && isMacintosh) {
 				path = normalizeNFC(path); // normalize paths returned from the OS
@@ -1715,6 +1724,7 @@ class Dialogs {
 	}
 
 	public showOpenDialog(options: Electron.OpenDialogOptions, window?: ICodeWindow): TPromise<string[]> {
+
 		function normalizePaths(paths: string[]): string[] {
 			if (paths && paths.length > 0 && isMacintosh) {
 				paths = paths.map(path => normalizeNFC(path)); // normalize paths returned from the OS
@@ -1725,8 +1735,22 @@ class Dialogs {
 
 		return this.getDialogQueue(window).queue(() => {
 			return new TPromise((c, e) => {
-				dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
-					c(normalizePaths(paths));
+
+				// Ensure the path exists (if provided)
+				let validatePathPromise: TPromise<void> = TPromise.as(void 0);
+				if (options.defaultPath) {
+					validatePathPromise = exists(options.defaultPath).then(exists => {
+						if (!exists) {
+							options.defaultPath = void 0;
+						}
+					});
+				}
+
+				// Show dialog and wrap as promise
+				validatePathPromise.then(() => {
+					dialog.showOpenDialog(window ? window.win : void 0, options, paths => {
+						c(normalizePaths(paths));
+					});
 				});
 			});
 		});

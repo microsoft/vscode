@@ -14,8 +14,8 @@ import { ConfigurationTarget as ExtHostConfigurationTarget } from './extHostType
 import { IConfigurationData, ConfigurationTarget, IConfigurationModel } from 'vs/platform/configuration/common/configuration';
 import { Configuration, ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { WorkspaceConfigurationChangeEvent } from 'vs/workbench/services/configuration/common/configurationModels';
-import { StrictResourceMap } from 'vs/base/common/map';
-import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
+import { ResourceMap } from 'vs/base/common/map';
+import { ConfigurationScope, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
 import { isObject } from 'vs/base/common/types';
 
 declare var Proxy: any; // TODO@TypeScript
@@ -107,27 +107,31 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 						return isObject(target) ?
 							new Proxy(target, {
 								get: (target: any, property: string) => {
+									if (typeof property === 'string' && property.toLowerCase() === 'tojson') {
+										cloneTarget();
+										return () => clonedTarget;
+									}
 									if (clonedConfig) {
 										clonedTarget = clonedTarget ? clonedTarget : lookUp(clonedConfig, accessor);
 										return clonedTarget[property];
 									}
 									const result = target[property];
-									if (typeof property === 'string' && property.toLowerCase() !== 'tojson') {
+									if (typeof property === 'string') {
 										return cloneOnWriteProxy(result, `${accessor}.${property}`);
 									}
 									return result;
 								},
-								set: (target: any, property: string, value: any) => {
+								set: (_target: any, property: string, value: any) => {
 									cloneTarget();
 									clonedTarget[property] = value;
 									return true;
 								},
-								deleteProperty: (target: any, property: string) => {
+								deleteProperty: (_target: any, property: string) => {
 									cloneTarget();
 									delete clonedTarget[property];
 									return true;
 								},
-								defineProperty: (target: any, property: string, descriptor: any) => {
+								defineProperty: (_target: any, property: string, descriptor: any) => {
 									cloneTarget();
 									Object.defineProperty(clonedTarget, property, descriptor);
 									return true;
@@ -175,10 +179,10 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 			return isObject(target) ?
 				new Proxy(target, {
 					get: (target: any, property: string) => readonlyProxy(target[property]),
-					set: (target: any, property: string, value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
-					deleteProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
-					defineProperty: (target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
-					setPrototypeOf: (target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
+					set: (_target: any, property: string, _value: any) => { throw new Error(`TypeError: Cannot assign to read only property '${property}' of object`); },
+					deleteProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot delete read only property '${property}' of object`); },
+					defineProperty: (_target: any, property: string) => { throw new Error(`TypeError: Cannot define property '${property}' for a readonly object`); },
+					setPrototypeOf: (_target: any) => { throw new Error(`TypeError: Cannot set prototype for a readonly object`); },
 					isExtensible: () => false,
 					preventExtensions: () => true
 				}) : target;
@@ -187,7 +191,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 	}
 
 	private _validateConfigurationAccess(key: string, resource: URI, extensionId: string): void {
-		const scope = this._configurationScopes[key];
+		const scope = OVERRIDE_PROPERTY_PATTERN.test(key) ? ConfigurationScope.RESOURCE : this._configurationScopes[key];
 		const extensionIdText = extensionId ? `[${extensionId}] ` : '';
 		if (ConfigurationScope.RESOURCE === scope) {
 			if (resource === void 0) {
@@ -205,7 +209,7 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 
 	private _toConfigurationChangeEvent(data: IWorkspaceConfigurationChangeEventData): vscode.ConfigurationChangeEvent {
 		const changedConfiguration = new ConfigurationModel(data.changedConfiguration.contents, data.changedConfiguration.keys, data.changedConfiguration.overrides);
-		const changedConfigurationByResource: StrictResourceMap<ConfigurationModel> = new StrictResourceMap<ConfigurationModel>();
+		const changedConfigurationByResource: ResourceMap<ConfigurationModel> = new ResourceMap<ConfigurationModel>();
 		for (const key of Object.keys(data.changedConfigurationByResource)) {
 			const resource = URI.parse(key);
 			const model = data.changedConfigurationByResource[key];
@@ -221,11 +225,11 @@ export class ExtHostConfiguration implements ExtHostConfigurationShape {
 		const defaultConfiguration = ExtHostConfiguration.parseConfigurationModel(data.defaults);
 		const userConfiguration = ExtHostConfiguration.parseConfigurationModel(data.user);
 		const workspaceConfiguration = ExtHostConfiguration.parseConfigurationModel(data.workspace);
-		const folders: StrictResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
+		const folders: ResourceMap<ConfigurationModel> = Object.keys(data.folders).reduce((result, key) => {
 			result.set(URI.parse(key), ExtHostConfiguration.parseConfigurationModel(data.folders[key]));
 			return result;
-		}, new StrictResourceMap<ConfigurationModel>());
-		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new StrictResourceMap<ConfigurationModel>(), false);
+		}, new ResourceMap<ConfigurationModel>());
+		return new Configuration(defaultConfiguration, userConfiguration, workspaceConfiguration, folders, new ConfigurationModel(), new ResourceMap<ConfigurationModel>(), false);
 	}
 
 	private static parseConfigurationModel(model: IConfigurationModel): ConfigurationModel {

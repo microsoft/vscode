@@ -42,7 +42,7 @@ export class JSONValidationExtensionPoint {
 			for (let i = 0; i < extensions.length; i++) {
 				const extensionValue = <IJSONValidationExtensionPoint[]>extensions[i].value;
 				const collector = extensions[i].collector;
-				const extensionPath = extensions[i].description.extensionFolderPath;
+				const extensionLocation = extensions[i].description.extensionLocation;
 
 				if (!extensionValue || !Array.isArray(extensionValue)) {
 					collector.error(nls.localize('invalid.jsonValidation', "'configuration.jsonValidation' must be a array"));
@@ -60,7 +60,8 @@ export class JSONValidationExtensionPoint {
 					}
 					if (strings.startsWith(uri, './')) {
 						try {
-							uri = URI.file(paths.normalize(paths.join(extensionPath, uri))).toString();
+							//TODO@extensionLocation
+							uri = URI.file(paths.normalize(paths.join(extensionLocation.fsPath, uri))).toString();
 						} catch (e) {
 							collector.error(nls.localize('invalid.url.fileschema', "'configuration.jsonValidation.url' is an invalid relative URL: {0}", e.message));
 						}

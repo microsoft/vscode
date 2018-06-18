@@ -13,9 +13,26 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 
 export abstract class Memory {
 
-	abstract memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
+	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
+		if (items.length === 0) {
+			return 0;
+		}
+		let topScore = items[0].score;
+		for (let i = 1; i < items.length; i++) {
+			const { score, suggestion } = items[i];
+			if (score !== topScore) {
+				// stop when leaving the group of top matches
+				break;
+			}
+			if (suggestion.preselect) {
+				// stop when seeing an auto-select-item
+				return i;
+			}
+		}
+		return 0;
+	}
 
-	abstract select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number;
+	abstract memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void;
 
 	abstract toJSON(): object;
 
@@ -26,10 +43,6 @@ export class NoMemory extends Memory {
 
 	memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
 		// no-op
-	}
-
-	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
-		return 0;
 	}
 
 	toJSON() {
@@ -58,7 +71,7 @@ export class LRUMemory extends Memory {
 		this._cache.set(key, {
 			touch: this._seq++,
 			type: item.suggestion.type,
-			insertText: undefined
+			insertText: item.suggestion.insertText
 		});
 	}
 
@@ -66,21 +79,31 @@ export class LRUMemory extends Memory {
 		// in order of completions, select the first
 		// that has been used in the past
 		let { word } = model.getWordUntilPosition(pos);
+		if (word.length !== 0) {
+			return super.select(model, pos, items);
+		}
 
-		let res = 0;
+		let lineSuffix = model.getLineContent(pos.lineNumber).substr(pos.column - 10, pos.column - 1);
+		if (/\s$/.test(lineSuffix)) {
+			return super.select(model, pos, items);
+		}
+
+		let res = -1;
 		let seq = -1;
-		if (word.length === 0) {
-			for (let i = 0; i < items.length; i++) {
-				const { suggestion } = items[i];
-				const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
-				const item = this._cache.get(key);
-				if (item && item.touch > seq && item.type === suggestion.type) {
-					seq = item.touch;
-					res = i;
-				}
+		for (let i = 0; i < items.length; i++) {
+			const { suggestion } = items[i];
+			const key = `${model.getLanguageIdentifier().language}/${suggestion.label}`;
+			const item = this._cache.get(key);
+			if (item && item.touch > seq && item.type === suggestion.type && item.insertText === suggestion.insertText) {
+				seq = item.touch;
+				res = i;
 			}
 		}
-		return res;
+		if (res === -1) {
+			return super.select(model, pos, items);
+		} else {
+			return res;
+		}
 	}
 
 	toJSON(): object {
@@ -121,7 +144,7 @@ export class PrefixMemory extends Memory {
 	select(model: ITextModel, pos: IPosition, items: ICompletionItem[]): number {
 		let { word } = model.getWordUntilPosition(pos);
 		if (!word) {
-			return 0;
+			return super.select(model, pos, items);
 		}
 		let key = `${model.getLanguageIdentifier().language}/${word}`;
 		let item = this._trie.get(key);
@@ -136,7 +159,7 @@ export class PrefixMemory extends Memory {
 				}
 			}
 		}
-		return 0;
+		return super.select(model, pos, items);
 	}
 
 	toJSON(): object {

@@ -29,15 +29,6 @@ function canUseTranslate3d(): boolean {
 		return false;
 	}
 
-	// see https://github.com/Microsoft/vscode/issues/24483
-	if (browser.isChromev56) {
-		const pixelRatio = browser.getPixelRatio();
-		if (Math.floor(pixelRatio) !== pixelRatio) {
-			// Not an integer
-			return false;
-		}
-	}
-
 	return true;
 }
 
@@ -360,19 +351,22 @@ export class ListView<T> implements ISpliceable<T>, IDisposable {
 
 	private toMouseEvent(browserEvent: MouseEvent): IListMouseEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toTouchEvent(browserEvent: TouchEvent): IListTouchEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.target);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 
 	private toGestureEvent(browserEvent: GestureEvent): IListGestureEvent<T> {
 		const index = this.getItemIndexFromEventTarget(browserEvent.initialTarget);
-		const element = index < 0 ? undefined : this.items[index].element;
+		const item = index < 0 ? undefined : this.items[index];
+		const element = item && item.element;
 		return { browserEvent, index, element };
 	}
 

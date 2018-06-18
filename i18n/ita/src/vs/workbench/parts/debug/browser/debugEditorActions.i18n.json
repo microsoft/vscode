@@ -8,8 +8,11 @@
 	],
 	"toggleBreakpointAction": "Debug: Attiva/Disattiva punto di interruzione",
 	"conditionalBreakpointEditorAction": "Debug: Aggiungi Punto di interruzione condizionale...",
+	"logPointEditorAction": "Debug: Aggiungi punto di registrazione...",
 	"runToCursor": "Esegui fino al cursore",
 	"debugEvaluate": "Debug: Valuta",
 	"debugAddToWatch": "Debug: Aggiungi a espressione di controllo",
-	"showDebugHover": "Debug: Visualizza passaggio del mouse"
+	"showDebugHover": "Debug: Visualizza passaggio del mouse",
+	"goToNextBreakpoint": "Debug: Vai al punto di interruzione successivo",
+	"goToPreviousBreakpoint": "Debug: Vai al punto di interruzione precedente"
 }

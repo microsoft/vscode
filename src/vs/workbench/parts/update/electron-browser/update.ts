@@ -14,7 +14,6 @@ import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import pkg from 'vs/platform/node/package';
 import product from 'vs/platform/node/product';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IActivityService, NumberBadge, IBadge, ProgressBadge } from 'vs/workbench/services/activity/common/activity';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IGlobalActivity } from 'vs/workbench/common/activity';
@@ -25,18 +24,12 @@ import { IStorageService, StorageScope } from 'vs/platform/storage/common/storag
 import { IUpdateService, State as UpdateState, StateType, IUpdate } from 'vs/platform/update/common/update';
 import * as semver from 'semver';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, INotificationHandle } from 'vs/platform/notification/common/notification';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ReleaseNotesManager } from './releaseNotesEditor';
-
-const NotNowAction = new Action(
-	'update.later',
-	nls.localize('later', "Later"),
-	null,
-	true,
-	() => TPromise.as(true)
-);
+import { isWindows } from 'vs/base/common/platform';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 let releaseNotesManager: ReleaseNotesManager | undefined = undefined;
 
@@ -120,29 +113,34 @@ export class ProductContribution implements IWorkbenchContribution {
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@INotificationService notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEnvironmentService environmentService: IEnvironmentService
+		@IEnvironmentService environmentService: IEnvironmentService,
+		@IOpenerService openerService: IOpenerService,
+		@IConfigurationService configurationService: IConfigurationService
 	) {
 		const lastVersion = storageService.get(ProductContribution.KEY, StorageScope.GLOBAL, '');
+		const shouldShowReleaseNotes = configurationService.getValue<boolean>('update.showReleaseNotes');
 
 		// was there an update? if so, open release notes
-		if (!environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
-			showReleaseNotes(instantiationService, lastVersion)
+		if (shouldShowReleaseNotes && !environmentService.skipReleaseNotes && product.releaseNotesUrl && lastVersion && pkg.version !== lastVersion) {
+			showReleaseNotes(instantiationService, pkg.version)
 				.then(undefined, () => {
-					notificationService.notify({
-						severity: severity.Info,
-						message: nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
-						actions: { primary: [instantiationService.createInstance(OpenLatestReleaseNotesInBrowserAction)] }
-					});
+					notificationService.prompt(
+						severity.Info,
+						nls.localize('read the release notes', "Welcome to {0} v{1}! Would you like to read the Release Notes?", product.nameLong, pkg.version),
+						[{
+							label: nls.localize('releaseNotes', "Release Notes"),
+							run: () => {
+								const uri = URI.parse(product.releaseNotesUrl);
+								openerService.open(uri);
+							}
+						}]
+					);
 				});
 		}
 
 		// should we show the new license?
 		if (product.licenseUrl && lastVersion && semver.satisfies(lastVersion, '<1.0.0') && semver.satisfies(pkg.version, '>=1.0.0')) {
-			notificationService.notify({
-				severity: severity.Info,
-				message: nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl),
-			});
+			notificationService.info(nls.localize('licenseChanged', "Our license terms have changed, please click [here]({0}) to go through them.", product.licenseUrl));
 		}
 
 		storageService.store(ProductContribution.KEY, pkg.version, StorageScope.GLOBAL);
@@ -153,10 +151,10 @@ class NeverShowAgain {
 
 	private readonly key: string;
 
-	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: IDisposable) => {
+	readonly action = new Action(`neverShowAgain:${this.key}`, nls.localize('neveragain', "Don't Show Again"), undefined, true, (notification: INotificationHandle) => {
 
 		// Hide notification
-		notification.dispose();
+		notification.close();
 
 		return TPromise.wrap(this.storageService.store(this.key, true, StorageScope.GLOBAL));
 	});
@@ -179,8 +177,7 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 	constructor(
 		@IStorageService storageService: IStorageService,
 		@IInstantiationService instantiationService: IInstantiationService,
-		@INotificationService private notificationService: INotificationService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService
 	) {
 		if (environmentService.disableUpdates) {
@@ -197,11 +194,18 @@ export class Win3264BitContribution implements IWorkbenchContribution {
 			? Win3264BitContribution.INSIDER_URL
 			: Win3264BitContribution.URL;
 
-		this.notificationService.notify({
-			severity: severity.Info,
-			message: nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
-			actions: { secondary: [neverShowAgain.action] }
-		});
+		const handle = notificationService.prompt(
+			severity.Info,
+			nls.localize('64bitisavailable', "{0} for 64-bit Windows is now available! Click [here]({1}) to learn more.", product.nameShort, url),
+			[{
+				label: nls.localize('neveragain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					neverShowAgain.action.run(handle);
+					neverShowAgain.action.dispose();
+				}
+			}]
+		);
 	}
 }
 
@@ -219,7 +223,7 @@ class CommandAction extends Action {
 export class UpdateContribution implements IGlobalActivity {
 
 	private static readonly showCommandsId = 'workbench.action.showCommands';
-	private static readonly openSettingsId = 'workbench.action.openGlobalSettings';
+	private static readonly openSettingsId = 'workbench.action.openSettings';
 	private static readonly openKeybindingsId = 'workbench.action.openGlobalKeybindings';
 	private static readonly openUserSnippets = 'workbench.action.openSnippets';
 	private static readonly selectColorThemeId = 'workbench.action.selectTheme';
@@ -241,7 +245,6 @@ export class UpdateContribution implements IGlobalActivity {
 		@INotificationService private notificationService: INotificationService,
 		@IDialogService private dialogService: IDialogService,
 		@IUpdateService private updateService: IUpdateService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
 		@IActivityService private activityService: IActivityService,
 		@IWindowService private windowService: IWindowService
 	) {
@@ -326,15 +329,24 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-		const downloadAction = new Action('update.downloadNow', nls.localize('download now', "Download Now"), null, true, () =>
-			this.updateService.downloadUpdate());
-
-		this.notificationService.notify({
-			severity: severity.Info,
-			message: nls.localize('thereIsUpdateAvailable', "There is an available update."),
-			actions: { primary: [downloadAction, NotNowAction, releaseNotesAction] }
-		});
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('thereIsUpdateAvailable', "There is an available update."),
+			[{
+				label: nls.localize('download now', "Download Now"),
+				run: () => this.updateService.downloadUpdate()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}, {
+				label: nls.localize('releaseNotes', "Release Notes"),
+				run: () => {
+					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
+					action.run();
+					action.dispose();
+				}
+			}]
+		);
 	}
 
 	// windows fast updates
@@ -343,15 +355,24 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-		const installUpdateAction = new Action('update.applyUpdate', nls.localize('installUpdate', "Install Update"), undefined, true, () =>
-			this.updateService.applyUpdate());
-
-		this.notificationService.notify({
-			severity: severity.Info,
-			message: nls.localize('updateAvailable', "There's an available update: {0} {1}", product.nameLong, update.productVersion),
-			actions: { primary: [installUpdateAction, NotNowAction, releaseNotesAction] }
-		});
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateAvailable', "There's an update available: {0} {1}", product.nameLong, update.productVersion),
+			[{
+				label: nls.localize('installUpdate', "Install Update"),
+				run: () => this.updateService.applyUpdate()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}, {
+				label: nls.localize('releaseNotes', "Release Notes"),
+				run: () => {
+					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
+					action.run();
+					action.dispose();
+				}
+			}]
+		);
 	}
 
 	// windows fast updates
@@ -362,28 +383,44 @@ export class UpdateContribution implements IGlobalActivity {
 			return;
 		}
 
-		this.notificationService.notify({
-			severity: severity.Info,
-			message: nls.localize('updateInstalling', "{0} {1} is being installed in the background, we'll let you know when it's done.", product.nameLong, update.productVersion),
-			actions: { secondary: [neverShowAgain.action] }
-		});
+		const handle = this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateInstalling', "{0} {1} is being installed in the background; we'll let you know when it's done.", product.nameLong, update.productVersion),
+			[{
+				label: nls.localize('neveragain', "Don't Show Again"),
+				isSecondary: true,
+				run: () => {
+					neverShowAgain.action.run(handle);
+					neverShowAgain.action.dispose();
+				}
+			}]
+		);
 	}
 
 	// windows and mac
 	private onUpdateReady(update: IUpdate): void {
-		if (!this.shouldShowNotification()) {
+		if (!isWindows && !this.shouldShowNotification()) {
 			return;
 		}
 
-		const releaseNotesAction = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
-		const applyUpdateAction = new Action('update.applyUpdate', nls.localize('updateNow', "Update Now"), undefined, true, () =>
-			this.updateService.quitAndInstall());
-
-		this.notificationService.notify({
-			severity: severity.Info,
-			message: nls.localize('updateAvailableAfterRestart', "{0} will be updated after it restarts.", product.nameLong),
-			actions: { primary: [applyUpdateAction, NotNowAction, releaseNotesAction] }
-		});
+		this.notificationService.prompt(
+			severity.Info,
+			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),
+			[{
+				label: nls.localize('updateNow', "Update Now"),
+				run: () => this.updateService.quitAndInstall()
+			}, {
+				label: nls.localize('later', "Later"),
+				run: () => { }
+			}, {
+				label: nls.localize('releaseNotes', "Release Notes"),
+				run: () => {
+					const action = this.instantiationService.createInstance(ShowReleaseNotesAction, update.productVersion);
+					action.run();
+					action.dispose();
+				}
+			}]
+		);
 	}
 
 	private shouldShowNotification(): boolean {

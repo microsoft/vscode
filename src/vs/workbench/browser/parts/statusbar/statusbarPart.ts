@@ -10,17 +10,16 @@ import * as nls from 'vs/nls';
 import { toErrorMessage } from 'vs/base/common/errorMessage';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { Builder, $ } from 'vs/base/browser/builder';
+import { $ } from 'vs/base/browser/builder';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { Part } from 'vs/workbench/browser/part';
 import { StatusbarAlignment, IStatusbarRegistry, Extensions, IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IStatusbarService, IStatusbarEntry } from 'vs/platform/statusbar/common/statusbar';
-import { getCodeEditor } from 'vs/editor/browser/services/codeEditorService';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { Action } from 'vs/base/common/actions';
 import { IThemeService, registerThemingParticipant, ITheme, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
@@ -39,7 +38,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private static readonly PRIORITY_PROP = 'priority';
 	private static readonly ALIGNMENT_PROP = 'alignment';
 
-	private statusItemsContainer: Builder;
+	private statusItemsContainer: HTMLElement;
 	private statusMsgDispose: IDisposable;
 
 	private styleElement: HTMLStyleElement;
@@ -67,7 +66,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		const toDispose = item.render(el);
 
 		// Insert according to priority
-		const container = this.statusItemsContainer.getHTMLElement();
+		const container = this.statusItemsContainer;
 		const neighbours = this.getEntries(alignment);
 		let inserted = false;
 		for (let i = 0; i < neighbours.length; i++) {
@@ -101,7 +100,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	private getEntries(alignment: StatusbarAlignment): HTMLElement[] {
 		const entries: HTMLElement[] = [];
 
-		const container = this.statusItemsContainer.getHTMLElement();
+		const container = this.statusItemsContainer;
 		const children = container.children;
 		for (let i = 0; i < children.length; i++) {
 			const childElement = <HTMLElement>children.item(i);
@@ -113,8 +112,8 @@ export class StatusbarPart extends Part implements IStatusbarService {
 		return entries;
 	}
 
-	public createContentArea(parent: Builder): Builder {
-		this.statusItemsContainer = $(parent);
+	public createContentArea(parent: HTMLElement): HTMLElement {
+		this.statusItemsContainer = parent;
 
 		// Fill in initial items that were contributed from the registry
 		const registry = Registry.as<IStatusbarRegistry>(Extensions.Statusbar);
@@ -129,7 +128,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 			const el = this.doCreateStatusItem(descriptor.alignment, descriptor.priority);
 
 			const dispose = item.render(el);
-			this.statusItemsContainer.append(el);
+			this.statusItemsContainer.appendChild(el);
 
 			return dispose;
 		}));
@@ -140,7 +139,7 @@ export class StatusbarPart extends Part implements IStatusbarService {
 	protected updateStyles(): void {
 		super.updateStyles();
 
-		const container = this.getContainer();
+		const container = $(this.getContainer());
 
 		// Background colors
 		const backgroundColor = this.getColor(this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY ? STATUS_BAR_BACKGROUND : STATUS_BAR_NO_FOLDER_BACKGROUND);
@@ -229,7 +228,7 @@ class StatusBarEntryItem implements IStatusbarItem {
 		@INotificationService private notificationService: INotificationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IContextMenuService private contextMenuService: IContextMenuService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IThemeService private themeService: IThemeService
 	) {
 		this.entry = entry;
@@ -301,10 +300,9 @@ class StatusBarEntryItem implements IStatusbarItem {
 		args = args || [];
 
 		// Maintain old behaviour of always focusing the editor here
-		const activeEditor = this.editorService.getActiveEditor();
-		const codeEditor = getCodeEditor(activeEditor);
-		if (codeEditor) {
-			codeEditor.focus();
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
+		if (activeTextEditorWidget) {
+			activeTextEditorWidget.focus();
 		}
 
 		/* __GDPR__

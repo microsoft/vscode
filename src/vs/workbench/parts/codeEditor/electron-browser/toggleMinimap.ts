@@ -5,28 +5,30 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import { registerEditorAction, ServicesAccessor, EditorAction } from 'vs/editor/browser/editorExtensions';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { Registry } from 'vs/platform/registry/common/platform';
+import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
+import { Action } from 'vs/base/common/actions';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 
-export class ToggleMinimapAction extends EditorAction {
+export class ToggleMinimapAction extends Action {
+	public static readonly ID = 'editor.action.toggleMinimap';
+	public static readonly LABEL = nls.localize('toggleMinimap', "View: Toggle Minimap");
 
-	constructor() {
-		super({
-			id: 'editor.action.toggleMinimap',
-			label: nls.localize('toggleMinimap', "View: Toggle Minimap"),
-			alias: 'View: Toggle Minimap',
-			precondition: null
-		});
+	constructor(
+		id: string,
+		label: string,
+		@IConfigurationService private readonly _configurationService: IConfigurationService
+	) {
+		super(id, label);
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-		const configurationService = accessor.get(IConfigurationService);
-
-		const newValue = !editor.getConfiguration().viewInfo.minimap.enabled;
-
-		configurationService.updateValue('editor.minimap.enabled', newValue, ConfigurationTarget.USER);
+	public run(): TPromise<any> {
+		const newValue = !this._configurationService.getValue<boolean>('editor.minimap.enabled');
+		return this._configurationService.updateValue('editor.minimap.enabled', newValue, ConfigurationTarget.USER);
 	}
 }
 
-registerEditorAction(ToggleMinimapAction);
+const registry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleMinimapAction, ToggleMinimapAction.ID, ToggleMinimapAction.LABEL), 'View: Toggle Minimap');

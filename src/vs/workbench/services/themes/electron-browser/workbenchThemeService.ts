@@ -20,10 +20,7 @@ import { ColorThemeData } from './colorThemeData';
 import { ITheme, Extensions as ThemingExtensions, IThemingRegistry } from 'vs/platform/theme/common/themeService';
 import { editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { Color } from 'vs/base/common/color';
-
-import { $ } from 'vs/base/browser/builder';
 import { Event, Emitter } from 'vs/base/common/event';
-
 import * as colorThemeSchema from 'vs/workbench/services/themes/common/colorThemeSchema';
 import * as fileIconThemeSchema from 'vs/workbench/services/themes/common/fileIconThemeSchema';
 import { IDisposable } from 'vs/base/common/lifecycle';
@@ -32,6 +29,9 @@ import { ColorThemeStore } from 'vs/workbench/services/themes/electron-browser/c
 import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browser/fileIconThemeStore';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { removeClasses, addClasses } from 'vs/base/browser/dom';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 
 // implementation
 
@@ -71,6 +71,8 @@ export interface IColorCustomizations {
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
+	private fileService: IFileService;
+
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
@@ -99,7 +101,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 
 		this.container = container;
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
@@ -179,6 +183,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
+	}
+
+	acquireFileService(fileService: IFileService): void {
+		this.fileService = fileService;
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -277,7 +285,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return themeData.ensureLoaded(this).then(_ => {
+				return themeData.ensureLoaded(this.fileService).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
@@ -290,7 +298,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message)));
+					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location, error.message)));
 				});
 			}
 			return null;
@@ -308,18 +316,18 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
+		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
 	private applyTheme(newTheme: ColorThemeData, settingsTarget: ConfigurationTarget, silent = false): TPromise<IColorTheme> {
 		if (this.container) {
 			if (this.currentColorTheme) {
-				$(this.container).removeClass(this.currentColorTheme.id);
+				removeClasses(this.container, this.currentColorTheme.id);
 			} else {
-				$(this.container).removeClass(VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
+				removeClasses(this.container, VS_DARK_THEME, VS_LIGHT_THEME, VS_HC_THEME);
 			}
-			$(this.container).addClass(newTheme.id);
+			addClasses(this.container, newTheme.id);
 		}
 		this.currentColorTheme = newTheme;
 		if (!this.themingParticipantChangeListener) {
@@ -362,7 +370,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 						"id" : { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"name": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" },
 						"isBuiltin": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-						"publisherDisplayName": { "classification": "PublicPersonalData", "purpose": "FeatureInsight" },
+						"publisherDisplayName": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 						"themeId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
 					}
 				*/
@@ -404,7 +412,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!iconThemeData) {
 				iconThemeData = FileIconThemeData.noIconTheme();
 			}
-			return iconThemeData.ensureLoaded(this).then(_ => {
+			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
 		});
@@ -415,9 +423,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		if (this.container) {
 			if (iconThemeData.id) {
-				$(this.container).addClass(fileIconsEnabledClass);
+				addClasses(this.container, fileIconsEnabledClass);
 			} else {
-				$(this.container).removeClass(fileIconsEnabledClass);
+				removeClasses(this.container, fileIconsEnabledClass);
 			}
 		}
 		if (iconThemeData.id) {

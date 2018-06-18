@@ -13,7 +13,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Token } from 'vs/editor/common/core/token';
 import URI from 'vs/base/common/uri';
-import { MarkerSeverity } from 'vs/platform/markers/common/markers';
 
 // --------------------------------------------
 // This is repeated here so it can be exported
@@ -24,6 +23,17 @@ export enum Severity {
 	Info = 1,
 	Warning = 2,
 	Error = 3,
+}
+
+export enum MarkerTag {
+	Unnecessary = 1,
+}
+
+export enum MarkerSeverity {
+	Hint = 1,
+	Info = 2,
+	Warning = 4,
+	Error = 8,
 }
 
 // --------------------------------------------
@@ -240,6 +250,7 @@ export function createMonacoBaseAPI(): typeof monaco {
 		SelectionDirection: SelectionDirection,
 		Severity: Severity,
 		MarkerSeverity: MarkerSeverity,
+		MarkerTag: MarkerTag,
 		Promise: TPromise,
 		Uri: <any>URI,
 		Token: Token

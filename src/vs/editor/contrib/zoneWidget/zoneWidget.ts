@@ -9,7 +9,7 @@ import 'vs/css!./zoneWidget';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as dom from 'vs/base/browser/dom';
-import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent } from 'vs/base/browser/ui/sash/sash';
+import { Sash, Orientation, IHorizontalSashLayoutProvider, ISashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Range, IRange } from 'vs/editor/common/core/range';
 import { ICodeEditor, IOverlayWidget, IOverlayWidgetPosition, IViewZone, IViewZoneChangeAccessor } from 'vs/editor/browser/editorBrowser';
 import { Color, RGBA } from 'vs/base/common/color';
@@ -210,6 +210,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 		}
 
 		this.editor.deltaDecorations(this._positionMarkerId, []);
+		this._positionMarkerId = [];
 	}
 
 	public create(): void {
@@ -280,10 +281,14 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 	public get position(): Position {
 		const [id] = this._positionMarkerId;
-		if (id) {
-			return this.editor.getModel().getDecorationRange(id).getStartPosition();
+		if (!id) {
+			return undefined;
 		}
-		return undefined;
+		const range = this.editor.getModel().getDecorationRange(id);
+		if (!range) {
+			return undefined;
+		}
+		return range.getStartPosition();
 	}
 
 	protected _isShowing: boolean = false;
@@ -454,7 +459,7 @@ export abstract class ZoneWidget implements IHorizontalSashLayoutProvider {
 
 		if (!this.options.isResizeable) {
 			this._resizeSash.hide();
-			this._resizeSash.disable();
+			this._resizeSash.state = SashState.Disabled;
 		}
 
 		let data: { startY: number; heightInLines: number; };

@@ -8,10 +8,10 @@
 import * as assert from 'assert';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { Promise, TPromise } from 'vs/base/common/winjs.base';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IEditorControl } from 'vs/workbench/common/editor';
 import { Viewlet, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
-import { WorkbenchProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
+import { ScopedProgressService, ScopedService } from 'vs/workbench/services/progress/browser/progressService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
@@ -22,10 +22,12 @@ let activeViewlet: Viewlet = {} as any;
 class TestViewletService implements IViewletService {
 	public _serviceBrand: any;
 
+	onDidViewletRegisterEmitter = new Emitter<ViewletDescriptor>();
 	onDidViewletOpenEmitter = new Emitter<IViewlet>();
 	onDidViewletCloseEmitter = new Emitter<IViewlet>();
 	onDidViewletEnableEmitter = new Emitter<{ id: string, enabled: boolean }>();
 
+	onDidViewletRegister = this.onDidViewletRegisterEmitter.event;
 	onDidViewletOpen = this.onDidViewletOpenEmitter.event;
 	onDidViewletClose = this.onDidViewletCloseEmitter.event;
 	onDidViewletEnablementChange = this.onDidViewletEnableEmitter.event;
@@ -212,11 +214,12 @@ class TestProgressBar {
 		return this.done();
 	}
 
-	public getContainer() {
-		return {
-			show: function () { },
-			hide: function () { }
-		};
+	public show(): void {
+
+	}
+
+	public hide(): void {
+
 	}
 }
 
@@ -241,7 +244,7 @@ suite('Progress Service', () => {
 		let testProgressBar = new TestProgressBar();
 		let viewletService = new TestViewletService();
 		let panelService = new TestPanelService();
-		let service = new WorkbenchProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
+		let service = new ScopedProgressService((<any>testProgressBar), 'test.scopeId', true, viewletService, panelService);
 
 		// Active: Show (Infinite)
 		let fn = service.show(true);

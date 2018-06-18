@@ -37,7 +37,7 @@ function canSyncModel(modelService: IModelService, resource: URI): boolean {
 	if (!model) {
 		return false;
 	}
-	if (model.isTooLargeForTokenization()) {
+	if (model.isTooLargeForSyncing()) {
 		return false;
 	}
 	return true;
@@ -265,7 +265,7 @@ class EditorModelManager extends Disposable {
 		if (!model) {
 			return;
 		}
-		if (model.isTooLargeForTokenization()) {
+		if (model.isTooLargeForSyncing()) {
 			return;
 		}
 
@@ -351,7 +351,7 @@ export class EditorWorkerClient extends Disposable {
 				));
 			} catch (err) {
 				logOnceWebWorkerWarning(err);
-				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+				this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			}
 		}
 		return this._worker;
@@ -360,7 +360,7 @@ export class EditorWorkerClient extends Disposable {
 	protected _getProxy(): TPromise<EditorSimpleWorkerImpl> {
 		return new ShallowCancelThenPromise(this._getOrCreateWorker().getProxyObject().then(null, (err) => {
 			logOnceWebWorkerWarning(err);
-			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl());
+			this._worker = new SynchronousWorkerClient(new EditorSimpleWorkerImpl(null));
 			return this._getOrCreateWorker().getProxyObject();
 		}));
 	}

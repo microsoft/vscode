@@ -5,9 +5,7 @@
 
 'use strict';
 
-import { spawn, exec } from 'child_process';
-import * as path from 'path';
-import * as nls from 'vs/nls';
+import { exec } from 'child_process';
 import URI from 'vs/base/common/uri';
 
 export interface ProcessItem {
@@ -121,32 +119,6 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 
 		if (process.platform === 'win32') {
 
-			console.log(nls.localize('collecting', 'Collecting CPU and memory information. This might take a couple of seconds.'));
-
-			interface ProcessInfo {
-				type: 'processInfo';
-				name: string;
-				processId: number;
-				parentProcessId: number;
-				commandLine: string;
-				handles: number;
-				cpuLoad: number[];
-				workingSetSize: number;
-			}
-
-			interface TopProcess {
-				type: 'topProcess';
-				name: string;
-				processId: number;
-				parentProcessId: number;
-				commandLine: string;
-				handles: number;
-				cpuLoad: number[];
-				workingSetSize: number;
-			}
-
-			type Item = ProcessInfo | TopProcess;
-
 			const cleanUNCPrefix = (value: string): string => {
 				if (value.indexOf('\\\\?\\') === 0) {
 					return value.substr(4);
@@ -161,75 +133,45 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 				}
 			};
 
-			const execMain = path.basename(process.execPath);
-			const script = URI.parse(require.toUrl('vs/base/node/ps-win.ps1')).fsPath;
-			const commandLine = `& {& '${script}' -ProcessName '${execMain}' -MaxSamples 3}`;
-			const cmd = spawn('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', commandLine]);
-
-			let stdout = '';
-			let stderr = '';
-			cmd.stdout.on('data', data => {
-				stdout += data.toString();
-			});
-
-			cmd.stderr.on('data', data => {
-				stderr += data.toString();
-			});
-
-			cmd.on('exit', () => {
-				if (stderr.length > 0) {
-					reject(new Error(stderr));
-					return;
-				}
-				let processItems: Map<number, ProcessItem> = new Map();
-				try {
-					const items: Item[] = JSON.parse(stdout);
-					for (const item of items) {
-						if (item.type === 'processInfo') {
-							let load = 0;
-							if (item.cpuLoad) {
-								for (let value of item.cpuLoad) {
-									load += value;
-								}
-								load = load / item.cpuLoad.length;
-							} else {
-								load = -1;
-							}
-							let commandLine = cleanUNCPrefix(item.commandLine);
-							processItems.set(item.processId, {
+			(import('windows-process-tree')).then(windowsProcessTree => {
+				windowsProcessTree.getProcessList(rootPid, (processList) => {
+					windowsProcessTree.getProcessCpuUsage(processList, (completeProcessList) => {
+						const processItems: Map<number, ProcessItem> = new Map();
+						completeProcessList.forEach(process => {
+							const commandLine = cleanUNCPrefix(process.commandLine);
+							processItems.set(process.pid, {
 								name: findName(commandLine),
 								cmd: commandLine,
-								pid: item.processId,
-								ppid: item.parentProcessId,
-								load: load,
-								mem: item.workingSetSize
+								pid: process.pid,
+								ppid: process.ppid,
+								load: process.cpu,
+								mem: process.memory
 							});
-						}
-					}
-					rootItem = processItems.get(rootPid);
-					if (rootItem) {
-						processItems.forEach(item => {
-							let parent = processItems.get(item.ppid);
-							if (parent) {
-								if (!parent.children) {
-									parent.children = [];
+						});
+
+						rootItem = processItems.get(rootPid);
+						if (rootItem) {
+							processItems.forEach(item => {
+								let parent = processItems.get(item.ppid);
+								if (parent) {
+									if (!parent.children) {
+										parent.children = [];
+									}
+									parent.children.push(item);
 								}
-								parent.children.push(item);
-							}
-						});
-						processItems.forEach(item => {
-							if (item.children) {
-								item.children = item.children.sort((a, b) => a.pid - b.pid);
-							}
-						});
-						resolve(rootItem);
-					} else {
-						reject(new Error(`Root process ${rootPid} not found`));
-					}
-				} catch (error) {
-					console.log(stdout);
-					reject(error);
-				}
+							});
+
+							processItems.forEach(item => {
+								if (item.children) {
+									item.children = item.children.sort((a, b) => a.pid - b.pid);
+								}
+							});
+							resolve(rootItem);
+						} else {
+							reject(new Error(`Root process ${rootPid} not found`));
+						}
+					});
+				}, windowsProcessTree.ProcessDataFlag.CommandLine | windowsProcessTree.ProcessDataFlag.Memory);
 			});
 		} else {	// OS X & Linux
 
@@ -250,7 +192,40 @@ export function listProcesses(rootPid: number): Promise<ProcessItem> {
 						}
 					}
 
-					resolve(rootItem);
+					if (process.platform === 'linux') {
+						// Flatten rootItem to get a list of all VSCode processes
+						let processes = [rootItem];
+						const pids = [];
+						while (processes.length) {
+							const process = processes.shift();
+							pids.push(process.pid);
+							if (process.children) {
+								processes = processes.concat(process.children);
+							}
+						}
+
+						// The cpu usage value reported on Linux is the average over the process lifetime,
+						// recalculate the usage over a one second interval
+						let cmd = URI.parse(require.toUrl('vs/base/node/cpuUsage.sh')).fsPath;
+						cmd += ' ' + pids.join(' ');
+
+						exec(cmd, {}, (err, stdout, stderr) => {
+							if (err || stderr) {
+								reject(err || stderr.toString());
+							} else {
+								const cpuUsage = stdout.toString().split('\n');
+								for (let i = 0; i < pids.length; i++) {
+									const processInfo = map.get(pids[i]);
+									processInfo.load = parseFloat(cpuUsage[i]);
+								}
+
+								resolve(rootItem);
+							}
+						});
+					} else {
+						resolve(rootItem);
+					}
+
 				}
 			});
 		}

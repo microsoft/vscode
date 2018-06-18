@@ -82,4 +82,18 @@ suite('CancellationToken', function () {
 		token = source.token;
 		assert.ok(token === source.token); // doesn't change on get
 	});
+
+	test('dispose calls no listeners', function () {
+
+		let count = 0;
+
+		let source = new CancellationTokenSource();
+		source.token.onCancellationRequested(function () {
+			count += 1;
+		});
+
+		source.dispose();
+		source.cancel();
+		assert.equal(count, 0);
+	});
 });

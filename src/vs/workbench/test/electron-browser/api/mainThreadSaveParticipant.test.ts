@@ -127,7 +127,7 @@ suite('MainThreadSaveParticipant', function () {
 			let lineContent = `${textContent}`;
 			model.textEditorModel.setValue(lineContent);
 			// apply edits and push to undo stack.
-			let textEdits = [{ identifier: null, range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
+			let textEdits = [{ range: new Range(1, 14, 1, 14), text: '.', forceMoveMarkers: false }];
 			model.textEditorModel.pushEditOperations([new Selection(1, 14, 1, 14)], textEdits, () => { return [new Selection(1, 15, 1, 15)]; });
 			// undo
 			model.textEditorModel.undo();
@@ -139,4 +139,31 @@ suite('MainThreadSaveParticipant', function () {
 		});
 	});
 
+	test('trim final new lines bug#46075', function () {
+		const model: TextFileEditorModel = instantiationService.createInstance(TextFileEditorModel, toResource.call(this, '/path/trim_final_new_line.txt'), 'utf8');
+
+		return model.load().then(() => {
+			const configService = new TestConfigurationService();
+			configService.setUserConfiguration('files', { 'trimFinalNewlines': true });
+
+			const participant = new TrimFinalNewLinesParticipant(configService, undefined);
+
+			const textContent = 'Test';
+			const eol = `${model.textEditorModel.getEOL()}`;
+
+			let content = `${textContent}${eol}${eol}`;
+			model.textEditorModel.setValue(content);
+			// save many times
+			for (let i = 0; i < 10; i++) {
+				participant.participate(model, { reason: SaveReason.EXPLICIT });
+			}
+			// confirm trimming
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+			// undo should go back to previous content immediately
+			model.textEditorModel.undo();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}${eol}`);
+			model.textEditorModel.redo();
+			assert.equal(snapshotToString(model.createSnapshot()), `${textContent}${eol}`);
+		});
+	});
 });

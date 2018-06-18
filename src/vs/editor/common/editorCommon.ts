@@ -150,12 +150,16 @@ export interface ILineChange extends IChange {
 /**
  * @internal
  */
-export interface IConfiguration {
+export interface IConfiguration extends IDisposable {
 	onDidChange(listener: (e: editorOptions.IConfigurationChangedEvent) => void): IDisposable;
 
 	readonly editor: editorOptions.InternalEditorOptions;
 
 	setMaxLineNumber(maxLineNumber: number): void;
+	updateOptions(newOptions: editorOptions.IEditorOptions): void;
+	getRawOptions(): editorOptions.IEditorOptions;
+	observeReferenceElement(dimension?: IDimension): void;
+	setIsDominatedByLongLines(isDominatedByLongLines: boolean): void;
 }
 
 // --- view
@@ -199,9 +203,13 @@ export interface ICursorState {
  * A (serializable) state of the view.
  */
 export interface IViewState {
-	scrollTop: number;
-	scrollTopWithoutViewZones: number;
+	/** written by previous versions */
+	scrollTop?: number;
+	/** written by previous versions */
+	scrollTopWithoutViewZones?: number;
 	scrollLeft: number;
+	firstPosition: IPosition;
+	firstPositionDeltaTop: number;
 }
 /**
  * A (serializable) state of the code editor.
@@ -283,9 +291,9 @@ export interface IEditor {
 	focus(): void;
 
 	/**
-	 * Returns true if this editor has keyboard focus (e.g. cursor is blinking).
+	 * Returns true if the text inside this editor is focused (i.e. cursor is blinking).
 	 */
-	isFocused(): boolean;
+	hasTextFocus(): boolean;
 
 	/**
 	 * Returns all actions associated with this editor.
@@ -454,6 +462,29 @@ export interface IEditor {
 }
 
 /**
+ * A diff editor.
+ *
+ * @internal
+ */
+export interface IDiffEditor extends IEditor {
+
+	/**
+	 * Type the getModel() of IEditor.
+	 */
+	getModel(): IDiffEditorModel;
+
+	/**
+	 * Get the `original` editor.
+	 */
+	getOriginalEditor(): IEditor;
+
+	/**
+	 * Get the `modified` editor.
+	 */
+	getModifiedEditor(): IEditor;
+}
+
+/**
  * An editor contribution that gets created every time a new editor gets created and gets disposed when the editor gets disposed.
  */
 export interface IEditorContribution {
@@ -505,6 +536,7 @@ export interface IThemeDecorationRenderOptions {
 	textDecoration?: string;
 	cursor?: string;
 	color?: string | ThemeColor;
+	opacity?: number;
 	letterSpacing?: string;
 
 	gutterIconPath?: string | UriComponents;

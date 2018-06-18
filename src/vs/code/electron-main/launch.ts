@@ -18,6 +18,8 @@ import { whenDeleted } from 'vs/base/node/pfs';
 import { IWorkspacesMainService } from 'vs/platform/workspaces/common/workspaces';
 import { Schemas } from 'vs/base/common/network';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import URI from 'vs/base/common/uri';
+import { BrowserWindow } from 'electron';
 
 export const ID = 'launchService';
 export const ILaunchService = createDecorator<ILaunchService>(ID);
@@ -37,6 +39,24 @@ export interface IMainProcessInfo {
 	mainPID: number;
 	mainArguments: string[];
 	windows: IWindowInfo[];
+}
+
+function parseOpenUrl(args: ParsedArgs): URI[] {
+	if (args['open-url'] && args._urls && args._urls.length > 0) {
+		// --open-url must contain -- followed by the url(s)
+		// process.argv is used over args._ as args._ are resolved to file paths at this point
+		return args._urls
+			.map(url => {
+				try {
+					return URI.parse(url);
+				} catch (err) {
+					return null;
+				}
+			})
+			.filter(uri => !!uri);
+	}
+
+	return [];
 }
 
 export interface ILaunchService {
@@ -118,25 +138,30 @@ export class LaunchService implements ILaunchService {
 	public start(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
 		this.logService.trace('Received data from other instance: ', args, userEnv);
 
+		const urlsToOpen = parseOpenUrl(args);
+
 		// Check early for open-url which is handled in URL service
-		if (this.shouldOpenUrl(args)) {
+		if (urlsToOpen.length) {
+			let whenWindowReady = TPromise.as<any>(null);
+
+			// Create a window if there is none
+			if (this.windowsMainService.getWindowCount() === 0) {
+				const window = this.windowsMainService.openNewWindow(OpenContext.DESKTOP)[0];
+				whenWindowReady = window.ready();
+			}
+
+			// Make sure a window is open, ready to receive the url event
+			whenWindowReady.then(() => {
+				for (const url of urlsToOpen) {
+					this.urlService.open(url);
+				}
+			});
+
 			return TPromise.as(null);
 		}
 
 		// Otherwise handle in windows service
 		return this.startOpenWindow(args, userEnv);
-	}
-
-	private shouldOpenUrl(args: ParsedArgs): boolean {
-		if (args['open-url'] && args._urls && args._urls.length > 0) {
-			// --open-url must contain -- followed by the url(s)
-			// process.argv is used over args._ as args._ are resolved to file paths at this point
-			args._urls.forEach(url => this.urlService.open(url));
-
-			return true;
-		}
-
-		return false;
 	}
 
 	private startOpenWindow(args: ParsedArgs, userEnv: IProcessEnvironment): TPromise<void> {
@@ -221,12 +246,20 @@ export class LaunchService implements ILaunchService {
 	public getMainProcessInfo(): TPromise<IMainProcessInfo> {
 		this.logService.trace('Received request for main process info from other instance.');
 
+		const windows: IWindowInfo[] = [];
+		BrowserWindow.getAllWindows().forEach(window => {
+			const codeWindow = this.windowsMainService.getWindowById(window.id);
+			if (codeWindow) {
+				windows.push(this.codeWindowToInfo(codeWindow));
+			} else {
+				windows.push(this.browserWindowToInfo(window));
+			}
+		});
+
 		return TPromise.wrap({
 			mainPID: process.pid,
 			mainArguments: process.argv,
-			windows: this.windowsMainService.getWindows().map(window => {
-				return this.getWindowInfo(window);
-			})
+			windows
 		} as IMainProcessInfo);
 	}
 
@@ -236,7 +269,7 @@ export class LaunchService implements ILaunchService {
 		return TPromise.as(this.environmentService.logsPath);
 	}
 
-	private getWindowInfo(window: ICodeWindow): IWindowInfo {
+	private codeWindowToInfo(window: ICodeWindow): IWindowInfo {
 		const folders: string[] = [];
 
 		if (window.openedFolderPath) {
@@ -250,9 +283,13 @@ export class LaunchService implements ILaunchService {
 			});
 		}
 
+		return this.browserWindowToInfo(window.win, folders);
+	}
+
+	private browserWindowToInfo(win: BrowserWindow, folders: string[] = []): IWindowInfo {
 		return {
-			pid: window.win.webContents.getOSProcessId(),
-			title: window.win.getTitle(),
+			pid: win.webContents.getOSProcessId(),
+			title: win.getTitle(),
 			folders
 		} as IWindowInfo;
 	}

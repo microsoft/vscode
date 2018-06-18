@@ -5,12 +5,12 @@
 
 'use strict';
 
-import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, CancellationTokenSource, StatusBarAlignment, MessageOptions } from 'vscode';
+import { Uri, commands, Disposable, window, workspace, QuickPickItem, OutputChannel, Range, WorkspaceEdit, Position, LineChange, SourceControlResourceState, TextDocumentShowOptions, ViewColumn, ProgressLocation, TextEditor, MessageOptions } from 'vscode';
 import { Ref, RefType, Git, GitErrorCodes, Branch } from './git';
 import { Repository, Resource, Status, CommitOptions, ResourceGroupType } from './repository';
 import { Model } from './model';
 import { toGitUri, fromGitUri } from './uri';
-import { grep, isDescendant } from './util';
+import { grep, isDescendant, pathEquals } from './util';
 import { applyLineChanges, intersectDiffWithRange, toLineRanges, invertLineChange, getModifiedRange } from './staging';
 import * as path from 'path';
 import { lstat, Stats } from 'fs';
@@ -328,8 +328,6 @@ export class CommandCenter {
 		return '';
 	}
 
-	private static cloneId = 0;
-
 	@command('git.clone')
 	async clone(url?: string): Promise<void> {
 		if (!url) {
@@ -350,15 +348,18 @@ export class CommandCenter {
 		}
 
 		const config = workspace.getConfiguration('git');
-		let value = config.get<string>('defaultCloneDirectory') || os.homedir();
+		let defaultCloneDirectory = config.get<string>('defaultCloneDirectory') || os.homedir();
+		defaultCloneDirectory = defaultCloneDirectory.replace(/^~/, os.homedir());
 
-		const parentPath = await window.showInputBox({
-			prompt: localize('parent', "Parent Directory"),
-			value,
-			ignoreFocusOut: true
+		const uris = await window.showOpenDialog({
+			canSelectFiles: false,
+			canSelectFolders: true,
+			canSelectMany: false,
+			defaultUri: Uri.file(defaultCloneDirectory),
+			openLabel: localize('selectFolder', "Select Repository Location")
 		});
 
-		if (!parentPath) {
+		if (!uris || uris.length === 0) {
 			/* __GDPR__
 				"clone" : {
 					"outcome" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
@@ -368,25 +369,33 @@ export class CommandCenter {
 			return;
 		}
 
-		const tokenSource = new CancellationTokenSource();
-		const cancelCommandId = `cancelClone${CommandCenter.cloneId++}`;
-		const commandDisposable = commands.registerCommand(cancelCommandId, () => tokenSource.cancel());
-
-		const statusBarItem = window.createStatusBarItem(StatusBarAlignment.Left);
-		statusBarItem.text = localize('cancel', "$(sync~spin) Cloning repository... Click to cancel");
-		statusBarItem.tooltip = localize('cancel tooltip', "Cancel clone");
-		statusBarItem.command = cancelCommandId;
-		statusBarItem.show();
-
-		const clonePromise = this.git.clone(url, parentPath.replace(/^~/, os.homedir()), tokenSource.token);
+		const uri = uris[0];
+		const parentPath = uri.fsPath;
 
 		try {
-			window.withProgress({ location: ProgressLocation.SourceControl, title: localize('cloning', "Cloning git repository...") }, () => clonePromise);
+			const opts = {
+				location: ProgressLocation.Notification,
+				title: localize('cloning', "Cloning git repository '{0}'...", url),
+				cancellable: true
+			};
 
-			const repositoryPath = await clonePromise;
+			const repositoryPath = await window.withProgress(
+				opts,
+				(_, token) => this.git.clone(url!, parentPath, token)
+			);
 
+			const choices = [];
+			let message = localize('proposeopen', "Would you like to open the cloned repository?");
 			const open = localize('openrepo', "Open Repository");
-			const result = await window.showInformationMessage(localize('proposeopen', "Would you like to open the cloned repository?"), open);
+			choices.push(open);
+
+			const addToWorkspace = localize('add', "Add to Workspace");
+			if (workspace.workspaceFolders) {
+				message = localize('proposeopen2', "Would you like to open the cloned repository, or add it to the current workspace?");
+				choices.push(addToWorkspace);
+			}
+
+			const result = await window.showInformationMessage(message, ...choices);
 
 			const openFolder = result === open;
 			/* __GDPR__
@@ -396,8 +405,13 @@ export class CommandCenter {
 				}
 			*/
 			this.telemetryReporter.sendTelemetryEvent('clone', { outcome: 'success' }, { openFolder: openFolder ? 1 : 0 });
+
+			const uri = Uri.file(repositoryPath);
+
 			if (openFolder) {
-				commands.executeCommand('vscode.openFolder', Uri.file(repositoryPath));
+				commands.executeCommand('vscode.openFolder', uri);
+			} else if (result === addToWorkspace) {
+				workspace.updateWorkspaceFolders(workspace.workspaceFolders!.length, 0, { uri });
 			}
 		} catch (err) {
 			if (/already exists and is not an empty directory/.test(err && err.stderr || '')) {
@@ -419,9 +433,6 @@ export class CommandCenter {
 			}
 
 			throw err;
-		} finally {
-			commandDisposable.dispose();
-			statusBarItem.dispose();
 		}
 	}
 
@@ -601,8 +612,14 @@ export class CommandCenter {
 
 	@command('git.stage')
 	async stage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		this.outputChannel.appendLine(`git.stage ${resourceStates.length}`);
+
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
+
+			this.outputChannel.appendLine(`git.stage.getSCMResource ${resource ? resource.resourceUri.toString() : null}`);
 
 			if (!resource) {
 				return;
@@ -638,6 +655,7 @@ export class CommandCenter {
 		const workingTree = selection.filter(s => s.resourceGroupType === ResourceGroupType.WorkingTree);
 		const scmResources = [...workingTree, ...resolvedConflicts, ...unresolvedConflicts];
 
+		this.outputChannel.appendLine(`git.stage.scmResources ${scmResources.length}`);
 		if (!scmResources.length) {
 			return;
 		}
@@ -757,15 +775,6 @@ export class CommandCenter {
 
 		const originalUri = toGitUri(modifiedUri, '~');
 		const originalDocument = await workspace.openTextDocument(originalUri);
-		const basename = path.basename(modifiedUri.fsPath);
-		const message = localize('confirm revert', "Are you sure you want to revert the selected changes in {0}?", basename);
-		const yes = localize('revert', "Revert Changes");
-		const pick = await window.showWarningMessage(message, { modal: true }, yes);
-
-		if (pick !== yes) {
-			return;
-		}
-
 		const result = applyLineChanges(originalDocument, modifiedDocument, changes);
 		const edit = new WorkspaceEdit();
 		edit.replace(modifiedUri, new Range(new Position(0, 0), modifiedDocument.lineAt(modifiedDocument.lineCount - 1).range.end), result);
@@ -775,6 +784,8 @@ export class CommandCenter {
 
 	@command('git.unstage')
 	async unstage(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -841,6 +852,8 @@ export class CommandCenter {
 
 	@command('git.clean')
 	async clean(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -1205,7 +1218,7 @@ export class CommandCenter {
 
 			const message = localize('confirm force delete branch', "The branch '{0}' is not fully merged. Delete anyway?", name);
 			const yes = localize('delete branch', "Delete Branch");
-			const pick = await window.showWarningMessage(message, yes);
+			const pick = await window.showWarningMessage(message, { modal: true }, yes);
 
 			if (pick === yes) {
 				await run(true);
@@ -1314,7 +1327,7 @@ export class CommandCenter {
 			return;
 		}
 
-		const remotePicks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const remotePicks = remotes.filter(r => r.fetchUrl !== undefined).map(r => ({ label: r.name, description: r.fetchUrl! }));
 		const placeHolder = localize('pick remote pull repo', "Pick a remote to pull the branch from");
 		const remotePick = await window.showQuickPick(remotePicks, { placeHolder });
 
@@ -1333,7 +1346,7 @@ export class CommandCenter {
 
 		const remoteCharCnt = remotePick.label.length;
 
-		repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
+		await repository.pullFrom(false, remotePick.label, branchPick.label.slice(remoteCharCnt + 1));
 	}
 
 	@command('git.pull', { repository: true })
@@ -1421,7 +1434,7 @@ export class CommandCenter {
 		}
 
 		const branchName = repository.HEAD.name;
-		const picks = remotes.map(r => ({ label: r.name, description: r.url }));
+		const picks = remotes.filter(r => r.pushUrl !== undefined).map(r => ({ label: r.name, description: r.pushUrl! }));
 		const placeHolder = localize('pick remote', "Pick a remote to publish the branch '{0}' to:", branchName);
 		const pick = await window.showQuickPick(picks, { placeHolder });
 
@@ -1429,7 +1442,7 @@ export class CommandCenter {
 			return;
 		}
 
-		repository.pushTo(pick.label, branchName);
+		await repository.pushTo(pick.label, branchName);
 	}
 
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
@@ -1439,8 +1452,12 @@ export class CommandCenter {
 			return;
 		}
 
+		const remoteName = HEAD.remote || HEAD.upstream.remote;
+		const remote = repository.remotes.find(r => r.name === remoteName);
+		const isReadonly = remote && remote.isReadOnly;
+
 		const config = workspace.getConfiguration('git');
-		const shouldPrompt = config.get<boolean>('confirmSync') === true;
+		const shouldPrompt = !isReadonly && config.get<boolean>('confirmSync') === true;
 
 		if (shouldPrompt) {
 			const message = localize('sync is unpredictable', "This action will push and pull commits to and from '{0}/{1}'.", HEAD.upstream.remote, HEAD.upstream.name);
@@ -1511,6 +1528,8 @@ export class CommandCenter {
 
 	@command('git.ignore')
 	async ignore(...resourceStates: SourceControlResourceState[]): Promise<void> {
+		resourceStates = resourceStates.filter(s => !!s);
+
 		if (resourceStates.length === 0 || (resourceStates[0] && !(resourceStates[0].resourceUri instanceof Uri))) {
 			const resource = this.getSCMResource();
 
@@ -1687,7 +1706,12 @@ export class CommandCenter {
 	}
 
 	private getSCMResource(uri?: Uri): Resource | undefined {
-		uri = uri ? uri : window.activeTextEditor && window.activeTextEditor.document.uri;
+		uri = uri ? uri : (window.activeTextEditor && window.activeTextEditor.document.uri);
+
+		this.outputChannel.appendLine(`git.getSCMResource.uri ${uri && uri.toString()}`);
+		for (const r of this.model.repositories.map(r => r.root)) {
+			this.outputChannel.appendLine(`repo root ${r}`);
+		}
 
 		if (!uri) {
 			return undefined;
@@ -1726,7 +1750,7 @@ export class CommandCenter {
 			}
 
 			// Could it be a submodule?
-			if (resource.fsPath === repository.root) {
+			if (pathEquals(resource.fsPath, repository.root)) {
 				repository = this.model.getRepositoryForSubmodule(resource) || repository;
 			}
 

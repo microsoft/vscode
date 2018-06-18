@@ -55,7 +55,7 @@ export abstract class ScopedService {
 	public abstract onScopeDeactivated(): void;
 }
 
-export class WorkbenchProgressService extends ScopedService implements IProgressService {
+export class ScopedProgressService extends ScopedService implements IProgressService {
 	public _serviceBrand: any;
 	private isActive: boolean;
 	private progressbar: ProgressBar;
@@ -102,17 +102,17 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Replay Infinite Progress
 		else if (this.progressState.infinite) {
-			this.progressbar.infinite().getContainer().show();
+			this.progressbar.infinite().show();
 		}
 
 		// Replay Finite Progress (Total & Worked)
 		else {
 			if (this.progressState.total) {
-				this.progressbar.total(this.progressState.total).getContainer().show();
+				this.progressbar.total(this.progressState.total).show();
 			}
 
 			if (this.progressState.worked) {
-				this.progressbar.worked(this.progressState.worked).getContainer().show();
+				this.progressbar.worked(this.progressState.worked).show();
 			}
 		}
 	}
@@ -129,12 +129,12 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 	public show(infinite: boolean, delay?: number): IProgressRunner;
 	public show(total: number, delay?: number): IProgressRunner;
-	public show(infiniteOrTotal: any, delay?: number): IProgressRunner {
+	public show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
 		let infinite: boolean;
 		let total: number;
 
 		// Sort out Arguments
-		if (infiniteOrTotal === false || infiniteOrTotal === true) {
+		if (typeof infiniteOrTotal === 'boolean') {
 			infinite = infiniteOrTotal;
 		} else {
 			total = infiniteOrTotal;
@@ -152,20 +152,12 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 			// Infinite: Start Progressbar and Show after Delay
 			if (!types.isUndefinedOrNull(infinite)) {
-				if (types.isUndefinedOrNull(delay)) {
-					this.progressbar.infinite().getContainer().show();
-				} else {
-					this.progressbar.infinite().getContainer().showDelayed(delay);
-				}
+				this.progressbar.infinite().show(delay);
 			}
 
 			// Finite: Start Progressbar and Show after Delay
 			else if (!types.isUndefinedOrNull(total)) {
-				if (types.isUndefinedOrNull(delay)) {
-					this.progressbar.total(total).getContainer().show();
-				} else {
-					this.progressbar.total(total).getContainer().showDelayed(delay);
-				}
+				this.progressbar.total(total).show(delay);
 			}
 		}
 
@@ -200,7 +192,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 					this.progressState.infinite = true;
 					this.progressState.worked = void 0;
 					this.progressState.total = void 0;
-					this.progressbar.infinite().getContainer().show();
+					this.progressbar.infinite().show();
 				}
 			},
 
@@ -209,7 +201,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 				this.progressState.done = true;
 
 				if (this.isActive) {
-					this.progressbar.stop().getContainer().hide();
+					this.progressbar.stop().hide();
 				}
 			}
 		};
@@ -244,7 +236,7 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 			this.clearProgressState();
 
 			if (this.isActive) {
-				this.progressbar.stop().getContainer().hide();
+				this.progressbar.stop().hide();
 			}
 		};
 
@@ -257,15 +249,56 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 		// Show Progress when active
 		if (this.isActive) {
-			if (types.isUndefinedOrNull(delay)) {
-				this.progressbar.infinite().getContainer().show();
-			} else {
-				this.progressbar.infinite().getContainer().showDelayed(delay);
-			}
+			this.progressbar.infinite().show(delay);
 		}
 	}
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
+	}
+}
+
+export class ProgressService implements IProgressService {
+
+	public _serviceBrand: any;
+
+	constructor(private progressbar: ProgressBar) { }
+
+	public show(infinite: boolean, delay?: number): IProgressRunner;
+	public show(total: number, delay?: number): IProgressRunner;
+	public show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
+		if (typeof infiniteOrTotal === 'boolean') {
+			this.progressbar.infinite().show(delay);
+		} else {
+			this.progressbar.total(infiniteOrTotal).show(delay);
+		}
+
+		return {
+			total: (total: number) => {
+				this.progressbar.total(total);
+			},
+
+			worked: (worked: number) => {
+				if (this.progressbar.hasTotal()) {
+					this.progressbar.worked(worked);
+				} else {
+					this.progressbar.infinite().show();
+				}
+			},
+
+			done: () => {
+				this.progressbar.stop().hide();
+			}
+		};
+	}
+
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+		const stop = () => {
+			this.progressbar.stop().hide();
+		};
+
+		this.progressbar.infinite().show(delay);
+
+		return promise.then(stop, stop);
 	}
 }

@@ -9,8 +9,6 @@ import 'vs/css!./media/shell';
 
 import * as platform from 'vs/base/common/platform';
 import * as perf from 'vs/base/common/performance';
-import { Dimension, Builder, $ } from 'vs/base/browser/builder';
-import * as dom from 'vs/base/browser/dom';
 import * as aria from 'vs/base/browser/ui/aria/aria';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
 import * as errors from 'vs/base/common/errors';
@@ -38,7 +36,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -53,7 +51,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -62,16 +60,16 @@ import { WorkbenchModeServiceImpl } from 'vs/workbench/services/mode/common/work
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
-import { getDelayedChannel } from 'vs/base/parts/ipc/common/ipc';
+import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -96,6 +94,12 @@ import { NotificationService } from 'vs/workbench/services/notification/common/n
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
+import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 
 /**
  * Services that we require for the Shell
@@ -135,12 +139,12 @@ export class WorkbenchShell {
 	private previousErrorValue: string;
 	private previousErrorTime: number;
 	private content: HTMLElement;
-	private contentsContainer: Builder;
+	private contentsContainer: HTMLElement;
 
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, configuration: IWindowConfiguration) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, private mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -158,19 +162,20 @@ export class WorkbenchShell {
 		this.previousErrorTime = 0;
 	}
 
-	private createContents(parent: Builder): Builder {
+	private createContents(parent: HTMLElement): HTMLElement {
 
 		// ARIA
 		aria.setARIAContainer(document.body);
 
 		// Workbench Container
-		const workbenchContainer = $(parent).div();
+		const workbenchContainer = document.createElement('div');
+		parent.appendChild(workbenchContainer);
 
 		// Instantiation service with services
-		const [instantiationService, serviceCollection] = this.initServiceCollection(parent.getHTMLElement());
+		const [instantiationService, serviceCollection] = this.initServiceCollection(parent);
 
 		// Workbench
-		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent.getHTMLElement(), workbenchContainer.getHTMLElement());
+		this.workbench = this.createWorkbench(instantiationService, serviceCollection, parent, workbenchContainer);
 
 		// Window
 		this.workbench.getInstantiationService().createInstance(ElectronWindow, this.container);
@@ -189,7 +194,7 @@ export class WorkbenchShell {
 
 	private createWorkbench(instantiationService: IInstantiationService, serviceCollection: ServiceCollection, parent: HTMLElement, workbenchContainer: HTMLElement): Workbench {
 		try {
-			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService);
+			const workbench = instantiationService.createInstance(Workbench, parent, workbenchContainer, this.configuration, serviceCollection, this.lifecycleService, this.mainProcessClient);
 
 			// Set lifecycle phase to `Restoring`
 			this.lifecycleService.phase = LifecyclePhase.Restoring;
@@ -270,22 +275,12 @@ export class WorkbenchShell {
 			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length,
+			restoredEditors: info.restoredEditorsCount,
 			startupKind: this.lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
-		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			/* __GDPR__
-				"startupTime" : {
-					"${include}": [
-						"${IStartupMetrics}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
-		});
 	}
 
 	private logLocalStorageMetrics(): void {
@@ -312,7 +307,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers2" : {
+					"localStorageTimers<NUMBER>" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -415,11 +410,15 @@ export class WorkbenchShell {
 		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
 		this.toUnbind.push(extensionEnablementService);
+
+		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
 
 		this.extensionService = instantiationService.createInstance(ExtensionService);
 		serviceCollection.set(IExtensionService, this.extensionService);
@@ -437,8 +436,6 @@ export class WorkbenchShell {
 		this.contextViewService = instantiationService.createInstance(ContextViewService, this.container);
 		serviceCollection.set(IContextViewService, this.contextViewService);
 
-		serviceCollection.set(IRequestService, new SyncDescriptor(RequestService));
-
 		serviceCollection.set(IMarkerService, new SyncDescriptor(MarkerService));
 
 		serviceCollection.set(IModeService, new SyncDescriptor(WorkbenchModeServiceImpl));
@@ -455,9 +452,13 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
+		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
+
 		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
-		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
@@ -475,13 +476,15 @@ export class WorkbenchShell {
 		});
 
 		// Shell Class for CSS Scoping
-		$(this.container).addClass('monaco-shell');
+		addClass(this.container, 'monaco-shell');
 
 		// Controls
-		this.content = $('.monaco-shell-content').appendTo(this.container).getHTMLElement();
+		this.content = document.createElement('div');
+		addClass(this.content, 'monaco-shell-content');
+		this.container.appendChild(this.content);
 
 		// Create Contents
-		this.contentsContainer = this.createContents($(this.content));
+		this.contentsContainer = this.createContents(this.content);
 
 		// Layout
 		this.layout();
@@ -493,7 +496,11 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		$(window).on(dom.EventType.RESIZE, () => this.layout(), this.toUnbind);
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, e => {
+			if (e.target === window) {
+				this.layout();
+			}
+		}));
 	}
 
 	public onUnexpectedError(error: any): void {
@@ -520,10 +527,10 @@ export class WorkbenchShell {
 	}
 
 	private layout(): void {
-		const clArea = $(this.container).getClientArea();
+		const clientArea = getClientArea(this.container);
 
-		const contentsSize = new Dimension(clArea.width, clArea.height);
-		this.contentsContainer.size(contentsSize.width, contentsSize.height);
+		this.contentsContainer.style.width = `${clientArea.width}px`;
+		this.contentsContainer.style.height = `${clientArea.height}px`;
 
 		this.contextViewService.layout();
 		this.workbench.layout();

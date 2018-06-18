@@ -14,7 +14,8 @@ export enum Parts {
 	PANEL_PART,
 	EDITOR_PART,
 	STATUSBAR_PART,
-	TITLEBAR_PART
+	TITLEBAR_PART,
+	MENUBAR_PART
 }
 
 export enum Position {
@@ -28,7 +29,7 @@ export interface ILayoutOptions {
 	source?: Parts;
 }
 
-export interface Dimension {
+export interface IDimension {
 	readonly width: number;
 	readonly height: number;
 }
@@ -44,9 +45,14 @@ export interface IPartService {
 	onTitleBarVisibilityChange: Event<void>;
 
 	/**
+	 * Emits when the visibility of the menubar changes.
+	 */
+	onMenubarVisibilityChange: Event<IDimension>;
+
+	/**
 	 * Emits when the editor part's layout changes.
 	 */
-	onEditorLayout: Event<Dimension>;
+	onEditorLayout: Event<IDimension>;
 
 	/**
 	 * Asks the part service to layout all parts.

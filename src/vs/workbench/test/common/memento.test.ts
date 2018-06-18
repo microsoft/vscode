@@ -12,7 +12,7 @@ import { Memento, Scope } from 'vs/workbench/common/memento';
 import { StorageService, InMemoryLocalStorage } from 'vs/platform/storage/common/storageService';
 import { TestWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 
-suite('Workbench Memento', () => {
+suite('Memento', () => {
 	let context: Scope = undefined;
 	let storage: StorageService;
 

@@ -8,6 +8,8 @@
 	],
 	"textFileEditor": "テキスト ファイル エディター",
 	"createFile": "ファイルの作成",
+	"relaunchWithIncreasedMemoryLimit": "{0} MB で再起動",
+	"configureMemoryLimit": "メモリ制限を構成する",
 	"fileEditorWithInputAriaLabel": "{0}。テキスト ファイル エディター。",
 	"fileEditorAriaLabel": "テキスト ファイル エディター。"
 }

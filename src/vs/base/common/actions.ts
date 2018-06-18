@@ -5,7 +5,7 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, combinedDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
 
 export interface ITelemetryData {
@@ -235,5 +235,28 @@ export class ActionRunner implements IActionRunner {
 	public dispose(): void {
 		this._onDidBeforeRun.dispose();
 		this._onDidRun.dispose();
+	}
+}
+
+export class RadioGroup {
+
+	private _disposable: IDisposable;
+
+	constructor(readonly actions: Action[]) {
+		this._disposable = combinedDisposable(actions.map(action => {
+			return action.onDidChange(e => {
+				if (e.checked && action.checked) {
+					for (const candidate of actions) {
+						if (candidate !== action) {
+							candidate.checked = false;
+						}
+					}
+				}
+			});
+		}));
+	}
+
+	dispose(): void {
+		this._disposable.dispose();
 	}
 }

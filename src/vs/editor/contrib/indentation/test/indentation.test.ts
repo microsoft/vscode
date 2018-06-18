@@ -57,7 +57,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 				'fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Selection(1, 9, 1, 9)
 		);
 	});
 
@@ -79,7 +79,7 @@ suite('Editor Contrib - Indentation to Spaces', () => {
 				'   fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5)
+			new Selection(1, 7, 1, 7)
 		);
 	});
 
@@ -157,7 +157,7 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 				'   fourth line',
 				'fifth'
 			],
-			new Selection(1, 5, 1, 5),
+			new Selection(1, 8, 1, 8),
 			2,
 			[
 				'\t\t\tfirst   ',
@@ -167,6 +167,20 @@ suite('Editor Contrib - Indentation to Tabs', () => {
 				'fifth'
 			],
 			new Selection(1, 5, 1, 5)
+		);
+	});
+
+	test('issue #45996', function () {
+		testIndentationToSpacesCommand(
+			[
+				'\tabc',
+			],
+			new Selection(1, 3, 1, 3),
+			4,
+			[
+				'    abc',
+			],
+			new Selection(1, 6, 1, 6)
 		);
 	});
 });

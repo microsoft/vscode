@@ -10,8 +10,7 @@ import * as resources from 'vs/base/common/resources';
 import { IconLabel, IIconLabelValueOptions, IIconLabelCreationOptions } from 'vs/base/browser/ui/iconLabel/iconLabel';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
-import { toResource } from 'vs/workbench/common/editor';
+import { toResource, IEditorInput } from 'vs/workbench/common/editor';
 import { getPathLabel, IWorkspaceFolderProvider } from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -26,6 +25,7 @@ import { FileKind, FILES_ASSOCIATIONS_CONFIG } from 'vs/platform/files/common/fi
 import { ITextModel } from 'vs/editor/common/model';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Event, Emitter } from 'vs/base/common/event';
+import { DataUri } from 'vs/workbench/common/resources';
 
 export interface IResourceLabel {
 	name: string;
@@ -45,6 +45,7 @@ export class ResourceLabel extends IconLabel {
 	private options: IResourceLabelOptions;
 	private computedIconClasses: string[];
 	private lastKnownConfiguredLangId: string;
+	private computedPathLabel: string;
 
 	private _onDidRender = new Emitter<void>();
 	readonly onDidRender: Event<void> = this._onDidRender.event;
@@ -126,6 +127,10 @@ export class ResourceLabel extends IconLabel {
 		this.label = label;
 		this.options = options;
 
+		if (hasResourceChanged) {
+			this.computedPathLabel = void 0; // reset path label due to resource change
+		}
+
 		this.render(hasResourceChanged);
 	}
 
@@ -156,6 +161,7 @@ export class ResourceLabel extends IconLabel {
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
 		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
 
 		this.setValue();
 	}
@@ -189,7 +195,12 @@ export class ResourceLabel extends IconLabel {
 		if (this.options && typeof this.options.title === 'string') {
 			iconLabelOptions.title = this.options.title;
 		} else if (resource && resource.scheme !== Schemas.data /* do not accidentally inline Data URIs */) {
-			iconLabelOptions.title = getPathLabel(resource, void 0, this.environmentService);
+			if (!this.computedPathLabel) {
+				const rootProvider = resource.scheme !== Schemas.file ? this.contextService : undefined;
+				this.computedPathLabel = getPathLabel(resource, this.environmentService, rootProvider);
+			}
+
+			iconLabelOptions.title = this.computedPathLabel;
 		}
 
 		if (!this.computedIconClasses) {
@@ -202,7 +213,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		if (this.options && this.options.fileDecorations && resource) {
-			let deco = this.decorationsService.getDecoration(
+			const deco = this.decorationsService.getDecoration(
 				resource,
 				this.options.fileKind !== FileKind.FILE,
 				this.options.fileDecorations.data
@@ -212,9 +223,11 @@ export class ResourceLabel extends IconLabel {
 				if (deco.tooltip) {
 					iconLabelOptions.title = `${iconLabelOptions.title} • ${deco.tooltip}`;
 				}
+
 				if (this.options.fileDecorations.colors) {
 					iconLabelOptions.extraClasses.push(deco.labelClassName);
 				}
+
 				if (this.options.fileDecorations.badges) {
 					iconLabelOptions.extraClasses.push(deco.badgeClassName);
 				}
@@ -222,6 +235,7 @@ export class ResourceLabel extends IconLabel {
 		}
 
 		this.setValue(label, this.label.description, iconLabelOptions);
+
 		this._onDidRender.fire();
 	}
 
@@ -233,6 +247,7 @@ export class ResourceLabel extends IconLabel {
 		this.options = void 0;
 		this.lastKnownConfiguredLangId = void 0;
 		this.computedIconClasses = void 0;
+		this.computedPathLabel = void 0;
 	}
 }
 
@@ -300,7 +315,7 @@ export class FileLabel extends ResourceLabel {
 				rootProvider = this.contextService;
 			}
 
-			description = getPathLabel(resources.dirname(resource), rootProvider, this.environmentService);
+			description = getPathLabel(resources.dirname(resource), this.environmentService, rootProvider);
 		}
 
 		this.setLabel({ resource, name, description }, options);
@@ -313,7 +328,15 @@ export function getIconClasses(modelService: IModelService, modeService: IModeSe
 	const classes = fileKind === FileKind.ROOT_FOLDER ? ['rootfolder-icon'] : fileKind === FileKind.FOLDER ? ['folder-icon'] : ['file-icon'];
 
 	if (resource) {
-		const name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
+
+		// Get the name of the resource. For data-URIs, we need to parse specially
+		let name: string;
+		if (resource.scheme === Schemas.data) {
+			const metadata = DataUri.parseMetaData(resource);
+			name = metadata.get(DataUri.META_DATA_LABEL);
+		} else {
+			name = cssEscape(resources.basenameOrAuthority(resource).toLowerCase());
+		}
 
 		// Folders
 		if (fileKind === FileKind.FOLDER) {

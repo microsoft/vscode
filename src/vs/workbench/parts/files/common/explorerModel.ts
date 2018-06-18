@@ -11,30 +11,26 @@ import * as resources from 'vs/base/common/resources';
 import { ResourceMap } from 'vs/base/common/map';
 import { isLinux } from 'vs/base/common/platform';
 import { IFileStat } from 'vs/platform/files/common/files';
-import { IEditorInput } from 'vs/platform/editor/common/editor';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { IEditorGroup, toResource, IEditorIdentifier } from 'vs/workbench/common/editor';
+import { toResource, IEditorIdentifier, IEditorInput } from 'vs/workbench/common/editor';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { getPathLabel } from 'vs/base/common/labels';
 import { Schemas } from 'vs/base/common/network';
+import { startsWith, startsWithIgnoreCase, rtrim } from 'vs/base/common/strings';
+import { IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class Model {
 
-	private _roots: FileStat[];
+	private _roots: ExplorerItem[];
 	private _listener: IDisposable;
 
 	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
-		const setRoots = () => this._roots = this.contextService.getWorkspace().folders.map(folder => {
-			const root = new FileStat(folder.uri, undefined);
-			root.name = folder.name;
-
-			return root;
-		});
+		const setRoots = () => this._roots = this.contextService.getWorkspace().folders
+			.map(folder => new ExplorerItem(folder.uri, undefined, false, true, folder.name));
 		this._listener = this.contextService.onDidChangeWorkspaceFolders(() => setRoots());
 		setRoots();
 	}
 
-	public get roots(): FileStat[] {
+	public get roots(): ExplorerItem[] {
 		return this._roots;
 	}
 
@@ -43,7 +39,7 @@ export class Model {
 	 * Starts matching from the first root.
 	 * Will return empty array in case the FileStat does not exist.
 	 */
-	public findAll(resource: URI): FileStat[] {
+	public findAll(resource: URI): ExplorerItem[] {
 		return this.roots.map(root => root.find(resource)).filter(stat => !!stat);
 	}
 
@@ -52,7 +48,7 @@ export class Model {
 	 * In case multiple FileStat are matching the resource (same folder opened multiple times) returns the FileStat that has the closest root.
 	 * Will return null in case the FileStat does not exist.
 	 */
-	public findClosest(resource: URI): FileStat {
+	public findClosest(resource: URI): ExplorerItem {
 		const folder = this.contextService.getWorkspaceFolder(resource);
 		if (folder) {
 			const root = this.roots.filter(r => r.resource.toString() === folder.uri.toString()).pop();
@@ -69,21 +65,21 @@ export class Model {
 	}
 }
 
-export class FileStat implements IFileStat {
+export class ExplorerItem {
 	public resource: URI;
-	public name: string;
+	private _name: string;
 	public mtime: number;
 	public etag: string;
 	private _isDirectory: boolean;
 	private _isSymbolicLink: boolean;
-	public children: FileStat[];
-	public parent: FileStat;
+	private children: Map<string, ExplorerItem>;
+	public parent: ExplorerItem;
 
 	public isDirectoryResolved: boolean;
 
-	constructor(resource: URI, public root: FileStat, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = getPathLabel(resource), mtime?: number, etag?: string) {
+	constructor(resource: URI, public root: ExplorerItem, isSymbolicLink?: boolean, isDirectory?: boolean, name: string = resources.basenameOrAuthority(resource), mtime?: number, etag?: string) {
 		this.resource = resource;
-		this.name = name;
+		this._name = name;
 		this.isDirectory = !!isDirectory;
 		this._isSymbolicLink = !!isSymbolicLink;
 		this.etag = etag;
@@ -108,7 +104,7 @@ export class FileStat implements IFileStat {
 		if (value !== this._isDirectory) {
 			this._isDirectory = value;
 			if (this._isDirectory) {
-				this.children = [];
+				this.children = new Map<string, ExplorerItem>();
 			} else {
 				this.children = undefined;
 			}
@@ -120,16 +116,31 @@ export class FileStat implements IFileStat {
 		return this.isRoot && !this.isDirectoryResolved && this.isDirectory;
 	}
 
+	public get name(): string {
+		return this._name;
+	}
+
+	private updateName(value: string): void {
+		// Re-add to parent since the parent has a name map to children and the name might have changed
+		if (this.parent) {
+			this.parent.removeChild(this);
+		}
+		this._name = value;
+		if (this.parent) {
+			this.parent.addChild(this);
+		}
+	}
+
 	public getId(): string {
 		return this.resource.toString();
 	}
 
 	public get isRoot(): boolean {
-		return this.resource.toString() === this.root.resource.toString();
+		return this === this.root;
 	}
 
-	public static create(raw: IFileStat, root: FileStat, resolveTo?: URI[]): FileStat {
-		const stat = new FileStat(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
+	public static create(raw: IFileStat, root: ExplorerItem, resolveTo?: URI[]): ExplorerItem {
+		const stat = new ExplorerItem(raw.resource, root, raw.isSymbolicLink, raw.isDirectory, raw.name, raw.mtime, raw.etag);
 
 		// Recursively add children if present
 		if (stat.isDirectory) {
@@ -144,9 +155,9 @@ export class FileStat implements IFileStat {
 			// Recurse into children
 			if (raw.children) {
 				for (let i = 0, len = raw.children.length; i < len; i++) {
-					const child = FileStat.create(raw.children[i], root, resolveTo);
+					const child = ExplorerItem.create(raw.children[i], root, resolveTo);
 					child.parent = stat;
-					stat.children.push(child);
+					stat.addChild(child);
 				}
 			}
 		}
@@ -159,7 +170,7 @@ export class FileStat implements IFileStat {
 	 * and children. The merge will only consider resolved stat elements to avoid overwriting data which
 	 * exists locally.
 	 */
-	public static mergeLocalWithDisk(disk: FileStat, local: FileStat): void {
+	public static mergeLocalWithDisk(disk: ExplorerItem, local: ExplorerItem): void {
 		if (disk.resource.toString() !== local.resource.toString()) {
 			return; // Merging only supported for stats with the same resource
 		}
@@ -172,40 +183,40 @@ export class FileStat implements IFileStat {
 
 		// Properties
 		local.resource = disk.resource;
-		local.name = disk.name;
+		local.updateName(disk.name);
 		local.isDirectory = disk.isDirectory;
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
+		local._isSymbolicLink = disk.isSymbolicLink;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
 
 			// Map resource => stat
-			const oldLocalChildren = new ResourceMap<FileStat>();
+			const oldLocalChildren = new ResourceMap<ExplorerItem>();
 			if (local.children) {
-				local.children.forEach((localChild: FileStat) => {
-					oldLocalChildren.set(localChild.resource, localChild);
+				local.children.forEach(child => {
+					oldLocalChildren.set(child.resource, child);
 				});
 			}
 
 			// Clear current children
-			local.children = [];
+			local.children = new Map<string, ExplorerItem>();
 
 			// Merge received children
-			disk.children.forEach((diskChild: FileStat) => {
+			disk.children.forEach(diskChild => {
 				const formerLocalChild = oldLocalChildren.get(diskChild.resource);
-
 				// Existing child: merge
 				if (formerLocalChild) {
-					FileStat.mergeLocalWithDisk(diskChild, formerLocalChild);
+					ExplorerItem.mergeLocalWithDisk(diskChild, formerLocalChild);
 					formerLocalChild.parent = local;
-					local.children.push(formerLocalChild);
+					local.addChild(formerLocalChild);
 				}
 
 				// New child: add
 				else {
 					diskChild.parent = local;
-					local.children.push(diskChild);
+					local.addChild(diskChild);
 				}
 			});
 		}
@@ -214,31 +225,78 @@ export class FileStat implements IFileStat {
 	/**
 	 * Adds a child element to this folder.
 	 */
-	public addChild(child: FileStat): void {
+	public addChild(child: ExplorerItem): void {
+		if (!this.children) {
+			this.isDirectory = true;
+		}
 
 		// Inherit some parent properties to child
 		child.parent = this;
 		child.updateResource(false);
 
-		this.children.push(child);
+		this.children.set(this.getPlatformAwareName(child.name), child);
+	}
+
+	public getChild(name: string): ExplorerItem {
+		if (!this.children) {
+			return undefined;
+		}
+
+		return this.children.get(this.getPlatformAwareName(name));
+	}
+
+	/**
+	 * Only use this method if you need all the children since it converts a map to an array
+	 */
+	public getChildrenArray(): ExplorerItem[] {
+		if (!this.children) {
+			return undefined;
+		}
+
+		const items: ExplorerItem[] = [];
+		this.children.forEach(child => {
+			items.push(child);
+		});
+
+		return items;
+	}
+
+	public getChildrenCount(): number {
+		if (!this.children) {
+			return 0;
+		}
+
+		return this.children.size;
+	}
+
+	public getChildrenNames(): string[] {
+		if (!this.children) {
+			return [];
+		}
+
+		const names: string[] = [];
+		this.children.forEach(child => {
+			names.push(child.name);
+		});
+
+		return names;
 	}
 
 	/**
 	 * Removes a child element from this folder.
 	 */
-	public removeChild(child: FileStat): void {
-		for (let i = 0; i < this.children.length; i++) {
-			if (this.children[i].resource.toString() === child.resource.toString()) {
-				this.children.splice(i, 1);
-				break;
-			}
-		}
+	public removeChild(child: ExplorerItem): void {
+		this.children.delete(this.getPlatformAwareName(child.name));
+	}
+
+	private getPlatformAwareName(name: string): string {
+		return (isLinux || !name) ? name : name.toLowerCase();
 	}
 
 	/**
 	 * Moves this element under a new parent element.
 	 */
-	public move(newParent: FileStat, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
+	public move(newParent: ExplorerItem, fnBetweenStates?: (callback: () => void) => void, fnDone?: () => void): void {
 		if (!fnBetweenStates) {
 			fnBetweenStates = (cb: () => void) => { cb(); };
 		}
@@ -260,7 +318,7 @@ export class FileStat implements IFileStat {
 
 		if (recursive) {
 			if (this.isDirectory && this.children) {
-				this.children.forEach((child: FileStat) => {
+				this.children.forEach(child => {
 					child.updateResource(true);
 				});
 			}
@@ -271,10 +329,10 @@ export class FileStat implements IFileStat {
 	 * Tells this stat that it was renamed. This requires changes to all children of this stat (if any)
 	 * so that the path property can be updated properly.
 	 */
-	public rename(renamedStat: IFileStat): void {
+	public rename(renamedStat: { name: string, mtime: number }): void {
 
 		// Merge a subset of Properties that can change on rename
-		this.name = renamedStat.name;
+		this.updateName(renamedStat.name);
 		this.mtime = renamedStat.mtime;
 
 		// Update Paths including children
@@ -285,44 +343,59 @@ export class FileStat implements IFileStat {
 	 * Returns a child stat from this stat that matches with the provided path.
 	 * Will return "null" in case the child does not exist.
 	 */
-	public find(resource: URI): FileStat {
-
+	public find(resource: URI): ExplorerItem {
 		// Return if path found
-		if (resources.isEqual(resource, this.resource, !isLinux /* ignorecase */)) {
-			return this;
-		}
-
-		// Return if not having any children
-		if (!this.children) {
-			return null;
-		}
-
-		for (let i = 0; i < this.children.length; i++) {
-			const child = this.children[i];
-
-			if (resources.isEqual(resource, child.resource, !isLinux /* ignorecase */)) {
-				return child;
-			}
-
-			if (child.isDirectory && resources.isEqualOrParent(resource, child.resource, !isLinux /* ignorecase */)) {
-				return child.find(resource);
-			}
+		if (resource && this.resource.scheme === resource.scheme && this.resource.authority === resource.authority &&
+			(isLinux ? startsWith(resource.path, this.resource.path) : startsWithIgnoreCase(resource.path, this.resource.path))
+		) {
+			return this.findByPath(rtrim(resource.path, paths.sep), this.resource.path.length);
 		}
 
 		return null; //Unable to find
 	}
+
+	private findByPath(path: string, index: number): ExplorerItem {
+		if (paths.isEqual(rtrim(this.resource.path, paths.sep), path, !isLinux)) {
+			return this;
+		}
+
+		if (this.children) {
+			// Ignore separtor to more easily deduct the next name to search
+			while (index < path.length && path[index] === paths.sep) {
+				index++;
+			}
+
+			let indexOfNextSep = path.indexOf(paths.sep, index);
+			if (indexOfNextSep === -1) {
+				// If there is no separator take the remainder of the path
+				indexOfNextSep = path.length;
+			}
+			// The name to search is between two separators
+			const name = path.substring(index, indexOfNextSep);
+
+			const child = this.children.get(this.getPlatformAwareName(name));
+
+			if (child) {
+				// We found a child with the given name, search inside it
+				return child.findByPath(path, indexOfNextSep);
+			}
+		}
+
+		return null;
+	}
 }
 
 /* A helper that can be used to show a placeholder when creating a new stat */
-export class NewStatPlaceholder extends FileStat {
+export class NewStatPlaceholder extends ExplorerItem {
 
+	public static NAME = '';
 	private static ID = 0;
 
 	private id: number;
 	private directoryPlaceholder: boolean;
 
-	constructor(isDirectory: boolean, root: FileStat) {
-		super(URI.file(''), root, false, false, '');
+	constructor(isDirectory: boolean, root: ExplorerItem) {
+		super(URI.file(''), root, false, false, NewStatPlaceholder.NAME);
 
 		this.id = NewStatPlaceholder.ID++;
 		this.isDirectoryResolved = isDirectory;
@@ -333,7 +406,6 @@ export class NewStatPlaceholder extends FileStat {
 		this.parent.removeChild(this);
 
 		this.isDirectoryResolved = void 0;
-		this.name = void 0;
 		this.isDirectory = void 0;
 		this.mtime = void 0;
 	}
@@ -366,12 +438,12 @@ export class NewStatPlaceholder extends FileStat {
 		return null;
 	}
 
-	public static addNewStatPlaceholder(parent: FileStat, isDirectory: boolean): NewStatPlaceholder {
+	public static addNewStatPlaceholder(parent: ExplorerItem, isDirectory: boolean): NewStatPlaceholder {
 		const child = new NewStatPlaceholder(isDirectory, parent.root);
 
 		// Inherit some parent properties to child
 		child.parent = parent;
-		parent.children.push(child);
+		parent.addChild(child);
 
 		return child;
 	}
@@ -388,19 +460,23 @@ export class OpenEditor implements IEditorIdentifier {
 	}
 
 	public get editorIndex() {
-		return this._group.indexOf(this.editor);
+		return this._group.getIndexOfEditor(this.editor);
 	}
 
 	public get group() {
 		return this._group;
 	}
 
+	public get groupId() {
+		return this._group.id;
+	}
+
 	public getId(): string {
-		return `openeditor:${this.group.id}:${this.group.indexOf(this.editor)}:${this.editor.getName()}:${this.editor.getDescription()}`;
+		return `openeditor:${this.groupId}:${this.editorIndex}:${this.editor.getName()}:${this.editor.getDescription()}`;
 	}
 
 	public isPreview(): boolean {
-		return this.group.isPreview(this.editor);
+		return this._group.previewEditor === this.editor;
 	}
 
 	public isUntitled(): boolean {

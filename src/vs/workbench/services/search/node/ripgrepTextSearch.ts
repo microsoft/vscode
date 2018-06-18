@@ -4,24 +4,21 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-
-import * as cp from 'child_process';
-import { rgPath } from 'vscode-ripgrep';
-
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
+import * as glob from 'vs/base/common/glob';
 import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
 import * as platform from 'vs/base/common/platform';
 import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
-import * as extfs from 'vs/base/node/extfs';
-import * as encoding from 'vs/base/node/encoding';
-import * as glob from 'vs/base/common/glob';
 import { TPromise } from 'vs/base/common/winjs.base';
-
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
+import * as encoding from 'vs/base/node/encoding';
+import * as extfs from 'vs/base/node/extfs';
 import { IProgress } from 'vs/platform/search/common/search';
+import { rgPath } from 'vscode-ripgrep';
+import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, ISerializedSearchComplete, LineMatch } from './search';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.
 const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
@@ -29,7 +26,7 @@ const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.u
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: Function;
+	private killRgProcFn: (code?: number) => void;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
@@ -148,7 +145,7 @@ export class RipgrepEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0];
+	const firstLine = msg.split('\n')[0].trim();
 
 	if (strings.startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
@@ -160,8 +157,13 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
 	if (strings.startsWith(firstLine, 'Literal ')) {
-		// e.g. "Literal \n not allowed"
+		// Other unsupported chars
 		return firstLine;
 	}
 
@@ -469,9 +471,11 @@ function getRgArgs(config: IRawSearch) {
 		args.push('--follow');
 	}
 
-	// Set default encoding if only one folder is opened
-	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {
-		args.push('--encoding', encoding.toCanonicalName(config.folderQueries[0].fileEncoding));
+	if (config.folderQueries[0]) {
+		const folder0Encoding = config.folderQueries[0].fileEncoding;
+		if (folder0Encoding && folder0Encoding !== 'utf8' && config.folderQueries.every(fq => fq.fileEncoding === folder0Encoding)) {
+			args.push('--encoding', encoding.toCanonicalName(folder0Encoding));
+		}
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
@@ -487,11 +491,13 @@ function getRgArgs(config: IRawSearch) {
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
-		args.push('--regexp', config.contentPattern.pattern);
+		args.push('--regexp', fixRegexEndingPattern(config.contentPattern.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		args.push('--fixed-strings');
 	}
+
+	args.push('--no-config');
 
 	// Folder to search
 	args.push('--');
@@ -538,4 +544,13 @@ function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
 	});
 
 	return universalExcludes;
+}
+
+// Exported for testing
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

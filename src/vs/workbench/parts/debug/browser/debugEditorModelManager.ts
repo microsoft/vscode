@@ -8,7 +8,7 @@ import { Constants } from 'vs/editor/common/core/uint';
 import { Range } from 'vs/editor/common/core/range';
 import { ITextModel, TrackedRangeStickiness, IModelDeltaDecoration, IModelDecorationOptions } from 'vs/editor/common/model';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IDebugService, IBreakpoint, State } from 'vs/workbench/parts/debug/common/debug';
+import { IDebugService, IBreakpoint, State, IBreakpointUpdateData } from 'vs/workbench/parts/debug/common/debug';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { MarkdownString } from 'vs/base/common/htmlContent';
 import { getBreakpointMessageAndClassName } from 'vs/workbench/parts/debug/browser/breakpointsView';
@@ -73,15 +73,15 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 	}
 
 	private onModelAdded(model: ITextModel): void {
-		const modelUrlStr = model.uri.toString();
-		const breakpoints = this.debugService.getModel().getBreakpoints().filter(bp => bp.uri.toString() === modelUrlStr);
+		const modelUriStr = model.uri.toString();
+		const breakpoints = this.debugService.getModel().getBreakpoints({ uri: model.uri });
 
-		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUrlStr));
+		const currentStackDecorations = model.deltaDecorations([], this.createCallStackDecorations(modelUriStr));
 		const desiredDecorations = this.createBreakpointDecorations(model, breakpoints);
 		const breakpointDecorationIds = model.deltaDecorations([], desiredDecorations);
-		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUrlStr))];
+		const toDispose: lifecycle.IDisposable[] = [model.onDidChangeDecorations((e) => this.onModelDecorationsChanged(modelUriStr))];
 
-		this.modelDataMap.set(modelUrlStr, {
+		this.modelDataMap.set(modelUriStr, {
 			model: model,
 			toDispose: toDispose,
 			breakpointDecorations: breakpointDecorationIds.map((decorationId, index) => ({ decorationId, modelId: breakpoints[index].getId(), range: desiredDecorations[index].range })),
@@ -197,7 +197,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			return;
 		}
 
-		const data: { [id: string]: DebugProtocol.Breakpoint } = Object.create(null);
+		const data: { [id: string]: IBreakpointUpdateData } = Object.create(null);
 		const breakpoints = this.debugService.getModel().getBreakpoints();
 		const modelUri = modelData.model.uri;
 		for (let i = 0, len = modelData.breakpointDecorations.length; i < len; i++) {
@@ -209,9 +209,8 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 				// since we know it is collapsed, it cannot grow to multiple lines
 				if (breakpoint) {
 					data[breakpoint.getId()] = {
-						line: decorationRange.startLineNumber,
+						lineNumber: decorationRange.startLineNumber,
 						column: breakpoint.column ? decorationRange.startColumn : undefined,
-						verified: breakpoint.verified
 					};
 				}
 			}
@@ -257,7 +256,7 @@ export class DebugEditorModelManager implements IWorkbenchContribution {
 			({ decorationId, modelId: newBreakpoints[index].getId(), range: desiredDecorations[index].range }));
 	}
 
-	private createBreakpointDecorations(model: ITextModel, breakpoints: IBreakpoint[]): { range: Range; options: IModelDecorationOptions; }[] {
+	private createBreakpointDecorations(model: ITextModel, breakpoints: ReadonlyArray<IBreakpoint>): { range: Range; options: IModelDecorationOptions; }[] {
 		const result: { range: Range; options: IModelDecorationOptions; }[] = [];
 		breakpoints.forEach((breakpoint) => {
 			if (breakpoint.lineNumber <= model.getLineCount()) {

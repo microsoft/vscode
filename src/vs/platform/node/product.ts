@@ -60,6 +60,7 @@ export interface IProductConfiguration {
 	reportIssueUrl: string;
 	licenseUrl: string;
 	privacyStatementUrl: string;
+	telemetryOptOutUrl: string;
 	npsSurveyUrl: string;
 	surveys: ISurveyData[];
 	checksums: { [path: string]: string; };

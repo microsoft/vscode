@@ -12,11 +12,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
 import URI from 'vs/base/common/uri';
 import { IDisposable, dispose, Disposable, toDisposable } from 'vs/base/common/lifecycle';
+import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { EditorOptions } from 'vs/workbench/common/editor';
-import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME } from 'vs/workbench/parts/output/common/output';
+import { IOutputChannelIdentifier, IOutputChannel, IOutputService, Extensions, OUTPUT_PANEL_ID, IOutputChannelRegistry, OUTPUT_SCHEME, OUTPUT_MIME, MAX_OUTPUT_LENGTH, LOG_SCHEME, LOG_MIME, CONTEXT_ACTIVE_LOG_OUTPUT } from 'vs/workbench/parts/output/common/output';
 import { OutputPanel } from 'vs/workbench/parts/output/browser/outputPanel';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -37,9 +38,10 @@ import { toLocalISOString } from 'vs/base/common/date';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ILogService } from 'vs/platform/log/common/log';
 import { binarySearch } from 'vs/base/common/arrays';
-import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { Schemas } from 'vs/base/common/network';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 const OUTPUT_ACTIVE_CHANNEL_KEY = 'output.activechannel';
 
@@ -436,9 +438,9 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IWindowService windowService: IWindowService,
-		@ITelemetryService private telemetryService: ITelemetryService,
 		@ILogService private logService: ILogService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
+		@IContextKeyService private contextKeyService: IContextKeyService,
 	) {
 		super();
 		this.activeChannelIdInStorage = this.storageService.get(OUTPUT_ACTIVE_CHANNEL_KEY, StorageScope.WORKSPACE, null);
@@ -470,7 +472,7 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 	}
 
 	provideTextContent(resource: URI): TPromise<ITextModel> {
-		const channel = <OutputChannel>this.getChannel(resource.fsPath);
+		const channel = <OutputChannel>this.getChannel(resource.path);
 		if (channel) {
 			return channel.loadModel();
 		}
@@ -510,22 +512,35 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		this.channels.set(channelId, channel);
 		if (this.activeChannelIdInStorage === channelId) {
 			this.activeChannel = channel;
-			this.onDidPanelOpen(this.panelService.getActivePanel());
+			this.onDidPanelOpen(this.panelService.getActivePanel())
+				.then(() => this._onActiveOutputChannel.fire(channelId));
 		}
 	}
 
-	private onDidPanelOpen(panel: IPanel): void {
+	private onDidPanelOpen(panel: IPanel): Thenable<void> {
 		if (panel && panel.getId() === OUTPUT_PANEL_ID) {
 			this._outputPanel = <OutputPanel>this.panelService.getActivePanel();
 			if (this.activeChannel) {
-				this.doShowChannel(this.activeChannel, true);
+				return this.doShowChannel(this.activeChannel, true);
 			}
 		}
+		return TPromise.as(null);
 	}
 
 	private onDidPanelClose(panel: IPanel): void {
 		if (this._outputPanel && panel.getId() === OUTPUT_PANEL_ID) {
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(false);
 			this._outputPanel.clearInput();
+		}
+	}
+
+	private setPrimaryCursorToLastLine(): void {
+		const codeEditor = <ICodeEditor>this._outputPanel.getControl();
+		const model = codeEditor.getModel();
+
+		if (model) {
+			const lastLine = model.getLineCount();
+			codeEditor.setPosition({ lineNumber: lastLine, column: model.getLineMaxColumn(lastLine) });
 		}
 	}
 
@@ -536,7 +551,8 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 			if (!channel.scrollLock) {
 				const panel = this.panelService.getActivePanel();
 				if (panel && panel.getId() === OUTPUT_PANEL_ID && this.isChannelShown(channel)) {
-					(<OutputPanel>panel).revealLastLine();
+					let outputPanel = <OutputPanel>panel;
+					outputPanel.revealLastLine(true);
 				}
 			}
 		}, channelDisposables);
@@ -571,19 +587,25 @@ export class OutputService extends Disposable implements IOutputService, ITextMo
 		try {
 			return this.instantiationService.createInstance(OutputChannelBackedByFile, { id, label: channelData ? channelData.label : '' }, this.outputDir, uri);
 		} catch (e) {
+			// Do not crash if spdlog rotating logger cannot be loaded (workaround for https://github.com/Microsoft/vscode/issues/47883)
 			this.logService.error(e);
-			this.telemetryService.publicLog('output.used.bufferedChannel');
 			return this.instantiationService.createInstance(BufferredOutputChannel, { id, label: channelData ? channelData.label : '' });
 		}
 	}
 
-	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): void {
+	private doShowChannel(channel: IOutputChannel, preserveFocus: boolean): Thenable<void> {
 		if (this._outputPanel) {
-			this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }));
-			if (!preserveFocus) {
-				this._outputPanel.focus();
-			}
+			CONTEXT_ACTIVE_LOG_OUTPUT.bindTo(this.contextKeyService).set(channel instanceof FileOutputChannel);
+			return this._outputPanel.setInput(this.createInput(channel), EditorOptions.create({ preserveFocus: preserveFocus }), CancellationToken.None)
+				.then(() => {
+					if (!preserveFocus) {
+						this._outputPanel.focus();
+					}
+				})
+				// Activate smart scroll when switching back to the output panel
+				.then(() => this.setPrimaryCursorToLastLine());
 		}
+		return TPromise.as(null);
 	}
 
 	private isChannelShown(channel: IOutputChannel): boolean {
@@ -639,8 +661,7 @@ export class LogContentProvider {
 		return channel;
 	}
 }
-
-// Remove this channel when there are no issues using Output channel backed by file
+// Remove this channel when https://github.com/Microsoft/vscode/issues/47883 is fixed
 class BufferredOutputChannel extends Disposable implements OutputChannel {
 
 	readonly id: string;

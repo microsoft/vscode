@@ -11,6 +11,7 @@ import { ExtensionsRegistry, IExtensionPointUser } from 'vs/workbench/services/e
 import { IConfigurationNode, IConfigurationRegistry, Extensions, editorConfigurationSchemaId, IDefaultConfigurationExtension, validateProperty, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { IJSONContributionRegistry, Extensions as JSONExtensions } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { workspaceSettingsSchemaId, launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
+import { isObject } from 'vs/base/common/types';
 
 const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 
@@ -32,13 +33,15 @@ const configurationEntrySchema: IJSONSchema = {
 						type: 'object',
 						properties: {
 							isExecutable: {
-								type: 'boolean'
+								type: 'boolean',
+								deprecationMessage: 'This property is deprecated. Instead use `scope` property and set it to `application` value.'
 							},
 							scope: {
 								type: 'string',
-								enum: ['window', 'resource'],
+								enum: ['application', 'window', 'resource'],
 								default: 'window',
 								enumDescriptions: [
+									nls.localize('scope.application.description', "Application specific configuration, which can be configured only in User settings."),
 									nls.localize('scope.window.description', "Window specific configuration, which can be configured in the User or Workspace settings."),
 									nls.localize('scope.resource.description', "Resource specific configuration, which can be configured in the User, Workspace or Folder settings.")
 								],
@@ -129,13 +132,29 @@ function validateProperties(configuration: IConfigurationNode, extension: IExten
 		}
 		for (let key in properties) {
 			const message = validateProperty(key);
-			const propertyConfiguration = configuration.properties[key];
-			propertyConfiguration.scope = propertyConfiguration.scope && propertyConfiguration.scope.toString() === 'resource' ? ConfigurationScope.RESOURCE : ConfigurationScope.WINDOW;
-			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 			if (message) {
-				extension.collector.warn(message);
 				delete properties[key];
+				extension.collector.warn(message);
+				continue;
 			}
+			const propertyConfiguration = configuration.properties[key];
+			if (!isObject(propertyConfiguration)) {
+				delete properties[key];
+				extension.collector.error(nls.localize('invalid.property', "'configuration.property' must be an object"));
+				continue;
+			}
+			if (propertyConfiguration.scope) {
+				if (propertyConfiguration.scope.toString() === 'application') {
+					propertyConfiguration.scope = ConfigurationScope.APPLICATION;
+				} else if (propertyConfiguration.scope.toString() === 'resource') {
+					propertyConfiguration.scope = ConfigurationScope.RESOURCE;
+				} else {
+					propertyConfiguration.scope = ConfigurationScope.WINDOW;
+				}
+			} else {
+				propertyConfiguration.scope = ConfigurationScope.WINDOW;
+			}
+			propertyConfiguration.notMultiRootAdopted = !(extension.description.isBuiltin || (Array.isArray(extension.description.keywords) && extension.description.keywords.indexOf('multi-root ready') !== -1));
 		}
 	}
 	let subNodes = configuration.allOf;

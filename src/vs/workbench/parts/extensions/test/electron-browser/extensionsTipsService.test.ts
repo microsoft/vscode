@@ -23,12 +23,13 @@ import { Emitter } from 'vs/base/common/event';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestNotificationService } from 'vs/workbench/test/workbenchTestServices';
+import { TestTextResourceConfigurationService, TestContextService, TestLifecycleService, TestEnvironmentService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import URI from 'vs/base/common/uri';
 import { testWorkspace } from 'vs/platform/workspace/test/common/testWorkspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { FileService } from 'vs/workbench/services/files/node/fileService';
+import { FileService } from 'vs/workbench/services/files/electron-browser/fileService';
 import * as extfs from 'vs/base/node/extfs';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { IPager } from 'vs/base/common/paging';
@@ -45,7 +46,8 @@ import product from 'vs/platform/node/product';
 import { ITextModel } from 'vs/editor/common/model';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
+import { URLService } from 'vs/platform/url/common/urlService';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -68,6 +70,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			coreTranslations: {}
 		}),
 	aGalleryExtension('MockExtension2', {
 		displayName: 'Mock Extension 2',
@@ -89,6 +92,7 @@ const mockExtensionGallery: IGalleryExtension[] = [
 			icon: { uri: 'uri:icon', fallbackUri: 'fallback:icon' },
 			license: { uri: 'uri:license', fallbackUri: 'fallback:license' },
 			repository: { uri: 'uri:repository', fallbackUri: 'fallback:repository' },
+			coreTranslations: {}
 		})
 ];
 
@@ -146,7 +150,8 @@ const noAssets: IGalleryExtensionAssets = {
 	license: null,
 	manifest: null,
 	readme: null,
-	repository: null
+	repository: null,
+	coreTranslations: null
 };
 
 function aGalleryExtension(name: string, properties: any = {}, galleryExtensionProperties: any = {}, assets: IGalleryExtensionAssets = noAssets): IGalleryExtension {
@@ -189,8 +194,8 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
-		instantiationService.stub(IURLService, { onOpenURL: new Emitter().event });
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
+		instantiationService.stub(IURLService, URLService);
 
 		onModelAddedEvent = new Emitter<ITextModel>();
 
@@ -222,9 +227,9 @@ suite('ExtensionsTipsService Test', () => {
 		prompted = false;
 
 		class TestNotificationService2 extends TestNotificationService {
-			public prompt() {
+			public prompt(severity: Severity, message: string, choices: IPromptChoice[], onCancel?: () => void) {
 				prompted = true;
-				return TPromise.as(3);
+				return null;
 			}
 		}
 
@@ -264,7 +269,7 @@ suite('ExtensionsTipsService Test', () => {
 			const myWorkspace = testWorkspace(URI.from({ scheme: 'file', path: folderDir }));
 			workspaceService = new TestContextService(myWorkspace);
 			instantiationService.stub(IWorkspaceContextService, workspaceService);
-			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), { disableWatcher: true }));
+			instantiationService.stub(IFileService, new FileService(workspaceService, TestEnvironmentService, new TestTextResourceConfigurationService(), new TestConfigurationService(), new TestLifecycleService(), new TestStorageService(), new TestNotificationService(), { disableWatcher: true }));
 		});
 	}
 

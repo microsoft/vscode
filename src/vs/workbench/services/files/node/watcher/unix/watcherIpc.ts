@@ -7,10 +7,11 @@
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IChannel } from 'vs/base/parts/ipc/common/ipc';
-import { IWatcherRequest, IWatcherService } from 'vs/workbench/services/files/node/watcher/unix/watcher';
+import { IWatcherRequest, IWatcherService, IWatcherOptions } from 'vs/workbench/services/files/node/watcher/unix/watcher';
 
 export interface IWatcherChannel extends IChannel {
-	call(command: 'watch', request: IWatcherRequest): TPromise<void>;
+	call(command: 'initialize', options: IWatcherOptions): TPromise<void>;
+	call(command: 'setRoots', request: IWatcherRequest[]): TPromise<void>;
 	call(command: string, arg: any): TPromise<any>;
 }
 
@@ -20,7 +21,8 @@ export class WatcherChannel implements IWatcherChannel {
 
 	call(command: string, arg: any): TPromise<any> {
 		switch (command) {
-			case 'watch': return this.service.watch(arg);
+			case 'initialize': return this.service.initialize(arg);
+			case 'setRoots': return this.service.setRoots(arg);
 		}
 		return undefined;
 	}
@@ -30,7 +32,11 @@ export class WatcherChannelClient implements IWatcherService {
 
 	constructor(private channel: IWatcherChannel) { }
 
-	watch(request: IWatcherRequest): TPromise<void> {
-		return this.channel.call('watch', request);
+	initialize(options: IWatcherOptions): TPromise<void> {
+		return this.channel.call('initialize', options);
+	}
+
+	setRoots(roots: IWatcherRequest[]): TPromise<void> {
+		return this.channel.call('setRoots', roots);
 	}
 }

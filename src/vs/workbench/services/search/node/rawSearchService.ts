@@ -6,7 +6,7 @@
 'use strict';
 
 import * as fs from 'fs';
-import { isAbsolute, sep } from 'path';
+import { isAbsolute, sep, join } from 'path';
 
 import * as gracefulFs from 'graceful-fs';
 gracefulFs.gracefulify(fs);
@@ -132,7 +132,7 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private rawMatchToSearchItem(match: IRawFileMatch): ISerializedFileMatch {
-		return { path: match.base ? [match.base, match.relativePath].join(sep) : match.relativePath };
+		return { path: match.base ? join(match.base, match.relativePath) : match.relativePath };
 	}
 
 	private doSortedSearch(engine: ISearchEngine<IRawFileMatch>, config: IRawSearch): PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IProgress> {

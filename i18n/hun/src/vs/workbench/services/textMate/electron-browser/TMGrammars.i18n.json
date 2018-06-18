@@ -10,6 +10,7 @@
 	"vscode.extension.contributes.grammars.language": "Annak a nyelvnek az azonosítója, amely számára szolgáltatva van ez a szintaxis.",
 	"vscode.extension.contributes.grammars.scopeName": "A tmLanguage-fájl által használt TextMate-hatókör neve.",
 	"vscode.extension.contributes.grammars.path": "A tmLanguage-fájl elérési útja. Az elérési út relatív a kiegészítő mappájához képest, és általában './syntaxes/'-zal kezdődik.",
-	"vscode.extension.contributes.grammars.embeddedLanguages": "Hatókörnév-nyelvazonosító kulcs-érték párokat tartalmazó objektum, ha a nyelvtan tartalmaz beágyazott nyelveket.",
+	"vscode.extension.contributes.grammars.embeddedLanguages": "Hatókörnevek leképezése nyelvazonosítókra, ha a nyelvtan tartalmaz beágyazott nyelveket.",
+	"vscode.extension.contributes.grammars.tokenTypes": "Hatókörnevek leképezése tokentípusokra.",
 	"vscode.extension.contributes.grammars.injectTo": "Azon nyelvi hatókörök nevei, ahová be lesz ágyazva ez a nyelvtan."
 }

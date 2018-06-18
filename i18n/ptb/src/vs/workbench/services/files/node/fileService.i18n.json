@@ -9,7 +9,6 @@
 	"fileInvalidPath": "Recurso de arquivo inválido ({0})",
 	"fileIsDirectoryError": "Arquivo é um diretório",
 	"fileNotModifiedError": "Arquivo não modificado desde",
-	"fileTooLargeForHeapError": "O tamanho do arquivo excede o limite de memória da janela. Por favor, tente executar o codigo -max-memory=NOVOVALOR",
 	"fileTooLargeError": "Arquivo muito grande para abrir",
 	"fileNotFoundError": "Arquivo não encontrado ({0})",
 	"fileBinaryError": "Arquivo parece ser binário e não pode ser aberto como texto",

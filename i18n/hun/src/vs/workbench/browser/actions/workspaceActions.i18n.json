@@ -15,5 +15,5 @@
 	"saveWorkspace": "Munkaterület mentése",
 	"openWorkspaceAction": "Munkaterület megnyitása...",
 	"openWorkspaceConfigFile": "Munkaterület konfigurációs fájljának megnyitása",
-	"openFolderAsWorkspaceInNewWindow": "Mappa megnyitása munkaterületként egy új ablakban"
+	"duplicateWorkspaceInNewWindow": "Munkaterület megnyitása egy új ablakban"
 }

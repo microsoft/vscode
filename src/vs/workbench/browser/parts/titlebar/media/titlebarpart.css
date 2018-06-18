@@ -24,8 +24,127 @@
 	flex: 0 1 auto;
 	overflow: hidden;
 	white-space: nowrap;
-	line-height: 22px;
 	text-overflow: ellipsis;
 	-webkit-app-region: drag;
 	zoom: 1; /* prevent zooming */
+}
+
+/* Windows/Linux: Rules for custom title (icon, window controls)  */
+
+.monaco-workbench.windows > .part.titlebar,
+.monaco-workbench.linux > .part.titlebar {
+	padding: 0;
+	height: 30px;
+	line-height: 30px;
+	justify-content: space-between;
+}
+
+.monaco-workbench.windows > .part.titlebar > .resizer,
+.monaco-workbench.linux > .part.titlebar > .resizer {
+	-webkit-app-region: no-drag;
+	position: absolute;
+	top: 0;
+	width: 100%;
+	height: 1px;
+}
+
+.monaco-workbench.windows > .part.titlebar > .window-title,
+.monaco-workbench.linux > .part.titlebar > .window-title  {
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar > .window-appicon {
+	width: 15px;
+	padding-left: 10px;
+	margin-right: 113px;
+	-webkit-app-region: no-drag;
+	position: relative;
+	z-index: 99;
+	order: 1;
+	image-rendering: crisp-edges;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container {
+	display: flex;
+	flex-grow: 0;
+	flex-shrink: 0;
+	text-align: center;
+	position: relative;
+	z-index: 99;
+	-webkit-app-region: no-drag;
+	height: 100%;
+	width: 138px;
+	order: 3;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon {
+	display: inline-block;
+	-webkit-app-region: no-drag;
+	-webkit-transition: background-color .2s;
+	transition: background-color .2s;
+	height: 100%;
+	width: 33.34%;
+	background-size: 20%;
+	background-position: center center;
+	background-repeat: no-repeat;
+}
+
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon svg {
+	shape-rendering: crispEdges;
+	text-align: center;
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-close {
+	background-image: url('chrome-close-dark.svg');
+	order: 3;
+}
+
+.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-close {
+	background-image: url('chrome-close.svg');
+	order: 3;
+}
+
+.monaco-workbench > .part.titlebar.titlebar > .window-controls-container > .window-unmaximize {
+	background-image: url('chrome-restore-dark.svg');
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar.titlebar.light > .window-controls-container > .window-unmaximize {
+	background-image: url('chrome-restore.svg');
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-maximize {
+	background-image: url('chrome-maximize-dark.svg');
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-maximize {
+	background-image: url('chrome-maximize.svg');
+	order: 2;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-minimize {
+	background-image: url('chrome-minimize-dark.svg');
+	order: 1;
+}
+
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-minimize {
+	background-image: url('chrome-minimize.svg');
+	order: 1;
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-icon:hover {
+	background-color: rgba(255, 255, 255, 0.1);
+}
+
+.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-icon:hover {
+	background-color: rgba(0, 0, 0, 0.1);
+}
+
+.monaco-workbench > .part.titlebar > .window-controls-container > .window-close:hover,
+	.monaco-workbench > .part.titlebar.light > .window-controls-container > .window-close:hover {
+	background-color: rgba(232, 17, 35, 0.9);
+	background-image: url('chrome-close-dark.svg');
 }

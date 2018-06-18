@@ -13,6 +13,7 @@ import { ILanguageExtensionPoint } from 'vs/editor/common/services/modeService';
 import { LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
 import { NULL_MODE_ID, NULL_LANGUAGE_IDENTIFIER } from 'vs/editor/common/modes/nullMode';
 import { IConfigurationRegistry, Extensions } from 'vs/platform/configuration/common/configurationRegistry';
+import URI from 'vs/base/common/uri';
 
 const hasOwnProperty = Object.prototype.hasOwnProperty;
 
@@ -23,7 +24,7 @@ export interface IResolvedLanguage {
 	aliases: string[];
 	extensions: string[];
 	filenames: string[];
-	configurationFiles: string[];
+	configurationFiles: URI[];
 }
 
 export class LanguagesRegistry {
@@ -111,13 +112,9 @@ export class LanguagesRegistry {
 
 		let primaryMime: string = null;
 
-		if (typeof lang.mimetypes !== 'undefined' && Array.isArray(lang.mimetypes)) {
-			for (let i = 0; i < lang.mimetypes.length; i++) {
-				if (!primaryMime) {
-					primaryMime = lang.mimetypes[i];
-				}
-				resolvedLanguage.mimetypes.push(lang.mimetypes[i]);
-			}
+		if (Array.isArray(lang.mimetypes) && lang.mimetypes.length > 0) {
+			resolvedLanguage.mimetypes.push(...lang.mimetypes);
+			primaryMime = lang.mimetypes[0];
 		}
 
 		if (!primaryMime) {
@@ -192,7 +189,7 @@ export class LanguagesRegistry {
 			}
 		}
 
-		if (typeof lang.configuration === 'string') {
+		if (lang.configuration) {
 			resolvedLanguage.configurationFiles.push(lang.configuration);
 		}
 	}
@@ -228,7 +225,7 @@ export class LanguagesRegistry {
 		return this._lowercaseNameMap[languageNameLower].language;
 	}
 
-	public getConfigurationFiles(modeId: string): string[] {
+	public getConfigurationFiles(modeId: string): URI[] {
 		if (!hasOwnProperty.call(this._languages, modeId)) {
 			return [];
 		}

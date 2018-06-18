@@ -8,16 +8,15 @@
 import 'vs/css!./media/notificationsToasts';
 import { INotificationsModel, NotificationChangeType, INotificationChangeEvent, INotificationViewItem, NotificationViewItemLabelKind } from 'vs/workbench/common/notifications';
 import { IDisposable, dispose, toDisposable } from 'vs/base/common/lifecycle';
-import { addClass, removeClass, isAncestor, addDisposableListener, EventType } from 'vs/base/browser/dom';
+import { addClass, removeClass, isAncestor, addDisposableListener, EventType, Dimension } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { NotificationsList } from 'vs/workbench/browser/parts/notifications/notificationsList';
-import { Dimension } from 'vs/base/browser/builder';
 import { once } from 'vs/base/common/event';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { Themable, NOTIFICATIONS_TOAST_BORDER } from 'vs/workbench/common/theme';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { NotificationsToastsVisibleContext } from 'vs/workbench/browser/parts/notifications/notificationsCommands';
 import { IContextKeyService, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { localize } from 'vs/nls';
@@ -65,7 +64,7 @@ export class NotificationsToasts extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
@@ -169,8 +168,8 @@ export class NotificationsToasts extends Themable {
 			}
 		}));
 
-		// Remove when item gets disposed
-		once(item.onDidDispose)(() => {
+		// Remove when item gets closed
+		once(item.onDidClose)(() => {
 			this.removeToast(item);
 		});
 
@@ -186,7 +185,8 @@ export class NotificationsToasts extends Themable {
 			let timeoutHandle: number;
 			const hideAfterTimeout = () => {
 				timeoutHandle = setTimeout(() => {
-					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast) {
+					const showsProgress = item.hasProgress() && !item.progress.state.done;
+					if (!notificationList.hasFocus() && !item.expanded && !isMouseOverToast && !showsProgress) {
 						this.removeToast(item);
 					} else {
 						hideAfterTimeout(); // push out disposal if item has focus or is expanded
@@ -219,11 +219,11 @@ export class NotificationsToasts extends Themable {
 
 	private removeToast(item: INotificationViewItem): void {
 		const notificationToast = this.mapNotificationToToast.get(item);
-		let focusEditor = false;
+		let focusGroup = false;
 		if (notificationToast) {
 			const toastHasDOMFocus = isAncestor(document.activeElement, notificationToast.container);
 			if (toastHasDOMFocus) {
-				focusEditor = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
+				focusGroup = !(this.focusNext() || this.focusPrevious()); // focus next if any, otherwise focus editor
 			}
 
 			// Listeners
@@ -242,17 +242,10 @@ export class NotificationsToasts extends Themable {
 		else {
 			this.doHide();
 
-			// Move focus to editor as needed
-			if (focusEditor) {
-				this.focusEditor();
+			// Move focus back to editor group as needed
+			if (focusGroup) {
+				this.editorGroupService.activeGroup.focus();
 			}
-		}
-	}
-
-	private focusEditor(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
 		}
 	}
 
@@ -273,12 +266,12 @@ export class NotificationsToasts extends Themable {
 	}
 
 	public hide(): void {
-		const focusEditor = isAncestor(document.activeElement, this.notificationsToastsContainer);
+		const focusGroup = isAncestor(document.activeElement, this.notificationsToastsContainer);
 
 		this.removeToasts();
 
-		if (focusEditor) {
-			this.focusEditor();
+		if (focusGroup) {
+			this.editorGroupService.activeGroup.focus();
 		}
 	}
 
@@ -436,6 +429,8 @@ export class NotificationsToasts extends Themable {
 
 			availableHeight -= (2 * 12); // adjust for paddings top and bottom
 		}
+
+		availableHeight = Math.round(availableHeight * 0.618); // try to not cover the full height for stacked toasts
 
 		return new Dimension(Math.min(maxWidth, availableWidth), availableHeight);
 	}

@@ -17,6 +17,7 @@
 	"focusNextGroup": "다음 그룹에 포커스",
 	"openToSide": "측면에서 열기",
 	"closeEditor": "편집기 닫기",
+	"closeOneEditor": "닫기",
 	"revertAndCloseActiveEditor": "편집기 되돌리기 및 닫기",
 	"closeEditorsToTheLeft": "왼쪽에 있는 편집기 닫기",
 	"closeAllEditors": "모든 편집기 닫기",

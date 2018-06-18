@@ -22,29 +22,15 @@ function yarnInstall(location, opts) {
 
 yarnInstall('extensions'); // node modules shared by all extensions
 
-const extensions = [
-	'vscode-api-tests',
-	'vscode-colorize-tests',
-	'json',
-	'configuration-editing',
-	'extension-editing',
-	'markdown',
-	'markdown-basics',
-	'typescript',
-	'typescript-basics',
-	'php',
-	'javascript',
-	'css',
-	'html',
-	'git',
-	'gulp',
-	'grunt',
-	'jake',
-	'merge-conflict',
-	'emmet',
-	'npm',
-	'jake'
-];
+const allExtensionFolders = fs.readdirSync('extensions');
+const extensions = allExtensionFolders.filter(e => {
+	try {
+		let packageJSON = JSON.parse(fs.readFileSync(path.join('extensions', e, 'package.json')).toString());
+		return packageJSON && (packageJSON.dependencies || packageJSON.devDependencies);
+	} catch (e) {
+		return false;
+	}
+});
 
 extensions.forEach(extension => yarnInstall(`extensions/${extension}`));
 

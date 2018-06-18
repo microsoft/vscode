@@ -11,9 +11,11 @@
 	"sizeMB": "{0} MB",
 	"sizeGB": "{0} GB",
 	"sizeTB": "{0} TB",
-	"largeImageError": "图像文件太大 (>1 MB)，无法在编辑器中显示。",
+	"largeImageError": "图片太大，无法在编辑器中显示 ({0})。 ",
 	"resourceOpenExternalButton": "使用外部程序打开图片？",
-	"nativeBinaryError": "因为此文件是二进制文件，或文件过大，或使用了不受支持的文本编码，将不会在编辑器中显示。",
+	"nativeFileTooLargeError": "文件太大，无法在编辑器中显示 ({0})。",
+	"nativeBinaryError": "此文件是二进制文件或使用了不支持的文本编码，无法在编辑器中显示。",
+	"openAsText": "是否仍要打开?",
 	"zoom.action.fit.label": "整个图像",
 	"imgMeta": "{0}x{1} {2}"
 }

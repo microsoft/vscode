@@ -35,7 +35,7 @@
 	"emmetExtensionsPath": "Caminho para uma pasta que contém os perfis Emmet e trechos de códigos.'",
 	"emmetShowExpandedAbbreviation": "Mostrar abreviaturas Emmet expandidas como sugestões.\nA opção \"inMarkupAndStylesheetFilesOnly\" aplica-se a html, haml, jade, slim, xml, xsl, css, scss, sass, less e stylus.\nA opção \"always\" se aplica a todas as partes do arquivo independentemente de marcação/css.",
 	"emmetShowAbbreviationSuggestions": "Mostra abreviações Emmet possíveis como sugestões. Não aplicável em folhas de estilo ou quando emmet.showExpandedAbbreviation é definido como \"never\".",
-	"emmetIncludeLanguages": "Habilita as abreviaturas Emmet em linguagens que não são suportados por padrão. Adicionar um mapeamento aqui entre a linguagem e a linguagem emmet suportada.\n Por exemplo: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
+	"emmetIncludeLanguages": "Ative abreviações do Emmet em idiomas que não são suportados por padrão. Adicione um mapeamento aqui entre o idioma e a linguagem suportada emmet.\nPor exemplo: {\"vue-html\": \"html\", \"javascript\": \"javascriptreact\"}",
 	"emmetVariables": "Variáveis a serem usadas em trechos de código Emmet",
 	"emmetTriggerExpansionOnTab": "Quando habilitado, abreviações Emmet são expandidas ao pressionar TAB.",
 	"emmetPreferences": "Preferências usadas para modificar o comportamento de algumas ações e resolvedores de Emmet.",
@@ -59,5 +59,7 @@
 	"emmetPreferencesCssWebkitProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'webkit' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'webkit'.",
 	"emmetPreferencesCssMozProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'moz' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'moz'.",
 	"emmetPreferencesCssOProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'o' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'o'.",
-	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'."
+	"emmetPreferencesCssMsProperties": "Propriedades CSS separadas por vírgula que recebem o prefixo vendor 'ms' quando utilizado em abreviações do Emmet que iniciam com `-`. Defina como string vazia para sempre evitar o prefixo 'ms'.",
+	"emmetPreferencesCssFuzzySearchMinScore": "A pontuação mínima (de 0 a 1) que a abreviação difusa deve alcançar. Os valores mais baixos podem produzir muitas correspondências falso-positivas, valores mais elevados podem reduzir possíveis correspondências.\n",
+	"emmetOptimizeStylesheetParsing": "Quando definido como false, o arquivo inteiro é analisado para determinar se a posição atual é válida para expandir as abreviações Emmet. Quando definido como true, somente o conteúdo em torno da posição atual em arquivos css / scss / less é analisado."
 }

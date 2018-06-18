@@ -25,7 +25,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server, Socket } from 'net';
 import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
@@ -61,7 +61,7 @@ export class ExtensionHostProcessWorker {
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
 
 	constructor(
-		/* intentionally not injected */private readonly _extensionService: IExtensionService,
+		private readonly _extensions: TPromise<IExtensionDescription[]>,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -141,7 +141,6 @@ export class ExtensionHostProcessWorker {
 						AMD_ENTRYPOINT: 'vs/workbench/node/extensionHostProcess',
 						PIPE_LOGGING: 'true',
 						VERBOSE_LOGGING: true,
-						VSCODE_WINDOW_ID: String(this._windowService.getCurrentWindowId()),
 						VSCODE_IPC_HOOK_EXTHOST: pipeName,
 						VSCODE_HANDLES_UNCAUGHT_ERRORS: true,
 						VSCODE_LOG_STACK: !this._isExtensionDevTestFromCli && (this._isExtensionDevHost || !this._environmentService.isBuilt || product.quality !== 'stable' || this._environmentService.verbose)
@@ -194,13 +193,13 @@ export class ExtensionHostProcessWorker {
 				}, 100);
 
 				// Print out extension host output
-				onDebouncedOutput(data => {
-					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
-					if (inspectorUrlIndex >= 0) {
-						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
+				onDebouncedOutput(output => {
+					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					if (inspectorUrlMatch) {
+						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
 					} else {
 						console.group('Extension Host');
-						console.log(data.data, ...data.format);
+						console.log(output.data, ...output.format);
 						console.groupEnd();
 					}
 				});
@@ -236,11 +235,12 @@ export class ExtensionHostProcessWorker {
 							? nls.localize('extensionHostProcess.startupFailDebug', "Extension host did not start in 10 seconds, it might be stopped on the first line and needs a debugger to continue.")
 							: nls.localize('extensionHostProcess.startupFail', "Extension host did not start in 10 seconds, that might be a problem.");
 
-						this._notificationService.prompt(Severity.Warning, msg, [nls.localize('reloadWindow', "Reload Window")]).then(choice => {
-							if (choice === 0) {
-								this._windowService.reloadWindow();
-							}
-						});
+						this._notificationService.prompt(Severity.Warning, msg,
+							[{
+								label: nls.localize('reloadWindow', "Reload Window"),
+								run: () => this._windowService.reloadWindow()
+							}]
+						);
 					}, 10000);
 				}
 
@@ -361,7 +361,7 @@ export class ExtensionHostProcessWorker {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensions]).then(([telemetryInfo, extensionDescriptions]) => {
 			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 			const r: IInitData = {
 				parentPid: process.pid,
@@ -370,22 +370,17 @@ export class ExtensionHostProcessWorker {
 					appRoot: this._environmentService.appRoot,
 					appSettingsHome: this._environmentService.appSettingsHome,
 					disableExtensions: this._environmentService.disableExtensions,
-					userExtensionsHome: this._environmentService.extensionsPath,
 					extensionDevelopmentPath: this._environmentService.extensionDevelopmentPath,
-					extensionTestsPath: this._environmentService.extensionTestsPath,
-					// globally disable proposed api when built and not insiders developing extensions
-					enableProposedApiForAll: !this._environmentService.isBuilt || (!!this._environmentService.extensionDevelopmentPath && product.nameLong.indexOf('Insiders') >= 0),
-					enableProposedApiFor: this._environmentService.args['enable-proposed-api'] || []
+					extensionTestsPath: this._environmentService.extensionTestsPath
 				},
 				workspace: this._contextService.getWorkbenchState() === WorkbenchState.EMPTY ? null : <IWorkspaceData>this._contextService.getWorkspace(),
 				extensions: extensionDescriptions,
 				// Send configurations scopes only in development mode.
 				configuration: !this._environmentService.isBuilt || this._environmentService.isExtensionDevelopment ? { ...configurationData, configurationScopes: getScopes() } : configurationData,
 				telemetryInfo,
-				args: this._environmentService.args,
-				execPath: this._environmentService.execPath,
 				windowId: this._windowService.getCurrentWindowId(),
-				logLevel: this._logService.getLevel()
+				logLevel: this._logService.getLevel(),
+				logsPath: this._environmentService.logsPath
 			};
 			return r;
 		});

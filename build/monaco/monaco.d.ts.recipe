@@ -3,9 +3,9 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-declare module monaco {
+declare namespace monaco {
 
-	type Thenable<T> = PromiseLike<T>;
+	export type Thenable<T> = PromiseLike<T>;
 
 	export interface IDisposable {
 		dispose(): void;
@@ -32,6 +32,10 @@ declare module monaco {
 		Error = 3,
 	}
 
+	export enum MarkerTag {
+		Unnecessary = 1,
+	}
+
 	export enum MarkerSeverity {
 		Hint = 1,
 		Info = 2,
@@ -54,7 +58,7 @@ declare module monaco {
 #include(vs/editor/common/core/token): Token
 }
 
-declare module monaco.editor {
+declare namespace monaco.editor {
 
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
@@ -83,7 +87,7 @@ export type IReadOnlyModel = ITextModel;
 export type IModel = ITextModel;
 }
 
-declare module monaco.languages {
+declare namespace monaco.languages {
 
 #includeAll(vs/editor/standalone/browser/standaloneLanguages;modes.=>;editorCommon.=>editor.;model.=>editor.;IMarkerData=>editor.IMarkerData):
 #includeAll(vs/editor/common/modes/languageConfiguration):
@@ -93,7 +97,7 @@ declare module monaco.languages {
 
 }
 
-declare module monaco.worker {
+declare namespace monaco.worker {
 
 #includeAll(vs/editor/common/services/editorSimpleWorker;):
 

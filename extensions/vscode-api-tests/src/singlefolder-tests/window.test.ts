@@ -81,7 +81,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, onDidChangeTextEditorViewColumn', () => {
+	test('editor, onDidChangeTextEditorViewColumn (close editor)', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;
 
@@ -119,7 +119,66 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('issue #25801 - default column when opening a file', async () => {
+	test('editor, onDidChangeTextEditorViewColumn (move editor group)', () => {
+
+		let actualEvents: TextEditorViewColumnChangeEvent[] = [];
+
+		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+			provideTextDocumentContent() {
+				return 'mountainbiking,roadcycling';
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
+			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
+		]).then(editors => {
+
+			let [, two] = editors;
+			two.show();
+
+			return new Promise(resolve => {
+
+				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+					actualEvents.push(event);
+
+					if (actualEvents.length === 2) {
+						registration2.dispose();
+						resolve();
+					}
+				});
+
+				// move active editor group left
+				return commands.executeCommand('workbench.action.moveActiveEditorGroupLeft');
+
+			}).then(() => {
+				assert.equal(actualEvents.length, 2);
+
+				for (let i = 0; i < actualEvents.length; i++) {
+					const event = actualEvents[i];
+					assert.equal(event.viewColumn, event.textEditor.viewColumn);
+				}
+
+				registration1.dispose();
+			});
+		});
+	});
+
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
+	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -133,9 +192,63 @@ suite('window namespace tests', () => {
 		assert.ok(window.activeTextEditor!.document === docB);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
-		await window.showTextDocument(docC);
+		const editor = await window.showTextDocument(docC);
+		assert.ok(
+			window.activeTextEditor === editor,
+			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
+		);
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+	});
+
+	test('showTextDocument ViewColumn.BESIDE', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Three);
+	});
+
+	test('showTextDocument ViewColumn is always defined (even when opening > ViewColumn.Nine)', async () => {
+		const [doc1, doc2, doc3, doc4, doc5, doc6, doc7, doc8, doc9, doc10] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(doc1, ViewColumn.One);
+		await window.showTextDocument(doc2, ViewColumn.Two);
+		await window.showTextDocument(doc3, ViewColumn.Three);
+		await window.showTextDocument(doc4, ViewColumn.Four);
+		await window.showTextDocument(doc5, ViewColumn.Five);
+		await window.showTextDocument(doc6, ViewColumn.Six);
+		await window.showTextDocument(doc7, ViewColumn.Seven);
+		await window.showTextDocument(doc8, ViewColumn.Eight);
+		await window.showTextDocument(doc9, ViewColumn.Nine);
+		await window.showTextDocument(doc10, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === doc10);
+		assert.equal(window.activeTextEditor!.viewColumn, 10);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
@@ -279,6 +392,53 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - value not empty on second try', async function () {
+		const one = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await one, 'notempty');
+		const two = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await two, 'notempty');
+	});
+
+
+	test('showQuickPick, accept first', async function () {
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const first = new Promise(resolve => resolves.push(resolve));
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string)
+		});
+		assert.equal(await first, 'eins');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'zwei');
+	});
+
+	test('showQuickPick, select first two', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string),
+			canPickMany: true
+		});
+		const first = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await first, 'eins');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+	});
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -361,7 +521,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
 			validateInput: (value: string) => {
 				if (!value || value.trim().length === 0) {
@@ -369,12 +529,11 @@ suite('window namespace tests', () => {
 				}
 				return null;
 			}
-		}).then(value => {
-			assert.equal(value, undefined);
 		});
 
-		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		return Promise.all([result, exec]);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		await commands.executeCommand('workbench.action.closeQuickOpen');
+		assert.equal(await result, undefined);
 	});
 
 

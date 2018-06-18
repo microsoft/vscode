@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { LRUMemory, NoMemory, PrefixMemory } from 'vs/editor/contrib/suggest/suggestMemory';
+import { LRUMemory, NoMemory, PrefixMemory, Memory } from 'vs/editor/contrib/suggest/suggestMemory';
 import { ITextModel } from 'vs/editor/common/model';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ICompletionItem } from 'vs/editor/contrib/suggest/completionModel';
@@ -21,11 +21,51 @@ suite('SuggestMemories', function () {
 
 	setup(function () {
 		pos = { lineNumber: 1, column: 1 };
-		buffer = TextModel.createFromString('This is some text');
+		buffer = TextModel.createFromString('This is some text.\nthis.\nfoo: ,');
 		items = [
 			createSuggestItem('foo', 0),
 			createSuggestItem('bar', 0)
 		];
+	});
+
+	test('AbstractMemory, select', function () {
+
+		const mem = new class extends Memory {
+			memorize(model: ITextModel, pos: IPosition, item: ICompletionItem): void {
+				throw new Error('Method not implemented.');
+			} toJSON(): object {
+				throw new Error('Method not implemented.');
+			}
+			fromJSON(data: object): void {
+				throw new Error('Method not implemented.');
+			}
+		};
+
+		let item1 = createSuggestItem('fazz', 0);
+		let item2 = createSuggestItem('bazz', 0);
+		let item3 = createSuggestItem('bazz', 0);
+		let item4 = createSuggestItem('bazz', 0);
+		item1.suggestion.preselect = false;
+		item2.suggestion.preselect = true;
+		item3.suggestion.preselect = true;
+
+		assert.equal(mem.select(buffer, pos, [item1, item2, item3, item4]), 1);
+	});
+
+	test('[No|Prefix|LRU]Memory honor selection boost', function () {
+		let item1 = createSuggestItem('fazz', 0);
+		let item2 = createSuggestItem('bazz', 0);
+		let item3 = createSuggestItem('bazz', 0);
+		let item4 = createSuggestItem('bazz', 0);
+		item1.suggestion.preselect = false;
+		item2.suggestion.preselect = true;
+		item3.suggestion.preselect = true;
+		let items = [item1, item2, item3, item4];
+
+
+		assert.equal(new NoMemory().select(buffer, pos, items), 1);
+		assert.equal(new LRUMemory().select(buffer, pos, items), 1);
+		assert.equal(new PrefixMemory().select(buffer, pos, items), 1);
 	});
 
 	test('NoMemory', function () {
@@ -39,7 +79,9 @@ suite('SuggestMemories', function () {
 		mem.memorize(buffer, pos, null);
 	});
 
-	test('ShyMemories', function () {
+	test('LRUMemory', function () {
+
+		pos = { lineNumber: 2, column: 6 };
 
 		const mem = new LRUMemory();
 		mem.memorize(buffer, pos, items[1]);
@@ -59,7 +101,19 @@ suite('SuggestMemories', function () {
 			createSuggestItem('new1', 0),
 			createSuggestItem('new2', 0)
 		]), 0);
+	});
 
+	test('intellisense is not showing top options first #43429', function () {
+		// ensure we don't memorize for whitespace prefixes
+
+		pos = { lineNumber: 2, column: 6 };
+		const mem = new LRUMemory();
+
+		mem.memorize(buffer, pos, items[1]);
+		assert.equal(mem.select(buffer, pos, items), 1);
+
+		assert.equal(mem.select(buffer, { lineNumber: 3, column: 5 }, items), 0); // foo: |,
+		assert.equal(mem.select(buffer, { lineNumber: 3, column: 6 }, items), 1); // foo: ,|
 	});
 
 	test('PrefixMemory', function () {

@@ -208,7 +208,7 @@ export class Position {
 
 export class Range {
 
-	static isRange(thing: any): thing is Range {
+	static isRange(thing: any): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
@@ -591,16 +591,6 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 }
 
-export class RenameContext {
-	range: Range;
-	newName?: string;
-
-	constructor(range: Range, newName?: string) {
-		this.range = range;
-		this.newName = newName;
-	}
-}
-
 export class SnippetString {
 
 	static isSnippetString(thing: any): thing is SnippetString {
@@ -683,6 +673,10 @@ export class SnippetString {
 	}
 }
 
+export enum DiagnosticTag {
+	Unnecessary = 1,
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -728,6 +722,27 @@ export class Location {
 	}
 }
 
+export class DiagnosticRelatedInformation {
+
+	static is(thing: any): thing is DiagnosticRelatedInformation {
+		if (!thing) {
+			return false;
+		}
+		return typeof (<DiagnosticRelatedInformation>thing).message === 'string'
+			&& (<DiagnosticRelatedInformation>thing).location
+			&& Range.isRange((<DiagnosticRelatedInformation>thing).location.range)
+			&& URI.isUri((<DiagnosticRelatedInformation>thing).location.uri);
+	}
+
+	location: Location;
+	message: string;
+
+	constructor(location: Location, message: string) {
+		this.location = location;
+		this.message = message;
+	}
+}
+
 export class Diagnostic {
 
 	range: Range;
@@ -735,6 +750,8 @@ export class Diagnostic {
 	source: string;
 	code: string | number;
 	severity: DiagnosticSeverity;
+	relatedInformation: DiagnosticRelatedInformation[];
+	customTags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -864,6 +881,34 @@ export class SymbolInformation {
 	}
 }
 
+export class DocumentSymbol {
+	name: string;
+	detail: string;
+	kind: SymbolKind;
+	range: Range;
+	selectionRange: Range;
+	children: DocumentSymbol[];
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
+		this.name = name;
+		this.detail = detail;
+		this.kind = kind;
+		this.range = range;
+		this.selectionRange = selectionRange;
+		this.children = [];
+
+		if (!this.range.contains(this.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
+		}
+	}
+}
+
+
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
 export class CodeAction {
 	title: string;
 
@@ -891,6 +936,8 @@ export class CodeActionKind {
 	public static readonly RefactorExtract = CodeActionKind.Refactor.append('extract');
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
+	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string
@@ -1026,7 +1073,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export class CompletionItem {
+export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
@@ -1034,6 +1081,7 @@ export class CompletionItem {
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
+	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
 	textEdit: TextEdit;
@@ -1053,6 +1101,7 @@ export class CompletionItem {
 			documentation: this.documentation,
 			sortText: this.sortText,
 			filterText: this.filterText,
+			preselect: this.preselect,
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};
@@ -1073,9 +1122,16 @@ export class CompletionList {
 
 export enum ViewColumn {
 	Active = -1,
+	Beside = -2,
 	One = 1,
 	Two = 2,
-	Three = 3
+	Three = 3,
+	Four = 4,
+	Five = 5,
+	Six = 6,
+	Seven = 7,
+	Eight = 8,
+	Nine = 9
 }
 
 export enum StatusBarAlignment {
@@ -1245,6 +1301,21 @@ export class TaskGroup implements vscode.TaskGroup {
 
 	public static Test: TaskGroup = new TaskGroup('test', 'Test');
 
+	public static from(value: string) {
+		switch (value) {
+			case 'clean':
+				return TaskGroup.Clean;
+			case 'build':
+				return TaskGroup.Build;
+			case 'rebuild':
+				return TaskGroup.Rebuild;
+			case 'test':
+				return TaskGroup.Test;
+			default:
+				return undefined;
+		}
+	}
+
 	constructor(id: string, _label: string) {
 		if (typeof id !== 'string') {
 			throw illegalArgument('name');
@@ -1316,6 +1387,20 @@ export class ProcessExecution implements vscode.ProcessExecution {
 	set options(value: vscode.ProcessExecutionOptions) {
 		this._options = value;
 	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('process');
+		if (this._process !== void 0) {
+			hash.update(this._process);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(arg);
+			}
+		}
+		return hash.digest('hex');
+	}
 }
 
 export class ShellExecution implements vscode.ShellExecution {
@@ -1384,6 +1469,23 @@ export class ShellExecution implements vscode.ShellExecution {
 	set options(value: vscode.ShellExecutionOptions) {
 		this._options = value;
 	}
+
+	public computeId(): string {
+		const hash = crypto.createHash('md5');
+		hash.update('shell');
+		if (this._commandLine !== void 0) {
+			hash.update(this._commandLine);
+		}
+		if (this._command !== void 0) {
+			hash.update(typeof this._command === 'string' ? this._command : this._command.value);
+		}
+		if (this._args && this._args.length > 0) {
+			for (let arg of this._args) {
+				hash.update(typeof arg === 'string' ? arg : arg.value);
+			}
+		}
+		return hash.digest('hex');
+	}
 }
 
 export enum ShellQuoting {
@@ -1399,8 +1501,9 @@ export enum TaskScope {
 
 export class Task implements vscode.Task {
 
+	private __id: string;
+
 	private _definition: vscode.TaskDefinition;
-	private _definitionKey: string;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
@@ -1447,6 +1550,34 @@ export class Task implements vscode.Task {
 		this._isBackground = false;
 	}
 
+	get _id(): string {
+		return this.__id;
+	}
+
+	set _id(value: string) {
+		this.__id = value;
+	}
+
+	private clear(): void {
+		if (this.__id === void 0) {
+			return;
+		}
+		this.__id = undefined;
+		this._scope = undefined;
+		this._definition = undefined;
+		if (this._execution instanceof ProcessExecution) {
+			this._definition = {
+				type: 'process',
+				id: this._execution.computeId()
+			};
+		} else if (this._execution instanceof ShellExecution) {
+			this._definition = {
+				type: 'shell',
+				id: this._execution.computeId()
+			};
+		}
+	}
+
 	get definition(): vscode.TaskDefinition {
 		return this._definition;
 	}
@@ -1455,17 +1586,8 @@ export class Task implements vscode.Task {
 		if (value === void 0 || value === null) {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
-		this._definitionKey = undefined;
+		this.clear();
 		this._definition = value;
-	}
-
-	get definitionKey(): string {
-		if (!this._definitionKey) {
-			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._definition));
-			this._definitionKey = hash.digest('hex');
-		}
-		return this._definitionKey;
 	}
 
 	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {
@@ -1473,6 +1595,7 @@ export class Task implements vscode.Task {
 	}
 
 	set target(value: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder) {
+		this.clear();
 		this._scope = value;
 	}
 
@@ -1484,6 +1607,7 @@ export class Task implements vscode.Task {
 		if (typeof value !== 'string') {
 			throw illegalArgument('name');
 		}
+		this.clear();
 		this._name = value;
 	}
 
@@ -1495,6 +1619,7 @@ export class Task implements vscode.Task {
 		if (value === null) {
 			value = undefined;
 		}
+		this.clear();
 		this._execution = value;
 	}
 
@@ -1508,6 +1633,7 @@ export class Task implements vscode.Task {
 			this._hasDefinedMatchers = false;
 			return;
 		}
+		this.clear();
 		this._problemMatchers = value;
 		this._hasDefinedMatchers = true;
 	}
@@ -1524,6 +1650,7 @@ export class Task implements vscode.Task {
 		if (value !== true && value !== false) {
 			value = false;
 		}
+		this.clear();
 		this._isBackground = value;
 	}
 
@@ -1535,6 +1662,7 @@ export class Task implements vscode.Task {
 		if (typeof value !== 'string' || value.length === 0) {
 			throw illegalArgument('source must be a string of length > 0');
 		}
+		this.clear();
 		this._source = value;
 	}
 
@@ -1547,6 +1675,7 @@ export class Task implements vscode.Task {
 			this._group = undefined;
 			return;
 		}
+		this.clear();
 		this._group = value;
 	}
 
@@ -1558,6 +1687,7 @@ export class Task implements vscode.Task {
 		if (value === null) {
 			value = undefined;
 		}
+		this.clear();
 		this._presentationOptions = value;
 	}
 }
@@ -1566,6 +1696,7 @@ export class Task implements vscode.Task {
 export enum ProgressLocation {
 	SourceControl = 1,
 	Window = 10,
+	Notification = 15
 }
 
 export class TreeItem {
@@ -1651,8 +1782,9 @@ export class Breakpoint {
 	readonly enabled: boolean;
 	readonly condition?: string;
 	readonly hitCondition?: string;
+	readonly logMessage?: string;
 
-	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string) {
+	protected constructor(enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
 		this.enabled = typeof enabled === 'boolean' ? enabled : true;
 		if (typeof condition === 'string') {
 			this.condition = condition;
@@ -1660,14 +1792,17 @@ export class Breakpoint {
 		if (typeof hitCondition === 'string') {
 			this.hitCondition = hitCondition;
 		}
+		if (typeof logMessage === 'string') {
+			this.logMessage = logMessage;
+		}
 	}
 }
 
 export class SourceBreakpoint extends Breakpoint {
 	readonly location: Location;
 
-	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(location: Location, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (location === null) {
 			throw illegalArgument('location');
 		}
@@ -1678,8 +1813,8 @@ export class SourceBreakpoint extends Breakpoint {
 export class FunctionBreakpoint extends Breakpoint {
 	readonly functionName: string;
 
-	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string) {
-		super(enabled, condition, hitCondition);
+	constructor(functionName: string, enabled?: boolean, condition?: string, hitCondition?: string, logMessage?: string) {
+		super(enabled, condition, hitCondition, logMessage);
 		if (!functionName) {
 			throw illegalArgument('functionName');
 		}
@@ -1708,60 +1843,86 @@ export enum LogLevel {
 }
 
 //#region file api
-// todo@remote
+
 export enum FileChangeType {
-	Updated = 0,
-	Added = 1,
-	Deleted = 2
+	Changed = 1,
+	Created = 2,
+	Deleted = 3,
 }
 
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
+export class FileSystemError extends Error {
+
+	static FileExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
+	}
+	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
+	}
+	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
+	}
+	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
+	}
+	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
+	}
+	static Unavailable(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+	}
+
+	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		// workaround when extending builtin objects and when compiling to ES5, see:
+		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		if (typeof (<any>Object).setPrototypeOf === 'function') {
+			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
+		}
+
+		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, terminator);
+		}
+	}
 }
 
 //#endregion
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
-	/**
-	 * Folding range for a comment
-	 */
-	Comment = 'comment',
-	/**
-	 * Folding range for a imports or includes
-	 */
-	Imports = 'imports',
-	/**
-	 * Folding range for a region (e.g. `#region`)
-	 */
-	Region = 'region'
+export enum FoldingRangeKind {
+	Comment = 1,
+	Imports = 2,
+	Region = 3
 }
 
 //#endregion
+
+
+export enum CommentThreadCollapsibleState {
+	/**
+	 * Determines an item is collapsed
+	 */
+	Collapsed = 0,
+	/**
+	 * Determines an item is expanded
+	 */
+	Expanded = 1
+}
