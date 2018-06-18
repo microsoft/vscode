@@ -1073,7 +1073,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export class CompletionItem {
+export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
@@ -1081,6 +1081,7 @@ export class CompletionItem {
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
+	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
 	textEdit: TextEdit;
@@ -1100,6 +1101,7 @@ export class CompletionItem {
 			documentation: this.documentation,
 			sortText: this.sortText,
 			filterText: this.filterText,
+			preselect: this.preselect,
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};

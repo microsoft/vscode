@@ -662,6 +662,7 @@ class SuggestAdapter {
 			documentation: item.documentation,
 			filterText: item.filterText,
 			sortText: item.sortText,
+			preselect: item.preselect,
 			//
 			insertText: undefined,
 			additionalTextEdits: item.additionalTextEdits && item.additionalTextEdits.map(typeConvert.TextEdit.from),
