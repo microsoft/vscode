@@ -489,7 +489,7 @@ suite('ExtensionsTipsService Test', () => {
 			testObject.ignoreExtensionRecommendation(ignoredExtensionId);
 
 			assert.ok(changeHandlerTarget.calledOnce);
-			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ id: 'Some.Extension', isRecommended: false }));
+			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: 'Some.Extension', isRecommended: false }));
 			assert.ok(storageSetterTarget.calledWithExactly('extensionsAssistant/ignored_recommendations', `["ms-vscode.vscode","${ignoredExtensionId.toLowerCase()}"]`, StorageScope.GLOBAL));
 		});
 	});
