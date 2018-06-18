@@ -8,7 +8,6 @@
 import * as nls from 'vs/nls';
 import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
-import * as path from 'path';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
 import { assign } from 'vs/base/common/objects';
@@ -40,6 +39,7 @@ import { INotificationService } from 'vs/platform/notification/common/notificati
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { groupBy } from 'vs/base/common/collections';
 import { Schemas } from 'vs/base/common/network';
+import { join } from 'vs/base/common/paths';
 
 interface IExtensionStateProvider<T> {
 	(extension: Extension): T;
@@ -138,7 +138,7 @@ class Extension implements IExtension {
 
 	private get localIconUrl(): string {
 		if (this.local && this.local.manifest.icon) {
-			return this.local.location.with({ path: path.join(this.local.location.path, this.local.manifest.icon) }).toString();
+			return this.local.location.with({ path: join(this.local.location.path, this.local.manifest.icon) }).toString();
 		}
 		return null;
 	}
