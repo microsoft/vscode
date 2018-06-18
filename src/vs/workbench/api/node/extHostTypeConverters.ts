@@ -21,7 +21,7 @@ import { ISelection } from 'vs/editor/common/core/selection';
 import * as htmlContent from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import * as languageSelector from 'vs/editor/common/modes/languageSelector';
-import { WorkspaceEditDto, ResourceTextEditDto } from 'vs/workbench/api/node/extHost.protocol';
+import { WorkspaceEditDto, ResourceTextEditDto, ResourceFileEditDto } from 'vs/workbench/api/node/extHost.protocol';
 import { MarkerSeverity, IRelatedInformation, IMarkerData, MarkerTag } from 'vs/platform/markers/common/markers';
 import { ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
@@ -273,7 +273,7 @@ export namespace WorkspaceEdit {
 		const result: modes.WorkspaceEdit = {
 			edits: []
 		};
-		for (const entry of value.entries()) {
+		for (const entry of (value as types.WorkspaceEdit).allEntries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
@@ -294,11 +294,11 @@ export namespace WorkspaceEdit {
 					URI.revive((<ResourceTextEditDto>edit).resource),
 					<types.TextEdit[]>(<ResourceTextEditDto>edit).edits.map(TextEdit.to)
 				);
-				// } else {
-				// 	result.renameResource(
-				// 		URI.revive((<ResourceFileEditDto>edit).oldUri),
-				// 		URI.revive((<ResourceFileEditDto>edit).newUri)
-				// 	);
+			} else {
+				result.renameFile(
+					URI.revive((<ResourceFileEditDto>edit).oldUri),
+					URI.revive((<ResourceFileEditDto>edit).newUri)
+				);
 			}
 		}
 		return result;

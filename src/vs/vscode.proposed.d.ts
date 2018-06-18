@@ -482,6 +482,16 @@ declare module 'vscode' {
 
 	//#endregion
 
+	//#region joh: https://github.com/Microsoft/vscode/issues/10659
+
+	export interface WorkspaceEdit {
+		createFile(uri: Uri): void;
+		deleteFile(uri: Uri): void;
+		renameFile(oldUri: Uri, newUri: Uri): void;
+	}
+
+	//#endregion
+
 	//#region mjbvz: Unused diagnostics
 	/**
 	 * Additional metadata about the type of diagnostic.
