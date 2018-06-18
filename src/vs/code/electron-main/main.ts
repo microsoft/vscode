@@ -321,7 +321,8 @@ function main() {
 		const instanceEnv: typeof process.env = {
 			VSCODE_IPC_HOOK: environmentService.mainIPCHandle,
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
-			VSCODE_LOGS: process.env['VSCODE_LOGS']
+			VSCODE_LOGS: process.env['VSCODE_LOGS'],
+			VSCODE_PORTABLE: process.env['VSCODE_PORTABLE']
 		};
 		assign(process.env, instanceEnv);
 
