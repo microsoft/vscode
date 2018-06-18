@@ -16,6 +16,8 @@ import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenSh
 import URI from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 
+const backButton: QuickInputButton = { iconPath: 'back.svg' };
+
 export type Item = string | QuickPickItem;
 
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
@@ -150,6 +152,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	}
 
 	// ---- QuickInput
+
+	backButton = backButton;
 
 	createQuickPick(extensionId: string): QuickPick {
 		const session = new ExtHostQuickPick(this._proxy, extensionId, () => this._sessions.delete(session._id));
@@ -324,13 +328,14 @@ class ExtHostQuickInput implements QuickInput {
 		this._buttons = buttons;
 		this._handlesToButtons.clear();
 		buttons.forEach((button, i) => {
-			this._handlesToButtons.set(i, button);
+			const handle = button === backButton ? -1 : i;
+			this._handlesToButtons.set(handle, button);
 		});
 		this.update({
 			buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
 				iconPath: getIconUris(button.iconPath),
 				tooltip: button.tooltip,
-				handle: i,
+				handle: button === backButton ? -1 : i,
 			}))
 		});
 	}

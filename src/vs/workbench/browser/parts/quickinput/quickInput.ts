@@ -54,6 +54,7 @@ interface QuickInputUI {
 	progressBar: ProgressBar;
 	list: QuickInputList;
 	onDidAccept: Event<void>;
+	onDidTriggerButton: Event<IQuickInputButton>;
 	ignoreFocusOut: boolean;
 	show(controller: QuickInput): void;
 	setVisibilities(visibilities: Visibilities): void;
@@ -166,6 +167,13 @@ class QuickInput implements IQuickInput {
 		if (this.visible) {
 			return;
 		}
+		this.disposables.push(
+			this.ui.onDidTriggerButton(button => {
+				if (this.buttons.indexOf(button) !== -1) {
+					this.onDidTriggerButtonEmitter.fire(button);
+				}
+			}),
+		);
 		this.ui.show(this);
 		this.visible = true;
 		this.update();
@@ -642,6 +650,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private inQuickOpenWidgets: Record<string, boolean> = {};
 	private inQuickOpenContext: IContextKey<boolean>;
 	private onDidAcceptEmitter = new Emitter<void>();
+	private onDidTriggerButtonEmitter = new Emitter<IQuickInputButton>();
 
 	private controller: QuickInput;
 
@@ -806,6 +815,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 			progressBar,
 			list,
 			onDidAccept: this.onDidAcceptEmitter.event,
+			onDidTriggerButton: this.onDidTriggerButtonEmitter.event,
 			ignoreFocusOut: false,
 			show: controller => this.show(controller),
 			hide: () => this.hide(),
@@ -928,6 +938,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		});
 	}
 
+	backButton = {
+		iconPath: {
+			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/back.svg')),
+			light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/back.svg'))
+		},
+		tooltip: localize('quickInput.back', "Back"),
+		handle: -1 // TODO
+	};
+
 	createQuickPick(): IQuickPick {
 		this.create();
 		return new QuickPick(this.ui);
@@ -1034,6 +1053,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		return TPromise.as(undefined);
 	}
 
+	back() {
+		this.onDidTriggerButtonEmitter.fire(this.backButton);
+		return TPromise.as(undefined);
+	}
+
 	cancel() {
 		this.hide();
 		return TPromise.as(undefined);
@@ -1111,3 +1135,18 @@ export const QuickPickManyToggle: ICommandAndKeybindingRule = {
 		quickInputService.toggle();
 	}
 };
+
+export class BackAction extends Action {
+
+	public static readonly ID = 'workbench.action.quickInputBack';
+	public static readonly LABEL = localize('back', "Back");
+
+	constructor(id: string, label: string, @IQuickInputService private quickInputService: IQuickInputService) {
+		super(id, label);
+	}
+
+	public run(): TPromise<any> {
+		this.quickInputService.back();
+		return TPromise.as(null);
+	}
+}

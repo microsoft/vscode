@@ -455,6 +455,11 @@ export function createApiFactory(
 			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
 				return extHostUrls.registerProtocolHandler(extension.id, handler);
 			}),
+			get quickInputBackButton() {
+				return proposedApiFunction(extension, (): vscode.QuickInputButton => {
+					return extHostQuickOpen.backButton;
+				})();
+			},
 			createQuickPick: proposedApiFunction(extension, (): vscode.QuickPick => {
 				return extHostQuickOpen.createQuickPick(extension.id);
 			}),

@@ -523,6 +523,8 @@ declare module 'vscode' {
 
 	export namespace window {
 
+		export const quickInputBackButton: QuickInputButton;
+
 		/**
 		 * Implementation incomplete. See #49340.
 		 */
@@ -610,8 +612,8 @@ declare module 'vscode' {
 	}
 
 	export interface QuickInputButton {
-		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
-		tooltip?: string | undefined;
+		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		readonly tooltip?: string | undefined;
 	}
 
 	//#endregion

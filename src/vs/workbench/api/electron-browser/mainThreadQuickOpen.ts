@@ -170,14 +170,20 @@ export class MainThreadQuickOpen implements MainThreadQuickOpenShape {
 					session.hide();
 				}
 			} else if (param === 'buttons') {
-				params.buttons.forEach(button => {
-					const iconPath = button.iconPath;
-					iconPath.dark = URI.revive(iconPath.dark);
-					if (iconPath.light) {
-						iconPath.light = URI.revive(iconPath.light);
+				session[param] = params.buttons.map(button => {
+					if (button.handle === -1) {
+						return this._quickInputService.backButton;
 					}
+					const { iconPath, tooltip, handle } = button;
+					return {
+						iconPath: {
+							dark: URI.revive(iconPath.dark),
+							light: iconPath.light && URI.revive(iconPath.light)
+						},
+						tooltip,
+						handle
+					};
 				});
-				session[param] = params[param];
 			} else {
 				session[param] = params[param];
 			}
