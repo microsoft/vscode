@@ -172,11 +172,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return output;
 	}
 
-	private processWorkspaceExtensionConfigurations(): TPromise<[string[], string[]]> {
-		return this.fetchCombinedExtensionRecommendationConfig()
-			.then(content => Promise.all([this.processWorkspaceRecommendations(content), this.processWorkspaceIgnores(content)]));
-	}
-
 	getWorkspaceRecommendations(): TPromise<string[]> {
 		return this.fetchCombinedExtensionRecommendationConfig()
 			.then(content => {
