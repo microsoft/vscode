@@ -253,7 +253,7 @@ export class SettingsEditor2 extends BaseEditor {
 					return false;
 				};
 
-				if (element && !isEqualOrParent(currentSelection, element)) {
+				if (element && (!currentSelection || !isEqualOrParent(currentSelection, element))) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);

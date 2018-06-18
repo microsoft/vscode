@@ -3,7 +3,15 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ITOCEntry } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
+
+export interface ITOCEntry {
+	id: string;
+	label: string;
+
+	children?: ITOCEntry[];
+	settings?: (string | ISetting)[];
+}
 
 export const tocData: ITOCEntry = {
 	id: 'root',
@@ -124,7 +132,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'features/scm',
-					label: 'Source Control Management',
+					label: 'SCM',
 					settings: ['scm.*']
 				},
 				{
