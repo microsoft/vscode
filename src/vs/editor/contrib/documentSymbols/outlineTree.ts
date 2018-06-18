@@ -281,7 +281,7 @@ export class OutlineTreeState {
 		return { selected, focused, expanded };
 	}
 
-	static async restore(tree: ITree, state: OutlineTreeState): TPromise<void> {
+	static async restore(tree: ITree, state: OutlineTreeState, eventPayload: any): TPromise<void> {
 		let model = <OutlineModel>tree.getInput();
 		if (!state || !(model instanceof OutlineModel)) {
 			return TPromise.as(undefined);
@@ -301,8 +301,8 @@ export class OutlineTreeState {
 		// selection & focus
 		let selected = model.getItemById(state.selected);
 		let focused = model.getItemById(state.focused);
-		tree.setSelection([selected]);
-		tree.setFocus(focused);
+		tree.setSelection([selected], eventPayload);
+		tree.setFocus(focused, eventPayload);
 	}
 }
 

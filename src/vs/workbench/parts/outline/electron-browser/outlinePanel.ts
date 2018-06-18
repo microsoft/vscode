@@ -506,7 +506,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 			await this._tree.setInput(model);
 			let state = this._treeStates.get(model.textModel.uri.toString());
-			OutlineTreeState.restore(this._tree, state);
+			OutlineTreeState.restore(this._tree, state, this);
 		}
 
 		this._input.enable();
@@ -521,7 +521,7 @@ export class OutlinePanel extends ViewletPanel {
 
 			this._contextKeyFiltered.set(pattern.length > 0);
 
-			if (!beforePatternState) {
+			if (pattern && !beforePatternState) {
 				beforePatternState = OutlineTreeState.capture(this._tree);
 			}
 			let item = model.updateMatches(pattern);
@@ -534,7 +534,7 @@ export class OutlinePanel extends ViewletPanel {
 			}
 
 			if (!pattern && beforePatternState) {
-				await OutlineTreeState.restore(this._tree, beforePatternState);
+				await OutlineTreeState.restore(this._tree, beforePatternState, this);
 				beforePatternState = undefined;
 			}
 		};
