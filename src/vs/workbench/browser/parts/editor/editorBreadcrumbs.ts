@@ -14,7 +14,7 @@ import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
 import { IContextKey, IContextKeyService, RawContextKey, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { FileKind, IFileService, IFileStat } from 'vs/platform/files/common/files';
-import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IInstantiationService, IConstructorSignature2 } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { FileLabel } from 'vs/workbench/browser/labels';
 import { EditorInput } from 'vs/workbench/common/editor';
@@ -27,22 +27,28 @@ import { debounceEvent, Emitter, Event } from 'vs/base/common/event';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
-import { isEqual } from 'vs/base/common/resources';
+import { isEqual, dirname } from 'vs/base/common/resources';
 import { SIDE_BAR_BACKGROUND } from 'vs/workbench/common/theme';
 import { attachBreadcrumbsStyler } from 'vs/platform/theme/common/styler';
 import { compareFileNames } from 'vs/base/common/comparers';
 import { isCodeEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { OutlineModel, OutlineGroup, OutlineElement, TreeElement } from 'vs/editor/contrib/documentSymbols/outlineModel';
-import { asDisposablePromise } from 'vs/base/common/async';
+import { asDisposablePromise, setDisposableTimeout } from 'vs/base/common/async';
 import { IPosition } from 'vs/editor/common/core/position';
 import { first } from 'vs/base/common/collections';
 import { DocumentSymbolProviderRegistry } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
+import { OutlineDataSource, OutlineRenderer, OutlineItemComparator, OutlineController } from 'vs/editor/contrib/documentSymbols/outlineTree';
 
-interface FileElement {
-	name: string;
-	uri: URI;
-	kind: FileKind;
+class FileElement {
+	constructor(
+		readonly name: string,
+		readonly kind: FileKind,
+		readonly uri: URI,
+	) { }
 }
+
+type BreadcrumbElement = FileElement | OutlineGroup | OutlineElement;
 
 export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 
@@ -129,7 +135,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			}
 			fileItems.unshift(new RenderedBreadcrumbsItem<FileElement>(
 				render,
-				{ name, uri, kind: first ? FileKind.FILE : FileKind.FOLDER },
+				new FileElement(name, first ? FileKind.FILE : FileKind.FOLDER, uri),
 				!first
 			));
 			path = paths.dirname(path);
@@ -155,7 +161,7 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 				DocumentSymbolProviderRegistry.onDidChange(_ => this.fire());
 				this._listener.push(control.onDidChangeModel(_ => this._checkModel()));
 				this._listener.push(control.onDidChangeModelLanguage(_ => this._checkModel()));
-				this._checkModel();
+				this._listener.push(setDisposableTimeout(_ => this._checkModel(), 0));
 			}
 
 			private _checkModel() {
@@ -229,13 +235,18 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 		}
 	}
 
-	private _onDidSelectItem(item: RenderedBreadcrumbsItem<FileElement>): void {
-
-		if (item.element instanceof TreeElement) {
-			return;
-		}
-
+	private _onDidSelectItem(item: RenderedBreadcrumbsItem<BreadcrumbElement>): void {
 		this._editorGroup.focus();
+
+		let ctor: IConstructorSignature2<HTMLElement, any, BreadcrumbsPicker>;
+		let input: any;
+		if (item.element instanceof FileElement) {
+			ctor = BreadcrumbsFilePicker;
+			input = dirname(item.element.uri);
+		} else {
+			ctor = BreadcrumbsOutlinePicker;
+			input = item.element.parent;
+		}
 
 		this._contextViewService.showContextView({
 			getAnchor() {
@@ -243,9 +254,8 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 			},
 			render: (container: HTMLElement) => {
 				dom.addClasses(container, 'show-file-icons');
-				let res = this._instantiationService.createInstance(BreadcrumbsFilePicker, container);
+				let res = this._instantiationService.createInstance(ctor, container, input);
 				res.layout({ width: 250, height: 300 });
-				res.setInput(item.element.uri.with({ path: paths.dirname(item.element.uri.path) }));
 				res.onDidPickElement(data => {
 					this._contextViewService.hideContextView();
 					this._widget.select(undefined);
@@ -253,7 +263,23 @@ export class EditorBreadcrumbs implements IEditorBreadcrumbs {
 						return;
 					}
 					if (URI.isUri(data)) {
+						// open new editor
 						this._editorService.openEditor({ resource: data });
+
+					} else if (data instanceof OutlineElement) {
+
+						let resource: URI;
+						let candidate = data.parent;
+						while (candidate) {
+							if (candidate instanceof OutlineModel) {
+								resource = candidate.textModel.uri;
+								break;
+							}
+							candidate = candidate.parent;
+						}
+
+						this._editorService.openEditor({ resource, options: { selection: Range.collapseToStart(data.symbol.identifierRange) } });
+
 					}
 				});
 				return res;
@@ -275,6 +301,7 @@ export abstract class BreadcrumbsPicker {
 
 	constructor(
 		container: HTMLElement,
+		input: any,
 		@IInstantiationService protected readonly _instantiationService: IInstantiationService,
 		@IThemeService protected readonly _themeService: IThemeService,
 	) {
@@ -287,6 +314,9 @@ export abstract class BreadcrumbsPicker {
 
 		this.focus = dom.trackFocus(this._domNode);
 		this.focus.onDidBlur(_ => this._onDidPickElement.fire(undefined), undefined, this._disposables);
+
+		this._tree.domFocus();
+		this._tree.setInput(input);
 	}
 
 	dispose(): void {
@@ -393,11 +423,6 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 		return config;
 	}
 
-	setInput(resource: URI): void {
-		this._tree.domFocus();
-		this._tree.setInput(resource);
-	}
-
 	protected _onDidChangeSelection(e: ISelectionEvent): void {
 		let [first] = e.selection;
 		let stat = first as IFileStat;
@@ -407,6 +432,26 @@ export class BreadcrumbsFilePicker extends BreadcrumbsPicker {
 	}
 }
 
+export class BreadcrumbsOutlinePicker extends BreadcrumbsPicker {
+
+	protected _completeTreeConfiguration(config: ITreeConfiguration): ITreeConfiguration {
+		config.dataSource = this._instantiationService.createInstance(OutlineDataSource);
+		config.renderer = this._instantiationService.createInstance(OutlineRenderer);
+		config.controller = this._instantiationService.createInstance(OutlineController, {});
+		config.sorter = new OutlineItemComparator();
+		return config;
+	}
+
+	protected _onDidChangeSelection(e: ISelectionEvent): void {
+		if (e.payload && !e.payload.didClickElement) {
+			return;
+		}
+		let [first] = e.selection;
+		if (first instanceof OutlineElement) {
+			this._onDidPickElement.fire(first);
+		}
+	}
+}
 
 //#region commands
 
