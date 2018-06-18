@@ -289,7 +289,7 @@ export class TypeOperations {
 		}
 	}
 
-	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range): ICommand {
+	private static _enter(config: CursorConfiguration, model: ITextModel, keepPosition: boolean, range: Range, indentFromLine?: number): ICommand {
 		if (!model.isCheapToTokenize(range.getStartPosition().lineNumber)) {
 			let lineText = model.getLineContent(range.startLineNumber);
 			let indentation = strings.getLeadingWhitespace(lineText).substring(0, range.startColumn - 1);
@@ -382,6 +382,10 @@ export class TypeOperations {
 			}
 
 		} else {
+			if (indentFromLine !== undefined) {
+				indentation = strings.getLeadingWhitespace(model.getLineContent(indentFromLine));
+			}
+
 			return TypeOperations._typeCommand(range, '\n' + config.normalizeIndentation(indentation), keepPosition);
 		}
 	}
@@ -872,7 +876,7 @@ export class TypeOperations {
 				lineNumber--;
 				let column = model.getLineMaxColumn(lineNumber);
 
-				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column));
+				commands[i] = this._enter(config, model, false, new Range(lineNumber, column, lineNumber, column), lineNumber + 1);
 			}
 		}
 		return commands;
