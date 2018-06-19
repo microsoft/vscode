@@ -43,7 +43,7 @@ export class ExtensionsLifecycle extends Disposable {
 				this.logService.warn(extension.identifier.id, 'Uninstall script should be a node script');
 				return null;
 			}
-			return { uninstallHook: join(extension.location.path, uninstallScript[1]), args: uninstallScript.slice(2) || [] };
+			return { uninstallHook: join(extension.location.fsPath, uninstallScript[1]), args: uninstallScript.slice(2) || [] };
 		}
 		return null;
 	}
