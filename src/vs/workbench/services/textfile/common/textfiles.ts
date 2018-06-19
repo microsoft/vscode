@@ -235,11 +235,20 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 	isDisposed(): boolean;
 }
 
+
+export interface IWillMoveEvent {
+	oldResource: URI;
+	newResource: URI;
+	waitUntil(p: TPromise<any>): void;
+}
+
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
 
 	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
 	readonly onFilesAssociationChange: Event<void>;
+
+	onWillMove: Event<IWillMoveEvent>;
 
 	readonly isHotExitEnabled: boolean;
 

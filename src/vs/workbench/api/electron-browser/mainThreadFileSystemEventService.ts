@@ -4,23 +4,24 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { FileChangeType, IFileService, FileOperation } from 'vs/platform/files/common/files';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { ExtHostContext, ExtHostFileSystemEventServiceShape, FileSystemEvents, IExtHostContext } from '../node/extHost.protocol';
+import { ExtHostContext, FileSystemEvents, IExtHostContext } from '../node/extHost.protocol';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 @extHostCustomer
 export class MainThreadFileSystemEventService {
 
-	private readonly _fileEventListener: IDisposable;
-	private readonly _fileOperationListener: IDisposable;
+	private readonly _listener = new Array<IDisposable>();
 
 	constructor(
 		extHostContext: IExtHostContext,
-		@IFileService fileService: IFileService
+		@IFileService fileService: IFileService,
+		@ITextFileService textfileService: ITextFileService,
 	) {
 
-		const proxy: ExtHostFileSystemEventServiceShape = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
+		const proxy = extHostContext.getProxy(ExtHostContext.ExtHostFileSystemEventService);
 
 		// file system events - (changes the editor and other make)
 		const events: FileSystemEvents = {
@@ -28,7 +29,7 @@ export class MainThreadFileSystemEventService {
 			changed: [],
 			deleted: []
 		};
-		this._fileEventListener = fileService.onFileChanges(event => {
+		fileService.onFileChanges(event => {
 			for (let change of event.changes) {
 				switch (change.type) {
 					case FileChangeType.ADDED:
@@ -47,18 +48,22 @@ export class MainThreadFileSystemEventService {
 			events.created.length = 0;
 			events.changed.length = 0;
 			events.deleted.length = 0;
-		});
+		}, undefined, this._listener);
 
 		// file operation events - (changes the editor makes)
-		this._fileOperationListener = fileService.onAfterOperation(e => {
+		fileService.onAfterOperation(e => {
 			if (e.operation === FileOperation.MOVE) {
 				proxy.$onFileRename(e.resource, e.target.resource);
 			}
-		});
+		}, undefined, this._listener);
+
+		textfileService.onWillMove(e => {
+			let promise = proxy.$onWillRename(e.oldResource, e.newResource);
+			e.waitUntil(promise);
+		}, undefined, this._listener);
 	}
 
 	dispose(): void {
-		this._fileEventListener.dispose();
-		this._fileOperationListener.dispose();
+		dispose(this._listener);
 	}
 }

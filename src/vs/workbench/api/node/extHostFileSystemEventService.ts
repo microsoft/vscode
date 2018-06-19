@@ -10,6 +10,7 @@ import URI, { UriComponents } from 'vs/base/common/uri';
 import * as vscode from 'vscode';
 import { ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 class FileSystemWatcher implements vscode.FileSystemWatcher {
 
@@ -113,5 +114,9 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	$onFileRename(oldUri: UriComponents, newUri: UriComponents) {
 		this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(oldUri), newUri: URI.revive(newUri) }));
+	}
+
+	$onWillRename(oldUri: UriComponents, newUri: UriComponents): TPromise<any> {
+		return undefined;
 	}
 }
