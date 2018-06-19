@@ -108,11 +108,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._globallyIgnoredRecommendations = globallyIgnored.map(id => id.toLowerCase());
 
 		this.loadRecommendationsPromise = this.getWorkspaceRecommendations()
-			.then(result => {
+			.then(() => {
 				// these must be called after workspace configs have been refreshed.
 				this.getCachedDynamicWorkspaceRecommendations();
 				this._suggestFileBasedRecommendations();
-				return this._suggestWorkspaceRecommendations(result);
+				return this._suggestWorkspaceRecommendations();
 			}).then(() => {
 				this._modelService.onModelAdded(this._suggest, this, this._disposables);
 				this._modelService.getModels().forEach(model => this._suggest(model));
@@ -199,9 +199,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsConfigContent> {
+		const mergeExtensionRecommendationConfigs: (configs: IExtensionsConfigContent[]) => IExtensionsConfigContent = configs => ({
+			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
+			unwantedRecommendations: distinct(flatten(configs.map(config => config.unwantedRecommendations || [])))
+		});
+
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))])
-			.then(contents => this.processConfigContent(this.mergeExtensionRecommendationConfigs(flatten(contents))));
+			.then(contents => this.processConfigContent(mergeExtensionRecommendationConfigs(flatten(contents))));
 	}
 
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent[]> {
@@ -223,13 +228,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
 			.then(content => [<IExtensionsConfigContent>json.parse(content.value)], err => []);
-	}
-
-	private mergeExtensionRecommendationConfigs(configs: IExtensionsConfigContent[]): IExtensionsConfigContent {
-		return {
-			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
-			unwantedRecommendations: distinct(flatten(configs.map(config => config.unwantedRecommendations || [])))
-		};
 	}
 
 	private processConfigContent(extensionsContent: IExtensionsConfigContent): TPromise<IExtensionsConfigContent> {
@@ -330,7 +328,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this.getWorkspaceRecommendations().then(result => {
 				// Suggest only if at least one of the newly added recommendations was not suggested before
 				if (result.some(e => oldWorkspaceRecommended.indexOf(e) === -1)) {
-					this._suggestWorkspaceRecommendations(result);
+					this._suggestWorkspaceRecommendations();
 				}
 			});
 		}
@@ -636,7 +634,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		});
 	}
 
-	private _suggestWorkspaceRecommendations(allRecommendations: string[]): void {
+	private _suggestWorkspaceRecommendations(): void {
+		const allRecommendations = this._allWorkspaceRecommendedExtensions;
 		const storageKey = 'extensionsAssistant/workspaceRecommendationsIgnore';
 		const config = this.configurationService.getValue<IExtensionsConfiguration>(ConfigurationKey);
 
