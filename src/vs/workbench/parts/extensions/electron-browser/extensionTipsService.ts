@@ -894,7 +894,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			}
 		*/
 		const reason = this.getAllRecommendationsWithReason()[extensionId.toLowerCase()];
-		this.telemetryService.publicLog('extensionsRecommendations:ignoreRecommendation', { id: extensionId, recommendationReason: reason.reasonId });
+		if (reason && reason.reasonId) {
+			this.telemetryService.publicLog('extensionsRecommendations:ignoreRecommendation', { id: extensionId, recommendationReason: reason.reasonId });
+		}
 
 
 		this._globallyIgnoredRecommendations = distinct(
