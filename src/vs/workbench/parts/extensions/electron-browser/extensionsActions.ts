@@ -1770,9 +1770,11 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			.then(({ created, content }) => {
 				const folderRecommendations: string[] = (<IExtensionsContent>json.parse(content)).recommendations || [];
 
-				if (folderRecommendations.indexOf(extensionId) !== -1) {
+				if (folderRecommendations.map(e => e.toLowerCase()).indexOf(extensionId.toLowerCase()) !== -1) {
 					return TPromise.as(null);
 				}
+
+				folderRecommendations.push(extensionId);
 
 				// TODO:
 				// This will actually overwrite the contents of this key in the file,
@@ -1780,10 +1782,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				return this.jsonEditingService.write(extensionsFileResource,
 					{
 						key: 'recommendations',
-						value: [
-							...folderRecommendations,
-							extensionId
-						]
+						value: folderRecommendations
 					},
 					true);
 			});
@@ -1955,8 +1954,11 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		);
 		this.class = AddToWorkspaceRecommendationsAction.AddClass;
 		this.enabled = false;
-		this.disposables.push(this.contextService.onDidChangeWorkbenchState(() => this.update()));
-		this.update();
+		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders((event) => {
+			if ((event.added.length && this.enabled) || (event.removed.length && !this.enabled)) {
+				this.update();
+			}
+		}));
 	}
 
 	private update(): void {
@@ -1976,13 +1978,10 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			Promise.all(getFoldersRecommendedExtensionsPromises).then(foldersRecommendationsArray => {
 				// Don't enable the button if the selected extension is
 				// recommended in ANY the folders of the current workspace
+				const extensionIdLowercase = this.extension.id.toLowerCase();
 				this.enabled = !foldersRecommendationsArray.some((recommendations: string[]) => {
-					return recommendations.some(r => r === this.extension.id);
+					return recommendations.some(r => r.toLowerCase() === extensionIdLowercase);
 				});
-				if (this.class === AddToWorkspaceRecommendationsAction.AddingClass) {
-					this.label = this.enabled ? AddToWorkspaceRecommendationsAction.AddLabel : AddToWorkspaceRecommendationsAction.AddedLabel;
-					this.class = this.enabled ? AddToWorkspaceRecommendationsAction.AddClass : AddToWorkspaceRecommendationsAction.AddedClass;
-				}
 			});
 		}
 	}
@@ -2009,18 +2008,29 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 				return true;
 			})
 			.then((pickCancelled: boolean) => {
-				if (!pickCancelled) {
+				if (pickCancelled) {
+					this.enableButton();
+				} else {
 					this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was recommended in the selected folder.'));
+					this.enabled = false;
+					this.label = AddToWorkspaceRecommendationsAction.AddedLabel;
+					this.class = AddToWorkspaceRecommendationsAction.AddedClass;
 				}
 			}, err => {
 				this.notificationService.error(err);
-			})
-			.then(() => this.update());
+				this.enableButton();
+			});
 	}
 
 	dispose(): void {
 		super.dispose();
 		this.disposables = dispose(this.disposables);
+	}
+
+	private enableButton(): void {
+		this.enabled = true;
+		this.label = AddToWorkspaceRecommendationsAction.AddLabel;
+		this.class = AddToWorkspaceRecommendationsAction.AddClass;
 	}
 }
 
