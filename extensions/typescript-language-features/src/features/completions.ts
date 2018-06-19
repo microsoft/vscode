@@ -148,6 +148,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		enableCallCompletions: boolean,
 		kind: string
 	): string[] | undefined {
+		const commitCharacters: string[] = [];
 		switch (kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
@@ -156,7 +157,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
-				return enableDotCompletions ? ['.'] : undefined;
+				if (enableDotCompletions) {
+					commitCharacters.push('.');
+				}
+				break;
 
 			case PConst.Kind.module:
 			case PConst.Kind.alias:
@@ -168,10 +172,16 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				return enableDotCompletions ? (enableCallCompletions ? ['.', '('] : ['.']) : undefined;
+				if (enableDotCompletions) {
+					commitCharacters.push('.', ',');
+				}
+				if (enableCallCompletions) {
+					commitCharacters.push('(');
+				}
+				break;
 		}
 
-		return undefined;
+		return commitCharacters.length === 0 ? undefined : commitCharacters;
 	}
 }
 
