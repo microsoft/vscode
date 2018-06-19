@@ -449,40 +449,42 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.gte(API.v290)) {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
+		if (context.triggerCharacter && !this.client.apiVersion.gte(API.v290)) {
+			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
+				if (!config.quickSuggestionsForPaths) {
+					return false;
+				}
+
+				// make sure we are in something that looks like the start of an import
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+					return false;
+				}
 			}
 
-			// make sure we are in something that looks like the start of an import
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+			if (context.triggerCharacter === '/') {
+				if (!config.quickSuggestionsForPaths) {
+					return false;
+				}
+
+				// make sure we are in something that looks like an import path
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+					return false;
+				}
+			}
+
+			if (context.triggerCharacter === '@') {
+				// make sure we are in something that looks like the start of a jsdoc comment
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+					return false;
+				}
+			}
+
+			if (context.triggerCharacter === '<') {
 				return false;
 			}
-		}
-
-		if (context.triggerCharacter === '/') {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
-			}
-
-			// make sure we are in something that looks like an import path
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '@' && !this.client.apiVersion.gte(API.v290)) {
-			// make sure we are in something that looks like the start of a jsdoc comment
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '<') {
-			return this.client.apiVersion.gte(API.v290);
 		}
 
 		return true;
