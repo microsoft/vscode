@@ -101,7 +101,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private editorHistoryHandler: EditorHistoryHandler;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -507,8 +506,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					if (!quickNavigateConfiguration) {
 						autoFocus = { autoFocusFirstEntry: true };
 					} else {
-						const visibleEditorCount = this.editorService.visibleEditors.length;
-						autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
+						const autoFocusFirstEntry = this.editorGroupService.activeGroup.count === 0;
+						autoFocus = { autoFocusFirstEntry, autoFocusSecondEntry: !autoFocusFirstEntry };
 					}
 				}
 
