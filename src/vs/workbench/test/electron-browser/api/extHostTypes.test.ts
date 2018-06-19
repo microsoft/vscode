@@ -368,8 +368,8 @@ suite('ExtHostTypes', function () {
 		]);
 
 		edit.set(b, undefined);
-		assert.ok(edit.has(b));
-		assert.equal(edit.size, 2);
+		assert.ok(!edit.has(b));
+		assert.equal(edit.size, 1);
 
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
 		assert.equal(edit.get(b).length, 1);

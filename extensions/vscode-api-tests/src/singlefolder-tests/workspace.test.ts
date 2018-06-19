@@ -7,9 +7,10 @@
 
 import * as assert from 'assert';
 import * as vscode from 'vscode';
-import { createRandomFile, deleteFile, closeAllEditors, pathEquals } from '../utils';
-import { join, basename } from 'path';
+import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName } from '../utils';
+import { join, basename, dirname } from 'path';
 import * as fs from 'fs';
+import * as os from 'os';
 
 suite('workspace-namespace', () => {
 
@@ -519,7 +520,6 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-
 	test('applyEdit should fail when editing deleted resource', async () => {
 		const resource = await createRandomFile();
 
@@ -564,7 +564,98 @@ suite('workspace-namespace', () => {
 		let success = await vscode.workspace.applyEdit(edit);
 		assert.equal(success, true);
 
+		// todo@ben https://github.com/Microsoft/vscode/issues/52212
 		// let doc = await vscode.workspace.openTextDocument(newUri);
 		// assert.equal(doc.getText(), 'AFTERBEFORE');
+	});
+
+	function nameWithUnderscore(uri: vscode.Uri) {
+		return uri.with({ path: join(dirname(uri.path), `_${basename(uri.path)}`) });
+	}
+
+	test('WorkspaceEdit: applying edits before and after rename duplicates resource #42633', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
+		we.renameFile(docUri, newUri);
+		we.insert(newUri, new vscode.Position(0, 0), 'Bar');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+		// todo@ben https://github.com/Microsoft/vscode/issues/52212
+		// let doc = await vscode.workspace.openTextDocument(newUri);
+		// assert.equal(doc.getText(), 'BarFooHello');
+	});
+
+	test('WorkspaceEdit: Problem recreating a renamed resource #42634', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.insert(docUri, new vscode.Position(0, 0), 'Foo');
+		we.renameFile(docUri, newUri);
+
+		we.createFile(docUri);
+		we.insert(docUri, new vscode.Position(0, 0), 'Bar');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		// todo@ben https://github.com/Microsoft/vscode/issues/52212
+		// let newDoc = await vscode.workspace.openTextDocument(newUri);
+		// assert.equal(newDoc.getText(), 'FooHello');
+
+		// todo@ben https://github.com/Microsoft/vscode/issues/52212
+		// let doc = await vscode.workspace.openTextDocument(docUri);
+		// assert.equal(doc.getText(), 'Bar');
+	});
+
+	test('WorkspaceEdit api - after saving a deleted file, it still shows up as deleted. #42667', async function () {
+		let docUri = await createRandomFile();
+		let we = new vscode.WorkspaceEdit();
+		we.deleteFile(docUri);
+		we.insert(docUri, new vscode.Position(0, 0), 'InsertText');
+
+		assert.ok(!(await vscode.workspace.applyEdit(we)));
+		try {
+			await vscode.workspace.openTextDocument(docUri);
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(true);
+		}
+	});
+
+	test('WorkspaceEdit: edit and rename parent folder duplicates resource #42641', async function () {
+
+		let dir = join(os.tmpdir(), 'before-' + rndName());
+		if (!fs.existsSync(dir)) {
+			fs.mkdirSync(dir);
+		}
+
+		let docUri = await createRandomFile('', dir);
+		let docParent = docUri.with({ path: dirname(docUri.path) });
+		let newParent = nameWithUnderscore(docParent);
+
+		let we = new vscode.WorkspaceEdit();
+		we.insert(docUri, new vscode.Position(0, 0), 'Hello');
+		we.renameFile(docParent, newParent);
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		try {
+			await vscode.workspace.openTextDocument(docUri);
+			assert.ok(false);
+		} catch (e) {
+			assert.ok(true);
+		}
+
+		let newUri = newParent.with({ path: join(newParent.path, basename(docUri.path)) });
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.ok(doc);
+
+		// todo@ben https://github.com/Microsoft/vscode/issues/52212
+		// assert.equal(doc.getText(), 'Hello');
 	});
 });
