@@ -118,8 +118,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 				// Set Editor Model
 				const diffEditor = this.getControl();
-				const textDiffEditorModel = <TextDiffEditorModel>resolvedModel;
-				diffEditor.setModel((textDiffEditorModel).textDiffEditorModel);
+				const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
+				diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
 
 				// Apply Options from TextOptions
 				let optionsGotApplied = false;
@@ -143,7 +143,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					this.previousDiffAction.updateEnablement();
 				}));
 
-				this.getControl().updateOptions({ readOnly: textDiffEditorModel.isReadonly() });
+				this.getControl().updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
 
 				this.updateIgnoreTrimWhitespaceAction();
 			}, error => {
