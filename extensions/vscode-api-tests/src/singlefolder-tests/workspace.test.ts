@@ -586,7 +586,7 @@ suite('workspace-namespace', () => {
 		assert.ok(await vscode.workspace.applyEdit(we));
 		// todo@ben https://github.com/Microsoft/vscode/issues/52212
 		// let doc = await vscode.workspace.openTextDocument(newUri);
-		// assert.equal(doc.getText(), 'BarFooHello');
+		// assert.equal(doc.getText(), 'BarHelloFoo');
 	});
 
 	test('WorkspaceEdit: Problem recreating a renamed resource #42634', async function () {
@@ -605,9 +605,7 @@ suite('workspace-namespace', () => {
 
 		// todo@ben https://github.com/Microsoft/vscode/issues/52212
 		// let newDoc = await vscode.workspace.openTextDocument(newUri);
-		// assert.equal(newDoc.getText(), 'FooHello');
-
-		// todo@ben https://github.com/Microsoft/vscode/issues/52212
+		// assert.equal(newDoc.getText(), 'HelloFoo');
 		// let doc = await vscode.workspace.openTextDocument(docUri);
 		// assert.equal(doc.getText(), 'Bar');
 	});

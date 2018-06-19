@@ -412,6 +412,18 @@ suite('ExtHostTypes', function () {
 		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
 	});
 
+	test('WorkspaceEdit - two edits for one resource', function () {
+		let edit = new types.WorkspaceEdit();
+		let uri = URI.parse('foo:bar');
+		edit.insert(uri, new types.Position(0, 0), 'Hello');
+		edit.insert(uri, new types.Position(0, 0), 'Foo');
+
+		assert.equal(edit.allEntries().length, 2);
+		let [first, second] = edit.allEntries();
+		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
+		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
+	});
+
 	test('DocumentLink', function () {
 		assert.throws(() => new types.DocumentLink(null, null));
 		assert.throws(() => new types.DocumentLink(new types.Range(1, 1, 1, 1), null));

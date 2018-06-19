@@ -27,6 +27,7 @@ import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/pro
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { mergeSort } from 'vs/base/common/arrays';
 
 abstract class Recording {
 
@@ -91,15 +92,7 @@ class EditTask implements IDisposable {
 
 	apply(): void {
 		if (this._edits.length > 0) {
-
-			this._edits = this._edits.map((value, index) => ({ value, index })).sort((a, b) => {
-				let ret = Range.compareRangesUsingStarts(a.value.range, b.value.range);
-				if (ret === 0) {
-					ret = a.index - b.index;
-				}
-				return ret;
-			}).map(element => element.value);
-
+			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this._initialSelections = this._getInitialSelections();
 			this._model.pushStackElement();
 			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
