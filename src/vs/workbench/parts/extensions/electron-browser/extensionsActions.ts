@@ -1147,7 +1147,7 @@ export class ShowEnabledExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, 'clear-extensions', true);
+		super(id, label, null, true);
 	}
 
 	run(): TPromise<void> {
@@ -1170,7 +1170,7 @@ export class ShowInstalledExtensionsAction extends Action {
 		label: string,
 		@IViewletService private viewletService: IViewletService
 	) {
-		super(id, label, 'clear-extensions', true);
+		super(id, label, null, true);
 	}
 
 	run(): TPromise<void> {
