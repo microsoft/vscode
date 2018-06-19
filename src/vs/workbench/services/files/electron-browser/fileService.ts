@@ -847,12 +847,6 @@ export class FileService implements IFileService {
 		));
 	}
 
-	public rename(resource: uri, newName: string): TPromise<IFileStat> {
-		const newPath = paths.join(paths.dirname(resource.fsPath), newName);
-
-		return this.moveFile(resource, uri.file(newPath));
-	}
-
 	public moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, false, overwrite);
 	}

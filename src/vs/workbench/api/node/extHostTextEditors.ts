@@ -11,7 +11,7 @@ import { TextEditorSelectionChangeKind } from './extHostTypes';
 import * as TypeConverters from './extHostTypeConverters';
 import { TextEditorDecorationType, ExtHostTextEditor } from './extHostTextEditor';
 import { ExtHostDocumentsAndEditors } from './extHostDocumentsAndEditors';
-import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, WorkspaceEditDto, IEditorPropertiesChangeData } from './extHost.protocol';
+import { MainContext, MainThreadTextEditorsShape, ExtHostEditorsShape, ITextDocumentShowOptions, ITextEditorPositionData, IMainContext, IEditorPropertiesChangeData } from './extHost.protocol';
 import * as vscode from 'vscode';
 
 export class ExtHostEditors implements ExtHostEditorsShape {
@@ -91,23 +91,7 @@ export class ExtHostEditors implements ExtHostEditorsShape {
 	}
 
 	applyWorkspaceEdit(edit: vscode.WorkspaceEdit): TPromise<boolean> {
-
-		const dto: WorkspaceEditDto = { edits: [] };
-
-		for (let entry of edit.entries()) {
-			let [uri, uriOrEdits] = entry;
-			if (Array.isArray(uriOrEdits)) {
-				let doc = this._extHostDocumentsAndEditors.getDocument(uri.toString());
-				dto.edits.push({
-					resource: uri,
-					modelVersionId: doc && doc.version,
-					edits: uriOrEdits.map(TypeConverters.TextEdit.from)
-				});
-				// } else {
-				// 	dto.edits.push({ oldUri: uri, newUri: uriOrEdits });
-			}
-		}
-
+		const dto = TypeConverters.WorkspaceEdit.from(edit, this._extHostDocumentsAndEditors);
 		return this._proxy.$tryApplyWorkspaceEdit(dto);
 	}
 

@@ -36,6 +36,7 @@ import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
 import URI from 'vs/base/common/uri';
 import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { Schemas } from 'vs/base/common/network';
 
 suite('ExtensionsActions Test', () => {
 
@@ -94,14 +95,14 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Install action is disabled when there is no extension', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test Install action when state is installed', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		return workbenchService.queryLocal()
@@ -119,7 +120,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test Install action when state is installing', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return workbenchService.queryGallery()
@@ -135,7 +136,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test Install action when state is uninstalled', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return workbenchService.queryGallery()
@@ -147,7 +148,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test Install action when extension is system action', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -161,7 +162,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test Install action when extension doesnot has gallery', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -242,14 +243,14 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when there is no extension', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 		assert.equal('extension-action prominent install no-extension', testObject.class);
 	});
 
 	test('Test CombinedInstallAction when extension is system extension', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -263,7 +264,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test CombinedInstallAction when installAction is enabled', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -277,7 +278,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when unInstallAction is enabled', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -291,7 +292,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when state is installing', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -307,7 +308,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when state is uninstalling', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -322,13 +323,13 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when there is no extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test UpdateAction when extension is uninstalled', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
@@ -339,7 +340,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed and not outdated', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -353,7 +354,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and system extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' }, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -367,7 +368,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and user extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -381,7 +382,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installing and outdated and user extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: 'vscode-local', authority: 'local' }) });
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 

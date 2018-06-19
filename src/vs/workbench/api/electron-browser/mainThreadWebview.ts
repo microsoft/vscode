@@ -7,7 +7,6 @@ import * as map from 'vs/base/common/map';
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { localize } from 'vs/nls';
-import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorViewColumn, viewColumnToEditorGroup, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IOpenerService } from 'vs/platform/opener/common/opener';
@@ -40,9 +39,8 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 
 	constructor(
 		context: IExtHostContext,
-		@IContextKeyService contextKeyService: IContextKeyService,
-		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@ILifecycleService lifecycleService: ILifecycleService,
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@IWebviewEditorService private readonly _webviewService: IWebviewEditorService,
 		@IOpenerService private readonly _openerService: IOpenerService,
@@ -60,11 +58,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}, this, this._toDispose);
 	}
 
-	dispose(): void {
+	public dispose(): void {
 		this._toDispose = dispose(this._toDispose);
 	}
 
-	$createWebviewPanel(
+	public $createWebviewPanel(
 		handle: WebviewPanelHandle,
 		viewType: string,
 		title: string,
@@ -78,10 +76,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			mainThreadShowOptions.group = viewColumnToEditorGroup(this._editorGroupService, showOptions.viewColumn);
 		}
 
-		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, mainThreadShowOptions, {
-			...options,
-			localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
-		}, URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
+		const webview = this._webviewService.createWebview(MainThreadWebviews.viewType, title, mainThreadShowOptions, reviveWebviewOptions(options), URI.revive(extensionLocation), this.createWebviewEventDelegate(handle));
 		webview.state = {
 			viewType: viewType,
 			state: undefined
@@ -91,30 +86,27 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._activeWebview = handle;
 	}
 
-	$disposeWebview(handle: WebviewPanelHandle): void {
+	public $disposeWebview(handle: WebviewPanelHandle): void {
 		const webview = this.getWebview(handle);
 		webview.dispose();
 	}
 
-	$setTitle(handle: WebviewPanelHandle, value: string): void {
+	public $setTitle(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.setName(value);
 	}
 
-	$setHtml(handle: WebviewPanelHandle, value: string): void {
+	public $setHtml(handle: WebviewPanelHandle, value: string): void {
 		const webview = this.getWebview(handle);
 		webview.html = value;
 	}
 
-	$setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
+	public $setOptions(handle: WebviewPanelHandle, options: vscode.WebviewOptions): void {
 		const webview = this.getWebview(handle);
-		webview.setOptions({
-			...options,
-			localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
-		});
+		webview.setOptions(reviveWebviewOptions(options));
 	}
 
-	$reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
+	public $reveal(handle: WebviewPanelHandle, viewColumn: EditorViewColumn | null, preserveFocus: boolean): void {
 		const webview = this.getWebview(handle);
 		if (webview.isDisposed()) {
 			return;
@@ -125,7 +117,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		this._webviewService.revealWebview(webview, targetGroup || this._editorGroupService.activeGroup, preserveFocus);
 	}
 
-	async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
+	public async $postMessage(handle: WebviewPanelHandle, message: any): TPromise<boolean> {
 		const webview = this.getWebview(handle);
 		const editors = this._editorService.visibleControls
 			.filter(e => e instanceof WebviewEditor)
@@ -139,15 +131,15 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		return (editors.length > 0);
 	}
 
-	$registerSerializer(viewType: string): void {
+	public $registerSerializer(viewType: string): void {
 		this._revivers.add(viewType);
 	}
 
-	$unregisterSerializer(viewType: string): void {
+	public $unregisterSerializer(viewType: string): void {
 		this._revivers.delete(viewType);
 	}
 
-	reviveWebview(webview: WebviewEditorInput): TPromise<void> {
+	public reviveWebview(webview: WebviewEditorInput): TPromise<void> {
 		const viewType = webview.state.viewType;
 		return this._extensionService.activateByEvent(`onWebviewPanel:${viewType}`).then(() => {
 			const handle = 'revival-' + MainThreadWebviews.revivalPool++;
@@ -170,7 +162,7 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		});
 	}
 
-	canRevive(webview: WebviewEditorInput): boolean {
+	public canRevive(webview: WebviewEditorInput): boolean {
 		if (webview.isDisposed() || !webview.state) {
 			return false;
 		}
@@ -198,14 +190,6 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 					() => this._webviews.delete(handle));
 			}
 		};
-	}
-
-	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
-		const webview = this._webviews.get(handle);
-		if (!webview) {
-			throw new Error('Unknown webview handle:' + handle);
-		}
-		return webview;
 	}
 
 	private onActiveEditorChanged() {
@@ -286,6 +270,14 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 		}
 	}
 
+	private getWebview(handle: WebviewPanelHandle): WebviewEditorInput {
+		const webview = this._webviews.get(handle);
+		if (!webview) {
+			throw new Error('Unknown webview handle:' + handle);
+		}
+		return webview;
+	}
+
 	private static getDeserializationFailedContents(viewType: string) {
 		return `<!DOCTYPE html>
 		<html>
@@ -297,4 +289,11 @@ export class MainThreadWebviews implements MainThreadWebviewsShape, WebviewReviv
 			<body>${localize('errorMessage', "An error occurred while restoring view:{0}", viewType)}</body>
 		</html>`;
 	}
+}
+
+function reviveWebviewOptions(options: WebviewInputOptions): WebviewInputOptions {
+	return {
+		...options,
+		localResourceRoots: Array.isArray(options.localResourceRoots) ? options.localResourceRoots.map(URI.revive) : undefined
+	};
 }

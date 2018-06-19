@@ -499,17 +499,17 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
 	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
 
-	// createResource(uri: vscode.Uri): void {
-	// 	this.renameResource(undefined, uri);
-	// }
+	createFile(uri: vscode.Uri): void {
+		this.renameFile(undefined, uri);
+	}
 
-	// deleteResource(uri: vscode.Uri): void {
-	// 	this.renameResource(uri, undefined);
-	// }
+	deleteFile(uri: vscode.Uri): void {
+		this.renameFile(uri, undefined);
+	}
 
-	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
-	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	// }
+	renameFile(from: vscode.Uri, to: vscode.Uri): void {
+		this._resourceEdits.push({ seq: this._seqPool++, from, to });
+	}
 
 	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
 	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
@@ -566,20 +566,19 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		return this.entries();
-		// 	// use the 'seq' the we have assigned when inserting
-		// 	// the operation and use that order in the resulting
-		// 	// array
-		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		// 	this._textEdits.forEach(value => {
-		// 		const { seq, uri, edits } = value;
-		// 		res[seq] = [uri, edits];
-		// 	});
-		// 	this._resourceEdits.forEach(value => {
-		// 		const { seq, from, to } = value;
-		// 		res[seq] = [from, to];
-		// 	});
-		// 	return res;
+		// use the 'seq' the we have assigned when inserting
+		// the operation and use that order in the resulting
+		// array
+		const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+		this._textEdits.forEach(value => {
+			const { seq, uri, edits } = value;
+			res[seq] = [uri, edits];
+		});
+		this._resourceEdits.forEach(value => {
+			const { seq, from, to } = value;
+			res[seq] = [from, to];
+		});
+		return res;
 	}
 
 	get size(): number {
@@ -751,7 +750,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
-	customTags?: DiagnosticTag[];
+	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -885,20 +884,20 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
-	fullRange: Range;
-	gotoRange: Range;
+	range: Range;
+	selectionRange: Range;
 	children: DocumentSymbol[];
 
-	constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
 		this.name = name;
 		this.detail = detail;
 		this.kind = kind;
-		this.fullRange = fullRange;
-		this.gotoRange = gotoRange;
+		this.range = range;
+		this.selectionRange = selectionRange;
 		this.children = [];
 
-		if (!this.fullRange.contains(this.gotoRange)) {
-			throw new Error('gotoRange must be contained in fullRange');
+		if (!this.range.contains(this.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
 		}
 	}
 }
@@ -1073,7 +1072,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export class CompletionItem {
+export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
@@ -1081,6 +1080,7 @@ export class CompletionItem {
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
+	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
 	textEdit: TextEdit;
@@ -1100,6 +1100,7 @@ export class CompletionItem {
 			documentation: this.documentation,
 			sortText: this.sortText,
 			filterText: this.filterText,
+			preselect: this.preselect,
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};

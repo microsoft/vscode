@@ -26,6 +26,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 abstract class Recording {
 
@@ -385,6 +386,7 @@ export class BulkEditService implements IBulkEditService {
 	_serviceBrand: any;
 
 	constructor(
+		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -424,11 +426,12 @@ export class BulkEditService implements IBulkEditService {
 
 		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
 		bulkEdit.add(edits);
+
 		return bulkEdit.perform().then(selection => {
-			return {
-				selection,
-				ariaSummary: bulkEdit.ariaMessage()
-			};
+			return { selection, ariaSummary: bulkEdit.ariaMessage() };
+		}, err => {
+			this._logService.error(err);
+			return TPromise.wrapError(err);
 		});
 	}
 }

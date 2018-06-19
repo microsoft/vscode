@@ -56,7 +56,6 @@ import { IDialogService, IConfirmationResult, IConfirmation, getConfirmMessage }
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 
 export class FileDataSource implements IDataSource {
 	constructor(
@@ -759,7 +758,6 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IInstantiationService instantiationService: IInstantiationService,
 		@ITextFileService private textFileService: ITextFileService,
-		@IBackupFileService private backupFileService: IBackupFileService,
 		@IWindowService private windowService: IWindowService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService
 	) {
@@ -1033,91 +1031,48 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 	}
 
 	private doHandleExplorerDrop(tree: ITree, source: ExplorerItem, target: ExplorerItem | Model, isCopy: boolean): TPromise<void> {
+		if (!(target instanceof ExplorerItem)) {
+			return TPromise.as(void 0);
+		}
+
 		return tree.expand(target).then(() => {
+
 			// Reuse duplicate action if user copies
 			if (isCopy) {
 				return this.instantiationService.createInstance(DuplicateFileAction, tree, source, target).run();
 			}
 
-			const dirtyMoved: URI[] = [];
+			// Otherwise move
+			const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
 
-			// Success: load all files that are dirty again to restore their dirty contents
-			// Error: discard any backups created during the process
-			const onSuccess = () => TPromise.join(dirtyMoved.map(t => this.textFileService.models.loadOrCreate(t)));
-			const onError = (error?: Error, showError?: boolean) => {
-				if (showError) {
+			return this.textFileService.move(source.resource, targetResource).then(null, error => {
+
+				// Conflict
+				if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
+					const confirm: IConfirmation = {
+						message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
+						detail: nls.localize('irreversible', "This action is irreversible!"),
+						primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
+						type: 'warning'
+					};
+
+					// Move with overwrite if the user confirms
+					return this.dialogService.confirm(confirm).then(res => {
+						if (res.confirmed) {
+							return this.textFileService.move(source.resource, targetResource, true /* overwrite */).then(null, error => this.notificationService.error(error));
+						}
+
+						return void 0;
+					});
+				}
+
+				// Any other error
+				else {
 					this.notificationService.error(error);
 				}
 
-				return TPromise.join(dirtyMoved.map(d => this.backupFileService.discardResourceBackup(d)));
-			};
-			if (!(target instanceof ExplorerItem)) {
-				return TPromise.as(void 0);
-			}
-
-			// 1. check for dirty files that are being moved and backup to new target
-			const dirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, source.resource, !isLinux /* ignorecase */));
-			return TPromise.join(dirty.map(d => {
-				let moved: URI;
-
-				// If the dirty file itself got moved, just reparent it to the target folder
-				if (source.resource.toString() === d.toString()) {
-					moved = target.resource.with({ path: paths.join(target.resource.path, source.name) });
-				}
-
-				// Otherwise, a parent of the dirty resource got moved, so we have to reparent more complicated. Example:
-				else {
-					moved = target.resource.with({ path: paths.join(target.resource.path, d.path.substr(source.parent.resource.path.length + 1)) });
-				}
-
-				dirtyMoved.push(moved);
-
-				const model = this.textFileService.models.get(d);
-
-				return this.backupFileService.backupResource(moved, model.createSnapshot(), model.getVersionId());
-			}))
-
-				// 2. soft revert all dirty since we have backed up their contents
-				.then(() => this.textFileService.revertAll(dirty, { soft: true /* do not attempt to load content from disk */ }))
-
-				// 3.) run the move operation
-				.then(() => {
-					const targetResource = target.resource.with({ path: paths.join(target.resource.path, source.name) });
-
-					return this.fileService.moveFile(source.resource, targetResource).then(null, error => {
-
-						// Conflict
-						if ((<FileOperationError>error).fileOperationResult === FileOperationResult.FILE_MOVE_CONFLICT) {
-							const confirm: IConfirmation = {
-								message: nls.localize('confirmOverwriteMessage', "'{0}' already exists in the destination folder. Do you want to replace it?", source.name),
-								detail: nls.localize('irreversible', "This action is irreversible!"),
-								primaryButton: nls.localize({ key: 'replaceButtonLabel', comment: ['&& denotes a mnemonic'] }, "&&Replace"),
-								type: 'warning'
-							};
-
-							// Move with overwrite if the user confirms
-							return this.dialogService.confirm(confirm).then(res => {
-								if (res.confirmed) {
-									const targetDirty = this.textFileService.getDirty().filter(d => resources.isEqualOrParent(d, targetResource, !isLinux /* ignorecase */));
-
-									// Make sure to revert all dirty in target first to be able to overwrite properly
-									return this.textFileService.revertAll(targetDirty, { soft: true /* do not attempt to load content from disk */ }).then(() => {
-
-										// Then continue to do the move operation
-										return this.fileService.moveFile(source.resource, targetResource, true).then(onSuccess, error => onError(error, true));
-									});
-								}
-
-								return onError();
-							});
-						}
-
-						return onError(error, true);
-					});
-				})
-
-				// 4.) resolve those that were dirty to load their previous dirty contents from disk
-				.then(onSuccess, onError);
+				return void 0;
+			});
 		}, errors.onUnexpectedError);
 	}
 }

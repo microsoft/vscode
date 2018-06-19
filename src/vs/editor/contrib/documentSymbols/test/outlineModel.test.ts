@@ -75,8 +75,8 @@ suite('OutlineModel', function () {
 			name,
 			detail: 'fake',
 			kind: SymbolKind.Boolean,
-			identifierRange: range,
-			fullRange: range
+			selectionRange: range,
+			range: range
 		};
 	}
 

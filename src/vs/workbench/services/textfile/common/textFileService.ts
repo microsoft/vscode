@@ -33,6 +33,7 @@ import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/c
 import { createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { isEqualOrParent, isEqual } from 'vs/base/common/resources';
 
 export interface IBackupResult {
 	didBackup: boolean;
@@ -702,51 +703,67 @@ export abstract class TextFileService implements ITextFileService {
 	}
 
 	public delete(resource: URI, useTrash?: boolean): TPromise<void> {
-		return this.revert(resource, { soft: true }).then(() => this.fileService.del(resource, useTrash));
+		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
+
+		return this.revertAll(dirtyFiles, { soft: true }).then(() => this.fileService.del(resource, useTrash));
 	}
 
 	public move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {
 
-		// Handle target model if existing
+		// Handle target models if existing (if target URI is a folder, this can be multiple)
 		let handleTargetModelPromise: TPromise<any> = TPromise.as(void 0);
-		const targetModel = this.models.get(target);
-		if (targetModel) {
-			if (!overwrite) {
-				return TPromise.wrapError(new Error('Cannot move file because target file exists and we are not overwriting'));
-			}
-
-			// Soft revert the target file since we overwrite
-			handleTargetModelPromise = this.revert(target, { soft: true });
+		const dirtyTargetModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), target, !platform.isLinux /* ignorecase */));
+		if (dirtyTargetModels.length) {
+			handleTargetModelPromise = this.revertAll(dirtyTargetModels.map(targetModel => targetModel.getResource()), { soft: true });
 		}
 
 		return handleTargetModelPromise.then(() => {
 
-			// Handle source model if existing
-			let handleSourceModelPromise: TPromise<boolean>;
-			const sourceModel = this.models.get(source);
-			if (sourceModel && sourceModel.isDirty()) {
-				// Backup to target if the source is dirty
-				handleSourceModelPromise = this.backupFileService.backupResource(target, sourceModel.createSnapshot(), sourceModel.getVersionId()).then((() => true));
+			// Handle dirty source models if existing (if source URI is a folder, this can be multiple)
+			let handleDirtySourceModels: TPromise<any>;
+			const dirtySourceModels = this.getDirtyFileModels().filter(model => isEqualOrParent(model.getResource(), source, !platform.isLinux /* ignorecase */));
+			const dirtyTargetModels: URI[] = [];
+			if (dirtySourceModels.length) {
+				handleDirtySourceModels = TPromise.join(dirtySourceModels.map(sourceModel => {
+					const sourceModelResource = sourceModel.getResource();
+					let targetModelResource: URI;
+
+					// If the source is the actual model, just use target as new resource
+					if (isEqual(sourceModelResource, source, !platform.isLinux /* ignorecase */)) {
+						targetModelResource = target;
+					}
+
+					// Otherwise a parent folder of the source is being moved, so we need
+					// to compute the target resource based on that
+					else {
+						targetModelResource = sourceModelResource.with({ path: paths.join(target.path, sourceModelResource.path.substr(source.path.length + 1)) });
+					}
+
+					// Remember as dirty target model to load after the operation
+					dirtyTargetModels.push(targetModelResource);
+
+					// Backup dirty source model to the target resource it will become later
+					return this.backupFileService.backupResource(targetModelResource, sourceModel.createSnapshot(), sourceModel.getVersionId());
+				}));
 			} else {
-				handleSourceModelPromise = TPromise.as(false);
+				handleDirtySourceModels = TPromise.as(void 0);
 			}
 
-			return handleSourceModelPromise.then(dirty => {
+			return handleDirtySourceModels.then(() => {
 
-				// Soft revert the source file
-				return this.revert(source, { soft: true }).then(() => {
+				// Soft revert the dirty source files if any
+				return this.revertAll(dirtySourceModels.map(dirtySourceModel => dirtySourceModel.getResource()), { soft: true }).then(() => {
 
 					// Rename to target
 					return this.fileService.moveFile(source, target, overwrite).then(() => {
 
-						// Load if we were dirty before
-						if (dirty) {
-							return this.models.loadOrCreate(target).then(() => void 0);
-						}
-
-						return void 0;
+						// Load models that were dirty before
+						return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.models.loadOrCreate(dirtyTargetModel))).then(() => void 0);
 					}, error => {
-						return this.backupFileService.discardResourceBackup(target).then(() => TPromise.wrapError(error));
+
+						// In case of an error, discard any dirty target backups that were made
+						return TPromise.join(dirtyTargetModels.map(dirtyTargetModel => this.backupFileService.discardResourceBackup(dirtyTargetModel)))
+							.then(() => TPromise.wrapError(error));
 					});
 				});
 			});

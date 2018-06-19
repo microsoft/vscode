@@ -387,4 +387,48 @@ suite('Splitview', () => {
 		view2.dispose();
 		view1.dispose();
 	});
+
+	test('split sizing', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		assert.equal(view1.size, 200);
+
+		splitview.addView(view2, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.addView(view3, Sizing.Split(1));
+		assert.deepEqual([view1.size, view2.size, view3.size], [100, 50, 50]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
+
+	test('split sizing 2', () => {
+		const view1 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view2 = new TestView(20, Number.POSITIVE_INFINITY);
+		const view3 = new TestView(20, Number.POSITIVE_INFINITY);
+		const splitview = new SplitView(container);
+		splitview.layout(200);
+
+		splitview.addView(view1, Sizing.Distribute);
+		assert.equal(view1.size, 200);
+
+		splitview.addView(view2, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size], [100, 100]);
+
+		splitview.addView(view3, Sizing.Split(0));
+		assert.deepEqual([view1.size, view2.size, view3.size], [50, 100, 50]);
+
+		splitview.dispose();
+		view3.dispose();
+		view2.dispose();
+		view1.dispose();
+	});
 });
