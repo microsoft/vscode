@@ -151,10 +151,6 @@ export class SideBySideEditor extends BaseEditor {
 		return this.detailsEditor;
 	}
 
-	supportsCenteredLayout(): boolean {
-		return false;
-	}
-
 	private updateInput(oldInput: SideBySideEditorInput, newInput: SideBySideEditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (!newInput.matches(oldInput)) {
 			if (oldInput) {

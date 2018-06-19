@@ -143,13 +143,6 @@ export abstract class BaseEditor extends Panel implements IEditor {
 		this._group = group;
 	}
 
-	/**
-	 * Subclasses can set this to false if it does not make sense to center editor input.
-	 */
-	supportsCenteredLayout(): boolean {
-		return true;
-	}
-
 	protected getEditorMemento<T>(storageService: IStorageService, editorGroupService: IEditorGroupsService, key: string, limit: number = 10): IEditorMemento<T> {
 		const mementoKey = `${this.getId()}${key}`;
 

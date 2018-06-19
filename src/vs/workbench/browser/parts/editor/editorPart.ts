@@ -89,13 +89,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private mostRecentActiveGroups: GroupIdentifier[] = [];
 
 	private container: HTMLElement;
+	private centeredLayoutWidget: CenteredViewLayout;
 	private gridWidget: SerializableGrid<IEditorGroupView>;
 
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
 
 	private previousUIState: IEditorPartUIState;
-	private centeredViewLayout: CenteredViewLayout;
 
 	constructor(
 		id: string,
@@ -708,7 +708,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder };
 		this.gridWidget.style(separatorBorderStyle);
-		this.centeredViewLayout.styles(separatorBorderStyle);
+		this.centeredLayoutWidget.styles(separatorBorderStyle);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -720,7 +720,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Grid control with center layout
 		this.doCreateGridControl();
-		this.centeredViewLayout = new CenteredViewLayout(this.container, this.getGridAsView(), this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]);
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.getGridAsView(), this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drop support
 		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
@@ -741,11 +741,11 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	centerLayout(active: boolean): void {
-		this.centeredViewLayout.activate(active);
+		this.centeredLayoutWidget.activate(active);
 	}
 
 	isLayoutCentered(): boolean {
-		return this.centeredViewLayout.isActive();
+		return this.centeredLayoutWidget.isActive();
 	}
 
 	private doCreateGridControl(): void {
@@ -801,6 +801,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	}
 
 	private doCreateGridControlWithState(serializedGrid: ISerializedGrid, activeGroupId: GroupIdentifier, editorGroupViewsToReuse?: IEditorGroupView[]): void {
+
 		// Determine group views to reuse if any
 		let reuseGroupViews: IEditorGroupView[];
 		if (editorGroupViewsToReuse) {
@@ -839,9 +840,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.gridWidget = gridWidget;
 
 		if (gridWidget) {
-			if (this.centeredViewLayout) {
-				this.centeredViewLayout.resetView(this.getGridAsView());
+			if (this.centeredLayoutWidget) {
+				this.centeredLayoutWidget.resetView(this.getGridAsView());
 			}
+
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
@@ -999,7 +1001,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Layout Grid
 		try {
-			this.centeredViewLayout.layout(this.dimension.width, this.dimension.height);
+			this.centeredLayoutWidget.layout(this.dimension.width, this.dimension.height);
 		} catch (error) {
 			this.gridError(error);
 		}
@@ -1024,7 +1026,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
 			}
 		}
-		this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = this.centeredViewLayout.state;
+
+		// Persist centered view state
+		this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = this.centeredLayoutWidget.state;
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.shutdown());
@@ -1042,7 +1046,6 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		if (this.gridWidget) {
 			this.gridWidget.dispose();
 		}
-		this.centeredViewLayout.dispose();
 
 		super.dispose();
 	}

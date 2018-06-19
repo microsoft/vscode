@@ -205,10 +205,6 @@ export class PreferencesEditor extends BaseEditor {
 		super.clearInput();
 	}
 
-	public supportsCenteredLayout(): boolean {
-		return false;
-	}
-
 	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
 		this.sideBySidePreferencesWidget.setEditorVisible(visible, group);
 		super.setEditorVisible(visible, group);
@@ -1051,10 +1047,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public layout(dimension: DOM.Dimension) {
 		this.getControl().layout(dimension);
-	}
-
-	public supportsCenteredLayout(): boolean {
-		return false;
 	}
 
 	protected getAriaLabel(): string {
