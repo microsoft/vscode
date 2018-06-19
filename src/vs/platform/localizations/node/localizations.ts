@@ -8,7 +8,6 @@ import { createHash } from 'crypto';
 import { IExtensionManagementService, ILocalExtension, IExtensionIdentifier } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { Disposable } from 'vs/base/common/lifecycle';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { join } from 'vs/base/common/paths';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Limiter } from 'vs/base/common/async';
 import { areSameExtensions, getGalleryExtensionIdFromLocal, getIdFromLocalExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
@@ -18,6 +17,7 @@ import product from 'vs/platform/node/product';
 import { distinct, equals } from 'vs/base/common/arrays';
 import { Event, Emitter } from 'vs/base/common/event';
 import { Schemas } from 'vs/base/common/network';
+import { posix } from 'path';
 
 interface ILanguagePack {
 	hash: string;
@@ -107,7 +107,7 @@ class LanguagePacksCache extends Disposable {
 		@ILogService private logService: ILogService
 	) {
 		super();
-		this.languagePacksFilePath = join(environmentService.userDataPath, 'languagepacks.json');
+		this.languagePacksFilePath = posix.join(environmentService.userDataPath, 'languagepacks.json');
 		this.languagePacksFileLimiter = new Limiter(1);
 	}
 
@@ -152,7 +152,7 @@ class LanguagePacksCache extends Disposable {
 					languagePack.extensions.push({ extensionIdentifier, version: extension.manifest.version });
 				}
 				for (const translation of localizationContribution.translations) {
-					languagePack.translations[translation.id] = join(extension.location.path, translation.path);
+					languagePack.translations[translation.id] = posix.join(extension.location.fsPath, translation.path);
 				}
 			}
 		}
