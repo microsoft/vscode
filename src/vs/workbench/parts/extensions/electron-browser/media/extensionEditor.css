@@ -138,6 +138,10 @@
 	font-size: 13px;
 }
 
+.extension-editor > .header > .details > .recommendation {
+	display: none;
+}
+
 .extension-editor > .header.recommendation-ignored > .details > .recommendation > .recommendation-text {
 	font-style: italic;
 }
