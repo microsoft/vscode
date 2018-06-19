@@ -334,7 +334,7 @@ phases:
   - script: |
       set -e
       npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-deb"
-      # npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
+      npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-rpm"
       #npm run gulp -- "vscode-linux-$(VSCODE_ARCH)-build-snap"
 
       AZURE_DOCUMENTDB_MASTERKEY="$(AZURE_DOCUMENTDB_MASTERKEY)" \
