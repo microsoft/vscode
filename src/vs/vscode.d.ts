@@ -6220,7 +6220,7 @@ declare module 'vscode' {
 
 		/**
 		 * Reveals the given element in the tree view.
-		 * If the tree view is not visible then the element is revealed after the tree view is shown.
+		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *
 		 * By default revealed element is selected and not focused.
 		 * In order to not to select, set the option `select` to `false`.
