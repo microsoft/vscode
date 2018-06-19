@@ -149,6 +149,16 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 					for (; endLineNumber < maxLineNumber; endLineNumber++) {
 						let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
 						minIndent = Math.min(minIndent, endIndent);
+
+						// Fix for https://github.com/Microsoft/vscode/issues/39458
+						const rangeToTestForOpeningBracket = new Range(endLineNumber, 1, endLineNumber + 1, 1);
+						const contentWithPotentialOpeningBracket = textEditorModel.getValueInRange(rangeToTestForOpeningBracket)
+							.replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+
+						if (contentWithPotentialOpeningBracket.length > 0 && contentWithPotentialOpeningBracket[0] === '{') {
+							continue;
+						}
+
 						if (startIndent === endIndent) {
 							break;
 						}
