@@ -35,11 +35,9 @@ export class BackupRestorer implements IWorkbenchContribution {
 	}
 
 	private restoreBackups(): void {
-		if (this.backupFileService.backupEnabled) {
-			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-				this.doRestoreBackups().done(null, errors.onUnexpectedError);
-			});
-		}
+		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+			this.doRestoreBackups().done(null, errors.onUnexpectedError);
+		});
 	}
 
 	private doRestoreBackups(): TPromise<URI[]> {
