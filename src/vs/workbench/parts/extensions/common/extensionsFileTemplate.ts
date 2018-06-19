@@ -26,7 +26,7 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 		},
 		unwantedRecommendations: {
 			type: 'array',
-			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These extensions may be irrelevant, redundant, or otherwise unwanted. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
+			description: localize('app.extensions.json.unwantedRecommendations', "List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These are extensions that you may consider to be irrelevant, redundant, or otherwise unwanted. The identifier of an extension is always '${publisher}.${name}'. For example: 'vscode.csharp'."),
 			items: {
 				type: 'string',
 				pattern: EXTENSION_IDENTIFIER_PATTERN,
@@ -46,7 +46,7 @@ export const ExtensionsConfigurationInitialContent: string = [
 	'\t\t',
 	'\t],',
 	'\t"unwantedRecommendations": [',
-	'\t\t// List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These extensions may be irrelevant, redundant, or otherwise unwanted.',
+	'\t\t// List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These are extensions that you may consider to be irrelevant, redundant, or otherwise unwanted.',
 	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t]',
