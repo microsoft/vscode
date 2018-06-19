@@ -51,7 +51,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.position = position;
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, tsEntry.kind);
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
-
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 		}
@@ -437,7 +436,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			const preText = document.getText(new vscode.Range(
 				position.line, 0,
 				position.line, position.character - 1));
-			return preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
+			return preText.match(/[a-z_$\(\)\[\]\{\}]\s*$/ig) !== null;
 		}
 
 		return true;
