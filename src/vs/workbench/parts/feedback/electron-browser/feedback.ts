@@ -239,7 +239,7 @@ export class FeedbackDropdown extends Dropdown {
 		this.feedbackDescriptionInput = <HTMLTextAreaElement>$('textarea.feedback-description').attr({
 			rows: 3,
 			maxlength: this.maxFeedbackCharacters,
-			'aria-label': nls.localize("commentsHeader", "Comments")
+			'aria-label': nls.localize("feedbackTextInput", "Tell us your feedback")
 		})
 			.text(this.feedback).attr('required', 'required')
 			.on('keyup', () => {
