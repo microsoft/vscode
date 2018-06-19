@@ -383,6 +383,11 @@ export class TabsTitleControl extends TitleControl {
 		// Gesture Support
 		Gesture.addTarget(tabContainer);
 
+		// Tab Border Top
+		const tabBorderTopContainer = document.createElement('div');
+		addClass(tabBorderTopContainer, 'tab-border-top-container');
+		tabContainer.appendChild(tabBorderTopContainer);
+
 		// Tab Editor Label
 		const editorLabel = this.instantiationService.createInstance(ResourceLabel, tabContainer, void 0);
 		this.tabLabelWidgets.push(editorLabel);
@@ -391,6 +396,11 @@ export class TabsTitleControl extends TitleControl {
 		const tabCloseContainer = document.createElement('div');
 		addClass(tabCloseContainer, 'tab-close');
 		tabContainer.appendChild(tabCloseContainer);
+
+		// Tab Border Bottom
+		const tabBorderBottomContainer = document.createElement('div');
+		addClass(tabBorderBottomContainer, 'tab-border-bottom-container');
+		tabContainer.appendChild(tabBorderBottomContainer);
 
 		const tabActionRunner = new EditorCommandsContextActionRunner({ groupId: this.group.id, editorIndex: index });
 
