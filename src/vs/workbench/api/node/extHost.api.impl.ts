@@ -576,8 +576,8 @@ export function createApiFactory(
 			registerWorkspaceCommentProvider: proposedApiFunction(extension, (provider: vscode.WorkspaceCommentProvider) => {
 				return exthostCommentProviders.registerWorkspaceCommentProvider(provider);
 			}),
-			onDidRenameResource: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
-				return extHostDocuments.onDidRenameResource(listener, thisArg, disposables);
+			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
 			})
 		};
 

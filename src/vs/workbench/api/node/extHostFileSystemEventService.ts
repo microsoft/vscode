@@ -4,18 +4,18 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { Event, Emitter } from 'vs/base/common/event';
+import { Emitter, Event } from 'vs/base/common/event';
+import { IRelativePattern, parse } from 'vs/base/common/glob';
+import URI, { UriComponents } from 'vs/base/common/uri';
+import * as vscode from 'vscode';
+import { ExtHostFileSystemEventServiceShape, FileSystemEvents } from './extHost.protocol';
 import { Disposable } from './extHostTypes';
-import { parse, IRelativePattern } from 'vs/base/common/glob';
-import { Uri, FileSystemWatcher as _FileSystemWatcher } from 'vscode';
-import { FileSystemEvents, ExtHostFileSystemEventServiceShape } from './extHost.protocol';
-import URI from 'vs/base/common/uri';
 
-class FileSystemWatcher implements _FileSystemWatcher {
+class FileSystemWatcher implements vscode.FileSystemWatcher {
 
-	private _onDidCreate = new Emitter<Uri>();
-	private _onDidChange = new Emitter<Uri>();
-	private _onDidDelete = new Emitter<Uri>();
+	private _onDidCreate = new Emitter<vscode.Uri>();
+	private _onDidChange = new Emitter<vscode.Uri>();
+	private _onDidDelete = new Emitter<vscode.Uri>();
 	private _disposable: Disposable;
 	private _config: number;
 
@@ -80,31 +80,38 @@ class FileSystemWatcher implements _FileSystemWatcher {
 		this._disposable.dispose();
 	}
 
-	get onDidCreate(): Event<Uri> {
+	get onDidCreate(): Event<vscode.Uri> {
 		return this._onDidCreate.event;
 	}
 
-	get onDidChange(): Event<Uri> {
+	get onDidChange(): Event<vscode.Uri> {
 		return this._onDidChange.event;
 	}
 
-	get onDidDelete(): Event<Uri> {
+	get onDidDelete(): Event<vscode.Uri> {
 		return this._onDidDelete.event;
 	}
 }
 
 export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServiceShape {
 
-	private _emitter = new Emitter<FileSystemEvents>();
+	private _onFileEvent = new Emitter<FileSystemEvents>();
+	private _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
+
+	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
 
 	constructor() {
 	}
 
-	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): _FileSystemWatcher {
-		return new FileSystemWatcher(this._emitter.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
+	public createFileSystemWatcher(globPattern: string | IRelativePattern, ignoreCreateEvents?: boolean, ignoreChangeEvents?: boolean, ignoreDeleteEvents?: boolean): vscode.FileSystemWatcher {
+		return new FileSystemWatcher(this._onFileEvent.event, globPattern, ignoreCreateEvents, ignoreChangeEvents, ignoreDeleteEvents);
 	}
 
 	$onFileEvent(events: FileSystemEvents) {
-		this._emitter.fire(events);
+		this._onFileEvent.fire(events);
+	}
+
+	$onFileRename(oldUri: UriComponents, newUri: UriComponents) {
+		this._onDidRenameFile.fire(Object.freeze({ oldUri: URI.revive(oldUri), newUri: URI.revive(newUri) }));
 	}
 }

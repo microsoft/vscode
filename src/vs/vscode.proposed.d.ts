@@ -629,13 +629,13 @@ declare module 'vscode' {
 	//#endregion
 
 	//#region mjbvz: File rename events
-	export interface ResourceRenamedEvent {
-		readonly oldResource: Uri;
-		readonly newResource: Uri;
+	export interface FileRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
 	}
 
 	export namespace workspace {
-		export const onDidRenameResource: Event<ResourceRenamedEvent>;
+		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion
 

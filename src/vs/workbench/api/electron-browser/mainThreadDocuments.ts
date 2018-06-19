@@ -10,7 +10,7 @@ import { IModelService, shouldSynchronizeModel } from 'vs/editor/common/services
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { TextFileModelChangeEvent, ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IFileService, FileOperation } from 'vs/platform/files/common/files';
+import { IFileService } from 'vs/platform/files/common/files';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { ExtHostContext, MainThreadDocumentsShape, ExtHostDocumentsShape, IExtHostContext } from '../node/extHost.protocol';
@@ -116,12 +116,6 @@ export class MainThreadDocuments implements MainThreadDocumentsShape {
 		this._toDispose.push(textFileService.models.onModelDirty(e => {
 			if (this._shouldHandleFileEvent(e)) {
 				this._proxy.$acceptDirtyStateChanged(e.resource, true);
-			}
-		}));
-
-		this._toDispose.push(fileService.onAfterOperation(e => {
-			if (e.operation === FileOperation.MOVE) {
-				this._proxy.$onDidRename(e.resource, e.target.resource);
 			}
 		}));
 

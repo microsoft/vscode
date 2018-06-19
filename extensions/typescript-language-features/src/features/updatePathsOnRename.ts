@@ -34,8 +34,8 @@ export class UpdateImportsOnFileRenameHandler {
 		private readonly fileConfigurationManager: FileConfigurationManager,
 		private readonly _handles: (uri: vscode.Uri) => Promise<boolean>,
 	) {
-		this._onDidRenameSub = vscode.workspace.onDidRenameResource(e => {
-			this.doRename(e.oldResource, e.newResource);
+		this._onDidRenameSub = vscode.workspace.onDidRenameFile(e => {
+			this.doRename(e.oldUri, e.newUri);
 		});
 	}
 
