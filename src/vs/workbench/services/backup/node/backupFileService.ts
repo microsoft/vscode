@@ -15,7 +15,8 @@ import { IFileService, ITextSnapshot } from 'vs/platform/files/common/files';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { readToMatchingString } from 'vs/base/node/stream';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { createTextBufferFactoryFromStream } from 'vs/editor/common/model/textModel';
+import { createTextBufferFactoryFromStream, createTextBufferFactoryFromSnapshot } from 'vs/editor/common/model/textModel';
+import { keys } from 'vs/base/common/map';
 
 export interface IBackupFilesModel {
 	resolve(backupRoot: string): TPromise<IBackupFilesModel>;
@@ -135,16 +136,8 @@ export class BackupFileService implements IBackupFileService {
 		this.ready = this.init();
 	}
 
-	public get backupEnabled(): boolean {
-		return !!this.backupWorkspacePath; // Hot exit requires a backup path
-	}
-
 	private init(): TPromise<IBackupFilesModel> {
 		const model = new BackupFilesModel();
-
-		if (!this.backupEnabled) {
-			return TPromise.as(model);
-		}
 
 		return model.resolve(this.backupWorkspacePath);
 	}
@@ -157,12 +150,9 @@ export class BackupFileService implements IBackupFileService {
 
 	public loadBackupResource(resource: Uri): TPromise<Uri> {
 		return this.ready.then(model => {
-			const backupResource = this.toBackupResource(resource);
-			if (!backupResource) {
-				return void 0;
-			}
 
 			// Return directly if we have a known backup with that resource
+			const backupResource = this.toBackupResource(resource);
 			if (model.has(backupResource)) {
 				return backupResource;
 			}
@@ -178,10 +168,6 @@ export class BackupFileService implements IBackupFileService {
 
 		return this.ready.then(model => {
 			const backupResource = this.toBackupResource(resource);
-			if (!backupResource) {
-				return void 0;
-			}
-
 			if (model.has(backupResource, versionId)) {
 				return void 0; // return early if backup version id matches requested one
 			}
@@ -198,9 +184,6 @@ export class BackupFileService implements IBackupFileService {
 	public discardResourceBackup(resource: Uri): TPromise<void> {
 		return this.ready.then(model => {
 			const backupResource = this.toBackupResource(resource);
-			if (!backupResource) {
-				return void 0;
-			}
 
 			return this.ioOperationQueues.queueFor(backupResource).queue(() => {
 				return pfs.del(backupResource.fsPath).then(() => model.remove(backupResource));
@@ -212,10 +195,6 @@ export class BackupFileService implements IBackupFileService {
 		this.isShuttingDown = true;
 
 		return this.ready.then(model => {
-			if (!this.backupEnabled) {
-				return void 0;
-			}
-
 			return pfs.del(this.backupWorkspacePath).then(() => model.clear());
 		});
 	}
@@ -226,8 +205,7 @@ export class BackupFileService implements IBackupFileService {
 
 			model.get().forEach(fileBackup => {
 				readPromises.push(
-					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000)
-						.then(Uri.parse)
+					readToMatchingString(fileBackup.fsPath, BackupFileService.META_MARKER, 2000, 10000).then(Uri.parse)
 				);
 			});
 
@@ -259,11 +237,67 @@ export class BackupFileService implements IBackupFileService {
 	}
 
 	public toBackupResource(resource: Uri): Uri {
-		if (!this.backupEnabled) {
-			return null;
+		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+	}
+
+	private hashPath(resource: Uri): string {
+		return crypto.createHash('md5').update(resource.fsPath).digest('hex');
+	}
+}
+
+export class InMemoryBackupFileService implements IBackupFileService {
+
+	public _serviceBrand: any;
+
+	private backups: Map<string, ITextSnapshot> = new Map();
+
+	hasBackups(): TPromise<boolean> {
+		return TPromise.as(this.backups.size > 0);
+	}
+
+	loadBackupResource(resource: Uri): TPromise<Uri> {
+		const backupResource = this.toBackupResource(resource);
+		if (this.backups.has(backupResource.toString())) {
+			return TPromise.as(backupResource);
 		}
 
-		return Uri.file(path.join(this.backupWorkspacePath, resource.scheme, this.hashPath(resource)));
+		return TPromise.as(void 0);
+	}
+
+	backupResource(resource: Uri, content: ITextSnapshot, versionId?: number): TPromise<void> {
+		const backupResource = this.toBackupResource(resource);
+		this.backups.set(backupResource.toString(), content);
+
+		return TPromise.as(void 0);
+	}
+
+	resolveBackupContent(backupResource: Uri): TPromise<ITextBufferFactory> {
+		const snapshot = this.backups.get(backupResource.toString());
+		if (snapshot) {
+			return TPromise.as(createTextBufferFactoryFromSnapshot(snapshot));
+		}
+
+		return TPromise.as(void 0);
+	}
+
+	getWorkspaceFileBackups(): TPromise<Uri[]> {
+		return TPromise.as(keys(this.backups).map(key => Uri.parse(key)));
+	}
+
+	discardResourceBackup(resource: Uri): TPromise<void> {
+		this.backups.delete(this.toBackupResource(resource).toString());
+
+		return TPromise.as(void 0);
+	}
+
+	discardAllWorkspaceBackups(): TPromise<void> {
+		this.backups.clear();
+
+		return TPromise.as(void 0);
+	}
+
+	toBackupResource(resource: Uri): Uri {
+		return Uri.file(path.join(resource.scheme, this.hashPath(resource)));
 	}
 
 	private hashPath(resource: Uri): string {

@@ -17,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
 import * as errors from 'vs/base/common/errors';
-import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -415,7 +415,11 @@ export class Workbench extends Disposable implements IPartService {
 		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
 
 		// Backup File Service
-		this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		if (this.workbenchParams.configuration.backupPath) {
+			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		} else {
+			this.backupFileService = new InMemoryBackupFileService();
+		}
 		serviceCollection.set(IBackupFileService, this.backupFileService);
 
 		// Text File Service
