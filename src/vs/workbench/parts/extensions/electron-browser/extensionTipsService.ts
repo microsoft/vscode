@@ -192,26 +192,30 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsConfigContent> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))])
-			.then(this.mergeExtensionRecommendationConfigs)
+			.then(contents => {
+				return this.mergeExtensionRecommendationConfigs(flatten(contents));
+			})
 			.then(content => this.processConfigContent(content));
 	}
 
-	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent> {
+	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent[]> {
 		if (workspace.configuration) {
 			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])['extensions']], err => [])
-				.then(this.mergeExtensionRecommendationConfigs);
+				.then(content => <IExtensionsConfigContent>(json.parse(content.value, [])['extensions']))
+				.then(content => {
+					if (content) { return [content]; }
+					else { return []; }
+				}, err => []);
 		}
-		return TPromise.as([]).then(this.mergeExtensionRecommendationConfigs);
+		return TPromise.as([]);
 	}
 
-	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent> {
+	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent[]> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 
 		return this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])], err => [])
-			.then(content => this.mergeExtensionRecommendationConfigs(content));
+			.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])], err => []);
 	}
 
 	private mergeExtensionRecommendationConfigs(configs: IExtensionsConfigContent[]): IExtensionsConfigContent {
