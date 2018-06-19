@@ -656,4 +656,18 @@ suite('workspace-namespace', () => {
 		// todo@ben https://github.com/Microsoft/vscode/issues/52212
 		// assert.equal(doc.getText(), 'Hello');
 	});
+
+	test('WorkspaceEdit: rename resource followed by edit does not work #42638', async function () {
+		let docUri = await createRandomFile();
+		let newUri = nameWithUnderscore(docUri);
+
+		let we = new vscode.WorkspaceEdit();
+		we.renameFile(docUri, newUri);
+		we.insert(newUri, new vscode.Position(0, 0), 'Hello');
+
+		assert.ok(await vscode.workspace.applyEdit(we));
+
+		let doc = await vscode.workspace.openTextDocument(newUri);
+		assert.equal(doc.getText(), 'Hello');
+	});
 });
