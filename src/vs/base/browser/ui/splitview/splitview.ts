@@ -498,17 +498,17 @@ export class SplitView implements IDisposable {
 			return 0;
 		}
 
-		let upIndexes = range(index, -1);
-		let downIndexes = range(index + 1, this.viewItems.length);
+		const upIndexes = range(index, -1);
+		const downIndexes = range(index + 1, this.viewItems.length);
 
 		if (typeof highPriorityIndex === 'number') {
-			upIndexes = pushToStart(upIndexes, highPriorityIndex);
-			downIndexes = pushToStart(downIndexes, highPriorityIndex);
+			pushToStart(upIndexes, highPriorityIndex);
+			pushToStart(downIndexes, highPriorityIndex);
 		}
 
 		if (typeof lowPriorityIndex === 'number') {
-			upIndexes = pushToEnd(upIndexes, lowPriorityIndex);
-			downIndexes = pushToEnd(downIndexes, lowPriorityIndex);
+			pushToEnd(upIndexes, lowPriorityIndex);
+			pushToEnd(downIndexes, lowPriorityIndex);
 		}
 
 		const upItems = upIndexes.map(i => this.viewItems[i]);
