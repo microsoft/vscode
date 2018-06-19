@@ -243,8 +243,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				});
 			};
 
-			let filteredWanted = regexFilter(extensionsContent.recommendations || []);
-			let filteredUnwanted = regexFilter(extensionsContent.unwantedRecommendations || []);
+			let filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
+			let filteredUnwanted = regexFilter(extensionsContent.unwantedRecommendations || []).map(x => x.toLowerCase());
 
 			if (!filteredWanted.length) {
 				return TPromise.as({ recommendations: filteredWanted, unwantedRecommendations: filteredUnwanted });
@@ -362,9 +362,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			if (this.isExtensionAllowedToBeRecommended(id)) {
 				let ids = this._availableRecommendations[pattern];
 				if (!ids) {
-					this._availableRecommendations[pattern] = [id];
+					this._availableRecommendations[pattern] = [id.toLowerCase()];
 				} else {
-					ids.push(id);
+					ids.push(id.toLowerCase());
 				}
 			}
 		});
@@ -375,9 +375,9 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				const { pattern } = value;
 				let ids = this._availableRecommendations[pattern];
 				if (!ids) {
-					this._availableRecommendations[pattern] = [id];
+					this._availableRecommendations[pattern] = [id.toLowerCase()];
 				} else {
-					ids.push(id);
+					ids.push(id.toLowerCase());
 				}
 			}
 		});
@@ -390,7 +390,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (Array.isArray<string>(storedRecommendationsJson)) {
 			for (let id of <string[]>storedRecommendationsJson) {
 				if (allRecommendations.indexOf(id) > -1) {
-					this._fileBasedRecommendations[id] = Date.now();
+					this._fileBasedRecommendations[id.toLowerCase()] = Date.now();
 				}
 			}
 		} else {
@@ -399,7 +399,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				if (typeof entry.value === 'number') {
 					const diff = (now - entry.value) / milliSecondsInADay;
 					if (diff <= 7 && allRecommendations.indexOf(entry.key) > -1) {
-						this._fileBasedRecommendations[entry.key] = entry.value;
+						this._fileBasedRecommendations[entry.key.toLowerCase()] = entry.value;
 					}
 				}
 			});
@@ -441,7 +441,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						if (Object.keys(product.extensionImportantTips || []).map(x => x.toLowerCase()).indexOf(id.toLowerCase()) > -1) {
 							recommendationsToSuggest.push(id);
 						}
-						this._fileBasedRecommendations[id] = now;
+						this._fileBasedRecommendations[id.toLowerCase()] = now;
 					}
 				}
 			});
@@ -727,7 +727,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					(product.exeBasedExtensionTips[exeName]['recommendations'] || [])
 						.forEach(extensionId => {
 							if (product.exeBasedExtensionTips[exeName]['friendlyName'] && this.isExtensionAllowedToBeRecommended(extensionId)) {
-								this._exeBasedRecommendations[extensionId] = product.exeBasedExtensionTips[exeName]['friendlyName'];
+								this._exeBasedRecommendations[extensionId.toLowerCase()] = product.exeBasedExtensionTips[exeName]['friendlyName'];
 							}
 						});
 				}
