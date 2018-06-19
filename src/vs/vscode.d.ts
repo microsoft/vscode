@@ -6160,14 +6160,23 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * The event that is fired when there is a change in [tree view's selections](#TreeView.selections)
+	 * The event that is fired when there is a change in [tree view's selection](#TreeView.selection)
 	 */
 	export interface TreeViewSelectionChangeEvent<T> {
 
 		/**
 		 * Selected elements.
 		 */
-		selections: T[];
+		selection: T[];
+
+	}
+
+	export interface TreeViewVisibilityChangeEvent {
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		visible: boolean;
 
 	}
 
@@ -6187,25 +6196,37 @@ declare module 'vscode' {
 		readonly onDidCollapseElement: Event<TreeViewExpansionEvent<T>>;
 
 		/**
-		 * Event that is fired when the selection has changed
-		 */
-		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
-
-		/**
 		 * Currently selected elements.
 		 */
 		readonly selection: ReadonlyArray<T>;
 
 		/**
-		 * Reveal an element. By default revealed element is selected.
+		 * Event that is fired when the [selection](#TreeView.selection) has changed
+		 */
+		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Event that is fired when [visibility](TreeView.visible) has changed
+		 */
+		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
+
+		/**
+		 * Reveals the given element in the tree view.
+		 * If the tree view is not visible then the element is revealed after the tree view is shown.
 		 *
+		 * By default revealed element is selected and not focused.
 		 * In order to not to select, set the option `select` to `false`.
+		 * In order to focus, set the option `focus` to `true`.
 		 *
 		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
-		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean, focus?: boolean }): Thenable<void>;
 	}
-
 
 	/**
 	 * A data provider that provides tree data
