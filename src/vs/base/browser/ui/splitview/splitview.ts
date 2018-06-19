@@ -11,7 +11,7 @@ import { Event, mapEvent, Emitter } from 'vs/base/common/event';
 import * as types from 'vs/base/common/types';
 import * as dom from 'vs/base/browser/dom';
 import { clamp } from 'vs/base/common/numbers';
-import { range, firstIndex } from 'vs/base/common/arrays';
+import { range, firstIndex, pushToStart, pushToEnd } from 'vs/base/common/arrays';
 import { Sash, Orientation, ISashEvent as IBaseSashEvent, SashState } from 'vs/base/browser/ui/sash/sash';
 import { Color } from 'vs/base/common/color';
 import { domEvent } from 'vs/base/browser/event';
@@ -75,44 +75,6 @@ interface ISashDragState {
 enum State {
 	Idle,
 	Busy
-}
-
-function pushToStart<T>(arr: T[], value: T): T[] {
-	let didFindValue = false;
-
-	const result = arr.filter(v => {
-		if (v === value) {
-			didFindValue = true;
-			return false;
-		}
-
-		return true;
-	});
-
-	if (didFindValue) {
-		result.unshift(value);
-	}
-
-	return result;
-}
-
-function pushToEnd<T>(arr: T[], value: T): T[] {
-	let didFindValue = false;
-
-	const result = arr.filter(v => {
-		if (v === value) {
-			didFindValue = true;
-			return false;
-		}
-
-		return true;
-	});
-
-	if (didFindValue) {
-		result.push(value);
-	}
-
-	return result;
 }
 
 export type DistributeSizing = { type: 'distribute' };

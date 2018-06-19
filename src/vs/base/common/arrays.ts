@@ -463,3 +463,47 @@ export function shuffle<T>(array: T[]): void {
 		array[j] = temp;
 	}
 }
+
+/**
+ * Pushes an element to the start of the array, if found.
+ */
+export function pushToStart<T>(arr: T[], value: T): T[] {
+	let didFindValue = false;
+
+	const result = arr.filter(v => {
+		if (v === value) {
+			didFindValue = true;
+			return false;
+		}
+
+		return true;
+	});
+
+	if (didFindValue) {
+		result.unshift(value);
+	}
+
+	return result;
+}
+
+/**
+ * Pushes an element to the end of the array, if found.
+ */
+export function pushToEnd<T>(arr: T[], value: T): T[] {
+	let didFindValue = false;
+
+	const result = arr.filter(v => {
+		if (v === value) {
+			didFindValue = true;
+			return false;
+		}
+
+		return true;
+	});
+
+	if (didFindValue) {
+		result.push(value);
+	}
+
+	return result;
+}
