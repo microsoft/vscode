@@ -49,6 +49,15 @@ interface IDynamicWorkspaceRecommendations {
 	recommendations: string[];
 }
 
+function caseInsensitiveGet<T>(obj: { [key: string]: T }, key: string): T | undefined {
+	for (const _key in obj) {
+		if (obj.hasOwnProperty(_key) && _key.toLowerCase() === key.toLowerCase()) {
+			return obj[_key];
+		}
+	}
+	return undefined;
+}
+
 export class ExtensionTipsService extends Disposable implements IExtensionTipsService {
 
 	_serviceBrand: any;
@@ -192,22 +201,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsConfigContent> {
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))])
-			.then(contents => {
-				return this.mergeExtensionRecommendationConfigs(flatten(contents));
-			})
-			.then(content => this.processConfigContent(content));
+			.then(contents => this.processConfigContent(this.mergeExtensionRecommendationConfigs(flatten(contents))));
 	}
 
 	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent[]> {
-		if (workspace.configuration) {
-			return this.fileService.resolveContent(workspace.configuration)
-				.then(content => <IExtensionsConfigContent>(json.parse(content.value, [])['extensions']))
-				.then(content => {
-					if (content) { return [content]; }
-					else { return []; }
-				}, err => []);
+		if (!workspace.configuration) {
+			return TPromise.as([]);
 		}
-		return TPromise.as([]);
+
+		return this.fileService.resolveContent(workspace.configuration)
+			.then(content => {
+				const extensionsConfig = <IExtensionsConfigContent>(json.parse(content.value)['extensions']);
+				if (extensionsConfig) { return [extensionsConfig]; }
+				else { return []; }
+			}, err => []);
 	}
 
 	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent[]> {
@@ -215,7 +222,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		return this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => [<IExtensionsConfigContent>json.parse(content.value, [])], err => []);
+			.then(content => [<IExtensionsConfigContent>json.parse(content.value)], err => []);
 	}
 
 	private mergeExtensionRecommendationConfigs(configs: IExtensionsConfigContent[]): IExtensionsConfigContent {
@@ -226,61 +233,66 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private processConfigContent(extensionsContent: IExtensionsConfigContent): TPromise<IExtensionsConfigContent> {
+		if (!extensionsContent) {
+			return TPromise.as({ recommendations: [], unwantedRecommendations: [] });
+		}
+
 		const regEx = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
 
-		if (extensionsContent) {
-			let countBadRecommendations = 0;
-			let badRecommendationsString = '';
+		let countBadRecommendations = 0;
+		let badRecommendationsString = '';
+		let errorsNotification = () => {
+			if (countBadRecommendations > 0 && this.notificationService) {
+				this.notificationService.warn(
+					'The below ' +
+					countBadRecommendations +
+					' extension(s) in workspace recommendations have issues:\n' +
+					badRecommendationsString
+				);
+			}
+		};
 
-			let regexFilter = (ids: string[]) => {
-				return ids.filter((element, position) => {
-					if (ids.indexOf(element) !== position) {
-						// This is a duplicate entry, it doesn't hurt anybody
-						// but it shouldn't be sent in the gallery query
-						return false;
-					} else if (!regEx.test(element)) {
+		let regexFilter = (ids: string[]) => {
+			return ids.filter((element, position) => {
+				if (ids.indexOf(element) !== position) {
+					// This is a duplicate entry, it doesn't hurt anybody
+					// but it shouldn't be sent in the gallery query
+					return false;
+				} else if (!regEx.test(element)) {
+					countBadRecommendations++;
+					badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
+					return false;
+				}
+				return true;
+			});
+		};
+
+		let filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
+		let filteredUnwanted = regexFilter(extensionsContent.unwantedRecommendations || []).map(x => x.toLowerCase());
+
+		if (!filteredWanted.length) {
+			errorsNotification();
+			return TPromise.as({ recommendations: filteredWanted, unwantedRecommendations: filteredUnwanted });
+		}
+
+		return this._galleryService.query({ names: filteredWanted }).then(pager => {
+			let page = pager.firstPage;
+			let validRecommendations = page.map(extension => {
+				return extension.identifier.id.toLowerCase();
+			});
+
+			if (validRecommendations.length !== filteredWanted.length) {
+				filteredWanted.forEach(element => {
+					if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
 						countBadRecommendations++;
-						badRecommendationsString += `${element} (bad format) Expected: <provider>.<name>\n`;
-						return false;
+						badRecommendationsString += `${element} (not found in marketplace)\n`;
 					}
-					return true;
 				});
-			};
-
-			let filteredWanted = regexFilter(extensionsContent.recommendations || []).map(x => x.toLowerCase());
-			let filteredUnwanted = regexFilter(extensionsContent.unwantedRecommendations || []).map(x => x.toLowerCase());
-
-			if (!filteredWanted.length) {
-				return TPromise.as({ recommendations: filteredWanted, unwantedRecommendations: filteredUnwanted });
 			}
 
-			return this._galleryService.query({ names: filteredWanted }).then(pager => {
-				let page = pager.firstPage;
-				let validRecommendations = page.map(extension => {
-					return extension.identifier.id.toLowerCase();
-				});
-
-				if (validRecommendations.length !== filteredWanted.length) {
-					filteredWanted.forEach(element => {
-						if (validRecommendations.indexOf(element.toLowerCase()) === -1) {
-							countBadRecommendations++;
-							badRecommendationsString += `${element} (not found in marketplace)\n`;
-						}
-					});
-				}
-
-				if (countBadRecommendations > 0 && this.notificationService) {
-					this.notificationService.warn(
-						'The below ' +
-						countBadRecommendations +
-						' extension(s) in workspace recommendations have issues:\n' +
-						badRecommendationsString
-					);
-				}
-				return { recommendations: validRecommendations, unwantedRecommendations: filteredUnwanted };
-			});
-		}
-		return TPromise.as({ recommendations: [], unwantedRecommendations: [] });
+			errorsNotification();
+			return { recommendations: validRecommendations, unwantedRecommendations: filteredUnwanted };
+		});
 	}
 
 	private refilterAllRecommendations() {
@@ -329,10 +341,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		const fileBased = Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
 				if (this._fileBasedRecommendations[a] === this._fileBasedRecommendations[b]) {
-					if (!product.extensionImportantTips || product.extensionImportantTips[a]) {
+					if (!product.extensionImportantTips || caseInsensitiveGet(product.extensionImportantTips, a)) {
 						return -1;
 					}
-					if (product.extensionImportantTips[b]) {
+					if (caseInsensitiveGet(product.extensionImportantTips, b)) {
 						return 1;
 					}
 				}
@@ -470,7 +482,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					return;
 				}
 				const id = recommendationsToSuggest[0];
-				const name = product.extensionImportantTips[id]['name'];
+				const name = caseInsensitiveGet(product.extensionImportantTips, id)['name'];
 
 				// Indicates we have a suggested extension via the whitelist
 				hasSuggestion = true;

@@ -84,6 +84,7 @@
 	outline-offset: 0;
 	margin-left: 6px;
 	padding-left: 0;
+	margin-top: 3px;
 	background-color: transparent;
 	color: hsl(0, 66%, 50%);
 }
