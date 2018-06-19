@@ -77,7 +77,6 @@ export class CenteredViewLayout {
 			const size = this.splitView.getViewSize(1);
 			this.splitView.removeView(1);
 			this.splitView.addView(toSplitViewView(this.view, () => this.height), size, 1);
-			this.splitView.distributeViewSizes();
 		}
 	}
 
