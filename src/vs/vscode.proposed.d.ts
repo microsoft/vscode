@@ -634,7 +634,14 @@ declare module 'vscode' {
 		readonly newUri: Uri;
 	}
 
+	export interface FileWillRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
+		waitUntil(thenable: Thenable<any>): void;
+	}
+
 	export namespace workspace {
+		export const onWillRenameFile: Event<FileWillRenameEvent>;
 		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion

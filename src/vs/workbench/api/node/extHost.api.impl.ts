@@ -578,6 +578,9 @@ export function createApiFactory(
 			}),
 			onDidRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
 				return extHostFileSystemEvent.onDidRenameFile(listener, thisArg, disposables);
+			}),
+			onWillRenameFile: proposedApiFunction(extension, (listener, thisArg?, disposables?) => {
+				return extHostFileSystemEvent.onWillRenameFile(listener, thisArg, disposables);
 			})
 		};
 

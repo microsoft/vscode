@@ -98,8 +98,10 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 
 	private _onFileEvent = new Emitter<FileSystemEvents>();
 	private _onDidRenameFile = new Emitter<vscode.FileRenameEvent>();
+	private _onWillRenameFile = new Emitter<vscode.FileWillRenameEvent>();
 
 	readonly onDidRenameFile: Event<vscode.FileRenameEvent> = this._onDidRenameFile.event;
+	readonly onWillRenameFile: Event<vscode.FileWillRenameEvent> = this._onWillRenameFile.event;
 
 	constructor() {
 	}
@@ -117,6 +119,22 @@ export class ExtHostFileSystemEventService implements ExtHostFileSystemEventServ
 	}
 
 	$onWillRename(oldUri: UriComponents, newUri: UriComponents): TPromise<any> {
-		return undefined;
+
+		let thenables: Thenable<any>[] = [];
+
+		this._onWillRenameFile.fire({
+			oldUri: URI.revive(oldUri),
+			newUri: URI.revive(newUri),
+			waitUntil(thenable: Thenable<any>): void {
+				if (Object.isFrozen(thenables)) {
+					throw new Error('waitUntil cannot be called async');
+				}
+				thenables.push(thenable.then(undefined, err => console.error(err)));
+			}
+		});
+
+		Object.freeze(thenables);
+
+		return TPromise.join(thenables);
 	}
 }
