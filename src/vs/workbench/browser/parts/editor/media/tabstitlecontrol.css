@@ -94,11 +94,10 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-top > .tab-border-top-container {
 	display: block;
-	content: '';
 	position: absolute;
 	top: 0;
 	left: 0;
-	z-index: 5;
+	z-index: 6; /* over possible title border */
 	pointer-events: none;
 	background-color: var(--tab-border-top-color);
 	width: 100%;
@@ -107,11 +106,10 @@
 
 .monaco-workbench > .part.editor > .content .editor-group-container > .title .tabs-container > .tab.active.tab-border-bottom > .tab-border-bottom-container {
 	display: block;
-	content: '';
 	position: absolute;
 	bottom: 0;
 	left: 0;
-	z-index: 5;
+	z-index: 6; /* over possible title border */
 	pointer-events: none;
 	background-color: var(--tab-border-bottom-color);
 	width: 100%;
