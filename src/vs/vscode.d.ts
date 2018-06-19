@@ -6304,9 +6304,14 @@ declare module 'vscode' {
 		tooltip?: string | undefined;
 
 		/**
-		 * The [command](#Command) which should be run when the tree item is selected.
+		 * The [command](#Command) that should run when the user selects the tree item.
 		 */
 		command?: Command;
+
+		/**
+		 * The [command](#Command) that should run when the user double clicks on the tree item.
+		 */
+		doubleClickCommand?: Command;
 
 		/**
 		 * [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item.
