@@ -34,6 +34,8 @@ import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/
 import { EditorDropTarget } from 'vs/workbench/browser/parts/editor/editorDropTarget';
 import { localize } from 'vs/nls';
 import { Color } from 'vs/base/common/color';
+import { CenteredViewLayout } from 'vs/base/browser/ui/centered/centeredViewLayout';
+import { IView } from 'vs/base/browser/ui/grid/gridview';
 
 interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
@@ -46,6 +48,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	_serviceBrand: any;
 
 	private static readonly EDITOR_PART_UI_STATE_STORAGE_KEY = 'editorpart.state';
+	private static readonly EDITOR_PART_CENTERED_VIEW_STORAGE_KEY = 'editorpart.centeredview';
 
 	//#region Events
 
@@ -77,6 +80,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private _preferredSize: Dimension;
 
 	private memento: object;
+	private globalMemento: object;
+
 	private _partOptions: IEditorPartOptions;
 
 	private _activeGroup: IEditorGroupView;
@@ -90,6 +95,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private whenRestoredComplete: TValueCallback<void>;
 
 	private previousUIState: IEditorPartUIState;
+	private centeredViewLayout: CenteredViewLayout;
 
 	constructor(
 		id: string,
@@ -106,6 +112,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
+		this.globalMemento = this.getMemento(this.storageService, Scope.GLOBAL);
 
 		this._whenRestored = new TPromise(resolve => {
 			this.whenRestoredComplete = resolve;
@@ -699,7 +706,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	protected updateStyles(): void {
 		this.container.style.backgroundColor = this.getColor(editorBackground);
 
-		this.gridWidget.style({ separatorBorder: this.gridSeparatorBorder });
+		const separatorBorderStyle = { separatorBorder: this.gridSeparatorBorder };
+		this.gridWidget.style(separatorBorderStyle);
+		this.centeredViewLayout.styles(separatorBorderStyle);
 	}
 
 	createContentArea(parent: HTMLElement): HTMLElement {
@@ -709,13 +718,34 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		addClass(this.container, 'content');
 		parent.appendChild(this.container);
 
-		// Grid control
+		// Grid control with center layout
 		this.doCreateGridControl();
+		this.centeredViewLayout = new CenteredViewLayout(this.container, this.getGridAsView(), this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]);
 
 		// Drop support
 		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
 
 		return this.container;
+	}
+
+	private getGridAsView(): IView {
+		return {
+			element: this.gridWidget.element,
+			layout: (width, height) => this.gridWidget.layout(width, height),
+			minimumWidth: this.gridWidget.minimumWidth,
+			maximumWidth: this.gridWidget.maximumWidth,
+			minimumHeight: this.gridWidget.minimumHeight,
+			maximumHeight: this.gridWidget.minimumHeight,
+			onDidChange: this.gridWidget.onDidChange
+		};
+	}
+
+	centerLayout(active: boolean): void {
+		this.centeredViewLayout.activate(active);
+	}
+
+	isLayoutCentered(): boolean {
+		return this.centeredViewLayout.isActive();
 	}
 
 	private doCreateGridControl(): void {
@@ -809,7 +839,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		this.gridWidget = gridWidget;
 
 		if (gridWidget) {
-			this.container.appendChild(gridWidget.element);
+			if (this.centeredViewLayout) {
+				this.centeredViewLayout.resetView(this.getGridAsView());
+			}
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
@@ -967,7 +999,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Layout Grid
 		try {
-			this.gridWidget.layout(this.dimension.width, this.dimension.height);
+			this.centeredViewLayout.layout(this.dimension.width, this.dimension.height);
 		} catch (error) {
 			this.gridError(error);
 		}
@@ -992,6 +1024,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 				this.memento[EditorPart.EDITOR_PART_UI_STATE_STORAGE_KEY] = uiState;
 			}
 		}
+		this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY] = this.centeredViewLayout.state;
 
 		// Forward to all groups
 		this.groupViews.forEach(group => group.shutdown());
@@ -1009,6 +1042,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		if (this.gridWidget) {
 			this.gridWidget.dispose();
 		}
+		this.centeredViewLayout.dispose();
 
 		super.dispose();
 	}
