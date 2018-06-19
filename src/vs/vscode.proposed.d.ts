@@ -628,7 +628,7 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region mjbvz: File rename events
+	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
 	export interface FileRenameEvent {
 		readonly oldUri: Uri;
 		readonly newUri: Uri;
