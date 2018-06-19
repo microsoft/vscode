@@ -54,16 +54,14 @@
 }
 
 .monaco-workbench > .part.titlebar > .window-appicon {
-	width: 35px;
+	width: 15px;
+	padding-left: 10px;
 	margin-right: 113px;
 	-webkit-app-region: no-drag;
 	position: relative;
 	z-index: 99;
 	order: 1;
-	background-image: url('code-icon.svg');
-	background-repeat: no-repeat;
-	background-position: center center;
-	background-size: 16px;
+	image-rendering: crisp-edges;
 }
 
 .monaco-workbench > .part.titlebar > .window-controls-container {
