@@ -45,6 +45,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		name: posix.basename(resource.path),
 		isDirectory: (stat.type & FileType.Directory) !== 0,
 		isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+		isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),

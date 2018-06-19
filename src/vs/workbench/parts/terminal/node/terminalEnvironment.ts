@@ -25,9 +25,9 @@ export function mergeEnvironments(parent: IStringDictionary<string>, other: IStr
 	// On Windows apply the new values ignoring case, while still retaining
 	// the case of the original key.
 	if (platform.isWindows) {
-		for (let configKey in other) {
+		for (const configKey in other) {
 			let actualKey = configKey;
-			for (let envKey in parent) {
+			for (const envKey in parent) {
 				if (configKey.toLowerCase() === envKey.toLowerCase()) {
 					actualKey = envKey;
 					break;

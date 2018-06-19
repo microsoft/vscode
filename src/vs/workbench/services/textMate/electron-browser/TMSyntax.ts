@@ -14,7 +14,7 @@ import { onUnexpectedError } from 'vs/base/common/errors';
 import { ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ITokenizationSupport, TokenizationRegistry, IState, LanguageId, TokenMetadata } from 'vs/editor/common/modes';
 import { IModeService } from 'vs/editor/common/services/modeService';
-import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, ITokenTypeMap, StandardTokenType, parseRawGrammar } from 'vscode-textmate';
+import { StackElement, IGrammar, Registry, IEmbeddedLanguagesMap as IEmbeddedLanguagesMap2, ITokenTypeMap, StandardTokenType } from 'vscode-textmate';
 import { IWorkbenchThemeService, ITokenColorizationRule } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ITextMateService } from 'vs/workbench/services/textMate/electron-browser/textMateService';
 import { grammarsExtPoint, IEmbeddedLanguagesMap, ITMSyntaxExtensionPoint, TokenTypesContribution } from 'vs/workbench/services/textMate/electron-browser/TMGrammars';
@@ -207,7 +207,7 @@ export class TextMateService implements ITextMateService {
 
 	private _getOrCreateGrammarRegistry(): TPromise<[Registry, StackElement]> {
 		if (!this._grammarRegistry) {
-			this._grammarRegistry = TPromise.wrap(import('vscode-textmate')).then(({ Registry, INITIAL }) => {
+			this._grammarRegistry = TPromise.wrap(import('vscode-textmate')).then(({ Registry, INITIAL, parseRawGrammar }) => {
 				const grammarRegistry = new Registry({
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);

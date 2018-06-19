@@ -137,6 +137,10 @@ export abstract class BaseTextEditorModel extends EditorModel implements ITextEd
 		return !!this.textEditorModelHandle;
 	}
 
+	public isReadonly(): boolean {
+		return false;
+	}
+
 	public dispose(): void {
 		if (this.modelDisposeListener) {
 			this.modelDisposeListener.dispose(); // dispose this first because it will trigger another dispose() otherwise

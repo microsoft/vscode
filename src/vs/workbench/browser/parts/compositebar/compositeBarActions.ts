@@ -54,6 +54,7 @@ export interface ICompositeBar {
 export class ActivityAction extends Action {
 	private badge: IBadge;
 	private clazz: string | undefined;
+	private _onDidChangeActivity = new Emitter<this>();
 	private _onDidChangeBadge = new Emitter<this>();
 
 	constructor(private _activity: IActivity) {
@@ -64,6 +65,15 @@ export class ActivityAction extends Action {
 
 	public get activity(): IActivity {
 		return this._activity;
+	}
+
+	public set activity(activity: IActivity) {
+		this._activity = activity;
+		this._onDidChangeActivity.fire(this);
+	}
+
+	public get onDidChangeActivity(): Event<this> {
+		return this._onDidChangeActivity.event;
 	}
 
 	public get onDidChangeBadge(): Event<this> {
@@ -127,6 +137,7 @@ export class ActivityActionItem extends BaseActionItem {
 		super(null, action, options);
 
 		this.themeService.onThemeChange(this.onThemeChange, this, this._callOnDispose);
+		action.onDidChangeActivity(this.updateActivity, this, this._callOnDispose);
 		action.onDidChangeBadge(this.updateBadge, this, this._callOnDispose);
 	}
 
@@ -165,8 +176,7 @@ export class ActivityActionItem extends BaseActionItem {
 		// Make the container tab-able for keyboard navigation
 		this.$container = $(container).attr({
 			tabIndex: '0',
-			role: 'button',
-			title: this.activity.name
+			role: 'button'
 		});
 
 		// Try hard to prevent keyboard only focus feedback when using mouse
@@ -186,25 +196,24 @@ export class ActivityActionItem extends BaseActionItem {
 
 		// Label
 		this.$label = $('a.action-label').appendTo(this.builder);
-		if (this.activity.cssClass) {
-			this.$label.addClass(this.activity.cssClass);
-		}
-		if (!this.options.icon) {
-			this.$label.text(this.getAction().label);
-		}
 
 		this.$badge = this.builder.clone().div({ 'class': 'badge' }, badge => {
 			this.$badgeContent = badge.div({ 'class': 'badge-content' });
 		});
-
 		this.$badge.hide();
 
+		this.updateActivity();
 		this.updateStyles();
-		this.updateBadge();
 	}
 
 	private onThemeChange(theme: ITheme): void {
 		this.updateStyles();
+	}
+
+	protected updateActivity(): void {
+		this.updateLabel();
+		this.updateTitle(this.activity.name);
+		this.updateBadge();
 	}
 
 	protected updateBadge(): void {
@@ -271,7 +280,19 @@ export class ActivityActionItem extends BaseActionItem {
 		} else {
 			title = this.activity.name;
 		}
+		this.updateTitle(title);
+	}
 
+	private updateLabel(): void {
+		if (this.activity.cssClass) {
+			this.$label.addClass(this.activity.cssClass);
+		}
+		if (!this.options.icon) {
+			this.$label.text(this.getAction().label);
+		}
+	}
+
+	private updateTitle(title: string): void {
 		[this.$label, this.$badge, this.$container].forEach(b => {
 			if (b) {
 				b.attr('aria-label', title);
@@ -409,6 +430,8 @@ export class CompositeActionItem extends ActivityActionItem {
 		if (!CompositeActionItem.manageExtensionAction) {
 			CompositeActionItem.manageExtensionAction = instantiationService.createInstance(ManageExtensionAction);
 		}
+
+		compositeActivityAction.onDidChangeActivity(() => { this.compositeActivity = null; this.updateActivity(); }, this, this._callOnDispose);
 	}
 
 	protected get activity(): IActivity {

@@ -234,6 +234,10 @@ export abstract class BaseRenameAction extends BaseFileAction {
 		this.element = element;
 	}
 
+	_isEnabled(): boolean {
+		return super._isEnabled() && this.element && !this.element.isReadonly;
+	}
+
 	public run(context?: any): TPromise<any> {
 		if (!context) {
 			return TPromise.wrapError(new Error('No context provided to BaseRenameFileAction.'));
@@ -330,6 +334,10 @@ export class BaseNewAction extends BaseFileAction {
 		this.tree = tree;
 		this.isFile = isFile;
 		this.renameAction = editableAction;
+	}
+
+	_isEnabled(): boolean {
+		return super._isEnabled() && (!this.presetFolder || !this.presetFolder.isReadonly);
 	}
 
 	public run(context?: any): TPromise<any> {
@@ -545,6 +553,10 @@ class BaseDeleteFileAction extends BaseFileAction {
 		this.useTrash = useTrash && elements.every(e => !paths.isUNC(e.resource.fsPath)); // on UNC shares there is no trash
 
 		this._updateEnablement();
+	}
+
+	_isEnabled(): boolean {
+		return super._isEnabled() && this.elements && this.elements.every(e => !e.isReadonly);
 	}
 
 	public run(): TPromise<any> {

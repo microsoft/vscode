@@ -155,7 +155,7 @@ export class DiagnosticsManager {
 		return this._diagnostics.get(DiagnosticKind.Suggestion)!.get(file).filter(x => {
 			if (!this._enableSuggestions) {
 				// Still show unused
-				return x.customTags && x.customTags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
+				return x.tags && x.tags.indexOf(vscode.DiagnosticTag.Unnecessary) !== -1;
 			}
 			return true;
 		});

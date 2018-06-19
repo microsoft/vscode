@@ -20,7 +20,6 @@ const sourcemaps = require('gulp-sourcemaps');
 const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
-const i18n = require('./lib/i18n');
 const plumber = require('gulp-plumber');
 
 const extensionsPath = path.join(path.dirname(__dirname), 'extensions');
@@ -31,8 +30,6 @@ const compilations = glob.sync('**/tsconfig.json', {
 });
 
 const getBaseUrl = out => `https://ticino.blob.core.windows.net/sourcemaps/${commit}/${out}`;
-
-const languages = i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
 
 const tasks = compilations.map(function (tsconfigFile) {
 	const absolutePath = path.join(extensionsPath, tsconfigFile);
@@ -58,7 +55,6 @@ const tasks = compilations.map(function (tsconfigFile) {
 	const srcBase = path.join(root, 'src');
 	const src = path.join(srcBase, '**');
 	const out = path.join(root, 'out');
-	const i18nPath = path.join(__dirname, '..', 'i18n');
 	const baseUrl = getBaseUrl(out);
 
 	let headerId, headerOut;
@@ -102,9 +98,9 @@ const tasks = compilations.map(function (tsconfigFile) {
 					sourceRoot: '../src'
 				}))
 				.pipe(tsFilter.restore)
-				.pipe(build ? nlsDev.createAdditionalLanguageFiles(languages, i18nPath, out) : es.through())
 				.pipe(build ? nlsDev.bundleMetaDataFiles(headerId, headerOut) : es.through())
-				.pipe(build ? nlsDev.bundleLanguageFiles() : es.through())
+				// Filter out *.nls.json file. We needed them only to bundle meta data file.
+				.pipe(filter(['**', '!**/*.nls.json']))
 				.pipe(reporter.end(emitError));
 
 			return es.duplex(input, output);

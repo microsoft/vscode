@@ -41,7 +41,7 @@ function _transformOutgoingURIs(obj: any, transformer: IURITransformer, depth: n
 	return null;
 }
 
-function transformOutgoingURIs(obj: any, transformer: IURITransformer): any {
+export function transformOutgoingURIs(obj: any, transformer: IURITransformer): any {
 	const result = _transformOutgoingURIs(obj, transformer, 0);
 	if (result === null) {
 		// no change

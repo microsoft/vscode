@@ -75,7 +75,7 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 
-		const bulkEditService = new BulkEditService(NullLogService as any, modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {

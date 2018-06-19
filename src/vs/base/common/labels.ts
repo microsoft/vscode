@@ -45,7 +45,7 @@ export function getPathLabel(resource: URI | string, userHomeProvider: IUserHome
 		if (isEqual(baseResource.uri, resource, !isLinux)) {
 			pathLabel = ''; // no label if paths are identical
 		} else {
-			pathLabel = normalize(ltrim(resource.toString().substr(baseResource.uri.toString().length), nativeSep), true);
+			pathLabel = normalize(ltrim(resource.toString().substr(baseResource.uri.toString().length), sep), true);
 		}
 
 		if (hasMultipleRoots) {

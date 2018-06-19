@@ -243,6 +243,17 @@
             "default": "ignore",
             "description": "%css.lint.idSelector.desc%"
           },
+          "css.lint.unknownAtRules": {
+            "type": "string",
+            "scope": "resource",
+            "enum": [
+              "ignore",
+              "warning",
+              "error"
+            ],
+            "default": "warning",
+            "description": "%css.lint.unknownAtRules.desc%"
+          },
           "css.trace.server": {
             "type": "string",
             "scope": "window",

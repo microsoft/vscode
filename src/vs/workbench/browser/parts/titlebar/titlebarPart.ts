@@ -57,8 +57,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		titleFontSize?: number;
 		titlebarHeight?: number;
 		controlsWidth?: number;
+		appIconSize?: number;
 		appIconWidth?: number;
-		appIconLeftPadding?: number;
 	} = Object.create(null);
 
 	private isInactive: boolean;
@@ -251,9 +251,8 @@ export class TitlebarPart extends Part implements ITitleService {
 
 		// App Icon (Windows/Linux)
 		if (!isMacintosh) {
-			this.appIcon = $(this.titleContainer).img({
+			this.appIcon = $(this.titleContainer).div({
 				class: 'window-appicon',
-				src: paths.join(this.environmentService.appRoot, isWindows ? 'resources/win32/code.ico' : 'resources/linux/code.png')
 			}).on(EventType.DBLCLICK, e => {
 				EventHelper.stop(e, true);
 
@@ -457,14 +456,14 @@ export class TitlebarPart extends Part implements ITitleService {
 				this.initialSizing.appIconWidth = parseInt(this.appIcon.getComputedStyle().width, 10);
 			}
 
-			if (typeof this.initialSizing.appIconLeftPadding !== 'number') {
-				this.initialSizing.appIconLeftPadding = parseInt(this.appIcon.getComputedStyle().paddingLeft, 10);
+			if (typeof this.initialSizing.appIconSize !== 'number') {
+				this.initialSizing.appIconSize = parseInt(this.appIcon.getComputedStyle().backgroundSize, 10);
 			}
 
 			const currentAppIconHeight = parseInt(this.appIcon.getComputedStyle().height, 10);
 			const newControlsWidth = this.initialSizing.controlsWidth / getZoomFactor();
 			const newAppIconWidth = this.initialSizing.appIconWidth / getZoomFactor();
-			const newAppIconPaddingLeft = this.initialSizing.appIconLeftPadding / getZoomFactor();
+			const newAppIconSize = this.initialSizing.appIconSize / getZoomFactor();
 
 			if (!this.menubarWidth) {
 				this.menubarWidth = 0;
@@ -483,9 +482,9 @@ export class TitlebarPart extends Part implements ITitleService {
 
 			// Adjust app icon mimic menubar
 			this.appIcon.style({
-				width: `${newAppIconWidth}px`,
-				'padding-left': `${newAppIconPaddingLeft}px`,
-				'margin-right': `${newControlsWidth - newAppIconWidth - newAppIconPaddingLeft + bufferWidth}px`,
+				'width': `${newAppIconWidth}px`,
+				'background-size': `${newAppIconSize}px`,
+				'margin-right': `${newControlsWidth - newAppIconWidth + bufferWidth}px`,
 				'padding-top': `${(newHeight - currentAppIconHeight) / 2.0}px`,
 				'padding-bottom': `${(newHeight - currentAppIconHeight) / 2.0}px`
 			});

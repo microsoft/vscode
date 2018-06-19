@@ -116,10 +116,6 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		return this.metadata;
 	}
 
-	public supportsCenteredLayout(): boolean {
-		return false;
-	}
-
 	public clearInput(): void {
 
 		// Clear Meta
