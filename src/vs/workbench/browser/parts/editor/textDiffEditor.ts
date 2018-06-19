@@ -133,6 +133,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
 				}
 
+				// Diff navigator
 				this.diffNavigator = new DiffNavigator(diffEditor, {
 					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 				});
@@ -143,9 +144,11 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					this.previousDiffAction.updateEnablement();
 				}));
 
-				this.getControl().updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
-
+				// Enablement of actions
 				this.updateIgnoreTrimWhitespaceAction();
+
+				// Readonly flag
+				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
 			}, error => {
 
 				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.

@@ -984,7 +984,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 	}
 
 	public isReadonly(): boolean {
-		return this.lastResolvedDiskStat.isReadonly;
+		return this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly;
 	}
 
 	/**

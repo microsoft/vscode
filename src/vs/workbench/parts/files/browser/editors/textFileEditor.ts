@@ -147,6 +147,7 @@ export class TextFileEditor extends BaseTextEditor {
 					(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 				}
 
+				// Readonly flag
 				textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 			}, error => {
 
