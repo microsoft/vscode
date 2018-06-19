@@ -83,6 +83,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
 
+		this.setTitle(this.getWindowTitle());
+
 		this.registerListeners();
 	}
 
