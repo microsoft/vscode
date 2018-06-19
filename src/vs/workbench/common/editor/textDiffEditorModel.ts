@@ -66,6 +66,10 @@ export class TextDiffEditorModel extends DiffEditorModel {
 		return !!this._textDiffEditorModel;
 	}
 
+	public isReadonly(): boolean {
+		return this.modifiedModel.isReadonly();
+	}
+
 	public dispose(): void {
 
 		// Free the diff editor model but do not propagate the dispose() call to the two models

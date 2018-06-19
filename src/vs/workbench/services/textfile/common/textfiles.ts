@@ -232,6 +232,8 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isResolved(): boolean;
 
+	isReadonly(): boolean;
+
 	isDisposed(): boolean;
 }
 
