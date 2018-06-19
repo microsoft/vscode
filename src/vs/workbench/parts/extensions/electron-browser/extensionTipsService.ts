@@ -200,34 +200,30 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchCombinedExtensionRecommendationConfig(): TPromise<IExtensionsConfigContent> {
 		const mergeExtensionRecommendationConfigs: (configs: IExtensionsConfigContent[]) => IExtensionsConfigContent = configs => ({
-			recommendations: distinct(flatten(configs.map(config => config.recommendations || []))),
-			unwantedRecommendations: distinct(flatten(configs.map(config => config.unwantedRecommendations || [])))
+			recommendations: distinct(flatten(configs.map(config => config && config.recommendations || []))),
+			unwantedRecommendations: distinct(flatten(configs.map(config => config && config.unwantedRecommendations || [])))
 		});
 
 		const workspace = this.contextService.getWorkspace();
 		return TPromise.join([this.resolveWorkspaceExtensionConfig(workspace), ...workspace.folders.map(workspaceFolder => this.resolveWorkspaceFolderExtensionConfig(workspaceFolder))])
-			.then(contents => this.processConfigContent(mergeExtensionRecommendationConfigs(flatten(contents))));
+			.then(contents => this.processConfigContent(mergeExtensionRecommendationConfigs(contents)));
 	}
 
-	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent[]> {
+	private resolveWorkspaceExtensionConfig(workspace: IWorkspace): TPromise<IExtensionsConfigContent | null> {
 		if (!workspace.configuration) {
-			return TPromise.as([]);
+			return TPromise.as(null);
 		}
 
 		return this.fileService.resolveContent(workspace.configuration)
-			.then(content => {
-				const extensionsConfig = <IExtensionsConfigContent>(json.parse(content.value)['extensions']);
-				if (extensionsConfig) { return [extensionsConfig]; }
-				else { return []; }
-			}, err => []);
+			.then(content => <IExtensionsConfigContent>(json.parse(content.value)['extensions']), err => null);
 	}
 
-	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent[]> {
+	private resolveWorkspaceFolderExtensionConfig(workspaceFolder: IWorkspaceFolder): TPromise<IExtensionsConfigContent | null> {
 		const extensionsJsonUri = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 
 		return this.fileService.resolveFile(extensionsJsonUri)
 			.then(() => this.fileService.resolveContent(extensionsJsonUri))
-			.then(content => [<IExtensionsConfigContent>json.parse(content.value)], err => []);
+			.then(content => <IExtensionsConfigContent>json.parse(content.value), err => null);
 	}
 
 	private processConfigContent(extensionsContent: IExtensionsConfigContent): TPromise<IExtensionsConfigContent> {
