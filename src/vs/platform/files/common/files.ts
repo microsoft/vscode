@@ -182,7 +182,8 @@ export enum FileSystemProviderCapabilities {
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
 
-	PathCaseSensitive = 1 << 10
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
 }
 
 export interface IFileSystemProvider {
@@ -410,6 +411,11 @@ export interface IFileStat extends IBaseStat {
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 
 	/**
 	 * The resource is a symbolic link.
