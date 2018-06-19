@@ -1188,7 +1188,7 @@ export class Workbench extends Disposable implements IPartService {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && !this.menubarHidden;
+				return this.isVisible(Parts.TITLEBAR_PART) && !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
