@@ -29,6 +29,12 @@ function packageInnoSetup(iss, options, cb) {
 	options = options || {};
 
 	const definitions = options.definitions || {};
+	const debug = process.argv.some(arg => arg === '--debug-inno');
+
+	if (debug) {
+		definitions['Debug'] = 'true';
+	}
+
 	const keys = Object.keys(definitions);
 
 	keys.forEach(key => assert(typeof definitions[key] === 'string', `Missing value for '${key}' in Inno Setup package step`));
@@ -65,7 +71,8 @@ function buildWin32Setup(arch) {
 			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
 			SourceDir: buildPath(arch),
 			RepoDir: repoPath,
-			OutputDir: setupDir(arch)
+			OutputDir: setupDir(arch),
+			InstallTarget: 'system'
 		};
 
 		packageInnoSetup(issPath, { definitions }, cb);
