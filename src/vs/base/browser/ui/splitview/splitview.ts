@@ -356,10 +356,9 @@ export class SplitView implements IDisposable {
 
 		const resetSashDragState = (start: number, alt: boolean) => {
 			const sizes = this.viewItems.map(i => i.size);
-
-			// TODO@Joao rename these guys
-			let minDelta = Number.POSITIVE_INFINITY;
+			let minDelta = Number.NEGATIVE_INFINITY;
 			let maxDelta = Number.POSITIVE_INFINITY;
+
 			if (this.inverseAltBehavior) {
 				alt = !alt;
 			}
@@ -372,11 +371,11 @@ export class SplitView implements IDisposable {
 
 				if (isLastSash) {
 					const viewItem = this.viewItems[index];
-					minDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
+					minDelta = (viewItem.view.minimumSize - viewItem.size) / 2;
 					maxDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
 				} else {
 					const viewItem = this.viewItems[index + 1];
-					minDelta = (viewItem.view.maximumSize - viewItem.size) / 2;
+					minDelta = (viewItem.size - viewItem.view.maximumSize) / 2;
 					maxDelta = (viewItem.size - viewItem.view.minimumSize) / 2;
 				}
 			}
@@ -399,8 +398,8 @@ export class SplitView implements IDisposable {
 			const newSizes = this.viewItems.map(i => i.size);
 			const viewItemIndex = isLastSash ? index : index + 1;
 			const viewItem = this.viewItems[viewItemIndex];
-			const newMinDelta = (viewItem.view.maximumSize - viewItem.size);
-			const newMaxDelta = (viewItem.size - viewItem.view.minimumSize);
+			const newMinDelta = viewItem.size - viewItem.view.maximumSize;
+			const newMaxDelta = viewItem.size - viewItem.view.minimumSize;
 			const resizeIndex = isLastSash ? index - 1 : index + 1;
 
 			this.resize(resizeIndex, -newDelta, newSizes, undefined, undefined, newMinDelta, newMaxDelta);
@@ -492,7 +491,7 @@ export class SplitView implements IDisposable {
 		sizes = this.viewItems.map(i => i.size),
 		lowPriorityIndex?: number,
 		highPriorityIndex?: number,
-		overloadMinDelta: number = Number.POSITIVE_INFINITY,
+		overloadMinDelta: number = Number.NEGATIVE_INFINITY,
 		overloadMaxDelta: number = Number.POSITIVE_INFINITY
 	): number {
 		if (index < 0 || index >= this.viewItems.length) {
@@ -518,14 +517,12 @@ export class SplitView implements IDisposable {
 		const downItems = downIndexes.map(i => this.viewItems[i]);
 		const downSizes = downIndexes.map(i => sizes[i]);
 
-		const collapseUp = upIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
-		const expandUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
-
-		const collapseDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
-		const expandDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
-
-		const minDelta = -Math.min(collapseUp, expandDown, overloadMinDelta);
-		const maxDelta = Math.min(collapseDown, expandUp, overloadMaxDelta);
+		const minDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.minimumSize - sizes[i]), 0);
+		const maxDeltaUp = upIndexes.reduce((r, i) => r + (this.viewItems[i].view.maximumSize - sizes[i]), 0);
+		const maxDeltaDown = downIndexes.length === 0 ? Number.POSITIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.minimumSize), 0);
+		const minDeltaDown = downIndexes.length === 0 ? Number.NEGATIVE_INFINITY : downIndexes.reduce((r, i) => r + (sizes[i] - this.viewItems[i].view.maximumSize), 0);
+		const minDelta = Math.max(minDeltaUp, minDeltaDown, overloadMinDelta);
+		const maxDelta = Math.min(maxDeltaDown, maxDeltaUp, overloadMaxDelta);
 
 		delta = clamp(delta, minDelta, maxDelta);
 
