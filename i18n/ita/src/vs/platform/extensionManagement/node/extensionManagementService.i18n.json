@@ -25,8 +25,6 @@
 	"uninstallDependeciesConfirmation": "Disinstallare solo '{0}' o anche le relative dipendenze?",
 	"uninstallOnly": "Solo Estensioni",
 	"uninstallAll": "Disinstalla tutti",
-	"uninstallConfirmation": "Disinstallare '{0}'?",
-	"ok": "OK",
 	"singleDependentError": "Non è possibile disinstallare l'estensione '{0}'. L'estensione '{1}' dipende da tale estensione.",
 	"twoDependentsError": "Non è possibile disinstallare l'estensione '{0}'. Le estensioni '{1}' e '{2}' dipendono da tale estensione.",
 	"multipleDependentsError": "Non è possibile disinstallare l'estensione '{0}'. Alcune estensioni, tra cui '{1}' e '{2}' dipendono da tale estensione.",

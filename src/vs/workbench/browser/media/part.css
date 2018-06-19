@@ -7,10 +7,7 @@
 	display: none; /* Parts have to opt in to show title area */
 }
 
-/* title styles are defined for two classes because the editor puts the title into the content */
-
-.monaco-workbench > .part > .title,
-.monaco-workbench > .part.editor > .content > .one-editor-silo > .container > .title {
+.monaco-workbench > .part > .title {
 	height: 35px;
 	display: flex;
 	box-sizing:	border-box;
@@ -68,7 +65,8 @@
 	font-size: 13px;
 }
 
-.monaco-workbench > .part > .content  .monaco-progress-container {
+.monaco-workbench > .part > .content > .monaco-progress-container,
+.monaco-workbench > .part.editor > .content .monaco-progress-container {
 	position: absolute;
 	left: 0;
 	top: 33px; /* at the bottom of the 35px height title container */
@@ -76,6 +74,7 @@
 	height: 2px;
 }
 
-.monaco-workbench > .part > .content  .monaco-progress-container .progress-bit {
+.monaco-workbench > .part > .content > .monaco-progress-container .progress-bit,
+.monaco-workbench > .part.editor > .content .monaco-progress-container .progress-bit {
 	height: 2px;
 }

@@ -459,7 +459,7 @@ suite('workspace-namespace', () => {
 		});
 	});
 
-	test('registerTextDocumentContentProvider, change event', function () {
+	test('registerTextDocumentContentProvider, change event', async function () {
 
 		let callCount = 0;
 		let emitter = new vscode.EventEmitter<vscode.Uri>();
@@ -472,25 +472,22 @@ suite('workspace-namespace', () => {
 		});
 
 		const uri = vscode.Uri.parse('foo://testing/path3');
+		const doc = await vscode.workspace.openTextDocument(uri);
 
-		return vscode.workspace.openTextDocument(uri).then(doc => {
+		assert.equal(callCount, 1);
+		assert.equal(doc.getText(), 'call0');
 
-			assert.equal(callCount, 1);
-			assert.equal(doc.getText(), 'call0');
+		return new Promise(resolve => {
 
-			return new Promise((resolve, reject) => {
-
-				let subscription = vscode.workspace.onDidChangeTextDocument(event => {
-					subscription.dispose();
-					assert.ok(event.document === doc);
-					assert.equal(event.document.getText(), 'call1');
-					resolve();
-				});
-
-				emitter.fire(doc.uri);
-
+			let subscription = vscode.workspace.onDidChangeTextDocument(event => {
+				assert.ok(event.document === doc);
+				assert.equal(event.document.getText(), 'call1');
+				subscription.dispose();
 				registration.dispose();
+				resolve();
 			});
+
+			emitter.fire(doc.uri);
 		});
 	});
 
@@ -523,42 +520,51 @@ suite('workspace-namespace', () => {
 	});
 
 
-	// test('applyEdit should fail when editing deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+	test('applyEdit should fail when editing deleted resource', async () => {
+		const resource = await createRandomFile();
 
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow edit of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
 
-	// test('applyEdit should fail when renaming deleted resource', async () => {
-	// 	const resource = await createRandomFile();
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
 
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.deleteResource(resource);
-	// 	try {
-	// 		edit.renameResource(resource, resource);
-	// 		assert.fail(false, 'Should disallow rename of deleted resource');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+	test('applyEdit should fail when renaming deleted resource', async () => {
+		const resource = await createRandomFile();
 
-	// test('applyEdit should fail when editing renamed from resource', async () => {
-	// 	const resource = await createRandomFile();
-	// 	const newResource = vscode.Uri.parse(resource.fsPath + '.1');
-	// 	const edit = new vscode.WorkspaceEdit();
-	// 	edit.renameResource(resource, newResource);
-	// 	try {
-	// 		edit.insert(resource, new vscode.Position(0, 0), '');
-	// 		assert.fail(false, 'Should disallow editing renamed file');
-	// 	} catch {
-	// 		// noop
-	// 	}
-	// });
+		const edit = new vscode.WorkspaceEdit();
+		edit.deleteFile(resource);
+		edit.renameFile(resource, resource);
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit should fail when editing renamed from resource', async () => {
+		const resource = await createRandomFile();
+		const newResource = vscode.Uri.parse(resource.fsPath + '.1');
+		const edit = new vscode.WorkspaceEdit();
+		edit.renameFile(resource, newResource);
+		edit.insert(resource, new vscode.Position(0, 0), '');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, false);
+	});
+
+	test('applyEdit "edit A -> rename A to B -> edit B"', async () => {
+		const oldUri = await createRandomFile();
+		const newUri = oldUri.with({ path: oldUri.path + 'NEW' });
+		const edit = new vscode.WorkspaceEdit();
+		edit.insert(oldUri, new vscode.Position(0, 0), 'BEFORE');
+		edit.renameFile(oldUri, newUri);
+		edit.insert(newUri, new vscode.Position(0, 0), 'AFTER');
+
+		let success = await vscode.workspace.applyEdit(edit);
+		assert.equal(success, true);
+
+		// let doc = await vscode.workspace.openTextDocument(newUri);
+		// assert.equal(doc.getText(), 'AFTERBEFORE');
+	});
 });

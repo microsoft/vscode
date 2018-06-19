@@ -8,6 +8,7 @@ import { workspace as Workspace, FormattingOptions, TextDocument, CancellationTo
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import * as languageIds from '../utils/languageModeIds';
+import API from '../utils/api';
 
 function objsAreEqual<T>(a: T, b: T): boolean {
 	let keys = Object.keys(a);
@@ -75,7 +76,7 @@ export default class FileConfigurationManager {
 		options: FormattingOptions,
 		token: CancellationToken | undefined
 	): Promise<void> {
-		const file = this.client.normalizePath(document.uri);
+		const file = this.client.toPath(document.uri);
 		if (!file) {
 			return;
 		}
@@ -144,13 +145,9 @@ export default class FileConfigurationManager {
 	}
 
 	private getPreferences(document: TextDocument): Proto.UserPreferences {
-		if (!this.client.apiVersion.has290Features()) {
+		if (!this.client.apiVersion.gte(API.v290)) {
 			return {};
 		}
-
-		const config = workspace.getConfiguration(
-			isTypeScriptDocument(document) ? 'typescript' : 'javascript',
-			document.uri);
 
 		const preferences = workspace.getConfiguration(
 			isTypeScriptDocument(document) ? 'typescript.preferences' : 'javascript.preferences',
@@ -159,14 +156,9 @@ export default class FileConfigurationManager {
 		return {
 			quotePreference: getQuoteStylePreference(preferences),
 			importModuleSpecifierPreference: getImportModuleSpecifierPreference(preferences),
-			disableSuggestions: disableSuggestionsPreference(config),
 			allowTextChangesInNewFiles: document.uri.scheme === 'file'
-		} as any; // TODO: waiting for offical TS d.ts with allowTextChangesInNewFiles
+		};
 	}
-}
-
-function disableSuggestionsPreference(config: WorkspaceConfiguration) {
-	return !config.get<boolean>('suggestionActions.enabled');
 }
 
 function getQuoteStylePreference(config: WorkspaceConfiguration) {

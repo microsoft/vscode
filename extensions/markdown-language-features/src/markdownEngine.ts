@@ -44,10 +44,10 @@ export class MarkdownEngine {
 					}
 					if (lang && hljs.getLanguage(lang)) {
 						try {
-							return `<pre class="hljs"><code><div>${hljs.highlight(lang, str, true).value}</div></code></pre>`;
+							return `<div>${hljs.highlight(lang, str, true).value}</div>`;
 						} catch (error) { }
 					}
-					return `<pre class="hljs"><code><div>${this.md!.utils.escapeHtml(str)}</div></code></pre>`;
+					return `<code><div>${this.md!.utils.escapeHtml(str)}</div>`;
 				}
 			}).use(mdnh, {
 				slugify: (header: string) => this.slugifier.fromHeading(header).value
@@ -57,9 +57,11 @@ export class MarkdownEngine {
 				this.usePlugin(await plugin);
 			}
 
-			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'blockquote_open', 'list_item_open']) {
+			for (const renderName of ['paragraph_open', 'heading_open', 'image', 'code_block', 'fence', 'blockquote_open', 'list_item_open']) {
 				this.addLineNumberRenderer(this.md, renderName);
 			}
+
+			this.addFencedRenderer(this.md);
 
 			this.addLinkNormalizer(this.md);
 			this.addLinkValidator(this.md);
@@ -124,6 +126,18 @@ export class MarkdownEngine {
 			} else {
 				return self.renderToken(tokens, idx, options, env, self);
 			}
+		};
+	}
+
+	private addFencedRenderer(md: any): void {
+		const original = md.renderer.rules['fenced'];
+		md.renderer.rules['fenced'] = (tokens: any, idx: number, options: any, env: any, self: any) => {
+			const token = tokens[idx];
+			if (token.map && token.map.length) {
+				token.attrJoin('class', 'hljs');
+			}
+
+			return original(tokens, idx, options, env, self);
 		};
 	}
 

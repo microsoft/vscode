@@ -47,6 +47,8 @@ import { IssueChannelClient } from 'vs/platform/issue/common/issueIpc';
 import { IIssueService } from 'vs/platform/issue/common/issue';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { RelayURLService } from 'vs/platform/url/common/urlService';
+import { MenubarChannelClient } from 'vs/platform/menubar/common/menubarIpc';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
 
 gracefulFs.gracefulify(fs); // enable gracefulFs
 
@@ -226,6 +228,9 @@ function createMainProcessServices(mainProcessClient: ElectronIPCClient, configu
 
 	const issueChannel = mainProcessClient.getChannel('issue');
 	serviceCollection.set(IIssueService, new SyncDescriptor(IssueChannelClient, issueChannel));
+
+	const menubarChannel = mainProcessClient.getChannel('menubar');
+	serviceCollection.set(IMenubarService, new SyncDescriptor(MenubarChannelClient, menubarChannel));
 
 	const workspacesChannel = mainProcessClient.getChannel('workspaces');
 	serviceCollection.set(IWorkspacesService, new WorkspacesChannelClient(workspacesChannel));

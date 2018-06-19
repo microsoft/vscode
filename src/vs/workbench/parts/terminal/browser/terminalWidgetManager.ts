@@ -7,7 +7,7 @@ import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
 const WIDGET_HEIGHT = 29;
 
-export class TerminalWidgetManager {
+export class TerminalWidgetManager implements IDisposable {
 	private _container: HTMLElement;
 	private _xtermViewport: HTMLElement;
 
@@ -22,6 +22,14 @@ export class TerminalWidgetManager {
 		terminalWrapper.appendChild(this._container);
 
 		this._initTerminalHeightWatcher(terminalWrapper);
+	}
+
+	public dispose(): void {
+		if (this._container) {
+			this._container.parentElement.removeChild(this._container);
+			this._container = null;
+		}
+		this._xtermViewport = null;
 	}
 
 	private _initTerminalHeightWatcher(terminalWrapper: HTMLElement) {

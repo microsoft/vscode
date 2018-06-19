@@ -188,11 +188,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private markdownRenderer: MarkdownRenderer;
+	private readonly markdownRenderer: MarkdownRenderer;
 	private renderDisposeables: IDisposable[];
 	private model: ParameterHintsModel;
-	private keyVisible: IContextKey<boolean>;
-	private keyMultipleSignatures: IContextKey<boolean>;
+	private readonly keyVisible: IContextKey<boolean>;
+	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
 	private signature: HTMLElement;
 	private docs: HTMLElement;

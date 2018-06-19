@@ -435,8 +435,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			this.selectList.domFocus();
 
 			// Finally set focus on selected item
-			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
+			if (this.selectList.length > 0) {
+				this.selectList.setFocus([this.selected || 0]);
+				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
+			}
 
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + totalVerticalListPadding) + 'px';

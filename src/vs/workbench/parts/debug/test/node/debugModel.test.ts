@@ -59,10 +59,9 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 5);
 		const bp = model.getBreakpoints()[0];
 		const update: any = {};
-		update[bp.getId()] = { line: 100, verified: true };
+		update[bp.getId()] = { lineNumber: 100 };
 		model.updateBreakpoints(update);
 		assert.equal(bp.lineNumber, 100);
-		assert.equal(bp.verified, true);
 
 		model.enableOrDisableAllBreakpoints(false);
 		model.getBreakpoints().forEach(bp => {
@@ -73,9 +72,6 @@ suite('Debug - Model', () => {
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
 		assert.equal(model.getBreakpoints().length, 3);
-
-		model.unverifyBreakpoints();
-		model.getBreakpoints().forEach(bp => assert.equal(bp.verified, false));
 	});
 
 	test('breakpoints conditions', () => {
@@ -96,16 +92,12 @@ suite('Debug - Model', () => {
 	test('function brekapoints', () => {
 		model.addFunctionBreakpoint('foo', '1');
 		model.addFunctionBreakpoint('bar', '2');
-		model.updateFunctionBreakpoints({
-			'1': { name: 'fooUpdated', verified: true, hitCondition: '5' },
-			'2': { name: 'barUpdated', verified: false }
-		});
+		model.renameFunctionBreakpoint('1', 'fooUpdated');
+		model.renameFunctionBreakpoint('2', 'barUpdated');
+
 		const functionBps = model.getFunctionBreakpoints();
 		assert.equal(functionBps[0].name, 'fooUpdated');
-		assert.equal(functionBps[0].verified, true);
-		assert.equal(functionBps[0].hitCondition, '5');
 		assert.equal(functionBps[1].name, 'barUpdated');
-		assert.equal(functionBps[1].verified, false);
 
 		model.removeFunctionBreakpoints();
 		assert.equal(model.getFunctionBreakpoints().length, 0);

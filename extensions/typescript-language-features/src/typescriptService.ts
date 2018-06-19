@@ -9,22 +9,41 @@ import API from './utils/api';
 import { TypeScriptServerPlugin } from './utils/plugins';
 import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
+import BufferSyncSupport from './features/bufferSyncSupport';
 
 export interface ITypeScriptServiceClient {
-	normalizePath(resource: Uri): string | null;
-	asUrl(filepath: string): Uri;
+	/**
+	 * Convert a resource (VS Code) to a normalized path (TypeScript).
+	 *
+	 * Does not try handling case insensitivity.
+	 */
+	normalizedPath(resource: Uri): string | null;
+
+	/**
+	 * Map a resource to a normalized path
+	 *
+	 * This will attempt to handle case insensitivity.
+	 */
+	toPath(resource: Uri): string | null;
+
+	/**
+	 * Convert a path to a resource.
+	 */
+	toResource(filepath: string): Uri;
+
 	getWorkspaceRootForResource(resource: Uri): string | undefined;
 
-	onTsServerStarted: Event<API>;
-	onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
-	onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
-	onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
-	onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
+	readonly onTsServerStarted: Event<API>;
+	readonly onProjectLanguageServiceStateChanged: Event<Proto.ProjectLanguageServiceStateEventBody>;
+	readonly onDidBeginInstallTypings: Event<Proto.BeginInstallTypesEventBody>;
+	readonly onDidEndInstallTypings: Event<Proto.EndInstallTypesEventBody>;
+	readonly onTypesInstallerInitializationFailed: Event<Proto.TypesInstallerInitializationFailedEventBody>;
 
-	apiVersion: API;
-	plugins: TypeScriptServerPlugin[];
-	configuration: TypeScriptServiceConfiguration;
-	logger: Logger;
+	readonly apiVersion: API;
+	readonly plugins: TypeScriptServerPlugin[];
+	readonly configuration: TypeScriptServiceConfiguration;
+	readonly logger: Logger;
+	readonly bufferSyncSupport: BufferSyncSupport;
 
 	execute(command: 'configure', args: Proto.ConfigureRequestArguments, token?: CancellationToken): Promise<Proto.ConfigureResponse>;
 	execute(command: 'open', args: Proto.OpenRequestArgs, expectedResult: boolean, token?: CancellationToken): Promise<any>;

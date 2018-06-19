@@ -190,8 +190,10 @@
 								postMessage: function(msg) {
 									return originalPostMessage({ command: 'onmessage', data: msg }, '*');
 								},
-								setState: function(state) {
-									return originalPostMessage({ command: 'do-update-state', data: JSON.stringify(state) }, '*');
+								setState: function(newState) {
+									state = newState;
+									originalPostMessage({ command: 'do-update-state', data: JSON.stringify(newState) }, '*');
+									return newState;
 								},
 								getState: function() {
 									return state;

@@ -10,8 +10,7 @@ import URI from 'vs/base/common/uri';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { join } from 'vs/base/common/paths';
-import { workbenchInstantiationService, TestEditorGroupService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { workbenchInstantiationService, TestFileService } from 'vs/workbench/test/workbenchTestServices';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { IFileService, FileChangesEvent, FileChangeType } from 'vs/platform/files/common/files';
 import { IModelService } from 'vs/editor/common/services/modelService';
@@ -26,7 +25,6 @@ export class TestTextFileEditorModelManager extends TextFileEditorModelManager {
 
 class ServiceAccessor {
 	constructor(
-		@IEditorGroupService public editorGroupService: TestEditorGroupService,
 		@IFileService public fileService: TestFileService,
 		@IModelService public modelService: IModelService
 	) {

@@ -195,12 +195,12 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private findDefinition(target: IMouseTarget): TPromise<Location[]> {
-		let model = this.editor.getModel();
+		const model = this.editor.getModel();
 		if (!model) {
 			return TPromise.as(null);
 		}
 
-		return getDefinitionsAtPosition(this.editor.getModel(), target.position);
+		return getDefinitionsAtPosition(model, target.position);
 	}
 
 	private gotoDefinition(target: IMouseTarget, sideBySide: boolean): TPromise<any> {

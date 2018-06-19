@@ -260,7 +260,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.scrollBeyondLastColumn': {
 			'type': 'number',
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
-			'description': nls.localize('scrollBeyondLastColumn', "Controls if the editor will scroll beyond the last column")
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
 		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
@@ -644,6 +644,11 @@ const editorConfiguration: IConfigurationNode = {
 			],
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
+		},
+		'editor.showUnused': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.showUnused,
+			'description': nls.localize('showUnused', "Controls fading out of unused code.")
 		},
 		'editor.links': {
 			'type': 'boolean',

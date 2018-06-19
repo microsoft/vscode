@@ -36,7 +36,7 @@ import { getDomNodePagePosition } from 'vs/base/browser/dom';
 import { IssueType, ISettingsSearchIssueReporterData, ISettingSearchResult } from 'vs/platform/issue/common/issue';
 import { ILocalExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 import { IWorkbenchSettingsConfiguration } from 'vs/workbench/parts/preferences/common/preferences';
@@ -591,7 +591,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 
 	constructor(private editor: ICodeEditor,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@INotificationService private notificationService: INotificationService,
 		@IEnvironmentService private environmentService: IEnvironmentService
@@ -650,7 +650,7 @@ export class FeedbackWidgetRenderer extends Disposable {
 			this.getScoreText(actualResults) + '\n\n' +
 			groupCountsText + '\n';
 
-		this.editorService.openEditor({ contents, language: 'jsonc' }, /*sideBySide=*/true).then(feedbackEditor => {
+		this.editorService.openEditor({ contents, language: 'jsonc' }, SIDE_GROUP).then(feedbackEditor => {
 			const sendFeedbackWidget = this._register(this.instantiationService.createInstance(FloatingClickWidget, feedbackEditor.getControl(), 'Send feedback', null));
 			sendFeedbackWidget.render();
 

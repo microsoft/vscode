@@ -73,6 +73,7 @@ export interface IProductConfiguration {
 		'darwin': string;
 	};
 	logUploaderUrl: string;
+	portable?: string;
 }
 
 export interface ISurveyData {

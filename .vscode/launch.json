@@ -18,7 +18,7 @@
 			"name": "Attach to Extension Host",
 			"protocol": "inspector",
 			"port": 5870,
-			// "restart": true,
+			"restart": true,
 			"outFiles": [
 				"${workspaceFolder}/out/**/*.js"
 			]
@@ -202,6 +202,7 @@
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
+			"outputCapture": "std",
 			"args": [
 				"--delay",
 				"--timeout",

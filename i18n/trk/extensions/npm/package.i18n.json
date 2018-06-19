@@ -12,15 +12,15 @@
 	"config.npm.runSilent": "npm komutlarını `--silent`(sessiz) seçeneğiyle çalıştır.",
 	"config.npm.packageManager": "Betikleri çalıştırmada kullanılacak paket yöneticisi.",
 	"config.npm.exclude": "Otomatik betik algılamadan hariç tutulacak klasörler için glob desenlerini yapılandırın.",
-	"config.npm.enableScriptExplorer": "Çalışma alanı bir 'package.json' dosyası içerdiğinde, npm betikleri için gezgin görünümünü etkinleştir.",
+	"config.npm.enableScriptExplorer": "npm betikleri için gezgin görünümünü etkinleştir.",
+	"config.npm.scriptExplorerAction": "Betik gezgininde kullanılan varsayılan tıklama eylemi: 'open' (aç) veya 'run' (çalıştır), varsayılan 'open'dır.",
 	"npm.parseError": "Npm görev algılama: {0} dosyası ayrıştırılamadı",
 	"taskdef.script": "Özelleştirilecek npm betiği.",
 	"taskdef.path": "Betiği sağlayan package.json dosyasını içeren klasör yolu. Atlanabilir.",
 	"view.name": "Npm Betikleri",
 	"command.refresh": "Yenile",
 	"command.run": "Çalıştır",
-	"command.debug": "Hata Ayıklama",
+	"command.debug": "Hata Ayıkla",
 	"command.openScript": "Aç",
-	"npm.scriptInvalid": "'{0}' betik dosyası bulunamadı. Görünümü yenilemeyi deneyin.",
-	"npm.noDebugOptions": "Betiklerde node hata ayıklama seçeneği(ör. '--inspect-brk') eksik olduğundan hata ayıklamak için '{0}' başlatılamadı."
+	"command.runInstall": "Kurulumu Çalıştır"
 }

@@ -22,7 +22,11 @@ import { localize } from 'vs/nls';
 import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
+import { ILogService } from 'vs/platform/log/common/log';
 
 abstract class Recording {
 
@@ -266,7 +270,10 @@ export class BulkEdit {
 		editor: ICodeEditor,
 		progress: IProgressRunner,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 		this._editor = editor;
 		this._progress = progress || emptyProgressRunner;
@@ -341,9 +348,9 @@ export class BulkEdit {
 			progress.report(undefined);
 
 			if (edit.newUri && edit.oldUri) {
-				await this._fileService.moveFile(edit.oldUri, edit.newUri, false);
+				await this._textFileService.move(edit.oldUri, edit.newUri, false);
 			} else if (!edit.newUri && edit.oldUri) {
-				await this._fileService.del(edit.oldUri, true);
+				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
 				await this._fileService.createFile(edit.newUri, undefined, { overwrite: false });
 			}
@@ -359,7 +366,7 @@ export class BulkEdit {
 
 		const conflicts = edits
 			.filter(edit => recording.hasChanged(edit.resource))
-			.map(edit => getPathLabel(edit.resource));
+			.map(edit => getPathLabel(edit.resource, this._environmentService, this._contextService));
 
 		recording.stop();
 
@@ -379,10 +386,14 @@ export class BulkEditService implements IBulkEditService {
 	_serviceBrand: any;
 
 	constructor(
+		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
-		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
-		@IFileService private readonly _fileService: IFileService
+		@IFileService private readonly _fileService: IFileService,
+		@ITextFileService private readonly _textFileService: ITextFileService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService
 	) {
 
 	}
@@ -407,22 +418,20 @@ export class BulkEditService implements IBulkEditService {
 		// try to find code editor
 		// todo@joh, prefer edit that gets edited
 		if (!codeEditor) {
-			let editor = this._workbenchEditorService.getActiveEditor();
-			if (editor) {
-				let candidate = editor.getControl();
-				if (isCodeEditor(candidate)) {
-					codeEditor = candidate;
-				}
+			let candidate = this._editorService.activeTextEditorWidget;
+			if (isCodeEditor(candidate)) {
+				codeEditor = candidate;
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
 		bulkEdit.add(edits);
+
 		return bulkEdit.perform().then(selection => {
-			return {
-				selection,
-				ariaSummary: bulkEdit.ariaMessage()
-			};
+			return { selection, ariaSummary: bulkEdit.ariaMessage() };
+		}, err => {
+			this._logService.error(err);
+			return TPromise.wrapError(err);
 		});
 	}
 }

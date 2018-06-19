@@ -30,6 +30,8 @@ import { FileIconThemeStore } from 'vs/workbench/services/themes/electron-browse
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { removeClasses, addClasses } from 'vs/base/browser/dom';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
 
 // implementation
 
@@ -69,6 +71,8 @@ export interface IColorCustomizations {
 export class WorkbenchThemeService implements IWorkbenchThemeService {
 	_serviceBrand: any;
 
+	private fileService: IFileService;
+
 	private colorThemeStore: ColorThemeStore;
 	private currentColorTheme: ColorThemeData;
 	private container: HTMLElement;
@@ -97,7 +101,9 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IWindowService private windowService: IWindowService,
-		@IInstantiationService private instantiationService: IInstantiationService) {
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
+	) {
 
 		this.container = container;
 		this.colorThemeStore = new ColorThemeStore(extensionService, ColorThemeData.createLoadedEmptyTheme(DEFAULT_THEME_ID, DEFAULT_THEME_SETTING_VALUE));
@@ -177,6 +183,10 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			iconThemeSettingSchema.enumDescriptions = [iconThemeSettingSchema.enumDescriptions[0], ...themes.map(t => themeData.description || '')];
 			configurationRegistry.notifyConfigurationSchemaUpdated(themeSettingsConfiguration);
 		});
+	}
+
+	acquireFileService(fileService: IFileService): void {
+		this.fileService = fileService;
 	}
 
 	public get onDidColorThemeChange(): Event<IColorTheme> {
@@ -275,7 +285,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 
 		return this.colorThemeStore.findThemeData(themeId, DEFAULT_THEME_ID).then(themeData => {
 			if (themeData) {
-				return themeData.ensureLoaded(this).then(_ => {
+				return themeData.ensureLoaded(this.fileService).then(_ => {
 					if (themeId === this.currentColorTheme.id && !this.currentColorTheme.isLoaded && this.currentColorTheme.hasEqualData(themeData)) {
 						// the loaded theme is identical to the perisisted theme. Don't need to send an event.
 						this.currentColorTheme = themeData;
@@ -288,7 +298,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 					this.updateDynamicCSSRules(themeData);
 					return this.applyTheme(themeData, settingsTarget);
 				}, error => {
-					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.path, error.message)));
+					return TPromise.wrapError<IColorTheme>(new Error(nls.localize('error.cannotloadtheme', "Unable to load {0}: {1}", themeData.location, error.message)));
 				});
 			}
 			return null;
@@ -306,7 +316,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector));
+		themingRegistry.getThemingParticipants().forEach(p => p(themeData, ruleCollector, this.environmentService));
 		_applyRules(cssRules.join('\n'), colorThemeRulesClassName);
 	}
 
@@ -402,7 +412,7 @@ export class WorkbenchThemeService implements IWorkbenchThemeService {
 			if (!iconThemeData) {
 				iconThemeData = FileIconThemeData.noIconTheme();
 			}
-			return iconThemeData.ensureLoaded(this).then(_ => {
+			return iconThemeData.ensureLoaded(this.fileService).then(_ => {
 				return _applyIconTheme(iconThemeData, onApply);
 			});
 		});

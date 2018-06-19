@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
-  "version": "1.24.0",
-  "distro": "fa0e16f4dec2b82b096e9b877572b5a19f294aa7",
+  "version": "1.25.0",
+  "distro": "e781cd4cf9c4c77fa3c0fcb04017a3ba57cde7a2",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -19,7 +19,7 @@
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
-    "smoketest": "cd test/smoke && mocha",
+    "smoketest": "cd test/smoke && node test/index.js",
     "monaco-compile-check": "tsc -p src/tsconfig.monaco.json --noEmit",
     "download-builtin-extensions": "node build/lib/builtInExtensions.js",
     "check-monaco-editor-compilation": "tsc -p src/tsconfig.monaco.json --noEmit"
@@ -47,9 +47,9 @@
     "vscode-chokidar": "1.6.2",
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
-    "vscode-ripgrep": "^0.8.1",
-    "vscode-textmate": "^3.3.3",
-    "vscode-xterm": "3.5.0-beta8",
+    "vscode-ripgrep": "^1.0.1",
+    "vscode-textmate": "^4.0.0-next.2",
+    "vscode-xterm": "3.5.0-beta12",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
@@ -105,6 +105,7 @@
     "minimatch": "^2.0.10",
     "mkdirp": "^0.5.0",
     "mocha": "^2.2.5",
+    "mocha-junit-reporter": "^1.17.0",
     "object-assign": "^4.0.1",
     "optimist": "0.3.5",
     "p-all": "^1.0.0",
@@ -115,7 +116,7 @@
     "sinon": "^1.17.2",
     "source-map": "^0.4.4",
     "tslint": "^5.9.1",
-    "typescript": "2.8.3",
+    "typescript": "2.9.1",
     "typescript-formatter": "7.1.0",
     "uglify-es": "^3.0.18",
     "underscore": "^1.8.2",

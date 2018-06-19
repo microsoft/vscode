@@ -9,7 +9,7 @@
 	"callstackSection": "Section de pile des appels",
 	"debugStopped": "En pause sur {0}",
 	"callStackAriaLabel": "Déboguer la pile des appels",
-	"process": "Processus",
+	"session": "Session",
 	"paused": "Suspendu",
 	"running": "En cours d'exécution",
 	"thread": "Thread",

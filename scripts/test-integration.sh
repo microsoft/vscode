@@ -25,7 +25,8 @@ rm -r $ROOT/extensions/emmet/test-fixtures
 # Integration tests in AMD
 ./scripts/test.sh --runGlob **/*.integrationTest.js "$@"
 
-# Tests in commonJS (HTML, CSS, JSON language server tests...)
-./scripts/node-electron.sh ./node_modules/mocha/bin/_mocha ./extensions/*/server/out/test/
+# Tests in commonJS
+cd $ROOT/extensions/css-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
+cd $ROOT/extensions/html-language-features/server && $ROOT/scripts/node-electron.sh test/index.js
 
 rm -r $VSCODEUSERDATADIR

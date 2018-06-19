@@ -4,22 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as platform from 'vs/base/common/platform';
-
-
-function _encode(ch: string): string {
-	return '%' + ch.charCodeAt(0).toString(16).toUpperCase();
-}
-
-// see https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/encodeURIComponent
-function encodeURIComponent2(str: string): string {
-	return encodeURIComponent(str).replace(/[!'()*]/g, _encode);
-}
-
-function encodeNoop(str: string): string {
-	return str.replace(/[#?]/, _encode);
-}
-
+import { isWindows } from 'vs/base/common/platform';
+import { CharCode } from 'vs/base/common/charCode';
 
 const _schemePattern = /^\w[\w\d+.-]*$/;
 const _singleSlashStart = /^\//;
@@ -74,8 +60,6 @@ function _referenceResolution(scheme: string, path: string): string {
 const _empty = '';
 const _slash = '/';
 const _regexp = /^(([^:/?#]+?):)?(\/\/([^/?#]*))?([^?#]*)(\?([^#]*))?(#(.*))?/;
-const _driveLetterPath = /^\/[a-zA-Z]:/;
-const _upperCaseDrive = /^(\/)?([A-Z]:)/;
 
 /**
  * Uniform Resource Identifier (URI) http://tools.ietf.org/html/rfc3986.
@@ -253,7 +237,7 @@ export default class URI implements UriComponents {
 		// normalize to fwd-slashes on windows,
 		// on other systems bwd-slashes are valid
 		// filename character, eg /f\oo/ba\r.txt
-		if (platform.isWindows) {
+		if (isWindows) {
 			path = path.replace(/\\/g, _slash);
 		}
 
@@ -294,33 +278,7 @@ export default class URI implements UriComponents {
 	}
 
 	public toJSON(): object {
-		const res = <UriState>{
-			$mid: 1,
-			fsPath: this.fsPath,
-			external: this.toString(),
-		};
-
-		if (this.path) {
-			res.path = this.path;
-		}
-
-		if (this.scheme) {
-			res.scheme = this.scheme;
-		}
-
-		if (this.authority) {
-			res.authority = this.authority;
-		}
-
-		if (this.query) {
-			res.query = this.query;
-		}
-
-		if (this.fragment) {
-			res.fragment = this.fragment;
-		}
-
-		return res;
+		return this;
 	}
 
 	static revive(data: UriComponents | any): URI {
@@ -376,8 +334,141 @@ class _URI extends URI {
 			return _asFormatted(this, true);
 		}
 	}
+
+	toJSON(): object {
+		const res = <UriState>{
+			$mid: 1
+		};
+		// cached state
+		if (this._fsPath) {
+			res.fsPath = this._fsPath;
+		}
+		if (this._formatted) {
+			res.external = this._formatted;
+		}
+		// uri components
+		if (this.path) {
+			res.path = this.path;
+		}
+		if (this.scheme) {
+			res.scheme = this.scheme;
+		}
+		if (this.authority) {
+			res.authority = this.authority;
+		}
+		if (this.query) {
+			res.query = this.query;
+		}
+		if (this.fragment) {
+			res.fragment = this.fragment;
+		}
+		return res;
+	}
 }
 
+// reserved characters: https://tools.ietf.org/html/rfc3986#section-2.2
+const encodeTable: { [ch: number]: string } = {
+	[CharCode.Colon]: '%3A', // gen-delims
+	[CharCode.Slash]: '%2F',
+	[CharCode.QuestionMark]: '%3F',
+	[CharCode.Hash]: '%23',
+	[CharCode.OpenSquareBracket]: '%5B',
+	[CharCode.CloseSquareBracket]: '%5D',
+	[CharCode.AtSign]: '%40',
+
+	[CharCode.ExclamationMark]: '%21', // sub-delims
+	[CharCode.DollarSign]: '%24',
+	[CharCode.Ampersand]: '%26',
+	[CharCode.SingleQuote]: '%27',
+	[CharCode.OpenParen]: '%28',
+	[CharCode.CloseParen]: '%29',
+	[CharCode.Asterisk]: '%2A',
+	[CharCode.Plus]: '%2B',
+	[CharCode.Comma]: '%2C',
+	[CharCode.Semicolon]: '%3B',
+	[CharCode.Equals]: '%3D',
+
+	[CharCode.Space]: '%20',
+};
+
+function encodeURIComponentFast(uriComponent: string, allowSlash: boolean): string {
+	let res: string = undefined;
+	let nativeEncodePos = -1;
+
+	for (let pos = 0; pos < uriComponent.length; pos++) {
+		let code = uriComponent.charCodeAt(pos);
+
+		// unreserved characters: https://tools.ietf.org/html/rfc3986#section-2.3
+		if (
+			(code >= CharCode.a && code <= CharCode.z)
+			|| (code >= CharCode.A && code <= CharCode.Z)
+			|| (code >= CharCode.Digit0 && code <= CharCode.Digit9)
+			|| code === CharCode.Dash
+			|| code === CharCode.Period
+			|| code === CharCode.Underline
+			|| code === CharCode.Tilde
+			|| (allowSlash && code === CharCode.Slash)
+		) {
+			// check if we are delaying native encode
+			if (nativeEncodePos !== -1) {
+				res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+				nativeEncodePos = -1;
+			}
+			// check if we write into a new string (by default we try to return the param)
+			if (res !== undefined) {
+				res += uriComponent.charAt(pos);
+			}
+
+		} else {
+			// encoding needed, we need to allocate a new string
+			if (res === undefined) {
+				res = uriComponent.substr(0, pos);
+			}
+
+			// check with default table first
+			let escaped = encodeTable[code];
+			if (escaped !== undefined) {
+
+				// check if we are delaying native encode
+				if (nativeEncodePos !== -1) {
+					res += encodeURIComponent(uriComponent.substring(nativeEncodePos, pos));
+					nativeEncodePos = -1;
+				}
+
+				// append escaped variant to result
+				res += escaped;
+
+			} else if (nativeEncodePos === -1) {
+				// use native encode only when needed
+				nativeEncodePos = pos;
+			}
+		}
+	}
+
+	if (nativeEncodePos !== -1) {
+		res += encodeURIComponent(uriComponent.substring(nativeEncodePos));
+	}
+
+	return res !== undefined ? res : uriComponent;
+}
+
+function encodeURIComponentMinimal(path: string): string {
+	let res: string = undefined;
+	for (let pos = 0; pos < path.length; pos++) {
+		let code = path.charCodeAt(pos);
+		if (code === CharCode.Hash || code === CharCode.QuestionMark) {
+			if (res === undefined) {
+				res = path.substr(0, pos);
+			}
+			res += encodeTable[code];
+		} else {
+			if (res !== undefined) {
+				res += path[pos];
+			}
+		}
+	}
+	return res !== undefined ? res : path;
+}
 
 /**
  * Compute `fsPath` for the given uri
@@ -389,14 +480,18 @@ function _makeFsPath(uri: URI): string {
 	if (uri.authority && uri.path.length > 1 && uri.scheme === 'file') {
 		// unc path: file://shares/c$/far/boo
 		value = `//${uri.authority}${uri.path}`;
-	} else if (_driveLetterPath.test(uri.path)) {
+	} else if (
+		uri.path.charCodeAt(0) === CharCode.Slash
+		&& (uri.path.charCodeAt(1) >= CharCode.A && uri.path.charCodeAt(1) <= CharCode.Z || uri.path.charCodeAt(1) >= CharCode.a && uri.path.charCodeAt(1) <= CharCode.z)
+		&& uri.path.charCodeAt(2) === CharCode.Colon
+	) {
 		// windows drive letter: file:///c:/far/boo
 		value = uri.path[1].toLowerCase() + uri.path.substr(2);
 	} else {
 		// other path
 		value = uri.path;
 	}
-	if (platform.isWindows) {
+	if (isWindows) {
 		value = value.replace(/\//g, '\\');
 	}
 	return value;
@@ -408,71 +503,69 @@ function _makeFsPath(uri: URI): string {
 function _asFormatted(uri: URI, skipEncoding: boolean): string {
 
 	const encoder = !skipEncoding
-		? encodeURIComponent2
-		: encodeNoop;
+		? encodeURIComponentFast
+		: encodeURIComponentMinimal;
 
-	const parts: string[] = [];
-
+	let res = '';
 	let { scheme, authority, path, query, fragment } = uri;
 	if (scheme) {
-		parts.push(scheme, ':');
+		res += scheme;
+		res += ':';
 	}
 	if (authority || scheme === 'file') {
-		parts.push('//');
+		res += _slash;
+		res += _slash;
 	}
 	if (authority) {
 		let idx = authority.indexOf('@');
 		if (idx !== -1) {
+			// <user>@<auth>
 			const userinfo = authority.substr(0, idx);
 			authority = authority.substr(idx + 1);
 			idx = userinfo.indexOf(':');
 			if (idx === -1) {
-				parts.push(encoder(userinfo));
+				res += encoder(userinfo, false);
 			} else {
-				parts.push(encoder(userinfo.substr(0, idx)), ':', encoder(userinfo.substr(idx + 1)));
+				// <user>:<pass>@<auth>
+				res += encoder(userinfo.substr(0, idx), false);
+				res += ':';
+				res += encoder(userinfo.substr(idx + 1), false);
 			}
-			parts.push('@');
+			res += '@';
 		}
 		authority = authority.toLowerCase();
 		idx = authority.indexOf(':');
 		if (idx === -1) {
-			parts.push(encoder(authority));
+			res += encoder(authority, false);
 		} else {
-			parts.push(encoder(authority.substr(0, idx)), authority.substr(idx));
+			// <auth>:<port>
+			res += encoder(authority.substr(0, idx), false);
+			res += authority.substr(idx);
 		}
 	}
 	if (path) {
 		// lower-case windows drive letters in /C:/fff or C:/fff
-		const m = _upperCaseDrive.exec(path);
-		if (m) {
-			if (m[1]) {
-				path = '/' + m[2].toLowerCase() + path.substr(3); // "/c:".length === 3
-			} else {
-				path = m[2].toLowerCase() + path.substr(2); // // "c:".length === 2
+		if (path.length >= 3 && path.charCodeAt(0) === CharCode.Slash && path.charCodeAt(2) === CharCode.Colon) {
+			let code = path.charCodeAt(1);
+			if (code >= CharCode.A && code <= CharCode.Z) {
+				path = `/${String.fromCharCode(code + 32)}:${path.substr(3)}`; // "/c:".length === 3
+			}
+		} else if (path.length >= 2 && path.charCodeAt(1) === CharCode.Colon) {
+			let code = path.charCodeAt(0);
+			if (code >= CharCode.A && code <= CharCode.Z) {
+				path = `${String.fromCharCode(code + 32)}:${path.substr(2)}`; // "/c:".length === 3
 			}
 		}
-
-		// encode every segement but not slashes
-		// make sure that # and ? are always encoded
-		// when occurring in paths - otherwise the result
-		// cannot be parsed back again
-		let lastIdx = 0;
-		while (true) {
-			let idx = path.indexOf(_slash, lastIdx);
-			if (idx === -1) {
-				parts.push(encoder(path.substring(lastIdx)));
-				break;
-			}
-			parts.push(encoder(path.substring(lastIdx, idx)), _slash);
-			lastIdx = idx + 1;
-		}
+		// encode the rest of the path
+		res += encoder(path, true);
 	}
 	if (query) {
-		parts.push('?', encoder(query));
+		res += '?';
+		res += encoder(query, false);
 	}
 	if (fragment) {
-		parts.push('#', encoder(fragment));
+		res += '#';
+		res += !skipEncoding ? encodeURIComponentFast(fragment, false) : fragment;
 	}
-
-	return parts.join(_empty);
+	return res;
 }

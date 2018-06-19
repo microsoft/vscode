@@ -267,8 +267,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return TPromise.join([
-			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme),
-			this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme) // todo@remote -> remove
+			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -535,15 +534,6 @@ export class RemoteFileService extends FileService {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 				return fileStat;
 			});
-		}
-	}
-
-	rename(resource: URI, newName: string): TPromise<IFileStat, any> {
-		if (resource.scheme === Schemas.file) {
-			return super.rename(resource, newName);
-		} else {
-			const target = resource.with({ path: posix.join(resource.path, '..', newName) });
-			return this._doMoveWithInScheme(resource, target, false);
 		}
 	}
 

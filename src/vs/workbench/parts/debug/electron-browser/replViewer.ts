@@ -21,7 +21,7 @@ import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebug
 import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
 import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 
@@ -94,7 +94,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private linkDetector: LinkDetector;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
@@ -256,7 +256,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 		let result = handleANSIOutput(element.value, this.linkDetector);
 		templateData.value.appendChild(result);
 
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
+		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? element.sourceData.source.uri.toString() : '';
 		templateData.getReplElementSource = () => element.sourceData;

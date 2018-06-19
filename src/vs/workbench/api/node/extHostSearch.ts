@@ -454,7 +454,7 @@ class TextSearchEngine {
 			new TPromise(resolve => process.nextTick(resolve))
 				.then(() => {
 					this.activeCancellationTokens.add(cancellation);
-					return this.provider.provideTextSearchResults(this.pattern, searchOptions, progress, cancellation.token);
+					return this.provider.provideTextSearchResults(patternInfoToQuery(this.pattern), searchOptions, progress, cancellation.token);
 				})
 				.then(() => {
 					this.activeCancellationTokens.delete(cancellation);
@@ -498,6 +498,15 @@ class TextSearchEngine {
 			maxFileSize: this.config.maxFileSize
 		};
 	}
+}
+
+function patternInfoToQuery(patternInfo: IPatternInfo): vscode.TextSearchQuery {
+	return <vscode.TextSearchQuery>{
+		isCaseSensitive: patternInfo.isCaseSensitive || false,
+		isRegExp: patternInfo.isRegExp || false,
+		isWordMatch: patternInfo.isWordMatch || false,
+		pattern: patternInfo.pattern
+	};
 }
 
 class FileSearchEngine {

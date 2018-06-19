@@ -23,7 +23,7 @@ export class Editors {
 	}
 
 	async waitForActiveEditor(filename: string): Promise<any> {
-		const selector = `.editor-container .monaco-editor[data-uri$="${filename}"] textarea`;
+		const selector = `.editor-instance .monaco-editor[data-uri$="${filename}"] textarea`;
 		return this.code.waitForActiveElement(selector);
 	}
 

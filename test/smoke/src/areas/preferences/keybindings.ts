@@ -25,7 +25,7 @@ export class KeybindingsEditor {
 		await this.code.waitForElement('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item.focused.selected');
 
 		await this.code.waitAndClick('div[aria-label="Keybindings"] .monaco-list-row.keybinding-item .action-item .icon.add');
-		await this.code.waitForElement('.defineKeybindingWidget .monaco-inputbox.synthetic-focus');
+		await this.code.waitForActiveElement('.defineKeybindingWidget .monaco-inputbox input');
 
 		await this.code.dispatchKeybinding(keybinding);
 		await this.code.dispatchKeybinding('enter');

@@ -18,6 +18,8 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
 import { mixin } from 'vs/base/common/objects';
+import { HistoryNavigator } from 'vs/base/common/history';
+import { IHistoryNavigationWidget } from 'vs/base/browser/history';
 
 const $ = dom.$;
 
@@ -80,7 +82,7 @@ const defaultOpts = {
 
 export class InputBox extends Widget {
 	private contextViewProvider: IContextViewProvider;
-	private element: HTMLElement;
+	element: HTMLElement;
 	private input: HTMLInputElement;
 	private mirror: HTMLElement;
 	private actionbar: ActionBar;
@@ -495,5 +497,50 @@ export class InputBox extends Widget {
 		this.actionbar = null;
 
 		super.dispose();
+	}
+}
+
+export interface IHistoryInputOptions extends IInputOptions {
+	history: string[];
+}
+
+export class HistoryInputBox extends InputBox implements IHistoryNavigationWidget {
+
+	private readonly history: HistoryNavigator<string>;
+
+	constructor(container: HTMLElement, contextViewProvider: IContextViewProvider, options: IHistoryInputOptions) {
+		super(container, contextViewProvider, options);
+		this.history = new HistoryNavigator<string>(options.history, 100);
+	}
+
+	public addToHistory(value: string): void {
+		if (value !== this.history.current()) {
+			this.history.add(value);
+		}
+	}
+
+	public getHistory(): string[] {
+		return this.history.getHistory();
+	}
+
+	public showNextValue(): void {
+		let next = this.history.next();
+		if (next) {
+			this.value = next;
+		}
+	}
+
+	public showPreviousValue(): void {
+		if (this.value.length !== 0) {
+			this.history.addIfNotPresent(this.value);
+		}
+		const previous = this.history.previous();
+		if (previous) {
+			this.value = previous;
+		}
+	}
+
+	public clearHistory(): void {
+		this.history.clear();
 	}
 }

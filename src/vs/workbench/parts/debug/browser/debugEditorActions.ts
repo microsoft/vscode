@@ -14,7 +14,7 @@ import { IDebugService, CONTEXT_IN_DEBUG_MODE, CONTEXT_NOT_IN_DEBUG_REPL, CONTEX
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IEditorService } from 'vs/platform/editor/common/editor';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 
 class ToggleBreakpointAction extends EditorAction {
@@ -227,20 +227,20 @@ class GoToBreakpointAction extends EditorAction {
 		//Try to find breakpoint in current file
 		let moveBreakpoint =
 			this.isNext
-				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine)[0]
-				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine)[0];
+				? allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber > currentLine).shift()
+				: allEnabledBreakpoints.filter(bp => bp.uri.toString() === currentUri.toString() && bp.lineNumber < currentLine).pop();
 
 		//Try to find breakpoints in following files
 		if (!moveBreakpoint) {
 			moveBreakpoint =
 				this.isNext
-					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString())[0]
-					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString())[0];
+					? allEnabledBreakpoints.filter(bp => bp.uri.toString() > currentUri.toString()).shift()
+					: allEnabledBreakpoints.filter(bp => bp.uri.toString() < currentUri.toString()).pop();
 		}
 
-		//Move to first possible breakpoint
-		if (!moveBreakpoint) {
-			moveBreakpoint = allEnabledBreakpoints[0];
+		//Move to first or last possible breakpoint
+		if (!moveBreakpoint && allEnabledBreakpoints.length) {
+			moveBreakpoint = this.isNext ? allEnabledBreakpoints[0] : allEnabledBreakpoints[allEnabledBreakpoints.length - 1];
 		}
 
 		if (moveBreakpoint) {

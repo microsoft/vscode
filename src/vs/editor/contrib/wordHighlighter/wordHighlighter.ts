@@ -2,11 +2,10 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
 import * as nls from 'vs/nls';
 
-import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, first } from 'vs/base/common/async';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range } from 'vs/editor/common/core/range';
@@ -23,7 +22,7 @@ import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/cont
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
-import { firstIndex } from 'vs/base/common/arrays';
+import { firstIndex, isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel, TrackedRangeStickiness, OverviewRulerLane, IModelDeltaDecoration } from 'vs/editor/common/model';
 
@@ -40,32 +39,14 @@ export const ctxHasWordHighlights = new RawContextKey<boolean>('hasWordHighlight
 export function getOccurrencesAtPosition(model: ITextModel, position: Position): TPromise<DocumentHighlight[]> {
 
 	const orderedByScore = DocumentHighlightProviderRegistry.ordered(model);
-	let foundResult = false;
 
 	// in order of score ask the occurrences provider
 	// until someone response with a good result
 	// (good = none empty array)
-	return sequence(orderedByScore.map(provider => {
-		return (): TPromise<DocumentHighlight[]> => {
-			if (!foundResult) {
-				return asWinJsPromise((token) => {
-					return provider.provideDocumentHighlights(model, position, token);
-				}).then(data => {
-					if (Array.isArray(data) && data.length > 0) {
-						foundResult = true;
-						return data;
-					}
-					return undefined;
-				}, err => {
-					onUnexpectedExternalError(err);
-					return undefined;
-				});
-			}
-			return undefined;
-		};
-	})).then(values => {
-		return values[0];
-	});
+	return first(orderedByScore.map(provider => () => {
+		return asWinJsPromise(token => provider.provideDocumentHighlights(model, position, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
 registerDefaultLanguageCommand('_executeDocumentHighlights', getOccurrencesAtPosition);

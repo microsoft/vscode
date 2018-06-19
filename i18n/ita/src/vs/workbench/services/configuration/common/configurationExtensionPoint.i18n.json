@@ -16,6 +16,7 @@
 	"vscode.extension.contributes.configuration": "Impostazioni di configurazione di contributes.",
 	"invalid.title": "'configuration.title' deve essere una stringa",
 	"invalid.properties": "'configuration.properties' deve essere un oggetto",
+	"invalid.property": "'configuration.property' deve essere un oggetto",
 	"invalid.allOf": "'configuration.allOf' è deprecato e non deve più essere usato. Passare invece una matrice di sezioni di configurazione al punto di aggiunta contributo 'configuration'.",
 	"workspaceConfig.folders.description": "Elenco di cartelle da caricare nell'area di lavoro.",
 	"workspaceConfig.path.description": "Percorso di file, ad esempio `/root/folderA` o `./folderA` per un percorso relativo che verrà risolto in base alla posizione del file dell'area di lavoro.",

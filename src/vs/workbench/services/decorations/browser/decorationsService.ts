@@ -270,18 +270,13 @@ class DecorationProviderWrapper {
 		const key = uri.toString();
 		let item = this.data.get(key);
 
-		if (isThenable<void>(item)) {
-			// pending -> still waiting
-			return;
-		}
-
 		if (item === undefined) {
 			// unknown -> trigger request
 			item = this._fetchData(uri);
 		}
 
-		if (item) {
-			// found something
+		if (item && !isThenable<void>(item)) {
+			// found something (which isn't pending anymore)
 			callback(item, false);
 		}
 

@@ -45,6 +45,7 @@ export class StatusBarColorProvider extends Themable implements IWorkbenchContri
 		super(themeService);
 
 		this.registerListeners();
+		this.updateStyles();
 	}
 
 	private registerListeners(): void {

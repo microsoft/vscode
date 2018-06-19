@@ -323,6 +323,11 @@ function main() {
 			VSCODE_NLS_CONFIG: process.env['VSCODE_NLS_CONFIG'],
 			VSCODE_LOGS: process.env['VSCODE_LOGS']
 		};
+
+		if (process.env['VSCODE_PORTABLE']) {
+			instanceEnv['VSCODE_PORTABLE'] = process.env['VSCODE_PORTABLE'];
+		}
+
 		assign(process.env, instanceEnv);
 
 		// Startup

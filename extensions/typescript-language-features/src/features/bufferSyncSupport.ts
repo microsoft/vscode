@@ -4,13 +4,19 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import { CancellationTokenSource, Disposable, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
+import { CancellationTokenSource, Disposable, EventEmitter, TextDocument, TextDocumentChangeEvent, TextDocumentContentChangeEvent, Uri, workspace } from 'vscode';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
 import { Delayer } from '../utils/async';
 import { disposeAll } from '../utils/dispose';
 import * as languageModeIds from '../utils/languageModeIds';
+import { ResourceMap } from './resourceMap';
 
+enum BufferKind {
+	TypeScript = 1,
+	JavaScript = 2,
+}
 
 interface IDiagnosticRequestor {
 	requestDiagnostic(resource: Uri): void;
@@ -30,7 +36,7 @@ class SyncedBuffer {
 
 	constructor(
 		private readonly document: TextDocument,
-		private readonly filepath: string,
+		public readonly filepath: string,
 		private readonly diagnosticRequestor: IDiagnosticRequestor,
 		private readonly client: ITypeScriptServiceClient
 	) { }
@@ -41,18 +47,18 @@ class SyncedBuffer {
 			fileContent: this.document.getText(),
 		};
 
-		if (this.client.apiVersion.has203Features()) {
+		if (this.client.apiVersion.gte(API.v203)) {
 			const scriptKind = mode2ScriptKind(this.document.languageId);
 			if (scriptKind) {
 				args.scriptKindName = scriptKind;
 			}
 		}
 
-		if (this.client.apiVersion.has230Features()) {
+		if (this.client.apiVersion.gte(API.v230)) {
 			args.projectRootPath = this.client.getWorkspaceRootForResource(this.document.uri);
 		}
 
-		if (this.client.apiVersion.has240Features()) {
+		if (this.client.apiVersion.gte(API.v240)) {
 			const tsPluginsForDocument = this.client.plugins
 				.filter(x => x.languages.indexOf(this.document.languageId) >= 0);
 
@@ -64,8 +70,25 @@ class SyncedBuffer {
 		this.client.execute('open', args, false);
 	}
 
+	public get resource(): Uri {
+		return this.document.uri;
+	}
+
 	public get lineCount(): number {
 		return this.document.lineCount;
+	}
+
+	public get kind(): BufferKind {
+		switch (this.document.languageId) {
+			case languageModeIds.javascript:
+			case languageModeIds.javascriptreact:
+				return BufferKind.JavaScript;
+
+			case languageModeIds.typescript:
+			case languageModeIds.typescriptreact:
+			default:
+				return BufferKind.TypeScript;
+		}
 	}
 
 	public close(): void {
@@ -76,14 +99,9 @@ class SyncedBuffer {
 	}
 
 	public onContentChanged(events: TextDocumentContentChangeEvent[]): void {
-		const filePath = this.client.normalizePath(this.document.uri);
-		if (!filePath) {
-			return;
-		}
-
 		for (const { range, text } of events) {
 			const args: Proto.ChangeRequestArgs = {
-				file: filePath,
+				file: this.filepath,
 				line: range.start.line + 1,
 				offset: range.start.character + 1,
 				endLine: range.end.line + 1,
@@ -96,94 +114,75 @@ class SyncedBuffer {
 	}
 }
 
-class SyncedBufferMap {
-	private readonly _map = new Map<string, SyncedBuffer>();
+class SyncedBufferMap extends ResourceMap<SyncedBuffer> {
 
-	constructor(
-		private readonly _normalizePath: (resource: Uri) => string | null
-	) { }
-
-	public has(resource: Uri): boolean {
-		const file = this._normalizePath(resource);
-		return !!file && this._map.has(file);
-	}
-
-	public get(resource: Uri): SyncedBuffer | undefined {
-		const file = this._normalizePath(resource);
-		return file ? this._map.get(file) : undefined;
-	}
-
-	public set(resource: Uri, buffer: SyncedBuffer) {
-		const file = this._normalizePath(resource);
-		if (file) {
-			this._map.set(file, buffer);
-		}
-	}
-
-	public delete(resource: Uri): void {
-		const file = this._normalizePath(resource);
-		if (file) {
-			this._map.delete(file);
-		}
+	public getForPath(filePath: string): SyncedBuffer | undefined {
+		return this.get(Uri.file(filePath));
 	}
 
 	public get allBuffers(): Iterable<SyncedBuffer> {
-		return this._map.values();
+		return this.values;
 	}
 
 	public get allResources(): Iterable<string> {
-		return this._map.keys();
+		return this.keys;
 	}
-}
-
-
-export interface Diagnostics {
-	delete(resource: Uri): void;
 }
 
 export default class BufferSyncSupport {
 
 	private readonly client: ITypeScriptServiceClient;
 
-	private _validate: boolean;
+	private _validateJavaScript: boolean = true;
+	private _validateTypeScript: boolean = true;
 	private readonly modeIds: Set<string>;
-	private readonly diagnostics: Diagnostics;
 	private readonly disposables: Disposable[] = [];
 	private readonly syncedBuffers: SyncedBufferMap;
 
 	private readonly pendingDiagnostics = new Map<string, number>();
 	private readonly diagnosticDelayer: Delayer<any>;
 	private pendingGetErr: { request: Promise<any>, files: string[], token: CancellationTokenSource } | undefined;
+	private listening: boolean = false;
 
 	constructor(
 		client: ITypeScriptServiceClient,
-		modeIds: string[],
-		diagnostics: Diagnostics,
-		validate: boolean
+		modeIds: string[]
 	) {
 		this.client = client;
 		this.modeIds = new Set<string>(modeIds);
-		this.diagnostics = diagnostics;
-		this._validate = validate;
 
 		this.diagnosticDelayer = new Delayer<any>(300);
 
-		this.syncedBuffers = new SyncedBufferMap(path => this.client.normalizePath(path));
+		this.syncedBuffers = new SyncedBufferMap(path => this.normalizePath(path));
+
+		this.updateConfiguration();
+		workspace.onDidChangeConfiguration(() => this.updateConfiguration(), null);
 	}
 
+	private readonly _onDelete = new EventEmitter<Uri>();
+	public readonly onDelete = this._onDelete.event;
+
 	public listen(): void {
+		if (this.listening) {
+			return;
+		}
+		this.listening = true;
 		workspace.onDidOpenTextDocument(this.openTextDocument, this, this.disposables);
 		workspace.onDidCloseTextDocument(this.onDidCloseTextDocument, this, this.disposables);
 		workspace.onDidChangeTextDocument(this.onDidChangeTextDocument, this, this.disposables);
 		workspace.textDocuments.forEach(this.openTextDocument, this);
 	}
 
-	public set validate(value: boolean) {
-		this._validate = value;
-	}
-
 	public handles(resource: Uri): boolean {
 		return this.syncedBuffers.has(resource);
+	}
+
+	public toResource(filePath: string): Uri {
+		const buffer = this.syncedBuffers.getForPath(filePath);
+		if (buffer) {
+			return buffer.resource;
+		}
+		return Uri.file(filePath);
 	}
 
 	public reOpenDocuments(): void {
@@ -194,6 +193,7 @@ export default class BufferSyncSupport {
 
 	public dispose(): void {
 		disposeAll(this.disposables);
+		this._onDelete.dispose();
 	}
 
 	public openTextDocument(document: TextDocument): void {
@@ -201,7 +201,7 @@ export default class BufferSyncSupport {
 			return;
 		}
 		const resource = document.uri;
-		const filepath = this.client.normalizePath(resource);
+		const filepath = this.client.normalizedPath(resource);
 		if (!filepath) {
 			return;
 		}
@@ -224,7 +224,7 @@ export default class BufferSyncSupport {
 		this.syncedBuffers.delete(resource);
 		syncedBuffer.close();
 		if (!fs.existsSync(resource.fsPath)) {
-			this.diagnostics.delete(resource);
+			this._onDelete.fire(resource);
 			this.requestAllDiagnostics();
 		}
 	}
@@ -235,21 +235,26 @@ export default class BufferSyncSupport {
 
 	private onDidChangeTextDocument(e: TextDocumentChangeEvent): void {
 		const syncedBuffer = this.syncedBuffers.get(e.document.uri);
-		if (syncedBuffer) {
-			syncedBuffer.onContentChanged(e.contentChanges);
-			if (this.pendingGetErr) {
-				this.pendingGetErr.token.cancel();
-				this.pendingGetErr = undefined;
-			}
+		if (!syncedBuffer) {
+			return;
+		}
+
+		syncedBuffer.onContentChanged(e.contentChanges);
+		if (this.pendingGetErr) {
+			this.pendingGetErr.token.cancel();
+			this.pendingGetErr = undefined;
+
+			this.diagnosticDelayer.trigger(() => {
+				this.sendPendingDiagnostics();
+			}, 200);
 		}
 	}
 
 	public requestAllDiagnostics() {
-		if (!this._validate) {
-			return;
-		}
-		for (const filePath of this.syncedBuffers.allResources) {
-			this.pendingDiagnostics.set(filePath, Date.now());
+		for (const buffer of this.syncedBuffers.allBuffers) {
+			if (this.shouldValidate(buffer)) {
+				this.pendingDiagnostics.set(buffer.filepath, Date.now());
+			}
 		}
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
@@ -263,7 +268,7 @@ export default class BufferSyncSupport {
 		}
 
 		for (const resource of handledResources) {
-			const file = this.client.normalizePath(resource);
+			const file = this.client.normalizedPath(resource);
 			if (file) {
 				this.pendingDiagnostics.set(file, Date.now());
 			}
@@ -275,36 +280,31 @@ export default class BufferSyncSupport {
 	}
 
 	public requestDiagnostic(resource: Uri): void {
-		if (!this._validate) {
-			return;
-		}
-
-		const file = this.client.normalizePath(resource);
+		const file = this.client.normalizedPath(resource);
 		if (!file) {
 			return;
 		}
 
 		this.pendingDiagnostics.set(file, Date.now());
 		const buffer = this.syncedBuffers.get(resource);
-		let delay = 300;
-		if (buffer) {
-			const lineCount = buffer.lineCount;
-			delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
+		if (!buffer || !this.shouldValidate(buffer)) {
+			return;
 		}
+
+		let delay = 300;
+		const lineCount = buffer.lineCount;
+		delay = Math.min(Math.max(Math.ceil(lineCount / 20), 300), 800);
 		this.diagnosticDelayer.trigger(() => {
 			this.sendPendingDiagnostics();
 		}, delay);
 	}
 
 	public hasPendingDiagnostics(resource: Uri): boolean {
-		const file = this.client.normalizePath(resource);
+		const file = this.client.normalizedPath(resource);
 		return !file || this.pendingDiagnostics.has(file);
 	}
 
 	private sendPendingDiagnostics(): void {
-		if (!this._validate) {
-			return;
-		}
 		const files = new Set(Array.from(this.pendingDiagnostics.entries())
 			.sort((a, b) => a[1] - b[1])
 			.map(entry => entry[0]));
@@ -343,5 +343,28 @@ export default class BufferSyncSupport {
 			};
 		}
 		this.pendingDiagnostics.clear();
+	}
+
+	private updateConfiguration() {
+		const jsConfig = workspace.getConfiguration('javascript', null);
+		const tsConfig = workspace.getConfiguration('typescript', null);
+
+		this._validateJavaScript = jsConfig.get<boolean>('validate.enable', true);
+		this._validateTypeScript = tsConfig.get<boolean>('validate.enable', true);
+	}
+
+	private shouldValidate(buffer: SyncedBuffer) {
+		switch (buffer.kind) {
+			case BufferKind.JavaScript:
+				return this._validateJavaScript;
+
+			case BufferKind.TypeScript:
+			default:
+				return this._validateTypeScript;
+		}
+	}
+
+	private normalizePath(path: Uri): string | null {
+		return this.client.normalizedPath(path);
 	}
 }

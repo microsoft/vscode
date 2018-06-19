@@ -28,9 +28,8 @@ import { IWindowsService, IWindowService } from 'vs/platform/windows/common/wind
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { INotificationService } from 'vs/platform/notification/common/notification';
+import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
 import { getConfirmMessage, IDialogService } from 'vs/platform/dialogs/common/dialogs';
-import { Severity } from 'vs/editor/common/standalone/standaloneBase';
 
 export class TextFileService extends AbstractTextFileService {
 

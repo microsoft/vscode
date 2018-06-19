@@ -40,10 +40,10 @@ import { IFileService, IFileStat } from 'vs/platform/files/common/files';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
-import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ProblemMatcherRegistry, NamedProblemMatcher } from 'vs/workbench/parts/tasks/common/problemMatcher';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService2, IProgressOptions, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
+
 import { IOpenerService } from 'vs/platform/opener/common/opener';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -61,7 +61,7 @@ import { IQuickOpenService, IPickOpenEntry, IPickOpenAction, IPickOpenItem } fro
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
@@ -75,10 +75,12 @@ import { ITaskSystem, ITaskResolver, ITaskSummary, TaskExecuteKind, TaskError, T
 import {
 	Task, CustomTask, ConfiguringTask, ContributedTask, InMemoryTask, TaskEvent,
 	TaskEventKind, TaskSet, TaskGroup, GroupType, ExecutionEngine, JsonSchemaVersion, TaskSourceKind,
-	TaskIdentifier, TaskSorter
+	TaskSorter, TaskIdentifier, KeyedTaskIdentifier
 } from 'vs/workbench/parts/tasks/common/tasks';
 import { ITaskService, ITaskProvider, RunOptions, CustomizationProperties, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 import { getTemplates as getTaskTemplates } from 'vs/workbench/parts/tasks/common/taskTemplates';
+
+import { KeyedTaskIdentifier as NKeyedTaskIdentifier, TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
 
 import * as TaskConfig from '../node/taskConfiguration';
 import { ProcessTaskSystem } from 'vs/workbench/parts/tasks/node/processTaskSystem';
@@ -464,7 +466,7 @@ class TaskService implements ITaskService {
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IMarkerService private markerService: IMarkerService,
 		@IOutputService private outputService: IOutputService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -528,17 +530,21 @@ class TaskService implements ITaskService {
 		return this._onDidStateChange.event;
 	}
 
+	public get supportsMultipleTaskExecutions(): boolean {
+		return this.inTerminal();
+	}
+
 	private registerCommands(): void {
 		CommandsRegistry.registerCommand('workbench.action.tasks.runTask', (accessor, arg) => {
-			this.runTaskCommand(accessor, arg);
+			this.runTaskCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.restartTask', (accessor, arg) => {
-			this.runRestartTaskCommand(accessor, arg);
+			this.runRestartTaskCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.terminate', (accessor, arg) => {
-			this.runTerminateCommand();
+			this.runTerminateCommand(arg);
 		});
 
 		CommandsRegistry.registerCommand('workbench.action.tasks.showLog', () => {
@@ -670,10 +676,19 @@ class TaskService implements ITaskService {
 		this._taskSystemInfos.set(key, info);
 	}
 
-	public getTask(folder: IWorkspaceFolder | string, alias: string, compareId: boolean = false): TPromise<Task> {
+	public getTask(folder: IWorkspaceFolder | string, identifier: string | TaskIdentifier, compareId: boolean = false): TPromise<Task> {
 		let name = Types.isString(folder) ? folder : folder.name;
 		if (this.ignoredWorkspaceFolders.some(ignored => ignored.name === name)) {
 			return TPromise.wrapError(new Error(nls.localize('TaskServer.folderIgnored', 'The folder {0} is ignored since it uses task version 0.1.0', name)));
+		}
+		let key: string | KeyedTaskIdentifier;
+		if (!Types.isString(identifier)) {
+			key = TaskDefinition.createTaskIdentifier(identifier, console);
+		} else {
+			key = identifier;
+		}
+		if (key === void 0) {
+			return TPromise.as(undefined);
 		}
 		return this.getGroupedTasks().then((map) => {
 			let values = map.get(folder);
@@ -681,7 +696,7 @@ class TaskService implements ITaskService {
 				return undefined;
 			}
 			for (let task of values) {
-				if (Task.matches(task, alias, compareId)) {
+				if (Task.matches(task, key, compareId)) {
 					return task;
 				}
 			}
@@ -1045,12 +1060,12 @@ class TaskService implements ITaskService {
 			if (openConfig) {
 				let resource = workspaceFolder.toResource('.vscode/tasks.json');
 				this.editorService.openEditor({
-					resource: resource,
+					resource,
 					options: {
 						forceOpen: true,
 						pinned: false
 					}
-				}, false);
+				});
 			}
 		});
 	}
@@ -1068,12 +1083,12 @@ class TaskService implements ITaskService {
 	public openConfig(task: CustomTask): TPromise<void> {
 		let resource = Task.getWorkspaceFolder(task).toResource(task._source.config.file);
 		return this.editorService.openEditor({
-			resource: resource,
+			resource,
 			options: {
 				forceOpen: true,
 				pinned: false
 			}
-		}, false).then(() => undefined);
+		}).then(() => undefined);
 	}
 
 	private createRunnableTask(tasks: TaskMap, group: TaskGroup): { task: Task; resolver: ITaskResolver } {
@@ -1151,27 +1166,37 @@ class TaskService implements ITaskService {
 		interface ResolverData {
 			label: Map<string, Task>;
 			identifier: Map<string, Task>;
+			taskIdentifier: Map<string, Task>;
 		}
 
 		let resolverData: Map<string, ResolverData> = new Map();
 		grouped.forEach((tasks, folder) => {
 			let data = resolverData.get(folder);
 			if (!data) {
-				data = { label: new Map<string, Task>(), identifier: new Map<string, Task>() };
+				data = { label: new Map<string, Task>(), identifier: new Map<string, Task>(), taskIdentifier: new Map<string, Task>() };
 				resolverData.set(folder, data);
 			}
 			for (let task of tasks) {
 				data.label.set(task._label, task);
 				data.identifier.set(task.identifier, task);
+				let keyedIdentifier = Task.getTaskDefinition(task, true);
+				if (keyedIdentifier !== void 0) {
+					data.taskIdentifier.set(keyedIdentifier._key, task);
+				}
 			}
 		});
 		return {
-			resolve: (workspaceFolder: IWorkspaceFolder, alias: string) => {
+			resolve: (workspaceFolder: IWorkspaceFolder, identifier: string | TaskIdentifier) => {
 				let data = resolverData.get(workspaceFolder.uri.toString());
 				if (!data) {
 					return undefined;
 				}
-				return data.label.get(alias) || data.identifier.get(alias);
+				if (Types.isString(identifier)) {
+					return data.label.get(identifier) || data.identifier.get(identifier);
+				} else {
+					let key = TaskDefinition.createTaskIdentifier(identifier, console);
+					return key !== void 0 ? data.taskIdentifier.get(key._key) : undefined;
+				}
 			}
 		};
 	}
@@ -1424,10 +1449,10 @@ class TaskService implements ITaskService {
 				// This is for backwards compatibility with the 0.1.0 task annotation code
 				// if we had a gulp, jake or grunt command a task specification was a annotation
 				if (commandName === 'gulp' || commandName === 'grunt' || commandName === 'jake') {
-					let identifier: TaskIdentifier = TaskConfig.getTaskIdentifier({
+					let identifier = NKeyedTaskIdentifier.create({
 						type: commandName,
 						task: task.name
-					} as TaskConfig.TaskIdentifier);
+					});
 					getResult()[identifier._key] = task;
 				}
 			}
@@ -1891,16 +1916,17 @@ class TaskService implements ITaskService {
 		return TPromise.as(undefined);
 	}
 
-	private runTaskCommand(accessor: ServicesAccessor, arg: any): void {
+	private runTaskCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (Types.isString(arg)) {
+		let identifier = this.getTaskIdentifier(arg);
+		if (identifier !== void 0) {
 			this.getGroupedTasks().then((grouped) => {
 				let resolver = this.createResolver(grouped);
 				let folders = this.contextService.getWorkspace().folders;
 				for (let folder of folders) {
-					let task = resolver.resolve(folder, arg);
+					let task = resolver.resolve(folder, identifier);
 					if (task) {
 						this.run(task);
 						return;
@@ -2041,12 +2067,12 @@ class TaskService implements ITaskService {
 		this.progressService.withProgress(options, () => promise);
 	}
 
-	private runTerminateCommand(): void {
+	private runTerminateCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
+		let runQuickPick = (promise?: TPromise<Task[]>) => {
+			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToTerminate', 'Select task to terminate'),
 				{
 					label: nls.localize('TaskService.noTaskRunning', 'No task is currently running'),
@@ -2059,6 +2085,24 @@ class TaskService implements ITaskService {
 				}
 				this.terminate(task);
 			});
+		};
+		if (this.inTerminal()) {
+			let identifier = this.getTaskIdentifier(arg);
+			let promise: TPromise<Task[]>;
+			if (identifier !== void 0) {
+				promise = this.getActiveTasks();
+				promise.then((tasks) => {
+					for (let task of tasks) {
+						if (Task.matches(task, identifier)) {
+							this.terminate(task);
+							return;
+						}
+					}
+					runQuickPick(promise);
+				});
+			} else {
+				runQuickPick();
+			}
 		} else {
 			this.isActive().then((active) => {
 				if (active) {
@@ -2079,12 +2123,12 @@ class TaskService implements ITaskService {
 		}
 	}
 
-	private runRestartTaskCommand(accessor: ServicesAccessor, arg: any): void {
+	private runRestartTaskCommand(arg?: any): void {
 		if (!this.canRunCommand()) {
 			return;
 		}
-		if (this.inTerminal()) {
-			this.showQuickPick(this.getActiveTasks(),
+		let runQuickPick = (promise?: TPromise<Task[]>) => {
+			this.showQuickPick(promise || this.getActiveTasks(),
 				nls.localize('TaskService.tastToRestart', 'Select the task to restart'),
 				{
 					label: nls.localize('TaskService.noTaskToRestart', 'No task to restart'),
@@ -2097,6 +2141,24 @@ class TaskService implements ITaskService {
 				}
 				this.restart(task);
 			});
+		};
+		if (this.inTerminal()) {
+			let identifier = this.getTaskIdentifier(arg);
+			let promise: TPromise<Task[]>;
+			if (identifier !== void 0) {
+				promise = this.getActiveTasks();
+				promise.then((tasks) => {
+					for (let task of tasks) {
+						if (Task.matches(task, identifier)) {
+							this.restart(task);
+							return;
+						}
+					}
+					runQuickPick(promise);
+				});
+			} else {
+				runQuickPick();
+			}
 		} else {
 			this.getActiveTasks().then((activeTasks) => {
 				if (activeTasks.length === 0) {
@@ -2106,6 +2168,16 @@ class TaskService implements ITaskService {
 				this.restart(task);
 			});
 		}
+	}
+
+	private getTaskIdentifier(arg?: any): string | KeyedTaskIdentifier | undefined {
+		let result: string | KeyedTaskIdentifier = undefined;
+		if (Types.isString(arg)) {
+			result = arg;
+		} else if (arg && Types.isString((arg as TaskIdentifier).type)) {
+			result = TaskDefinition.createTaskIdentifier(arg as TaskIdentifier, console);
+		}
+		return result;
 	}
 
 	private runConfigureTasks(): void {
@@ -2155,12 +2227,12 @@ class TaskService implements ITaskService {
 					return;
 				}
 				this.editorService.openEditor({
-					resource: resource,
+					resource,
 					options: {
 						forceOpen: true,
 						pinned: configFileCreated // pin only if config file is created #8727
 					}
-				}, false);
+				});
 			});
 		};
 

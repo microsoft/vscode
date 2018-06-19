@@ -116,11 +116,11 @@ class ExtHostTreeView<T> extends Disposable {
 	private _selectedElements: T[] = [];
 	get selectedElements(): T[] { return this._selectedElements; }
 
-	private _onDidExpandElement: Emitter<T> = this._register(new Emitter<T>());
-	readonly onDidExpandElement: Event<T> = this._onDidExpandElement.event;
+	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
+	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
 
-	private _onDidCollapseElement: Emitter<T> = this._register(new Emitter<T>());
-	readonly onDidCollapseElement: Event<T> = this._onDidCollapseElement.event;
+	private _onDidCollapseElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
+	readonly onDidCollapseElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidCollapseElement.event;
 
 	private refreshPromise: TPromise<void> = TPromise.as(null);
 
@@ -174,9 +174,9 @@ class ExtHostTreeView<T> extends Disposable {
 		const element = this.getExtensionElement(treeItemHandle);
 		if (element) {
 			if (expanded) {
-				this._onDidExpandElement.fire(element);
+				this._onDidExpandElement.fire({ element });
 			} else {
-				this._onDidCollapseElement.fire(element);
+				this._onDidCollapseElement.fire({ element });
 			}
 		}
 	}

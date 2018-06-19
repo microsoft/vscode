@@ -20,20 +20,24 @@ import { IPartService, Parts, Position as SideBarPosition } from 'vs/workbench/s
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { ToggleActivityBarVisibilityAction } from 'vs/workbench/browser/actions/toggleActivityBarVisibility';
-import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { ACTIVITY_BAR_BACKGROUND, ACTIVITY_BAR_BORDER, ACTIVITY_BAR_FOREGROUND, ACTIVITY_BAR_BADGE_BACKGROUND, ACTIVITY_BAR_BADGE_FOREGROUND, ACTIVITY_BAR_DRAG_AND_DROP_BACKGROUND } from 'vs/workbench/common/theme';
 import { contrastBorder } from 'vs/platform/theme/common/colorRegistry';
 import { CompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBar';
+import { isMacintosh } from 'vs/base/common/platform';
+import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { scheduleAtNextAnimationFrame, Dimension, createCSSRule } from 'vs/base/browser/dom';
+import { Color } from 'vs/base/common/color';
 import { ToggleCompositePinnedAction, ICompositeBar } from 'vs/workbench/browser/parts/compositebar/compositeBarActions';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { Dimension, createCSSRule } from 'vs/base/browser/dom';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import URI from 'vs/base/common/uri';
 
 interface IPlaceholderComposite {
 	id: string;
-	iconUrl: string;
+	iconUrl: URI;
 }
 
 export class ActivitybarPart extends Part {
@@ -65,8 +69,9 @@ export class ActivitybarPart extends Part {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IThemeService themeService: IThemeService,
+		@ILifecycleService private lifecycleService: ILifecycleService,
 		@IStorageService private storageService: IStorageService,
-		@IExtensionService extensionService: IExtensionService,
+		@IExtensionService extensionService: IExtensionService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -89,7 +94,19 @@ export class ActivitybarPart extends Part {
 			overflowActionSize: ActivitybarPart.ACTION_HEIGHT
 		});
 		const previousState = this.storageService.get(ActivitybarPart.PLACEHOLDER_VIEWLETS, StorageScope.GLOBAL, void 0);
-		this.placeholderComposites = previousState ? JSON.parse(previousState) : this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
+		if (previousState) {
+			let parsedPreviousState = <IPlaceholderComposite[]>JSON.parse(previousState);
+			parsedPreviousState.forEach((s) => {
+				if (typeof s.iconUrl === 'object') {
+					s.iconUrl = URI.revive(s.iconUrl);
+				} else {
+					s.iconUrl = void 0;
+				}
+			});
+			this.placeholderComposites = parsedPreviousState;
+		} else {
+			this.placeholderComposites = this.compositeBar.getCompositesFromStorage().map(id => (<IPlaceholderComposite>{ id, iconUrl: void 0 }));
+		}
 
 		this.registerListeners();
 		this.updateCompositebar();
@@ -153,6 +170,27 @@ export class ActivitybarPart extends Part {
 
 		// Top Actionbar with action items for each viewlet action
 		this.createGlobalActivityActionBar($('.global-activity').appendTo($result).getHTMLElement());
+
+		// TODO@Ben: workaround for https://github.com/Microsoft/vscode/issues/45700
+		// It looks like there are rendering glitches on macOS with Chrome 61 when
+		// using --webkit-mask with a background color that is different from the image
+		// The workaround is to promote the element onto its own drawing layer. We do
+		// this only after the workbench has loaded because otherwise there is ugly flicker.
+		if (isMacintosh) {
+			this.lifecycleService.when(LifecyclePhase.Running).then(() => {
+				scheduleAtNextAnimationFrame(() => { // another delay...
+					scheduleAtNextAnimationFrame(() => { // ...to prevent more flickering on startup
+						registerThemingParticipant((theme, collector) => {
+							const activityBarForeground = theme.getColor(ACTIVITY_BAR_FOREGROUND);
+							if (activityBarForeground && !activityBarForeground.equals(Color.white)) {
+								// only apply this workaround if the color is different from the image one (white)
+								collector.addRule('.monaco-workbench .activitybar > .content .monaco-action-bar .action-label { will-change: transform; }');
+							}
+						});
+					});
+				});
+			});
+		}
 
 		return $result.getHTMLElement();
 	}
@@ -326,7 +364,7 @@ export class ActivitybarPart extends Part {
 class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 
 	constructor(
-		id: string, iconUrl: string,
+		id: string, iconUrl: URI,
 		@IViewletService viewletService: IViewletService,
 		@IPartService partService: IPartService,
 		@ITelemetryService telemetryService: ITelemetryService

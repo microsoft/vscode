@@ -182,7 +182,11 @@ export class ExtensionHostProcessManager extends Disposable {
 		}
 
 		this._extensionHostProcessRPCProtocol = new RPCProtocol(protocol);
-		const extHostContext: IExtHostContext = this._extensionHostProcessRPCProtocol;
+		const extHostContext: IExtHostContext = {
+			getProxy: <T>(identifier: ProxyIdentifier<T>): T => this._extensionHostProcessRPCProtocol.getProxy(identifier),
+			set: <T, R extends T>(identifier: ProxyIdentifier<T>, instance: R): R => this._extensionHostProcessRPCProtocol.set(identifier, instance),
+			assertRegistered: (identifiers: ProxyIdentifier<any>[]): void => this._extensionHostProcessRPCProtocol.assertRegistered(identifiers),
+		};
 
 		// Named customers
 		const namedCustomers = ExtHostCustomersRegistry.getNamedCustomers();
@@ -231,6 +235,7 @@ export class ExtensionHostProcessManager extends Disposable {
 }
 
 export class ExtensionService extends Disposable implements IExtensionService {
+
 	public _serviceBrand: any;
 
 	private readonly _onDidRegisterExtensions: Emitter<void>;
@@ -276,7 +281,12 @@ export class ExtensionService extends Disposable implements IExtensionService {
 		this.startDelayed(lifecycleService);
 
 		if (this._environmentService.disableExtensions) {
-			this._notificationService.info(nls.localize('extensionsDisabled', "All extensions are disabled."));
+			this._notificationService.prompt(Severity.Info, nls.localize('extensionsDisabled', "All extensions are temporarily disabled. Reload the window to return to the previous state."), [{
+				label: nls.localize('Reload', "Reload"),
+				run: () => {
+					this._windowService.reloadWindow();
+				}
+			}]);
 		}
 	}
 
@@ -476,24 +486,23 @@ export class ExtensionService extends Disposable implements IExtensionService {
 
 	private _scanAndHandleExtensions(): void {
 
-		this._getRuntimeExtensions()
-			.then(runtimeExtensons => {
-				this._registry = new ExtensionDescriptionRegistry(runtimeExtensons);
+		this._getRuntimeExtensions().then(allExtensions => {
+			this._registry = new ExtensionDescriptionRegistry(allExtensions);
 
-				let availableExtensions = this._registry.getAllExtensionDescriptions();
-				let extensionPoints = ExtensionsRegistry.getExtensionPoints();
+			let availableExtensions = this._registry.getAllExtensionDescriptions();
+			let extensionPoints = ExtensionsRegistry.getExtensionPoints();
 
-				let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
+			let messageHandler = (msg: IMessage) => this._handleExtensionPointMessage(msg);
 
-				for (let i = 0, len = extensionPoints.length; i < len; i++) {
-					ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
-				}
+			for (let i = 0, len = extensionPoints.length; i < len; i++) {
+				ExtensionService._handleExtensionPoint(extensionPoints[i], availableExtensions, messageHandler);
+			}
 
-				mark('extensionHostReady');
-				this._installedExtensionsReady.open();
-				this._onDidRegisterExtensions.fire(void 0);
-				this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
-			});
+			mark('extensionHostReady');
+			this._installedExtensionsReady.open();
+			this._onDidRegisterExtensions.fire(void 0);
+			this._onDidChangeExtensionsStatus.fire(availableExtensions.map(e => e.id));
+		});
 	}
 
 	private _getRuntimeExtensions(): TPromise<IExtensionDescription[]> {

@@ -8,10 +8,10 @@
 	],
 	"view": "Nézet",
 	"commandsHandlerDescriptionDefault": "Parancsok megjelenítése és futtatása",
-	"gotoLineDescriptionMac": "Sor megkeresése",
-	"gotoLineDescriptionWin": "Sor megkeresése",
+	"gotoLineDescriptionMac": "Ugrás adott sorhoz",
+	"gotoLineDescriptionWin": "Ugrás adott sorhoz",
 	"gotoSymbolDescription": "Ugrás szimbólumhoz egy fájlban...",
-	"gotoSymbolDescriptionScoped": "Szimbólum megkeresése kategória alapján",
+	"gotoSymbolDescriptionScoped": "Ugrás szimbólumhoz egy fájlban kategória alapján",
 	"helpDescription": "Súgó megjelenítése",
 	"viewPickerDescription": "Nézet megnyitása"
 }

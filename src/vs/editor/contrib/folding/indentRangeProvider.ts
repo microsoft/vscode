@@ -16,12 +16,24 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 
 const MAX_FOLDING_REGIONS_FOR_INDENT_LIMIT = 5000;
 
+export const ID_INDENT_PROVIDER = 'indent';
+
 export class IndentRangeProvider implements RangeProvider {
-	compute(editorModel: ITextModel, cancelationToken: CancellationToken): Thenable<FoldingRegions> {
-		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(editorModel.getLanguageIdentifier().id);
+	readonly id = ID_INDENT_PROVIDER;
+
+	readonly decorations;
+
+	constructor(private editorModel: ITextModel) {
+	}
+
+	dispose() {
+	}
+
+	compute(cancelationToken: CancellationToken): Thenable<FoldingRegions> {
+		let foldingRules = LanguageConfigurationRegistry.getFoldingRules(this.editorModel.getLanguageIdentifier().id);
 		let offSide = foldingRules && foldingRules.offSide;
 		let markers = foldingRules && foldingRules.markers;
-		return TPromise.as(computeRanges(editorModel, offSide, markers));
+		return TPromise.as(computeRanges(this.editorModel, offSide, markers));
 	}
 }
 

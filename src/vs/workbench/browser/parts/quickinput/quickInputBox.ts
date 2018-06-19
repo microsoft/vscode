@@ -67,8 +67,24 @@ export class QuickInputBox {
 		this.inputBox.setPlaceHolder(placeholder);
 	}
 
-	setPassword(isPassword: boolean): void {
-		this.inputBox.inputElement.type = isPassword ? 'password' : 'text';
+	get placeholder() {
+		return this.inputBox.inputElement.getAttribute('placeholder');
+	}
+
+	set placeholder(placeholder: string) {
+		this.inputBox.setPlaceHolder(placeholder);
+	}
+
+	get password() {
+		return this.inputBox.inputElement.type === 'password';
+	}
+
+	set password(password: boolean) {
+		this.inputBox.inputElement.type = password ? 'password' : 'text';
+	}
+
+	set enabled(enabled: boolean) {
+		this.inputBox.setEnabled(enabled);
 	}
 
 	showDecoration(decoration: Severity): void {
