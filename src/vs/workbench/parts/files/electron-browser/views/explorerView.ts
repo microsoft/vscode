@@ -14,7 +14,7 @@ import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceIsReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
@@ -67,6 +67,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 	private resourceContext: ResourceContextKey;
 	private folderContext: IContextKey<boolean>;
+	private readonlyContext: IContextKey<boolean>;
 	private rootContext: IContextKey<boolean>;
 
 	private fileEventsFilter: ResourceGlobMatcher;
@@ -104,6 +105,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
+		this.readonlyContext = ExplorerResourceIsReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(
@@ -433,6 +435,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			const resource = e.focus ? e.focus.resource : isSingleFolder ? this.contextService.getWorkspace().folders[0].uri : undefined;
 			this.resourceContext.set(resource);
 			this.folderContext.set((isSingleFolder && !e.focus) || e.focus && e.focus.isDirectory);
+			this.readonlyContext.set(e.focus && e.focus.isReadonly);
 			this.rootContext.set(!e.focus || (e.focus && e.focus.isRoot));
 		}));
 
