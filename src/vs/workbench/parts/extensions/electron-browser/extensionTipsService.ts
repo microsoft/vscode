@@ -887,6 +887,16 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	ignoreExtensionRecommendation(extensionId: string): void {
+		/* __GDPR__
+			"extensionsRecommendations:ignoreRecommendation" : {
+				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+				"extensionId": { "classification": "PublicNonPersonalData", "purpose": "FeatureInsight" }
+			}
+		*/
+		const reason = this.getAllRecommendationsWithReason()[extensionId.toLowerCase()];
+		this.telemetryService.publicLog('extensionsRecommendations:ignoreRecommendation', { id: extensionId, recommendationReason: reason.reasonId });
+
+
 		this._globallyIgnoredRecommendations = distinct(
 			[...<string[]>JSON.parse(this.storageService.get('extensionsAssistant/ignored_recommendations', StorageScope.GLOBAL, '[]')), extensionId.toLowerCase()]
 				.map(id => id.toLowerCase()));
