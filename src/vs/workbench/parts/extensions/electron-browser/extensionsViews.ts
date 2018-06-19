@@ -55,7 +55,7 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IEditorService private editorService: IEditorService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IExtensionTipsService protected tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
@@ -447,10 +447,10 @@ export class ExtensionsListView extends ViewletPanel {
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
-			"extensionWorkspaceRecommendations:open" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
+					"extensionWorkspaceRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -645,14 +645,47 @@ export class BuiltInBasicsExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class RecommendedExtensionsView extends ExtensionsListView {
+export class DefaultRecommendedExtensionsView extends ExtensionsListView {
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		return super.show(!query.trim() ? '@recommended:all' : '@recommended');
+		return super.show('@recommended:all');
+	}
+}
+
+export class RecommendedExtensionsView extends ExtensionsListView {
+
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@recommended');
 	}
 }
 
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
+
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
 
 	renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);

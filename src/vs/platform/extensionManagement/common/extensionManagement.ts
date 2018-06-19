@@ -376,6 +376,21 @@ export interface IExtensionEnablementService {
 	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
 }
 
+export interface IIgnoredRecommendations {
+	global: string[];
+	workspace: string[];
+}
+
+export interface IExtensionsConfigContent {
+	recommendations: string[];
+	unwantedRecommendations: string[];
+}
+
+export type RecommendationChangeNotification = {
+	extensionId: string,
+	isRecommended: boolean
+};
+
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
@@ -387,6 +402,9 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
+	getAllIgnoredRecommendations(): IIgnoredRecommendations;
+	ignoreExtensionRecommendation(extensionId: string): void;
+	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
 export enum ExtensionRecommendationReason {
