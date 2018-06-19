@@ -7,7 +7,7 @@ import 'vs/css!./centeredViewLayout';
 
 import { SplitView, Orientation, ISplitViewStyles, IView as ISplitViewView } from 'vs/base/browser/ui/splitview/splitview';
 import { $ } from 'vs/base/browser/dom';
-import { Event, mapEvent, anyEvent } from 'vs/base/common/event';
+import { Event, mapEvent } from 'vs/base/common/event';
 import { IView } from 'vs/base/browser/ui/grid/gridview';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 
@@ -51,13 +51,17 @@ export class CenteredViewLayout {
 		if (this.splitView) {
 			this.splitView.layout(width);
 			if (!this.didLayout) {
-				this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
-				this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
+				this.resizeMargins();
 			}
 		} else {
 			this.view.layout(width, height);
 		}
 		this.didLayout = true;
+	}
+
+	private resizeMargins(): void {
+		this.splitView.resizeView(0, this.state.leftMarginRatio * this.width);
+		this.splitView.resizeView(2, this.state.rightMarginRatio * this.width);
 	}
 
 	isActive(): boolean {
@@ -95,10 +99,14 @@ export class CenteredViewLayout {
 				styles: this.style
 			});
 
-			const onDidSizesChange = anyEvent(this.splitView.onDidSashChange, this.splitView.onDidSashReset);
-			this.splitViewDisposable.push(onDidSizesChange(() => {
+			this.splitViewDisposable.push(this.splitView.onDidSashChange(() => {
 				this.state.leftMarginRatio = this.splitView.getViewSize(0) / this.width;
 				this.state.rightMarginRatio = this.splitView.getViewSize(2) / this.width;
+			}));
+			this.splitViewDisposable.push(this.splitView.onDidSashReset(() => {
+				this.state.leftMarginRatio = GOLDEN_RATIO.leftMarginRatio;
+				this.state.rightMarginRatio = GOLDEN_RATIO.rightMarginRatio;
+				this.resizeMargins();
 			}));
 
 			this.splitView.layout(this.width);
@@ -106,7 +114,7 @@ export class CenteredViewLayout {
 			const getEmptyView = () => ({
 				element: $('.centered-layout-margin'),
 				layout: () => undefined,
-				minimumSize: 40,
+				minimumSize: 60,
 				maximumSize: Number.POSITIVE_INFINITY,
 				onDidChange: Event.None
 			});
