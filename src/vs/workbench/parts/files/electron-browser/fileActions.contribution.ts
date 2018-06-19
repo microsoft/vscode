@@ -16,7 +16,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceIsReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -330,7 +330,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 4,
 	command: {
 		id: NEW_FILE_COMMAND_ID,
-		title: NEW_FILE_LABEL
+		title: NEW_FILE_LABEL,
+		precondition: ExplorerResourceIsReadonlyContext.toNegated()
 	},
 	when: ExplorerFolderContext
 });
@@ -340,7 +341,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 6,
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
-		title: NEW_FOLDER_LABEL
+		title: NEW_FOLDER_LABEL,
+		precondition: ExplorerResourceIsReadonlyContext.toNegated()
 	},
 	when: ExplorerFolderContext
 });
@@ -443,7 +445,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 10,
 	command: {
 		id: RENAME_ID,
-		title: TRIGGER_RENAME_LABEL
+		title: TRIGGER_RENAME_LABEL,
+		precondition: ExplorerResourceIsReadonlyContext.toNegated()
 	},
 	when: ExplorerRootContext.toNegated()
 });
@@ -453,11 +456,13 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 20,
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
-		title: MOVE_FILE_TO_TRASH_LABEL
+		title: MOVE_FILE_TO_TRASH_LABEL,
+		precondition: ExplorerResourceIsReadonlyContext.toNegated()
 	},
 	alt: {
 		id: DELETE_FILE_ID,
-		title: nls.localize('deleteFile', "Delete Permanently")
+		title: nls.localize('deleteFile', "Delete Permanently"),
+		precondition: ExplorerResourceIsReadonlyContext.toNegated()
 	},
 	when: ExplorerRootContext.toNegated()
 });

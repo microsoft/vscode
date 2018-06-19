@@ -194,6 +194,7 @@ export class ExplorerItem {
 		local.mtime = disk.mtime;
 		local.isDirectoryResolved = disk.isDirectoryResolved;
 		local._isSymbolicLink = disk.isSymbolicLink;
+		local._isReadonly = disk.isReadonly;
 
 		// Merge Children if resolved
 		if (mergingDirectories && disk.isDirectoryResolved) {
