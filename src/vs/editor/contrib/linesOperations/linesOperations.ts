@@ -235,8 +235,36 @@ interface IDeleteLinesOperation {
 	positionColumn: number;
 }
 
-abstract class AbstractRemoveLinesAction extends EditorAction {
-	_getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
+class DeleteLinesAction extends EditorAction {
+
+	constructor() {
+		super({
+			id: 'editor.action.deleteLines',
+			label: nls.localize('lines.delete', "Delete Line"),
+			alias: 'Delete Line',
+			precondition: EditorContextKeys.writable,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
+			}
+		});
+	}
+
+	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+
+		let ops = this._getLinesToRemove(editor);
+
+		// Finally, construct the delete lines commands
+		let commands: ICommand[] = ops.map((op) => {
+			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
+		});
+
+		editor.pushUndoStop();
+		editor.executeCommands(this.id, commands);
+		editor.pushUndoStop();
+	}
+
+	private _getLinesToRemove(editor: ICodeEditor): IDeleteLinesOperation[] {
 		// Construct delete operations
 		let operations: IDeleteLinesOperation[] = editor.getSelections().map((s) => {
 
@@ -274,36 +302,6 @@ abstract class AbstractRemoveLinesAction extends EditorAction {
 		mergedOperations.push(previousOperation);
 
 		return mergedOperations;
-	}
-}
-
-class DeleteLinesAction extends AbstractRemoveLinesAction {
-
-	constructor() {
-		super({
-			id: 'editor.action.deleteLines',
-			label: nls.localize('lines.delete', "Delete Line"),
-			alias: 'Delete Line',
-			precondition: EditorContextKeys.writable,
-			kbOpts: {
-				kbExpr: EditorContextKeys.textInputFocus,
-				primary: KeyMod.CtrlCmd | KeyMod.Shift | KeyCode.KEY_K
-			}
-		});
-	}
-
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
-
-		let ops = this._getLinesToRemove(editor);
-
-		// Finally, construct the delete lines commands
-		let commands: ICommand[] = ops.map((op) => {
-			return new DeleteLinesCommand(op.startLineNumber, op.endLineNumber, op.positionColumn);
-		});
-
-		editor.pushUndoStop();
-		editor.executeCommands(this.id, commands);
-		editor.pushUndoStop();
 	}
 }
 
