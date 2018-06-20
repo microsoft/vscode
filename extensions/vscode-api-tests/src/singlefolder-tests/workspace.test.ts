@@ -666,4 +666,20 @@ suite('workspace-namespace', () => {
 		let doc = await vscode.workspace.openTextDocument(newUri);
 		assert.equal(doc.getText(), 'Hello');
 	});
+
+	test('WorkspaceEdit: create & override', async function () {
+
+		let docUri = await createRandomFile('before');
+
+		let we = new vscode.WorkspaceEdit();
+		we.createFile(docUri);
+		assert.ok(!await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+
+		we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { override: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		// todo@ben
+		// assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+	});
 });
