@@ -27,7 +27,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('disposeCheck', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		const collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 
 		collection.dispose();
 		collection.dispose(); // that's OK
@@ -44,13 +44,13 @@ suite('ExtHostDiagnostics', () => {
 
 
 	test('diagnostic collection, forEach, clear, has', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		let collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		assert.equal(collection.name, 'test');
 		collection.dispose();
 		assert.throws(() => collection.name);
 
 		let c = 0;
-		collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		collection.forEach(() => c++);
 		assert.equal(c, 0);
 
@@ -87,7 +87,7 @@ suite('ExtHostDiagnostics', () => {
 	});
 
 	test('diagnostic collection, immutable read', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		let collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		collection.set(URI.parse('foo:bar'), [
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-1'),
 			new Diagnostic(new Range(0, 0, 1, 1), 'message-2')
@@ -112,7 +112,7 @@ suite('ExtHostDiagnostics', () => {
 
 
 	test('diagnostics collection, set with dupliclated tuples', function () {
-		let collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		let collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		let uri = URI.parse('sc:hightower');
 		collection.set([
 			[uri, [new Diagnostic(new Range(0, 0, 0, 1), 'message-1')]],
@@ -163,7 +163,7 @@ suite('ExtHostDiagnostics', () => {
 	test('diagnostics collection, set tuple overrides, #11547', function () {
 
 		let lastEntries: [UriComponents, IMarkerData[]][];
-		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
+		let collection = new DiagnosticCollection('test', 100, new class extends DiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
@@ -192,7 +192,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, tuples and undefined (small array), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		const collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		let uri = URI.parse('sc:hightower');
 		let uri2 = URI.parse('sc:nomad');
 		let diag = new Diagnostic(new Range(0, 0, 0, 1), 'ffff');
@@ -213,7 +213,7 @@ suite('ExtHostDiagnostics', () => {
 
 	test('diagnostics collection, tuples and undefined (large array), #15585', function () {
 
-		const collection = new DiagnosticCollection('test', new DiagnosticsShape(), new Emitter());
+		const collection = new DiagnosticCollection('test', 100, new DiagnosticsShape(), new Emitter());
 		const tuples: [URI, Diagnostic[]][] = [];
 
 		for (let i = 0; i < 500; i++) {
@@ -237,7 +237,7 @@ suite('ExtHostDiagnostics', () => {
 	test('diagnostic capping', function () {
 
 		let lastEntries: [UriComponents, IMarkerData[]][];
-		let collection = new DiagnosticCollection('test', new class extends DiagnosticsShape {
+		let collection = new DiagnosticCollection('test', 250, new class extends DiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]): void {
 				lastEntries = entries;
 				return super.$changeMany(owner, entries);
@@ -258,12 +258,12 @@ suite('ExtHostDiagnostics', () => {
 		assert.equal(lastEntries[0][1].length, 251);
 		assert.equal(lastEntries[0][1][0].severity, MarkerSeverity.Error);
 		assert.equal(lastEntries[0][1][200].severity, MarkerSeverity.Warning);
-		assert.equal(lastEntries[0][1][250].severity, MarkerSeverity.Error);
+		assert.equal(lastEntries[0][1][250].severity, MarkerSeverity.Info);
 	});
 
 	test('diagnostic eventing', async function () {
 		let emitter = new Emitter<(string | URI)[]>();
-		let collection = new DiagnosticCollection('ddd', new DiagnosticsShape(), emitter);
+		let collection = new DiagnosticCollection('ddd', 100, new DiagnosticsShape(), emitter);
 
 		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
 		let diag2 = new Diagnostic(new Range(1, 1, 2, 3), 'diag2');
@@ -299,9 +299,32 @@ suite('ExtHostDiagnostics', () => {
 		await p;
 	});
 
+	test('vscode.languages.onDidChangeDiagnostics Does Not Provide Document URI #49582', async function () {
+		let emitter = new Emitter<(string | URI)[]>();
+		let collection = new DiagnosticCollection('ddd', 100, new DiagnosticsShape(), emitter);
+
+		let diag1 = new Diagnostic(new Range(1, 1, 2, 3), 'diag1');
+
+		// delete
+		collection.set(URI.parse('aa:bb'), [diag1]);
+		let p = toPromise(emitter.event).then(e => {
+			assert.equal(e[0].toString(), 'aa:bb');
+		});
+		collection.delete(URI.parse('aa:bb'));
+		await p;
+
+		// set->undefined (as delete)
+		collection.set(URI.parse('aa:bb'), [diag1]);
+		p = toPromise(emitter.event).then(e => {
+			assert.equal(e[0].toString(), 'aa:bb');
+		});
+		collection.set(URI.parse('aa:bb'), undefined);
+		await p;
+	});
+
 	test('diagnostics with related information', function (done) {
 
-		let collection = new DiagnosticCollection('ddd', new class extends DiagnosticsShape {
+		let collection = new DiagnosticCollection('ddd', 100, new class extends DiagnosticsShape {
 			$changeMany(owner: string, entries: [UriComponents, IMarkerData[]][]) {
 
 				let [[, data]] = entries;

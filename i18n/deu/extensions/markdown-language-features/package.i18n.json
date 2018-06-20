@@ -15,6 +15,7 @@
 	"markdown.preview.fontSize.desc": "Steuert den Schriftgrad in Pixeln, der in der Markdownvorschau verwendet wird.",
 	"markdown.preview.lineHeight.desc": "Steuert die Zeilenhöhe, die in der Markdownvorschau verwendet wird. Diese Zahl ist relativ zum Schriftgrad.",
 	"markdown.preview.markEditorSelection.desc": "Markieren Sie die aktuelle Editor-Auswahl in der Markdown-Vorschau.",
+	"markdown.preview.scrollEditorWithPreview.desc": "Wenn für eine Markdown-Vorschau ein Bildlauf durchgeführt wird, die Ansicht des Editors aktualisieren.",
 	"markdown.preview.scrollPreviewWithEditor.desc": "Wenn für die Markdown-Vorschau ein Bildlauf durchgeführt wird, aktualisieren Sie die Ansicht der Vorschau.",
 	"markdown.preview.scrollPreviewWithEditorSelection.desc": "[Veraltet] Führt einen Bildlauf für die Markdown-Vorschau durch, um die aktuell ausgewählte Zeile im Editor anzuzeigen.",
 	"markdown.preview.scrollPreviewWithEditorSelection.deprecationMessage": "Diese Einstellung wurde durch \"markdown.preview.scrollPreviewWithEditor\" ersetzt und ist nicht mehr wirksam.",

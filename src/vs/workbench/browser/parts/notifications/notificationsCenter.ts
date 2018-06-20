@@ -18,7 +18,7 @@ import { NotificationsList } from 'vs/workbench/browser/parts/notifications/noti
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { addClass, removeClass, isAncestor, Dimension } from 'vs/base/browser/dom';
 import { widgetShadow } from 'vs/platform/theme/common/colorRegistry';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { localize } from 'vs/nls';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ClearAllNotificationsAction, HideNotificationsCenterAction, NotificationActionRunner } from 'vs/workbench/browser/parts/notifications/notificationsActions';
@@ -45,7 +45,7 @@ export class NotificationsCenter extends Themable {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IPartService private partService: IPartService,
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IKeybindingService private keybindingService: IKeybindingService
 	) {
 		super(themeService);
@@ -174,7 +174,7 @@ export class NotificationsCenter extends Themable {
 			return; // only if visible
 		}
 
-		let focusEditor = false;
+		let focusGroup = false;
 
 		// Update notifications list based on event
 		switch (e.kind) {
@@ -185,7 +185,7 @@ export class NotificationsCenter extends Themable {
 				this.notificationsList.updateNotificationsList(e.index, 1, [e.item]);
 				break;
 			case NotificationChangeType.REMOVE:
-				focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
+				focusGroup = isAncestor(document.activeElement, this.notificationsCenterContainer);
 				this.notificationsList.updateNotificationsList(e.index, 1);
 				break;
 		}
@@ -197,17 +197,10 @@ export class NotificationsCenter extends Themable {
 		if (this.model.notifications.length === 0) {
 			this.hide();
 
-			// Restore focus to editor if we had focus
-			if (focusEditor) {
-				this.focusEditor();
+			// Restore focus to editor group if we had focus
+			if (focusGroup) {
+				this.editorGroupService.activeGroup.focus();
 			}
-		}
-	}
-
-	private focusEditor(): void {
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
 		}
 	}
 
@@ -216,7 +209,7 @@ export class NotificationsCenter extends Themable {
 			return; // already hidden
 		}
 
-		const focusEditor = isAncestor(document.activeElement, this.notificationsCenterContainer);
+		const focusGroup = isAncestor(document.activeElement, this.notificationsCenterContainer);
 
 		// Hide
 		this._isVisible = false;
@@ -229,8 +222,9 @@ export class NotificationsCenter extends Themable {
 		// Event
 		this._onDidChangeVisibility.fire();
 
-		if (focusEditor) {
-			this.focusEditor();
+		// Restore focus to editor group if we had focus
+		if (focusGroup) {
+			this.editorGroupService.activeGroup.focus();
 		}
 	}
 

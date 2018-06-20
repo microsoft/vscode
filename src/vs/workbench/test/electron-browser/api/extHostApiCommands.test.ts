@@ -33,9 +33,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -52,8 +49,6 @@ let rpcProtocol: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
-let task: ExtHostTask;
-let workspace: ExtHostWorkspace;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
@@ -71,14 +66,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			rpcProtocol = new TestRPCProtocol();
 			instantiationService.stub(IHeapService, {
 				_serviceBrand: undefined,
-				trackRecursive(args) {
+				trackRecursive(args: any) {
 					// nothing
 					return args;
 				}
 			});
 			instantiationService.stub(ICommandService, {
 				_serviceBrand: undefined,
-				executeCommand(id, args): any {
+				executeCommand(id: string, args: any): any {
 					if (!CommandsRegistry.getCommands()[id]) {
 						return TPromise.wrapError(new Error(id + ' NOT known'));
 					}
@@ -120,16 +115,14 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const heapService = new ExtHostHeapService();
 
 		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
-		workspace = new ExtHostWorkspace(rpcProtocol, { id: generateUuid(), name: 'Test', folders: [] }, new NullLogService());
-		task = new ExtHostTask(rpcProtocol, workspace);
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
-		ExtHostApiCommands.register(commands, task);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);
 
-		extHost = new ExtHostLanguageFeatures(rpcProtocol, extHostDocuments, commands, heapService, diagnostics);
+		extHost = new ExtHostLanguageFeatures(rpcProtocol, null, extHostDocuments, commands, heapService, diagnostics);
 		rpcProtocol.set(ExtHostContext.ExtHostLanguageFeatures, extHost);
 
 		mainThread = rpcProtocol.set(MainContext.MainThreadLanguageFeatures, inst.createInstance(MainThreadLanguageFeatures, rpcProtocol));
@@ -532,6 +525,40 @@ suite('ExtHostLanguageFeatureCommands', function () {
 				assert.equal(first.command.arguments[2], complexArg);
 			});
 		});
+	});
+
+	test('CodeLens, resolve', async function () {
+
+		let resolveCount = 0;
+
+		disposables.push(extHost.registerCodeLensProvider(defaultSelector, <vscode.CodeLensProvider>{
+			provideCodeLenses(): any {
+				return [
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1)),
+					new types.CodeLens(new types.Range(0, 0, 1, 1), { title: 'Already resolved', command: 'fff' })
+				];
+			},
+			resolveCodeLens(codeLens: types.CodeLens) {
+				codeLens.command = { title: resolveCount.toString(), command: 'resolved' };
+				resolveCount += 1;
+				return codeLens;
+			}
+		}));
+
+		await rpcProtocol.sync();
+
+		let value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri, 2);
+
+		assert.equal(value.length, 3); // the resolve argument defines the number of results being returned
+		assert.equal(resolveCount, 2);
+
+		resolveCount = 0;
+		value = await commands.executeCommand<vscode.CodeLens[]>('vscode.executeCodeLensProvider', model.uri);
+
+		assert.equal(value.length, 4);
+		assert.equal(resolveCount, 0);
 	});
 
 	test('Links, back and forth', function () {

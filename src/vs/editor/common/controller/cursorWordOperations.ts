@@ -171,6 +171,12 @@ export class WordOperations {
 		let prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, column));
 
 		if (wordNavigationType === WordNavigationType.WordStart) {
+			if (prevWordOnLine && prevWordOnLine.wordType === WordType.Separator) {
+				if (prevWordOnLine.end - prevWordOnLine.start === 1 && prevWordOnLine.nextCharClass === WordCharacterClass.Regular) {
+					// Skip over a word made up of one single separator and followed by a regular character
+					prevWordOnLine = WordOperations._findPreviousWordOnLine(wordSeparators, model, new Position(lineNumber, prevWordOnLine.start + 1));
+				}
+			}
 			if (prevWordOnLine) {
 				column = prevWordOnLine.start + 1;
 			} else {
@@ -384,20 +390,20 @@ export class WordOperations {
 	public static word(config: CursorConfiguration, model: ICursorSimpleModel, cursor: SingleCursorState, inSelectionMode: boolean, position: Position): SingleCursorState {
 		const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 		let prevWord = WordOperations._findPreviousWordOnLine(wordSeparators, model, position);
-		let isInPrevWord = (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 <= prevWord.end);
 		let nextWord = WordOperations._findNextWordOnLine(wordSeparators, model, position);
-		let isInNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 <= nextWord.end);
 
 		if (!inSelectionMode) {
 			// Entering word selection for the first time
+			const isTouchingPrevWord = (prevWord && prevWord.wordType === WordType.Regular && prevWord.start <= position.column - 1 && position.column - 1 <= prevWord.end);
+			const isTouchingNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start <= position.column - 1 && position.column - 1 <= nextWord.end);
 
 			let startColumn: number;
 			let endColumn: number;
 
-			if (isInPrevWord) {
+			if (isTouchingPrevWord) {
 				startColumn = prevWord.start + 1;
 				endColumn = prevWord.end + 1;
-			} else if (isInNextWord) {
+			} else if (isTouchingNextWord) {
 				startColumn = nextWord.start + 1;
 				endColumn = nextWord.end + 1;
 			} else {
@@ -419,13 +425,16 @@ export class WordOperations {
 			);
 		}
 
+		const isInsidePrevWord = (prevWord && prevWord.wordType === WordType.Regular && prevWord.start < position.column - 1 && position.column - 1 < prevWord.end);
+		const isInsideNextWord = (nextWord && nextWord.wordType === WordType.Regular && nextWord.start < position.column - 1 && position.column - 1 < nextWord.end);
+
 		let startColumn: number;
 		let endColumn: number;
 
-		if (isInPrevWord) {
+		if (isInsidePrevWord) {
 			startColumn = prevWord.start + 1;
 			endColumn = prevWord.end + 1;
-		} else if (isInNextWord) {
+		} else if (isInsideNextWord) {
 			startColumn = nextWord.start + 1;
 			endColumn = nextWord.end + 1;
 		} else {

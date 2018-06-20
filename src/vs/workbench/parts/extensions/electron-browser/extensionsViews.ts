@@ -18,26 +18,26 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { append, $, toggleClass } from 'vs/base/browser/dom';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Delegate, Renderer } from 'vs/workbench/parts/extensions/browser/extensionsList';
+import { Delegate, Renderer } from 'vs/workbench/parts/extensions/electron-browser/extensionsList';
 import { IExtension, IExtensionsWorkbenchService } from '../common/extensions';
 import { Query } from '../common/extensionQuery';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { attachBadgeStyler } from 'vs/platform/theme/common/styler';
-import { IViewletViewOptions, IViewOptions, ViewsViewletPanel } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { OpenGlobalSettingsAction } from 'vs/workbench/parts/preferences/browser/preferencesActions';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { CountBadge } from 'vs/base/browser/ui/countBadge/countBadge';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallWorkspaceRecommendedExtensionsAction, ConfigureWorkspaceFolderRecommendedExtensionsAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
-export class ExtensionsListView extends ViewsViewletPanel {
+export class ExtensionsListView extends ViewletPanel {
 
 	private messageBox: HTMLElement;
 	private extensionsList: HTMLElement;
@@ -54,19 +54,18 @@ export class ExtensionsListView extends ViewsViewletPanel {
 		@IThemeService private themeService: IThemeService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorInputService: IEditorGroupService,
-		@IExtensionTipsService private tipsService: IExtensionTipsService,
+		@IEditorService private editorService: IEditorService,
+		@IExtensionTipsService protected tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: options.name }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
 
 	renderHeader(container: HTMLElement): void {
 		const titleDiv = append(container, $('div.title'));
-		append(titleDiv, $('span')).textContent = this.options.name;
+		append(titleDiv, $('span')).textContent = this.options.title;
 
 		this.badgeContainer = append(container, $('.count-badge-wrapper'));
 		this.badge = new CountBadge(this.badgeContainer);
@@ -209,7 +208,7 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			return new PagedModel(this.sortExtensions(result, options));
 		}
 
-		const idMatch = /@id:([a-z0-9][a-z0-9\-]*\.[a-z0-9][a-z0-9\-]*)/.exec(value);
+		const idMatch = /@id:(([a-z0-9A-Z][a-z0-9\-A-Z]*)\.([a-z0-9A-Z][a-z0-9\-A-Z]*))/.exec(value);
 
 		if (idMatch) {
 			const name = idMatch[1];
@@ -335,13 +334,22 @@ export class ExtensionsListView extends ViewsViewletPanel {
 				return TPromise.join([othersPromise, workspacePromise])
 					.then(([others, workspaceRecommendations]) => {
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, workspaceRecommendations);
-
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 						/* __GDPR__
 							"extensionAllRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionAllRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionAllRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
+								};
+							})
+						});
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
 						}
@@ -373,13 +381,23 @@ export class ExtensionsListView extends ViewsViewletPanel {
 						others = others.filter(x => workspaceRecommendations.indexOf(x.toLowerCase()) === -1);
 
 						const names = this.getTrimmedRecommendations(installedExtensions, value, fileBasedRecommendations, others, []);
+						const recommendationsWithReason = this.tipsService.getAllRecommendationsWithReason();
 
 						/* __GDPR__
 							"extensionRecommendations:open" : {
-								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+								"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+								"recommendations": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
 							}
 						*/
-						this.telemetryService.publicLog('extensionRecommendations:open', { count: names.length });
+						this.telemetryService.publicLog('extensionRecommendations:open', {
+							count: names.length,
+							recommendations: names.map(id => {
+								return {
+									id,
+									recommendationReason: recommendationsWithReason[id.toLowerCase()].reasonId
+								};
+							})
+						});
 
 						if (!names.length) {
 							return TPromise.as(new PagedModel([]));
@@ -429,10 +447,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 			.then(recommendations => {
 				const names = recommendations.filter(name => name.toLowerCase().indexOf(value) > -1);
 				/* __GDPR__
-			"extensionWorkspaceRecommendations:open" : {
-				"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-			}
-		*/
+					"extensionWorkspaceRecommendations:open" : {
+						"count" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
+					}
+				*/
 				this.telemetryService.publicLog('extensionWorkspaceRecommendations:open', { count: names.length });
 
 				if (!names.length) {
@@ -486,13 +504,12 @@ export class ExtensionsListView extends ViewsViewletPanel {
 	}
 
 	private pin(): void {
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorInput = this.editorService.getActiveEditorInput();
-
-		this.editorInputService.pinEditor(activeEditor.position, activeEditorInput);
-		activeEditor.focus();
+		const activeControl = this.editorService.activeControl;
+		if (activeControl) {
+			activeControl.group.pinEditor(activeControl.input);
+			activeControl.focus();
+		}
 	}
-
 
 	private onError(err: any): void {
 		if (isPromiseCanceledError(err)) {
@@ -526,6 +543,10 @@ export class ExtensionsListView extends ViewsViewletPanel {
 
 	static isInstalledExtensionsQuery(query: string): boolean {
 		return /@installed/i.test(query);
+	}
+
+	static isGroupByServersExtensionsQuery(query: string): boolean {
+		return !!Query.parse(query).groupBy;
 	}
 
 	static isOutdatedExtensionsQuery(query: string): boolean {
@@ -576,6 +597,32 @@ export class InstalledExtensionsView extends ExtensionsListView {
 	}
 }
 
+export class GroupByServerExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		query = query.replace(/@group:server/g, '').trim();
+		query = query ? query : '@installed';
+		if (!InstalledExtensionsView.isInstalledExtensionsQuery(query) && !ExtensionsListView.isBuiltInExtensionsQuery(query)) {
+			query = query += ' @installed';
+		}
+		return super.show(query.trim());
+	}
+}
+
+export class EnabledExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@enabled');
+	}
+}
+
+export class DisabledExtensionsView extends ExtensionsListView {
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@disabled');
+	}
+}
+
 export class BuiltInExtensionsView extends ExtensionsListView {
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
@@ -598,14 +645,47 @@ export class BuiltInBasicsExtensionsView extends ExtensionsListView {
 	}
 }
 
-export class RecommendedExtensionsView extends ExtensionsListView {
+export class DefaultRecommendedExtensionsView extends ExtensionsListView {
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		return super.show(!query.trim() ? '@recommended:all' : '@recommended');
+		return super.show('@recommended:all');
+	}
+}
+
+export class RecommendedExtensionsView extends ExtensionsListView {
+
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
+
+	async show(query: string): TPromise<IPagedModel<IExtension>> {
+		return super.show('@recommended');
 	}
 }
 
 export class WorkspaceRecommendedExtensionsView extends ExtensionsListView {
+
+
+	renderBody(container: HTMLElement): void {
+		super.renderBody(container);
+
+		this.disposables.push(this.tipsService.onRecommendationChange(() => {
+			this.show('');
+		}));
+	}
 
 	renderHeader(container: HTMLElement): void {
 		super.renderHeader(container);

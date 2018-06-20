@@ -8,6 +8,7 @@ import * as cp from 'child_process';
 import * as os from 'os';
 import { tmpName } from 'tmp';
 import { IDriver, connect as connectDriver, IDisposable, IElement } from './driver';
+import { Logger } from '../logger';
 
 const repoPath = path.join(__dirname, '../../../..');
 
@@ -57,13 +58,13 @@ function getBuildOutPath(root: string): string {
 	}
 }
 
-async function connect(child: cp.ChildProcess, outPath: string, handlePath: string, verbose: boolean): Promise<Code> {
+async function connect(child: cp.ChildProcess, outPath: string, handlePath: string, logger: Logger): Promise<Code> {
 	let errCount = 0;
 
 	while (true) {
 		try {
 			const { client, driver } = await connectDriver(outPath, handlePath);
-			return new Code(child, client, driver, verbose);
+			return new Code(child, client, driver, logger);
 		} catch (err) {
 			if (++errCount > 50) {
 				child.kill();
@@ -85,8 +86,10 @@ export interface SpawnOptions {
 	workspacePath: string;
 	userDataDir: string;
 	extensionsPath: string;
-	verbose: boolean;
+	logger: Logger;
+	verbose?: boolean;
 	extraArgs?: string[];
+	log?: string;
 }
 
 async function createDriverHandle(): Promise<string> {
@@ -121,22 +124,26 @@ export async function spawn(options: SpawnOptions): Promise<Code> {
 		args.unshift(repoPath);
 	}
 
+	if (options.verbose) {
+		args.push('--driver-verbose');
+	}
+
+	if (options.log) {
+		args.push('--log', options.log);
+	}
+
 	if (options.extraArgs) {
 		args.push(...options.extraArgs);
 	}
 
 	const spawnOptions: cp.SpawnOptions = {};
 
-	if (options.verbose) {
-		spawnOptions.stdio = 'inherit';
-	}
-
 	const child = cp.spawn(electronPath, args, spawnOptions);
 
 	instances.add(child);
 	child.once('exit', () => instances.delete(child));
 
-	return connect(child, outPath, handle, options.verbose);
+	return connect(child, outPath, handle, options.logger);
 }
 
 async function poll<T>(
@@ -147,9 +154,13 @@ async function poll<T>(
 	retryInterval: number = 100 // millis
 ): Promise<T> {
 	let trial = 1;
+	let lastError: string = '';
 
 	while (true) {
 		if (trial > retryCount) {
+			console.error('** Timeout!');
+			console.error(lastError);
+
 			throw new Error(`Timeout: ${timeoutMessage} after ${(retryCount * retryInterval) / 1000} seconds.`);
 		}
 
@@ -159,13 +170,11 @@ async function poll<T>(
 
 			if (acceptFn(result)) {
 				return result;
+			} else {
+				lastError = 'Did not pass accept function';
 			}
 		} catch (e) {
-			// console.warn(e);
-
-			if (/Method not implemented/.test(e.message)) {
-				throw e;
-			}
+			lastError = Array.isArray(e.stack) ? e.stack.join(os.EOL) : e.stack;
 		}
 
 		await new Promise(resolve => setTimeout(resolve, retryInterval));
@@ -182,24 +191,29 @@ export class Code {
 		private process: cp.ChildProcess,
 		private client: IDisposable,
 		driver: IDriver,
-		verbose: boolean
+		readonly logger: Logger
 	) {
-		if (verbose) {
-			this.driver = new Proxy(driver, {
-				get(target, prop, receiver) {
-					if (typeof target[prop] !== 'function') {
-						return target[prop];
-					}
-
-					return function (...args) {
-						console.log('** ', prop, ...args.filter(a => typeof a === 'string'));
-						return target[prop].apply(this, args);
-					};
+		this.driver = new Proxy(driver, {
+			get(target, prop, receiver) {
+				if (typeof prop === 'symbol') {
+					throw new Error('Invalid usage');
 				}
-			});
-		} else {
-			this.driver = driver;
-		}
+
+				if (typeof target[prop] !== 'function') {
+					return target[prop];
+				}
+
+				return function (...args) {
+					logger.log(`${prop}`, ...args.filter(a => typeof a === 'string'));
+					return target[prop].apply(this, args);
+				};
+			}
+		});
+	}
+
+	async capturePage(): Promise<string> {
+		const windowId = await this.getActiveWindowId();
+		return await this.driver.capturePage(windowId);
 	}
 
 	async waitForWindowIds(fn: (windowIds: number[]) => boolean): Promise<void> {
@@ -219,7 +233,12 @@ export class Code {
 	async waitForTextContent(selector: string, textContent?: string, accept?: (result: string) => boolean): Promise<string> {
 		const windowId = await this.getActiveWindowId();
 		accept = accept || (result => textContent !== void 0 ? textContent === result : !!result);
-		return await poll(() => this.driver.getElements(windowId, selector).then(els => els[0].textContent), s => accept!(typeof s === 'string' ? s : ''), `get text content '${selector}'`);
+
+		return await poll(
+			() => this.driver.getElements(windowId, selector).then(els => els.length > 0 ? Promise.resolve(els[0].textContent) : Promise.reject(new Error('Element not found for textContent'))),
+			s => accept!(typeof s === 'string' ? s : ''),
+			`get text content '${selector}'`
+		);
 	}
 
 	async waitAndClick(selector: string, xoffset?: number, yoffset?: number): Promise<void> {
@@ -230,11 +249,6 @@ export class Code {
 	async waitAndDoubleClick(selector: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.doubleClick(windowId, selector), () => true, `double click '${selector}'`);
-	}
-
-	async waitAndMove(selector: string): Promise<void> {
-		const windowId = await this.getActiveWindowId();
-		await poll(() => this.driver.move(windowId, selector), () => true, `move '${selector}'`);
 	}
 
 	async waitForSetValue(selector: string, value: string): Promise<void> {
@@ -265,6 +279,16 @@ export class Code {
 	async waitForTypeInEditor(selector: string, text: string): Promise<void> {
 		const windowId = await this.getActiveWindowId();
 		await poll(() => this.driver.typeInEditor(windowId, selector, text), () => true, `type in editor '${selector}'`);
+	}
+
+	async waitForTerminalBuffer(selector: string, accept: (result: string[]) => boolean): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await poll(() => this.driver.getTerminalBuffer(windowId, selector), accept, `get terminal buffer '${selector}'`);
+	}
+
+	async writeInTerminal(selector: string, value: string): Promise<void> {
+		const windowId = await this.getActiveWindowId();
+		await poll(() => this.driver.writeInTerminal(windowId, selector, value), () => true, `writeInTerminal '${selector}'`);
 	}
 
 	private async getActiveWindowId(): Promise<number> {

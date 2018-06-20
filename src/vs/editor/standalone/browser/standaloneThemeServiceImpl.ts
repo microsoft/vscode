@@ -14,6 +14,7 @@ import { Extensions, IColorRegistry, ColorIdentifier } from 'vs/platform/theme/c
 import { Extensions as ThemingExtensions, IThemingRegistry, ICssStyleCollector } from 'vs/platform/theme/common/themeService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Event, Emitter } from 'vs/base/common/event';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const VS_THEME_NAME = 'vs';
 const VS_DARK_THEME_NAME = 'vs-dark';
@@ -119,7 +120,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 	private _styleElement: HTMLStyleElement;
 	private _theme: IStandaloneTheme;
 	private readonly _onThemeChange: Emitter<IStandaloneTheme>;
-
+	private environment: IEnvironmentService = Object.create(null);
 
 	constructor() {
 		this._onThemeChange = new Emitter<IStandaloneTheme>();
@@ -185,7 +186,7 @@ export class StandaloneThemeServiceImpl implements IStandaloneThemeService {
 				}
 			}
 		};
-		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector));
+		themingRegistry.getThemingParticipants().forEach(p => p(theme, ruleCollector, this.environment));
 
 		let tokenTheme = theme.tokenTheme;
 		let colorMap = tokenTheme.getColorMap();

@@ -18,7 +18,7 @@ export function areSameExtensions(a: IExtensionIdentifier, b: IExtensionIdentifi
 }
 
 export function getGalleryExtensionId(publisher: string, name: string): string {
-	return `${publisher}.${name.toLocaleLowerCase()}`;
+	return `${publisher.toLocaleLowerCase()}.${name.toLocaleLowerCase()}`;
 }
 
 export function getGalleryExtensionIdFromLocal(local: ILocalExtension): string {

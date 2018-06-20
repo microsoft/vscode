@@ -14,7 +14,7 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, IActionOptions } from 'vs/editor/browser/editorExtensions';
 import { OnTypeFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry } from 'vs/editor/common/modes';
 import { getOnTypeFormattingEdits, getDocumentFormattingEdits, getDocumentRangeFormattingEdits, NoProviderError } from 'vs/editor/contrib/format/format';
-import { EditOperationsCommand } from 'vs/editor/contrib/format/formatCommand';
+import { FormattingEdit } from 'vs/editor/contrib/format/formattingEdit';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
@@ -91,10 +91,10 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel();
+		const model = this.editor.getModel();
 
 		// no support
-		var [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
+		const [support] = OnTypeFormattingEditProviderRegistry.ordered(model);
 		if (!support || !support.autoFormatTriggerCharacters) {
 			return;
 		}
@@ -118,14 +118,14 @@ class FormatOnType implements editorCommon.IEditorContribution {
 			return;
 		}
 
-		var model = this.editor.getModel(),
-			position = this.editor.getPosition(),
-			canceled = false;
+		const model = this.editor.getModel();
+		const position = this.editor.getPosition();
+		let canceled = false;
 
 		// install a listener that checks if edits happens before the
 		// position on which we format right now. If so, we won't
 		// apply the format edits
-		var unbind = this.editor.onDidChangeModelContent((e) => {
+		const unbind = this.editor.onDidChangeModelContent((e) => {
 			if (e.isFlush) {
 				// a model.setValue() was called
 				// cancel only once
@@ -161,7 +161,7 @@ class FormatOnType implements editorCommon.IEditorContribution {
 				return;
 			}
 
-			EditOperationsCommand.executeAsCommand(this.editor, edits);
+			FormattingEdit.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 
 		}, (err) => {
@@ -244,7 +244,7 @@ class FormatOnPaste implements editorCommon.IEditorContribution {
 			if (!state.validate(this.editor) || isFalsyOrEmpty(edits)) {
 				return;
 			}
-			EditOperationsCommand.execute(this.editor, edits);
+			FormattingEdit.execute(this.editor, edits);
 			alertFormattingEdits(edits);
 		});
 	}
@@ -280,12 +280,12 @@ export abstract class AbstractFormatAction extends EditorAction {
 				return;
 			}
 
-			EditOperationsCommand.execute(editor, edits);
+			FormattingEdit.execute(editor, edits);
 			alertFormattingEdits(edits);
 			editor.focus();
 		}, err => {
 			if (err instanceof Error && err.name === NoProviderError.Name) {
-				notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", editor.getModel().getLanguageIdentifier().language));
+				this._notifyNoProviderError(notificationService, editor.getModel().getLanguageIdentifier().language);
 			} else {
 				throw err;
 			}
@@ -293,6 +293,9 @@ export abstract class AbstractFormatAction extends EditorAction {
 	}
 
 	protected abstract _getFormattingEdits(editor: ICodeEditor): TPromise<ISingleEditOperation[]>;
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.provider', "There is no formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatDocumentAction extends AbstractFormatAction {
@@ -322,6 +325,10 @@ export class FormatDocumentAction extends AbstractFormatAction {
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentFormattingEdits(model, { tabSize, insertSpaces });
 	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.documentprovider', "There is no document formatter for '{0}'-files installed.", language));
+	}
 }
 
 export class FormatSelectionAction extends AbstractFormatAction {
@@ -348,6 +355,10 @@ export class FormatSelectionAction extends AbstractFormatAction {
 		const model = editor.getModel();
 		const { tabSize, insertSpaces } = model.getOptions();
 		return getDocumentRangeFormattingEdits(model, editor.getSelection(), { tabSize, insertSpaces });
+	}
+
+	protected _notifyNoProviderError(notificationService: INotificationService, language: string): void {
+		notificationService.info(nls.localize('no.selectionprovider', "There is no selection formatter for '{0}'-files installed.", language));
 	}
 }
 

@@ -14,11 +14,11 @@ import { ICommandService } from 'vs/platform/commands/common/commands';
 
 const emptyDialogService = new class implements IDialogService {
 	_serviceBrand: 'dialogService';
-	show(severity, message, buttons): never {
+	show(): never {
 		throw new Error('not implemented');
 	}
 
-	confirm(...opts): never {
+	confirm(): never {
 		throw new Error('not implemented');
 	}
 };
@@ -83,7 +83,7 @@ suite('ExtHostMessageService', function () {
 		let service = new MainThreadMessageService(null, new EmptyNotificationService(notification => {
 			assert.equal(notification.actions.primary.length, 1);
 			setImmediate(() => notification.actions.primary[0].run());
-		}), emptyCommandService, emptyDialogService, null);
+		}), emptyCommandService, emptyDialogService);
 
 		return service.$showMessage(1, 'h', {}, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 			assert.equal(handle, 42);
@@ -100,7 +100,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(buttons[1], 'Cancel');
 					return Promise.as(0);
 				}
-			} as IDialogService, null);
+			} as IDialogService);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
 				assert.equal(handle, 42);
@@ -112,7 +112,7 @@ suite('ExtHostMessageService', function () {
 				show(severity, message, buttons) {
 					return Promise.as(1);
 				}
-			} as IDialogService, null);
+			} as IDialogService);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: false }]).then(handle => {
 				assert.equal(handle, undefined);
@@ -125,7 +125,7 @@ suite('ExtHostMessageService', function () {
 					assert.equal(buttons.length, 1);
 					return Promise.as(0);
 				}
-			} as IDialogService, null);
+			} as IDialogService);
 
 			return service.$showMessage(1, 'h', { modal: true }, [{ handle: 42, title: 'a thing', isCloseAffordance: true }]).then(handle => {
 				assert.equal(handle, 42);

@@ -12,7 +12,6 @@ import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/w
 import { WindowsChannel } from 'vs/platform/windows/common/windowsIpc';
 import { WindowsService } from 'vs/platform/windows/electron-main/windowsService';
 import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycleMain';
-import { CodeMenu } from 'vs/code/electron-main/menus';
 import { getShellEnvironment } from 'vs/code/node/shellEnv';
 import { IUpdateService } from 'vs/platform/update/common/update';
 import { UpdateChannel } from 'vs/platform/update/common/updateIpc';
@@ -58,11 +57,14 @@ import { IIssueService } from 'vs/platform/issue/common/issue';
 import { IssueChannel } from 'vs/platform/issue/common/issueIpc';
 import { IssueService } from 'vs/platform/issue/electron-main/issueService';
 import { LogLevelSetterChannel } from 'vs/platform/log/common/logIpc';
-import { setUnexpectedErrorHandler } from 'vs/base/common/errors';
+import * as errors from 'vs/base/common/errors';
 import { ElectronURLListener } from 'vs/platform/url/electron-main/electronUrlListener';
 import { serve as serveDriver } from 'vs/platform/driver/electron-main/driver';
-import { join } from 'path';
-import { copy, exists, rename } from 'vs/base/node/pfs';
+import { IMenubarService } from 'vs/platform/menubar/common/menubar';
+import { MenubarService } from 'vs/platform/menubar/electron-main/menubarService';
+import { MenubarChannel } from 'vs/platform/menubar/common/menubarIpc';
+// TODO@sbatten: Remove after conversion to new dynamic menubar
+import { CodeMenu } from 'vs/code/electron-main/menus';
 
 export class CodeApplication {
 
@@ -95,7 +97,7 @@ export class CodeApplication {
 	private registerListeners(): void {
 
 		// We handle uncaught exceptions here to prevent electron from opening a dialog to the user
-		setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
+		errors.setUnexpectedErrorHandler(err => this.onUnexpectedError(err));
 		process.on('uncaughtException', err => this.onUnexpectedError(err));
 
 		app.on('will-quit', () => {
@@ -264,55 +266,50 @@ export class CodeApplication {
 		this.logService.debug(`from: ${this.environmentService.appRoot}`);
 		this.logService.debug('args:', this.environmentService.args);
 
-		// Handle local storage (TODO@Ben remove me after a while)
-		this.logService.trace('Handling localStorage if needed...');
-		return this.handleLocalStorage().then(() => {
+		// Make sure we associate the program with the app user model id
+		// This will help Windows to associate the running program with
+		// any shortcut that is pinned to the taskbar and prevent showing
+		// two icons in the taskbar for the same app.
+		if (platform.isWindows && product.win32AppUserModelId) {
+			app.setAppUserModelId(product.win32AppUserModelId);
+		}
 
-			// Make sure we associate the program with the app user model id
-			// This will help Windows to associate the running program with
-			// any shortcut that is pinned to the taskbar and prevent showing
-			// two icons in the taskbar for the same app.
-			if (platform.isWindows && product.win32AppUserModelId) {
-				app.setAppUserModelId(product.win32AppUserModelId);
+		// Create Electron IPC Server
+		this.electronIpcServer = new ElectronIPCServer();
+
+		// Resolve unique machine ID
+		this.logService.trace('Resolving machine identifier...');
+		return this.resolveMachineId().then(machineId => {
+			this.logService.trace(`Resolved machine identifier: ${machineId}`);
+
+			// Spawn shared process
+			this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
+			this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+
+			// Services
+			const appInstantiationService = this.initServices(machineId);
+
+			let promise: TPromise<any> = TPromise.as(null);
+
+			// Create driver
+			if (this.environmentService.driverHandle) {
+				serveDriver(this.electronIpcServer, this.environmentService.driverHandle, this.environmentService, appInstantiationService).then(server => {
+					this.logService.info('Driver started at:', this.environmentService.driverHandle);
+					this.toDispose.push(server);
+				});
 			}
 
-			// Create Electron IPC Server
-			this.electronIpcServer = new ElectronIPCServer();
+			return promise.then(() => {
 
-			// Resolve unique machine ID
-			this.logService.trace('Resolving machine identifier...');
-			return this.resolveMachineId().then(machineId => {
-				this.logService.trace(`Resolved machine identifier: ${machineId}`);
+				// Setup Auth Handler
+				const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
+				this.toDispose.push(authHandler);
 
-				// Spawn shared process
-				this.sharedProcess = new SharedProcess(this.environmentService, this.lifecycleService, this.logService, machineId, this.userEnv);
-				this.sharedProcessClient = this.sharedProcess.whenReady().then(() => connect(this.environmentService.sharedIPCHandle, 'main'));
+				// Open Windows
+				appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
 
-				// Services
-				const appInstantiationService = this.initServices(machineId);
-
-				let promise: TPromise<any> = TPromise.as(null);
-
-				// Create driver
-				if (this.environmentService.driverHandle) {
-					serveDriver(this.electronIpcServer, this.environmentService.driverHandle, appInstantiationService).then(server => {
-						this.logService.info('Driver started at:', this.environmentService.driverHandle);
-						this.toDispose.push(server);
-					});
-				}
-
-				return promise.then(() => {
-
-					// Setup Auth Handler
-					const authHandler = appInstantiationService.createInstance(ProxyAuthHandler);
-					this.toDispose.push(authHandler);
-
-					// Open Windows
-					appInstantiationService.invokeFunction(accessor => this.openFirstWindow(accessor));
-
-					// Post Open Windows Tasks
-					appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
-				});
+				// Post Open Windows Tasks
+				appInstantiationService.invokeFunction(accessor => this.afterWindowOpen(accessor));
 			});
 		});
 	}
@@ -332,36 +329,6 @@ export class CodeApplication {
 		});
 	}
 
-	private handleLocalStorage(): TPromise<void> {
-		const localStorageFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage');
-		const localStorageJournalFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal');
-		const localStorageBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak');
-		const localStorageJournalBackupFile = join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal.vscbak');
-
-		// Electron 1.7.12: Restore storage
-		if (process.versions.electron === '1.7.12') {
-			return exists(localStorageBackupFile).then(localStorageBackupFileExists => {
-				return exists(localStorageJournalBackupFile).then(localStorageJournalBackupFileExists => {
-					return TPromise.join([
-						localStorageBackupFileExists ? rename(localStorageBackupFile, localStorageFile) : TPromise.as(void 0),
-						localStorageJournalBackupFileExists ? rename(localStorageJournalBackupFile, localStorageJournalFile) : TPromise.as(void 0)
-					]);
-				});
-			}).then(() => void 0, () => void 0);
-		}
-
-		// Electron 2.0: Backup
-		else {
-			return exists(localStorageBackupFile).then(backupExists => {
-				if (backupExists) {
-					return void 0; // do not backup if backup already exists
-				}
-
-				return copy(localStorageFile, localStorageBackupFile).then(() => copy(localStorageJournalFile, localStorageJournalBackupFile));
-			}).then(() => void 0, () => void 0);
-		}
-	}
-
 	private initServices(machineId: string): IInstantiationService {
 		const services = new ServiceCollection();
 
@@ -377,6 +344,7 @@ export class CodeApplication {
 		services.set(IWindowsService, new SyncDescriptor(WindowsService, this.sharedProcess));
 		services.set(ILaunchService, new SyncDescriptor(LaunchService));
 		services.set(IIssueService, new SyncDescriptor(IssueService, machineId, this.userEnv));
+		services.set(IMenubarService, new SyncDescriptor(MenubarService));
 
 		// Telemtry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {
@@ -420,6 +388,10 @@ export class CodeApplication {
 		this.electronIpcServer.registerChannel('windows', windowsChannel);
 		this.sharedProcessClient.done(client => client.registerChannel('windows', windowsChannel));
 
+		const menubarService = accessor.get(IMenubarService);
+		const menubarChannel = new MenubarChannel(menubarService);
+		this.electronIpcServer.registerChannel('menubar', menubarChannel);
+
 		const urlService = accessor.get(IURLService);
 		const urlChannel = new URLServiceChannel(urlService);
 		this.electronIpcServer.registerChannel('url', urlChannel);
@@ -433,7 +405,7 @@ export class CodeApplication {
 		this.lifecycleService.ready();
 
 		// Propagate to clients
-		this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
+		const windowsMainService = this.windowsMainService = accessor.get(IWindowsMainService); // TODO@Joao: unfold this
 
 		const args = this.environmentService.args;
 
@@ -441,6 +413,25 @@ export class CodeApplication {
 		const activeWindowManager = new ActiveWindowManager(windowsService);
 		const urlHandlerChannel = this.electronIpcServer.getChannel('urlHandler', { route: () => activeWindowManager.activeClientId });
 		const multiplexURLHandler = new URLHandlerChannelClient(urlHandlerChannel);
+
+		// On Mac, Code can be running without any open windows, so we must create a window to handle urls,
+		// if there is none
+		if (platform.isMacintosh) {
+			const environmentService = accessor.get(IEnvironmentService);
+
+			urlService.registerHandler({
+				async handleURL(uri: URI): TPromise<boolean> {
+					if (windowsMainService.getWindowCount() === 0) {
+						const cli = { ...environmentService.args, goto: true };
+						const [window] = windowsMainService.open({ context: OpenContext.API, cli, forceEmpty: true });
+
+						return window.ready().then(() => urlService.open(uri));
+					}
+
+					return false;
+				}
+			});
+		}
 
 		// Register the multiple URL handker
 		urlService.registerHandler(multiplexURLHandler);
@@ -465,7 +456,6 @@ export class CodeApplication {
 	}
 
 	private afterWindowOpen(accessor: ServicesAccessor): void {
-		const appInstantiationService = accessor.get(IInstantiationService);
 		const windowsMainService = accessor.get(IWindowsMainService);
 
 		let windowsMutex: Mutex = null;
@@ -505,15 +495,20 @@ export class CodeApplication {
 			}
 		}
 
+		// TODO@sbatten: Remove when menu is converted
 		// Install Menu
-		appInstantiationService.createInstance(CodeMenu);
+		const instantiationService = accessor.get(IInstantiationService);
+		const configurationService = accessor.get(IConfigurationService);
+		if (platform.isMacintosh || configurationService.getValue<string>('window.titleBarStyle') !== 'custom') {
+			instantiationService.createInstance(CodeMenu);
+		}
 
 		// Jump List
 		this.historyMainService.updateWindowsJumpList();
 		this.historyMainService.onRecentlyOpenedChange(() => this.historyMainService.updateWindowsJumpList());
 
-		// Start shared process here
-		this.sharedProcess.spawn();
+		// Start shared process after a while
+		TPromise.timeout(3000).then(() => this.sharedProcess.spawn());
 	}
 
 	private dispose(): void {

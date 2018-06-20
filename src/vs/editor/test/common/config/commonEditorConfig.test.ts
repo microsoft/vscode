@@ -13,8 +13,8 @@ import { AccessibilitySupport } from 'vs/base/common/platform';
 suite('Common Editor Config', () => {
 	test('Zoom Level', () => {
 
-		//Zoom levels are defined to go between -9, 9 inclusive
-		var zoom = EditorZoom;
+		//Zoom levels are defined to go between -5, 20 inclusive
+		const zoom = EditorZoom;
 
 		zoom.setZoomLevel(0);
 		assert.equal(zoom.getZoomLevel(), 0);
@@ -32,25 +32,25 @@ suite('Common Editor Config', () => {
 		assert.equal(zoom.getZoomLevel(), 9);
 
 		zoom.setZoomLevel(-9);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
-		zoom.setZoomLevel(10);
-		assert.equal(zoom.getZoomLevel(), 9);
+		zoom.setZoomLevel(20);
+		assert.equal(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(-10);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(9.1);
-		assert.equal(zoom.getZoomLevel(), 9);
+		assert.equal(zoom.getZoomLevel(), 9.1);
 
 		zoom.setZoomLevel(-9.1);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 
 		zoom.setZoomLevel(Infinity);
-		assert.equal(zoom.getZoomLevel(), 9);
+		assert.equal(zoom.getZoomLevel(), 20);
 
 		zoom.setZoomLevel(Number.NEGATIVE_INFINITY);
-		assert.equal(zoom.getZoomLevel(), -9);
+		assert.equal(zoom.getZoomLevel(), -5);
 	});
 
 	class TestWrappingConfiguration extends TestConfiguration {
@@ -88,14 +88,14 @@ suite('Common Editor Config', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: <any>true
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on', () => {
 		let config = new TestWrappingConfiguration({
 			wordWrap: 'on'
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap on without minimap', () => {
@@ -105,7 +105,7 @@ suite('Common Editor Config', () => {
 				enabled: false
 			}
 		});
-		assertWrapping(config, true, 89);
+		assertWrapping(config, true, 88);
 	});
 
 	test('wordWrap on does not use wordWrapColumn', () => {
@@ -113,7 +113,7 @@ suite('Common Editor Config', () => {
 			wordWrap: 'on',
 			wordWrapColumn: 10
 		});
-		assertWrapping(config, true, 81);
+		assertWrapping(config, true, 80);
 	});
 
 	test('wordWrap off', () => {

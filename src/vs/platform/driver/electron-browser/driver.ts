@@ -12,6 +12,8 @@ import { IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
+import { IWindowService } from 'vs/platform/windows/common/windows';
+import { Terminal } from 'vscode-xterm';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -29,18 +31,24 @@ function serializeElement(element: Element, recursive: boolean): IElement {
 		}
 	}
 
+	const { left, top } = getTopLeftOffset(element as HTMLElement);
+
 	return {
 		tagName: element.tagName,
 		className: element.className,
 		textContent: element.textContent || '',
 		attributes,
-		children
+		children,
+		left,
+		top
 	};
 }
 
 class WindowDriver implements IWindowDriver {
 
-	constructor() { }
+	constructor(
+		@IWindowService private windowService: IWindowService
+	) { }
 
 	async click(selector: string, xoffset?: number, yoffset?: number): TPromise<void> {
 		return this._click(selector, 1, xoffset, yoffset);
@@ -78,16 +86,10 @@ class WindowDriver implements IWindowDriver {
 	private async _click(selector: string, clickCount: number, xoffset?: number, yoffset?: number): TPromise<void> {
 		const { x, y } = await this._getElementXY(selector, xoffset, yoffset);
 		const webContents = electron.remote.getCurrentWebContents();
+
 		webContents.sendInputEvent({ type: 'mouseDown', x, y, button: 'left', clickCount } as any);
+		await TPromise.timeout(10);
 		webContents.sendInputEvent({ type: 'mouseUp', x, y, button: 'left', clickCount } as any);
-
-		await TPromise.timeout(100);
-	}
-
-	async move(selector: string): TPromise<void> {
-		const { x, y } = await this._getElementXY(selector);
-		const webContents = electron.remote.getCurrentWebContents();
-		webContents.sendInputEvent({ type: 'mouseMove', x, y } as any);
 
 		await TPromise.timeout(100);
 	}
@@ -112,7 +114,24 @@ class WindowDriver implements IWindowDriver {
 
 	async isActiveElement(selector: string): TPromise<boolean> {
 		const element = document.querySelector(selector);
-		return element === document.activeElement;
+
+		if (element !== document.activeElement) {
+			const chain = [];
+			let el = document.activeElement;
+
+			while (el) {
+				const tagName = el.tagName;
+				const id = el.id ? `#${el.id}` : '';
+				const classes = el.className.split(/\s+/g).map(c => c.trim()).filter(c => !!c).map(c => `.${c}`).join('');
+				chain.unshift(`${tagName}${id}${classes}`);
+
+				el = el.parentElement;
+			}
+
+			throw new Error(`Active element not found. Current active element is '${chain.join(' > ')}'`);
+		}
+
+		return true;
 	}
 
 	async getElements(selector: string, recursive: boolean): TPromise<IElement[]> {
@@ -154,15 +173,39 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Terminal not found: ' + selector);
 		}
 
-		const buffer = (element as any).xterm.buffer;
+		const xterm: Terminal = (element as any).xterm;
+
+		if (!xterm) {
+			throw new Error('Xterm not found: ' + selector);
+		}
 
 		const lines: string[] = [];
 
-		for (let i = 0; i < buffer.lines.length; i++) {
-			lines.push(buffer.translateBufferLineToString(i, true));
+		for (let i = 0; i < xterm._core.buffer.lines.length; i++) {
+			lines.push(xterm._core.buffer.translateBufferLineToString(i, true));
 		}
 
 		return lines;
+	}
+
+	async writeInTerminal(selector: string, text: string): TPromise<void> {
+		const element = document.querySelector(selector);
+
+		if (!element) {
+			throw new Error('Element not found');
+		}
+
+		const xterm: Terminal = (element as any).xterm;
+
+		if (!xterm) {
+			throw new Error('Xterm not found');
+		}
+
+		xterm._core.send(text);
+	}
+
+	async openDevTools(): TPromise<void> {
+		await this.windowService.openDevTools({ mode: 'detach' });
 	}
 }
 
@@ -178,7 +221,11 @@ export async function registerWindowDriver(
 	const windowDriverRegistryChannel = client.getChannel('windowDriverRegistry');
 	const windowDriverRegistry = new WindowDriverRegistryChannelClient(windowDriverRegistryChannel);
 
-	await windowDriverRegistry.registerWindowDriver(windowId);
+	const options = await windowDriverRegistry.registerWindowDriver(windowId);
+
+	if (options.verbose) {
+		// windowDriver.openDevTools();
+	}
 
 	const disposable = toDisposable(() => windowDriverRegistry.reloadWindowDriver(windowId));
 	return combinedDisposable([disposable, client]);

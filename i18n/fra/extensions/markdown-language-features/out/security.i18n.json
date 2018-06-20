@@ -8,6 +8,8 @@
 	],
 	"strict.title": "Strict",
 	"strict.description": "Charger uniquement le contenu sécurisé.",
+	"insecureLocalContent.title": "Autoriser le contenu local non sécurisé",
+	"insecureLocalContent.description": "Activer le chargement de contenu http servi par localhost",
 	"insecureContent.title": "Autoriser le contenu non sécurisé",
 	"insecureContent.description": "Activer le chargement de contenu sur http",
 	"disable.title": "Désactiver",

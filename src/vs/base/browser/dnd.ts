@@ -70,3 +70,15 @@ export const DataTransfers = {
 	 */
 	TEXT: 'text/plain'
 };
+
+export function applyDragImage(event: DragEvent, label: string, clazz: string): void {
+	const dragImage = document.createElement('div');
+	dragImage.className = clazz;
+	dragImage.textContent = label;
+
+	document.body.appendChild(dragImage);
+	event.dataTransfer.setDragImage(dragImage, -10, -10);
+
+	// Removes the element when the DND operation is done
+	setTimeout(() => document.body.removeChild(dragImage), 0);
+}

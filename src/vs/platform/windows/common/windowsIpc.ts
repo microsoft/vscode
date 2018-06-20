@@ -8,10 +8,10 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, buffer } from 'vs/base/common/event';
 import { IChannel, eventToCall, eventFromCall } from 'vs/base/parts/ipc/common/ipc';
-import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions } from 'vs/platform/windows/common/windows';
+import { IWindowsService, INativeOpenDialogOptions, IEnterWorkspaceResult, CrashReporterStartOptions, IMessageBoxResult, MessageBoxOptions, SaveDialogOptions, OpenDialogOptions, IDevToolsOptions } from 'vs/platform/windows/common/windows';
 import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import URI from 'vs/base/common/uri';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 
@@ -42,17 +42,18 @@ export interface IWindowsChannel extends IChannel {
 	call(command: 'moveWindowTabToNewWindow', arg: number): TPromise<void>;
 	call(command: 'mergeAllWindowTabs', arg: number): TPromise<void>;
 	call(command: 'toggleWindowTabsBar', arg: number): TPromise<void>;
-	call(command: 'updateTouchBar', arg: [number, ICommandAction[][]]): TPromise<void>;
+	call(command: 'updateTouchBar', arg: [number, ISerializableCommandAction[][]]): TPromise<void>;
 	call(command: 'focusWindow', arg: number): TPromise<void>;
 	call(command: 'closeWindow', arg: number): TPromise<void>;
 	call(command: 'isFocused', arg: number): TPromise<boolean>;
 	call(command: 'isMaximized', arg: number): TPromise<boolean>;
 	call(command: 'maximizeWindow', arg: number): TPromise<void>;
 	call(command: 'unmaximizeWindow', arg: number): TPromise<void>;
+	call(command: 'minimizeWindow', arg: number): TPromise<void>;
 	call(command: 'onWindowTitleDoubleClick', arg: number): TPromise<void>;
 	call(command: 'setDocumentEdited', arg: [number, boolean]): TPromise<void>;
 	call(command: 'quit'): TPromise<void>;
-	call(command: 'openWindow', arg: [string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
+	call(command: 'openWindow', arg: [number, string[], { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }]): TPromise<void>;
 	call(command: 'openNewWindow'): TPromise<void>;
 	call(command: 'showWindow', arg: number): TPromise<void>;
 	call(command: 'getWindows'): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
@@ -73,11 +74,15 @@ export class WindowsChannel implements IWindowsChannel {
 	private onWindowOpen: Event<number>;
 	private onWindowFocus: Event<number>;
 	private onWindowBlur: Event<number>;
+	private onWindowMaximize: Event<number>;
+	private onWindowUnmaximize: Event<number>;
 
 	constructor(private service: IWindowsService) {
 		this.onWindowOpen = buffer(service.onWindowOpen, true);
 		this.onWindowFocus = buffer(service.onWindowFocus, true);
 		this.onWindowBlur = buffer(service.onWindowBlur, true);
+		this.onWindowMaximize = buffer(service.onWindowMaximize, true);
+		this.onWindowUnmaximize = buffer(service.onWindowUnmaximize, true);
 	}
 
 	call(command: string, arg?: any): TPromise<any> {
@@ -85,6 +90,8 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'event:onWindowOpen': return eventToCall(this.onWindowOpen);
 			case 'event:onWindowFocus': return eventToCall(this.onWindowFocus);
 			case 'event:onWindowBlur': return eventToCall(this.onWindowBlur);
+			case 'event:onWindowMaximize': return eventToCall(this.onWindowMaximize);
+			case 'event:onWindowUnmaximize': return eventToCall(this.onWindowUnmaximize);
 			case 'pickFileFolderAndOpen': return this.service.pickFileFolderAndOpen(arg);
 			case 'pickFileAndOpen': return this.service.pickFileAndOpen(arg);
 			case 'pickFolderAndOpen': return this.service.pickFolderAndOpen(arg);
@@ -93,7 +100,7 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'showSaveDialog': return this.service.showSaveDialog(arg[0], arg[1]);
 			case 'showOpenDialog': return this.service.showOpenDialog(arg[0], arg[1]);
 			case 'reloadWindow': return this.service.reloadWindow(arg[0], arg[1]);
-			case 'openDevTools': return this.service.openDevTools(arg);
+			case 'openDevTools': return this.service.openDevTools(arg[0], arg[1]);
 			case 'toggleDevTools': return this.service.toggleDevTools(arg);
 			case 'closeWorkspace': return this.service.closeWorkspace(arg);
 			case 'createAndEnterWorkspace': {
@@ -129,9 +136,10 @@ export class WindowsChannel implements IWindowsChannel {
 			case 'isMaximized': return this.service.isMaximized(arg);
 			case 'maximizeWindow': return this.service.maximizeWindow(arg);
 			case 'unmaximizeWindow': return this.service.unmaximizeWindow(arg);
+			case 'minimizeWindow': return this.service.minimizeWindow(arg);
 			case 'onWindowTitleDoubleClick': return this.service.onWindowTitleDoubleClick(arg);
 			case 'setDocumentEdited': return this.service.setDocumentEdited(arg[0], arg[1]);
-			case 'openWindow': return this.service.openWindow(arg[0], arg[1]);
+			case 'openWindow': return this.service.openWindow(arg[0], arg[1], arg[2]);
 			case 'openNewWindow': return this.service.openNewWindow();
 			case 'showWindow': return this.service.showWindow(arg);
 			case 'getWindows': return this.service.getWindows();
@@ -165,6 +173,12 @@ export class WindowsChannelClient implements IWindowsService {
 	private _onWindowBlur: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowBlur');
 	get onWindowBlur(): Event<number> { return this._onWindowBlur; }
 
+	private _onWindowMaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowMaximize');
+	get onWindowMaximize(): Event<number> { return this._onWindowMaximize; }
+
+	private _onWindowUnmaximize: Event<number> = eventFromCall<number>(this.channel, 'event:onWindowUnmaximize');
+	get onWindowUnmaximize(): Event<number> { return this._onWindowUnmaximize; }
+
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void> {
 		return this.channel.call('pickFileFolderAndOpen', options);
 	}
@@ -197,8 +211,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('reloadWindow', [windowId, args]);
 	}
 
-	openDevTools(windowId: number): TPromise<void> {
-		return this.channel.call('openDevTools', windowId);
+	openDevTools(windowId: number, options?: IDevToolsOptions): TPromise<void> {
+		return this.channel.call('openDevTools', [windowId, options]);
 	}
 
 	toggleDevTools(windowId: number): TPromise<void> {
@@ -285,6 +299,10 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('unmaximizeWindow', windowId);
 	}
 
+	minimizeWindow(windowId: number): TPromise<void> {
+		return this.channel.call('minimizeWindow', windowId);
+	}
+
 	onWindowTitleDoubleClick(windowId: number): TPromise<void> {
 		return this.channel.call('onWindowTitleDoubleClick', windowId);
 	}
@@ -309,8 +327,8 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('toggleSharedProcess');
 	}
 
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
-		return this.channel.call('openWindow', [paths, options]);
+	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean }): TPromise<void> {
+		return this.channel.call('openWindow', [windowId, paths, options]);
 	}
 
 	openNewWindow(): TPromise<void> {
@@ -345,7 +363,7 @@ export class WindowsChannelClient implements IWindowsService {
 		return this.channel.call('startCrashReporter', config);
 	}
 
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void> {
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void> {
 		return this.channel.call('updateTouchBar', [windowId, items]);
 	}
 

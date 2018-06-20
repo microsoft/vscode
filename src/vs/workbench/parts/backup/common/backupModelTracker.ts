@@ -36,9 +36,6 @@ export class BackupModelTracker implements IWorkbenchContribution {
 	}
 
 	private registerListeners() {
-		if (!this.backupFileService.backupEnabled) {
-			return;
-		}
 
 		// Listen for text file model changes
 		this.toDispose.push(this.textFileService.models.onModelContentChanged((e) => this.onTextFileModelChanged(e)));

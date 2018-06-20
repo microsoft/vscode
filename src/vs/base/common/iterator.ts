@@ -5,8 +5,13 @@
 
 'use strict';
 
+export interface IIteratorResult<T> {
+	readonly done: boolean;
+	readonly value: T;
+}
+
 export interface IIterator<E> {
-	next(): { readonly done: boolean, readonly value: E };
+	next(): IIteratorResult<E>;
 }
 
 export interface INextIterator<T> {
@@ -20,11 +25,11 @@ export class ArrayIterator<T> implements INextIterator<T> {
 	protected end: number;
 	protected index: number;
 
-	constructor(items: T[], start: number = 0, end: number = items.length) {
+	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
 		this.items = items;
 		this.start = start;
 		this.end = end;
-		this.index = start - 1;
+		this.index = index;
 	}
 
 	public first(): T {
@@ -48,8 +53,8 @@ export class ArrayIterator<T> implements INextIterator<T> {
 
 export class ArrayNavigator<T> extends ArrayIterator<T> implements INavigator<T> {
 
-	constructor(items: T[], start: number = 0, end: number = items.length) {
-		super(items, start, end);
+	constructor(items: T[], start: number = 0, end: number = items.length, index = start - 1) {
+		super(items, start, end, index);
 	}
 
 	public current(): T {

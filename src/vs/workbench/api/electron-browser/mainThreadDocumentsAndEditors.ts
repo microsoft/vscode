@@ -12,8 +12,9 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostContext, ExtHostDocumentsAndEditorsShape, IModelAddedData, ITextEditorAddData, IDocumentsAndEditorsDelta, IExtHostContext, MainContext } from '../node/extHost.protocol';
 import { MainThreadTextEditor } from './mainThreadEditor';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { Position as EditorPosition, IEditor } from 'vs/platform/editor/common/editor';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { EditorViewColumn, editorGroupToViewColumn } from 'vs/workbench/api/shared/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { MainThreadDocuments } from 'vs/workbench/api/electron-browser/mainThreadDocuments';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
@@ -21,9 +22,10 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { IFileService } from 'vs/platform/files/common/files';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import { isCodeEditor, isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { isDiffEditor, ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import URI from 'vs/base/common/uri';
+import { IBulkEditService } from 'vs/editor/browser/services/bulkEditService';
 
 namespace mapset {
 
@@ -159,7 +161,7 @@ class MainThreadDocumentAndEditorStateComputer {
 		private readonly _onDidChangeState: (delta: DocumentAndEditorStateDelta) => void,
 		@IModelService private readonly _modelService: IModelService,
 		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
-		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService
+		@IEditorService private readonly _editorService: IEditorService
 	) {
 		this._modelService.onModelAdded(this._updateStateOnModelAdd, this, this._toDispose);
 		this._modelService.onModelRemoved(this._updateState, this, this._toDispose);
@@ -177,8 +179,8 @@ class MainThreadDocumentAndEditorStateComputer {
 
 	private _onDidAddEditor(e: ICodeEditor): void {
 		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidChangeModel(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditor(() => this._updateState()));
-		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditor(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidFocusEditorText(() => this._updateState()));
+		this._toDisposeOnEditorRemove.set(e.getId(), e.onDidBlurEditorText(() => this._updateState()));
 		this._updateState();
 	}
 
@@ -243,32 +245,26 @@ class MainThreadDocumentAndEditorStateComputer {
 			) {
 				const apiEditor = new TextEditorSnapshot(editor);
 				editors.set(apiEditor.id, apiEditor);
-				if (editor.isFocused()) {
+				if (editor.hasTextFocus()) {
 					activeEditor = apiEditor.id;
 				}
 			}
 		}
 
 		// active editor: if none of the previous editors had focus we try
-		// to match the action workbench editor with one of editor we have
+		// to match the active workbench editor with one of editor we have
 		// just computed
 		if (!activeEditor) {
-			const workbenchEditor = this._workbenchEditorService.getActiveEditor();
-			if (workbenchEditor) {
-				const workbenchEditorControl = workbenchEditor.getControl();
-				let candidate: ICodeEditor;
-				if (isCodeEditor(workbenchEditorControl)) {
-					candidate = workbenchEditorControl;
-				} else if (isDiffEditor(workbenchEditorControl)) {
-					candidate = workbenchEditorControl.getModifiedEditor();
-				}
-				if (candidate) {
-					editors.forEach(snapshot => {
-						if (candidate === snapshot.editor) {
-							activeEditor = snapshot.id;
-						}
-					});
-				}
+			let candidate = this._editorService.activeTextEditorWidget;
+			if (isDiffEditor(candidate)) {
+				candidate = candidate.getModifiedEditor();
+			}
+			if (candidate) {
+				editors.forEach(snapshot => {
+					if (candidate === snapshot.editor) {
+						activeEditor = snapshot.id;
+					}
+				});
 			}
 		}
 
@@ -304,24 +300,26 @@ export class MainThreadDocumentsAndEditors {
 		extHostContext: IExtHostContext,
 		@IModelService private readonly _modelService: IModelService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
-		@IWorkbenchEditorService private readonly _workbenchEditorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@ICodeEditorService codeEditorService: ICodeEditorService,
 		@IModeService modeService: IModeService,
 		@IFileService fileService: IFileService,
 		@ITextModelService textModelResolverService: ITextModelService,
 		@IUntitledEditorService untitledEditorService: IUntitledEditorService,
-		@IEditorGroupService editorGroupService: IEditorGroupService
+		@IEditorGroupsService private readonly _editorGroupService: IEditorGroupsService,
+		@IBulkEditService bulkEditService: IBulkEditService
+
 	) {
 		this._proxy = extHostContext.getProxy(ExtHostContext.ExtHostDocumentsAndEditors);
 
 		const mainThreadDocuments = new MainThreadDocuments(this, extHostContext, this._modelService, modeService, this._textFileService, fileService, textModelResolverService, untitledEditorService);
 		extHostContext.set(MainContext.MainThreadDocuments, mainThreadDocuments);
 
-		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, this._workbenchEditorService, editorGroupService, textModelResolverService, fileService, this._modelService);
+		const mainThreadTextEditors = new MainThreadTextEditors(this, extHostContext, codeEditorService, bulkEditService, this._editorService, this._editorGroupService);
 		extHostContext.set(MainContext.MainThreadTextEditors, mainThreadTextEditors);
 
 		// It is expected that the ctor of the state computer calls our `_onDelta`.
-		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, _workbenchEditorService);
+		this._stateComputer = new MainThreadDocumentAndEditorStateComputer(delta => this._onDelta(delta), _modelService, codeEditorService, this._editorService);
 
 		this._toDispose = [
 			mainThreadDocuments,
@@ -423,10 +421,10 @@ export class MainThreadDocumentsAndEditors {
 		};
 	}
 
-	private _findEditorPosition(editor: MainThreadTextEditor): EditorPosition {
-		for (let workbenchEditor of this._workbenchEditorService.getVisibleEditors()) {
+	private _findEditorPosition(editor: MainThreadTextEditor): EditorViewColumn {
+		for (let workbenchEditor of this._editorService.visibleControls) {
 			if (editor.matches(workbenchEditor)) {
-				return workbenchEditor.position;
+				return editorGroupToViewColumn(this._editorGroupService, workbenchEditor.group);
 			}
 		}
 		return undefined;

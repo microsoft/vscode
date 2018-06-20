@@ -11,7 +11,6 @@ import { ITextResourceConfigurationService } from 'vs/editor/common/services/res
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -19,7 +18,8 @@ import URI from 'vs/base/common/uri';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { LOG_SCHEME } from 'vs/workbench/parts/output/common/output';
-
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 export class LogViewerInput extends ResourceEditorInput {
 
@@ -52,10 +52,11 @@ export class LogViewer extends AbstractTextResourceEditor {
 		@IConfigurationService baseConfigurationService: IConfigurationService,
 		@ITextResourceConfigurationService textResourceConfigurationService: ITextResourceConfigurationService,
 		@IThemeService themeService: IThemeService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(LogViewer.LOG_VIEWER_EDITOR_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService);
 	}
 
 	protected getConfigurationOverrides(): IEditorOptions {

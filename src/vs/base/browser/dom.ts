@@ -289,7 +289,7 @@ function doRequestAnimationFrame(callback: (time: number) => void): number {
 			|| emulatedRequestAnimationFrame
 		);
 	}
-	return _animationFrame(callback);
+	return _animationFrame.call(self, callback);
 }
 
 /**
@@ -634,11 +634,11 @@ export function getDomNodePagePosition(domNode: HTMLElement): IDomNodePagePositi
 }
 
 export interface IStandardWindow {
-	scrollX: number;
-	scrollY: number;
+	readonly scrollX: number;
+	readonly scrollY: number;
 }
 
-export const StandardWindow: IStandardWindow = new class {
+export const StandardWindow: IStandardWindow = new class implements IStandardWindow {
 	get scrollX(): number {
 		if (typeof window.scrollX === 'number') {
 			// modern browsers
@@ -723,14 +723,22 @@ export function isAncestor(testChild: Node, testAncestor: Node): boolean {
 	return false;
 }
 
-export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazz?: string): HTMLElement {
+export function findParentWithClass(node: HTMLElement, clazz: string, stopAtClazzOrNode?: string | HTMLElement): HTMLElement {
 	while (node) {
 		if (hasClass(node, clazz)) {
 			return node;
 		}
 
-		if (stopAtClazz && hasClass(node, stopAtClazz)) {
-			return null;
+		if (stopAtClazzOrNode) {
+			if (typeof stopAtClazzOrNode === 'string') {
+				if (hasClass(node, stopAtClazzOrNode)) {
+					return null;
+				}
+			} else {
+				if (node === stopAtClazzOrNode) {
+					return null;
+				}
+			}
 		}
 
 		node = <HTMLElement>node.parentNode;
@@ -978,7 +986,7 @@ export function $<T extends HTMLElement>(description: string, attrs?: { [key: st
 
 	Object.keys(attrs || {}).forEach(name => {
 		if (/^on\w+$/.test(name)) {
-			result[name] = attrs[name];
+			(<any>result)[name] = attrs[name];
 		} else if (name === 'selected') {
 			const value = attrs[name];
 			if (value) {
@@ -1110,8 +1118,9 @@ export function computeScreenAwareSize(cssPx: number): number {
  * See https://mathiasbynens.github.io/rel-noopener/
  */
 export function windowOpenNoOpener(url: string): void {
-	if (platform.isNative) {
+	if (platform.isNative || browser.isEdgeWebView) {
 		// In VSCode, window.open() always returns null...
+		// The same is true for a WebView (see https://github.com/Microsoft/monaco-editor/issues/628)
 		window.open(url);
 	} else {
 		let newTab = window.open();

@@ -3,8 +3,6 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-'use strict';
-
 import { illegalArgument, onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
@@ -14,7 +12,7 @@ import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand, registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { DocumentFormattingEditProviderRegistry, DocumentRangeFormattingEditProviderRegistry, OnTypeFormattingEditProviderRegistry, FormattingOptions, TextEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
-import { asWinJsPromise, sequence } from 'vs/base/common/async';
+import { asWinJsPromise, first } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
 
 export class NoProviderError extends Error {
@@ -36,17 +34,10 @@ export function getDocumentRangeFormattingEdits(model: ITextModel, range: Range,
 		return TPromise.wrapError(new NoProviderError());
 	}
 
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		return () => {
-			if (!isFalsyOrEmpty(result)) {
-				return undefined;
-			}
-			return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token)).then(value => {
-				result = value;
-			}, onUnexpectedExternalError);
-		};
-	})).then(() => result);
+	return first(providers.map(provider => () => {
+		return asWinJsPromise(token => provider.provideDocumentRangeFormattingEdits(model, range, options, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
 export function getDocumentFormattingEdits(model: ITextModel, options: FormattingOptions): TPromise<TextEdit[]> {
@@ -57,17 +48,10 @@ export function getDocumentFormattingEdits(model: ITextModel, options: Formattin
 		return getDocumentRangeFormattingEdits(model, model.getFullModelRange(), options);
 	}
 
-	let result: TextEdit[];
-	return sequence(providers.map(provider => {
-		return () => {
-			if (!isFalsyOrEmpty(result)) {
-				return undefined;
-			}
-			return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token)).then(value => {
-				result = value;
-			}, onUnexpectedExternalError);
-		};
-	})).then(() => result);
+	return first(providers.map(provider => () => {
+		return asWinJsPromise(token => provider.provideDocumentFormattingEdits(model, options, token))
+			.then(undefined, onUnexpectedExternalError);
+	}), result => !isFalsyOrEmpty(result));
 }
 
 export function getOnTypeFormattingEdits(model: ITextModel, position: Position, ch: string, options: FormattingOptions): TPromise<TextEdit[]> {

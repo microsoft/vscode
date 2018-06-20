@@ -8,14 +8,14 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import * as nls from 'vs/nls';
-import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
+import { IWindowService } from 'vs/platform/windows/common/windows';
 import { ITelemetryData } from 'vs/platform/telemetry/common/telemetry';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common/workspaceEditing';
 import { WORKSPACE_FILTER, IWorkspacesService } from 'vs/platform/workspaces/common/workspaces';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { mnemonicButtonLabel } from 'vs/base/common/labels';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL, PICK_WORKSPACE_FOLDER_COMMAND_ID, defaultWorkspacePath, defaultFilePath, defaultFolderPath } from 'vs/workbench/browser/actions/workspaceCommands';
@@ -206,7 +206,7 @@ export class OpenWorkspaceConfigFileAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 
@@ -218,18 +218,17 @@ export class OpenWorkspaceConfigFileAction extends Action {
 	}
 }
 
-export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
+export class DuplicateWorkspaceInNewWindowAction extends Action {
 
-	public static readonly ID = 'workbench.action.openFolderAsWorkspaceInNewWindow';
-	public static readonly LABEL = nls.localize('openFolderAsWorkspaceInNewWindow', "Open Folder as Workspace in New Window");
+	public static readonly ID = 'workbench.action.duplicateWorkspaceInNewWindow';
+	public static readonly LABEL = nls.localize('duplicateWorkspaceInNewWindow', "Duplicate Workspace in New Window");
 
 	constructor(
 		id: string,
 		label: string,
 		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
 		@IWorkspaceEditingService private workspaceEditingService: IWorkspaceEditingService,
-		@IWindowsService private windowsService: IWindowsService,
-		@ICommandService private commandService: ICommandService,
+		@IWindowService private windowService: IWindowService,
 		@IWorkspacesService private workspacesService: IWorkspacesService
 	) {
 		super(id, label);
@@ -238,24 +237,9 @@ export class OpenFolderAsWorkspaceInNewWindowAction extends Action {
 	public run(): TPromise<any> {
 		const folders = this.workspaceContextService.getWorkspace().folders;
 
-		let folderPromise: TPromise<IWorkspaceFolder>;
-		if (folders.length === 0) {
-			folderPromise = TPromise.as(null);
-		} else if (folders.length === 1) {
-			folderPromise = TPromise.as(folders[0]);
-		} else {
-			folderPromise = this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID);
-		}
-
-		return folderPromise.then(folder => {
-			if (!folder) {
-				return void 0; // need at least one folder
-			}
-
-			return this.workspacesService.createWorkspace([{ uri: folder.uri }]).then(newWorkspace => {
-				return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
-					return this.windowsService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
-				});
+		return this.workspacesService.createWorkspace(folders).then(newWorkspace => {
+			return this.workspaceEditingService.copyWorkspaceSettings(newWorkspace).then(() => {
+				return this.windowService.openWindow([newWorkspace.configPath], { forceNewWindow: true });
 			});
 		});
 	}

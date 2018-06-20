@@ -196,10 +196,12 @@ export class SuggestController implements IEditorContribution {
 		const editorColumn = this._editor.getPosition().column;
 		const columnDelta = editorColumn - position.column;
 
+		// pushing undo stops *before* additional text edits and
+		// *after* the main edit
+		this._editor.pushUndoStop();
+
 		if (Array.isArray(suggestion.additionalTextEdits)) {
-			this._editor.pushUndoStop();
 			this._editor.executeEdits('suggestController.additionalTextEdits', suggestion.additionalTextEdits.map(edit => EditOperation.replace(Range.lift(edit.range), edit.text)));
-			this._editor.pushUndoStop();
 		}
 
 		// keep item in memory
@@ -213,8 +215,11 @@ export class SuggestController implements IEditorContribution {
 		SnippetController2.get(this._editor).insert(
 			insertText,
 			suggestion.overwriteBefore + columnDelta,
-			suggestion.overwriteAfter
+			suggestion.overwriteAfter,
+			false, false
 		);
+
+		this._editor.pushUndoStop();
 
 		if (!suggestion.command) {
 			// done
@@ -350,7 +355,7 @@ registerEditorCommand(new SuggestCommand({
 	handler: x => x.acceptSelectedSuggestion(),
 	kbOpts: {
 		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
+		kbExpr: ContextKeyExpr.and(EditorContextKeys.textInputFocus, SnippetController2.InSnippetMode.toNegated()),
 		primary: KeyCode.Tab
 	}
 }));
@@ -406,12 +411,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'selectLastSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectLastSuggestion(),
-	kbOpts: {
-		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.End
-	}
+	handler: c => c.selectLastSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({
@@ -442,12 +442,7 @@ registerEditorCommand(new SuggestCommand({
 registerEditorCommand(new SuggestCommand({
 	id: 'selectFirstSuggestion',
 	precondition: ContextKeyExpr.and(SuggestContext.Visible, SuggestContext.MultipleSuggestions),
-	handler: c => c.selectFirstSuggestion(),
-	kbOpts: {
-		weight: weight,
-		kbExpr: EditorContextKeys.textInputFocus,
-		primary: KeyCode.Home
-	}
+	handler: c => c.selectFirstSuggestion()
 }));
 
 registerEditorCommand(new SuggestCommand({

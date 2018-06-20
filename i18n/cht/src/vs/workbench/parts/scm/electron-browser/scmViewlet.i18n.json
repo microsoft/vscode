@@ -11,5 +11,6 @@
 	"installAdditionalSCMProviders": "安裝額外SCM提供者...",
 	"no open repo": "沒有使用中的原始檔控制提供者。",
 	"source control": "原始檔控制",
-	"viewletTitle": "{0}: {1}"
+	"viewletTitle": "{0}: {1}",
+	"hideView": "隱藏"
 }

@@ -36,14 +36,14 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { EditorWorkerServiceImpl } from 'vs/editor/common/services/editorWorkerServiceImpl';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ExtensionService } from 'vs/workbench/services/extensions/electron-browser/extensionService';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { InstantiationService } from 'vs/platform/instantiation/common/instantiationService';
@@ -51,7 +51,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -62,14 +62,14 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -83,7 +83,7 @@ import { HashService } from 'vs/workbench/services/hash/node/hashService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { WORKBENCH_BACKGROUND } from 'vs/workbench/common/theme';
-import { stat, existsSync } from 'fs';
+import { stat } from 'fs';
 import { join } from 'path';
 import { ILocalizationsChannel, LocalizationsChannelClient } from 'vs/platform/localizations/common/localizationsIpc';
 import { ILocalizationsService } from 'vs/platform/localizations/common/localizations';
@@ -95,6 +95,11 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 
 /**
  * Services that we require for the Shell
@@ -128,7 +133,6 @@ export class WorkbenchShell {
 	private lifecycleService: LifecycleService;
 	private mainProcessServices: ServiceCollection;
 	private notificationService: INotificationService;
-	private mainProcessClient: IPCClient;
 
 	private container: HTMLElement;
 	private toUnbind: IDisposable[];
@@ -140,9 +144,7 @@ export class WorkbenchShell {
 	private configuration: IWindowConfiguration;
 	private workbench: Workbench;
 
-	private hasLocalStorageData: boolean;
-
-	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
+	constructor(container: HTMLElement, coreServices: ICoreServices, mainProcessServices: ServiceCollection, private mainProcessClient: IPCClient, configuration: IWindowConfiguration) {
 		this.container = container;
 
 		this.configuration = configuration;
@@ -155,13 +157,9 @@ export class WorkbenchShell {
 		this.storageService = coreServices.storageService;
 
 		this.mainProcessServices = mainProcessServices;
-		this.mainProcessClient = mainProcessClient;
 
 		this.toUnbind = [];
 		this.previousErrorTime = 0;
-
-		// TODO@Ben remove me later
-		this.hasLocalStorageData = !!this.storageService.get('releaseNotes/lastVersion', StorageScope.GLOBAL);
 	}
 
 	private createContents(parent: HTMLElement): HTMLElement {
@@ -227,11 +225,6 @@ export class WorkbenchShell {
 				if (!this.environmentService.extensionTestsPath && this.contextService.getWorkbenchState() === WorkbenchState.FOLDER) {
 					this.logLocalStorageMetrics();
 				}
-
-				// localStorage migration (TODO@Ben remove me later)
-				if (!this.environmentService.extensionTestsPath) {
-					this.logLocalStorageMigrationStatus();
-				}
 			});
 
 			return workbench;
@@ -282,22 +275,12 @@ export class WorkbenchShell {
 			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length,
+			restoredEditors: info.restoredEditorsCount,
 			startupKind: this.lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
-		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			/* __GDPR__
-				"startupTime" : {
-					"${include}": [
-						"${IStartupMetrics}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
-		});
 	}
 
 	private logLocalStorageMetrics(): void {
@@ -306,17 +289,17 @@ export class WorkbenchShell {
 		}
 
 		perf.mark('willReadLocalStorage');
-		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend4');
+		const readyToSend = this.storageService.getBoolean('localStorageMetricsReadyToSend2');
 		perf.mark('didReadLocalStorage');
 
 		if (!readyToSend) {
-			this.storageService.store('localStorageMetricsReadyToSend4', true);
+			this.storageService.store('localStorageMetricsReadyToSend2', true);
 			return; // avoid logging localStorage metrics directly after the update, we prefer cold startup numbers
 		}
 
-		if (!this.storageService.getBoolean('localStorageMetricsSent4')) {
+		if (!this.storageService.getBoolean('localStorageMetricsSent2')) {
 			perf.mark('willWriteLocalStorage');
-			this.storageService.store('localStorageMetricsSent4', true);
+			this.storageService.store('localStorageMetricsSent2', true);
 			perf.mark('didWriteLocalStorage');
 
 			perf.mark('willStatLocalStorage');
@@ -324,7 +307,7 @@ export class WorkbenchShell {
 				perf.mark('didStatLocalStorage');
 
 				/* __GDPR__
-					"localStorageTimers4" : {
+					"localStorageTimers<NUMBER>" : {
 						"statTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"accessTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 						"firstReadTime" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -334,7 +317,7 @@ export class WorkbenchShell {
 						"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 					}
 				*/
-				this.telemetryService.publicLog('localStorageTimers4', {
+				this.telemetryService.publicLog('localStorageTimers2', {
 					'statTime': perf.getDuration('willStatLocalStorage', 'didStatLocalStorage'),
 					'accessTime': perf.getDuration('willAccessLocalStorage', 'didAccessLocalStorage'),
 					'firstReadTime': perf.getDuration('willReadWorkspaceIdentifier', 'didReadWorkspaceIdentifier'),
@@ -343,38 +326,6 @@ export class WorkbenchShell {
 					'keys': window.localStorage.length,
 					'size': stat ? stat.size : -1
 				});
-			});
-		}
-	}
-
-	private logLocalStorageMigrationStatus(): void {
-		if (product.quality === 'insider' && !this.storageService.getBoolean('localStorageMigrationStatusLogged')) {
-			this.storageService.store('localStorageMigrationStatusLogged', true);
-
-			stat(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage.vscbak'), (error, stat) => {
-				// if we have a backup of localStorage it means a migration was attempted
-				// by Electron 2.0. We log to telemetry if we had data initially which means
-				// the migration was successful.
-				if (stat) {
-					/* __GDPR__
-						"localStorageMigrationStatus" : {
-							"platform": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"arch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"migrated": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"size": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"sqliteStillExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-							"sqliteJournalExists": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
-						}
-					*/
-					this.telemetryService.publicLog('localStorageMigrationStatus', {
-						'platform': process.platform,
-						'arch': process.arch,
-						'migrated': this.hasLocalStorageData,
-						'size': stat.size,
-						'sqliteStillExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage')),
-						'sqliteJournalExists': existsSync(join(this.environmentService.userDataPath, 'Local Storage', 'file__0.localstorage-journal'))
-					});
-				}
 			});
 		}
 	}
@@ -459,7 +410,9 @@ export class WorkbenchShell {
 		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
@@ -499,9 +452,13 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
+		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
+
 		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
-		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
@@ -539,7 +496,11 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, () => this.layout()));
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, e => {
+			if (e.target === window) {
+				this.layout();
+			}
+		}));
 	}
 
 	public onUnexpectedError(error: any): void {

@@ -238,6 +238,10 @@ function parseWorkspaceFolders(configuredFolders: IStoredWorkspaceFolder[], rela
 		} else if (isRawUriWorkspaceFolder(configuredFolder)) {
 			try {
 				uri = URI.parse(configuredFolder.uri);
+				// this makes sure all workspace folder are absolute
+				if (uri.path[0] !== '/') {
+					uri = uri.with({ path: '/' + uri.path });
+				}
 			} catch (e) {
 				console.warn(e);
 				// ignore

@@ -20,7 +20,7 @@ export function getPathCompletionParticipant(
 	result: CompletionList
 ): ICompletionParticipant {
 	return {
-		onURILiteralValue: ({ position, range, uriValue }) => {
+		onCssURILiteralValue: ({ position, range, uriValue }) => {
 			const isValueQuoted = startsWith(uriValue, `'`) || startsWith(uriValue, `"`);
 			const fullValue = stripQuotes(uriValue);
 			const valueBeforeCursor = isValueQuoted

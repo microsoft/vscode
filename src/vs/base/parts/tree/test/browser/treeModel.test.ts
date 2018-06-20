@@ -1695,4 +1695,42 @@ suite('TreeModel - bugs', () => {
 			assert.equal(counter.count, 0);
 		});
 	});
+
+	test('collapsed resolved parent should also update all children visibility on refresh', async function () {
+		const counter = new EventCounter();
+		const dataModel = new DynamicModel();
+
+		let isSonVisible = true;
+		const filter: _.IFilter = {
+			isVisible(_, element) {
+				return element !== 'son' || isSonVisible;
+			}
+		};
+
+		const model = new TreeModel({ dataSource: dataModel, filter });
+
+		dataModel.addChild('root', 'father');
+		dataModel.addChild('father', 'son');
+
+		await model.setInput('root');
+		await model.expand('father');
+
+		let nav = model.getNavigator();
+		assert.equal(nav.next().id, 'father');
+		assert.equal(nav.next().id, 'son');
+		assert.equal(nav.next(), null);
+
+		await model.collapse('father');
+		isSonVisible = false;
+
+		await model.refresh(undefined, true);
+		await model.expand('father');
+
+		nav = model.getNavigator();
+		assert.equal(nav.next().id, 'father');
+		assert.equal(nav.next(), null);
+
+		counter.dispose();
+		model.dispose();
+	});
 });

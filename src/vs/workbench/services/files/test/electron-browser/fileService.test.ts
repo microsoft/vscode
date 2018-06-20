@@ -18,7 +18,8 @@ import * as uuid from 'vs/base/common/uuid';
 import * as pfs from 'vs/base/node/pfs';
 import * as encodingLib from 'vs/base/node/encoding';
 import * as utils from 'vs/workbench/services/files/test/electron-browser/utils';
-import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestNotificationService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestEnvironmentService, TestContextService, TestTextResourceConfigurationService, getRandomTestPath, TestLifecycleService, TestStorageService } from 'vs/workbench/test/workbenchTestServices';
+import { TestNotificationService } from 'vs/platform/notification/test/common/testNotificationService';
 import { Workspace, toWorkspaceFolders } from 'vs/platform/workspace/common/workspace';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { TextModel } from 'vs/editor/common/model/textModel';
@@ -156,7 +157,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'other.html').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'other.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -180,7 +181,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, renameToPath).then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -201,7 +202,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'deeper').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'deeper'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -225,7 +226,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, renameToPath).then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), renameToPath))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
@@ -245,7 +246,7 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'index.html'));
 		return service.resolveFile(resource).then(source => {
-			return service.rename(source.resource, 'INDEX.html').then(renamed => {
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'INDEX.html'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.equal(path.basename(renamed.resource.fsPath), 'INDEX.html');
 
@@ -429,7 +430,7 @@ suite('FileService', () => {
 
 	test('copyFile - MIX CASE', function () {
 		return service.resolveFile(uri.file(path.join(testDir, 'index.html'))).then(source => {
-			return service.rename(source.resource, 'CONWAY.js').then(renamed => { // index.html => CONWAY.js
+			return service.moveFile(source.resource, uri.file(path.join(path.dirname(source.resource.fsPath), 'CONWAY.js'))).then(renamed => {
 				assert.equal(fs.existsSync(renamed.resource.fsPath), true);
 				assert.ok(fs.readdirSync(testDir).some(f => f === 'CONWAY.js'));
 

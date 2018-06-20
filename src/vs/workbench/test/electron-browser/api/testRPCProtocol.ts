@@ -6,10 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
+import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 
-export function SingleProxyRPCProtocol(thing: any): IRPCProtocol {
+export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	return {
 		getProxy<T>(): T {
 			return thing;
@@ -21,9 +22,9 @@ export function SingleProxyRPCProtocol(thing: any): IRPCProtocol {
 	};
 }
 
-declare var Proxy; // TODO@TypeScript
+declare var Proxy: any; // TODO@TypeScript
 
-export class TestRPCProtocol implements IRPCProtocol {
+export class TestRPCProtocol implements IExtHostContext {
 
 	private _callCountValue: number = 0;
 	private _idle: Promise<any>;
@@ -76,7 +77,7 @@ export class TestRPCProtocol implements IRPCProtocol {
 
 	private _createProxy<T>(proxyId: string): T {
 		let handler = {
-			get: (target, name: string) => {
+			get: (target: any, name: string) => {
 				if (!target[name] && name.charCodeAt(0) === CharCode.DollarSign) {
 					target[name] = (...myArgs: any[]) => {
 						return this._remoteCall(proxyId, name, myArgs);

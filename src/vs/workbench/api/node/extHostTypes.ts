@@ -13,6 +13,8 @@ import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
 import { startsWith } from 'vs/base/common/strings';
+import { values } from 'vs/base/common/map';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Disposable {
 
@@ -208,7 +210,7 @@ export class Position {
 
 export class Range {
 
-	static isRange(thing: any): thing is Range {
+	static isRange(thing: any): thing is vscode.Range {
 		if (thing instanceof Range) {
 			return true;
 		}
@@ -492,38 +494,38 @@ export class TextEdit {
 	}
 }
 
+
+export interface IFileOperation {
+	_type: 1;
+	from: URI;
+	to: URI;
+	options?: { overwrite?: boolean };
+}
+
+export interface IFileTextEdit {
+	_type: 2;
+	uri: URI;
+	edit: TextEdit;
+}
+
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _seqPool: number = 0;
+	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
-	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean }): void {
+		this._edits.push({ _type: 1, from, to, options });
+	}
 
-	// createResource(uri: vscode.Uri): void {
-	// 	this.renameResource(undefined, uri);
-	// }
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean }): void {
+		this.renameFile(undefined, uri, options);
+	}
 
-	// deleteResource(uri: vscode.Uri): void {
-	// 	this.renameResource(uri, undefined);
-	// }
-
-	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
-	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	// }
-
-	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
-	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
-	// }
+	deleteFile(uri: vscode.Uri): void {
+		this.renameFile(uri, undefined);
+	}
 
 	replace(uri: URI, range: Range, newText: string): void {
-		let edit = new TextEdit(range, newText);
-		let array = this.get(uri);
-		if (array) {
-			array.push(edit);
-		} else {
-			array = [edit];
-		}
-		this.set(uri, array);
+		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText) });
 	}
 
 	insert(resource: URI, position: Position, newText: string): void {
@@ -535,55 +537,76 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._textEdits.has(uri.toString());
+		for (const edit of this._edits) {
+			if (edit._type === 2 && edit.uri.toString() === uri.toString()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		let data = this._textEdits.get(uri.toString());
-		if (!data) {
-			data = { seq: this._seqPool++, uri, edits: [] };
-			this._textEdits.set(uri.toString(), data);
-		}
 		if (!edits) {
-			data.edits = undefined;
+			// remove all text edits for `uri`
+			for (let i = 0; i < this._edits.length; i++) {
+				const element = this._edits[i];
+				if (element._type === 2 && element.uri.toString() === uri.toString()) {
+					this._edits[i] = undefined;
+				}
+			}
+			this._edits = coalesce(this._edits);
 		} else {
-			data.edits = edits.slice(0);
+			// append edit to the end
+			for (const edit of edits) {
+				if (edit) {
+					this._edits.push({ _type: 2, uri, edit });
+				}
+			}
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		if (!this._textEdits.has(uri.toString())) {
+		let res: TextEdit[] = [];
+		for (let candidate of this._edits) {
+			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
+				res.push(candidate.edit);
+			}
+		}
+		if (res.length === 0) {
 			return undefined;
 		}
-		const { edits } = this._textEdits.get(uri.toString());
-		return edits ? edits.slice() : undefined;
+		return res;
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		const res: [URI, TextEdit[]][] = [];
-		this._textEdits.forEach(value => res.push([value.uri, value.edits]));
-		return res.slice();
+		let textEdits = new Map<string, [URI, TextEdit[]]>();
+		for (let candidate of this._edits) {
+			if (candidate._type === 2) {
+				let textEdit = textEdits.get(candidate.uri.toString());
+				if (!textEdit) {
+					textEdit = [candidate.uri, []];
+					textEdits.set(candidate.uri.toString(), textEdit);
+				}
+				textEdit[1].push(candidate.edit);
+			}
+		}
+		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		return this.entries();
-		// 	// use the 'seq' the we have assigned when inserting
-		// 	// the operation and use that order in the resulting
-		// 	// array
-		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		// 	this._textEdits.forEach(value => {
-		// 		const { seq, uri, edits } = value;
-		// 		res[seq] = [uri, edits];
-		// 	});
-		// 	this._resourceEdits.forEach(value => {
-		// 		const { seq, from, to } = value;
-		// 		res[seq] = [from, to];
-		// 	});
-		// 	return res;
+	allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] {
+		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] = [];
+		for (let edit of this._edits) {
+			if (edit._type === 1) {
+				res.push([edit.from, edit.to, edit.options]);
+			} else {
+				res.push([edit.uri, [edit.edit]]);
+			}
+		}
+		return res;
 	}
 
 	get size(): number {
-		return this._textEdits.size + this._resourceEdits.length;
+		return this.entries().length;
 	}
 
 	toJSON(): any {
@@ -673,6 +696,10 @@ export class SnippetString {
 	}
 }
 
+export enum DiagnosticTag {
+	Unnecessary = 1,
+}
+
 export enum DiagnosticSeverity {
 	Hint = 3,
 	Information = 2,
@@ -747,6 +774,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
+	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -876,6 +904,34 @@ export class SymbolInformation {
 	}
 }
 
+export class DocumentSymbol {
+	name: string;
+	detail: string;
+	kind: SymbolKind;
+	range: Range;
+	selectionRange: Range;
+	children: DocumentSymbol[];
+
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
+		this.name = name;
+		this.detail = detail;
+		this.kind = kind;
+		this.range = range;
+		this.selectionRange = selectionRange;
+		this.children = [];
+
+		if (!this.range.contains(this.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
+		}
+	}
+}
+
+
+export enum CodeActionTrigger {
+	Automatic = 1,
+	Manual = 2,
+}
+
 export class CodeAction {
 	title: string;
 
@@ -904,6 +960,7 @@ export class CodeActionKind {
 	public static readonly RefactorInline = CodeActionKind.Refactor.append('inline');
 	public static readonly RefactorRewrite = CodeActionKind.Refactor.append('rewrite');
 	public static readonly Source = CodeActionKind.Empty.append('source');
+	public static readonly SourceOrganizeImports = CodeActionKind.Source.append('organizeImports');
 
 	constructor(
 		public readonly value: string
@@ -1039,7 +1096,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export class CompletionItem {
+export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
@@ -1047,6 +1104,7 @@ export class CompletionItem {
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
+	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
 	textEdit: TextEdit;
@@ -1066,6 +1124,7 @@ export class CompletionItem {
 			documentation: this.documentation,
 			sortText: this.sortText,
 			filterText: this.filterText,
+			preselect: this.preselect,
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};
@@ -1086,9 +1145,16 @@ export class CompletionList {
 
 export enum ViewColumn {
 	Active = -1,
+	Beside = -2,
 	One = 1,
 	Two = 2,
-	Three = 3
+	Three = 3,
+	Four = 4,
+	Five = 5,
+	Six = 6,
+	Seven = 7,
+	Eight = 8,
+	Nine = 9
 }
 
 export enum StatusBarAlignment {
@@ -1461,7 +1527,6 @@ export class Task implements vscode.Task {
 	private __id: string;
 
 	private _definition: vscode.TaskDefinition;
-	private _definitionKey: string;
 	private _scope: vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder;
 	private _name: string;
 	private _execution: ProcessExecution | ShellExecution;
@@ -1522,7 +1587,6 @@ export class Task implements vscode.Task {
 		}
 		this.__id = undefined;
 		this._scope = undefined;
-		this._definitionKey = undefined;
 		this._definition = undefined;
 		if (this._execution instanceof ProcessExecution) {
 			this._definition = {
@@ -1546,17 +1610,7 @@ export class Task implements vscode.Task {
 			throw illegalArgument('Kind can\'t be undefined or null');
 		}
 		this.clear();
-		this._definitionKey = undefined;
 		this._definition = value;
-	}
-
-	get definitionKey(): string {
-		if (!this._definitionKey) {
-			const hash = crypto.createHash('md5');
-			hash.update(JSON.stringify(this._definition));
-			this._definitionKey = hash.digest('hex');
-		}
-		return this._definitionKey;
 	}
 
 	get scope(): vscode.TaskScope.Global | vscode.TaskScope.Workspace | vscode.WorkspaceFolder {
@@ -1812,72 +1866,86 @@ export enum LogLevel {
 }
 
 //#region file api
-// todo@remote
-export enum FileChangeType {
-	Updated = 0,
-	Added = 1,
-	Deleted = 2
-}
 
-export enum FileChangeType2 {
+export enum FileChangeType {
 	Changed = 1,
 	Created = 2,
 	Deleted = 3,
 }
 
-export enum FileType {
-	File = 0,
-	Dir = 1,
-	Symlink = 2
-}
+export class FileSystemError extends Error {
 
-export enum FileType2 {
-	File = 1,
-	Directory = 2,
-	SymbolicLink = 4,
+	static FileExists(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryExists', FileSystemError.FileExists);
+	}
+	static FileNotFound(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotFound', FileSystemError.FileNotFound);
+	}
+	static FileNotADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryNotADirectory', FileSystemError.FileNotADirectory);
+	}
+	static FileIsADirectory(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'EntryIsADirectory', FileSystemError.FileIsADirectory);
+	}
+	static NoPermissions(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'NoPermissions', FileSystemError.NoPermissions);
+	}
+	static Unavailable(messageOrUri?: string | URI): FileSystemError {
+		return new FileSystemError(messageOrUri, 'Unavailable', FileSystemError.Unavailable);
+	}
+
+	constructor(uriOrMessage?: string | URI, code?: string, terminator?: Function) {
+		super(URI.isUri(uriOrMessage) ? uriOrMessage.toString(true) : uriOrMessage);
+		this.name = code ? `${code} (FileSystemError)` : `FileSystemError`;
+
+		// workaround when extending builtin objects and when compiling to ES5, see:
+		// https://github.com/Microsoft/TypeScript-wiki/blob/master/Breaking-Changes.md#extending-built-ins-like-error-array-and-map-may-no-longer-work
+		if (typeof (<any>Object).setPrototypeOf === 'function') {
+			(<any>Object).setPrototypeOf(this, FileSystemError.prototype);
+		}
+
+		if (typeof Error.captureStackTrace === 'function' && typeof terminator === 'function') {
+			// nice stack traces
+			Error.captureStackTrace(this, terminator);
+		}
+	}
 }
 
 //#endregion
 
 //#region folding api
 
-export class FoldingRangeList {
-
-	ranges: FoldingRange[];
-
-	constructor(ranges: FoldingRange[]) {
-		this.ranges = ranges;
-	}
-}
-
 export class FoldingRange {
 
-	startLine: number;
+	start: number;
 
-	endLine: number;
+	end: number;
 
-	type?: FoldingRangeType | string;
+	kind?: FoldingRangeKind;
 
-	constructor(startLine: number, endLine: number, type?: FoldingRangeType | string) {
-		this.startLine = startLine;
-		this.endLine = endLine;
-		this.type = type;
+	constructor(start: number, end: number, kind?: FoldingRangeKind) {
+		this.start = start;
+		this.end = end;
+		this.kind = kind;
 	}
 }
 
-export enum FoldingRangeType {
-	/**
-	 * Folding range for a comment
-	 */
-	Comment = 'comment',
-	/**
-	 * Folding range for a imports or includes
-	 */
-	Imports = 'imports',
-	/**
-	 * Folding range for a region (e.g. `#region`)
-	 */
-	Region = 'region'
+export enum FoldingRangeKind {
+	Comment = 1,
+	Imports = 2,
+	Region = 3
 }
 
 //#endregion
+
+
+export enum CommentThreadCollapsibleState {
+	/**
+	 * Determines an item is collapsed
+	 */
+	Collapsed = 0,
+	/**
+	 * Determines an item is expanded
+	 */
+	Expanded = 1
+}

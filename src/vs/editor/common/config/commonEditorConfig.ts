@@ -90,6 +90,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
 	}
 
+	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
+	}
+
 	public dispose(): void {
 		super.dispose();
 	}
@@ -211,7 +214,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -254,6 +257,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.scrollBeyondLastColumn': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
+		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
@@ -268,13 +276,13 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['left', 'right'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
-			'description': nls.localize('minimap.side', "Controls the side where to render the minimap. Possible values are \'right\' and \'left\'")
+			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
 		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
-			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden. Possible values are \'always\' and \'mouseover\'")
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -345,9 +353,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
-			'enum': ['none', 'same', 'indent'],
+			'enum': ['none', 'same', 'indent', 'deepIndent'],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
@@ -520,7 +528,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
 			'default': editorOptions.blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
-			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
+			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
@@ -573,7 +581,7 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
+			'description': nls.localize('codeLens', "Controls if the editor shows CodeLens")
 		},
 		'editor.folding': {
 			'type': 'boolean',
@@ -637,6 +645,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
+		'editor.showUnused': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.showUnused,
+			'description': nls.localize('showUnused', "Controls fading out of unused code.")
+		},
 		'editor.links': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,
@@ -651,6 +664,25 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
+		},
+		'editor.codeActionsOnSave': {
+			'type': 'object',
+			'properties': {
+				'source.organizeImports': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.organizeImports', "Run organize imports on save?")
+				}
+			},
+			'additionalProperties': {
+				'type': 'boolean'
+			},
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
+			'description': nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
+		},
+		'editor.codeActionsOnSaveTimeout': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSaveTimeout,
+			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout for code actions run on save.")
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
@@ -668,15 +700,10 @@ const editorConfiguration: IConfigurationNode = {
 			'default': true,
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
 		},
-		'editor.largeFileSize': {
-			'type': 'number',
-			'default': EDITOR_MODEL_DEFAULTS.largeFileSize,
-			'description': nls.localize('largeFileSize', "Controls file size threshold in bytes beyond which special optimization rules are applied")
-		},
-		'editor.largeFileLineCount': {
-			'type': 'number',
-			'default': EDITOR_MODEL_DEFAULTS.largeFileLineCount,
-			'description': nls.localize('largeFileLineCount', "Controls file size threshold in terms of line count beyond which special optimization rules are applied")
+		'editor.largeFileOptimizations': {
+			'type': 'boolean',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
+			'description': nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
 		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',
@@ -685,5 +712,25 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
+
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+	if (cachedEditorConfigurationKeys === null) {
+		cachedEditorConfigurationKeys = Object.create(null);
+		Object.keys(editorConfiguration.properties).forEach((prop) => {
+			cachedEditorConfigurationKeys[prop] = true;
+		});
+	}
+	return cachedEditorConfigurationKeys;
+}
+
+export function isEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`editor.${key}`] || false);
+}
+export function isDiffEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
+}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

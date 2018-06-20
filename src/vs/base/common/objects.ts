@@ -16,7 +16,7 @@ export function deepClone<T>(obj: T): T {
 		return obj as any;
 	}
 	const result: any = Array.isArray(obj) ? [] : {};
-	Object.keys(obj).forEach((key: keyof T) => {
+	Object.keys(obj).forEach((key: string) => {
 		if (obj[key] && typeof obj[key] === 'object') {
 			result[key] = deepClone(obj[key]);
 		} else {

@@ -50,6 +50,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
+	private provideSignatureHelpRequest?: TPromise<boolean, any>;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -66,6 +67,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 
 		this.onEditorConfigurationChange();
@@ -80,6 +82,11 @@ export class ParameterHintsModel extends Disposable {
 		if (!silent) {
 			this._onCancel.fire(void 0);
 		}
+
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+			this.provideSignatureHelpRequest = undefined;
+		}
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
@@ -92,7 +99,11 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private doTrigger(): void {
-		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+		}
+
+		this.provideSignatureHelpRequest = provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
 			.then(null, onUnexpectedError)
 			.then(result => {
 				if (!result || !result.signatures || result.signatures.length === 0) {
@@ -114,9 +125,8 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onModelChanged(): void {
-		if (this.active) {
-			this.cancel();
-		}
+		this.cancel();
+
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		const model = this.editor.getModel();
@@ -152,6 +162,12 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
+	private onModelContentChange(): void {
+		if (this.isTriggered()) {
+			this.trigger();
+		}
+	}
+
 	private onEditorConfigurationChange(): void {
 		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
 
@@ -172,11 +188,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private markdownRenderer: MarkdownRenderer;
+	private readonly markdownRenderer: MarkdownRenderer;
 	private renderDisposeables: IDisposable[];
 	private model: ParameterHintsModel;
-	private keyVisible: IContextKey<boolean>;
-	private keyMultipleSignatures: IContextKey<boolean>;
+	private readonly keyVisible: IContextKey<boolean>;
+	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
 	private signature: HTMLElement;
 	private docs: HTMLElement;
@@ -346,11 +362,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
-				dom.removeClass(this.docs, 'markdown-docs');
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				dom.addClass(this.docs, 'markdown-docs');
 				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
+				dom.addClass(renderedContents.element, 'markdown-docs');
 				this.renderDisposeables.push(renderedContents);
 				documentation.appendChild(renderedContents.element);
 			}
@@ -363,6 +378,7 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			dom.append(this.docs, $('p', null, signature.documentation));
 		} else {
 			const renderedContents = this.markdownRenderer.render(signature.documentation);
+			dom.addClass(renderedContents.element, 'markdown-docs');
 			this.renderDisposeables.push(renderedContents);
 			dom.append(this.docs, renderedContents.element);
 		}

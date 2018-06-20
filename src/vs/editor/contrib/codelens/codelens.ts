@@ -14,6 +14,7 @@ import { registerLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { CodeLensProviderRegistry, CodeLensProvider, ICodeLensSymbol } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { asWinJsPromise } from 'vs/base/common/async';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface ICodeLensData {
 	symbol: ICodeLensSymbol;
@@ -58,7 +59,7 @@ export function getCodeLensData(model: ITextModel): TPromise<ICodeLensData[]> {
 
 registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 
-	const { resource } = args;
+	let { resource, itemResolveCount } = args;
 	if (!(resource instanceof URI)) {
 		throw illegalArgument();
 	}
@@ -68,5 +69,22 @@ registerLanguageCommand('_executeCodeLensProvider', function (accessor, args) {
 		throw illegalArgument();
 	}
 
-	return getCodeLensData(model).then(value => value.map(item => item.symbol));
+	const result: ICodeLensSymbol[] = [];
+	return getCodeLensData(model).then(value => {
+
+		let resolve: Thenable<any>[] = [];
+
+		for (const item of value) {
+			if (typeof itemResolveCount === 'undefined' || Boolean(item.symbol.command)) {
+				result.push(item.symbol);
+			} else if (itemResolveCount-- > 0) {
+				resolve.push(Promise.resolve(item.provider.resolveCodeLens(model, item.symbol, CancellationToken.None)).then(symbol => result.push(symbol)));
+			}
+		}
+
+		return Promise.all(resolve);
+
+	}).then(() => {
+		return result;
+	});
 });

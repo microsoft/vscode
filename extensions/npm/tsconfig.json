@@ -8,8 +8,6 @@
 		"outDir": "./out",
 		"noImplicitAny": true,
 		"noImplicitReturns": true,
-		"noUnusedLocals": true,
-		"noUnusedParameters": true,
 		"strict": true
 	},
 	"include": [

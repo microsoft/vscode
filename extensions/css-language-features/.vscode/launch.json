@@ -3,7 +3,10 @@
 	"compounds": [
 		{
 			"name": "Debug Extension and Language Server",
-			"configurations": ["Launch Extension", "Attach Language Server"]
+			"configurations": [
+				"Launch Extension",
+				"Attach Language Server"
+			]
 		}
 	],
 	"configurations": [
@@ -17,19 +20,27 @@
 			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": [
+				"${workspaceFolder}/client/out/**/*.js"
+			],
+			"smartStep": true,
+			"preLaunchTask": "npm: compile"
 		},
 		{
 			"name": "Launch Tests",
 			"type": "extensionHost",
 			"request": "launch",
 			"runtimeExecutable": "${execPath}",
-			"args": ["--extensionDevelopmentPath=${workspaceFolder}", "--extensionTestsPath=${workspaceFolder}/client/out/test" ],
+			"args": [
+				"--extensionDevelopmentPath=${workspaceFolder}",
+				"--extensionTestsPath=${workspaceFolder}/client/out/test"
+			],
 			"stopOnEntry": false,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/client/out/test/**/*.js"],
-			"preLaunchTask": "npm"
+			"outFiles": [
+				"${workspaceFolder}/client/out/test/**/*.js"
+			],
+			"preLaunchTask": "npm: compile"
 		},
 		{
 			"name": "Attach Language Server",
@@ -38,7 +49,10 @@
 			"protocol": "inspector",
 			"port": 6044,
 			"sourceMaps": true,
-			"outFiles": ["${workspaceFolder}/server/out/**/*.js"],
+			"outFiles": [
+				"${workspaceFolder}/server/out/**/*.js"
+			],
+			"smartStep": true,
 			"restart": true
 		}
 	]

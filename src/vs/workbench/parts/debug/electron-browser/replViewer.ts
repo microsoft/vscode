@@ -21,8 +21,9 @@ import { renderVariable, renderExpressionValue, IVariableTemplateData, BaseDebug
 import { ClearReplAction, ReplCollapseAllAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyAction, CopyAllAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { LinkDetector } from 'vs/workbench/parts/debug/browser/linkDetector';
+import { handleANSIOutput } from 'vs/workbench/parts/debug/browser/debugANSIHandling';
 
 const $ = dom.$;
 
@@ -93,7 +94,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 	private linkDetector: LinkDetector;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService
 	) {
 		this.linkDetector = this.instantiationService.createInstance(LinkDetector);
@@ -107,11 +108,16 @@ export class ReplExpressionsRenderer implements IRenderer {
 			return 2 * ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
-		return this.getHeightForString(element.value) + (element instanceof Expression ? this.getHeightForString(element.name) : 0);
+		let availableWidth = this.width;
+		if (element instanceof SimpleReplElement && element.sourceData) {
+			availableWidth -= `${element.sourceData.source.name}:${element.sourceData.lineNumber}`.length * this.characterWidth;
+		}
+
+		return this.getHeightForString(element.value, availableWidth) + (element instanceof Expression ? this.getHeightForString(element.name, availableWidth) : 0);
 	}
 
-	private getHeightForString(s: string): number {
-		if (!s || !s.length || !this.width || this.width <= 0 || !this.characterWidth || this.characterWidth <= 0) {
+	private getHeightForString(s: string, availableWidth: number): number {
+		if (!s || !s.length || !availableWidth || availableWidth <= 0 || !this.characterWidth || this.characterWidth <= 0) {
 			return ReplExpressionsRenderer.LINE_HEIGHT_PX;
 		}
 
@@ -126,7 +132,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 				lineLength += isFullWidthCharacter(line.charCodeAt(i)) ? 2 : 1;
 			}
 
-			return lineCount + Math.floor(lineLength * this.characterWidth / this.width);
+			return lineCount + Math.floor(lineLength * this.characterWidth / availableWidth);
 		}, lines.length);
 
 		return ReplExpressionsRenderer.LINE_HEIGHT_PX * numLines;
@@ -218,7 +224,7 @@ export class ReplExpressionsRenderer implements IRenderer {
 
 	public renderElement(tree: ITree, element: any, templateId: string, templateData: any): void {
 		if (templateId === ReplExpressionsRenderer.VARIABLE_TEMPLATE_ID) {
-			renderVariable(tree, element, templateData, false);
+			renderVariable(element, templateData, false);
 		} else if (templateId === ReplExpressionsRenderer.EXPRESSION_TEMPLATE_ID) {
 			this.renderExpression(tree, element, templateData);
 		} else if (templateId === ReplExpressionsRenderer.SIMPLE_REPL_ELEMENT_TEMPLATE_ID) {
@@ -247,17 +253,10 @@ export class ReplExpressionsRenderer implements IRenderer {
 		dom.clearNode(templateData.value);
 		// Reset classes to clear ansi decorations since templates are reused
 		templateData.value.className = 'value';
-		let result = this.handleANSIOutput(element.value);
-		if (typeof result === 'string') {
-			renderExpressionValue(result, templateData.value, {
-				preserveWhitespace: true,
-				showHover: false
-			});
-		} else {
-			templateData.value.appendChild(result);
-		}
+		let result = handleANSIOutput(element.value, this.linkDetector);
+		templateData.value.appendChild(result);
 
-		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : 'info');
+		dom.addClass(templateData.value, (element.severity === severity.Warning) ? 'warn' : (element.severity === severity.Error) ? 'error' : (element.severity === severity.Ignore) ? 'ignore' : 'info');
 		templateData.source.textContent = element.sourceData ? `${element.sourceData.source.name}:${element.sourceData.lineNumber}` : '';
 		templateData.source.title = element.sourceData ? element.sourceData.source.uri.toString() : '';
 		templateData.getReplElementSource = () => element.sourceData;
@@ -284,115 +283,6 @@ export class ReplExpressionsRenderer implements IRenderer {
 		} else {
 			templateData.annotation.className = '';
 			templateData.annotation.title = '';
-		}
-	}
-
-	private handleANSIOutput(text: string): HTMLElement | string {
-		let tokensContainer: HTMLSpanElement;
-		let currentToken: HTMLSpanElement;
-		let buffer: string = '';
-
-		for (let i = 0, len = text.length; i < len; i++) {
-
-			// start of ANSI escape sequence (see http://ascii-table.com/ansi-escape-sequences.php)
-			if (text.charCodeAt(i) === 27) {
-				let index = i;
-				let chr = (++index < len ? text.charAt(index) : null);
-				let codes = [];
-				if (chr && chr === '[') {
-					let code: string = null;
-					while (chr !== 'm' && codes.length <= 7) {
-						chr = (++index < len ? text.charAt(index) : null);
-
-						if (chr && chr >= '0' && chr <= '9') {
-							code = chr;
-							chr = (++index < len ? text.charAt(index) : null);
-						}
-
-						if (chr && chr >= '0' && chr <= '9') {
-							code += chr;
-							chr = (++index < len ? text.charAt(index) : null);
-						}
-
-						if (code === null) {
-							code = '0';
-						}
-
-						codes.push(code);
-					}
-
-					if (chr === 'm') { // set text color/mode.
-						code = null;
-						// only respect text-foreground ranges and ignore the values for "black" & "white" because those
-						// only make sense in combination with text-background ranges which we currently not support
-						let token = document.createElement('span');
-						token.className = '';
-						while (codes.length > 0) {
-							code = codes.pop();
-							let parsedMode = parseInt(code, 10);
-							if (token.className.length > 0) {
-								token.className += ' ';
-							}
-							if ((parsedMode >= 30 && parsedMode <= 37) || (parsedMode >= 90 && parsedMode <= 97)) {
-								token.className += 'code' + parsedMode;
-							} else if (parsedMode === 1) {
-								token.className += 'code-bold';
-							} else if (parsedMode === 4) {
-								token.className += 'code-underline';
-							}
-						}
-
-						// we need a tokens container now
-						if (!tokensContainer) {
-							tokensContainer = document.createElement('span');
-						}
-
-						// flush text buffer if we have any
-						if (buffer) {
-							this.insert(this.linkDetector.handleLinks(buffer), currentToken || tokensContainer);
-							buffer = '';
-						}
-
-						currentToken = token;
-
-						// get child until deepest nested node is found
-						let childPointer: Node = tokensContainer;
-						while (childPointer.hasChildNodes() && childPointer.firstChild.nodeName !== '#text') {
-							childPointer = childPointer.firstChild;
-						}
-						childPointer.appendChild(token);
-
-						i = index;
-					}
-				}
-			}
-
-			// normal text
-			else {
-				buffer += text[i];
-			}
-		}
-
-		// flush remaining text buffer if we have any
-		if (buffer) {
-			let res = this.linkDetector.handleLinks(buffer);
-			if (typeof res !== 'string' || currentToken) {
-				if (!tokensContainer) {
-					tokensContainer = document.createElement('span');
-				}
-
-				this.insert(res, currentToken || tokensContainer);
-			}
-		}
-
-		return tokensContainer || buffer;
-	}
-
-	private insert(arg: HTMLElement | string, target: HTMLElement): void {
-		if (typeof arg === 'string') {
-			target.textContent = arg;
-		} else {
-			target.appendChild(arg);
 		}
 	}
 

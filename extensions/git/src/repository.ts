@@ -217,7 +217,8 @@ export class Resource implements SourceControlResourceState {
 			case Status.INDEX_DELETED:
 			case Status.DELETED:
 				return new ThemeColor('gitDecoration.deletedResourceForeground');
-			case Status.INDEX_ADDED: // todo@joh - special color?
+			case Status.INDEX_ADDED:
+				return new ThemeColor('gitDecoration.addedResourceForeground');
 			case Status.INDEX_RENAMED: // todo@joh - special color?
 			case Status.UNTRACKED:
 				return new ThemeColor('gitDecoration.untrackedResourceForeground');
@@ -559,6 +560,13 @@ export class Repository implements Disposable {
 			return;
 		}
 
+		if (/^\s+$/.test(text)) {
+			return {
+				message: localize('commitMessageWhitespacesOnlyWarning', "Current commit message only contains whitespace characters"),
+				type: SourceControlInputBoxValidationType.Warning
+			};
+		}
+
 		let start = 0, end;
 		let match: RegExpExecArray | null;
 		const regex = /\r?\n/g;
@@ -789,23 +797,29 @@ export class Repository implements Disposable {
 	}
 
 	private async _sync(head: Branch, rebase: boolean): Promise<void> {
-		let remote: string | undefined;
+		let remoteName: string | undefined;
 		let pullBranch: string | undefined;
 		let pushBranch: string | undefined;
 
 		if (head.name && head.upstream) {
-			remote = head.upstream.remote;
+			remoteName = head.upstream.remote;
 			pullBranch = `${head.upstream.name}`;
 			pushBranch = `${head.name}:${head.upstream.name}`;
 		}
 
 		await this.run(Operation.Sync, async () => {
-			await this.repository.pull(rebase, remote, pullBranch);
+			await this.repository.pull(rebase, remoteName, pullBranch);
 
-			const shouldPush = this.HEAD && typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true;
+			const remote = this.remotes.find(r => r.name === remoteName);
+
+			if (remote && remote.isReadOnly) {
+				return;
+			}
+
+			const shouldPush = this.HEAD && (typeof this.HEAD.ahead === 'number' ? this.HEAD.ahead > 0 : true);
 
 			if (shouldPush) {
-				await this.repository.push(remote, pushBranch);
+				await this.repository.push(remoteName, pushBranch);
 			}
 		});
 	}
@@ -1148,6 +1162,13 @@ export class Repository implements Disposable {
 			|| !(this.HEAD.ahead || this.HEAD.behind)
 		) {
 			return '';
+		}
+
+		const remoteName = this.HEAD && this.HEAD.remote || this.HEAD.upstream.remote;
+		const remote = this.remotes.find(r => r.name === remoteName);
+
+		if (remote && remote.isReadOnly) {
+			return `${this.HEAD.behind}↓`;
 		}
 
 		return `${this.HEAD.behind}↓ ${this.HEAD.ahead}↑`;

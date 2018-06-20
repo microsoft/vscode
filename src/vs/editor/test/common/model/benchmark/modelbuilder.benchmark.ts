@@ -10,7 +10,7 @@ import { generateRandomChunkWithLF } from 'vs/editor/test/common/model/linesText
 import { doBenchmark } from 'vs/editor/test/common/model/benchmark/benchmarkUtils';
 
 let pieceTreeTextBufferBuilder = new PieceTreeTextBufferBuilder();
-let chunks = [];
+let chunks: string[] = [];
 
 for (let i = 0; i < 100; i++) {
 	chunks.push(generateRandomChunkWithLF(16 * 1000, 64 * 1000));

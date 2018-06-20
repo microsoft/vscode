@@ -184,6 +184,6 @@ export class FileLabel extends IconLabel {
 	public setFile(file: uri, provider: IWorkspaceFolderProvider, userHome: IUserHomeProvider): void {
 		const parent = paths.dirname(file.fsPath);
 
-		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, provider, userHome) : '', { title: file.fsPath });
+		this.setValue(getBaseLabel(file), parent && parent !== '.' ? getPathLabel(parent, userHome, provider) : '', { title: file.fsPath });
 	}
 }

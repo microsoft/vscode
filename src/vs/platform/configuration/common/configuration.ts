@@ -12,7 +12,7 @@ import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IConfigurationRegistry, Extensions, OVERRIDE_PROPERTY_PATTERN } from 'vs/platform/configuration/common/configurationRegistry';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 
 export const IConfigurationService = createDecorator<IConfigurationService>('configurationService');
 
@@ -47,7 +47,7 @@ export interface IConfigurationChangeEvent {
 
 	// Following data is used for Extension host configuration event
 	changedConfiguration: IConfigurationModel;
-	changedConfigurationByResource: StrictResourceMap<IConfigurationModel>;
+	changedConfigurationByResource: ResourceMap<IConfigurationModel>;
 }
 
 export interface IConfigurationService {

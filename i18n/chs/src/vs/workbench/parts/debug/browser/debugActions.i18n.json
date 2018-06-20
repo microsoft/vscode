@@ -21,6 +21,7 @@
 	"disconnectDebug": "断开连接",
 	"continueDebug": "继续",
 	"pauseDebug": "暂停",
+	"terminateThread": "终止线程",
 	"restartFrame": "重新启动框架",
 	"removeBreakpoint": "删除断点",
 	"removeAllBreakpoints": "删除所有断点",
@@ -40,7 +41,7 @@
 	"debugConsoleAction": "调试控制台",
 	"unreadOutput": "调试控制台中的新输出",
 	"debugFocusConsole": "焦点调试控制台",
-	"focusProcess": "焦点过程",
+	"focusSession": "聚焦于“会话”视图",
 	"stepBackDebug": "后退",
 	"reverseContinue": "反向"
 }

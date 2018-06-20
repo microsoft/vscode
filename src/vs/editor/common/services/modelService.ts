@@ -39,6 +39,6 @@ export interface IModelService {
 
 export function shouldSynchronizeModel(model: ITextModel): boolean {
 	return (
-		!model.isTooLargeForHavingARichMode() && !model.isForSimpleWidget
+		!model.isTooLargeForSyncing() && !model.isForSimpleWidget
 	);
 }

@@ -10,16 +10,15 @@ import * as objects from 'vs/base/common/objects';
 import * as arrays from 'vs/base/common/arrays';
 import * as strings from 'vs/base/common/strings';
 import * as types from 'vs/base/common/types';
-import * as errors from 'vs/base/common/errors';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { Action } from 'vs/base/common/actions';
 import { Mode, IEntryRunContext, IAutoFocus, IModel, IQuickNavigateConfiguration } from 'vs/base/parts/quickopen/common/quickOpen';
 import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
-import { EditorOptions, EditorInput } from 'vs/workbench/common/editor';
-import { IResourceInput, IEditorInput, IEditorOptions } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { EditorOptions, EditorInput, IEditorInput } from 'vs/workbench/common/editor';
+import { IResourceInput, IEditorOptions } from 'vs/platform/editor/common/editor';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 
 export const CLOSE_ON_FOCUS_LOST_CONFIG = 'workbench.quickOpen.closeOnFocusLost';
 
@@ -246,7 +245,7 @@ export interface IEditorQuickOpenEntry {
  */
 export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuickOpenEntry {
 
-	constructor(private _editorService: IWorkbenchEditorService) {
+	constructor(private _editorService: IEditorService) {
 		super();
 	}
 
@@ -284,7 +283,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					opts = EditorOptions.create(openOptions);
 				}
 
-				this.editorService.openEditor(input, opts, sideBySide).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(input, opts, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			} else {
 				const resourceInput = <IResourceInput>input;
 
@@ -292,7 +291,7 @@ export class EditorQuickOpenEntry extends QuickOpenEntry implements IEditorQuick
 					resourceInput.options = objects.assign(resourceInput.options || Object.create(null), openOptions);
 				}
 
-				this.editorService.openEditor(resourceInput, sideBySide).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(resourceInput, sideBySide ? SIDE_GROUP : ACTIVE_GROUP);
 			}
 		}
 

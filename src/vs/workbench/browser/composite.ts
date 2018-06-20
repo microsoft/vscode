@@ -8,8 +8,7 @@ import { IAction, IActionRunner, ActionRunner } from 'vs/base/common/actions';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Component } from 'vs/workbench/common/component';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IComposite } from 'vs/workbench/common/composite';
-import { IEditorControl } from 'vs/platform/editor/common/editor';
+import { IComposite, ICompositeControl } from 'vs/workbench/common/composite';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IConstructorSignature0, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -193,7 +192,7 @@ export abstract class Composite extends Component implements IComposite {
 	/**
 	 * Returns the underlying composite control or null if it is not accessible.
 	 */
-	public getControl(): IEditorControl {
+	public getControl(): ICompositeControl {
 		return null;
 	}
 
@@ -242,6 +241,10 @@ export abstract class CompositeDescriptor<T extends Composite> {
 }
 
 export abstract class CompositeRegistry<T extends Composite> {
+
+	private readonly _onDidRegister: Emitter<CompositeDescriptor<T>> = new Emitter<CompositeDescriptor<T>>();
+	readonly onDidRegister: Event<CompositeDescriptor<T>> = this._onDidRegister.event;
+
 	private composites: CompositeDescriptor<T>[];
 
 	constructor() {
@@ -254,6 +257,7 @@ export abstract class CompositeRegistry<T extends Composite> {
 		}
 
 		this.composites.push(descriptor);
+		this._onDidRegister.fire(descriptor);
 	}
 
 	public getComposite(id: string): CompositeDescriptor<T> {

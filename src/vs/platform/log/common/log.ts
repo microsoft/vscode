@@ -300,7 +300,6 @@ export class NullLogService implements ILogService {
 	dispose(): void { }
 }
 
-
 export function getLogLevel(environmentService: IEnvironmentService): LogLevel {
 	if (environmentService.verbose) {
 		return LogLevel.Trace;

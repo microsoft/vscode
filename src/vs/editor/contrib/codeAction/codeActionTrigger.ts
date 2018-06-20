@@ -11,6 +11,7 @@ export class CodeActionKind {
 	public static readonly Empty = new CodeActionKind('');
 	public static readonly Refactor = new CodeActionKind('refactor');
 	public static readonly Source = new CodeActionKind('source');
+	public static readonly SourceOrganizeImports = new CodeActionKind('source.organizeImports');
 
 	constructor(
 		public readonly value: string

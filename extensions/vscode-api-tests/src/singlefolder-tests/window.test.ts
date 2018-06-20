@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind } from 'vscode';
+import { workspace, window, commands, ViewColumn, TextEditorViewColumnChangeEvent, Uri, Selection, Position, CancellationTokenSource, TextEditorSelectionChangeKind, Terminal } from 'vscode';
 import { join } from 'path';
 import { closeAllEditors, pathEquals, createRandomFile } from '../utils';
 
@@ -81,7 +81,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('editor, onDidChangeTextEditorViewColumn', () => {
+	test('editor, onDidChangeTextEditorViewColumn (close editor)', () => {
 
 		let actualEvent: TextEditorViewColumnChangeEvent;
 
@@ -119,7 +119,66 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('issue #25801 - default column when opening a file', async () => {
+	test('editor, onDidChangeTextEditorViewColumn (move editor group)', () => {
+
+		let actualEvents: TextEditorViewColumnChangeEvent[] = [];
+
+		let registration1 = workspace.registerTextDocumentContentProvider('bikes', {
+			provideTextDocumentContent() {
+				return 'mountainbiking,roadcycling';
+			}
+		});
+
+		return Promise.all([
+			workspace.openTextDocument(Uri.parse('bikes://testing/one')).then(doc => window.showTextDocument(doc, ViewColumn.One)),
+			workspace.openTextDocument(Uri.parse('bikes://testing/two')).then(doc => window.showTextDocument(doc, ViewColumn.Two))
+		]).then(editors => {
+
+			let [, two] = editors;
+			two.show();
+
+			return new Promise(resolve => {
+
+				let registration2 = window.onDidChangeTextEditorViewColumn(event => {
+					actualEvents.push(event);
+
+					if (actualEvents.length === 2) {
+						registration2.dispose();
+						resolve();
+					}
+				});
+
+				// move active editor group left
+				return commands.executeCommand('workbench.action.moveActiveEditorGroupLeft');
+
+			}).then(() => {
+				assert.equal(actualEvents.length, 2);
+
+				for (let i = 0; i < actualEvents.length; i++) {
+					const event = actualEvents[i];
+					assert.equal(event.viewColumn, event.textEditor.viewColumn);
+				}
+
+				registration1.dispose();
+			});
+		});
+	});
+
+	test('active editor not always correct... #49125', async function () {
+		const [docA, docB] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+		]);
+		for (let c = 0; c < 4; c++) {
+			let editorA = await window.showTextDocument(docA, ViewColumn.One);
+			assert(window.activeTextEditor === editorA);
+
+			let editorB = await window.showTextDocument(docB, ViewColumn.Two);
+			assert(window.activeTextEditor === editorB);
+		}
+	});
+
+	test('default column when opening a file', async () => {
 		const [docA, docB, docC] = await Promise.all([
 			workspace.openTextDocument(await createRandomFile()),
 			workspace.openTextDocument(await createRandomFile()),
@@ -133,9 +192,63 @@ suite('window namespace tests', () => {
 		assert.ok(window.activeTextEditor!.document === docB);
 		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
 
-		await window.showTextDocument(docC);
+		const editor = await window.showTextDocument(docC);
+		assert.ok(
+			window.activeTextEditor === editor,
+			`wanted fileName:${editor.document.fileName}/viewColumn:${editor.viewColumn} but got fileName:${window.activeTextEditor!.document.fileName}/viewColumn:${window.activeTextEditor!.viewColumn}. a:${docA.fileName}, b:${docB.fileName}, c:${docC.fileName}`
+		);
 		assert.ok(window.activeTextEditor!.document === docC);
-		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.One);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+	});
+
+	test('showTextDocument ViewColumn.BESIDE', async () => {
+		const [docA, docB, docC] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(docA, ViewColumn.One);
+		await window.showTextDocument(docB, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === docB);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Two);
+
+		await window.showTextDocument(docC, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor!.document === docC);
+		assert.equal(window.activeTextEditor!.viewColumn, ViewColumn.Three);
+	});
+
+	test('showTextDocument ViewColumn is always defined (even when opening > ViewColumn.Nine)', async () => {
+		const [doc1, doc2, doc3, doc4, doc5, doc6, doc7, doc8, doc9, doc10] = await Promise.all([
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile()),
+			workspace.openTextDocument(await createRandomFile())
+		]);
+
+		await window.showTextDocument(doc1, ViewColumn.One);
+		await window.showTextDocument(doc2, ViewColumn.Two);
+		await window.showTextDocument(doc3, ViewColumn.Three);
+		await window.showTextDocument(doc4, ViewColumn.Four);
+		await window.showTextDocument(doc5, ViewColumn.Five);
+		await window.showTextDocument(doc6, ViewColumn.Six);
+		await window.showTextDocument(doc7, ViewColumn.Seven);
+		await window.showTextDocument(doc8, ViewColumn.Eight);
+		await window.showTextDocument(doc9, ViewColumn.Nine);
+		await window.showTextDocument(doc10, ViewColumn.Beside);
+
+		assert.ok(window.activeTextEditor);
+		assert.ok(window.activeTextEditor!.document === doc10);
+		assert.equal(window.activeTextEditor!.viewColumn, 10);
 	});
 
 	test('issue #27408 - showTextDocument & vscode.diff always default to ViewColumn.One', async () => {
@@ -279,6 +392,65 @@ suite('window namespace tests', () => {
 		]);
 	});
 
+	test('showInputBox - value not empty on second try', async function () {
+		const one = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await one, 'notempty');
+		const two = window.showInputBox({ value: 'notempty' });
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await two, 'notempty');
+	});
+
+
+	test('showQuickPick, accept first', async function () {
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei']);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'eins');
+	});
+
+	test('showQuickPick, accept second', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const first = new Promise(resolve => resolves.push(resolve));
+		const pick = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string)
+		});
+		assert.equal(await first, 'eins');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.equal(await pick, 'zwei');
+	});
+
+	test('showQuickPick, select first two', async function () {
+		const resolves: ((value: string) => void)[] = [];
+		const picks = window.showQuickPick(['eins', 'zwei', 'drei'], {
+			onDidSelectItem: item => resolves.shift()!(item as string),
+			canPickMany: true
+		});
+		const first = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await first, 'eins');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		const second = new Promise(resolve => resolves.push(resolve));
+		await commands.executeCommand('workbench.action.quickOpenSelectNext');
+		assert.equal(await second, 'zwei');
+		await commands.executeCommand('workbench.action.quickPickManyToggle');
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
+	});
+
+	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+		const picks = window.showQuickPick([
+			{ label: 'eins' },
+			{ label: 'zwei', picked: true },
+			{ label: 'drei', picked: true }
+		], {
+			canPickMany: true
+		});
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	});
 
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
@@ -361,7 +533,7 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('Default value for showInput Box accepted even if fails validateInput, #33691', function () {
+	test('Default value for showInput Box not accepted when it fails validateInput, reversing #33691', async function () {
 		const result = window.showInputBox({
 			validateInput: (value: string) => {
 				if (!value || value.trim().length === 0) {
@@ -369,12 +541,11 @@ suite('window namespace tests', () => {
 				}
 				return null;
 			}
-		}).then(value => {
-			assert.equal(value, undefined);
 		});
 
-		const exec = commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
-		return Promise.all([result, exec]);
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		await commands.executeCommand('workbench.action.closeQuickOpen');
+		assert.equal(await result, undefined);
 	});
 
 
@@ -398,37 +569,143 @@ suite('window namespace tests', () => {
 		});
 	});
 
-	test('createTerminal, Terminal.name', () => {
-		const terminal = window.createTerminal('foo');
-		assert.equal(terminal.name, 'foo');
+	suite('Terminal', () => {
+		test('createTerminal, Terminal.name', () => {
+			const terminal = window.createTerminal('foo');
+			assert.equal(terminal.name, 'foo');
 
-		assert.throws(() => {
-			(<any>terminal).name = 'bar';
-		}, 'Terminal.name should be readonly');
-	});
-
-	test('terminal, sendText immediately after createTerminal should not throw', () => {
-		const terminal = window.createTerminal();
-		assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
-	});
-
-	test('terminal, onDidCloseTerminal event fires when terminal is disposed', (done) => {
-		const terminal = window.createTerminal();
-		window.onDidCloseTerminal((eventTerminal) => {
-			assert.equal(terminal, eventTerminal);
-			done();
+			assert.throws(() => {
+				(<any>terminal).name = 'bar';
+			}, 'Terminal.name should be readonly');
+			terminal.dispose();
 		});
-		terminal.dispose();
-	});
 
-	test('terminal, processId immediately after createTerminal should fetch the pid', (done) => {
-		window.createTerminal().processId.then(id => {
-			assert.ok(id > 0);
-			done();
+		test('sendText immediately after createTerminal should not throw', () => {
+			const terminal = window.createTerminal();
+			assert.doesNotThrow(terminal.sendText.bind(terminal, 'echo "foo"'));
+			terminal.dispose();
 		});
-	});
 
-	test('terminal, name should set terminal.name', () => {
-		assert.equal(window.createTerminal('foo').name, 'foo');
+		test('onDidCloseTerminal event fires when terminal is disposed', (done) => {
+			const terminal = window.createTerminal();
+			const reg = window.onDidCloseTerminal((eventTerminal) => {
+				assert.equal(terminal, eventTerminal);
+				reg.dispose();
+				done();
+			});
+			terminal.dispose();
+		});
+
+		test('processId immediately after createTerminal should fetch the pid', (done) => {
+			const terminal = window.createTerminal();
+			terminal.processId.then(id => {
+				assert.ok(id > 0);
+				terminal.dispose();
+				done();
+			});
+		});
+
+		test('name in constructor should set terminal.name', () => {
+			const terminal = window.createTerminal('a');
+			assert.equal(terminal.name, 'a');
+			terminal.dispose();
+		});
+
+		test('onDidOpenTerminal should fire when a terminal is created', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				assert.equal(term.name, 'b');
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal('b');
+		});
+
+		test('createTerminalRenderer should fire onDidOpenTerminal and onDidCloseTerminal', (done) => {
+			const reg1 = window.onDidOpenTerminal(term => {
+				assert.equal(term.name, 'c');
+				reg1.dispose();
+				const reg2 = window.onDidCloseTerminal(() => {
+					reg2.dispose();
+					done();
+				});
+				term.dispose();
+			});
+			window.createTerminalRenderer('c');
+		});
+
+		test('terminal renderers should get maximum dimensions set when shown', (done) => {
+			let terminal: Terminal;
+			const reg1 = window.onDidOpenTerminal(term => {
+				reg1.dispose();
+				term.show();
+				terminal = term;
+			});
+			const renderer = window.createTerminalRenderer('foo');
+			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
+				assert.ok(dimensions.cols > 0);
+				assert.ok(dimensions.rows > 0);
+				reg2.dispose();
+				const reg3 = window.onDidCloseTerminal(() => {
+					reg3.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+		});
+
+		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				reg1.dispose();
+				const reg2 = terminal.onData(data => {
+					assert.equal(data, 'bar');
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+				renderer.write('bar');
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('Terminal.sendText should fire Termnial.onInput', (done) => {
+			const reg1 = window.onDidOpenTerminal(terminal => {
+				reg1.dispose();
+				const reg2 = renderer.onInput(data => {
+					assert.equal(data, 'bar');
+					reg2.dispose();
+					const reg3 = window.onDidCloseTerminal(() => {
+						reg3.dispose();
+						done();
+					});
+					terminal.dispose();
+				});
+				terminal.sendText('bar', false);
+			});
+			const renderer = window.createTerminalRenderer('foo');
+		});
+
+		test('onDidChangeActiveTerminal should fire when new terminals are created', (done) => {
+			const reg1 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+				assert.equal(active, terminal);
+				assert.equal(active, window.activeTerminal);
+				reg1.dispose();
+				const reg2 = window.onDidChangeActiveTerminal((active: Terminal | undefined) => {
+					assert.equal(active, undefined);
+					assert.equal(active, window.activeTerminal);
+					reg2.dispose();
+					done();
+				});
+				terminal.dispose();
+			});
+			const terminal = window.createTerminal();
+			terminal.show();
+		});
 	});
 });

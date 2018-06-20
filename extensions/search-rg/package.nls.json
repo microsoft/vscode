@@ -1,0 +1,5 @@
+{
+	"displayName": "Search (ripgrep)",
+	"description": "Provides search using Ripgrep.",
+	"searchRipgrep.enable.description": "(Experimental) Enable this experimental search provider extension. When enabled, it takes precedence over vscode's built-in search."
+}

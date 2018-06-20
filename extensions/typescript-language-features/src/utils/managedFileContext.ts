@@ -9,9 +9,8 @@ import { isSupportedLanguageMode } from './languageModeIds';
 /**
  * When clause context set when the current file is managed by vscode's built-in typescript extension.
  */
-const isManagedFile_contextName = 'typescript.isManagedFile';
-
 export default class ManagedFileContextManager {
+	private static readonly contextName = 'typescript.isManagedFile';
 
 	private isInManagedFileContext: boolean = false;
 
@@ -41,8 +40,7 @@ export default class ManagedFileContextManager {
 			return;
 		}
 
-		vscode.commands.executeCommand('setContext', isManagedFile_contextName, newValue);
+		vscode.commands.executeCommand('setContext', ManagedFileContextManager.contextName, newValue);
 		this.isInManagedFileContext = newValue;
 	}
 }
-

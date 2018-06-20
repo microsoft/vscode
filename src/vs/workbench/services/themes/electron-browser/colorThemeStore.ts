@@ -7,13 +7,14 @@
 import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
-import * as Paths from 'path';
+import * as resources from 'vs/base/common/resources';
 import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { IColorTheme, ExtensionData, IThemeExtensionPoint, VS_LIGHT_THEME, VS_DARK_THEME, VS_HC_THEME } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { ColorThemeData } from 'vs/workbench/services/themes/electron-browser/colorThemeData';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Event, Emitter } from 'vs/base/common/event';
+import URI from 'vs/base/common/uri';
 
 
 let themesExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('themes', [], {
@@ -67,13 +68,13 @@ export class ColorThemeStore {
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
+				this.onThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
 			this.onDidChangeEmitter.fire(this.extensionsColorThemes);
 		});
 	}
 
-	private onThemes(extensionFolderPath: string, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onThemes(extensionLocation: URI, extensionData: ExtensionData, themes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(themes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -92,12 +93,13 @@ export class ColorThemeStore {
 				));
 				return;
 			}
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, theme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			const colorThemeLocation = resources.joinPath(extensionLocation, theme.path);
+			if (colorThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", themesExtPoint.name, colorThemeLocation.path, extensionLocation.path));
 			}
-			let themeData = ColorThemeData.fromExtensionTheme(theme, normalizedAbsolutePath, extensionData);
+
+			let themeData = ColorThemeData.fromExtensionTheme(theme, colorThemeLocation, extensionData);
 			if (themeData.id === this.extensionsColorThemes[0].id) {
 				this.extensionsColorThemes[0] = themeData;
 			} else {

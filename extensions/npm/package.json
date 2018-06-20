@@ -7,6 +7,7 @@
   "engines": {
     "vscode": "0.10.x"
   },
+  "enableProposedApi": true,
   "icon": "images/npm_icon.png",
   "categories": [
     "Other"
@@ -28,9 +29,134 @@
   "main": "./out/main",
   "activationEvents": [
     "onCommand:workbench.action.tasks.runTask",
-    "onLanguage:json"
+    "onLanguage:json",
+    "onView:npm"
   ],
   "contributes": {
+    "languages": [
+      {
+        "id": "ignore",
+        "filenames": [
+          ".npmignore"
+        ]
+      }
+    ],
+    "views": {
+      "explorer": [
+        {
+          "id": "npm",
+          "name": "%view.name%",
+          "when": "config.npm.enableScriptExplorer"
+        }
+      ]
+    },
+    "commands": [
+      {
+        "command": "npm.runScript",
+        "title": "%command.run%",
+        "icon": {
+          "light": "resources/light/continue.svg",
+          "dark": "resources/dark/continue.svg"
+        }
+      },
+      {
+        "command": "npm.debugScript",
+        "title": "%command.debug%",
+        "icon": {
+          "light": "resources/light/debug.svg",
+          "dark": "resources/dark/debug.svg"
+        }
+      },
+      {
+        "command": "npm.openScript",
+        "title": "%command.openScript%"
+      },
+      {
+        "command": "npm.runInstall",
+        "title": "%command.runInstall%"
+      },
+      {
+        "command": "npm.refresh",
+        "title": "%command.refresh%",
+        "icon": {
+          "light": "resources/light/refresh.svg",
+          "dark": "resources/dark/refresh.svg"
+        }
+      }
+    ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "npm.refresh",
+          "when": "false"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.openScript",
+          "when": "false"
+        },
+        {
+          "command": "npm.runInstall",
+          "when": "false"
+        }
+      ],
+      "view/title": [
+        {
+          "command": "npm.refresh",
+          "when": "view == npm",
+          "group": "navigation"
+        }
+      ],
+      "view/item/context": [
+        {
+          "command": "npm.openScript",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation@1"
+        },
+        {
+          "command": "npm.runInstall",
+          "when": "view == npm && viewItem == packageJSON",
+          "group": "navigation@2"
+        },
+        {
+          "command": "npm.openScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@1"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@2"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == script",
+          "group": "inline"
+        },
+        {
+          "command": "npm.runScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == debugScript",
+          "group": "inline"
+        },
+        {
+          "command": "npm.debugScript",
+          "when": "view == npm && viewItem == script",
+          "group": "navigation@3"
+        }
+      ]
+    },
     "configuration": {
       "id": "npm",
       "type": "object",
@@ -72,6 +198,22 @@
           },
           "description": "%config.npm.exclude%",
           "scope": "resource"
+        },
+        "npm.enableScriptExplorer": {
+          "type": "boolean",
+          "default": false,
+          "scope": "resource",
+          "description": "%config.npm.enableScriptExplorer%"
+        },
+        "npm.scriptExplorerAction": {
+          "type": "string",
+          "enum": [
+            "open",
+            "run"
+          ],
+          "description": "%config.npm.scriptExplorerAction%",
+          "scope": "window",
+          "default": "open"
         }
       }
     },

@@ -12,9 +12,8 @@ import { Delayer } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { IAction, IActionItem } from 'vs/base/common/actions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Panel } from 'vs/workbench/browser/panel';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, SIDE_GROUP, ACTIVE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import Constants from 'vs/workbench/parts/markers/electron-browser/constants';
 import { Marker, ResourceMarkers, RelatedInformation } from 'vs/workbench/parts/markers/electron-browser/markersModel';
 import { Controller } from 'vs/workbench/parts/markers/electron-browser/markersTreeController';
@@ -57,8 +56,7 @@ export class MarkersPanel extends Panel {
 
 	constructor(
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@ITelemetryService telemetryService: ITelemetryService,
 		@IThemeService themeService: IThemeService,
@@ -96,9 +94,8 @@ export class MarkersPanel extends Panel {
 	}
 
 	public layout(dimension: dom.Dimension): void {
-		const height = dimension.height - 38;
-		this.treeContainer.style.height = `${height}px`;
-		this.tree.layout(height, dimension.width);
+		this.treeContainer.style.height = `${dimension.height}px`;
+		this.tree.layout(dimension.height, dimension.width);
 		this.filterInputActionItem.toggleLayout(dimension.width < 1200);
 	}
 
@@ -152,7 +149,7 @@ export class MarkersPanel extends Panel {
 					pinned,
 					revealIfVisible: true
 				},
-			}, sideByside).done(editor => {
+			}, sideByside ? SIDE_GROUP : ACTIVE_GROUP).done(editor => {
 				if (editor && preserveFocus) {
 					this.rangeHighlightDecorations.highlightRange({ resource, range: selection }, <ICodeEditor>editor.getControl());
 				} else {
@@ -234,7 +231,7 @@ export class MarkersPanel extends Panel {
 
 	private createListeners(): void {
 		this.toUnbind.push(this.markersWorkbenchService.onDidChange(resources => this.onDidChange(resources)));
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(this.onEditorsChanged, this));
+		this.toUnbind.push(this.editorService.onDidActiveEditorChange(this.onActiveEditorChanged, this));
 		this.toUnbind.push(this.tree.onDidChangeSelection(() => this.onSelected()));
 		this.toUnbind.push(this.filterInputActionItem.onDidChange(() => this.updateFilter()));
 		this.actions.forEach(a => this.toUnbind.push(a));
@@ -264,9 +261,9 @@ export class MarkersPanel extends Panel {
 		return changedResources.some(r => r.toString() === this.currentActiveResource.toString());
 	}
 
-	private onEditorsChanged(): void {
-		const activeInput = this.editorService.getActiveEditorInput();
-		this.currentActiveResource = activeInput ? activeInput.getResource() : void 0;
+	private onActiveEditorChanged(): void {
+		const activeEditor = this.editorService.activeEditor;
+		this.currentActiveResource = activeEditor ? activeEditor.getResource() : void 0;
 		this.autoReveal();
 	}
 
@@ -316,7 +313,7 @@ export class MarkersPanel extends Panel {
 		const span1 = dom.append(container, dom.$('span'));
 		span1.textContent = Messages.MARKERS_PANEL_NO_PROBLEMS_FILE_EXCLUSIONS_FILTER;
 		const link = dom.append(container, dom.$('a.messageAction'));
-		link.textContent = localize('disableFilesExclude', "Disable Files Exclude.");
+		link.textContent = localize('disableFilesExclude', "Disable Files Exclude Filter.");
 		link.setAttribute('tabIndex', '0');
 		dom.addDisposableListener(link, dom.EventType.CLICK, () => this.filterInputActionItem.useFilesExclude = false);
 	}

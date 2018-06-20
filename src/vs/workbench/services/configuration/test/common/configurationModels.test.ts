@@ -13,7 +13,7 @@ import URI from 'vs/base/common/uri';
 import { ConfigurationChangeEvent, ConfigurationModel } from 'vs/platform/configuration/common/configurationModels';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions, ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
-import { StrictResourceMap } from 'vs/base/common/map';
+import { ResourceMap } from 'vs/base/common/map';
 
 suite('FolderSettingsModelParser', () => {
 
@@ -194,7 +194,7 @@ suite('AllKeysConfigurationChangeEvent', () => {
 
 	test('changeEvent affects keys for any resource', () => {
 		const configuraiton = new Configuration(new ConfigurationModel({}, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']),
-			new ConfigurationModel(), new ConfigurationModel(), new StrictResourceMap(), new ConfigurationModel(), new StrictResourceMap(), null);
+			new ConfigurationModel(), new ConfigurationModel(), new ResourceMap(), new ConfigurationModel(), new ResourceMap(), null);
 		let testObject = new AllKeysConfigurationChangeEvent(configuraiton, ConfigurationTarget.USER, null);
 
 		assert.deepEqual(testObject.affectedKeys, ['window.title', 'window.zoomLevel', 'window.restoreFullscreen', 'workbench.editor.enablePreview', 'window.restoreWindows']);

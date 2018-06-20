@@ -10,6 +10,8 @@ import { ScrollbarVisibility } from 'vs/base/common/scrollable';
 import { FontInfo } from 'vs/editor/common/config/fontInfo';
 import { Constants } from 'vs/editor/common/core/uint';
 import { USUAL_WORD_SEPARATORS } from 'vs/editor/common/model/wordHelper';
+import * as arrays from 'vs/base/common/arrays';
+import * as objects from 'vs/base/common/objects';
 
 /**
  * Configuration options for editor scrollbars
@@ -133,6 +135,13 @@ export interface IEditorLightbulbOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+}
+
+/**
+ * Configuration map for codeActionsOnSave
+ */
+export interface ICodeActionsOnSaveOptions {
+	[kind: string]: boolean;
 }
 
 /**
@@ -292,6 +301,11 @@ export interface IEditorOptions {
 	 */
 	scrollBeyondLastLine?: boolean;
 	/**
+	 * Enable that scrolling can go beyond the last column by a number of columns.
+	 * Defaults to 5.
+	 */
+	scrollBeyondLastColumn?: number;
+	/**
 	 * Enable that the editor animates scrolling to a position.
 	 * Defaults to false.
 	 */
@@ -326,7 +340,7 @@ export interface IEditorOptions {
 	 */
 	wordWrapMinified?: boolean;
 	/**
-	 * Control indentation of wrapped lines. Can be: 'none', 'same' or 'indent'.
+	 * Control indentation of wrapped lines. Can be: 'none', 'same', 'indent' or 'deepIndent'.
 	 * Defaults to 'same' in vscode and to 'none' in monaco-editor.
 	 */
 	wrappingIndent?: string;
@@ -492,14 +506,17 @@ export interface IEditorOptions {
 	 */
 	codeLens?: boolean;
 	/**
-	 * @deprecated - use codeLens instead
-	 * @internal
-	 */
-	referenceInfos?: boolean;
-	/**
 	 * Control the behavior and rendering of the code action lightbulb.
 	 */
 	lightbulb?: IEditorLightbulbOptions;
+	/**
+	 * Code action kinds to be run on save.
+	 */
+	codeActionsOnSave?: ICodeActionsOnSaveOptions;
+	/**
+	 * Timeout for running code actions on save.
+	 */
+	codeActionsOnSaveTimeout?: number;
 	/**
 	 * Enable code folding
 	 * Defaults to true.
@@ -564,6 +581,10 @@ export interface IEditorOptions {
 	 * The letter spacing
 	 */
 	letterSpacing?: number;
+	/**
+	 * Controls fading out of unused variables.
+	 */
+	showUnused?: boolean;
 }
 
 /**
@@ -618,9 +639,13 @@ export enum WrappingIndent {
 	 */
 	Same = 1,
 	/**
-	 * Indent => wrapped lines get +1 indentation as the parent.
+	 * Indent => wrapped lines get +1 indentation toward the parent.
 	 */
-	Indent = 2
+	Indent = 2,
+	/**
+	 * DeepIndent => wrapped lines get +2 indentation toward the parent.
+	 */
+	DeepIndent = 3
 }
 
 /**
@@ -813,6 +838,7 @@ export interface InternalEditorViewOptions {
 	readonly cursorWidth: number;
 	readonly hideCursorInOverviewRuler: boolean;
 	readonly scrollBeyondLastLine: boolean;
+	readonly scrollBeyondLastColumn: number;
 	readonly smoothScrolling: boolean;
 	readonly stopRenderingLineAfter: number;
 	readonly renderWhitespace: 'none' | 'boundary' | 'all';
@@ -854,6 +880,8 @@ export interface EditorContribOptions {
 	readonly find: InternalEditorFindOptions;
 	readonly colorDecorators: boolean;
 	readonly lightbulbEnabled: boolean;
+	readonly codeActionsOnSave: ICodeActionsOnSaveOptions;
+	readonly codeActionsOnSaveTimeout: number;
 }
 
 /**
@@ -885,6 +913,7 @@ export interface IValidatedEditorOptions {
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly accessibilitySupport: 'auto' | 'off' | 'on';
+	readonly showUnused: boolean;
 
 	readonly viewInfo: InternalEditorViewOptions;
 	readonly contribInfo: EditorContribOptions;
@@ -907,6 +936,7 @@ export class InternalEditorOptions {
 	readonly accessibilitySupport: platform.AccessibilitySupport;
 	readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 	readonly multiCursorMergeOverlapping: boolean;
+	readonly showUnused: boolean;
 
 	// ---- cursor options
 	readonly wordSeparators: string;
@@ -948,6 +978,7 @@ export class InternalEditorOptions {
 		viewInfo: InternalEditorViewOptions;
 		wrappingInfo: EditorWrappingInfo;
 		contribInfo: EditorContribOptions;
+		showUnused: boolean;
 	}) {
 		this.canUseLayerHinting = source.canUseLayerHinting;
 		this.pixelRatio = source.pixelRatio;
@@ -969,6 +1000,7 @@ export class InternalEditorOptions {
 		this.viewInfo = source.viewInfo;
 		this.wrappingInfo = source.wrappingInfo;
 		this.contribInfo = source.contribInfo;
+		this.showUnused = source.showUnused;
 	}
 
 	/**
@@ -990,6 +1022,7 @@ export class InternalEditorOptions {
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
 			&& this.dragAndDrop === other.dragAndDrop
+			&& this.showUnused === other.showUnused
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
@@ -1075,7 +1108,7 @@ export class InternalEditorOptions {
 		return (
 			a.extraEditorClassName === b.extraEditorClassName
 			&& a.disableMonospaceOptimizations === b.disableMonospaceOptimizations
-			&& this._equalsNumberArrays(a.rulers, b.rulers)
+			&& arrays.equals(a.rulers, b.rulers)
 			&& a.ariaLabel === b.ariaLabel
 			&& a.renderLineNumbers === b.renderLineNumbers
 			&& a.renderCustomLineNumbers === b.renderCustomLineNumbers
@@ -1091,6 +1124,7 @@ export class InternalEditorOptions {
 			&& a.cursorWidth === b.cursorWidth
 			&& a.hideCursorInOverviewRuler === b.hideCursorInOverviewRuler
 			&& a.scrollBeyondLastLine === b.scrollBeyondLastLine
+			&& a.scrollBeyondLastColumn === b.scrollBeyondLastColumn
 			&& a.smoothScrolling === b.smoothScrolling
 			&& a.stopRenderingLineAfter === b.stopRenderingLineAfter
 			&& a.renderWhitespace === b.renderWhitespace
@@ -1135,18 +1169,6 @@ export class InternalEditorOptions {
 			&& a.renderCharacters === b.renderCharacters
 			&& a.maxColumn === b.maxColumn
 		);
-	}
-
-	private static _equalsNumberArrays(a: number[], b: number[]): boolean {
-		if (a.length !== b.length) {
-			return false;
-		}
-		for (let i = 0; i < a.length; i++) {
-			if (a[i] !== b[i]) {
-				return false;
-			}
-		}
-		return true;
 	}
 
 	/**
@@ -1210,6 +1232,8 @@ export class InternalEditorOptions {
 			&& a.matchBrackets === b.matchBrackets
 			&& this._equalFindOptions(a.find, b.find)
 			&& a.colorDecorators === b.colorDecorators
+			&& objects.equals(a.codeActionsOnSave, b.codeActionsOnSave)
+			&& a.codeActionsOnSaveTimeout === b.codeActionsOnSaveTimeout
 			&& a.lightbulbEnabled === b.lightbulbEnabled
 		);
 	}
@@ -1407,6 +1431,21 @@ function _boolean<T>(value: any, defaultValue: T): boolean | T {
 	return Boolean(value);
 }
 
+function _booleanMap(value: { [key: string]: boolean }, defaultValue: { [key: string]: boolean }): { [key: string]: boolean } {
+	if (!value) {
+		return defaultValue;
+	}
+
+	const out = Object.create(null);
+	for (const k of Object.keys(value)) {
+		const v = value[k];
+		if (typeof v === 'boolean') {
+			out[k] = v;
+		}
+	}
+	return out;
+}
+
 function _string(value: any, defaultValue: string): string {
 	if (typeof value !== 'string') {
 		return defaultValue;
@@ -1451,10 +1490,12 @@ function _wrappingIndentFromString(wrappingIndent: string, defaultValue: Wrappin
 	if (typeof wrappingIndent !== 'string') {
 		return defaultValue;
 	}
-	if (wrappingIndent === 'indent') {
-		return WrappingIndent.Indent;
-	} else if (wrappingIndent === 'same') {
+	if (wrappingIndent === 'same') {
 		return WrappingIndent.Same;
+	} else if (wrappingIndent === 'indent') {
+		return WrappingIndent.Indent;
+	} else if (wrappingIndent === 'deepIndent') {
+		return WrappingIndent.DeepIndent;
 	} else {
 		return WrappingIndent.None;
 	}
@@ -1553,6 +1594,7 @@ export class EditorOptionsValidator {
 			multiCursorModifier: multiCursorModifier,
 			multiCursorMergeOverlapping: _boolean(opts.multiCursorMergeOverlapping, defaults.multiCursorMergeOverlapping),
 			accessibilitySupport: _stringSet<'auto' | 'on' | 'off'>(opts.accessibilitySupport, defaults.accessibilitySupport, ['auto', 'on', 'off']),
+			showUnused: _boolean(opts.showUnused, defaults.showUnused),
 			viewInfo: viewInfo,
 			contribInfo: contribInfo,
 		};
@@ -1699,6 +1741,7 @@ export class EditorOptionsValidator {
 			cursorWidth: _clampedInt(opts.cursorWidth, defaults.cursorWidth, 0, Number.MAX_VALUE),
 			hideCursorInOverviewRuler: _boolean(opts.hideCursorInOverviewRuler, defaults.hideCursorInOverviewRuler),
 			scrollBeyondLastLine: _boolean(opts.scrollBeyondLastLine, defaults.scrollBeyondLastLine),
+			scrollBeyondLastColumn: _clampedInt(opts.scrollBeyondLastColumn, defaults.scrollBeyondLastColumn, 0, Constants.MAX_SAFE_SMALL_INTEGER),
 			smoothScrolling: _boolean(opts.smoothScrolling, defaults.smoothScrolling),
 			stopRenderingLineAfter: _clampedInt(opts.stopRenderingLineAfter, defaults.stopRenderingLineAfter, -1, Constants.MAX_SAFE_SMALL_INTEGER),
 			renderWhitespace: renderWhitespace,
@@ -1745,14 +1788,16 @@ export class EditorOptionsValidator {
 			suggestLineHeight: _clampedInt(opts.suggestLineHeight, defaults.suggestLineHeight, 0, 1000),
 			selectionHighlight: _boolean(opts.selectionHighlight, defaults.selectionHighlight),
 			occurrencesHighlight: _boolean(opts.occurrencesHighlight, defaults.occurrencesHighlight),
-			codeLens: _boolean(opts.codeLens, defaults.codeLens) && _boolean(opts.referenceInfos, true),
+			codeLens: _boolean(opts.codeLens, defaults.codeLens),
 			folding: _boolean(opts.folding, defaults.folding),
 			foldingStrategy: _stringSet<'auto' | 'indentation'>(opts.foldingStrategy, defaults.foldingStrategy, ['auto', 'indentation']),
 			showFoldingControls: _stringSet<'always' | 'mouseover'>(opts.showFoldingControls, defaults.showFoldingControls, ['always', 'mouseover']),
 			matchBrackets: _boolean(opts.matchBrackets, defaults.matchBrackets),
 			find: find,
 			colorDecorators: _boolean(opts.colorDecorators, defaults.colorDecorators),
-			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled)
+			lightbulbEnabled: _boolean(opts.lightbulb ? opts.lightbulb.enabled : false, defaults.lightbulbEnabled),
+			codeActionsOnSave: _booleanMap(opts.codeActionsOnSave, {}),
+			codeActionsOnSaveTimeout: _clampedInt(opts.codeActionsOnSaveTimeout, defaults.codeActionsOnSaveTimeout, 1, 10000)
 		};
 	}
 }
@@ -1789,6 +1834,7 @@ export class InternalEditorOptionsFactory {
 			multiCursorModifier: opts.multiCursorModifier,
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			accessibilitySupport: opts.accessibilitySupport,
+			showUnused: opts.showUnused,
 
 			viewInfo: {
 				extraEditorClassName: opts.viewInfo.extraEditorClassName,
@@ -1809,6 +1855,7 @@ export class InternalEditorOptionsFactory {
 				cursorWidth: opts.viewInfo.cursorWidth,
 				hideCursorInOverviewRuler: opts.viewInfo.hideCursorInOverviewRuler,
 				scrollBeyondLastLine: opts.viewInfo.scrollBeyondLastLine,
+				scrollBeyondLastColumn: opts.viewInfo.scrollBeyondLastColumn,
 				smoothScrolling: opts.viewInfo.smoothScrolling,
 				stopRenderingLineAfter: opts.viewInfo.stopRenderingLineAfter,
 				renderWhitespace: (accessibilityIsOn ? 'none' : opts.viewInfo.renderWhitespace), // DISABLED WHEN SCREEN READER IS ATTACHED
@@ -1855,7 +1902,9 @@ export class InternalEditorOptionsFactory {
 				matchBrackets: (accessibilityIsOn ? false : opts.contribInfo.matchBrackets), // DISABLED WHEN SCREEN READER IS ATTACHED
 				find: opts.contribInfo.find,
 				colorDecorators: opts.contribInfo.colorDecorators,
-				lightbulbEnabled: opts.contribInfo.lightbulbEnabled
+				lightbulbEnabled: opts.contribInfo.lightbulbEnabled,
+				codeActionsOnSave: opts.contribInfo.codeActionsOnSave,
+				codeActionsOnSaveTimeout: opts.contribInfo.codeActionsOnSaveTimeout
 			}
 		};
 	}
@@ -2007,7 +2056,8 @@ export class InternalEditorOptionsFactory {
 			fontInfo: env.fontInfo,
 			viewInfo: opts.viewInfo,
 			wrappingInfo: wrappingInfo,
-			contribInfo: opts.contribInfo
+			contribInfo: opts.contribInfo,
+			showUnused: opts.showUnused,
 		});
 	}
 }
@@ -2106,18 +2156,19 @@ export class EditorLayoutProvider {
 			}
 
 			// Given:
-			// viewportColumn = (contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth
+			// (leaving 2px for the cursor to have space after the last character)
+			// viewportColumn = (contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth
 			// minimapWidth = viewportColumn * minimapCharWidth
 			// contentWidth = remainingWidth - minimapWidth
 			// What are good values for contentWidth and minimapWidth ?
 
-			// minimapWidth = ((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth) * minimapCharWidth
-			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth) * minimapCharWidth
-			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth) * minimapCharWidth
-			// minimapWidth = ((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
+			// minimapWidth = ((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (contentWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+			// typicalHalfwidthCharacterWidth * minimapWidth = (remainingWidth - minimapWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+			// (typicalHalfwidthCharacterWidth + minimapCharWidth) * minimapWidth = (remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth
+			// minimapWidth = ((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)
 
-			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
+			minimapWidth = Math.max(0, Math.floor(((remainingWidth - verticalScrollbarWidth - 2) * minimapCharWidth) / (typicalHalfwidthCharacterWidth + minimapCharWidth)));
 			let minimapColumns = minimapWidth / minimapCharWidth;
 			if (minimapColumns > minimapMaxColumn) {
 				minimapWidth = Math.floor(minimapMaxColumn * minimapCharWidth);
@@ -2135,7 +2186,8 @@ export class EditorLayoutProvider {
 			}
 		}
 
-		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth) / typicalHalfwidthCharacterWidth));
+		// (leaving 2px for the cursor to have space after the last character)
+		const viewportColumn = Math.max(1, Math.floor((contentWidth - verticalScrollbarWidth - 2) / typicalHalfwidthCharacterWidth));
 
 		const verticalArrowSize = (verticalScrollbarHasArrows ? scrollbarArrowSize : 0);
 
@@ -2205,8 +2257,7 @@ export const EDITOR_MODEL_DEFAULTS = {
 	insertSpaces: true,
 	detectIndentation: true,
 	trimAutoWhitespace: true,
-	largeFileSize: 20 * 1024 * 1024, // 20 MB
-	largeFileLineCount: 300 * 1000 // 300K lines
+	largeFileOptimizations: true
 };
 
 /**
@@ -2236,6 +2287,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	multiCursorModifier: 'altKey',
 	multiCursorMergeOverlapping: true,
 	accessibilitySupport: 'auto',
+	showUnused: true,
 
 	viewInfo: {
 		extraEditorClassName: '',
@@ -2256,6 +2308,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		cursorWidth: 0,
 		hideCursorInOverviewRuler: false,
 		scrollBeyondLastLine: true,
+		scrollBeyondLastColumn: 5,
 		smoothScrolling: false,
 		stopRenderingLineAfter: 10000,
 		renderWhitespace: 'none',
@@ -2319,6 +2372,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 			globalFindClipboard: false
 		},
 		colorDecorators: true,
-		lightbulbEnabled: true
+		lightbulbEnabled: true,
+		codeActionsOnSave: {},
+		codeActionsOnSaveTimeout: 750
 	},
 };

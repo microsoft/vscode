@@ -36,7 +36,6 @@ export class ExtensionMessageCollector {
 		this._messageHandler({
 			type: type,
 			message: message,
-			source: this._extension.extensionFolderPath,
 			extensionId: this._extension.id,
 			extensionPointId: this._extensionPointId
 		});
@@ -225,6 +224,11 @@ const schema: IJSONSchema = {
 						label: 'onView',
 						body: 'onView:${5:viewId}',
 						description: nls.localize('vscode.extension.activationEvents.onView', 'An activation event emitted whenever the specified view is expanded.'),
+					},
+					{
+						label: 'onUri',
+						body: 'onUri',
+						description: nls.localize('vscode.extension.activationEvents.onUri', 'An activation event emitted whenever a system-wide Uri directed towards this extension is open.'),
 					},
 					{
 						label: '*',

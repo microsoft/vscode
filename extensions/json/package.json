@@ -25,7 +25,9 @@
           ".jscsrc",
           ".eslintrc",
           ".babelrc",
-          ".webmanifest"
+          ".webmanifest",
+          ".js.map",
+          ".css.map"
         ],
         "filenames": [
           ".watchmanconfig",
@@ -43,19 +45,7 @@
           "JSON with Comments"
         ],
         "extensions": [
-          ".code-workspace",
-          "language-configuration.json",
-          "icon-theme.json",
-          "color-theme.json",
-          ".code-snippets"
-        ],
-        "filenames": [
-          "settings.json",
-          "launch.json",
-          "tasks.json",
-          "keybindings.json",
-          "tsconfig.json",
-          "jsconfig.json"
+          ".jsonc"
         ],
         "configuration": "./language-configuration.json"
       }

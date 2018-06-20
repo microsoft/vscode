@@ -5,24 +5,20 @@
 
 'use strict';
 
-import * as nls from 'vs/nls';
 import { KeyMod, KeyChord, KeyCode } from 'vs/base/common/keyCodes';
 import { ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
-import { NoEditorsVisibleContext, InZenModeContext } from 'vs/workbench/electron-browser/workbench';
 import { IWindowsService, IWindowService } from 'vs/platform/windows/common/windows';
 import { List } from 'vs/base/browser/ui/list/listWidget';
 import * as errors from 'vs/base/common/errors';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import URI from 'vs/base/common/uri';
-import { IEditorOptions, Position as EditorPosition } from 'vs/platform/editor/common/editor';
 import { WorkbenchListFocusContextKey, IListService, WorkbenchListSupportsMultiSelectContextKey, ListWidget } from 'vs/platform/list/browser/listService';
 import { PagedList } from 'vs/base/browser/ui/list/listPaging';
 import { range } from 'vs/base/common/arrays';
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
+import { InEditorZenModeContext, NoEditorsVisibleContext, SingleEditorGroupsContext } from 'vs/workbench/common/editor';
 
 // --- List Commands
 
@@ -504,7 +500,7 @@ export function registerCommands(): void {
 	KeybindingsRegistry.registerCommandAndKeybindingRule({
 		id: 'workbench.action.closeWindow', // close the window when the last editor is closed by reusing the same keybinding
 		weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
-		when: NoEditorsVisibleContext,
+		when: ContextKeyExpr.and(NoEditorsVisibleContext, SingleEditorGroupsContext),
 		primary: KeyMod.CtrlCmd | KeyCode.KEY_W,
 		handler: accessor => {
 			const windowService = accessor.get(IWindowService);
@@ -519,7 +515,7 @@ export function registerCommands(): void {
 			const partService = accessor.get(IPartService);
 			partService.toggleZenMode();
 		},
-		when: InZenModeContext,
+		when: InEditorZenModeContext,
 		primary: KeyChord(KeyCode.Escape, KeyCode.Escape)
 	});
 
@@ -535,39 +531,9 @@ export function registerCommands(): void {
 		win: { primary: void 0 }
 	});
 
-	CommandsRegistry.registerCommand('_workbench.diff', function (accessor: ServicesAccessor, args: [URI, URI, string, string, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		let [leftResource, rightResource, label, description, options, position] = args;
-
-		if (!options || typeof options !== 'object') {
-			options = {
-				preserveFocus: false
-			};
-		}
-
-		if (!label) {
-			label = nls.localize('diffLeftRightLabel', "{0} ⟷ {1}", leftResource.toString(true), rightResource.toString(true));
-		}
-
-		return editorService.openEditor({ leftResource, rightResource, label, description, options }, position).then(() => {
-			return void 0;
-		});
-	});
-
-	CommandsRegistry.registerCommand('_workbench.open', function (accessor: ServicesAccessor, args: [URI, IEditorOptions, EditorPosition]) {
-		const editorService = accessor.get(IWorkbenchEditorService);
-		const [resource, options, column] = args;
-
-		return editorService.openEditor({ resource, options }, column).then(() => {
-			return void 0;
-		});
-	});
-
 	CommandsRegistry.registerCommand('_workbench.removeFromRecentlyOpened', function (accessor: ServicesAccessor, path: string) {
 		const windowsService = accessor.get(IWindowsService);
 
-		return windowsService.removeFromRecentlyOpened([path]).then(() => {
-			return void 0;
-		});
+		return windowsService.removeFromRecentlyOpened([path]).then(() => void 0);
 	});
 }

@@ -52,7 +52,7 @@ export class DarwinUpdateService extends AbstractUpdateService {
 			electron.autoUpdater.setFeedURL({ url: createUpdateURL('darwin', quality) });
 		} catch (e) {
 			// application is very likely not signed
-			this.logService.error('Failed to set update feed URL');
+			this.logService.error('Failed to set update feed URL', e);
 			return false;
 		}
 

@@ -12,7 +12,7 @@ import * as pfs from 'vs/base/node/pfs';
 import * as errors from 'vs/base/common/errors';
 import * as collections from 'vs/base/common/collections';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, Delayer } from 'vs/base/common/async';
 import { FileChangeType, FileChangesEvent, IContent, IFileService } from 'vs/platform/files/common/files';
 import { isLinux } from 'vs/base/common/platform';
 import { ConfigWatcher } from 'vs/base/node/config';
@@ -161,9 +161,17 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	loadConfiguration(): TPromise<ConfigurationModel> {
 		return this.loadFolderConfigurationContents()
 			.then((contents) => {
+
+				// reset
+				this._standAloneConfigurations = [];
+				this._folderSettingsModelParser.parse('');
+
+				// parse
 				this.parseContents(contents);
+
 				// Consolidate (support *.json files in the workspace settings folder)
 				this.consolidate();
+
 				this._loaded = true;
 				return this._cache;
 			});
@@ -183,7 +191,6 @@ export abstract class AbstractFolderConfiguration extends Disposable implements 
 	}
 
 	private parseContents(contents: { resource: URI, value: string }[]): void {
-		this._standAloneConfigurations = [];
 		for (const content of contents) {
 			const name = paths.basename(content.resource.path);
 			if (name === `${FOLDER_SETTINGS_NAME}.json`) {
@@ -251,35 +258,33 @@ export class NodeBasedFolderConfiguration extends AbstractFolderConfiguration {
 
 export class FileServiceBasedFolderConfiguration extends AbstractFolderConfiguration {
 
-	private bulkContentFetchromise: TPromise<any>;
-	private workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IContent> };
 	private reloadConfigurationScheduler: RunOnceScheduler;
 	private readonly folderConfigurationPath: URI;
+	private readonly loadConfigurationDelayer: Delayer<{ resource: URI, value: string }[]> = new Delayer<{ resource: URI, value: string }[]>(50);
 
 	constructor(folder: URI, private configFolderRelativePath: string, workbenchState: WorkbenchState, private fileService: IFileService, from?: AbstractFolderConfiguration) {
 		super(folder, workbenchState, from);
 		this.folderConfigurationPath = folder.with({ path: paths.join(this.folder.path, configFolderRelativePath) });
-		this.workspaceFilePathToConfiguration = Object.create(null);
 		this.reloadConfigurationScheduler = this._register(new RunOnceScheduler(() => this._onDidChange.fire(), 50));
 		this._register(fileService.onFileChanges(e => this.handleWorkspaceFileEvents(e)));
 	}
 
 	protected loadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
-		// once: when invoked for the first time we fetch json files that contribute settings
-		if (!this.bulkContentFetchromise) {
-			this.bulkContentFetchromise = this.fileService.resolveFile(this.folderConfigurationPath)
-				.then(stat => {
-					if (stat.isDirectory && stat.children) {
-						stat.children
-							.filter(child => isFolderConfigurationFile(child.resource))
-							.forEach(child => this.workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = this.fileService.resolveContent(child.resource).then(null, errors.onUnexpectedError));
-					}
-				}).then(null, err => [] /* never fail this call */);
-		}
+		return this.loadConfigurationDelayer.trigger(() => this.doLoadFolderConfigurationContents());
+	}
 
-		// on change: join on *all* configuration file promises so that we can merge them into a single configuration object. this
-		// happens whenever a config file changes, is deleted, or added
-		return this.bulkContentFetchromise.then(() => TPromise.join(this.workspaceFilePathToConfiguration).then(result => collections.values(result)));
+	private doLoadFolderConfigurationContents(): TPromise<{ resource: URI, value: string }[]> {
+		const workspaceFilePathToConfiguration: { [relativeWorkspacePath: string]: TPromise<IContent> } = Object.create(null);
+		const bulkContentFetchromise = this.fileService.resolveFile(this.folderConfigurationPath)
+			.then(stat => {
+				if (stat.isDirectory && stat.children) {
+					stat.children
+						.filter(child => isFolderConfigurationFile(child.resource))
+						.forEach(child => workspaceFilePathToConfiguration[this.toFolderRelativePath(child.resource)] = this.fileService.resolveContent(child.resource).then(null, errors.onUnexpectedError));
+				}
+			}).then(null, err => [] /* never fail this call */);
+
+		return bulkContentFetchromise.then(() => TPromise.join(workspaceFilePathToConfiguration).then(result => collections.values(result)));
 	}
 
 	private handleWorkspaceFileEvents(event: FileChangesEvent): void {
@@ -288,22 +293,23 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 		// Find changes that affect workspace configuration files
 		for (let i = 0, len = events.length; i < len; i++) {
+
 			const resource = events[i].resource;
+			const basename = paths.basename(resource.path);
+			const isJson = paths.extname(basename) === '.json';
+			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
+
+			if (!isJson && !isDeletedSettingsFolder) {
+				continue; // only JSON files or the actual settings folder
+			}
+
 			const folderRelativePath = this.toFolderRelativePath(resource);
 			if (!folderRelativePath) {
 				continue; // event is not inside folder
 			}
 
-			const basename = paths.basename(resource.path);
-			const isJson = paths.extname(basename) === '.json';
-			const isDeletedSettingsFolder = (events[i].type === FileChangeType.DELETED && basename === this.configFolderRelativePath);
-			if (!isJson && !isDeletedSettingsFolder) {
-				continue; // only JSON files or the actual settings folder
-			}
-
 			// Handle case where ".vscode" got deleted
 			if (isDeletedSettingsFolder) {
-				this.workspaceFilePathToConfiguration = Object.create(null);
 				affectedByChanges = true;
 			}
 
@@ -312,15 +318,10 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 				continue;
 			}
 
-			// insert 'fetch-promises' for add and update events and
-			// remove promises for delete events
 			switch (events[i].type) {
 				case FileChangeType.DELETED:
-					affectedByChanges = collections.remove(this.workspaceFilePathToConfiguration, folderRelativePath);
-					break;
 				case FileChangeType.UPDATED:
 				case FileChangeType.ADDED:
-					this.workspaceFilePathToConfiguration[folderRelativePath] = this.fileService.resolveContent(resource).then(null, errors.onUnexpectedError);
 					affectedByChanges = true;
 			}
 		}
@@ -332,12 +333,12 @@ export class FileServiceBasedFolderConfiguration extends AbstractFolderConfigura
 
 	private toFolderRelativePath(resource: URI): string {
 		if (resource.scheme === Schemas.file) {
-			if (paths.isEqualOrParent(resource.fsPath, this.folder.fsPath, !isLinux /* ignorecase */)) {
-				return paths.normalize(relative(this.folder.fsPath, resource.fsPath));
+			if (paths.isEqualOrParent(resource.fsPath, this.folderConfigurationPath.fsPath, !isLinux /* ignorecase */)) {
+				return paths.normalize(relative(this.folderConfigurationPath.fsPath, resource.fsPath));
 			}
 		} else {
-			if (paths.isEqualOrParent(resource.path, this.folder.path, true /* ignorecase */)) {
-				return paths.normalize(relative(this.folder.path, resource.path));
+			if (paths.isEqualOrParent(resource.path, this.folderConfigurationPath.path, true /* ignorecase */)) {
+				return paths.normalize(relative(this.folderConfigurationPath.path, resource.path));
 			}
 		}
 		return null;

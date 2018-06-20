@@ -10,13 +10,11 @@ import * as errors from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IEditorViewState } from 'vs/editor/common/editorCommon';
-import { toResource, SideBySideEditorInput, IEditorGroup, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
+import { toResource, SideBySideEditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { ITextFileService, ITextFileEditorModel } from 'vs/workbench/services/textfile/common/textfiles';
 import { FileOperationEvent, FileOperation, IFileService, FileChangeType, FileChangesEvent } from 'vs/platform/files/common/files';
 import { FileEditorInput } from 'vs/workbench/parts/files/common/editors/fileEditorInput';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { distinct } from 'vs/base/common/arrays';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
@@ -29,6 +27,8 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { SideBySideEditor } from 'vs/workbench/browser/parts/editor/sideBySideEditor';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorGroupsService, IEditorGroup } from 'vs/workbench/services/group/common/editorGroupsService';
 
 export class FileEditorTracker implements IWorkbenchContribution {
 
@@ -39,10 +39,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private activeOutOfWorkspaceWatchers: ResourceMap<URI>;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@ITextFileService private textFileService: ITextFileService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@IFileService private fileService: IFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@IConfigurationService private configurationService: IConfigurationService,
@@ -67,7 +67,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		this.toUnbind.push(this.fileService.onFileChanges(e => this.onFileChanges(e)));
 
 		// Editor changing
-		this.toUnbind.push(this.editorGroupService.onEditorsChanged(() => this.onEditorsChanged()));
+		this.toUnbind.push(this.editorService.onDidVisibleEditorsChange(() => this.handleOutOfWorkspaceWatchers()));
 
 		// Update visible editors when focus is gained
 		this.toUnbind.push(this.windowService.onDidChangeFocus(e => this.onWindowFocusChange(e)));
@@ -94,9 +94,9 @@ export class FileEditorTracker implements IWorkbenchContribution {
 			// are visible in any editor. since this is a fast operation in the case nothing has changed,
 			// we tolerate the additional work.
 			distinct(
-				this.editorService.getVisibleEditors()
-					.map(editor => {
-						const resource = toResource(editor.input, { supportSideBySide: true });
+				this.editorService.visibleEditors
+					.map(editorInput => {
+						const resource = toResource(editorInput, { supportSideBySide: true });
 						return resource ? this.textFileService.models.get(resource) : void 0;
 					})
 					.filter(model => model && !model.isDirty()),
@@ -189,39 +189,35 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	private getOpenedFileEditors(dirtyState: boolean): FileEditorInput[] {
 		const editors: FileEditorInput[] = [];
 
-		const stacks = this.editorGroupService.getStacksModel();
-		stacks.groups.forEach(group => {
-			group.getEditors().forEach(editor => {
-				if (editor instanceof FileEditorInput) {
-					if (!!editor.isDirty() === dirtyState) {
-						editors.push(editor);
-					}
-				} else if (editor instanceof SideBySideEditorInput) {
-					const master = editor.master;
-					const details = editor.details;
+		this.editorService.editors.forEach(editor => {
+			if (editor instanceof FileEditorInput) {
+				if (!!editor.isDirty() === dirtyState) {
+					editors.push(editor);
+				}
+			} else if (editor instanceof SideBySideEditorInput) {
+				const master = editor.master;
+				const details = editor.details;
 
-					if (master instanceof FileEditorInput) {
-						if (!!master.isDirty() === dirtyState) {
-							editors.push(master);
-						}
-					}
-
-					if (details instanceof FileEditorInput) {
-						if (!!details.isDirty() === dirtyState) {
-							editors.push(details);
-						}
+				if (master instanceof FileEditorInput) {
+					if (!!master.isDirty() === dirtyState) {
+						editors.push(master);
 					}
 				}
-			});
+
+				if (details instanceof FileEditorInput) {
+					if (!!details.isDirty() === dirtyState) {
+						editors.push(details);
+					}
+				}
+			}
 		});
 
 		return editors;
 	}
 
 	private handleMovedFileInOpenedEditors(oldResource: URI, newResource: URI): void {
-		const stacks = this.editorGroupService.getStacksModel();
-		stacks.groups.forEach(group => {
-			group.getEditors().forEach(input => {
+		this.editorGroupService.groups.forEach(group => {
+			group.editors.forEach(input => {
 				if (input instanceof FileEditorInput) {
 					const resource = input.getResource();
 
@@ -241,11 +237,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 							options: {
 								preserveFocus: true,
 								pinned: group.isPinned(input),
-								index: group.indexOf(input),
+								index: group.getIndexOfEditor(input),
 								inactive: !group.isActive(input),
 								viewState: this.getViewStateFor(oldResource, group)
 							}
-						}, stacks.positionOfGroup(group)).done(null, errors.onUnexpectedError);
+						}, group);
 					}
 				}
 			});
@@ -270,12 +266,11 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private getViewStateFor(resource: URI, group: IEditorGroup): IEditorViewState | undefined {
-		const stacks = this.editorGroupService.getStacksModel();
-		const editors = this.editorService.getVisibleEditors();
+		const editors = this.editorService.visibleControls;
 
 		for (let i = 0; i < editors.length; i++) {
 			const editor = editors[i];
-			if (editor && editor.input && editor.position === stacks.positionOfGroup(group)) {
+			if (editor && editor.input && editor.group === group) {
 				const editorResource = editor.input.getResource();
 				if (editorResource && resource.toString() === editorResource.toString()) {
 					const control = editor.getControl();
@@ -299,7 +294,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 	}
 
 	private handleUpdatesToVisibleBinaryEditors(e: FileChangesEvent): void {
-		const editors = this.editorService.getVisibleEditors();
+		const editors = this.editorService.visibleControls;
 		editors.forEach(editor => {
 			const resource = toResource(editor.input, { supportSideBySide: true });
 
@@ -313,7 +308,7 @@ export class FileEditorTracker implements IWorkbenchContribution {
 
 			// Binary editor that should reload from event
 			if (resource && isBinaryEditor && (e.contains(resource, FileChangeType.UPDATED) || e.contains(resource, FileChangeType.ADDED))) {
-				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.position).done(null, errors.onUnexpectedError);
+				this.editorService.openEditor(editor.input, { forceOpen: true, preserveFocus: true }, editor.group);
 			}
 		});
 	}
@@ -341,14 +336,10 @@ export class FileEditorTracker implements IWorkbenchContribution {
 		}
 	}
 
-	private onEditorsChanged(): void {
-		this.handleOutOfWorkspaceWatchers();
-	}
-
 	private handleOutOfWorkspaceWatchers(): void {
 		const visibleOutOfWorkspacePaths = new ResourceMap<URI>();
-		this.editorService.getVisibleEditors().map(editor => {
-			return toResource(editor.input, { supportSideBySide: true });
+		this.editorService.visibleEditors.map(editorInput => {
+			return toResource(editorInput, { supportSideBySide: true });
 		}).filter(resource => {
 			return !!resource && this.fileService.canHandleResource(resource) && !this.contextService.isInsideWorkspace(resource);
 		}).forEach(resource => {

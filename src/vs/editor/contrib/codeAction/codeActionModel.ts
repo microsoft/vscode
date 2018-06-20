@@ -15,10 +15,10 @@ import { CodeAction, CodeActionProviderRegistry } from 'vs/editor/common/modes';
 import { IContextKey, IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { getCodeActions } from './codeAction';
-import { CodeActionKind, CodeActionTrigger } from './codeActionTrigger';
+import { CodeActionTrigger } from './codeActionTrigger';
+import { IProgressService } from 'vs/platform/progress/common/progress';
 
-export const HAS_REFACTOR_PROVIDER = new RawContextKey<boolean>('hasRefactorProvider', false);
-export const HAS_SOURCE_ACTION_PROVIDER = new RawContextKey<boolean>('hasSourceActionProvider', false);
+export const SUPPORTED_CODE_ACTIONS = new RawContextKey<string>('supportedCodeAction', '');
 
 export class CodeActionOracle {
 
@@ -26,9 +26,10 @@ export class CodeActionOracle {
 
 	constructor(
 		private _editor: ICodeEditor,
-		private _markerService: IMarkerService,
+		private readonly _markerService: IMarkerService,
 		private _signalChange: (e: CodeActionsComputeEvent) => any,
-		delay: number = 250
+		delay: number = 250,
+		private readonly _progressService?: IProgressService,
 	) {
 		this._disposables.push(
 			debounceEvent(this._markerService.onMarkerChanged, (last, cur) => last ? last.concat(cur) : cur, delay / 2)(e => this._onMarkerChanges(e)),
@@ -41,11 +42,8 @@ export class CodeActionOracle {
 	}
 
 	trigger(trigger: CodeActionTrigger) {
-		let rangeOrSelection = this._getRangeOfMarker() || this._getRangeOfSelectionUnlessWhitespaceEnclosed();
-		if (!rangeOrSelection && trigger.type === 'manual') {
-			rangeOrSelection = this._editor.getSelection();
-		}
-		return this._createEventAndSignalChange(trigger, rangeOrSelection);
+		const selection = this._getRangeOfSelectionUnlessWhitespaceEnclosed(trigger);
+		return this._createEventAndSignalChange(trigger, selection);
 	}
 
 	private _onMarkerChanges(resources: URI[]): void {
@@ -62,8 +60,7 @@ export class CodeActionOracle {
 		this.trigger({ type: 'auto' });
 	}
 
-	private _getRangeOfMarker(): Range {
-		const selection = this._editor.getSelection();
+	private _getRangeOfMarker(selection: Selection): Range {
 		const model = this._editor.getModel();
 		for (const marker of this._markerService.read({ resource: model.uri })) {
 			if (Range.intersectRanges(marker, selection)) {
@@ -73,10 +70,10 @@ export class CodeActionOracle {
 		return undefined;
 	}
 
-	private _getRangeOfSelectionUnlessWhitespaceEnclosed(): Selection {
+	private _getRangeOfSelectionUnlessWhitespaceEnclosed(trigger: CodeActionTrigger): Selection | undefined {
 		const model = this._editor.getModel();
 		const selection = this._editor.getSelection();
-		if (selection.isEmpty()) {
+		if (selection.isEmpty() && !(trigger.filter && trigger.filter.includeSourceActions)) {
 			const { lineNumber, column } = selection.getPosition();
 			const line = model.getLineContent(lineNumber);
 			if (line.length === 0) {
@@ -102,26 +99,29 @@ export class CodeActionOracle {
 		return selection;
 	}
 
-	private _createEventAndSignalChange(trigger: CodeActionTrigger, rangeOrSelection: Range | Selection): TPromise<CodeAction[] | undefined> {
-		if (!rangeOrSelection) {
+	private _createEventAndSignalChange(trigger: CodeActionTrigger, selection: Selection | undefined): TPromise<CodeAction[] | undefined> {
+		if (!selection) {
 			// cancel
 			this._signalChange({
 				trigger,
-				range: undefined,
+				rangeOrSelection: undefined,
 				position: undefined,
 				actions: undefined,
 			});
 			return TPromise.as(undefined);
 		} else {
-			// actual
 			const model = this._editor.getModel();
-			const range = model.validateRange(rangeOrSelection);
-			const position = rangeOrSelection instanceof Selection ? rangeOrSelection.getPosition() : rangeOrSelection.getStartPosition();
-			const actions = getCodeActions(model, range, trigger && trigger.filter);
+			const markerRange = this._getRangeOfMarker(selection);
+			const position = markerRange ? markerRange.getStartPosition() : selection.getStartPosition();
+			const actions = getCodeActions(model, selection, trigger);
+
+			if (this._progressService && trigger.type === 'manual') {
+				this._progressService.showWhile(actions, 250);
+			}
 
 			this._signalChange({
 				trigger,
-				range,
+				rangeOrSelection: selection,
 				position,
 				actions
 			});
@@ -132,7 +132,7 @@ export class CodeActionOracle {
 
 export interface CodeActionsComputeEvent {
 	trigger: CodeActionTrigger;
-	range: Range;
+	rangeOrSelection: Range | Selection;
 	position: Position;
 	actions: TPromise<CodeAction[]>;
 }
@@ -144,15 +144,13 @@ export class CodeActionModel {
 	private _codeActionOracle: CodeActionOracle;
 	private _onDidChangeFixes = new Emitter<CodeActionsComputeEvent>();
 	private _disposables: IDisposable[] = [];
-	private readonly _hasRefactorProvider: IContextKey<boolean>;
-	private readonly _hasSourceProvider: IContextKey<boolean>;
+	private readonly _supportedCodeActions: IContextKey<string>;
 
-	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService) {
+	constructor(editor: ICodeEditor, markerService: IMarkerService, contextKeyService: IContextKeyService, private readonly _progressService: IProgressService) {
 		this._editor = editor;
 		this._markerService = markerService;
 
-		this._hasRefactorProvider = HAS_REFACTOR_PROVIDER.bindTo(contextKeyService);
-		this._hasSourceProvider = HAS_SOURCE_ACTION_PROVIDER.bindTo(contextKeyService);
+		this._supportedCodeActions = SUPPORTED_CODE_ACTIONS.bindTo(contextKeyService);
 
 		this._disposables.push(this._editor.onDidChangeModel(() => this._update()));
 		this._disposables.push(this._editor.onDidChangeModelLanguage(() => this._update()));
@@ -182,28 +180,19 @@ export class CodeActionModel {
 			&& CodeActionProviderRegistry.has(this._editor.getModel())
 			&& !this._editor.getConfiguration().readOnly) {
 
-			let hasRefactorProvider = false;
-			let hasSourceProvider = false;
-			outer: for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
-				if (!provider.providedCodeActionKinds) {
-					continue;
-				}
-				for (const providedKind of provider.providedCodeActionKinds) {
-					hasRefactorProvider = hasRefactorProvider || CodeActionKind.Refactor.contains(providedKind);
-					hasSourceProvider = hasSourceProvider || CodeActionKind.Source.contains(providedKind);
-					if (hasRefactorProvider && hasSourceProvider) {
-						break outer;
-					}
+			const supportedActions: string[] = [];
+			for (const provider of CodeActionProviderRegistry.all(this._editor.getModel())) {
+				if (Array.isArray(provider.providedCodeActionKinds)) {
+					supportedActions.push(...provider.providedCodeActionKinds);
 				}
 			}
 
-			this._hasRefactorProvider.set(hasRefactorProvider);
-			this._hasSourceProvider.set(hasSourceProvider);
+			this._supportedCodeActions.set(supportedActions.join(' '));
 
-			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p));
+			this._codeActionOracle = new CodeActionOracle(this._editor, this._markerService, p => this._onDidChangeFixes.fire(p), undefined, this._progressService);
 			this._codeActionOracle.trigger({ type: 'auto' });
 		} else {
-			this._hasRefactorProvider.reset();
+			this._supportedCodeActions.reset();
 		}
 	}
 

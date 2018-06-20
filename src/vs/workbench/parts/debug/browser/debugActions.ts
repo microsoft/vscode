@@ -11,12 +11,12 @@ import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IFileService } from 'vs/platform/files/common/files';
-import { IDebugService, State, IProcess, IThread, IEnablement, IBreakpoint, IStackFrame, IExpression, REPL_ID, ProcessState }
+import { IDebugService, State, ISession, IThread, IEnablement, IBreakpoint, IStackFrame, REPL_ID, SessionState }
 	from 'vs/workbench/parts/debug/common/debug';
-import { Variable, Expression, Thread, Breakpoint, Process } from 'vs/workbench/parts/debug/common/debugModel';
+import { Variable, Expression, Thread, Breakpoint, Session } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +24,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { memoize } from 'vs/base/common/decorators';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -32,7 +33,7 @@ export abstract class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
 		public weight?: number
 	) {
 		super(id, label, cssClass, false);
@@ -154,20 +155,12 @@ export class StartAction extends AbstractDebugAction {
 	}
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
-		const processes = debugService.getModel().getProcesses();
-		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
+		const sessions = debugService.getModel().getSessions();
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
-		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && processes.length > 0) {
-			return false;
-		}
-		if (processes.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.session.root || p.session.root.uri.toString() === launch.workspace.uri.toString()))) {
-			return false;
-		}
-		const compound = launch && launch.getCompound(configName);
-		if (compound && compound.configurations && processes.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
+		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
 			return false;
 		}
 
@@ -215,32 +208,47 @@ export class RestartAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
-	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string,
+		@IDebugService debugService: IDebugService,
+		@IKeybindingService keybindingService: IKeybindingService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService
+	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
-		this.setLabel(this.debugService.getViewModel().focusedProcess);
-		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedProcess)));
+		this.setLabel(this.debugService.getViewModel().focusedSession);
+		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
 	}
 
-	private setLabel(process: IProcess): void {
-		this.updateLabel(process && process.state === ProcessState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+	@memoize
+	private get startAction(): StartAction {
+		return new StartAction(StartAction.ID, StartAction.LABEL, this.debugService, this.keybindingService, this.contextService, this.historyService);
 	}
 
-	public run(process: IProcess): TPromise<any> {
-		if (!(process instanceof Process)) {
-			process = this.debugService.getViewModel().focusedProcess;
-		}
-		if (!process) {
-			return TPromise.as(null);
+	private setLabel(session: ISession): void {
+		this.updateLabel(session && session.state === SessionState.ATTACH ? RestartAction.RECONNECT_LABEL : RestartAction.LABEL);
+	}
+
+	public run(session: ISession): TPromise<any> {
+		if (!(session instanceof Session)) {
+			session = this.debugService.getViewModel().focusedSession;
 		}
 
-		if (this.debugService.getModel().getProcesses().length <= 1) {
+		if (!session) {
+			return this.startAction.run();
+		}
+
+		if (this.debugService.getModel().getSessions().length <= 1) {
 			this.debugService.removeReplExpressions();
 		}
-		return this.debugService.restartProcess(process);
+		return this.debugService.restartSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
+		return super.isEnabled(state) && (
+			state === State.Running ||
+			state === State.Stopped ||
+			StartAction.isEnabled(this.debugService, this.contextService, this.debugService.getConfigurationManager().selectedConfiguration.name)
+		);
 	}
 }
 
@@ -315,16 +323,16 @@ export class StopAction extends AbstractDebugAction {
 		super(id, label, 'debug-action stop', debugService, keybindingService, 80);
 	}
 
-	public run(process: IProcess): TPromise<any> {
-		if (!(process instanceof Process)) {
-			process = this.debugService.getViewModel().focusedProcess;
+	public run(session: ISession): TPromise<any> {
+		if (!(session instanceof Session)) {
+			session = this.debugService.getViewModel().focusedSession;
 		}
 
-		return this.debugService.stopProcess(process);
+		return this.debugService.stopSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
+		return super.isEnabled(state) && (state !== State.Inactive);
 	}
 }
 
@@ -337,8 +345,8 @@ export class DisconnectAction extends AbstractDebugAction {
 	}
 
 	public run(): TPromise<any> {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return this.debugService.stopProcess(process);
+		const session = this.debugService.getViewModel().focusedSession;
+		return this.debugService.stopSession(session);
 	}
 
 	protected isEnabled(state: State): boolean {
@@ -385,6 +393,27 @@ export class PauseAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		return super.isEnabled(state) && state === State.Running;
+	}
+}
+
+export class TerminateThreadAction extends AbstractDebugAction {
+	static readonly ID = 'workbench.action.debug.terminateThread';
+	static LABEL = nls.localize('terminateThread', "Terminate Thread");
+
+	constructor(id: string, label: string, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+		super(id, label, undefined, debugService, keybindingService);
+	}
+
+	public run(thread: IThread): TPromise<any> {
+		if (!(thread instanceof Thread)) {
+			thread = this.debugService.getViewModel().focusedThread;
+		}
+
+		return thread ? thread.terminate() : TPromise.as(null);
+	}
+
+	protected isEnabled(state: State): boolean {
+		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
 	}
 }
 
@@ -453,7 +482,7 @@ export class EnableAllBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<IEnablement[]>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
+		return super.isEnabled(state) && (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => !bp.enabled);
 	}
 }
 
@@ -472,7 +501,7 @@ export class DisableAllBreakpointsAction extends AbstractDebugAction {
 
 	protected isEnabled(state: State): boolean {
 		const model = this.debugService.getModel();
-		return super.isEnabled(state) && (<IEnablement[]>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
+		return super.isEnabled(state) && (<ReadonlyArray<IEnablement>>model.getBreakpoints()).concat(model.getFunctionBreakpoints()).concat(model.getExceptionBreakpoints()).some(bp => bp.enabled);
 	}
 }
 
@@ -557,8 +586,8 @@ export class SetValueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
-		return super.isEnabled(state) && state === State.Stopped && process && process.session.capabilities.supportsSetVariable;
+		const session = this.debugService.getViewModel().focusedSession;
+		return super.isEnabled(state) && state === State.Stopped && session && session.raw.capabilities.supportsSetVariable;
 	}
 }
 
@@ -600,15 +629,18 @@ export class AddToWatchExpressionsAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.debug.viewlet.action.addToWatchExpressions';
 	static LABEL = nls.localize('addToWatchExpressions', "Add to Watch");
 
-	constructor(id: string, label: string, private expression: IExpression, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
+	constructor(id: string, label: string, private variable: Variable, @IDebugService debugService: IDebugService, @IKeybindingService keybindingService: IKeybindingService) {
 		super(id, label, 'debug-action add-to-watch', debugService, keybindingService);
+		this.updateEnablement();
 	}
 
 	public run(): TPromise<any> {
-		const name = this.expression instanceof Variable ? this.expression.evaluateName : this.expression.name;
-		this.debugService.addWatchExpression(name);
+		this.debugService.addWatchExpression(this.variable.evaluateName);
 		return TPromise.as(undefined);
+	}
 
+	protected isEnabled(state: State): boolean {
+		return super.isEnabled(state) && this.variable && !!this.variable.evaluateName;
 	}
 }
 
@@ -723,22 +755,22 @@ export class FocusReplAction extends Action {
 	}
 }
 
-export class FocusProcessAction extends AbstractDebugAction {
+export class FocusSessionAction extends AbstractDebugAction {
 	static readonly ID = 'workbench.action.debug.focusProcess';
-	static LABEL = nls.localize('focusProcess', "Focus Process");
+	static LABEL = nls.localize('focusSession', "Focus Session");
 
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label, null, debugService, keybindingService, 100);
 	}
 
-	public run(processName: string): TPromise<any> {
+	public run(sessionName: string): TPromise<any> {
 		const isMultiRoot = this.debugService.getConfigurationManager().getLaunches().length > 1;
-		const process = this.debugService.getModel().getProcesses().filter(p => p.getName(isMultiRoot) === processName).pop();
-		this.debugService.focusStackFrame(undefined, undefined, process, true);
+		const session = this.debugService.getModel().getSessions().filter(p => p.getName(isMultiRoot) === sessionName).pop();
+		this.debugService.focusStackFrame(undefined, undefined, session, true);
 		const stackFrame = this.debugService.getViewModel().focusedStackFrame;
 		if (stackFrame) {
 			return stackFrame.openInEditor(this.editorService, true);
@@ -766,9 +798,9 @@ export class StepBackAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			session && session.raw.capabilities.supportsStepBack;
 	}
 }
 
@@ -789,9 +821,9 @@ export class ReverseContinueAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		const process = this.debugService.getViewModel().focusedProcess;
+		const session = this.debugService.getViewModel().focusedSession;
 		return super.isEnabled(state) && state === State.Stopped &&
-			process && process.session.capabilities.supportsStepBack;
+			session && session.raw.capabilities.supportsStepBack;
 	}
 }
 

@@ -14,7 +14,7 @@ import { getLanguageModes } from '../modes/languageModes';
 interface ExpectedIndentRange {
 	startLine: number;
 	endLine: number;
-	type?: string;
+	kind?: string;
 }
 
 function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?: string, nRanges?: number): void {
@@ -24,18 +24,18 @@ function assertRanges(lines: string[], expected: ExpectedIndentRange[], message?
 		folders: [{ name: 'foo', uri: 'test://foo' }]
 	};
 	let languageModes = getLanguageModes({ css: true, javascript: true }, workspace);
-	let actual = getFoldingRanges(languageModes, document, nRanges, null)!.ranges;
+	let actual = getFoldingRanges(languageModes, document, nRanges, null);
 
 	let actualRanges = [];
 	for (let i = 0; i < actual.length; i++) {
-		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].type);
+		actualRanges[i] = r(actual[i].startLine, actual[i].endLine, actual[i].kind);
 	}
 	actualRanges = actualRanges.sort((r1, r2) => r1.startLine - r2.startLine);
 	assert.deepEqual(actualRanges, expected, message);
 }
 
-function r(startLine: number, endLine: number, type?: string): ExpectedIndentRange {
-	return { startLine, endLine, type };
+function r(startLine: number, endLine: number, kind?: string): ExpectedIndentRange {
+	return { startLine, endLine, kind };
 }
 
 suite('HTML Folding', () => {
@@ -160,7 +160,7 @@ suite('HTML Folding', () => {
 			/*10*/'</html>',
 		];
 		assertRanges(input, [r(0, 9), r(1, 8), r(2, 7), r(3, 7, 'region'), r(4, 6, 'region')]);
-	});	
+	});
 
 
 	// test('Embedded JavaScript - multi line comment', () => {
@@ -204,11 +204,11 @@ suite('HTML Folding', () => {
 		];
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'no limit', void 0);
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(9, 10), r(13, 14), r(16, 17)], 'limit 8', 8);
-		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 7', 7);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(6, 7), r(13, 14), r(16, 17)], 'limit 7', 7);
 		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14), r(16, 17)], 'limit 6', 6);
-		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 5', 5);
-		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 4', 4);
-		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 3', 3);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11), r(13, 14)], 'limit 5', 5);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3), r(5, 11)], 'limit 4', 4);
+		assertRanges(input, [r(0, 19), r(1, 18), r(2, 3)], 'limit 3', 3);
 		assertRanges(input, [r(0, 19), r(1, 18)], 'limit 2', 2);
 		assertRanges(input, [r(0, 19)], 'limit 1', 1);
 	});

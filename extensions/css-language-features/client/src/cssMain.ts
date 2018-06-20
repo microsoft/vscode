@@ -8,9 +8,9 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 const localize = nls.loadMessageBundle();
 
-import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeList, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
+import { languages, window, commands, ExtensionContext, Range, Position, TextDocument, CompletionItem, CompletionItemKind, TextEdit, SnippetString, FoldingRangeKind, FoldingRange, FoldingContext, CancellationToken } from 'vscode';
 import { LanguageClient, LanguageClientOptions, ServerOptions, TransportKind, Disposable } from 'vscode-languageclient';
-import { FoldingRangesRequest, FoldingRangeRequestParam } from 'vscode-languageserver-protocol-foldingprovider';
+import { FoldingRangeRequest, FoldingRangeRequestParam, FoldingRangeClientCapabilities, FoldingRangeKind as LSFoldingRangeKind } from 'vscode-languageserver-protocol-foldingprovider';
 
 // this method is called when vs code is activated
 export function activate(context: ExtensionContext) {
@@ -33,7 +33,7 @@ export function activate(context: ExtensionContext) {
 	let clientOptions: LanguageClientOptions = {
 		documentSelector,
 		synchronize: {
-			configurationSection: ['css', 'scss', 'less', 'emmet']
+			configurationSection: ['css', 'scss', 'less']
 		},
 		initializationOptions: {
 		}
@@ -42,6 +42,21 @@ export function activate(context: ExtensionContext) {
 	// Create the language client and start the client.
 	let client = new LanguageClient('css', localize('cssserver.name', 'CSS Language Server'), serverOptions, clientOptions);
 	client.registerProposedFeatures();
+	client.registerFeature({
+		fillClientCapabilities(capabilities: FoldingRangeClientCapabilities): void {
+			let textDocumentCap = capabilities.textDocument;
+			if (!textDocumentCap) {
+				textDocumentCap = capabilities.textDocument = {};
+			}
+			textDocumentCap.foldingRange = {
+				dynamicRegistration: false,
+				rangeLimit: 5000,
+				lineFoldingOnly: true
+			};
+		},
+		initialize(capabilities, documentSelector): void {
+		}
+	});
 
 	let disposable = client.start();
 	// Push the disposable to the context's subscriptions so that the
@@ -102,19 +117,31 @@ export function activate(context: ExtensionContext) {
 	}
 
 	function initFoldingProvider(): Disposable {
-		return languages.registerFoldingProvider(documentSelector, {
+		function getKind(kind: string | undefined): FoldingRangeKind | undefined {
+			if (kind) {
+				switch (kind) {
+					case LSFoldingRangeKind.Comment:
+						return FoldingRangeKind.Comment;
+					case LSFoldingRangeKind.Imports:
+						return FoldingRangeKind.Imports;
+					case LSFoldingRangeKind.Region:
+						return FoldingRangeKind.Region;
+				}
+			}
+			return void 0;
+		}
+		return languages.registerFoldingRangeProvider(documentSelector, {
 			provideFoldingRanges(document: TextDocument, context: FoldingContext, token: CancellationToken) {
 				const param: FoldingRangeRequestParam = {
-					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document),
-					maxRanges: context.maxRanges
+					textDocument: client.code2ProtocolConverter.asTextDocumentIdentifier(document)
 				};
-				return client.sendRequest(FoldingRangesRequest.type, param, token).then(res => {
-					if (res && Array.isArray(res.ranges)) {
-						return new FoldingRangeList(res.ranges.map(r => new FoldingRange(r.startLine, r.endLine, r.type)));
+				return client.sendRequest(FoldingRangeRequest.type, param, token).then(ranges => {
+					if (Array.isArray(ranges)) {
+						return ranges.map(r => new FoldingRange(r.startLine, r.endLine, getKind(r.kind)));
 					}
 					return null;
 				}, error => {
-					client.logFailedRequest(FoldingRangesRequest.type, error);
+					client.logFailedRequest(FoldingRangeRequest.type, error);
 					return null;
 				});
 			}

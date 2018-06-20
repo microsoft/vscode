@@ -21,7 +21,7 @@ let editTypes = [
 ];
 
 for (let fileSize of fileSizes) {
-	let chunks = [];
+	let chunks: string[] = [];
 
 	let chunkCnt = Math.floor(fileSize / (64 * 1000));
 	if (chunkCnt === 0) {
@@ -73,7 +73,7 @@ for (let fileSize of fileSizes) {
 			},
 			fn: (textBuffer) => {
 				for (let j = 0, len = textBuffer.getLineCount(); j < len; j++) {
-					var str = textBuffer.getLineContent(j + 1);
+					let str = textBuffer.getLineContent(j + 1);
 					let firstChar = str.charCodeAt(0);
 					let lastChar = str.charCodeAt(str.length - 1);
 					firstChar = firstChar - lastChar;
@@ -102,7 +102,7 @@ for (let fileSize of fileSizes) {
 					let startLine = getRandomInt(minLine, Math.max(minLine, maxLine - 100));
 					let endLine = Math.min(maxLine, startLine + 100);
 					for (let j = startLine; j < endLine; j++) {
-						var str = textBuffer.getLineContent(j + 1);
+						let str = textBuffer.getLineContent(j + 1);
 						let firstChar = str.charCodeAt(0);
 						let lastChar = str.charCodeAt(str.length - 1);
 						firstChar = firstChar - lastChar;

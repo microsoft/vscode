@@ -34,14 +34,14 @@ export class MarkdownPreview {
 	private isScrolling = false;
 	private _disposed: boolean = false;
 
-
 	public static async revive(
 		webview: vscode.WebviewPanel,
 		state: any,
 		contentProvider: MarkdownContentProvider,
 		previewConfigurations: MarkdownPreviewConfigurationManager,
 		logger: Logger,
-		topmostLineMonitor: MarkdownFileTopmostLineMonitor
+		topmostLineMonitor: MarkdownFileTopmostLineMonitor,
+		contributions: MarkdownContributions,
 	): Promise<MarkdownPreview> {
 		const resource = vscode.Uri.parse(state.resource);
 		const locked = state.locked;
@@ -55,6 +55,12 @@ export class MarkdownPreview {
 			previewConfigurations,
 			logger,
 			topmostLineMonitor);
+
+		preview.editor.webview.options = {
+			enableScripts: true,
+			enableCommandUris: true,
+			localResourceRoots: MarkdownPreview.getLocalResourceRoots(resource, contributions)
+		};
 
 		if (!isNaN(line)) {
 			preview.line = line;
@@ -236,7 +242,7 @@ export class MarkdownPreview {
 	}
 
 	public get position(): vscode.ViewColumn | undefined {
-		return this.editor.position;
+		return this.editor.viewColumn;
 	}
 
 	public isWebviewOf(webview: vscode.WebviewPanel): boolean {
@@ -269,7 +275,7 @@ export class MarkdownPreview {
 
 	public toggleLock() {
 		this._locked = !this._locked;
-		this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+		this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 	}
 
 	private isPreviewOf(resource: vscode.Uri): boolean {
@@ -325,9 +331,9 @@ export class MarkdownPreview {
 		this.forceUpdate = false;
 
 		this.currentVersion = { resource, version: document.version };
-		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line);
+		const content = await this._contentProvider.provideTextDocumentContent(document, this._previewConfigurations, this.line, this.state);
 		if (this._resource === resource) {
-			this.editor.webview.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
+			this.editor.title = MarkdownPreview.getPreviewTitle(this._resource, this._locked);
 			this.editor.webview.html = content;
 		}
 	}

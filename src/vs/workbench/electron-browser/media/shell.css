@@ -65,6 +65,15 @@
 	cursor: pointer;
 }
 
+.monaco-shell .monaco-menu .monaco-action-bar.vertical {
+	padding: .5em 0;
+}
+
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .action-label,
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .keybinding {
+	padding: 0.5em 2em;
+}
+
 /* START Keyboard Focus Indication Styles */
 
 .monaco-shell [tabindex="0"]:focus,
@@ -93,8 +102,6 @@
 .monaco-shell .mac select:focus {
 	border: none; /* outline is a square, but border has a radius, so we avoid this glitch when focused (https://github.com/Microsoft/vscode/issues/26045) */
 }
-
-
 
 .monaco-shell .monaco-tree.focused .monaco-tree-row.focused [tabindex="0"]:focus {
 	outline-width: 1px; /* higher contrast color for focusable elements in a row that shows focus feedback */

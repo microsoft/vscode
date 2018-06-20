@@ -10,11 +10,11 @@ import { assign } from 'vs/base/common/objects';
 import { generateUuid } from 'vs/base/common/uuid';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import * as ExtensionsActions from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import * as ExtensionsActions from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, IExtensionGalleryService, IExtensionEnablementService, IExtensionTipsService, ILocalExtension, LocalExtensionType, IGalleryExtension,
-	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState
+	DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier, EnablementState, InstallOperation, IExtensionManagementServer, IExtensionManagementServerService
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { ExtensionManagementService, getLocalExtensionIdFromGallery, getLocalExtensionIdFromManifest } from 'vs/platform/extensionManagement/node/extensionManagementService';
@@ -34,6 +34,9 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { ILogService, NullLogService } from 'vs/platform/log/common/log';
 import { IWindowService } from 'vs/platform/windows/common/windows';
 import { URLService } from 'vs/platform/url/common/urlService';
+import URI from 'vs/base/common/uri';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
+import { Schemas } from 'vs/base/common/network';
 
 suite('ExtensionsActions Test', () => {
 
@@ -61,11 +64,14 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IExtensionGalleryService, ExtensionGalleryService);
 
+
 		instantiationService.stub(IExtensionManagementService, ExtensionManagementService);
 		instantiationService.stub(IExtensionManagementService, 'onInstallExtension', installEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidInstallExtension', didInstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onUninstallExtension', uninstallEvent.event);
 		instantiationService.stub(IExtensionManagementService, 'onDidUninstallExtension', didUninstallEvent.event);
+
+		instantiationService.stub(IExtensionManagementServerService, instantiationService.createInstance(ExtensionManagementServerService, instantiationService.get(IExtensionManagementService)));
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
@@ -89,14 +95,14 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Install action is disabled when there is no extension', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test Install action when state is installed', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 		return workbenchService.queryLocal()
@@ -114,7 +120,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test Install action when state is installing', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return workbenchService.queryGallery()
@@ -130,7 +136,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test Install action when state is uninstalled', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return workbenchService.queryGallery()
@@ -142,7 +148,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test Install action when extension is system action', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -156,7 +162,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test Install action when extension doesnot has gallery', () => {
-		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction);
+		const testObject: ExtensionsActions.InstallAction = instantiationService.createInstance(ExtensionsActions.InstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -228,7 +234,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 
 				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
@@ -237,14 +243,14 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when there is no extension', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 		assert.equal('extension-action prominent install no-extension', testObject.class);
 	});
 
 	test('Test CombinedInstallAction when extension is system extension', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', {}, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -258,7 +264,7 @@ suite('ExtensionsActions Test', () => {
 
 	test('Test CombinedInstallAction when installAction is enabled', () => {
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 
@@ -272,7 +278,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when unInstallAction is enabled', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -286,7 +292,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when state is installing', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -302,7 +308,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test CombinedInstallAction when state is uninstalling', () => {
-		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction);
+		const testObject: ExtensionsActions.CombinedInstallAction = instantiationService.createInstance(ExtensionsActions.CombinedInstallAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -317,13 +323,13 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when there is no extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 
 		assert.ok(!testObject.enabled);
 	});
 
 	test('Test UpdateAction when extension is uninstalled', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const gallery = aGalleryExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
 		return instantiationService.get(IExtensionsWorkbenchService).queryGallery()
@@ -334,7 +340,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed and not outdated', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -348,7 +354,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and system extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' }, { type: LocalExtensionType.System });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -362,7 +368,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installed outdated and user extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -376,7 +382,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test UpdateAction when extension is installing and outdated and user extension', () => {
-		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction);
+		const testObject: ExtensionsActions.UpdateAction = instantiationService.createInstance(ExtensionsActions.UpdateAction, <IExtensionManagementServer>{ extensionManagementService: null, location: URI.from({ scheme: Schemas.file }) });
 		const local = aLocalExtension('a', { version: '1.0.0' });
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
 
@@ -452,7 +458,7 @@ suite('ExtensionsActions Test', () => {
 			.then(page => {
 				testObject.extension = page.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
 				assert.equal('extension-action manage', testObject.class);
@@ -983,7 +989,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is newly installed', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -991,7 +997,7 @@ suite('ExtensionsActions Test', () => {
 			.then((paged) => {
 				testObject.extension = paged.firstPage[0];
 				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
 				assert.equal('Reload to activate', testObject.tooltip);
@@ -1000,7 +1006,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is installed and uninstalled', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const gallery = aGalleryExtension('a');
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage(gallery));
@@ -1009,7 +1015,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = paged.firstPage[0];
 				const identifier = { id: getLocalExtensionIdFromGallery(gallery, gallery.version) };
 				installEvent.fire({ identifier: identifier, gallery });
-				didInstallEvent.fire({ identifier: identifier, gallery, local: aLocalExtension('a', gallery, { identifier }) });
+				didInstallEvent.fire({ identifier: identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, { identifier }) });
 				uninstallEvent.fire(identifier);
 				didUninstallEvent.fire({ identifier: identifier });
 
@@ -1018,7 +1024,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is uninstalled', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1035,7 +1041,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is uninstalled and installed', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.0' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.0', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const local = aLocalExtension('a');
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', [local]);
@@ -1048,14 +1054,14 @@ suite('ExtensionsActions Test', () => {
 				const gallery = aGalleryExtension('a');
 				const id = getLocalExtensionIdFromGallery(gallery, gallery.version);
 				installEvent.fire({ identifier: { id }, gallery });
-				didInstallEvent.fire({ identifier: { id }, gallery, local });
+				didInstallEvent.fire({ identifier: { id }, gallery, operation: InstallOperation.Install, local });
 
 				assert.ok(!testObject.enabled);
 			});
 	});
 
 	test('Test ReloadAction when extension is updated while running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.1' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.1', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1066,7 +1072,7 @@ suite('ExtensionsActions Test', () => {
 
 				const gallery = aGalleryExtension('a', { uuid: local.identifier.id, version: '1.0.2' });
 				installEvent.fire({ identifier: gallery.identifier, gallery });
-				didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+				didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 				assert.ok(testObject.enabled);
 				assert.equal('Reload to update', testObject.tooltip);
@@ -1075,7 +1081,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is updated when not running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => {
@@ -1088,7 +1094,7 @@ suite('ExtensionsActions Test', () => {
 
 						const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.2' });
 						installEvent.fire({ identifier: gallery.identifier, gallery });
-						didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+						didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 
 						assert.ok(!testObject.enabled);
 					});
@@ -1096,7 +1102,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is disabled when running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const local = aLocalExtension('a');
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1113,7 +1119,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.0' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.a', version: '1.0.0', extensionLocation: URI.file('pub.a') }]);
 		const testObject: ExtensionsActions.ReloadAction = instantiationService.createInstance(ExtensionsActions.ReloadAction);
 		const local = aLocalExtension('a');
 		const workbenchService = instantiationService.get(IExtensionsWorkbenchService);
@@ -1128,7 +1134,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is enabled when not running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a');
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => {
@@ -1149,7 +1155,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension enablement is toggled when not running', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a');
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => {
@@ -1167,7 +1173,7 @@ suite('ExtensionsActions Test', () => {
 	});
 
 	test('Test ReloadAction when extension is updated when not running and enabled', () => {
-		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b' }]);
+		instantiationService.stubPromise(IExtensionService, 'getExtensions', [{ id: 'pub.b', extensionLocation: URI.file('pub.b') }]);
 		const local = aLocalExtension('a', { version: '1.0.1' });
 		return instantiationService.get(IExtensionEnablementService).setEnablement(local, EnablementState.Disabled)
 			.then(() => {
@@ -1180,7 +1186,7 @@ suite('ExtensionsActions Test', () => {
 
 						const gallery = aGalleryExtension('a', { identifier: local.identifier, version: '1.0.2' });
 						installEvent.fire({ identifier: gallery.identifier, gallery });
-						didInstallEvent.fire({ identifier: gallery.identifier, gallery, local: aLocalExtension('a', gallery, gallery) });
+						didInstallEvent.fire({ identifier: gallery.identifier, gallery, operation: InstallOperation.Install, local: aLocalExtension('a', gallery, gallery) });
 						return workbenchService.setEnablement(extensions[0], EnablementState.Enabled)
 							.then(() => {
 								assert.ok(testObject.enabled);
@@ -1194,7 +1200,7 @@ suite('ExtensionsActions Test', () => {
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
-		assign(localExtension, { type: LocalExtensionType.User, manifest: {} }, properties);
+		assign(localExtension, { type: LocalExtensionType.User, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
 		assign(localExtension.manifest, { name, publisher: 'pub', version: '1.0.0' }, manifest);
 		localExtension.identifier = { id: getLocalExtensionIdFromManifest(localExtension.manifest) };
 		localExtension.metadata = { id: localExtension.identifier.id, publisherId: localExtension.manifest.publisher, publisherDisplayName: 'somename' };

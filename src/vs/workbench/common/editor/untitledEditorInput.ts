@@ -12,7 +12,7 @@ import * as labels from 'vs/base/common/labels';
 import { PLAINTEXT_MODE_ID } from 'vs/editor/common/modes/modesRegistry';
 import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
-import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult } from 'vs/workbench/common/editor';
+import { EditorInput, IEncodingSupport, EncodingMode, ConfirmResult, Verbosity } from 'vs/workbench/common/editor';
 import { UntitledEditorModel } from 'vs/workbench/common/editor/untitledEditorModel';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
@@ -21,7 +21,6 @@ import { Event, Emitter } from 'vs/base/common/event';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Verbosity } from 'vs/platform/editor/common/editor';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 
 /**
@@ -95,17 +94,17 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), this.environmentService));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, this.contextService);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -137,12 +136,12 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 
 	@memoize
 	private get mediumTitle(): string {
-		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+		return labels.getPathLabel(this.resource, this.environmentService, this.contextService);
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return labels.getPathLabel(this.resource, void 0, this.environmentService);
+		return labels.getPathLabel(this.resource, this.environmentService);
 	}
 
 	public getTitle(verbosity: Verbosity): string {

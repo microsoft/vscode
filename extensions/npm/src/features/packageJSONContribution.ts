@@ -30,7 +30,7 @@ export class PackageJSONContribution implements IJSONContribution {
 	private knownScopes = ['@types', '@angular'];
 
 	public getDocumentSelector(): DocumentSelector {
-		return [{ language: 'json', pattern: '**/package.json' }];
+		return [{ language: 'json', scheme: '*', pattern: '**/package.json' }];
 	}
 
 	public constructor(private xhr: XHRRequest) {
@@ -287,6 +287,9 @@ export class PackageJSONContribution implements IJSONContribution {
 					const latest = obj && obj['dist-tags'] && obj['dist-tags']['latest'];
 					if (latest) {
 						result.push(localize('json.npm.version.hover', 'Latest version: {0}', latest));
+					}
+					if (obj.homepage) {
+						result.push(obj.homepage);
 					}
 					return result;
 				}

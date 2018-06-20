@@ -276,8 +276,21 @@ class CSSBasedConfiguration extends Disposable {
 
 export class Configuration extends CommonEditorConfiguration {
 
+	private static _massageFontFamily(fontFamily: string): string {
+		if (/[,"']/.test(fontFamily)) {
+			// Looks like the font family might be already escaped
+			return fontFamily;
+		}
+		if (/[+ ]/.test(fontFamily)) {
+			// Wrap a font family using + or <space> with quotes
+			return `"${fontFamily}"`;
+		}
+
+		return fontFamily;
+	}
+
 	public static applyFontInfoSlow(domNode: HTMLElement, fontInfo: BareFontInfo): void {
-		domNode.style.fontFamily = fontInfo.fontFamily;
+		domNode.style.fontFamily = Configuration._massageFontFamily(fontInfo.fontFamily);
 		domNode.style.fontWeight = fontInfo.fontWeight;
 		domNode.style.fontSize = fontInfo.fontSize + 'px';
 		domNode.style.lineHeight = fontInfo.lineHeight + 'px';
@@ -285,7 +298,7 @@ export class Configuration extends CommonEditorConfiguration {
 	}
 
 	public static applyFontInfo(domNode: FastDomNode<HTMLElement>, fontInfo: BareFontInfo): void {
-		domNode.setFontFamily(fontInfo.fontFamily);
+		domNode.setFontFamily(Configuration._massageFontFamily(fontInfo.fontFamily));
 		domNode.setFontWeight(fontInfo.fontWeight);
 		domNode.setFontSize(fontInfo.fontSize);
 		domNode.setLineHeight(fontInfo.lineHeight);

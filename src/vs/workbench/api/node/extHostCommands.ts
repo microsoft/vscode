@@ -92,10 +92,10 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 
 			args = cloneAndChange(args, function (value) {
 				if (value instanceof extHostTypes.Position) {
-					return extHostTypeConverter.fromPosition(value);
+					return extHostTypeConverter.Position.from(value);
 				}
 				if (value instanceof extHostTypes.Range) {
-					return extHostTypeConverter.fromRange(value);
+					return extHostTypeConverter.Range.from(value);
 				}
 				if (value instanceof extHostTypes.Location) {
 					return extHostTypeConverter.location.from(value);
@@ -131,6 +131,8 @@ export class ExtHostCommands implements ExtHostCommandsShape {
 	}
 
 	$executeContributedCommand<T>(id: string, ...args: any[]): Thenable<T> {
+		this._logService.trace('ExtHostCommands#$executeContributedCommand', id);
+
 		if (!this._commands.has(id)) {
 			return Promise.reject(new Error(`Contributed command '${id}' does not exist.`));
 		} else {

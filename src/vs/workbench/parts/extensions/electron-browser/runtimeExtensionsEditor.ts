@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -36,7 +36,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
@@ -304,15 +304,30 @@ export class RuntimeExtensionsEditor extends BaseEditor {
 				} else if (/^workspaceContains:/.test(activationTimes.activationEvent)) {
 					let fileNameOrGlob = activationTimes.activationEvent.substr('workspaceContains:'.length);
 					if (fileNameOrGlob.indexOf('*') >= 0 || fileNameOrGlob.indexOf('?') >= 0) {
-						title = nls.localize('workspaceContainsGlobActivation', "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsGlobActivation',
+							comment: [
+								'{0} will be a glob pattern'
+							]
+						}, "Activated because a file matching {0} exists in your workspace", fileNameOrGlob);
 					} else {
-						title = nls.localize('workspaceContainsFileActivation', "Activated because file {0} exists in your workspace", fileNameOrGlob);
+						title = nls.localize({
+							key: 'workspaceContainsFileActivation',
+							comment: [
+								'{0} will be a file name'
+							]
+						}, "Activated because file {0} exists in your workspace", fileNameOrGlob);
 					}
 				} else if (/^onLanguage:/.test(activationTimes.activationEvent)) {
 					let language = activationTimes.activationEvent.substr('onLanguage:'.length);
 					title = nls.localize('languageActivation', "Activated because you opened a {0} file", language);
 				} else {
-					title = nls.localize('workspaceGenericActivation', "Activated on {0}", activationTimes.activationEvent);
+					title = nls.localize({
+						key: 'workspaceGenericActivation',
+						comment: [
+							'The {0} placeholder will be an activation event, like e.g. \'language:typescript\', \'debug\', etc.'
+						]
+					}, "Activated on {0}", activationTimes.activationEvent);
 				}
 				data.activationTime.title = title;
 				if (!isFalsyOrEmpty(element.status.runtimeErrors)) {
@@ -450,7 +465,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(id, label);

@@ -8,7 +8,9 @@ import * as vscode from 'vscode';
 import { MarkdownEngine } from '../markdownEngine';
 import { TableOfContentsProvider } from '../tableOfContentsProvider';
 
-export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
+const rangeLimit = 5000;
+
+export default class MarkdownFoldingProvider implements vscode.FoldingRangeProvider {
 
 	constructor(
 		private readonly engine: MarkdownEngine
@@ -16,13 +18,13 @@ export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
 
 	public async provideFoldingRanges(
 		document: vscode.TextDocument,
-		context: vscode.FoldingContext,
+		_: vscode.FoldingContext,
 		_token: vscode.CancellationToken
-	): Promise<vscode.FoldingRangeList> {
+	): Promise<vscode.FoldingRange[]> {
 		const tocProvider = new TableOfContentsProvider(this.engine, document);
 		let toc = await tocProvider.getToc();
-		if (context.maxRanges && toc.length > context.maxRanges) {
-			toc = toc.slice(0, context.maxRanges);
+		if (toc.length > rangeLimit) {
+			toc = toc.slice(0, rangeLimit);
 		}
 
 		const foldingRanges = toc.map((entry, startIndex) => {
@@ -43,6 +45,6 @@ export default class MarkdownFoldingProvider implements vscode.FoldingProvider {
 		});
 
 
-		return new vscode.FoldingRangeList(foldingRanges);
+		return foldingRanges;
 	}
 }

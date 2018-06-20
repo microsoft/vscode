@@ -122,7 +122,7 @@ export abstract class PeekViewWidget extends ZoneWidget {
 	}
 
 	protected _fillHead(container: HTMLElement): void {
-		var titleElement = $('.peekview-title').
+		const titleElement = $('.peekview-title').
 			on(dom.EventType.CLICK, e => this._onTitleClick(<MouseEvent>e)).
 			appendTo(this._headElement).
 			getHTMLElement();
@@ -178,8 +178,8 @@ export abstract class PeekViewWidget extends ZoneWidget {
 			return;
 		}
 
-		var headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2),
-			bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
+		const headHeight = Math.ceil(this.editor.getConfiguration().lineHeight * 1.2);
+		const bodyHeight = heightInPixel - (headHeight + 2 /* the border-top/bottom width*/);
 
 		this._doLayoutHead(headHeight, widthInPixel);
 		this._doLayoutBody(bodyHeight, widthInPixel);

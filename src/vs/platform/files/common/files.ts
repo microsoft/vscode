@@ -42,14 +42,19 @@ export interface IFileService {
 	onAfterOperation: Event<FileOperationEvent>;
 
 	/**
+	 * An event that is fired when a file system provider is added or removed
+	 */
+	onDidChangeFileSystemProviderRegistrations: Event<IFileSystemProviderRegistrationEvent>;
+
+	/**
 	 * Registeres a file system provider for a certain scheme.
 	 */
-	registerProvider?(scheme: string, provider: IFileSystemProvider): IDisposable;
+	registerProvider(scheme: string, provider: IFileSystemProvider): IDisposable;
 
 	/**
 	 * Checks if this file service can handle the given resource.
 	 */
-	canHandleResource?(resource: URI): boolean;
+	canHandleResource(resource: URI): boolean;
 
 	/**
 	 * Resolve the properties of a file identified by the resource.
@@ -123,12 +128,6 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Renames the provided file to use the new name. The returned promise
-	 * will have the stat model object as a result.
-	 */
-	rename(resource: URI, newName: string): TPromise<IFileStat>;
-
-	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
@@ -150,68 +149,72 @@ export interface IFileService {
 	dispose(): void;
 }
 
-export enum FileType2 {
+export interface FileOverwriteOptions {
+	overwrite: boolean;
+}
+
+export interface FileWriteOptions {
+	overwrite: boolean;
+	create: boolean;
+}
+
+export enum FileType {
+	Unknown = 0,
 	File = 1,
 	Directory = 2,
-	SymbolicLink = 4,
-}
-
-export class FileError extends Error {
-
-
-	static readonly EEXIST = new FileError('EEXIST');
-	static readonly ENOENT = new FileError('ENOENT');
-	static readonly ENOTDIR = new FileError('ENOTDIR');
-	static readonly EISDIR = new FileError('EISDIR');
-
-	constructor(readonly code: string) {
-		super(code);
-	}
-	is(err: any): err is FileError {
-		if (!err || typeof err !== 'object') {
-			return false;
-		}
-		return err.code === this.code;
-	}
-}
-
-export enum FileOpenFlags {
-	Read = 0b0001,
-	Write = 0b0010,
-	Create = 0b0100,
-	Exclusive = 0b1000
+	SymbolicLink = 64
 }
 
 export interface IStat {
+	type: FileType;
 	mtime: number;
+	ctime: number;
 	size: number;
-	type: FileType2;
 }
 
-export interface IFileSystemProviderBase {
-	onDidChange: Event<IFileChange[]>;
+export interface IWatchOptions {
+	recursive: boolean;
+	excludes: string[];
+}
+
+export enum FileSystemProviderCapabilities {
+	FileReadWrite = 1 << 1,
+	FileOpenReadWriteClose = 1 << 2,
+	FileFolderCopy = 1 << 3,
+
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
+}
+
+export interface IFileSystemProvider {
+
+	readonly capabilities: FileSystemProviderCapabilities;
+
+	onDidChangeFile: Event<IFileChange[]>;
+	watch(resource: URI, opts: IWatchOptions): IDisposable;
+
 	stat(resource: URI): TPromise<IStat>;
-	rename(from: URI, to: URI, opts: { flags: FileOpenFlags }): TPromise<IStat>;
-	mkdir(resource: URI): TPromise<IStat>;
-	readdir(resource: URI): TPromise<[string, IStat][]>;
+	mkdir(resource: URI): TPromise<void>;
+	readdir(resource: URI): TPromise<[string, FileType][]>;
 	delete(resource: URI): TPromise<void>;
+
+	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
+
+	readFile?(resource: URI): TPromise<Uint8Array>;
+	writeFile?(resource: URI, content: Uint8Array, opts: FileWriteOptions): TPromise<void>;
+
+	open?(resource: URI): TPromise<number>;
+	close?(fd: number): TPromise<void>;
+	read?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
+	write?(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
 }
 
-export interface ISimpleReadWriteProvider {
-	_type: 'simple';
-	readFile(resource: URI, opts: { flags: FileOpenFlags }): TPromise<Uint8Array>;
-	writeFile(resource: URI, content: Uint8Array, opts: { flags: FileOpenFlags }): TPromise<void>;
+export interface IFileSystemProviderRegistrationEvent {
+	added: boolean;
+	scheme: string;
+	provider?: IFileSystemProvider;
 }
-
-export interface IReadWriteProvider {
-	_type: 'chunked';
-	open(resource: URI, opts: { flags: FileOpenFlags }): TPromise<number>;
-	close(fd: number): TPromise<void>;
-	read(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-	write(fd: number, pos: number, data: Uint8Array, offset: number, length: number): TPromise<number>;
-}
-
-export type IFileSystemProvider = (IFileSystemProviderBase & ISimpleReadWriteProvider) | (IFileSystemProviderBase & IReadWriteProvider);
 
 export enum FileOperation {
 	CREATE,
@@ -396,6 +399,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**
@@ -576,6 +584,11 @@ export interface IUpdateContentOptions {
 	 * The etag of the file. This can be used to prevent dirty writes.
 	 */
 	etag?: string;
+
+	/**
+	 * Run mkdirp before saving.
+	 */
+	mkdirp?: boolean;
 }
 
 export interface IResolveFileOptions {
@@ -821,12 +834,12 @@ export const SUPPORTED_ENCODINGS: { [encoding: string]: { labelLong: string; lab
 		order: 33
 	},
 	gbk: {
-		labelLong: 'Chinese (GBK)',
+		labelLong: 'Simplified Chinese (GBK)',
 		labelShort: 'GBK',
 		order: 34
 	},
 	gb18030: {
-		labelLong: 'Chinese (GB18030)',
+		labelLong: 'Simplified Chinese (GB18030)',
 		labelShort: 'GB18030',
 		order: 35
 	},
@@ -897,3 +910,6 @@ export enum FileKind {
 	FOLDER,
 	ROOT_FOLDER
 }
+
+export const MIN_MAX_MEMORY_SIZE_MB = 2048;
+export const FALLBACK_MAX_MEMORY_SIZE_MB = 4096;

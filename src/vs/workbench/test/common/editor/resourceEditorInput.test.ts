@@ -23,7 +23,7 @@ class ServiceAccessor {
 	}
 }
 
-suite('Workbench - ResourceEditorInput', () => {
+suite('Workbench resource editor input', () => {
 
 	let instantiationService: IInstantiationService;
 	let accessor: ServiceAccessor;

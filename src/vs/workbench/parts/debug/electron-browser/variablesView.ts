@@ -9,7 +9,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as errors from 'vs/base/common/errors';
 import { IActionProvider, ITree, IDataSource, IRenderer, IAccessibilityProvider } from 'vs/base/parts/tree/browser/tree';
 import { CollapseAction } from 'vs/workbench/browser/viewlet';
-import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 import { IDebugService, State, CONTEXT_VARIABLES_FOCUSED, IExpression } from 'vs/workbench/parts/debug/common/debug';
 import { Variable, Scope } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService, IContextViewService } from 'vs/platform/contextview/browser/contextView';
@@ -29,6 +29,7 @@ import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { WorkbenchTree } from 'vs/platform/list/browser/listService';
 import { OpenMode, ClickBehavior } from 'vs/base/parts/tree/browser/treeDefaults';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 
 const $ = dom.$;
 
@@ -49,7 +50,7 @@ export class VariablesView extends TreeViewsViewletPanel {
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('variablesSection', "Variables Section") }, keybindingService, contextMenuService, configurationService);
 
 		this.settings = options.viewletSettings;
 		this.expandedElements = [];
@@ -284,7 +285,7 @@ export class VariablesRenderer implements IRenderer {
 					}
 				});
 			} else {
-				renderVariable(tree, variable, templateData, true);
+				renderVariable(variable, templateData, true);
 			}
 		}
 	}
@@ -316,8 +317,8 @@ class VariablesController extends BaseDebugController {
 
 	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent): boolean {
 		// double click on primitive value: open input box to be able to set the value
-		const process = this.debugService.getViewModel().focusedProcess;
-		if (element instanceof Variable && event.detail === 2 && process && process.session.capabilities.supportsSetVariable) {
+		const session = this.debugService.getViewModel().focusedSession;
+		if (element instanceof Variable && event.detail === 2 && session && session.raw.capabilities.supportsSetVariable) {
 			const expression = <IExpression>element;
 			this.debugService.getViewModel().setSelectedExpression(expression);
 			return true;

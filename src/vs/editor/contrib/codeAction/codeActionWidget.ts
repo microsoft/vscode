@@ -54,7 +54,10 @@ export class CodeActionContextMenu {
 				return at;
 			},
 			getActions: () => actions,
-			onHide: () => { this._visible = false; },
+			onHide: () => {
+				this._visible = false;
+				this._editor.focus();
+			},
 			autoSelectFirstItem: true
 		});
 	}

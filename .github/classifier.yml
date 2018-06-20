@@ -89,6 +89,10 @@
             assignees: [],
             assignLabel: false
         },
+        workbench-diagnostics: {
+            assignees: [],
+            assignLabel: false
+        },
         workbench-dnd: {
             assignees: [],
             assignLabel: false

@@ -29,15 +29,6 @@ function canUseTranslate3d(): boolean {
 		return false;
 	}
 
-	// see https://github.com/Microsoft/vscode/issues/24483
-	if (browser.isChromev56) {
-		const pixelRatio = browser.getPixelRatio();
-		if (Math.floor(pixelRatio) !== pixelRatio) {
-			// Not an integer
-			return false;
-		}
-	}
-
 	return true;
 }
 

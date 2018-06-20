@@ -13,9 +13,5 @@
 	"newExtensionLabel": "显示扩展“{0}”",
 	"editTtile": "编辑",
 	"replaceDefaultValue": "在设置中替换",
-	"copyDefaultValue": "复制到设置",
-	"unsupportedPHPExecutablePathSetting": "此设置必须是“用户设置”。若要为工作区配置 PHP，请打开 PHP 文件并单击状态栏中的“PHP 路径”。",
-	"unsupportedWorkspaceSetting": "此设置必须是“用户设置”。",
-	"unsupportedWorkbenchSetting": "当前无法应用此设置。将在直接打开此文件夹时应用。",
-	"unsupportedWorkbenchSettingDevMode": "当前无法应用此设置。将你在注册时定义其作用域为 \"resource\"，或是直接打开此文件夹时应用。"
+	"copyDefaultValue": "复制到设置"
 }

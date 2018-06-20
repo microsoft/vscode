@@ -30,5 +30,6 @@
 	"vscode.extension.badges.description": "Descrição do emblema.",
 	"vscode.extension.extensionDependencies": "Dependências para outras extensões. O identificador de uma extensão sempre é ${publisher}. ${nome}. Por exemplo: vscode.csharp.",
 	"vscode.extension.scripts.prepublish": "Script a ser executado antes do pacote ser publicado como uma extensão VS Code.",
+	"vscode.extension.scripts.uninstall": "Desinstala o hook para a extensão do VS Code. O script que é executado quando a extensão é completamente desinstalada do VS Code e é quando o VS Code é reiniciado (desligar e iniciar) depois que a extensão for desinstalada. Somente scripts Node são suportados.",
 	"vscode.extension.icon": "O caminho para um ícone de 128x128 pixels."
 }

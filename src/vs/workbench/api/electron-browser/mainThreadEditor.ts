@@ -6,7 +6,7 @@
 
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { Event, Emitter } from 'vs/base/common/event';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Range, IRange } from 'vs/editor/common/core/range';
@@ -266,10 +266,10 @@ export class MainThreadTextEditor {
 				this.setCodeEditor(null);
 			}));
 
-			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditor(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidFocusEditorWidget(() => {
 				this._focusTracker.onGainedFocus();
 			}));
-			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditor(() => {
+			this._codeEditorListeners.push(this._codeEditor.onDidBlurEditorWidget(() => {
 				this._focusTracker.onLostFocus();
 			}));
 
@@ -423,7 +423,7 @@ export class MainThreadTextEditor {
 
 	public isFocused(): boolean {
 		if (this._codeEditor) {
-			return this._codeEditor.isFocused();
+			return this._codeEditor.hasTextFocus();
 		}
 		return false;
 	}
@@ -448,9 +448,9 @@ export class MainThreadTextEditor {
 		}
 
 		if (opts.setEndOfLine === EndOfLine.CRLF) {
-			this._model.setEOL(EndOfLineSequence.CRLF);
+			this._model.pushEOL(EndOfLineSequence.CRLF);
 		} else if (opts.setEndOfLine === EndOfLine.LF) {
-			this._model.setEOL(EndOfLineSequence.LF);
+			this._model.pushEOL(EndOfLineSequence.LF);
 		}
 
 		let transformedEdits = edits.map((edit): IIdentifiedSingleEditOperation => {

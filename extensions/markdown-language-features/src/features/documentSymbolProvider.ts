@@ -4,9 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-
 import { MarkdownEngine } from '../markdownEngine';
-import { TableOfContentsProvider } from '../tableOfContentsProvider';
+import { TableOfContentsProvider, SkinnyTextDocument } from '../tableOfContentsProvider';
+
 
 export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolProvider {
 
@@ -14,10 +14,10 @@ export default class MDDocumentSymbolProvider implements vscode.DocumentSymbolPr
 		private readonly engine: MarkdownEngine
 	) { }
 
-	public async provideDocumentSymbols(document: vscode.TextDocument): Promise<vscode.SymbolInformation[]> {
+	public async provideDocumentSymbols(document: SkinnyTextDocument): Promise<vscode.SymbolInformation[]> {
 		const toc = await new TableOfContentsProvider(this.engine, document).getToc();
 		return toc.map(entry => {
-			return new vscode.SymbolInformation('#'.repeat(entry.level) + ' ' + entry.text, vscode.SymbolKind.Namespace, '', entry.location);
+			return new vscode.SymbolInformation('#'.repeat(entry.level) + ' ' + entry.text, vscode.SymbolKind.String, '', entry.location);
 		});
 	}
 }

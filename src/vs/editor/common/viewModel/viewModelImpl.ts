@@ -11,7 +11,7 @@ import * as editorCommon from 'vs/editor/common/editorCommon';
 import { TokenizationRegistry, ColorId, LanguageId } from 'vs/editor/common/modes';
 import { tokenizeLineToHTML } from 'vs/editor/common/modes/textToHtmlTokenizer';
 import { ViewModelDecorations } from 'vs/editor/common/viewModel/viewModelDecorations';
-import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, IOverviewRulerDecorations } from 'vs/editor/common/viewModel/viewModel';
+import { MinimapLinesRenderingData, ViewLineRenderingData, ViewModelDecoration, IViewModel, ICoordinatesConverter, IOverviewRulerDecorations, ViewLineData } from 'vs/editor/common/viewModel/viewModel';
 import { SplitLinesCollection, IViewModelLinesCollection, IdentityLinesCollection } from 'vs/editor/common/viewModel/splitLinesCollection';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
 import { MinimapTokensColorTracker } from 'vs/editor/common/view/minimapCharRenderer';
@@ -23,7 +23,7 @@ import { Color } from 'vs/base/common/color';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { ITheme } from 'vs/platform/theme/common/themeService';
 import { ModelDecorationOverviewRulerOptions } from 'vs/editor/common/model/textModel';
-import { ITextModel, EndOfLinePreference, TrackedRangeStickiness } from 'vs/editor/common/model';
+import { ITextModel, EndOfLinePreference, TrackedRangeStickiness, IActiveIndentGuideInfo } from 'vs/editor/common/model';
 
 const USE_IDENTITY_LINES_COLLECTION = true;
 
@@ -33,6 +33,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private readonly configuration: editorCommon.IConfiguration;
 	private readonly model: ITextModel;
 	private hasFocus: boolean;
+	private viewportStartLine: number;
 	private viewportStartLineTrackedRange: string;
 	private viewportStartLineTop: number;
 	private readonly lines: IViewModelLinesCollection;
@@ -41,8 +42,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 	private readonly decorations: ViewModelDecorations;
 
-	private _centeredViewLine: number;
-
 	constructor(editorId: number, configuration: editorCommon.IConfiguration, model: ITextModel, scheduleAtNextAnimationFrame: (callback: () => void) => IDisposable) {
 		super();
 
@@ -50,6 +49,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		this.configuration = configuration;
 		this.model = model;
 		this.hasFocus = false;
+		this.viewportStartLine = -1;
 		this.viewportStartLineTrackedRange = null;
 		this.viewportStartLineTop = 0;
 
@@ -88,8 +88,6 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				this._endEmit();
 			}
 		}));
-
-		this._centeredViewLine = -1;
 
 		this.decorations = new ViewModelDecorations(this.editorId, this.model, this.configuration, this.lines, this.coordinatesConverter);
 
@@ -130,8 +128,12 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	private _onConfigurationChanged(eventsCollector: viewEvents.ViewEventsCollector, e: IConfigurationChangedEvent): void {
 
 		// We might need to restore the current centered view range, so save it (if available)
-		const previousCenteredModelRange = this.getCenteredRangeInViewport();
-		let revealPreviousCenteredModelRange = false;
+		let previousViewportStartModelPosition: Position = null;
+		if (this.viewportStartLine !== -1) {
+			let previousViewportStartViewPosition = new Position(this.viewportStartLine, this.getLineMinColumn(this.viewportStartLine));
+			previousViewportStartModelPosition = this.coordinatesConverter.convertViewPositionToModelPosition(previousViewportStartViewPosition);
+		}
+		let restorePreviousViewportStart = false;
 
 		const conf = this.configuration.editor;
 
@@ -144,7 +146,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 			if (this.viewLayout.getCurrentScrollTop() !== 0) {
 				// Never change the scroll position from 0 to something else...
-				revealPreviousCenteredModelRange = true;
+				restorePreviousViewportStart = true;
 			}
 		}
 
@@ -157,17 +159,10 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		eventsCollector.emit(new viewEvents.ViewConfigurationChangedEvent(e));
 		this.viewLayout.onConfigurationChanged(e);
 
-		if (revealPreviousCenteredModelRange && previousCenteredModelRange) {
-			// modelLine -> viewLine
-			const newCenteredViewRange = this.coordinatesConverter.convertModelRangeToViewRange(previousCenteredModelRange);
-
-			// Send a reveal event to restore the centered content
-			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(
-				newCenteredViewRange,
-				viewEvents.VerticalRevealType.Center,
-				false,
-				editorCommon.ScrollType.Immediate
-			));
+		if (restorePreviousViewportStart && previousViewportStartModelPosition) {
+			const viewPosition = this.coordinatesConverter.convertModelPositionToViewPosition(previousViewportStartModelPosition);
+			const viewPositionTop = this.viewLayout.getVerticalOffsetForLineNumber(viewPosition.lineNumber);
+			this.viewLayout.deltaScrollNow(0, viewPositionTop - this.viewportStartLineTop);
 		}
 	}
 
@@ -236,6 +231,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 					}
 				}
 				this.lines.acceptVersionId(versionId);
+				this.viewLayout.onHeightMaybeChanged();
 
 				if (!hadOtherModelChange && hadModelLineChangeThatChangedLineMapping) {
 					eventsCollector.emit(new viewEvents.ViewLineMappingChangedEvent());
@@ -247,7 +243,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			}
 
 			// Update the configuration and reset the centered view line
-			this._centeredViewLine = -1;
+			this.viewportStartLine = -1;
 			this.configuration.setMaxLineNumber(this.model.getLineCount());
 
 			// Recover viewport
@@ -326,20 +322,11 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 				eventsCollector.emit(new viewEvents.ViewDecorationsChangedEvent());
 				this.decorations.onLineMappingChanged();
 				this.viewLayout.onFlushed(this.getLineCount());
+				this.viewLayout.onHeightMaybeChanged();
 			}
 		} finally {
 			this._endEmit();
 		}
-	}
-
-	public getCenteredRangeInViewport(): Range {
-		if (this._centeredViewLine === -1) {
-			// Never got rendered or not rendered since last content change event
-			return null;
-		}
-		let viewLineNumber = this._centeredViewLine;
-		let currentCenteredViewRange = new Range(viewLineNumber, this.getLineMinColumn(viewLineNumber), viewLineNumber, this.getLineMaxColumn(viewLineNumber));
-		return this.coordinatesConverter.convertViewRangeToModelRange(currentCenteredViewRange);
 	}
 
 	public getVisibleRanges(): Range[] {
@@ -458,12 +445,16 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 	 * Gives a hint that a lot of requests are about to come in for these line numbers.
 	 */
 	public setViewport(startLineNumber: number, endLineNumber: number, centeredLineNumber: number): void {
-		this._centeredViewLine = centeredLineNumber;
 		this.lines.warmUpLookupCache(startLineNumber, endLineNumber);
 
+		this.viewportStartLine = startLineNumber;
 		let position = this.coordinatesConverter.convertViewPositionToModelPosition(new Position(startLineNumber, this.getLineMinColumn(startLineNumber)));
 		this.viewportStartLineTrackedRange = this.model._setTrackedRange(this.viewportStartLineTrackedRange, new Range(position.lineNumber, position.column, position.lineNumber, position.column), TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		this.viewportStartLineTop = this.viewLayout.getVerticalOffsetForLineNumber(startLineNumber);
+	}
+
+	public getActiveIndentGuide(lineNumber: number, minLineNumber: number, maxLineNumber: number): IActiveIndentGuideInfo {
+		return this.lines.getActiveIndentGuide(lineNumber, minLineNumber, maxLineNumber);
 	}
 
 	public getLinesIndentGuides(startLineNumber: number, endLineNumber: number): number[] {
@@ -518,12 +509,17 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 			lineData.minColumn,
 			lineData.maxColumn,
 			lineData.content,
+			lineData.continuesWithWrappedLine,
 			mightContainRTL,
 			mightContainNonBasicASCII,
 			lineData.tokens,
 			inlineDecorations,
 			tabSize
 		);
+	}
+
+	public getViewLineData(lineNumber: number): ViewLineData {
+		return this.lines.getViewLineData(lineNumber);
 	}
 
 	public getMinimapLinesRenderingData(startLineNumber: number, endLineNumber: number, needed: boolean[]): MinimapLinesRenderingData {
@@ -580,8 +576,8 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 		return this.model.getEOL();
 	}
 
-	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean): string | string[] {
-		const newLineCharacter = this.model.getEOL();
+	public getPlainTextToCopy(ranges: Range[], emptySelectionClipboard: boolean, forceCRLF: boolean): string | string[] {
+		const newLineCharacter = forceCRLF ? '\r\n' : this.model.getEOL();
 
 		ranges = ranges.slice(0);
 		ranges.sort(Range.compareRangesUsingStarts);
@@ -609,7 +605,7 @@ export class ViewModel extends viewEvents.ViewEventEmitter implements IViewModel
 
 		let result: string[] = [];
 		for (let i = 0; i < nonEmptyRanges.length; i++) {
-			result.push(this.getValueInRange(nonEmptyRanges[i], EndOfLinePreference.TextDefined));
+			result.push(this.getValueInRange(nonEmptyRanges[i], forceCRLF ? EndOfLinePreference.CRLF : EndOfLinePreference.TextDefined));
 		}
 		return result.length === 1 ? result[0] : result;
 	}
