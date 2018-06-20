@@ -101,7 +101,6 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 	private editorHistoryHandler: EditorHistoryHandler;
 
 	constructor(
-		@IEditorService private editorService: IEditorService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
 		@INotificationService private notificationService: INotificationService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
@@ -507,8 +506,8 @@ export class QuickOpenController extends Component implements IQuickOpenService 
 					if (!quickNavigateConfiguration) {
 						autoFocus = { autoFocusFirstEntry: true };
 					} else {
-						const visibleEditorCount = this.editorService.visibleEditors.length;
-						autoFocus = { autoFocusFirstEntry: visibleEditorCount === 0, autoFocusSecondEntry: visibleEditorCount !== 0 };
+						const autoFocusFirstEntry = this.editorGroupService.activeGroup.count === 0;
+						autoFocus = { autoFocusFirstEntry, autoFocusSecondEntry: !autoFocusFirstEntry };
 					}
 				}
 
@@ -1190,7 +1189,7 @@ export class EditorHistoryEntry extends EditorQuickOpenEntry {
 			const resourceInput = input as IResourceInput;
 			this.resource = resourceInput.resource;
 			this.label = labels.getBaseLabel(resourceInput.resource);
-			this.description = labels.getPathLabel(resources.dirname(this.resource), contextService, environmentService);
+			this.description = labels.getPathLabel(resources.dirname(this.resource), environmentService, contextService);
 			this.dirty = this.resource && this.textFileService.isDirty(this.resource);
 
 			if (this.dirty && this.textFileService.getAutoSaveMode() === AutoSaveMode.AFTER_SHORT_DELAY) {

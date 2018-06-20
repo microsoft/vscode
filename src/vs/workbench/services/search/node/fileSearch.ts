@@ -245,7 +245,7 @@ export class FileWalker {
 		}
 
 		process.on('exit', killCmd);
-		this.collectStdout(cmd, 'utf8', useRipgrep, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, 'utf8', useRipgrep, onMessage, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				done(err);
 				return;
@@ -379,7 +379,7 @@ export class FileWalker {
 	 */
 	public readStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string) => void): void {
 		let all = '';
-		this.collectStdout(cmd, encoding, isRipgrep, (err: Error, stdout?: string, last?: boolean) => {
+		this.collectStdout(cmd, encoding, isRipgrep, () => { }, (err: Error, stdout?: string, last?: boolean) => {
 			if (err) {
 				cb(err);
 				return;
@@ -392,35 +392,41 @@ export class FileWalker {
 		});
 	}
 
-	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
-		let done = (err: Error, stdout?: string, last?: boolean) => {
+	private collectStdout(cmd: childProcess.ChildProcess, encoding: string, isRipgrep: boolean, onMessage: (message: IProgress) => void, cb: (err: Error, stdout?: string, last?: boolean) => void): void {
+		let onData = (err: Error, stdout?: string, last?: boolean) => {
 			if (err || last) {
-				done = () => { };
+				onData = () => { };
 				this.cmdForkResultTime = Date.now();
 			}
 			cb(err, stdout, last);
 		};
 
-		this.forwardData(cmd.stdout, encoding, done);
+		if (cmd.stdout) {
+			// Should be non-null, but #38195
+			this.forwardData(cmd.stdout, encoding, onData);
+		} else {
+			onMessage({ message: 'stdout is null' });
+		}
+
 		const stderr = this.collectData(cmd.stderr);
 
 		let gotData = false;
 		cmd.stdout.once('data', () => gotData = true);
 
 		cmd.on('error', (err: Error) => {
-			done(err);
+			onData(err);
 		});
 
 		cmd.on('close', (code: number) => {
 			// ripgrep returns code=1 when no results are found
 			let stderrText, displayMsg: string;
 			if (isRipgrep ? (!gotData && (stderrText = this.decodeData(stderr, encoding)) && (displayMsg = rgErrorMsgForDisplay(stderrText))) : code !== 0) {
-				done(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
+				onData(new Error(`command failed with error code ${code}: ${this.decodeData(stderr, encoding)}`));
 			} else {
 				if (isRipgrep && this.exists && code === 0) {
 					this.isLimitHit = true;
 				}
-				done(null, '', true);
+				onData(null, '', true);
 			}
 		});
 	}

@@ -1093,7 +1093,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
-		customTags?: MarkerTag[];
+		tags?: MarkerTag[];
 	}
 
 	/**
@@ -1109,7 +1109,7 @@ declare namespace monaco.editor {
 		endLineNumber: number;
 		endColumn: number;
 		relatedInformation?: IRelatedInformation[];
-		customTags?: MarkerTag[];
+		tags?: MarkerTag[];
 	}
 
 	/**
@@ -2923,6 +2923,10 @@ declare namespace monaco.editor {
 		 * The letter spacing
 		 */
 		letterSpacing?: number;
+		/**
+		 * Controls fading out of unused variables.
+		 */
+		showUnused?: boolean;
 	}
 
 	/**
@@ -3175,6 +3179,7 @@ declare namespace monaco.editor {
 		readonly readOnly: boolean;
 		readonly multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		readonly multiCursorMergeOverlapping: boolean;
+		readonly showUnused: boolean;
 		readonly wordSeparators: string;
 		readonly autoClosingBrackets: boolean;
 		readonly autoIndent: boolean;
@@ -4868,10 +4873,11 @@ declare namespace monaco.languages {
 
 	export interface DocumentSymbol {
 		name: string;
+		detail: string;
 		kind: SymbolKind;
 		containerName?: string;
-		fullRange: IRange;
-		identifierRange: IRange;
+		range: IRange;
+		selectionRange: IRange;
 		children?: DocumentSymbol[];
 	}
 
@@ -4880,7 +4886,7 @@ declare namespace monaco.languages {
 	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_goto-symbol)-feature.
 	 */
 	export interface DocumentSymbolProvider {
-		extensionId?: string;
+		displayName?: string;
 		/**
 		 * Provide symbol information for the given document.
 		 */
@@ -5214,7 +5220,7 @@ declare namespace monaco.languages {
 		firstLine?: string;
 		aliases?: string[];
 		mimetypes?: string[];
-		configuration?: string;
+		configuration?: Uri;
 	}
 	/**
 	 * A Monarch language definition

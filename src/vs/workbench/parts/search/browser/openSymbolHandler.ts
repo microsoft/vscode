@@ -56,7 +56,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			if (containerName) {
 				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
 			} else {
-				return labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
+				return labels.getPathLabel(this._bearing.location.uri, this._environmentService, this._contextService);
 			}
 		}
 		return containerName;

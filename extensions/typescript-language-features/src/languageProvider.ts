@@ -17,7 +17,6 @@ import { CachedNavTreeResponse } from './features/baseCodeLensProvider';
 import { memoize } from './utils/memoize';
 import { disposeAll } from './utils/dispose';
 import TelemetryReporter from './utils/telemetry';
-import { UpdateImportsOnFileRenameHandler } from './features/updatePathsOnRename';
 
 const validateSetting = 'validate.enable';
 const suggestionSetting = 'suggestionActions.enabled';
@@ -29,8 +28,6 @@ export default class LanguageProvider {
 	private _enableSuggestionDiagnostics: boolean = true;
 
 	private readonly disposables: vscode.Disposable[] = [];
-
-	private readonly renameHandler: UpdateImportsOnFileRenameHandler;
 
 	constructor(
 		private readonly client: TypeScriptServiceClient,
@@ -52,22 +49,12 @@ export default class LanguageProvider {
 		client.onReady(async () => {
 			await this.registerProviders();
 		});
-
-		this.renameHandler = new UpdateImportsOnFileRenameHandler(this.client, this.fileConfigurationManager, async uri => {
-			try {
-				const doc = await vscode.workspace.openTextDocument(uri);
-				return this.handles(uri, doc);
-			} catch {
-				return false;
-			}
-		});
 	}
 
 	public dispose(): void {
 		disposeAll(this.disposables);
 
 		this.diagnosticsManager.dispose();
-		this.renameHandler.dispose();
 	}
 
 	@memoize
@@ -104,6 +91,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
 		this.disposables.push((await import('./features/rename')).register(selector, this.client));
 		this.disposables.push((await import('./features/signatureHelp')).register(selector, this.client));
+		this.disposables.push((await import('./features/tagCompletion')).register(selector, this.client));
 		this.disposables.push((await import('./features/typeDefinitions')).register(selector, this.client));
 		this.disposables.push((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
 	}
@@ -116,10 +104,6 @@ export default class LanguageProvider {
 
 	public handles(resource: vscode.Uri, doc: vscode.TextDocument): boolean {
 		if (doc && this.description.modeIds.indexOf(doc.languageId) >= 0) {
-			return true;
-		}
-
-		if (this.client.bufferSyncSupport.handles(resource)) {
 			return true;
 		}
 
@@ -171,7 +155,7 @@ export default class LanguageProvider {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
-				diag.customTags = undefined;
+				diag.tags = undefined;
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
 				}

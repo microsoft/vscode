@@ -66,7 +66,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(QuickOpenTermAction, Q
 const actionBarRegistry = Registry.as<IActionBarRegistry>(ActionBarExtensions.Actionbar);
 actionBarRegistry.registerActionBarContributor(Scope.VIEWER, QuickOpenActionTermContributor);
 
-let configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 configurationRegistry.registerConfiguration({
 	'id': 'terminal',
 	'order': 100,
@@ -124,6 +124,11 @@ configurationRegistry.registerConfiguration({
 			'description': nls.localize('terminal.integrated.copyOnSelection', "When set, text selected in the terminal will be copied to the clipboard."),
 			'type': 'boolean',
 			'default': false
+		},
+		'terminal.integrated.drawBoldTextInBrightColors': {
+			'description': nls.localize('terminal.integrated.drawBoldTextInBrightColors', "When set, bold text in the terminal will always use the \"bright\" ANSI color variant."),
+			'type': 'boolean',
+			'default': true
 		},
 		'terminal.integrated.fontFamily': {
 			'description': nls.localize('terminal.integrated.fontFamily', "Controls the font family of the terminal, this defaults to editor.fontFamily's value."),
@@ -341,6 +346,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false
 		},
+		'terminal.integrated.experimentalTextureCachingStrategy': {
+			'description': nls.localize('terminal.integrated.experimentalTextureCachingStrategy', "Controls how the terminal stores glyph textures. Changes to this setting will only apply to new terminals."),
+			'type': 'string',
+			'enum': ['static', 'dynamic'],
+			'default': 'static'
+		},
 	}
 });
 
@@ -357,7 +368,7 @@ registerSingleton(ITerminalService, TerminalService);
 
 // On mac cmd+` is reserved to cycle between windows, that's why the keybindings use WinCtrl
 const category = nls.localize('terminalCategory', "Terminal");
-let actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
+const actionRegistry = Registry.as<IWorkbenchActionRegistry>(ActionExtensions.WorkbenchActions);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(KillTerminalAction, KillTerminalAction.ID, KillTerminalAction.LABEL), 'Terminal: Kill the Active Terminal Instance', category);
 actionRegistry.registerWorkbenchAction(new SyncActionDescriptor(CopyTerminalSelectionAction, CopyTerminalSelectionAction.ID, CopyTerminalSelectionAction.LABEL, {
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_C,

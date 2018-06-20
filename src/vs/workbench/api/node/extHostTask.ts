@@ -874,8 +874,9 @@ export class ExtHostTask implements ExtHostTaskShape {
 		});
 	}
 
-	public $resolveVariables(uri: URI, variables: string[]): any {
-		let result = Object.create(null);
+	public $resolveVariables(uriComponents: UriComponents, variables: string[]): any {
+		let uri: URI = URI.revive(uriComponents);
+		let result: { [key: string]: string; } = Object.create(null);
 		let workspaceFolder = this._workspaceService.resolveWorkspaceFolder(uri);
 		let resolver = new ExtHostVariableResolverService(this._workspaceService, this._editorService, this._configurationService);
 		let ws: IWorkspaceFolder = {
@@ -887,7 +888,7 @@ export class ExtHostTask implements ExtHostTaskShape {
 			}
 		};
 		for (let variable of variables) {
-			result.push(variable, resolver.resolve(ws, variable));
+			result[variable] = resolver.resolve(ws, variable);
 		}
 		return result;
 	}

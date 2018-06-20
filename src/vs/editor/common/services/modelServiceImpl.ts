@@ -131,7 +131,9 @@ class ModelMarkerHandler {
 
 		switch (marker.severity) {
 			case MarkerSeverity.Hint:
-				if (!marker.customTags || marker.customTags.indexOf(MarkerTag.Unnecessary) === -1) {
+				if (marker.tags && marker.tags.indexOf(MarkerTag.Unnecessary) >= 0) {
+					className = ClassName.EditorUnnecessaryDecoration;
+				} else {
 					className = ClassName.EditorHintDecoration;
 				}
 				zIndex = 0;
@@ -157,9 +159,9 @@ class ModelMarkerHandler {
 				break;
 		}
 
-		if (marker.customTags) {
-			if (marker.customTags.indexOf(MarkerTag.Unnecessary) !== -1) {
-				inlineClassName = ClassName.EditorUnnecessaryDecoration;
+		if (marker.tags) {
+			if (marker.tags.indexOf(MarkerTag.Unnecessary) !== -1) {
+				inlineClassName = ClassName.EditorUnnecessaryInlineDecoration;
 			}
 		}
 
@@ -271,6 +273,9 @@ export class ModelServiceImpl implements IModelService {
 			let parsedTabSize = parseInt(config.editor.tabSize, 10);
 			if (!isNaN(parsedTabSize)) {
 				tabSize = parsedTabSize;
+			}
+			if (tabSize < 1) {
+				tabSize = 1;
 			}
 		}
 

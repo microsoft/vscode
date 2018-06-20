@@ -4,7 +4,7 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/a8c8d497129a7c7dcac870cd49e9764436c15f22",
+	"version": "https://github.com/microsoft/vscode-markdown-tm-grammar/commit/fc14af6c0ca3c2bdaa1681f6f51834fe6a0a4279",
 	"name": "Markdown",
 	"scopeName": "text.html.markdown",
 	"patterns": [
@@ -1994,7 +1994,7 @@
 					"while": "(^|\\G)([ ]{4}|\\t)"
 				},
 				"separator": {
-					"match": "(^|\\G)[ ]{0,3}([*-_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
+					"match": "(^|\\G)[ ]{0,3}([\\*\\-\\_])([ ]{0,2}\\2){2,}[ \\t]*$\\n?",
 					"name": "meta.separator.markdown"
 				}
 			}

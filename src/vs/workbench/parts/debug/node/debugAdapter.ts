@@ -18,10 +18,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ExtensionsChannelId } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IOutputService } from 'vs/workbench/parts/output/common/output';
-import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution, IConfig } from 'vs/workbench/parts/debug/common/debug';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
-import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
-import { IStringDictionary } from 'vs/base/common/collections';
+import { IDebugAdapter, IAdapterExecutable, IDebuggerContribution, IPlatformSpecificAdapterContribution } from 'vs/workbench/parts/debug/common/debug';
 
 /**
  * Abstract implementation of the low level API for a debug adapter.
@@ -399,7 +396,6 @@ export class DebugAdapter extends StreamDebugAdapter {
 				if (debuggers && debuggers.length > 0) {
 					debuggers.filter(dbg => strings.equalsIgnoreCase(dbg.type, debugType)).forEach(dbg => {
 						// extract relevant attributes and make then absolute where needed
-						// TODO@extensionLocation
 						const extractedDbg = DebugAdapter.extract(dbg, ed.extensionLocation.fsPath);
 
 						// merge
@@ -439,27 +435,5 @@ export class DebugAdapter extends StreamDebugAdapter {
 				args: args || []
 			};
 		}
-	}
-
-	static substituteVariables(workspaceFolder: IWorkspaceFolder, config: IConfig, resolverService: IConfigurationResolverService, commandValueMapping?: IStringDictionary<string>): IConfig {
-
-		const result = objects.deepClone(config) as IConfig;
-
-		// hoist platform specific attributes to top level
-		if (platform.isWindows && result.windows) {
-			Object.keys(result.windows).forEach(key => result[key] = result.windows[key]);
-		} else if (platform.isMacintosh && result.osx) {
-			Object.keys(result.osx).forEach(key => result[key] = result.osx[key]);
-		} else if (platform.isLinux && result.linux) {
-			Object.keys(result.linux).forEach(key => result[key] = result.linux[key]);
-		}
-
-		// delete all platform specific sections
-		delete result.windows;
-		delete result.osx;
-		delete result.linux;
-
-		// substitute all variables in string values
-		return resolverService.resolveAny(workspaceFolder, result, commandValueMapping);
 	}
 }

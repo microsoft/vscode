@@ -847,12 +847,6 @@ export class FileService implements IFileService {
 		));
 	}
 
-	public rename(resource: uri, newName: string): TPromise<IFileStat> {
-		const newPath = paths.join(paths.dirname(resource.fsPath), newName);
-
-		return this.moveFile(resource, uri.file(newPath));
-	}
-
 	public moveFile(source: uri, target: uri, overwrite?: boolean): TPromise<IFileStat> {
 		return this.moveOrCopyFile(source, target, false, overwrite);
 	}
@@ -935,16 +929,15 @@ export class FileService implements IFileService {
 	private doMoveItemToTrash(resource: uri): TPromise<void> {
 		const absolutePath = resource.fsPath;
 
-		return asWinJSImport(import('electron')).then(electron => {
-			const result = electron.shell.moveItemToTrash(absolutePath);
-			if (!result) {
-				return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
-			}
+		const shell = (require.__$__nodeRequire('electron') as Electron.RendererInterface).shell; // workaround for being able to run tests out of VSCode debugger
+		const result = shell.moveItemToTrash(absolutePath);
+		if (!result) {
+			return TPromise.wrapError(new Error(isWindows ? nls.localize('binFailed', "Failed to move '{0}' to the recycle bin", paths.basename(absolutePath)) : nls.localize('trashFailed', "Failed to move '{0}' to the trash", paths.basename(absolutePath))));
+		}
 
-			this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
+		this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 
-			return void 0;
-		});
+		return TPromise.as(void 0);
 	}
 
 	private doDelete(resource: uri): TPromise<void> {
@@ -1135,6 +1128,7 @@ export class StatResolver {
 			resource: this.resource,
 			isDirectory: this.isDirectory,
 			isSymbolicLink: this.isSymbolicLink,
+			isReadonly: false,
 			name: this.name,
 			etag: this.etag,
 			size: this.size,
@@ -1219,6 +1213,7 @@ export class StatResolver {
 							resource: fileResource,
 							isDirectory: fileStat.isDirectory(),
 							isSymbolicLink,
+							isReadonly: false,
 							name: file,
 							mtime: fileStat.mtime.getTime(),
 							etag: etag(fileStat),

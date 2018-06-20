@@ -15,11 +15,11 @@ import { IPagedRenderer } from 'vs/base/browser/ui/list/listPaging';
 import { once } from 'vs/base/common/event';
 import { domEvent } from 'vs/base/browser/event';
 import { IExtension, IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
-import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { InstallAction, UpdateAction, ManageExtensionAction, ReloadAction, extensionButtonProminentBackground, extensionButtonProminentForeground, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { Label, RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
-import { IExtensionTipsService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -52,7 +52,8 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IExtensionService private extensionService: IExtensionService,
 		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
-		@IThemeService private themeService: IThemeService
+		@IThemeService private themeService: IThemeService,
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService
 	) { }
 
 	get templateId() { return 'extension'; }
@@ -87,6 +88,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 				if (action.id === ManageExtensionAction.ID) {
 					return (<ManageExtensionAction>action).actionItem;
 				}
+				if (action.id === MultiServerInstallAction.ID) {
+					return (<MultiServerInstallAction>action).actionItem;
+				}
+				if (action.id === MultiServerUpdateAction.ID) {
+					return (<MultiServerUpdateAction>action).actionItem;
+				}
 				return null;
 			}
 		});
@@ -98,8 +105,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(InstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction, this.extensionManagementServerService.extensionManagementServers[0])
+			: this.instantiationService.createInstance(MultiServerInstallAction);
+		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction, this.extensionManagementServerService.extensionManagementServers[0])
+			: this.instantiationService.createInstance(MultiServerUpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
 		const manageAction = this.instantiationService.createInstance(ManageExtensionAction);
 
@@ -141,12 +150,10 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		removeClass(data.element, 'loading');
 
 		data.extensionDisposables = dispose(data.extensionDisposables);
-		const isInstalled = this.extensionsWorkbenchService.local.some(e => e.id === extension.id);
+		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
 
-		this.extensionService.getExtensions().then(enabledExtensions => {
-			const isExtensionRunning = enabledExtensions.some(e => areSameExtensions(e, extension));
-
-			toggleClass(data.root, 'disabled', isInstalled && !isExtensionRunning);
+		this.extensionService.getExtensions().then(runningExtensions => {
+			toggleClass(data.root, 'disabled', installed ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
 		});
 
 		const onError = once(domEvent(data.icon, 'error'));
@@ -160,15 +167,12 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		data.root.setAttribute('aria-label', extension.displayName);
-		removeClass(data.root, 'recommended');
-
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
-		if (extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id.toLowerCase()].reasonText);
-			addClass(data.root, 'recommended');
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
-		}
+		this.updateRecommendationStatus(extension, data);
+		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+				this.updateRecommendationStatus(extension, data);
+			}
+		}));
 
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
@@ -181,6 +185,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			const name = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.length > 0 && manifest.contributes.localizations[0].localizedLanguageName;
 			if (name) { data.description.textContent = name[0].toLocaleUpperCase() + name.slice(1); }
 		});
+	}
+
+	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
+		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+
+		if (!extRecommendations[extension.id.toLowerCase()]) {
+			data.root.setAttribute('aria-label', extension.displayName);
+			data.root.title = '';
+			removeClass(data.root, 'recommended');
+		} else {
+			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
+			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
+			addClass(data.root, 'recommended');
+		}
 	}
 
 	disposeTemplate(data: ITemplateData): void {

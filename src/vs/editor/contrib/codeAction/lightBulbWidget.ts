@@ -12,6 +12,7 @@ import 'vs/css!./lightBulbWidget';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { CodeActionsComputeEvent } from './codeActionModel';
+import { CodeActionKind } from 'vs/editor/contrib/codeAction/codeActionTrigger';
 
 export class LightBulbWidget implements IDisposable, IContentWidget {
 
@@ -52,7 +53,7 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 			const { lineHeight } = this._editor.getConfiguration();
 
 			let pad = Math.floor(lineHeight / 3);
-			if (this._position.position.lineNumber < this._model.position.lineNumber) {
+			if (this._position && this._position.position.lineNumber < this._model.position.lineNumber) {
 				pad += lineHeight;
 			}
 
@@ -114,9 +115,14 @@ export class LightBulbWidget implements IDisposable, IContentWidget {
 		const { token } = this._futureFixes;
 		this._model = value;
 
+		const selection = this._model.rangeOrSelection;
 		this._model.actions.done(fixes => {
 			if (!token.isCancellationRequested && fixes && fixes.length > 0) {
-				this._show();
+				if (selection.isEmpty() && fixes.every(fix => fix.kind && CodeActionKind.Refactor.contains(fix.kind))) {
+					this.hide();
+				} else {
+					this._show();
+				}
 			} else {
 				this.hide();
 			}

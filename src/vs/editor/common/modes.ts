@@ -293,7 +293,7 @@ export interface ISuggestion {
 	documentation?: string | IMarkdownString;
 	filterText?: string;
 	sortText?: string;
-	autoSelect?: boolean;
+	preselect?: boolean;
 	noAutoAccept?: boolean;
 	commitCharacters?: string[];
 	overwriteBefore?: number;
@@ -645,10 +645,11 @@ export const symbolKindToCssClass = (function () {
 
 export interface DocumentSymbol {
 	name: string;
+	detail: string;
 	kind: SymbolKind;
 	containerName?: string;
-	fullRange: IRange;
-	identifierRange: IRange;
+	range: IRange;
+	selectionRange: IRange;
 	children?: DocumentSymbol[];
 }
 
@@ -658,7 +659,7 @@ export interface DocumentSymbol {
  */
 export interface DocumentSymbolProvider {
 
-	extensionId?: string;
+	displayName?: string;
 
 	/**
 	 * Provide symbol information for the given document.

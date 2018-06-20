@@ -320,12 +320,12 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		data.context = breakpoint;
 		dom.toggleClass(data.breakpoint, 'disabled', !this.debugService.getModel().areBreakpointsActivated());
 
-		data.name.textContent = basename(getPathLabel(breakpoint.uri, this.contextService));
+		data.name.textContent = basename(getPathLabel(breakpoint.uri, this.environmentService, this.contextService));
 		data.lineNumber.textContent = breakpoint.lineNumber.toString();
 		if (breakpoint.column) {
 			data.lineNumber.textContent += `:${breakpoint.column}`;
 		}
-		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.contextService, this.environmentService);
+		data.filePath.textContent = getPathLabel(resources.dirname(breakpoint.uri), this.environmentService, this.contextService);
 		data.checkbox.checked = breakpoint.enabled;
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);

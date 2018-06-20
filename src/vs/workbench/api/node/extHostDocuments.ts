@@ -21,13 +21,11 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	private _onDidRemoveDocument = new Emitter<vscode.TextDocument>();
 	private _onDidChangeDocument = new Emitter<vscode.TextDocumentChangeEvent>();
 	private _onDidSaveDocument = new Emitter<vscode.TextDocument>();
-	private _onDidRenameResource = new Emitter<vscode.ResourceRenamedEvent>();
 
 	readonly onDidAddDocument: Event<vscode.TextDocument> = this._onDidAddDocument.event;
 	readonly onDidRemoveDocument: Event<vscode.TextDocument> = this._onDidRemoveDocument.event;
 	readonly onDidChangeDocument: Event<vscode.TextDocumentChangeEvent> = this._onDidChangeDocument.event;
 	readonly onDidSaveDocument: Event<vscode.TextDocument> = this._onDidSaveDocument.event;
-	readonly onDidRenameResource: Event<vscode.ResourceRenamedEvent> = this._onDidRenameResource.event;
 
 	private _toDispose: IDisposable[];
 	private _proxy: MainThreadDocumentsShape;
@@ -150,11 +148,4 @@ export class ExtHostDocuments implements ExtHostDocumentsShape {
 	public setWordDefinitionFor(modeId: string, wordDefinition: RegExp): void {
 		setWordDefinitionFor(modeId, wordDefinition);
 	}
-
-	public $onDidRename(oldURL: UriComponents, newURL: UriComponents): void {
-		const oldResource = URI.revive(oldURL);
-		const newResource = URI.revive(newURL);
-		this._onDidRenameResource.fire({ oldResource, newResource });
-	}
-
 }

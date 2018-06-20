@@ -494,7 +494,9 @@ export class MainThreadTask implements MainThreadTaskShape {
 		}
 		this._taskService.registerTaskSystem(key, {
 			platform: platform,
-			fileSystemScheme: key,
+			uriProvider: (path: string): URI => {
+				return URI.parse(`${info.scheme}://${info.host}:${info.port}${path}`);
+			},
 			context: this._extHostContext,
 			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
 				let vars: string[] = [];

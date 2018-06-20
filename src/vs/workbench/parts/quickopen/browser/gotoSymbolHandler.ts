@@ -450,7 +450,7 @@ export class GotoSymbolHandler extends QuickOpenHandler {
 			// Add
 			results.push(new SymbolEntry(i,
 				label, icon, description, icon,
-				element.fullRange, null, this.editorService, this
+				element.range, null, this.editorService, this
 			));
 		}
 

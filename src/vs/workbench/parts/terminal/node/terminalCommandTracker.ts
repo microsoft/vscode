@@ -5,6 +5,7 @@
 
 import { Terminal, IMarker } from 'vscode-xterm';
 import { ITerminalCommandTracker } from 'vs/workbench/parts/terminal/common/terminal';
+import { IDisposable } from 'vs/base/common/lifecycle';
 
 /**
  * The minimize size of the prompt in which to assume the line is a command.
@@ -21,7 +22,7 @@ export enum ScrollPosition {
 	Middle
 }
 
-export class TerminalCommandTracker implements ITerminalCommandTracker {
+export class TerminalCommandTracker implements ITerminalCommandTracker, IDisposable {
 	private _currentMarker: IMarker | Boundary = Boundary.Bottom;
 	private _selectionStart: IMarker | Boundary | null = null;
 	private _isDisposable: boolean = false;
@@ -30,6 +31,10 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		private _xterm: Terminal
 	) {
 		this._xterm.on('key', key => this._onKey(key));
+	}
+
+	public dispose(): void {
+		this._xterm = null;
 	}
 
 	private _onKey(key: string): void {
@@ -194,7 +199,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Bottom) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() - 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}
@@ -217,7 +222,7 @@ export class TerminalCommandTracker implements ITerminalCommandTracker {
 		if (this._currentMarker === Boundary.Top) {
 			this._currentMarker = this._xterm.addMarker(this._getOffset() + 1);
 		} else {
-			let offset = this._getOffset();
+			const offset = this._getOffset();
 			if (this._isDisposable) {
 				this._currentMarker.dispose();
 			}

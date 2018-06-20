@@ -754,7 +754,8 @@ declare module 'vscode' {
 		 * An optional view column in which the [editor](#TextEditor) should be shown.
 		 * The default is the [active](#ViewColumn.Active), other values are adjusted to
 		 * be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
-		 * not adjusted.
+		 * not adjusted. Use [`ViewColumn.Beside`](#ViewColumn.Beside) to open the
+		 * editor to the side of the currently active one.
 		 */
 		viewColumn?: ViewColumn;
 
@@ -2466,6 +2467,56 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Represents programming constructs like variables, classes, interfaces etc. that appear in a document. Document
+	 * symbols can be hierarchical and they have two ranges: one that encloses its definition and one that points to
+	 * its most interesting range, e.g. the range of an identifier.
+	 */
+	export class DocumentSymbol {
+
+		/**
+		 * The name of this symbol.
+		 */
+		name: string;
+
+		/**
+		 * More detail for this symbol, e.g the signature of a function.
+		 */
+		detail: string;
+
+		/**
+		 * The kind of this symbol.
+		 */
+		kind: SymbolKind;
+
+		/**
+		 * The range enclosing this symbol not including leading/trailing whitespace but everything else, e.g comments and code.
+		 */
+		range: Range;
+
+		/**
+		 * The range that should be selected and reveal when this symbol is being picked, e.g the name of a function.
+		 * Must be contained by the [`range`](#DocumentSymbol.range).
+		 */
+		selectionRange: Range;
+
+		/**
+		 * Children of this symbol, e.g. properties of a class.
+		 */
+		children: DocumentSymbol[];
+
+		/**
+		 * Creates a new document symbol.
+		 *
+		 * @param name The name of the symbol.
+		 * @param detail Details for the symbol.
+		 * @param kind The kind of the symbol.
+		 * @param range The full range of the symbol.
+		 * @param selectionRange The range that should be reveal.
+		 */
+		constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range);
+	}
+
+	/**
 	 * The document symbol provider interface defines the contract between extensions and
 	 * the [go to symbol](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-symbol)-feature.
 	 */
@@ -2479,7 +2530,7 @@ declare module 'vscode' {
 		 * @return An array of document highlights or a thenable that resolves to such. The lack of a result can be
 		 * signaled by returning `undefined`, `null`, or an empty array.
 		 */
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[]>;
+		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
 	}
 
 	/**
@@ -2489,15 +2540,16 @@ declare module 'vscode' {
 	export interface WorkspaceSymbolProvider {
 
 		/**
-		 * Project-wide search for a symbol matching the given query string. It is up to the provider
-		 * how to search given the query string, like substring, indexOf etc. To improve performance implementors can
-		 * skip the [location](#SymbolInformation.location) of symbols and implement `resolveWorkspaceSymbol` to do that
-		 * later.
+		 * Project-wide search for a symbol matching the given query string.
 		 *
 		 * The `query`-parameter should be interpreted in a *relaxed way* as the editor will apply its own highlighting
 		 * and scoring on the results. A good rule of thumb is to match case-insensitive and to simply check that the
 		 * characters of *query* appear in their order in a candidate symbol. Don't use prefix, substring, or similar
 		 * strict matching.
+		 *
+		 * To improve performance implementors can implement `resolveWorkspaceSymbol` and then provide symbols with partial
+		 * [location](#SymbolInformation.location)-objects, without a `range` defined. The editor will then call
+		 * `resolveWorkspaceSymbol` for selected symbols only, e.g. when opening a workspace symbol.
 		 *
 		 * @param query A non-empty query string.
 		 * @param token A cancellation token.
@@ -3053,6 +3105,13 @@ declare module 'vscode' {
 		 * is used.
 		 */
 		filterText?: string;
+
+		/**
+		 * Select this item when showing. *Note* that only one completion item can be selected and
+		 * that the editor decides which item that is. The rule is that the *first* item of those
+		 * that match best is selected.
+		 */
+		preselect?: boolean;
 
 		/**
 		 * A string or snippet that should be inserted in a document when selecting
@@ -3881,6 +3940,23 @@ declare module 'vscode' {
 	}
 
 	/**
+	 * Additional metadata about the type of a diagnostic.
+	 */
+	export enum DiagnosticTag {
+		/**
+		 * Unused or unnecessary code.
+		 *
+		 * Diagnostics with this tag are rendered faded out. The amount of fading
+		 * is controlled by the `"editorUnnecessaryCode.opacity"` theme color. For
+		 * example, `"editorUnnecessaryCode.opacity": "#000000c0" will render the
+		 * code with 75% opacity. For high contrast themes, use the
+		 * `"editorUnnecessaryCode.border"` the color to underline unnecessary code
+		 * instead of fading it out.
+		 */
+		Unnecessary = 1,
+	}
+
+	/**
 	 * Represents a diagnostic, such as a compiler error or warning. Diagnostic objects
 	 * are only valid in the scope of a file.
 	 */
@@ -3919,6 +3995,11 @@ declare module 'vscode' {
 		 * a scope collide all definitions can be marked via this property.
 		 */
 		relatedInformation?: DiagnosticRelatedInformation[];
+
+		/**
+		 * Additional metadata about the diagnostic.
+		 */
+		tags?: DiagnosticTag[];
 
 		/**
 		 * Creates a new diagnostic object.
@@ -4016,17 +4097,23 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * Denotes a column in the editor window. Columns are
-	 * used to show editors side by side.
+	 * Denotes a location of an editor in the window. Editors can be arranged in a grid
+	 * and each column represents one editor location in that grid by counting the editors
+	 * in order of their appearance.
 	 */
 	export enum ViewColumn {
 		/**
-		 * A *symbolic* editor column representing the currently
-		 * active column. This value can be used when opening editors, but the
-		 * *resolved* [viewColumn](#TextEditor.viewColumn)-value of editors will always
-		 * be `One`, `Two`, `Three`, or `undefined` but never `Active`.
+		 * A *symbolic* editor column representing the currently active column. This value
+		 * can be used when opening editors, but the *resolved* [viewColumn](#TextEditor.viewColumn)-value
+		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Active`.
 		 */
 		Active = -1,
+		/**
+		 * A *symbolic* editor column representing the column to the side of the active one. This value
+		 * can be used when opening editors, but the *resolved* [viewColumn](#TextEditor.viewColumn)-value
+		 * of editors will always be `One`, `Two`, `Three`,... or `undefined` but never `Beside`.
+		 */
+		Beside = -2,
 		/**
 		 * The first editor column.
 		 */
@@ -4038,7 +4125,31 @@ declare module 'vscode' {
 		/**
 		 * The third editor column.
 		 */
-		Three = 3
+		Three = 3,
+		/**
+		 * The fourth editor column.
+		 */
+		Four = 4,
+		/**
+		 * The fifth editor column.
+		 */
+		Five = 5,
+		/**
+		 * The sixth editor column.
+		 */
+		Six = 6,
+		/**
+		 * The seventh editor column.
+		 */
+		Seven = 7,
+		/**
+		 * The eighth editor column.
+		 */
+		Eight = 8,
+		/**
+		 * The ninth editor column.
+		 */
+		Nine = 9
 	}
 
 	/**
@@ -5286,7 +5397,7 @@ declare module 'vscode' {
 		/**
 		 * Content settings for the webview.
 		 */
-		readonly options: WebviewOptions;
+		options: WebviewOptions;
 
 		/**
 		 * Contents of the webview.
@@ -5371,6 +5482,11 @@ declare module 'vscode' {
 		 * @deprecated
 		 */
 		readonly viewColumn?: ViewColumn;
+
+		/**
+		 * Is the panel currently active?
+		 */
+		readonly active: boolean;
 
 		/**
 		 * Is the panel currently visible?
@@ -5608,7 +5724,7 @@ declare module 'vscode' {
 		export const onDidChangeTextEditorSelection: Event<TextEditorSelectionChangeEvent>;
 
 		/**
-		 * An [event](#Event) which fires when the selection in an editor has changed.
+		 * An [event](#Event) which fires when the visible ranges of an editor has changed.
 		 */
 		export const onDidChangeTextEditorVisibleRanges: Event<TextEditorVisibleRangesChangeEvent>;
 
@@ -5646,8 +5762,8 @@ declare module 'vscode' {
 		 *
 		 * @param document A text document to be shown.
 		 * @param column A view column in which the [editor](#TextEditor) should be shown. The default is the [active](#ViewColumn.Active), other values
-		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is
-		 * not adjusted.
+		 * are adjusted to be `Min(column, columnCount + 1)`, the [active](#ViewColumn.Active)-column is not adjusted. Use [`ViewColumn.Beside`](#ViewColumn.Beside)
+		 * to open the editor to the side of the currently active one.
 		 * @param preserveFocus When `true` the editor will not take focus.
 		 * @return A promise that resolves to an [editor](#TextEditor).
 		 */
@@ -6748,7 +6864,7 @@ declare module 'vscode' {
 		 * @param options Immutable metadata about the provider.
 		 * @return A [disposable](#Disposable) that unregisters this provider when being disposed.
 		 */
-		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { isCaseSensitive?: boolean }): Disposable;
+		export function registerFileSystemProvider(scheme: string, provider: FileSystemProvider, options?: { isCaseSensitive?: boolean, isReadonly?: boolean }): Disposable;
 	}
 
 	/**

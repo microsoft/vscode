@@ -118,7 +118,8 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 
 				// Set Editor Model
 				const diffEditor = this.getControl();
-				diffEditor.setModel((<TextDiffEditorModel>resolvedModel).textDiffEditorModel);
+				const resolvedDiffEditorModel = <TextDiffEditorModel>resolvedModel;
+				diffEditor.setModel(resolvedDiffEditorModel.textDiffEditorModel);
 
 				// Apply Options from TextOptions
 				let optionsGotApplied = false;
@@ -132,6 +133,7 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					hasPreviousViewState = this.restoreTextDiffEditorViewState(input);
 				}
 
+				// Diff navigator
 				this.diffNavigator = new DiffNavigator(diffEditor, {
 					alwaysRevealFirst: !optionsGotApplied && !hasPreviousViewState // only reveal first change if we had no options or viewstate
 				});
@@ -142,7 +144,11 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 					this.previousDiffAction.updateEnablement();
 				}));
 
+				// Enablement of actions
 				this.updateIgnoreTrimWhitespaceAction();
+
+				// Readonly flag
+				diffEditor.updateOptions({ readOnly: resolvedDiffEditorModel.isReadonly() });
 			}, error => {
 
 				// In case we tried to open a file and the response indicates that this is not a text file, fallback to binary diff.
@@ -161,10 +167,6 @@ export class TextDiffEditor extends BaseTextEditor implements ITextDiffEditor {
 		if (textOptions && types.isFunction(textOptions.apply)) {
 			textOptions.apply(this.getControl(), ScrollType.Smooth);
 		}
-	}
-
-	public supportsCenteredLayout(): boolean {
-		return false;
 	}
 
 	private restoreTextDiffEditorViewState(input: EditorInput): boolean {

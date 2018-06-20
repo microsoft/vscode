@@ -146,6 +146,9 @@ export class TextFileEditor extends BaseTextEditor {
 				if (options && types.isFunction((<TextEditorOptions>options).apply)) {
 					(<TextEditorOptions>options).apply(textEditor, ScrollType.Immediate);
 				}
+
+				// Readonly flag
+				textEditor.updateOptions({ readOnly: textFileModel.isReadonly() });
 			}, error => {
 
 				// In case we tried to open a file inside the text editor and the response

@@ -72,13 +72,10 @@ class SyncStatusBar {
 
 	private onOperationsChange(): void {
 		const isSyncRunning = this.repository.operations.isRunning(Operation.Sync) ||
-			this.repository.operations.isRunning(Operation.Pull) ||
-			this.repository.operations.isRunning(Operation.Push);
+			this.repository.operations.isRunning(Operation.Push) ||
+			this.repository.operations.isRunning(Operation.Pull);
 
-		this.state = {
-			...this.state,
-			isSyncRunning: isSyncRunning
-		};
+		this.state = { ...this.state, isSyncRunning };
 	}
 
 	private onModelChange(): void {

@@ -408,8 +408,8 @@ export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
 		effectiveRanges.push(rangesToDelete[rangesToDelete.length - 1]);
 
 		let endCursorState = this._getEndCursorState(primaryCursor, effectiveRanges);
+
 		let edits: IIdentifiedSingleEditOperation[] = effectiveRanges.map(range => {
-			endCursorState.push(new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn));
 			return EditOperation.replace(range, '');
 		});
 
@@ -444,17 +444,25 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 	_getEndCursorState(primaryCursor: Range, rangesToDelete: Range[]): Selection[] {
 		let endPrimaryCursor: Selection;
 		let endCursorState: Selection[] = [];
+		let deletedLines = 0;
 
-		for (let i = 0, len = rangesToDelete.length; i < len; i++) {
-			let range = rangesToDelete[i];
-			let endCursor = new Selection(rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn, rangesToDelete[i].startLineNumber, rangesToDelete[i].startColumn);
+		rangesToDelete.forEach(range => {
+			let endCursor;
+			if (range.endColumn === 1 && deletedLines > 0) {
+				let newStartLine = range.startLineNumber - deletedLines;
+				endCursor = new Selection(newStartLine, range.startColumn, newStartLine, range.startColumn);
+			} else {
+				endCursor = new Selection(range.startLineNumber, range.startColumn, range.startLineNumber, range.startColumn);
+			}
+
+			deletedLines += range.endLineNumber - range.startLineNumber;
 
 			if (range.intersectRanges(primaryCursor)) {
 				endPrimaryCursor = endCursor;
 			} else {
 				endCursorState.push(endCursor);
 			}
-		}
+		});
 
 		if (endPrimaryCursor) {
 			endCursorState.unshift(endPrimaryCursor);
@@ -465,11 +473,18 @@ export class DeleteAllLeftAction extends AbstractDeleteAllToBoundaryAction {
 
 	_getRangesToDelete(editor: ICodeEditor): Range[] {
 		let rangesToDelete: Range[] = editor.getSelections();
+		let model = editor.getModel();
 
 		rangesToDelete.sort(Range.compareRangesUsingStarts);
 		rangesToDelete = rangesToDelete.map(selection => {
 			if (selection.isEmpty()) {
-				return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				if (selection.startColumn === 1) {
+					let deleteFromLine = Math.max(1, selection.startLineNumber - 1);
+					let deleteFromColumn = selection.startLineNumber === 1 ? 1 : model.getLineContent(deleteFromLine).length + 1;
+					return new Range(deleteFromLine, deleteFromColumn, selection.startLineNumber, 1);
+				} else {
+					return new Range(selection.startLineNumber, 1, selection.startLineNumber, selection.startColumn);
+				}
 			} else {
 				return selection;
 			}

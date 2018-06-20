@@ -128,12 +128,6 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Renames the provided file to use the new name. The returned promise
-	 * will have the stat model object as a result.
-	 */
-	rename(resource: URI, newName: string): TPromise<IFileStat>;
-
-	/**
 	 * Deletes the provided file.  The optional useTrash parameter allows to
 	 * move the file to trash.
 	 */
@@ -188,7 +182,8 @@ export enum FileSystemProviderCapabilities {
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
 
-	PathCaseSensitive = 1 << 10
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
 }
 
 export interface IFileSystemProvider {
@@ -416,6 +411,11 @@ export interface IFileStat extends IBaseStat {
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 
 	/**
 	 * The resource is a symbolic link.

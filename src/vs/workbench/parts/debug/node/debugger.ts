@@ -73,23 +73,13 @@ export class Debugger {
 	}
 
 	public substituteVariables(folder: IWorkspaceFolder, config: IConfig): TPromise<IConfig> {
-
-		// first resolve command variables (which might have a UI)
-		return this.configurationResolverService.executeCommandVariables(config, this.variables).then(commandValueMapping => {
-
-			if (!commandValueMapping) { // cancelled by user
-				return null;
-			}
-
-			// now substitute all other variables
-			return (this.inEH() ? this.configurationManager.substituteVariables(this.type, folder, config) : TPromise.as(config)).then(config => {
-				try {
-					return TPromise.as(DebugAdapter.substituteVariables(folder, config, this.configurationResolverService, commandValueMapping));
-				} catch (e) {
-					return TPromise.wrapError(e);
-				}
+		if (this.inEH()) {
+			return this.configurationManager.substituteVariables(this.type, folder, config).then(config => {
+				return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
 			});
-		});
+		} else {
+			return this.configurationResolverService.resolveWithCommands(folder, config, this.variables);
+		}
 	}
 
 	public runInTerminal(args: DebugProtocol.RunInTerminalRequestArguments): TPromise<void> {
@@ -99,7 +89,7 @@ export class Debugger {
 
 	private inEH(): boolean {
 		const debugConfigs = this.configurationService.getValue<IDebugConfiguration>('debug');
-		return debugConfigs.extensionHostDebugAdapter;
+		return debugConfigs.extensionHostDebugAdapter || this.extensionDescription.extensionLocation.scheme !== 'file';
 	}
 
 	public get label(): string {

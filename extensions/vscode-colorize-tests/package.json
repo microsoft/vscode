@@ -13,6 +13,8 @@
 	},
 	"devDependencies": {
 		"@types/node": "7.0.43",
+		"mocha-junit-reporter": "^1.17.0",
+		"mocha-multi-reporters": "^1.1.7",
 		"vscode": "1.1.5"
 	}
 }

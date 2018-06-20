@@ -91,8 +91,12 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 		return instance;
 	}
 
+	public createTerminalRenderer(name: string): ITerminalInstance {
+		return this.createTerminal({ name, isRendererOnly: true });
+	}
+
 	public createInstance(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, container: HTMLElement, shellLaunchConfig: IShellLaunchConfig, doCreateProcess: boolean): ITerminalInstance {
-		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig, true);
+		const instance = this._instantiationService.createInstance(TerminalInstance, terminalFocusContextKey, configHelper, container, shellLaunchConfig);
 		this._onInstanceCreated.fire(instance);
 		return instance;
 	}
@@ -109,7 +113,7 @@ export class TerminalService extends AbstractTerminalService implements ITermina
 
 	public focusFindWidget(): TPromise<void> {
 		return this.showPanel(false).then(() => {
-			let panel = this._panelService.getActivePanel() as TerminalPanel;
+			const panel = this._panelService.getActivePanel() as TerminalPanel;
 			panel.focusFindWidget();
 			this._findWidgetVisible.set(true);
 		});

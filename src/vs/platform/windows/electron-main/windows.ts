@@ -12,7 +12,7 @@ import { Event } from 'vs/base/common/event';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IProcessEnvironment } from 'vs/base/common/platform';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 
 export interface IWindowState {
 	width?: number;
@@ -64,7 +64,7 @@ export interface ICodeWindow {
 	getRepresentedFilename(): string;
 	onWindowTitleDoubleClick(): void;
 
-	updateTouchBar(items: ICommandAction[][]): void;
+	updateTouchBar(items: ISerializableCommandAction[][]): void;
 
 	setReady(): void;
 	serializeWindowState(): IWindowState;

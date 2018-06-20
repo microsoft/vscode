@@ -31,7 +31,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction, IgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -164,6 +164,8 @@ export class ExtensionEditor extends BaseEditor {
 	private navbar: NavBar;
 	private content: HTMLElement;
 	private recommendation: HTMLElement;
+	private recommendationText: any;
+	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
 
 	private extensionReadme: Cache<string>;
@@ -247,14 +249,29 @@ export class ExtensionEditor extends BaseEditor {
 				if (action.id === DisableAction.ID) {
 					return (<DisableAction>action).actionItem;
 				}
+				if (action.id === MultiServerInstallAction.ID) {
+					return (<MultiServerInstallAction>action).actionItem;
+				}
+				if (action.id === MultiServerUpdateAction.ID) {
+					return (<MultiServerUpdateAction>action).actionItem;
+				}
 				return null;
 			}
 		});
-		this.disposables.push(this.extensionActionBar);
 
 		this.recommendation = append(details, $('.recommendation'));
+		this.recommendationText = append(this.recommendation, $('.recommendation-text'));
+		this.ignoreActionbar = new ActionBar(this.recommendation, { animated: false });
+
+		this.disposables.push(this.extensionActionBar);
+		this.disposables.push(this.ignoreActionbar);
 
 		chain(this.extensionActionBar.onDidRun)
+			.map(({ error }) => error)
+			.filter(error => !!error)
+			.on(this.onError, this, this.disposables);
+
+		chain(this.ignoreActionbar.onDidRun)
 			.map(({ error }) => error)
 			.filter(error => !!error)
 			.on(this.onError, this, this.disposables);
@@ -268,6 +285,7 @@ export class ExtensionEditor extends BaseEditor {
 	setInput(input: ExtensionsInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		this.editorLoadComplete = false;
 		const extension = input.extension;
+		const servers = input.servers;
 
 		this.transientDisposables = dispose(this.transientDisposables);
 
@@ -288,24 +306,25 @@ export class ExtensionEditor extends BaseEditor {
 		this.publisher.textContent = extension.publisherDisplayName;
 		this.description.textContent = extension.description;
 
+		removeClass(this.header, 'recommendation-ignored');
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
 			addClass(this.header, 'recommended');
-			this.recommendation.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
+			this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
 			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
 		} else {
 			removeClass(this.header, 'recommended');
-			this.recommendation.textContent = '';
+			this.recommendationText.textContent = '';
 		}
 
 		/* __GDPR__
-			"extensionGallery:openExtension" : {
-				"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-				"${include}": [
-					"${GalleryExtensionTelemetryData}"
-				]
-			}
+		"extensionGallery:openExtension" : {
+			"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+			"${include}": [
+				"${GalleryExtensionTelemetryData}"
+			]
+		}
 		*/
 		this.telemetryService.publicLog('extensionGallery:openExtension', assign(extension.telemetryData, recommendationsData));
 
@@ -351,8 +370,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = this.instantiationService.createInstance(CombinedInstallAction);
-		const updateAction = this.instantiationService.createInstance(UpdateAction);
+		const installAction = servers.length === 1 ? this.instantiationService.createInstance(CombinedInstallAction, servers[0]) : this.instantiationService.createInstance(MultiServerInstallAction);
+		const updateAction = servers.length === 1 ? this.instantiationService.createInstance(UpdateAction, servers[0]) : this.instantiationService.createInstance(MultiServerUpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
@@ -368,6 +387,21 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionActionBar.clear();
 		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
+
+		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);
+		ignoreAction.extension = extension;
+
+		this.extensionTipsService.onRecommendationChange(change => {
+			if (change.extensionId.toLowerCase() === extension.id.toLowerCase() && change.isRecommended === false) {
+				addClass(this.header, 'recommendation-ignored');
+				removeClass(this.header, 'recommended');
+				this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+			}
+		});
+
+		this.ignoreActionbar.clear();
+		this.ignoreActionbar.push([ignoreAction], { icon: true, label: true });
+		this.transientDisposables.push(ignoreAction);
 
 		this.content.innerHTML = ''; // Clear content before setting navbar actions.
 

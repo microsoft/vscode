@@ -27,6 +27,8 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 
@@ -397,6 +399,7 @@ class CallStackRenderer implements IRenderer {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		// noop
 	}
@@ -476,7 +479,7 @@ class CallStackRenderer implements IRenderer {
 		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
 			this.renderError(element, templateData);
 		} else if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
-			this.renderLoadMore(element, templateData);
+			this.renderLoadMore(templateData);
 		}
 	}
 
@@ -506,7 +509,7 @@ class CallStackRenderer implements IRenderer {
 		data.label.title = element;
 	}
 
-	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
+	private renderLoadMore(data: ILoadMoreTemplateData): void {
 		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 
@@ -515,7 +518,8 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		const path = stackFrame.source.raw.path || stackFrame.source.name;
+		data.file.title = getPathLabel(path, this.environmentService);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}
