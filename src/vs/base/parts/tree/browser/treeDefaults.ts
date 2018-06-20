@@ -168,8 +168,8 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		const payload = { origin: origin, originalEvent: eventish };
 		const event = <mouse.IMouseEvent>eventish;
+		const payload = { origin: origin, originalEvent: eventish, didClickOnTwistie: this.isClickOnTwistie(event) };
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);

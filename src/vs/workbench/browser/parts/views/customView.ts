@@ -34,6 +34,7 @@ import { LIGHT, FileThemeIcon, FolderThemeIcon } from 'vs/platform/theme/common/
 import { FileKind } from 'vs/platform/files/common/files';
 import { WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 
 export class CustomTreeViewPanel extends ViewletPanel {
 
@@ -373,7 +374,7 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 	}
 
 	private onSelection({ payload }: any): void {
-		if (payload && payload.source === 'api') {
+		if (payload && (!!payload.didClickOnTwistie || payload.source === 'api')) {
 			return;
 		}
 		const selection: ITreeItem = this.tree.getSelection()[0];
@@ -584,6 +585,10 @@ class TreeController extends WorkbenchTreeController {
 		@IConfigurationService configurationService: IConfigurationService
 	) {
 		super({}, configurationService);
+	}
+
+	protected shouldToggleExpansion(element: ITreeItem, event: IMouseEvent, origin: string): boolean {
+		return element.command ? this.isClickOnTwistie(event) : super.shouldToggleExpansion(element, event, origin);
 	}
 
 	public onContextMenu(tree: ITree, node: ITreeItem, event: ContextMenuEvent): boolean {
