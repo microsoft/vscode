@@ -50,7 +50,6 @@
     "vscode-ripgrep": "^1.0.1",
     "vscode-textmate": "^4.0.0-next.2",
     "vscode-xterm": "3.5.0-beta15",
-    "windows-swca": "^1.1.1",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
@@ -136,6 +135,7 @@
   "optionalDependencies": {
     "windows-foreground-love": "0.1.0",
     "windows-mutex": "^0.2.0",
-    "windows-process-tree": "0.2.2"
+    "windows-process-tree": "0.2.2",
+    "windows-swca": "^1.1.1"
   }
 }
