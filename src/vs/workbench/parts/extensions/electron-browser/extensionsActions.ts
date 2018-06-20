@@ -162,6 +162,9 @@ export class UninstallAction extends Action {
 	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
 	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
 
+	private static readonly UninstallClass = 'extension-action uninstall';
+	private static readonly UnInstallingClass = 'extension-action uninstall uninstalling';
+
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -170,7 +173,7 @@ export class UninstallAction extends Action {
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
-		super('extensions.uninstall', UninstallAction.UninstallLabel, null, false);
+		super('extensions.uninstall', UninstallAction.UninstallLabel, UninstallAction.UninstallClass, false);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
@@ -186,11 +189,13 @@ export class UninstallAction extends Action {
 
 		if (state === ExtensionState.Uninstalling) {
 			this.label = UninstallAction.UninstallingLabel;
+			this.class = UninstallAction.UnInstallingClass;
 			this.enabled = false;
 			return;
 		}
 
 		this.label = UninstallAction.UninstallLabel;
+		this.class = UninstallAction.UninstallClass;
 
 		const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id);
 
@@ -2118,7 +2123,7 @@ export class InstallVSIXAction extends Action {
 		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService
 	) {
-		super(id, label, null, true);
+		super(id, label, 'extension-action install-vsix', true);
 	}
 
 	run(): TPromise<any> {
