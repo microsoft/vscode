@@ -621,8 +621,29 @@ declare module 'vscode' {
 	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
 	export interface WorkspaceEdit {
+
+		/**
+		 * Create a regular file.
+		 *
+		 * @param uri Uri of the new file..
+		 * @param options Defines if an existing file should be overwritten or be ignored.
+		 */
 		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
+		/**
+		 * Delete a file or folder.
+		 *
+		 * @param uri The uri of the file that is to be deleted.
+		 */
 		deleteFile(uri: Uri): void;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
 		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
 
 		// replaceText(uri: Uri, range: Range, newText: string): void;
