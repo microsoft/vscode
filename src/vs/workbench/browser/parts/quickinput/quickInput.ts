@@ -841,8 +841,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const inputs = [].slice.call(container.querySelectorAll('input'))
-							.filter(input => input.style.display !== 'none');
+						const inputs = [].slice.call(container.querySelectorAll('.action-label.icon'));
+						if (container.classList.contains('show-checkboxes')) {
+							inputs.push(...[].slice.call(container.querySelectorAll('input')));
+						} else {
+							inputs.push(...[].slice.call(container.querySelectorAll('input[type=text]')));
+						}
 						if (event.shiftKey && event.target === inputs[0]) {
 							dom.EventHelper.stop(e, true);
 							inputs[inputs.length - 1].focus();
@@ -1062,7 +1066,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 				(item as ActionItem).getAction().enabled = enabled;
 			}
 			this.ui.checkAll.disabled = !enabled;
-			this.ui.inputBox.enabled = enabled;
+			// this.ui.inputBox.enabled = enabled; Avoid loosing focus.
 			this.ok.enabled = enabled;
 			this.ui.list.enabled = enabled;
 		}
