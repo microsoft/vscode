@@ -156,15 +156,15 @@ class DefinitionAdapter {
 
 		return asWinJsPromise(token => this._provider.provideDefinition2 ? this._provider.provideDefinition2(doc, pos, token) : this._provider.provideDefinition(doc, pos, token)).then((value): modes.DefinitionLink[] => {
 			if (Array.isArray(value)) {
-				return (value as (vscode.DefinitionLink | vscode.Location)[]).map(x => DefinitionAdapter.convertDefinitionLink(position, x));
+				return (value as (vscode.DefinitionLink | vscode.Location)[]).map(x => DefinitionAdapter.convertDefinitionLink(x));
 			} else if (value) {
-				return [DefinitionAdapter.convertDefinitionLink(position, value)];
+				return [DefinitionAdapter.convertDefinitionLink(value)];
 			}
 			return undefined;
 		});
 	}
 
-	private static convertDefinitionLink(position: IPosition, value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
+	private static convertDefinitionLink(value: vscode.Location | vscode.DefinitionLink): modes.DefinitionLink {
 		const definitionLink = <vscode.DefinitionLink>value;
 		return {
 			origin: definitionLink.origin

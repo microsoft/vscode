@@ -159,8 +159,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					let wordRange: Range;
 					if (result.origin) {
-						const range = result.origin;
-						wordRange = new Range(range.startLineNumber, range.startColumn, range.endLineNumber, range.endColumn);
+						wordRange = Range.lift(result.origin);
 					} else {
 						wordRange = new Range(position.lineNumber, word.startColumn, position.lineNumber, word.endColumn);
 					}
