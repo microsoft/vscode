@@ -240,6 +240,7 @@ class QuickInput implements IQuickInput {
 				return action;
 			}), { icon: true, label: false });
 		}
+		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
 	}
 
@@ -496,7 +497,6 @@ class QuickPick extends QuickInput implements IQuickPick {
 				this.ui.list.setSelectedElements(this.selectedItems);
 			}
 		}
-		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, list: true });
