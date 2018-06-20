@@ -192,7 +192,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstalling', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall uninstalling', testObject.class);
 			});
 	});
 
@@ -206,7 +206,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall', testObject.class);
 			});
 	});
 
@@ -220,7 +220,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall', testObject.class);
 			});
 	});
 
@@ -238,7 +238,7 @@ suite('ExtensionsActions Test', () => {
 
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall', testObject.class);
 			});
 	});
 
@@ -287,7 +287,7 @@ suite('ExtensionsActions Test', () => {
 				testObject.extension = extensions[0];
 				assert.ok(testObject.enabled);
 				assert.equal('Uninstall', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall', testObject.class);
 			});
 	});
 
@@ -318,7 +318,7 @@ suite('ExtensionsActions Test', () => {
 				uninstallEvent.fire(local.identifier);
 				assert.ok(!testObject.enabled);
 				assert.equal('Uninstalling', testObject.label);
-				assert.equal(null, testObject.class);
+				assert.equal('extension-action uninstall uninstalling', testObject.class);
 			});
 	});
 
