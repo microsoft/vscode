@@ -676,7 +676,12 @@ declare module 'vscode-xterm' {
 			ybase: number;
 			ydisp: number;
 			x: number;
+			lines: any[];
+
+			translateBufferLineToString(lineIndex: number, trimRight: boolean): string;
 		};
+
+		send(text: string): void;
 
 		/**
 		 * Emit an event on the terminal.
