@@ -52,7 +52,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): TPromise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
 		return pfs.mkdirp(result, null).then(() => result);
 	}
 
@@ -72,7 +72,17 @@ export class Win32UpdateService extends AbstractUpdateService {
 			return false;
 		}
 
-		this.url = createUpdateURL(process.arch === 'x64' ? 'win32-x64' : 'win32', quality);
+		let platform = 'win32';
+
+		if (process.arch === 'x64') {
+			platform += '-x64';
+		}
+
+		if (product.target === 'user') {
+			platform += '-user';
+		}
+
+		this.url = createUpdateURL(platform, quality);
 		return true;
 	}
 

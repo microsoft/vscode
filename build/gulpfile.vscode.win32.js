@@ -7,6 +7,7 @@
 
 const gulp = require('gulp');
 const path = require('path');
+const fs = require('fs');
 const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
@@ -16,6 +17,7 @@ const pkg = require('../package.json');
 // @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
 const vfs = require('vinyl-fs');
+const mkdirp = require('mkdirp');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -42,7 +44,7 @@ function packageInnoSetup(iss, options, cb) {
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
 	const args = [iss].concat(defs);
 
-	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'ignore', 'inherit'] })
+	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'inherit', 'inherit'] })
 		.on('error', cb)
 		.on('exit', () => cb(null));
 }
@@ -55,6 +57,16 @@ function buildWin32Setup(arch, target) {
 	return cb => {
 		const ia32AppId = target === 'system' ? product.win32AppId : product.win32UserAppId;
 		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
+
+		const sourcePath = buildPath(arch);
+		const outputPath = setupDir(arch, target);
+		mkdirp.sync(outputPath);
+
+		const originalProductJsonPath = path.join(sourcePath, 'resources/app/product.json');
+		const productJsonPath = path.join(outputPath, 'product.json');
+		const productJson = JSON.parse(fs.readFileSync(originalProductJsonPath, 'utf8'));
+		productJson['target'] = target;
+		fs.writeFileSync(productJsonPath, JSON.stringify(productJson, undefined, '\t'));
 
 		const definitions = {
 			NameLong: product.nameLong,
@@ -73,10 +85,11 @@ function buildWin32Setup(arch, target) {
 			AppUserId: product.win32AppUserModelId,
 			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
 			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
-			SourceDir: buildPath(arch),
+			SourceDir: sourcePath,
 			RepoDir: repoPath,
-			OutputDir: setupDir(arch, target),
-			InstallTarget: target
+			OutputDir: outputPath,
+			InstallTarget: target,
+			ProductJsonPath: productJsonPath
 		};
 
 		packageInnoSetup(issPath, { definitions }, cb);
