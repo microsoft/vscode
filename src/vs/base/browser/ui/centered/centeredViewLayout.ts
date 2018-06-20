@@ -76,12 +76,15 @@ export class CenteredViewLayout {
 	}
 
 	resetView(view: IView): void {
-		this.view = view;
 		if (this.splitView) {
 			const size = this.splitView.getViewSize(1);
 			this.splitView.removeView(1);
-			this.splitView.addView(toSplitViewView(this.view, () => this.height), size, 1);
+			this.splitView.addView(toSplitViewView(view, () => this.height), size, 1);
+		} else {
+			this.container.appendChild(view.element);
 		}
+
+		this.view = view;
 	}
 
 	activate(active: boolean): void {
