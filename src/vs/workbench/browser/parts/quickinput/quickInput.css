@@ -16,18 +16,36 @@
 	display: flex;
 }
 
-.quick-input-title {
+.quick-input-left-action-bar {
+	display: flex;
+	margin-left: 6px;
 	flex: 1;
-	padding: 3px 11px;
 }
 
-.quick-input-action-bar {
+.quick-input-left-action-bar.monaco-action-bar .actions-container {
+	justify-content: flex-start;
+}
+
+.quick-input-left-action-bar .action-label.icon {
+	margin: 0 5px 0 0;
+}
+
+.quick-input-title {
+	padding: 3px 0px;
+	text-align: center;
+}
+
+.quick-input-right-action-bar {
 	display: flex;
 	margin-right: 6px;
+	flex: 1;
 }
 
-.quick-input-action-bar .action-label.icon {
+.quick-input-right-action-bar .action-label.icon {
 	margin: 0 0 0 5px;
+}
+
+.quick-input-titlebar .monaco-action-bar .action-label.icon {
 	width: 16px;
 	height: 100%;
 	background-position: center;

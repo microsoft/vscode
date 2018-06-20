@@ -43,13 +43,23 @@ import { IdGenerator } from 'vs/base/common/idGenerator';
 
 const $ = dom.$;
 
+const backButton = {
+	iconPath: {
+		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/arrow-left.svg')),
+		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/arrow-left.svg'))
+	},
+	tooltip: localize('quickInput.back', "Back"),
+	handle: -1 // TODO
+};
+
 interface QuickInputUI {
 	container: HTMLElement;
+	leftActionBar: ActionBar;
 	title: HTMLElement;
+	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
-	actionBar: ActionBar;
 	message: HTMLElement;
 	progressBar: ProgressBar;
 	list: QuickInputList;
@@ -215,8 +225,16 @@ class QuickInput implements IQuickInput {
 		}
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
-			this.ui.actionBar.clear();
-			this.ui.actionBar.push(this.buttons.map((button, index) => {
+			this.ui.leftActionBar.clear();
+			const leftButtons = this.buttons.filter(button => button === backButton);
+			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				action.tooltip = button.tooltip;
+				return action;
+			}), { icon: true, label: false });
+			this.ui.rightActionBar.clear();
+			const rightButtons = this.buttons.filter(button => button !== backButton);
+			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
 				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
 				action.tooltip = button.tooltip;
 				return action;
@@ -227,7 +245,7 @@ class QuickInput implements IQuickInput {
 
 	private getTitle() {
 		if (this.title && this.step) {
-			return `${this.title} ― ${this.getSteps()}`;
+			return `${this.title} (${this.getSteps()})`;
 		}
 		if (this.title) {
 			return this.title;
@@ -240,7 +258,7 @@ class QuickInput implements IQuickInput {
 
 	private getSteps() {
 		if (this.step && this.totalSteps) {
-			return localize('quickInput.steps', "{0} of {1}", this.step, this.totalSteps);
+			return localize('quickInput.steps', "{0}/{1}", this.step, this.totalSteps);
 		}
 		if (this.step) {
 			return String(this.step);
@@ -731,11 +749,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.titleBar = dom.append(container, $('.quick-input-titlebar'));
 
+		const leftActionBar = new ActionBar(this.titleBar);
+		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
+		this.toUnbind.push(leftActionBar);
+
 		const title = dom.append(this.titleBar, $('.quick-input-title'));
 
-		const actionBar = new ActionBar(this.titleBar);
-		actionBar.domNode.classList.add('quick-input-action-bar');
-		this.toUnbind.push(actionBar);
+		const rightActionBar = new ActionBar(this.titleBar);
+		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
+		this.toUnbind.push(rightActionBar);
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -835,12 +857,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.ui = {
 			container,
+			leftActionBar,
 			title,
+			rightActionBar,
 			checkAll,
 			inputBox,
 			count,
 			message,
-			actionBar,
 			progressBar,
 			list,
 			onDidAccept: this.onDidAcceptEmitter.event,
@@ -970,14 +993,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		});
 	}
 
-	backButton = {
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/back.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/back.svg'))
-		},
-		tooltip: localize('quickInput.back', "Back"),
-		handle: -1 // TODO
-	};
+	backButton = backButton;
 
 	createQuickPick(): IQuickPick {
 		this.create();
@@ -999,14 +1015,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 
 		this.setEnabled(true);
+		this.ui.leftActionBar.clear();
 		this.ui.title.textContent = '';
+		this.ui.rightActionBar.clear();
 		this.ui.checkAll.checked = false;
 		// this.ui.inputBox.value = ''; Avoid triggering an event.
 		this.ui.inputBox.placeholder = '';
 		this.ui.inputBox.password = false;
 		this.ui.inputBox.showDecoration(Severity.Ignore);
 		this.ui.count.setCount(0);
-		this.ui.actionBar.clear();
 		this.ui.message.textContent = '';
 		this.ui.progressBar.stop();
 		this.ui.list.setElements([]);
@@ -1036,11 +1053,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setEnabled(enabled: boolean) {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
-			this.ui.checkAll.disabled = !enabled;
-			this.ui.inputBox.enabled = enabled;
-			for (const item of this.ui.actionBar.items) {
+			for (const item of this.ui.leftActionBar.items) {
 				(item as ActionItem).getAction().enabled = enabled;
 			}
+			for (const item of this.ui.rightActionBar.items) {
+				(item as ActionItem).getAction().enabled = enabled;
+			}
+			this.ui.checkAll.disabled = !enabled;
+			this.ui.inputBox.enabled = enabled;
 			this.ok.enabled = enabled;
 			this.ui.list.enabled = enabled;
 		}
