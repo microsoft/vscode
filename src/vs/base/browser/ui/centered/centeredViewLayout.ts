@@ -32,9 +32,9 @@ function createEmptyView() {
 function toSplitViewView(view: IView, getHeight: () => number): ISplitViewView {
 	return {
 		element: view.element,
-		maximumSize: view.maximumWidth,
-		minimumSize: view.minimumWidth,
-		onDidChange: mapEvent(view.onDidChange, widthAndHeight => widthAndHeight && widthAndHeight.width),
+		get maximumSize() { return view.maximumWidth; },
+		get minimumSize() { return view.minimumWidth; },
+		onDidChange: mapEvent(view.onDidChange, e => e && e.width),
 		layout: size => view.layout(size, getHeight())
 	};
 }
