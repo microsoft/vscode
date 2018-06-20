@@ -35,7 +35,7 @@ abstract class AbstractCopyLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
@@ -93,7 +93,7 @@ abstract class AbstractMoveLinesAction extends EditorAction {
 		this.down = down;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let commands: ICommand[] = [];
 		let selections = editor.getSelections();
@@ -149,7 +149,7 @@ export abstract class AbstractSortLinesAction extends EditorAction {
 		this.descending = descending;
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const selections = editor.getSelections();
 
 		for (let i = 0, len = selections.length; i < len; i++) {
@@ -209,7 +209,7 @@ export class TrimTrailingWhitespaceAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor, args: any): void {
 
 		let cursors: Position[] = [];
 		if (args.reason === 'auto-save') {
@@ -250,7 +250,7 @@ class DeleteLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 
 		let ops = this._getLinesToRemove(editor);
 
@@ -319,7 +319,7 @@ export class IndentLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.indent(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 		editor.pushUndoStop();
@@ -340,7 +340,7 @@ class OutdentLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		CoreEditingCommands.Outdent.runEditorCommand(null, editor, null);
 	}
 }
@@ -359,7 +359,7 @@ export class InsertLineBeforeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertBefore(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
@@ -379,14 +379,14 @@ export class InsertLineAfterAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		editor.pushUndoStop();
 		editor.executeCommands(this.id, TypeOperations.lineInsertAfter(editor._getCursorConfiguration(), editor.getModel(), editor.getSelections()));
 	}
 }
 
 export abstract class AbstractDeleteAllToBoundaryAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		const primaryCursor = editor.getSelection();
 		let rangesToDelete = this._getRangesToDelete(editor);
 		// merge overlapping selections
@@ -564,7 +564,7 @@ export class JoinLinesAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let primaryCursor = editor.getSelection();
 
@@ -707,7 +707,7 @@ export class TransposeAction extends EditorAction {
 		});
 	}
 
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
@@ -748,7 +748,7 @@ export class TransposeAction extends EditorAction {
 }
 
 export abstract class AbstractCaseAction extends EditorAction {
-	public run(accessor: ServicesAccessor, editor: ICodeEditor): void {
+	public run(_accessor: ServicesAccessor, editor: ICodeEditor): void {
 		let selections = editor.getSelections();
 		let model = editor.getModel();
 		let commands: ICommand[] = [];
