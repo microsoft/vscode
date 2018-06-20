@@ -400,19 +400,20 @@ class ProgressManager {
 	private disposable: IDisposable = EmptyDisposable;
 
 	constructor(repository: Repository) {
-		const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
-		const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
-
-		const setup = () => {
-			this.disposable = start(() => {
-				const promise = eventToPromise(end).then(() => setup());
-				window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
-			});
-		};
-
-		setup();
+		const config = workspace.getConfiguration('git');
+		const refreshIcon = config.get<boolean>('refreshIcon');
+		if (refreshIcon) {
+			const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
+			const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
+			const setup = () => {
+				this.disposable = start(() => {
+					const promise = eventToPromise(end).then(() => setup());
+					window.withProgress({ location: ProgressLocation.SourceControl }, () => promise);
+				});
+			};
+			setup();
+		}
 	}
-
 	dispose(): void {
 		this.disposable.dispose();
 	}
