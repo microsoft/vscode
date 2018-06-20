@@ -621,9 +621,9 @@ declare module 'vscode' {
 	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
 	export interface WorkspaceEdit {
-		createFile(uri: Uri, options?: { override?: boolean }): void;
+		createFile(uri: Uri, options?: { overwrite?: boolean }): void;
 		deleteFile(uri: Uri): void;
-		renameFile(oldUri: Uri, newUri: Uri, options?: { override?: boolean }): void;
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
 
 		// replaceText(uri: Uri, range: Range, newText: string): void;
 		// insertText(uri: Uri, position: Position, newText: string): void;

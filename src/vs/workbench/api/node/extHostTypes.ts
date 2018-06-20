@@ -499,7 +499,7 @@ export interface IFileOperation {
 	_type: 1;
 	from: URI;
 	to: URI;
-	options?: { override?: boolean };
+	options?: { overwrite?: boolean };
 }
 
 export interface IFileTextEdit {
@@ -512,11 +512,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
 	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { override?: boolean }): void {
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean }): void {
 		this._edits.push({ _type: 1, from, to, options });
 	}
 
-	createFile(uri: vscode.Uri, options?: { override?: boolean }): void {
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean }): void {
 		this.renameFile(undefined, uri, options);
 	}
 
@@ -593,8 +593,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI, { override?: boolean }])[] {
-		let res: ([URI, TextEdit[]] | [URI, URI, { override?: boolean }])[] = [];
+	allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] {
+		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);

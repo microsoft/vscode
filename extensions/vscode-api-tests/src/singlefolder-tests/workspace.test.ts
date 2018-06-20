@@ -677,7 +677,7 @@ suite('workspace-namespace', () => {
 		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
 
 		we = new vscode.WorkspaceEdit();
-		we.createFile(docUri, { override: true });
+		we.createFile(docUri, { overwrite: true });
 		assert.ok(await vscode.workspace.applyEdit(we));
 		// todo@ben
 		// assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');

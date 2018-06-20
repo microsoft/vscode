@@ -5,6 +5,7 @@
 'use strict';
 
 
+import { mergeSort } from 'vs/base/common/arrays';
 import { getPathLabel } from 'vs/base/common/labels';
 import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
@@ -27,7 +28,6 @@ import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/pro
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { mergeSort } from 'vs/base/common/arrays';
 
 abstract class Recording {
 
@@ -335,12 +335,13 @@ export class BulkEdit {
 		for (const edit of edits) {
 			progress.report(undefined);
 
+			let overwrite = edit.options && edit.options.overwrite;
 			if (edit.newUri && edit.oldUri) {
-				await this._textFileService.move(edit.oldUri, edit.newUri, edit.options && edit.options.override);
+				await this._textFileService.move(edit.oldUri, edit.newUri, overwrite);
 			} else if (!edit.newUri && edit.oldUri) {
 				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
-				await this._fileService.createFile(edit.newUri, undefined, { overwrite: edit.options && edit.options.override });
+				await this._fileService.createFile(edit.newUri, undefined, { overwrite });
 			}
 		}
 	}

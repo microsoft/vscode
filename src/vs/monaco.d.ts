@@ -5101,7 +5101,7 @@ declare namespace monaco.languages {
 		oldUri: Uri;
 		newUri: Uri;
 		options: {
-			override: boolean;
+			overwrite: boolean;
 		};
 	}
 
