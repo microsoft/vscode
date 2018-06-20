@@ -6,25 +6,82 @@
 import * as DOM from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
-import { SettingsTreeElement, SettingsTreeGroupElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
 
 const $ = DOM.$;
+
+export class TOCTreeModel {
+	private _currentSearchModel: SearchResultModel;
+	private _settingsTreeRoot: SettingsTreeGroupElement;
+
+	public set settingsTreeRoot(value: SettingsTreeGroupElement) {
+		this._settingsTreeRoot = value;
+		this.update();
+	}
+
+	public set currentSearchModel(model: SearchResultModel) {
+		this._currentSearchModel = model;
+		this.update();
+	}
+
+	public get children(): SettingsTreeElement[] {
+		return this._settingsTreeRoot.children;
+	}
+
+	public update(): void {
+		this.updateGroupCount(this._settingsTreeRoot);
+	}
+
+	private updateGroupCount(group: SettingsTreeGroupElement): void {
+		(<any>group).count = this._currentSearchModel ?
+			this.getSearchResultChildrenCount(group) :
+			undefined;
+
+		group.children.forEach(child => {
+			if (child instanceof SettingsTreeGroupElement) {
+				this.updateGroupCount(child);
+			}
+		});
+	}
+
+	private getSearchResultChildrenCount(group: SettingsTreeGroupElement): number {
+		return this._currentSearchModel.getFlatSettings().filter(s => {
+			return this.groupContainsSetting(group, s);
+		}).length;
+	}
+
+	private groupContainsSetting(group: SettingsTreeGroupElement, setting: ISetting): boolean {
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeSettingElement) {
+				return child.setting.key === setting.key;
+			} else if (child instanceof SettingsTreeGroupElement) {
+				return this.groupContainsSetting(child, setting);
+			} else {
+				return false;
+			}
+		});
+	}
+}
+
+export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
 
-	hasChildren(tree: ITree, element: SettingsTreeElement): boolean {
-		return element instanceof SettingsTreeGroupElement && element.children && element.children.every(child => child instanceof SettingsTreeGroupElement);
+	hasChildren(tree: ITree, element: TOCTreeElement): boolean {
+		return element instanceof TOCTreeModel ||
+			(element instanceof SettingsTreeGroupElement && element.children && element.children.every(child => child instanceof SettingsTreeGroupElement));
 	}
 
-	getChildren(tree: ITree, element: SettingsTreeGroupElement): TPromise<SettingsTreeElement[], any> {
+	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[], any> {
 		return TPromise.as(<SettingsTreeElement[]>element.children);
 	}
 
-	getParent(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
-		return TPromise.wrap(element.parent);
+	getParent(tree: ITree, element: TOCTreeElement): TPromise<any, any> {
+		return TPromise.wrap(element instanceof SettingsTreeGroupElement && element.parent);
 	}
 
 	shouldAutoexpand() {
@@ -54,7 +111,12 @@ export class TOCRenderer implements IRenderer {
 	}
 
 	renderElement(tree: ITree, element: SettingsTreeGroupElement, templateId: string, template: ITOCEntryTemplate): void {
-		template.element.textContent = element.label;
+		const label = (<any>element).count ?
+			`${element.label} (${(<any>element).count})` :
+			element.label;
+
+		DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
+		template.element.textContent = label;
 	}
 
 	disposeTemplate(tree: ITree, templateId: string, templateData: any): void {

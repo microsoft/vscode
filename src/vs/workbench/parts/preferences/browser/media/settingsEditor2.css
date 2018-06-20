@@ -115,13 +115,17 @@
 }
 
 .search-mode .settings-toc-container {
-	display: none;
+	/* display: none; */
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
+	opacity: 0.5;
 }
 
 .settings-editor > .settings-body .settings-tree-container {

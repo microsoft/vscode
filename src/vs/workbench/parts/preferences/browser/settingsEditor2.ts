@@ -31,7 +31,7 @@ import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData, commonlyUsedData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
-import { TOCDataSource, TOCRenderer } from 'vs/workbench/parts/preferences/browser/tocTree';
+import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
@@ -55,6 +55,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private settingsTreeContainer: HTMLElement;
 	private settingsTree: WorkbenchTree;
 	private treeDataSource: SettingsDataSource;
+	private tocTreeModel: TOCTreeModel;
 	private settingsTreeModel: SettingsTreeModel;
 
 	private tocTreeContainer: HTMLElement;
@@ -226,13 +227,14 @@ export class SettingsEditor2 extends BaseEditor {
 	private createTOC(parent: HTMLElement): void {
 		this.tocTreeContainer = DOM.append(parent, $('.settings-toc-container'));
 
-		const tocTreeDataSource = this.instantiationService.createInstance(TOCDataSource);
-		const renderer = this.instantiationService.createInstance(TOCRenderer);
+		const tocDataSource = this.instantiationService.createInstance(TOCDataSource);
+		const tocRenderer = this.instantiationService.createInstance(TOCRenderer);
+		this.tocTreeModel = new TOCTreeModel();
 
 		this.tocTree = this.instantiationService.createInstance(WorkbenchTree, this.tocTreeContainer,
 			<ITreeConfiguration>{
-				dataSource: tocTreeDataSource,
-				renderer,
+				dataSource: tocDataSource,
+				renderer: tocRenderer,
 				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
@@ -480,7 +482,13 @@ export class SettingsEditor2 extends BaseEditor {
 		} else {
 			this.settingsTreeModel = this.instantiationService.createInstance(SettingsTreeModel, this.viewState, resolvedSettingsRoot);
 			this.settingsTree.setInput(this.settingsTreeModel.root);
-			this.tocTree.setInput(this.settingsTreeModel.root);
+
+			this.tocTreeModel.settingsTreeRoot = this.settingsTreeModel.root as SettingsTreeGroupElement;
+			if (this.tocTree.getInput()) {
+				this.tocTree.refresh();
+			} else {
+				this.tocTree.setInput(this.tocTreeModel);
+			}
 		}
 
 		return this.refreshTreeAndMaintainFocus();
@@ -538,6 +546,8 @@ export class SettingsEditor2 extends BaseEditor {
 			}
 
 			this.searchResultModel = null;
+			this.tocTreeModel.currentSearchModel = null;
+			this.tocTree.refresh();
 			this.toggleSearchMode();
 			this.settingsTree.setInput(this.settingsTreeModel.root);
 
@@ -613,11 +623,13 @@ export class SettingsEditor2 extends BaseEditor {
 				const [result] = results;
 				if (!this.searchResultModel) {
 					this.searchResultModel = new SearchResultModel();
+					this.tocTreeModel.currentSearchModel = this.searchResultModel;
 					this.toggleSearchMode();
 					this.settingsTree.setInput(this.searchResultModel);
 				}
 
 				this.searchResultModel.setResult(type, result);
+				this.tocTreeModel.update();
 				resolve(this.refreshTreeAndMaintainFocus());
 			});
 		}, () => {
