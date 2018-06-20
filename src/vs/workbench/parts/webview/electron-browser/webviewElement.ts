@@ -256,7 +256,11 @@ export class WebviewElement extends Disposable {
 
 	public set options(value: WebviewOptions) {
 		this._options = value;
-		this.reload();
+		this._send('content', {
+			contents: this._contents,
+			options: this._options,
+			state: this._state
+		});
 	}
 
 	public set contents(value: string) {
