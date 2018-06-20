@@ -828,8 +828,8 @@ export interface ITextModel {
 	getWordUntilPosition(position: IPosition): IWordAtPosition;
 
 	/**
-	 * Find the matching bracket of `request` up, counting brackets.
-	 * @param request The bracket we're searching for
+	 * Find the matching bracket of `bracket` up, counting brackets.
+	 * @param bracket The bracket we're searching for
 	 * @param position The position at which to start the search.
 	 * @return The range of the matching bracket, or null if the bracket match was not found.
 	 * @internal
