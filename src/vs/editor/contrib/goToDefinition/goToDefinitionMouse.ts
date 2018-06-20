@@ -162,10 +162,10 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 	}
 
 	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
-		let rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
+		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
 		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
-		if (numberOfLinesInRange < 3 || numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
-			rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
 		}
 
 		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
