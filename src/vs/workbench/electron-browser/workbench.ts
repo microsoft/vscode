@@ -225,7 +225,7 @@ export class Workbench extends Disposable implements IPartService {
 	private sideBarPosition: Position;
 	private panelPosition: Position;
 	private panelHidden: boolean;
-	private menubarHidden: boolean;
+	private menubarVisibility: MenuBarVisibility;
 	private zenMode: IZenMode;
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
@@ -586,7 +586,7 @@ export class Workbench extends Disposable implements IPartService {
 		}
 
 		const newMenubarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
-		this.setMenubarHidden(newMenubarVisibility, skipLayout);
+		this.setMenubarVisibility(newMenubarVisibility, skipLayout);
 	}
 
 	//#endregion
@@ -853,7 +853,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Menubar visibility
 		const menuBarVisibility = this.configurationService.getValue<MenuBarVisibility>(Workbench.menubarVisibilityConfigurationKey);
-		this.setMenubarHidden(menuBarVisibility, true);
+		this.setMenubarVisibility(menuBarVisibility, true);
 
 		// Statusbar visibility
 		const statusBarVisible = this.configurationService.getValue<string>(Workbench.statusbarVisibleConfigurationKey);
@@ -1188,7 +1188,7 @@ export class Workbench extends Disposable implements IPartService {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return !isMacintosh && this.isVisible(Parts.TITLEBAR_PART) && !this.menubarHidden;
+				return !isMacintosh && this.isVisible(Parts.TITLEBAR_PART) && !(this.menubarVisibility === 'hidden' || (this.menubarVisibility === 'default' && browser.isFullscreen()));
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1457,8 +1457,8 @@ export class Workbench extends Disposable implements IPartService {
 		this.workbenchLayout.layout();
 	}
 
-	setMenubarHidden(visibility: MenuBarVisibility, skipLayout: boolean): void {
-		this.menubarHidden = visibility === 'hidden' || (visibility === 'default' && browser.isFullscreen());
+	setMenubarVisibility(visibility: MenuBarVisibility, skipLayout: boolean): void {
+		this.menubarVisibility = visibility;
 
 		if (!skipLayout) {
 			this.workbenchLayout.layout();
