@@ -271,7 +271,7 @@ export const TextEdit = {
 
 export namespace WorkspaceEdit {
 	export function from(value: vscode.WorkspaceEdit, documents?: ExtHostDocumentsAndEditors): WorkspaceEditDto {
-		const result: modes.WorkspaceEdit = {
+		const result: WorkspaceEditDto = {
 			edits: []
 		};
 		for (const entry of (value as types.WorkspaceEdit).allEntries()) {
@@ -279,10 +279,10 @@ export namespace WorkspaceEdit {
 			if (Array.isArray(uriOrEdits)) {
 				// text edits
 				let doc = documents ? documents.getDocument(uri.toString()) : undefined;
-				result.edits.push({ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
+				result.edits.push(<ResourceTextEditDto>{ resource: uri, modelVersionId: doc && doc.version, edits: uriOrEdits.map(TextEdit.from) });
 			} else {
 				// resource edits
-				result.edits.push({ oldUri: uri, newUri: uriOrEdits });
+				result.edits.push(<ResourceFileEditDto>{ oldUri: uri, newUri: uriOrEdits, options: entry[2] });
 			}
 		}
 		return result;
@@ -299,7 +299,8 @@ export namespace WorkspaceEdit {
 			} else {
 				result.renameFile(
 					URI.revive((<ResourceFileEditDto>edit).oldUri),
-					URI.revive((<ResourceFileEditDto>edit).newUri)
+					URI.revive((<ResourceFileEditDto>edit).newUri),
+					(<ResourceFileEditDto>edit).options
 				);
 			}
 		}

@@ -899,6 +899,7 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 export interface ResourceFileEdit {
 	oldUri: URI;
 	newUri: URI;
+	options: { override: boolean };
 }
 
 export interface ResourceTextEdit {

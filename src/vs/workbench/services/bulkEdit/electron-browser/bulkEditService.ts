@@ -336,11 +336,11 @@ export class BulkEdit {
 			progress.report(undefined);
 
 			if (edit.newUri && edit.oldUri) {
-				await this._textFileService.move(edit.oldUri, edit.newUri, false);
+				await this._textFileService.move(edit.oldUri, edit.newUri, edit.options && edit.options.override);
 			} else if (!edit.newUri && edit.oldUri) {
 				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
-				await this._fileService.createFile(edit.newUri, undefined, { overwrite: false });
+				await this._fileService.createFile(edit.newUri, undefined, { overwrite: edit.options && edit.options.override });
 			}
 		}
 	}

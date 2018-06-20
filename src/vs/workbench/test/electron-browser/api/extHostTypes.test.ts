@@ -386,12 +386,12 @@ suite('ExtHostTypes', function () {
 		const all = edit.allEntries();
 		assert.equal(all.length, 4);
 
-		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, URI] {
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { override?: boolean }]): thing is [URI, URI, { override?: boolean }] {
 			const [f, s] = thing;
 			return URI.isUri(f) && URI.isUri(s);
 		}
 
-		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI]): thing is [URI, types.TextEdit[]] {
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { override?: boolean }]): thing is [URI, types.TextEdit[]] {
 			const [f, s] = thing;
 			return URI.isUri(f) && Array.isArray(s);
 		}

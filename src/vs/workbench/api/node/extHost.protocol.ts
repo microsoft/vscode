@@ -766,6 +766,7 @@ export interface WorkspaceSymbolsDto extends IdObject {
 export interface ResourceFileEditDto {
 	oldUri: UriComponents;
 	newUri: UriComponents;
+	options: { override?: boolean };
 }
 
 export interface ResourceTextEditDto {

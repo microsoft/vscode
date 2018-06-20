@@ -495,21 +495,33 @@ export class TextEdit {
 }
 
 
+export interface IFileOperation {
+	_type: 1;
+	from: URI;
+	to: URI;
+	options?: { override?: boolean };
+}
+
+export interface IFileTextEdit {
+	_type: 2;
+	uri: URI;
+	edit: TextEdit;
+}
 
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _edits = new Array<{ _type: 1, from: URI, to: URI } | { _type: 2, uri: URI, edit: TextEdit }>();
+	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	createFile(uri: vscode.Uri): void {
-		this.renameFile(undefined, uri);
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { override?: boolean }): void {
+		this._edits.push({ _type: 1, from, to, options });
+	}
+
+	createFile(uri: vscode.Uri, options?: { override?: boolean }): void {
+		this.renameFile(undefined, uri, options);
 	}
 
 	deleteFile(uri: vscode.Uri): void {
 		this.renameFile(uri, undefined);
-	}
-
-	renameFile(from: vscode.Uri, to: vscode.Uri): void {
-		this._edits.push({ _type: 1, from, to });
 	}
 
 	replace(uri: URI, range: Range, newText: string): void {
@@ -581,11 +593,11 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		let res: ([URI, TextEdit[]] | [URI, URI])[] = [];
+	allEntries(): ([URI, TextEdit[]] | [URI, URI, { override?: boolean }])[] {
+		let res: ([URI, TextEdit[]] | [URI, URI, { override?: boolean }])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
-				res.push([edit.from, edit.to]);
+				res.push([edit.from, edit.to, edit.options]);
 			} else {
 				res.push([edit.uri, [edit.edit]]);
 			}

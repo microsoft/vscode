@@ -495,18 +495,18 @@ class RenameAdapter {
 			return typeConvert.WorkspaceEdit.from(value);
 		}, err => {
 			if (typeof err === 'string') {
-				return <modes.WorkspaceEdit>{
+				return <WorkspaceEditDto>{
 					edits: undefined,
 					rejectReason: err
 				};
 			} else if (err instanceof Error && typeof err.message === 'string') {
-				return <modes.WorkspaceEdit>{
+				return <WorkspaceEditDto>{
 					edits: undefined,
 					rejectReason: err.message
 				};
 			} else {
 				// generic error
-				return TPromise.wrapError<modes.WorkspaceEdit>(err);
+				return TPromise.wrapError<WorkspaceEditDto>(err);
 			}
 		});
 	}
