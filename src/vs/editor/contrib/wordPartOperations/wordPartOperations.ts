@@ -26,7 +26,7 @@ export class DeleteWordPartLeft extends DeleteWordCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyCode.Backspace,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Backspace }
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Backspace }
 			}
 		});
 	}
@@ -50,7 +50,7 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyCode.Delete,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.Delete }
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.Delete }
 			}
 		});
 	}
@@ -66,7 +66,12 @@ export class DeleteWordPartRight extends DeleteWordCommand {
 	}
 }
 
-export class CursorWordPartLeft extends MoveWordCommand {
+export class WordPartLeftCommand extends MoveWordCommand {
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
+		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position, wordNavigationType);
+	}
+}
+export class CursorWordPartLeft extends WordPartLeftCommand {
 	constructor() {
 		super({
 			inSelectionMode: false,
@@ -76,17 +81,33 @@ export class CursorWordPartLeft extends MoveWordCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyCode.LeftArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.LeftArrow }
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.LeftArrow }
 			}
 		});
 	}
-
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartLeft(wordSeparators, model, position, wordNavigationType);
+}
+export class CursorWordPartLeftSelect extends WordPartLeftCommand {
+	constructor() {
+		super({
+			inSelectionMode: true,
+			wordNavigationType: WordNavigationType.WordStart,
+			id: 'cursorWordPartStartLeftSelect',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.LeftArrow }
+			}
+		});
 	}
 }
 
-export class CursorWordPartRight extends MoveWordCommand {
+export class WordPartRightCommand extends MoveWordCommand {
+	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
+		return WordPartOperations.moveWordPartRight(wordSeparators, model, position, wordNavigationType);
+	}
+}
+export class CursorWordPartRight extends WordPartRightCommand {
 	constructor() {
 		super({
 			inSelectionMode: false,
@@ -96,13 +117,24 @@ export class CursorWordPartRight extends MoveWordCommand {
 			kbOpts: {
 				kbExpr: EditorContextKeys.textInputFocus,
 				primary: KeyMod.Alt | KeyCode.RightArrow,
-				mac: { primary: KeyMod.CtrlCmd | KeyCode.RightArrow }
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyCode.RightArrow }
 			}
 		});
 	}
-
-	protected _move(wordSeparators: WordCharacterClassifier, model: ITextModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		return WordPartOperations.moveWordPartRight(wordSeparators, model, position, wordNavigationType);
+}
+export class CursorWordPartRightSelect extends WordPartRightCommand {
+	constructor() {
+		super({
+			inSelectionMode: true,
+			wordNavigationType: WordNavigationType.WordEnd,
+			id: 'cursorWordPartRightSelect',
+			precondition: null,
+			kbOpts: {
+				kbExpr: EditorContextKeys.textInputFocus,
+				primary: KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow,
+				mac: { primary: KeyMod.WinCtrl | KeyMod.Alt | KeyMod.Shift | KeyCode.RightArrow }
+			}
+		});
 	}
 }
 
@@ -110,4 +142,6 @@ export class CursorWordPartRight extends MoveWordCommand {
 registerEditorCommand(new DeleteWordPartLeft());
 registerEditorCommand(new DeleteWordPartRight());
 registerEditorCommand(new CursorWordPartLeft());
+registerEditorCommand(new CursorWordPartLeftSelect());
 registerEditorCommand(new CursorWordPartRight());
+registerEditorCommand(new CursorWordPartRightSelect());
