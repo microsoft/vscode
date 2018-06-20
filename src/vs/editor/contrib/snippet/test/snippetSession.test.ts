@@ -434,6 +434,121 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(1, 6, 1, 25));
 	});
 
+	test('snippets, transform', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1/foo/bar/}$0');
+		session.insert();
+		assertSelections(editor, new Selection(1, 1, 1, 1));
+
+		editor.trigger('test', 'type', { text: 'foo' });
+		session.next();
+
+		assert.equal(model.getValue(), 'bar');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 4, 1, 4));
+	});
+
+	test('snippets, multi placeholder same index one transform', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '$1 baz ${1/foo/bar/}$0');
+		session.insert();
+		assertSelections(editor, new Selection(1, 1, 1, 1), new Selection(1, 6, 1, 6));
+
+		editor.trigger('test', 'type', { text: 'foo' });
+		session.next();
+
+		assert.equal(model.getValue(), 'foo baz bar');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(1, 12, 1, 12));
+	});
+
+	test('snippets, transform example', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		session.insert();
+
+		assertSelections(editor, new Selection(1, 1, 1, 5));
+		editor.trigger('test', 'type', { text: 'clk' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 7, 1, 11));
+		editor.trigger('test', 'type', { text: 'std_logic' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 16, 1, 19));
+		session.next();
+
+		assert.equal(model.getValue(), 'clk : std_logic;\n');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(2, 1, 2, 1));
+	});
+
+	test('snippets, transform with indent', function () {
+		const snippet = [
+			'private readonly ${1} = new Emitter<$2>();',
+			'readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event;',
+			'$0'
+		].join('\n');
+		const expected = [
+			'{',
+			'\tprivate readonly _prop = new Emitter<string>();',
+			'\treadonly prop: Event<string> = this._prop.event;',
+			'\t',
+			'}'
+		].join('\n');
+		const base = [
+			'{',
+			'\t',
+			'}'
+		].join('\n');
+
+		editor.getModel().setValue(base);
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 2, 2));
+
+		const session = new SnippetSession(editor, snippet);
+		session.insert();
+
+		assertSelections(editor, new Selection(2, 19, 2, 19), new Selection(3, 11, 3, 11), new Selection(3, 28, 3, 28));
+		editor.trigger('test', 'type', { text: '_prop' });
+		session.next();
+
+		assertSelections(editor, new Selection(2, 39, 2, 39), new Selection(3, 23, 3, 23));
+		editor.trigger('test', 'type', { text: 'string' });
+		session.next();
+
+		assert.equal(model.getValue(), expected);
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(4, 2, 4, 2));
+
+	});
+
+	test('snippets, transform example hit if', function () {
+		editor.getModel().setValue('');
+		editor.setSelection(new Selection(1, 1, 1, 1));
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		session.insert();
+
+		assertSelections(editor, new Selection(1, 1, 1, 5));
+		editor.trigger('test', 'type', { text: 'clk' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 7, 1, 11));
+		editor.trigger('test', 'type', { text: 'std_logic' });
+		session.next();
+
+		assertSelections(editor, new Selection(1, 16, 1, 19));
+		editor.trigger('test', 'type', { text: ' := \'1\'' });
+		session.next();
+
+		assert.equal(model.getValue(), 'clk : std_logic := \'1\';\n');
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(2, 1, 2, 1));
+	});
+
 	test('Snippet placeholder index incorrect after using 2+ snippets in a row that each end with a placeholder, #30769', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
