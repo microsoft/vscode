@@ -170,7 +170,6 @@ export class DefaultController implements _.IController {
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
 		const payload = { origin: origin, originalEvent: eventish };
 		const event = <mouse.IMouseEvent>eventish;
-		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
@@ -186,7 +185,7 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
+			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
 					tree.collapse(element).done(null, errors.onUnexpectedError);
 				} else {
@@ -196,6 +195,11 @@ export class DefaultController implements _.IController {
 		}
 
 		return true;
+	}
+
+	protected shouldToggleExpansion(element: any, event: mouse.IMouseEvent, origin: string): boolean {
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		return this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event);
 	}
 
 	protected setOpenMode(openMode: OpenMode) {
