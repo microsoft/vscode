@@ -102,11 +102,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	createEditor(parent: HTMLElement): void {
 		this.rootElement = DOM.append(parent, $('.settings-editor'));
-		this.createTOC(this.rootElement);
 
-		const settingsEditorRightElement = DOM.append(this.rootElement, $('.settings-editor-right'));
-		this.createHeader(settingsEditorRightElement);
-		this.createBody(settingsEditorRightElement);
+		this.createHeader(this.rootElement);
+		this.createBody(this.rootElement);
 	}
 
 	setInput(input: SettingsEditor2Input, options: EditorOptions, token: CancellationToken): Thenable<void> {
@@ -217,6 +215,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private createBody(parent: HTMLElement): void {
 		const bodyContainer = DOM.append(parent, $('.settings-body'));
 
+		this.createTOC(bodyContainer);
 		this.createSettingsTree(bodyContainer);
 
 		if (this.environmentService.appQuality !== 'stable') {
@@ -237,7 +236,8 @@ export class SettingsEditor2 extends BaseEditor {
 				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
-				showLoading: false
+				showLoading: false,
+				twistiePixels: 15
 			});
 
 		this._register(this.tocTree.onDidChangeSelection(e => {
@@ -291,12 +291,12 @@ export class SettingsEditor2 extends BaseEditor {
 		this._register(registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 			const activeBorderColor = theme.getColor(listActiveSelectionBackground);
 			if (activeBorderColor) {
-				collector.addRule(`.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree:focus .monaco-tree-row.focused {outline: solid 1px ${activeBorderColor}; outline-offset: -1px; }`);
 			}
 
 			const inactiveBorderColor = theme.getColor(listInactiveSelectionBackground);
 			if (inactiveBorderColor) {
-				collector.addRule(`.settings-editor > .settings-editor-right > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
+				collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .monaco-tree .monaco-tree-row.focused {outline: solid 1px ${inactiveBorderColor}; outline-offset: -1px; }`);
 			}
 		}));
 
