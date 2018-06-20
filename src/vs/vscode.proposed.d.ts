@@ -525,14 +525,8 @@ declare module 'vscode' {
 
 		export const quickInputBackButton: QuickInputButton;
 
-		/**
-		 * Implementation incomplete. See #49340.
-		 */
 		export function createQuickPick(): QuickPick;
 
-		/**
-		 * Implementation incomplete. See #49340.
-		 */
 		export function createInputBox(): InputBox;
 	}
 
