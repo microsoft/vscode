@@ -341,7 +341,10 @@ export class BulkEdit {
 			} else if (!edit.newUri && edit.oldUri) {
 				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
-				await this._fileService.createFile(edit.newUri, undefined, { overwrite });
+				let ignoreIfExists = edit.options && edit.options.ignoreIfExists;
+				if (!ignoreIfExists || !await this._fileService.existsFile(edit.newUri)) {
+					await this._fileService.createFile(edit.newUri, undefined, { overwrite });
+				}
 			}
 		}
 	}

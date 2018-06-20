@@ -499,7 +499,7 @@ export interface IFileOperation {
 	_type: 1;
 	from: URI;
 	to: URI;
-	options?: { overwrite?: boolean };
+	options?: { overwrite?: boolean, ignoreIfExists?: boolean; };
 }
 
 export interface IFileTextEdit {
@@ -516,12 +516,12 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		this._edits.push({ _type: 1, from, to, options });
 	}
 
-	createFile(uri: vscode.Uri, options?: { overwrite?: boolean }): void {
-		this.renameFile(undefined, uri, options);
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
+		this._edits.push({ _type: 1, from: undefined, to: uri, options });
 	}
 
 	deleteFile(uri: vscode.Uri): void {
-		this.renameFile(uri, undefined);
+		this._edits.push({ _type: 1, from: uri, to: undefined });
 	}
 
 	replace(uri: URI, range: Range, newText: string): void {
@@ -593,8 +593,8 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] {
-		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean }])[] = [];
+	allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] {
+		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
 				res.push([edit.from, edit.to, edit.options]);
