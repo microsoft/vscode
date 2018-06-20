@@ -455,6 +455,7 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 
 	private _items: QuickPickItem[] = [];
 	private _handlesToItems = new Map<number, QuickPickItem>();
+	private _itemsToHandles = new Map<QuickPickItem, number>();
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
@@ -479,8 +480,10 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 	set items(items: QuickPickItem[]) {
 		this._items = items;
 		this._handlesToItems.clear();
+		this._itemsToHandles.clear();
 		items.forEach((item, i) => {
 			this._handlesToItems.set(i, item);
+			this._itemsToHandles.set(item, i);
 		});
 		this.update({
 			items: items.map((item, i) => ({
@@ -524,10 +527,20 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 		return this._activeItems;
 	}
 
+	set activeItems(activeItems: QuickPickItem[]) {
+		this._activeItems = activeItems.filter(item => this._itemsToHandles.has(item));
+		this.update({ activeItems: this._activeItems.map(item => this._itemsToHandles.get(item)) });
+	}
+
 	onDidChangeActive = this._onDidChangeActiveEmitter.event;
 
 	get selectedItems() {
 		return this._selectedItems;
+	}
+
+	set selectedItems(selectedItems: QuickPickItem[]) {
+		this._selectedItems = selectedItems.filter(item => this._itemsToHandles.has(item));
+		this.update({ selectedItems: this._selectedItems.map(item => this._itemsToHandles.get(item)) });
 	}
 
 	onDidChangeSelection = this._onDidChangeSelectionEmitter.event;

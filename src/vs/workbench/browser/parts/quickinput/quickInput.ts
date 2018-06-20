@@ -266,8 +266,10 @@ class QuickPick extends QuickInput implements IQuickPick {
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
 	private _activeItems: IQuickPickItem[] = [];
+	private activeItemsUpdated = false;
 	private onDidChangeActiveEmitter = new Emitter<IQuickPickItem[]>();
 	private _selectedItems: IQuickPickItem[] = [];
+	private selectedItemsUpdated = false;
 	private onDidChangeSelectionEmitter = new Emitter<IQuickPickItem[]>();
 	private quickNavigate = false;
 
@@ -344,10 +346,22 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._activeItems;
 	}
 
+	set activeItems(activeItems: IQuickPickItem[]) {
+		this._activeItems = activeItems;
+		this.activeItemsUpdated = true;
+		this.update();
+	}
+
 	onDidChangeActive = this.onDidChangeActiveEmitter.event;
 
 	get selectedItems() {
 		return this._selectedItems;
+	}
+
+	set selectedItems(selectedItems: IQuickPickItem[]) {
+		this._selectedItems = selectedItems;
+		this.selectedItemsUpdated = true;
+		this.update();
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -390,6 +404,9 @@ class QuickPick extends QuickInput implements IQuickPick {
 					this.onDidAcceptEmitter.fire();
 				}),
 				this.ui.list.onDidChangeFocus(focusedItems => {
+					if (this.activeItemsUpdated) {
+						return; // Expect another event.
+					}
 					// Drop initial event.
 					if (!focusedItems.length && !this._activeItems.length) {
 						return;
@@ -433,6 +450,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
 		if (this.itemsUpdated) {
+			this.itemsUpdated = false;
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.ui.inputBox.value);
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
@@ -440,13 +458,24 @@ class QuickPick extends QuickInput implements IQuickPick {
 			if (!this.canSelectMany) {
 				this.ui.list.focus('First');
 			}
-			this.itemsUpdated = false;
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== this.canSelectMany) {
 			if (this.canSelectMany) {
 				this.ui.list.clearFocus();
 			} else {
 				this.ui.list.focus('First');
+			}
+		}
+		if (this.activeItemsUpdated) {
+			this.activeItemsUpdated = false;
+			this.ui.list.setFocusedElements(this.activeItems);
+		}
+		if (this.selectedItemsUpdated) {
+			this.selectedItemsUpdated = false;
+			if (this.canSelectMany) {
+				this.ui.list.setCheckedElements(this.selectedItems);
+			} else {
+				this.ui.list.setSelectedElements(this.selectedItems);
 			}
 		}
 		this.ui.ignoreFocusOut = this.ignoreFocusOut;
@@ -878,6 +907,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			picks.then(items => {
 				input.busy = false;
 				input.items = items;
+				if (input.canSelectMany) {
+					input.selectedItems = items.filter(item => item.picked);
+				}
 			});
 			input.show();
 			picks.then(null, err => {

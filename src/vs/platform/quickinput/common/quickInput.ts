@@ -131,11 +131,11 @@ export interface IQuickPick extends IQuickInput {
 
 	matchOnDetail: boolean;
 
-	readonly activeItems: ReadonlyArray<IQuickPickItem>;
+	activeItems: ReadonlyArray<IQuickPickItem>;
 
 	readonly onDidChangeActive: Event<IQuickPickItem[]>;
 
-	readonly selectedItems: ReadonlyArray<IQuickPickItem>;
+	selectedItems: ReadonlyArray<IQuickPickItem>;
 
 	readonly onDidChangeSelection: Event<IQuickPickItem[]>;
 }

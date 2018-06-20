@@ -380,6 +380,10 @@ export interface TransferQuickPick extends BaseTransferQuickInput {
 
 	items?: TransferQuickPickItems[];
 
+	activeItems?: number[];
+
+	selectedItems?: number[];
+
 	canSelectMany?: boolean;
 
 	ignoreFocusOut?: boolean;

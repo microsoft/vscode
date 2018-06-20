@@ -581,11 +581,11 @@ declare module 'vscode' {
 
 		matchOnDetail: boolean;
 
-		readonly activeItems: ReadonlyArray<QuickPickItem>;
+		activeItems: ReadonlyArray<QuickPickItem>;
 
 		readonly onDidChangeActive: Event<QuickPickItem[]>;
 
-		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+		selectedItems: ReadonlyArray<QuickPickItem>;
 
 		readonly onDidChangeSelection: Event<QuickPickItem[]>;
 	}

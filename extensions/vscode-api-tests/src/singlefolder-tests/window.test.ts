@@ -440,6 +440,18 @@ suite('window namespace tests', () => {
 		assert.deepStrictEqual(await picks, ['eins', 'zwei']);
 	});
 
+	test('showQuickPick, keep selection (Microsoft/vscode-azure-account#67)', async function () {
+		const picks = window.showQuickPick([
+			{ label: 'eins' },
+			{ label: 'zwei', picked: true },
+			{ label: 'drei', picked: true }
+		], {
+			canPickMany: true
+		});
+		await commands.executeCommand('workbench.action.acceptSelectedQuickOpenItem');
+		assert.deepStrictEqual((await picks)!.map(pick => pick.label), ['zwei', 'drei']);
+	});
+
 	test('showQuickPick, undefined on cancel', function () {
 		const source = new CancellationTokenSource();
 		const p = window.showQuickPick(['eins', 'zwei', 'drei'], undefined, source.token);
