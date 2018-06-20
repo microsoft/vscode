@@ -129,7 +129,7 @@ export class CodeWindow implements ICodeWindow {
 			backgroundColor = '#171717'; // https://github.com/electron/electron/issues/5150
 		}
 
-		const options: Electron.BrowserWindowConstructorOptions = {
+		let options: Electron.BrowserWindowConstructorOptions = {
 			width: this.windowState.width,
 			height: this.windowState.height,
 			x: this.windowState.x,
@@ -145,11 +145,16 @@ export class CodeWindow implements ICodeWindow {
 			}
 		};
 
+		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
-		}
 
-		const windowConfig = this.configurationService.getValue<IWindowSettings>('window');
+			options.transparent = windowConfig.transparent; // TODO: requires hardware acceleration off
+			if (options.transparent) {
+				this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+			}
+		}
 
 		if (isMacintosh) {
 			options.acceptFirstMouse = true; // enabled by default
@@ -173,6 +178,13 @@ export class CodeWindow implements ICodeWindow {
 			if (isDev) {
 				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
+
+			// TODO
+			//if (windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
+			//	options.backgroundColor = '#00000000';
+			//	this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+			//	options.vibrancy = windowConfig.vibrancy;
+			//}
 		} else {
 			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
 		}
@@ -189,12 +201,50 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
+		const isWin10 = true; // TODO
+		let compAttribSet = false;
+		if (isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none') {
+			if (isWin10 && useCustomTitleStyle) {
+				options.backgroundColor = '#00000000';
+				this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+				compAttribSet = true;
+			} else {
+				// TODO: DwmEnableBlurBehind for older OSes.
+			}
+		}
+
 		// Create the browser window.
 		this._win = new BrowserWindow(options);
 		this._id = this._win.id;
 
 		if (useCustomTitleStyle) {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
+		}
+
+		if (compAttribSet && isWin10) {
+			const { SetWindowCompositionAttribute, AccentState } = require.__$__nodeRequire('windows-swca') as any;
+
+			let attribValue: number;
+			switch (windowConfig.compositionAttribute) {
+				case 'acrylic':
+					if (/* TODO: test OS build 17063*/true) {
+						attribValue = AccentState.ACCENT_ENABLE_FLUENT;
+					}
+					break;
+
+				case 'blur':
+					attribValue = AccentState.ACCENT_ENABLE_BLURBEHIND;
+					break;
+
+				case 'transparent':
+					attribValue = AccentState.ACCENT_ENABLE_TRANSPARENTGRADIENT;
+					break;
+			}
+
+			// using a small alpha because acrylic bugs out at full transparency.
+			SetWindowCompositionAttribute(this._win, attribValue, 0x01000000);
+		} else if (compAttribSet) {
+			// TODO: DwnEnableBlurBehind
 		}
 
 		if (isFullscreenOrMaximized) {

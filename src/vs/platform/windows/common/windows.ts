@@ -240,6 +240,8 @@ export interface IWindowSettings {
 	closeWhenEmpty: boolean;
 	smoothScrollingWorkaround: boolean;
 	clickThroughInactive: boolean;
+	transparent: boolean;
+	compositionAttribute: 'none' | 'transparent' | 'blur' | 'acrylic';
 }
 
 export enum OpenContext {

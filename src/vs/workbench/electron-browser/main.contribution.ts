@@ -460,6 +460,21 @@ configurationRegistry.registerConfiguration({
 			'scope': ConfigurationScope.APPLICATION,
 			'description': nls.localize('window.clickThroughInactive', "If enabled, clicking on an inactive window will both activate the window and trigger the element under the mouse if it is clickable. If disabled, clicking anywhere on an inactive window will activate it only and a second click is required on the element."),
 			'included': isMacintosh
+		},
+		'window.transparent': {
+			'type': 'boolean',
+			'default': false,
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('window.transparent', "Makes window ARGB. Needs color customizations or a transparent theme to affect appearance."),
+			'included': isLinux
+		},
+		'window.compositionAttribute': {
+			'type': 'string',
+			'enum': ['none', 'transparent', 'blur', 'acrylic'],
+			'default': 'none',
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('window.compositionAttribute', "Changes window composition attribute. Transparent and Acrylic are only available on Windows 10. Furthermore, Acrylic requires the April 2018 update. Needs color customizations or a transparent theme to affect appearance."),
+			'included': isWindows
 		}
 	}
 });

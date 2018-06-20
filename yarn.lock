@@ -6311,6 +6311,10 @@ windows-process-tree@0.2.2:
   dependencies:
     nan "^2.6.2"
 
+windows-swca@^1.1.1:
+  version "1.1.1"
+  resolved "https://registry.yarnpkg.com/windows-swca/-/windows-swca-1.1.1.tgz#0b3530278c67d408baac71c3a6aeb16d55318bf8"
+
 wordwrap@0.0.2:
   version "0.0.2"
   resolved "https://registry.yarnpkg.com/wordwrap/-/wordwrap-0.0.2.tgz#b79669bb42ecb409f83d583cad52ca17eaa1643f"
