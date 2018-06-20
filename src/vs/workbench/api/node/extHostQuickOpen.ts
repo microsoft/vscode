@@ -16,6 +16,8 @@ import { ExtHostQuickOpenShape, IMainContext, MainContext, MainThreadQuickOpenSh
 import URI from 'vs/base/common/uri';
 import { ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 
+const backButton: QuickInputButton = { iconPath: 'back.svg' };
+
 export type Item = string | QuickPickItem;
 
 export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
@@ -150,6 +152,8 @@ export class ExtHostQuickOpen implements ExtHostQuickOpenShape {
 	}
 
 	// ---- QuickInput
+
+	backButton = backButton;
 
 	createQuickPick(extensionId: string): QuickPick {
 		const session = new ExtHostQuickPick(this._proxy, extensionId, () => this._sessions.delete(session._id));
@@ -324,13 +328,14 @@ class ExtHostQuickInput implements QuickInput {
 		this._buttons = buttons;
 		this._handlesToButtons.clear();
 		buttons.forEach((button, i) => {
-			this._handlesToButtons.set(i, button);
+			const handle = button === backButton ? -1 : i;
+			this._handlesToButtons.set(handle, button);
 		});
 		this.update({
 			buttons: buttons.map<TransferQuickInputButton>((button, i) => ({
 				iconPath: getIconUris(button.iconPath),
 				tooltip: button.tooltip,
-				handle: i,
+				handle: button === backButton ? -1 : i,
 			}))
 		});
 	}
@@ -450,6 +455,7 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 
 	private _items: QuickPickItem[] = [];
 	private _handlesToItems = new Map<number, QuickPickItem>();
+	private _itemsToHandles = new Map<QuickPickItem, number>();
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
@@ -474,8 +480,10 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 	set items(items: QuickPickItem[]) {
 		this._items = items;
 		this._handlesToItems.clear();
+		this._itemsToHandles.clear();
 		items.forEach((item, i) => {
 			this._handlesToItems.set(i, item);
+			this._itemsToHandles.set(item, i);
 		});
 		this.update({
 			items: items.map((item, i) => ({
@@ -519,10 +527,20 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 		return this._activeItems;
 	}
 
+	set activeItems(activeItems: QuickPickItem[]) {
+		this._activeItems = activeItems.filter(item => this._itemsToHandles.has(item));
+		this.update({ activeItems: this._activeItems.map(item => this._itemsToHandles.get(item)) });
+	}
+
 	onDidChangeActive = this._onDidChangeActiveEmitter.event;
 
 	get selectedItems() {
 		return this._selectedItems;
+	}
+
+	set selectedItems(selectedItems: QuickPickItem[]) {
+		this._selectedItems = selectedItems.filter(item => this._itemsToHandles.has(item));
+		this.update({ selectedItems: this._selectedItems.map(item => this._itemsToHandles.get(item)) });
 	}
 
 	onDidChangeSelection = this._onDidChangeSelectionEmitter.event;

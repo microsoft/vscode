@@ -20,7 +20,9 @@
 	font-size: 14px;
 }
 
-.extension-editor > .header.recommended {
+.extension-editor > .header.recommended,
+.extension-editor > .header.recommendation-ignored
+{
 	height: 140px;
 }
 
@@ -128,14 +130,24 @@
 	padding: 1px 6px;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation {
+
+.extension-editor > .header.recommended > .details > .recommendation,
+.extension-editor > .header.recommendation-ignored > .details > .recommendation {
+	display: flex;
+	margin-top: 2px;
+	font-size: 13px;
+}
+
+.extension-editor > .header > .details > .recommendation {
 	display: none;
 }
 
-.extension-editor > .header.recommended > .details > .recommendation {
-	display: block;
-	margin-top: 2px;
-	font-size: 13px;
+.extension-editor > .header.recommendation-ignored > .details > .recommendation > .recommendation-text {
+	font-style: italic;
+}
+
+.extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar {
+	display: none;
 }
 
 .extension-editor > .body {

@@ -872,8 +872,6 @@ export class TestFileService implements IFileService {
 export class TestBackupFileService implements IBackupFileService {
 	public _serviceBrand: any;
 
-	public backupEnabled: boolean;
-
 	public hasBackups(): TPromise<boolean> {
 		return TPromise.as(false);
 	}

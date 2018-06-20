@@ -82,6 +82,8 @@ export class PreferencesEditor extends BaseEditor {
 	set minimumWidth(value: number) { /*noop*/ }
 	set maximumWidth(value: number) { /*noop*/ }
 
+	readonly minimumHeight = 260;
+
 	private _onDidCreateWidget = new Emitter<{ width: number; height: number; }>();
 	readonly onDidSizeConstraintsChange: Event<{ width: number; height: number; }> = this._onDidCreateWidget.event;
 
@@ -203,10 +205,6 @@ export class PreferencesEditor extends BaseEditor {
 		this.sideBySidePreferencesWidget.clearInput();
 		this.preferencesRenderers.onHidden();
 		super.clearInput();
-	}
-
-	public supportsCenteredLayout(): boolean {
-		return false;
 	}
 
 	protected setEditorVisible(visible: boolean, group: IEditorGroup): void {
@@ -1051,10 +1049,6 @@ export class DefaultPreferencesEditor extends BaseTextEditor {
 
 	public layout(dimension: DOM.Dimension) {
 		this.getControl().layout(dimension);
-	}
-
-	public supportsCenteredLayout(): boolean {
-		return false;
 	}
 
 	protected getAriaLabel(): string {

@@ -4,15 +4,14 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import * as fs from 'fs';
-
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
+import API from '../utils/api';
+import { Command, CommandManager } from '../utils/commandManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
 import * as typeConverters from '../utils/typeConverters';
 import FormattingOptionsManager from './fileConfigurationManager';
-import { CommandManager, Command } from '../utils/commandManager';
-import { VersionDependentRegistration } from '../utils/dependentRegistration';
-import API from '../utils/api';
+
 
 class ApplyRefactoringCommand implements Command {
 	public static readonly ID = '_typescript.applyRefactoring';
@@ -35,30 +34,17 @@ class ApplyRefactoringCommand implements Command {
 			action
 		};
 		const response = await this.client.execute('getEditsForRefactor', args);
-		if (!response || !response.body || !response.body.edits.length) {
+		const body = response && response.body;
+		if (!body || !body.edits.length) {
 			return false;
 		}
 
-		for (const edit of response.body.edits) {
-			try {
-				await vscode.workspace.openTextDocument(edit.fileName);
-			} catch {
-				try {
-					if (!fs.existsSync(edit.fileName)) {
-						fs.writeFileSync(edit.fileName, '');
-					}
-				} catch {
-					// noop
-				}
-			}
-		}
-
-		const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body.edits);
-		if (!(await vscode.workspace.applyEdit(edit))) {
+		const workspaceEdit = await this.toWorkspaceEdit(body);
+		if (!(await vscode.workspace.applyEdit(workspaceEdit))) {
 			return false;
 		}
 
-		const renameLocation = response.body.renameLocation;
+		const renameLocation = body.renameLocation;
 		if (renameLocation) {
 			await vscode.commands.executeCommand('editor.action.rename', [
 				document.uri,
@@ -66,6 +52,19 @@ class ApplyRefactoringCommand implements Command {
 			]);
 		}
 		return true;
+	}
+
+	private async toWorkspaceEdit(body: Proto.RefactorEditInfo) {
+		const workspaceEdit = new vscode.WorkspaceEdit();
+		for (const edit of body.edits) {
+			try {
+				await vscode.workspace.openTextDocument(edit.fileName);
+			} catch {
+				workspaceEdit.createFile(this.client.toResource(edit.fileName));
+			}
+		}
+		typeConverters.WorkspaceEdit.withFileCodeEdits(workspaceEdit, this.client, body.edits);
+		return workspaceEdit;
 	}
 }
 

@@ -83,7 +83,7 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		extHostLanguageFeatures.registerDocumentLinkProvider('*', this._linkProvider);
 	}
 
-	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean } = {}) {
+	registerFileSystemProvider(scheme: string, provider: vscode.FileSystemProvider, options: { isCaseSensitive?: boolean, isReadonly?: boolean } = {}) {
 
 		if (this._usedSchemes.has(scheme)) {
 			throw new Error(`a provider for the scheme '${scheme}' is already registered`);
@@ -97,6 +97,9 @@ export class ExtHostFileSystem implements ExtHostFileSystemShape {
 		let capabilites = files.FileSystemProviderCapabilities.FileReadWrite;
 		if (options.isCaseSensitive) {
 			capabilites += files.FileSystemProviderCapabilities.PathCaseSensitive;
+		}
+		if (options.isReadonly) {
+			capabilites += files.FileSystemProviderCapabilities.Readonly;
 		}
 		if (typeof provider.copy === 'function') {
 			capabilites += files.FileSystemProviderCapabilities.FileFolderCopy;

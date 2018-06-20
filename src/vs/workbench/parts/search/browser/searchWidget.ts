@@ -241,6 +241,7 @@ export class SearchWidget extends Widget {
 			buttonHoverBackground: null
 		};
 		this.toggleReplaceButton = this._register(new Button(parent, opts));
+		this.toggleReplaceButton.element.setAttribute('aria-expanded', 'false');
 		this.toggleReplaceButton.icon = 'toggle-replace-button collapse';
 		// TODO@joh need to dispose this listener eventually
 		this.toggleReplaceButton.onDidClick(() => this.onToggleReplaceButton());
@@ -330,6 +331,7 @@ export class SearchWidget extends Widget {
 		dom.toggleClass(this.replaceContainer, 'disabled');
 		dom.toggleClass(this.toggleReplaceButton.element, 'collapse');
 		dom.toggleClass(this.toggleReplaceButton.element, 'expand');
+		this.toggleReplaceButton.element.setAttribute('aria-expanded', this.isReplaceShown() ? 'true' : 'false');
 		this.updateReplaceActiveState();
 		this._onReplaceToggled.fire();
 	}

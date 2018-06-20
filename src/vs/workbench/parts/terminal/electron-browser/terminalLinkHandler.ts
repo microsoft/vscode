@@ -121,6 +121,7 @@ export class TerminalLinkHandler {
 	}
 
 	public dispose(): void {
+		this._xterm = null;
 		this._hoverDisposables = dispose(this._hoverDisposables);
 		this._mouseMoveDisposable = dispose(this._mouseMoveDisposable);
 	}
@@ -172,7 +173,7 @@ export class TerminalLinkHandler {
 	}
 
 	private _handleHypertextLink(url: string): void {
-		let uri = Uri.parse(url);
+		const uri = Uri.parse(url);
 		this._openerService.open(uri);
 	}
 

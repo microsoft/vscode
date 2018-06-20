@@ -26,6 +26,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
 import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadEditors', () => {
 
@@ -74,7 +75,7 @@ suite('MainThreadEditors', () => {
 		const workbenchEditorService = new TestEditorService();
 		const editorGroupService = new TestEditorGroupsService();
 
-		const bulkEditService = new BulkEditService(modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -134,9 +135,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource },
-				{ oldUri: undefined, newUri: resource },
-				{ oldUri: resource, newUri: undefined }
+				{ oldUri: resource, newUri: resource, options: undefined },
+				{ oldUri: undefined, newUri: resource, options: undefined },
+				{ oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.equal(result, true);

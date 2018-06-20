@@ -37,7 +37,8 @@ class MyCompletionItem extends vscode.CompletionItem {
 		if (tsEntry.isRecommended) {
 			// Make sure isRecommended property always comes first
 			// https://github.com/Microsoft/vscode/issues/40325
-			this.sortText = '\0' + tsEntry.sortText;
+			this.sortText = tsEntry.sortText;
+			this.preselect = true;
 		} else if (tsEntry.source) {
 			// De-prioritze auto-imports
 			// https://github.com/Microsoft/vscode/issues/40311
@@ -50,7 +51,6 @@ class MyCompletionItem extends vscode.CompletionItem {
 		this.position = position;
 		this.commitCharacters = MyCompletionItem.getCommitCharacters(enableDotCompletions, !useCodeSnippetsOnMethodSuggest, tsEntry.kind);
 		this.useCodeSnippet = useCodeSnippetsOnMethodSuggest && (this.kind === vscode.CompletionItemKind.Function || this.kind === vscode.CompletionItemKind.Method);
-
 		if (tsEntry.replacementSpan) {
 			this.range = typeConverters.Range.fromTextSpan(tsEntry.replacementSpan);
 		}
@@ -148,6 +148,7 @@ class MyCompletionItem extends vscode.CompletionItem {
 		enableCallCompletions: boolean,
 		kind: string
 	): string[] | undefined {
+		const commitCharacters: string[] = [];
 		switch (kind) {
 			case PConst.Kind.memberGetAccessor:
 			case PConst.Kind.memberSetAccessor:
@@ -156,7 +157,10 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.indexSignature:
 			case PConst.Kind.enum:
 			case PConst.Kind.interface:
-				return enableDotCompletions ? ['.'] : undefined;
+				if (enableDotCompletions) {
+					commitCharacters.push('.');
+				}
+				break;
 
 			case PConst.Kind.module:
 			case PConst.Kind.alias:
@@ -168,10 +172,16 @@ class MyCompletionItem extends vscode.CompletionItem {
 			case PConst.Kind.class:
 			case PConst.Kind.function:
 			case PConst.Kind.memberFunction:
-				return enableDotCompletions ? (enableCallCompletions ? ['.', '('] : ['.']) : undefined;
+				if (enableDotCompletions) {
+					commitCharacters.push('.', ',');
+				}
+				if (enableCallCompletions) {
+					commitCharacters.push('(');
+				}
+				break;
 		}
 
-		return undefined;
+		return commitCharacters.length === 0 ? undefined : commitCharacters;
 	}
 }
 
@@ -436,7 +446,7 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 			const preText = document.getText(new vscode.Range(
 				position.line, 0,
 				position.line, position.character - 1));
-			return preText.match(/[a-z_$\)\]\}]\s*$/ig) !== null;
+			return preText.match(/[a-z_$\(\)\[\]\{\}]\s*$/ig) !== null;
 		}
 
 		return true;
@@ -448,40 +458,42 @@ class TypeScriptCompletionItemProvider implements vscode.CompletionItemProvider 
 		line: vscode.TextLine,
 		position: vscode.Position
 	): boolean {
-		if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'') && !this.client.apiVersion.gte(API.v290)) {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
+		if (context.triggerCharacter && !this.client.apiVersion.gte(API.v290)) {
+			if ((context.triggerCharacter === '"' || context.triggerCharacter === '\'')) {
+				if (!config.quickSuggestionsForPaths) {
+					return false;
+				}
+
+				// make sure we are in something that looks like the start of an import
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+					return false;
+				}
 			}
 
-			// make sure we are in something that looks like the start of an import
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["']$/) && !pre.match(/\b(import|require)\(['"]$/)) {
+			if (context.triggerCharacter === '/') {
+				if (!config.quickSuggestionsForPaths) {
+					return false;
+				}
+
+				// make sure we are in something that looks like an import path
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
+					return false;
+				}
+			}
+
+			if (context.triggerCharacter === '@') {
+				// make sure we are in something that looks like the start of a jsdoc comment
+				const pre = line.text.slice(0, position.character);
+				if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
+					return false;
+				}
+			}
+
+			if (context.triggerCharacter === '<') {
 				return false;
 			}
-		}
-
-		if (context.triggerCharacter === '/') {
-			if (!config.quickSuggestionsForPaths) {
-				return false;
-			}
-
-			// make sure we are in something that looks like an import path
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/\b(from|import)\s*["'][^'"]*$/) && !pre.match(/\b(import|require)\(['"][^'"]*$/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '@' && !this.client.apiVersion.gte(API.v290)) {
-			// make sure we are in something that looks like the start of a jsdoc comment
-			const pre = line.text.slice(0, position.character);
-			if (!pre.match(/^\s*\*[ ]?@/) && !pre.match(/\/\*\*+[ ]?@/)) {
-				return false;
-			}
-		}
-
-		if (context.triggerCharacter === '<') {
-			return this.client.apiVersion.gte(API.v290);
 		}
 
 		return true;

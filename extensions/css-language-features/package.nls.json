@@ -16,6 +16,7 @@
 	"css.lint.importStatement.desc": "Import statements do not load in parallel",
 	"css.lint.propertyIgnoredDueToDisplay.desc": "Property is ignored due to the display. E.g. with 'display: inline', the width, height, margin-top, margin-bottom, and float properties have no effect",
 	"css.lint.universalSelector.desc": "The universal selector (*) is known to be slow",
+	"css.lint.unknownAtRules.desc": "Unknown at-rule.",
 	"css.lint.unknownProperties.desc": "Unknown property.",
 	"css.lint.unknownVendorSpecificProperties.desc": "Unknown vendor specific property.",
 	"css.lint.vendorPrefix.desc": "When using a vendor-specific prefix also include the standard property",

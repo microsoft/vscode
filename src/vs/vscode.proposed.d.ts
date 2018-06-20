@@ -339,9 +339,121 @@ declare module 'vscode' {
 		/**
 		 * Fires when the terminal's pty slave pseudo-device is written to. In other words, this
 		 * provides access to the raw data stream from the process running within the terminal,
-		 * including ANSI sequences.
+		 * including VT sequences.
 		 */
 		onData: Event<string>;
+	}
+
+	/**
+	 * Represents the dimensions of a terminal.
+	 */
+	export interface TerminalDimensions {
+		/**
+		 * The number of columns in the terminal.
+		 */
+		cols: number;
+
+		/**
+		 * The number of rows in the terminal.
+		 */
+		rows: number;
+	}
+
+	/**
+	 * Represents a terminal without a process where all interaction and output in the terminal is
+	 * controlled by an extension. This is similar to an output window but has the same VT sequence
+	 * compatility as the regular terminal.
+	 *
+	 * Note that an instance of [Terminal](#Terminal) will be created when a TerminalRenderer is
+	 * created with all its APIs available for use by extensions. When using the Terminal object
+	 * of a TerminalRenderer it acts just like normal only the extension that created the
+	 * TerminalRenderer essentially acts as a process. For example when an
+	 * [Terminal.onData](#Terminal.onData) listener is registered, that will fire when
+	 * [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
+	 * [TerminalRenderer.onInput](#TerminalRenderer.onInput) event.
+	 *
+	 * **Example:** Create a terminal renderer, show it and write hello world in red
+	 * ```typescript
+	 * const renderer = window.createTerminalRenderer('foo');
+	 * renderer.terminal.then(t => t.show());
+	 * renderer.write('\x1b[31mHello world\x1b[0m');
+	 * ```
+	 */
+	export interface TerminalRenderer {
+		/**
+		 * The name of the terminal, this will appear in the terminal selector.
+		 */
+		name: string;
+
+		/**
+		 * The dimensions of the terminal, the rows and columns of the terminal can only be set to
+		 * a value smaller than the maximum value, if this is undefined the terminal will auto fit
+		 * to the maximum value [maximumDimensions](TerminalRenderer.maximumDimensions).
+		 *
+		 * **Example:** Override the dimensions of a TerminalRenderer to 20 columns and 10 rows
+		 * ```typescript
+		 * terminalRenderer.dimensions = {
+		 *   cols: 20,
+		 *   rows: 10
+		 * };
+		 * ```
+		 */
+		dimensions: TerminalDimensions;
+
+		/**
+		 * The maximum dimensions of the terminal, this will be undefined immediately after a
+		 * terminal renderer is created and also until the terminal becomes visible in the UI.
+		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
+		 * to get notified when this value changes.
+		 */
+		readonly maximumDimensions: TerminalDimensions;
+
+		/**
+		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
+		 */
+		readonly terminal: Thenable<Terminal>;
+
+		/**
+		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
+		 * text to the underlying _process_, this will write the text to the terminal itself.
+		 *
+		 * **Example:** Write red text to the terminal
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[31mHello world\x1b[0m');
+		 * ```
+		 *
+		 * **Example:** Move the cursor to the 10th row and 20th column and write an asterisk
+		 * ```typescript
+		 * terminalRenderer.write('\x1b[10;20H*');
+		 * ```
+		 *
+		 * @param text The text to write.
+		 */
+		write(text: string): void;
+
+		/**
+		 * An event which fires on keystrokes in the terminal or when an extension calls
+		 * [Terminal.sendText](#Terminal.sendText). Keystrokes are converted into their
+		 * corresponding VT sequence representation.
+		 *
+		 * **Example:** Simulate interaction with the terminal from an outside extension or a
+		 * workbench command such as `workbench.action.terminal.runSelectedText`
+		 * ```typescript
+		 * const terminalRenderer = window.createTerminalRenderer('test');
+		 * terminalRenderer.onInput(data => {
+		 *   cosole.log(data); // 'Hello world'
+		 * });
+		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
+		 * ```
+		 */
+		onInput: Event<string>;
+
+		/**
+		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
+		 * the terminal renderer change.
+		 */
+		onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
 	export namespace window {
@@ -353,10 +465,32 @@ declare module 'vscode' {
 		export let terminals: Terminal[];
 
 		/**
+		 * The currently active terminal or `undefined`. The active terminal is the one that
+		 * currently has focus or most recently had focus.
+		 *
+		 * @readonly
+		 */
+		export let activeTerminal: Terminal | undefined;
+
+		/**
+		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
+		 * has changed. *Note* that the event also fires when the active editor changes
+		 * to `undefined`.
+		 */
+		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
+
+		/**
 		 * An [event](#Event) which fires when a terminal has been created, either through the
 		 * [createTerminal](#window.createTerminal) API or commands.
 		 */
 		export const onDidOpenTerminal: Event<Terminal>;
+
+		/**
+		 * Create a [TerminalRenderer](#TerminalRenderer).
+		 *
+		 * @param name The name of the terminal renderer, this shows up in the terminal selector.
+		 */
+		export function createTerminalRenderer(name: string): TerminalRenderer;
 	}
 
 	//#endregion
@@ -377,59 +511,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region Joh: hierarchical document symbols, https://github.com/Microsoft/vscode/issues/34968
-
-	export class DocumentSymbol {
-
-		/**
-		 * The name of this symbol.
-		 */
-		name: string;
-
-		/**
-		 * More detail for this symbol, e.g the signature of a function.
-		 */
-		detail: string;
-
-		/**
-		 * The kind of this symbol.
-		 */
-		kind: SymbolKind;
-
-		/**
-		 * The full range of this symbol not including leading/trailing whitespace but everything else.
-		 */
-		fullRange: Range;
-
-		/**
-		 * The range that should be revealed when this symbol is being selected, e.g the name of a function.
-		 * Must be contained by the [`fullRange`](#DocumentSymbol.fullRange).
-		 */
-		gotoRange: Range;
-
-		/**
-		 * Children of this symbol, e.g. properties of a class.
-		 */
-		children: DocumentSymbol[];
-
-		/**
-		 * Creates a new document symbol.
-		 *
-		 * @param name The name of the symbol.
-		 * @param detail Details for the symbol.
-		 * @param kind The kind of the symbol.
-		 * @param fullRange The full range of the symbol.
-		 * @param gotoRange The range that should be reveal.
-		 */
-		constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range);
-	}
-
-	export interface DocumentSymbolProvider {
-		provideDocumentSymbols(document: TextDocument, token: CancellationToken): ProviderResult<SymbolInformation[] | DocumentSymbol[]>;
-	}
-
-	//#endregion
-
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
@@ -441,6 +522,8 @@ declare module 'vscode' {
 	//#region QuickInput API
 
 	export namespace window {
+
+		export const quickInputBackButton: QuickInputButton;
 
 		/**
 		 * Implementation incomplete. See #49340.
@@ -498,11 +581,11 @@ declare module 'vscode' {
 
 		matchOnDetail: boolean;
 
-		readonly activeItems: ReadonlyArray<QuickPickItem>;
+		activeItems: ReadonlyArray<QuickPickItem>;
 
 		readonly onDidChangeActive: Event<QuickPickItem[]>;
 
-		readonly selectedItems: ReadonlyArray<QuickPickItem>;
+		selectedItems: ReadonlyArray<QuickPickItem>;
 
 		readonly onDidChangeSelection: Event<QuickPickItem[]>;
 	}
@@ -529,40 +612,62 @@ declare module 'vscode' {
 	}
 
 	export interface QuickInputButton {
-		iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
-		tooltip?: string | undefined;
+		readonly iconPath: string | Uri | { light: string | Uri; dark: string | Uri } | ThemeIcon;
+		readonly tooltip?: string | undefined;
 	}
 
 	//#endregion
 
-	//#region mjbvz: Unused diagnostics
-	/**
-	 * Additional metadata about the type of diagnostic.
-	 */
-	export enum DiagnosticTag {
-		/**
-		 * Unused or unnecessary code.
-		 */
-		Unnecessary = 1,
-	}
+	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
-	export interface Diagnostic {
+	export interface WorkspaceEdit {
+
 		/**
-		 * Additional metadata about the type of the diagnostic.
+		 * Create a regular file.
+		 *
+		 * @param uri Uri of the new file..
+		 * @param options Defines if an existing file should be overwritten or be ignored.
 		 */
-		customTags?: DiagnosticTag[];
+		createFile(uri: Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void;
+
+		/**
+		 * Delete a file or folder.
+		 *
+		 * @param uri The uri of the file that is to be deleted.
+		 */
+		deleteFile(uri: Uri): void;
+
+		/**
+		 * Rename a file or folder.
+		 *
+		 * @param oldUri The existing file.
+		 * @param newUri The new location.
+		 * @param options Defines if existing files should be overwritten.
+		 */
+		renameFile(oldUri: Uri, newUri: Uri, options?: { overwrite?: boolean }): void;
+
+		// replaceText(uri: Uri, range: Range, newText: string): void;
+		// insertText(uri: Uri, position: Position, newText: string): void;
+		// deleteText(uri: Uri, range: Range): void;
 	}
 
 	//#endregion
 
-	//#region mjbvz: File rename events
-	export interface ResourceRenamedEvent {
-		readonly oldResource: Uri;
-		readonly newResource: Uri;
+	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
+	export interface FileRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
+	}
+
+	export interface FileWillRenameEvent {
+		readonly oldUri: Uri;
+		readonly newUri: Uri;
+		waitUntil(thenable: Thenable<any>): void;
 	}
 
 	export namespace workspace {
-		export const onDidRenameResource: Event<ResourceRenamedEvent>;
+		export const onWillRenameFile: Event<FileWillRenameEvent>;
+		export const onDidRenameFile: Event<FileRenameEvent>;
 	}
 	//#endregion
 
@@ -570,6 +675,33 @@ declare module 'vscode' {
 
 	/**
 	 * Restore webview panels that have been persisted when vscode shuts down.
+	 *
+	 * There are two types of webview persistence:
+	 *
+	 * - Persistence within a session.
+	 * - Persistence across sessions (across restarts of VS Code).
+	 *
+	 * A `WebviewPanelSerializer` is only required for the second case: persisting a webview across sessions.
+	 *
+	 * Persistence within a session allows a webview to save its state when it becomes hidden
+	 * and restore its content from this state when it becomes visible again. It is powered entirely
+	 * by the webview content itself. To save off a persisted state, call `acquireVsCodeApi().setState()` with
+	 * any json serializable object. To restore the state again, call `getState()`
+	 *
+	 * ```js
+	 * // Within the webview
+	 * const vscode = acquireVsCodeApi();
+	 *
+	 * // Get existing state
+	 * const oldState = vscode.getState() || { value: 0 };
+	 *
+	 * // Update state
+	 * setState({ value: oldState.value + 1 })
+	 * ```
+	 *
+	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown, VS Code will save off the state from `setState` of all webviews that have a serializer. When the
+	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
+	 * The extension can then restore the old `WebviewPanel` from this state.
 	 */
 	interface WebviewPanelSerializer {
 		/**

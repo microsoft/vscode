@@ -131,11 +131,11 @@ export interface IQuickPick extends IQuickInput {
 
 	matchOnDetail: boolean;
 
-	readonly activeItems: ReadonlyArray<IQuickPickItem>;
+	activeItems: ReadonlyArray<IQuickPickItem>;
 
 	readonly onDidChangeActive: Event<IQuickPickItem[]>;
 
-	readonly selectedItems: ReadonlyArray<IQuickPickItem>;
+	selectedItems: ReadonlyArray<IQuickPickItem>;
 
 	readonly onDidChangeSelection: Event<IQuickPickItem[]>;
 }
@@ -184,6 +184,8 @@ export interface IQuickInputService {
 	 */
 	input(options?: IInputOptions, token?: CancellationToken): TPromise<string>;
 
+	backButton: IQuickInputButton;
+
 	createQuickPick(): IQuickPick;
 	createInputBox(): IInputBox;
 
@@ -194,6 +196,8 @@ export interface IQuickInputService {
 	navigate(next: boolean, quickNavigate?: IQuickNavigateConfiguration): void;
 
 	accept(): TPromise<void>;
+
+	back(): TPromise<void>;
 
 	cancel(): TPromise<void>;
 }

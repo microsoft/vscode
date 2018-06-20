@@ -310,7 +310,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding)
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding),
+					isReadonly: false
 				};
 
 				return this.loadWithContent(content, backup);
@@ -406,7 +407,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
-			children: void 0
+			children: void 0,
+			isReadonly: content.isReadonly
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 
@@ -698,7 +700,7 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			// be disposed if we are dirty, but if we are not dirty, save() and dispose() can still be triggered
 			// one after the other without waiting for the save() to complete. If we are disposed(), we risk
 			// saving contents to disk that are stale (see https://github.com/Microsoft/vscode/issues/50942).
-			// To fix this issue, we will not store the contents to disk when we got disposed. 
+			// To fix this issue, we will not store the contents to disk when we got disposed.
 			if (this.disposed) {
 				return void 0;
 			}
@@ -981,6 +983,10 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 
 	public isResolved(): boolean {
 		return !types.isUndefinedOrNull(this.lastResolvedDiskStat);
+	}
+
+	public isReadonly(): boolean {
+		return this.lastResolvedDiskStat && this.lastResolvedDiskStat.isReadonly;
 	}
 
 	/**

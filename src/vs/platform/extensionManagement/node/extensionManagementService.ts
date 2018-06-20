@@ -446,7 +446,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private extractAndRename(id: string, zipPath: string, extractPath: string, renamePath: string): TPromise<void> {
 		return this.extract(id, zipPath, extractPath)
-			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (30 * 1000) /* Retry for 30 seconds */)
+			.then(() => this.rename(id, extractPath, renamePath, Date.now() + (2 * 60 * 1000) /* Retry for 2 minutes */)
 				.then(
 					() => this.logService.info('Renamed to', renamePath),
 					e => {
@@ -658,7 +658,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 	}
 
 	private preUninstallExtension(extension: ILocalExtension): TPromise<void> {
-		return pfs.exists(extension.location.path)
+		return pfs.exists(extension.location.fsPath)
 			.then(exists => exists ? null : TPromise.wrapError(new Error(nls.localize('notExists', "Could not find extension"))))
 			.then(() => {
 				this.logService.info('Uninstalling extension:', extension.identifier.id);
@@ -788,7 +788,7 @@ export class ExtensionManagementService extends Disposable implements IExtension
 
 	private removeExtension(extension: ILocalExtension, type: string): TPromise<void> {
 		this.logService.trace(`Deleting ${type} extension from disk`, extension.identifier.id);
-		return pfs.rimraf(extension.location.path).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
+		return pfs.rimraf(extension.location.fsPath).then(() => this.logService.info('Deleted from disk', extension.identifier.id));
 	}
 
 	private isUninstalled(id: string): TPromise<boolean> {

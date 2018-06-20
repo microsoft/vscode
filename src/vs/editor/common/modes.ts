@@ -293,7 +293,7 @@ export interface ISuggestion {
 	documentation?: string | IMarkdownString;
 	filterText?: string;
 	sortText?: string;
-	autoSelect?: boolean;
+	preselect?: boolean;
 	noAutoAccept?: boolean;
 	commitCharacters?: string[];
 	overwriteBefore?: number;
@@ -648,8 +648,8 @@ export interface DocumentSymbol {
 	detail: string;
 	kind: SymbolKind;
 	containerName?: string;
-	fullRange: IRange;
-	identifierRange: IRange;
+	range: IRange;
+	selectionRange: IRange;
 	children?: DocumentSymbol[];
 }
 
@@ -899,6 +899,7 @@ export function isResourceTextEdit(thing: any): thing is ResourceTextEdit {
 export interface ResourceFileEdit {
 	oldUri: URI;
 	newUri: URI;
+	options: { overwrite?: boolean, ignoreIfExists?: boolean };
 }
 
 export interface ResourceTextEdit {

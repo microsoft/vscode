@@ -17,7 +17,7 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as browser from 'vs/base/browser/browser';
 import * as perf from 'vs/base/common/performance';
 import * as errors from 'vs/base/common/errors';
-import { BackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
+import { BackupFileService, InMemoryBackupFileService } from 'vs/workbench/services/backup/node/backupFileService';
 import { IBackupFileService } from 'vs/workbench/services/backup/common/backup';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { isWindows, isLinux, isMacintosh } from 'vs/base/common/platform';
@@ -110,7 +110,7 @@ import { registerWindowDriver } from 'vs/platform/driver/electron-browser/driver
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { PreferencesService } from 'vs/workbench/services/preferences/browser/preferencesService';
 import { IEditorService, IResourceEditor } from 'vs/workbench/services/editor/common/editorService';
-import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection, GroupOrientation } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, preferredSideBySideGroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { EditorService } from 'vs/workbench/services/editor/browser/editorService';
 import { IExtensionUrlHandler, ExtensionUrlHandler } from 'vs/platform/url/electron-browser/inactiveExtensionUrlHandler';
 import { ContextViewService } from 'vs/platform/contextview/browser/contextViewService';
@@ -227,7 +227,6 @@ export class Workbench extends Disposable implements IPartService {
 	private panelHidden: boolean;
 	private menubarHidden: boolean;
 	private zenMode: IZenMode;
-	private centeredEditorLayoutActive: boolean;
 	private fontAliasing: FontAliasingOption;
 	private hasInitialFilesToOpen: boolean;
 
@@ -416,7 +415,11 @@ export class Workbench extends Disposable implements IPartService {
 		this.menubarPart = this.instantiationService.createInstance(MenubarPart, Identifiers.MENUBAR_PART);
 
 		// Backup File Service
-		this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		if (this.workbenchParams.configuration.backupPath) {
+			this.backupFileService = this.instantiationService.createInstance(BackupFileService, this.workbenchParams.configuration.backupPath);
+		} else {
+			this.backupFileService = new InMemoryBackupFileService();
+		}
 		serviceCollection.set(IBackupFileService, this.backupFileService);
 
 		// Text File Service
@@ -714,7 +717,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Forced Editor Center Mode
 		if (this.storageService.getBoolean(Workbench.centeredEditorLayoutActiveStorageKey, StorageScope.WORKSPACE, false)) {
-			this.centeredEditorLayoutActive = true;
+			this.centerEditorLayout(true);
 		}
 
 		const onRestored = (error?: Error): IWorkbenchStartedInfo => {
@@ -872,9 +875,6 @@ export class Workbench extends Disposable implements IPartService {
 			wasPanelVisible: false,
 			transitionDisposeables: []
 		};
-
-		// Centered Editor Layout
-		this.centeredEditorLayoutActive = false;
 	}
 
 	private setPanelPositionFromStorageOrConfig() {
@@ -1188,7 +1188,7 @@ export class Workbench extends Disposable implements IPartService {
 			case Parts.TITLEBAR_PART:
 				return this.getCustomTitleBarStyle() === 'custom' && !browser.isFullscreen();
 			case Parts.MENUBAR_PART:
-				return this.getCustomTitleBarStyle() === 'custom' && !this.menubarHidden;
+				return this.isVisible(Parts.TITLEBAR_PART) && !this.menubarHidden;
 			case Parts.SIDEBAR_PART:
 				return !this.sideBarHidden;
 			case Parts.PANEL_PART:
@@ -1293,39 +1293,14 @@ export class Workbench extends Disposable implements IPartService {
 	}
 
 	isEditorLayoutCentered(): boolean {
-		return this.centeredEditorLayoutActive;
+		return this.editorPart.isLayoutCentered();
 	}
 
-	// TODO@ben support centered editor layout using empty groups or not? functionality missing:
-	// - resize sashes left and right in sync
-	// - IEditorInput.supportsCenteredEditorLayout() no longer supported
-	// - should we just allow to enter layout even if groups > 1? what does it then mean to be
-	//   actively in centered editor layout though?
 	centerEditorLayout(active: boolean, skipLayout?: boolean): void {
-		this.centeredEditorLayoutActive = active;
-		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, this.centeredEditorLayoutActive, StorageScope.WORKSPACE);
+		this.storageService.store(Workbench.centeredEditorLayoutActiveStorageKey, active, StorageScope.WORKSPACE);
 
 		// Enter Centered Editor Layout
-		if (active) {
-			if (this.editorGroupService.count === 1) {
-				const activeGroup = this.editorGroupService.activeGroup;
-				this.editorGroupService.addGroup(activeGroup, GroupDirection.LEFT);
-				this.editorGroupService.addGroup(activeGroup, GroupDirection.RIGHT);
-
-				this.editorGroupService.applyLayout({ groups: [{ size: 0.2 }, { size: 0.6 }, { size: 0.2 }], orientation: GroupOrientation.HORIZONTAL });
-			}
-		}
-
-		// Leave Centered Editor Layout
-		else {
-			if (this.editorGroupService.count === 3) {
-				this.editorGroupService.groups.forEach(group => {
-					if (group.count === 0) {
-						this.editorGroupService.removeGroup(group);
-					}
-				});
-			}
-		}
+		this.editorPart.centerLayout(active);
 
 		if (!skipLayout) {
 			this.layout();

@@ -5,14 +5,14 @@
 
 .settings-editor {
 	padding-top: 11px;
+	max-width: 1000px;
 	margin: auto;
 }
 
 /* header styling */
 .settings-editor > .settings-header {
-	padding-left: 15px;
+	padding-left: 5px;
 	padding-right: 5px;
-	max-width: 800px;
 	box-sizing: border-box;
 	margin: auto;
 }
@@ -98,22 +98,30 @@
 	opacity: 0.7;
 }
 
-.settings-editor > .settings-body .settings-tree-container .monaco-tree-wrapper {
-	max-width: 800px;
+.settings-editor > .settings-body {
+	display: flex;
 	margin: auto;
-}
-
-.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow.top-left-corner {
-	left: calc((100% - 800px)/2);
-}
-
-.settings-editor > .settings-body .settings-tree-container .monaco-scrollable-element .shadow {
-	left: calc((100% - 794px)/2);
-	width: 800px;
+	margin-top: 5px;
+	max-width: 1000px;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
 	outline: none !important;
+}
+
+.settings-editor > .settings-body .settings-toc-container {
+	width: 175px;
+	margin-right: 5px;
+}
+
+.search-mode .settings-toc-container {
+	display: none;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {
+	overflow: hidden;
+	text-overflow: ellipsis;
+	line-height: 22px;
 }
 
 .settings-editor > .settings-body .settings-tree-container {
@@ -124,10 +132,10 @@
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
+	padding-top: 5px;
 	cursor: default;
 	white-space: normal;
 	height: 100%;
-	min-height: 75px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
@@ -140,16 +148,6 @@
 	flex: 1;
 	padding-top: 3px;
 	padding-bottom: 12px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-right {
-	min-width: 180px;
-	margin: 21px 10px 0px 5px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
-	margin-top: 2px;
-	line-height: initial;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
@@ -180,14 +178,9 @@
 	opacity: 0.7;
 	margin-top: 3px;
 	overflow: hidden;
-	white-space: nowrap;
+	white-space: pre;
 	text-overflow: ellipsis;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-measure-container.monaco-tree-row {
-	padding-left: 15px;
-	opacity: 0;
-	max-width: 800px;
+	height: 18px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-expanded .setting-item-description,
@@ -196,15 +189,24 @@
 	white-space: pre-wrap;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > *:first-child {
-	min-width: 250px;
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
+	margin-top: 5px;
+	margin-bottom: 7px; /* Needed when measuring an expanded row */
+	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
-	margin-top: 10px;
-	margin-bottom: 8px;
-	display: inline-block;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-number {
+	min-width: 200px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-string {
+	flex: 1;
+	min-width: initial;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > *:first-child {
+	width: 100%;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
@@ -231,7 +233,7 @@
 	visibility: hidden;
 	width: initial;
 
-	padding-top: 0px; /* So focus outline doesn't overlap the control above */
+	padding-top: 2px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {
@@ -251,22 +253,23 @@
 	padding-right: 10px;
 }
 
-/*
-	Ensure the is-configured indicators can appear outside of the list items themselves:
-	- Disable overflow: hidden on the listrow
-	- Allocate some space with a margin on the list-row
-	- Make up for that space with a negative margin on the settings-body
-
-	This is risky, consider a different approach
-*/
-.settings-editor .settings-tree-container .setting-item {
-	overflow: visible;
+.settings-editor > .settings-body > .settings-tree-container .group-title,
+.settings-editor > .settings-body > .settings-tree-container .setting-item {
+	padding-left: 5px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .settings-group-title-label {
 	margin: 0px;
-	padding: 5px 0px;
-	font-size: 13px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1 {
+	padding-top: 16px;
+	font-size: 24px;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-2 {
+	padding-top: 16px;
+	font-size: 20px;
 }
 
 .settings-editor > .settings-body .settings-feedback-button {

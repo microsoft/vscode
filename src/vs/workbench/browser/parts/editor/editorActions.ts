@@ -1565,34 +1565,6 @@ export class EditorLayoutTwoColumnsRightAction extends ExecuteCommandAction {
 	}
 }
 
-export class EditorLayoutCenteredAction extends Action {
-
-	public static readonly ID = 'workbench.action.editorLayoutCentered';
-	public static readonly LABEL = nls.localize('editorLayoutCentered', "Centered Editor Layout");
-
-	constructor(
-		id: string,
-		label: string,
-		@IPartService private partService: IPartService,
-		@IEditorGroupsService private editorGroupService: IEditorGroupsService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<any> {
-
-		// Ensure we can enter centered editor layout even if there are more than 1 groups
-		if (this.editorGroupService.count > 1) {
-			mergeAllGroups(this.editorGroupService);
-		}
-
-		// Center editor layout
-		this.partService.centerEditorLayout(true);
-
-		return TPromise.as(true);
-	}
-}
-
 export class BaseCreateEditorGroupAction extends Action {
 
 	constructor(

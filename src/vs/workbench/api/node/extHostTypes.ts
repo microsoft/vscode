@@ -13,6 +13,8 @@ import { isMarkdownString } from 'vs/base/common/htmlContent';
 import { IRelativePattern } from 'vs/base/common/glob';
 import { relative } from 'path';
 import { startsWith } from 'vs/base/common/strings';
+import { values } from 'vs/base/common/map';
+import { coalesce } from 'vs/base/common/arrays';
 
 export class Disposable {
 
@@ -492,38 +494,38 @@ export class TextEdit {
 	}
 }
 
+
+export interface IFileOperation {
+	_type: 1;
+	from: URI;
+	to: URI;
+	options?: { overwrite?: boolean, ignoreIfExists?: boolean; };
+}
+
+export interface IFileTextEdit {
+	_type: 2;
+	uri: URI;
+	edit: TextEdit;
+}
+
 export class WorkspaceEdit implements vscode.WorkspaceEdit {
 
-	private _seqPool: number = 0;
+	private _edits = new Array<IFileOperation | IFileTextEdit>();
 
-	private _resourceEdits: { seq: number, from: URI, to: URI }[] = [];
-	private _textEdits = new Map<string, { seq: number, uri: URI, edits: TextEdit[] }>();
+	renameFile(from: vscode.Uri, to: vscode.Uri, options?: { overwrite?: boolean }): void {
+		this._edits.push({ _type: 1, from, to, options });
+	}
 
-	// createResource(uri: vscode.Uri): void {
-	// 	this.renameResource(undefined, uri);
-	// }
+	createFile(uri: vscode.Uri, options?: { overwrite?: boolean, ignoreIfExists?: boolean }): void {
+		this._edits.push({ _type: 1, from: undefined, to: uri, options });
+	}
 
-	// deleteResource(uri: vscode.Uri): void {
-	// 	this.renameResource(uri, undefined);
-	// }
-
-	// renameResource(from: vscode.Uri, to: vscode.Uri): void {
-	// 	this._resourceEdits.push({ seq: this._seqPool++, from, to });
-	// }
-
-	// resourceEdits(): [vscode.Uri, vscode.Uri][] {
-	// 	return this._resourceEdits.map(({ from, to }) => (<[vscode.Uri, vscode.Uri]>[from, to]));
-	// }
+	deleteFile(uri: vscode.Uri): void {
+		this._edits.push({ _type: 1, from: uri, to: undefined });
+	}
 
 	replace(uri: URI, range: Range, newText: string): void {
-		let edit = new TextEdit(range, newText);
-		let array = this.get(uri);
-		if (array) {
-			array.push(edit);
-		} else {
-			array = [edit];
-		}
-		this.set(uri, array);
+		this._edits.push({ _type: 2, uri, edit: new TextEdit(range, newText) });
 	}
 
 	insert(resource: URI, position: Position, newText: string): void {
@@ -535,55 +537,76 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 	}
 
 	has(uri: URI): boolean {
-		return this._textEdits.has(uri.toString());
+		for (const edit of this._edits) {
+			if (edit._type === 2 && edit.uri.toString() === uri.toString()) {
+				return true;
+			}
+		}
+		return false;
 	}
 
 	set(uri: URI, edits: TextEdit[]): void {
-		let data = this._textEdits.get(uri.toString());
-		if (!data) {
-			data = { seq: this._seqPool++, uri, edits: [] };
-			this._textEdits.set(uri.toString(), data);
-		}
 		if (!edits) {
-			data.edits = undefined;
+			// remove all text edits for `uri`
+			for (let i = 0; i < this._edits.length; i++) {
+				const element = this._edits[i];
+				if (element._type === 2 && element.uri.toString() === uri.toString()) {
+					this._edits[i] = undefined;
+				}
+			}
+			this._edits = coalesce(this._edits);
 		} else {
-			data.edits = edits.slice(0);
+			// append edit to the end
+			for (const edit of edits) {
+				if (edit) {
+					this._edits.push({ _type: 2, uri, edit });
+				}
+			}
 		}
 	}
 
 	get(uri: URI): TextEdit[] {
-		if (!this._textEdits.has(uri.toString())) {
+		let res: TextEdit[] = [];
+		for (let candidate of this._edits) {
+			if (candidate._type === 2 && candidate.uri.toString() === uri.toString()) {
+				res.push(candidate.edit);
+			}
+		}
+		if (res.length === 0) {
 			return undefined;
 		}
-		const { edits } = this._textEdits.get(uri.toString());
-		return edits ? edits.slice() : undefined;
+		return res;
 	}
 
 	entries(): [URI, TextEdit[]][] {
-		const res: [URI, TextEdit[]][] = [];
-		this._textEdits.forEach(value => res.push([value.uri, value.edits]));
-		return res.slice();
+		let textEdits = new Map<string, [URI, TextEdit[]]>();
+		for (let candidate of this._edits) {
+			if (candidate._type === 2) {
+				let textEdit = textEdits.get(candidate.uri.toString());
+				if (!textEdit) {
+					textEdit = [candidate.uri, []];
+					textEdits.set(candidate.uri.toString(), textEdit);
+				}
+				textEdit[1].push(candidate.edit);
+			}
+		}
+		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI])[] {
-		return this.entries();
-		// 	// use the 'seq' the we have assigned when inserting
-		// 	// the operation and use that order in the resulting
-		// 	// array
-		// 	const res: ([URI, TextEdit[]] | [URI, URI])[] = [];
-		// 	this._textEdits.forEach(value => {
-		// 		const { seq, uri, edits } = value;
-		// 		res[seq] = [uri, edits];
-		// 	});
-		// 	this._resourceEdits.forEach(value => {
-		// 		const { seq, from, to } = value;
-		// 		res[seq] = [from, to];
-		// 	});
-		// 	return res;
+	_allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] {
+		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] = [];
+		for (let edit of this._edits) {
+			if (edit._type === 1) {
+				res.push([edit.from, edit.to, edit.options]);
+			} else {
+				res.push([edit.uri, [edit.edit]]);
+			}
+		}
+		return res;
 	}
 
 	get size(): number {
-		return this._textEdits.size + this._resourceEdits.length;
+		return this.entries().length;
 	}
 
 	toJSON(): any {
@@ -751,7 +774,7 @@ export class Diagnostic {
 	code: string | number;
 	severity: DiagnosticSeverity;
 	relatedInformation: DiagnosticRelatedInformation[];
-	customTags?: DiagnosticTag[];
+	tags?: DiagnosticTag[];
 
 	constructor(range: Range, message: string, severity: DiagnosticSeverity = DiagnosticSeverity.Error) {
 		this.range = range;
@@ -885,20 +908,20 @@ export class DocumentSymbol {
 	name: string;
 	detail: string;
 	kind: SymbolKind;
-	fullRange: Range;
-	gotoRange: Range;
+	range: Range;
+	selectionRange: Range;
 	children: DocumentSymbol[];
 
-	constructor(name: string, detail: string, kind: SymbolKind, fullRange: Range, gotoRange: Range) {
+	constructor(name: string, detail: string, kind: SymbolKind, range: Range, selectionRange: Range) {
 		this.name = name;
 		this.detail = detail;
 		this.kind = kind;
-		this.fullRange = fullRange;
-		this.gotoRange = gotoRange;
+		this.range = range;
+		this.selectionRange = selectionRange;
 		this.children = [];
 
-		if (!this.fullRange.contains(this.gotoRange)) {
-			throw new Error('gotoRange must be contained in fullRange');
+		if (!this.range.contains(this.selectionRange)) {
+			throw new Error('selectionRange must be contained in fullRange');
 		}
 	}
 }
@@ -1073,7 +1096,7 @@ export enum CompletionItemKind {
 	TypeParameter = 24
 }
 
-export class CompletionItem {
+export class CompletionItem implements vscode.CompletionItem {
 
 	label: string;
 	kind: CompletionItemKind;
@@ -1081,6 +1104,7 @@ export class CompletionItem {
 	documentation: string | MarkdownString;
 	sortText: string;
 	filterText: string;
+	preselect: boolean;
 	insertText: string | SnippetString;
 	range: Range;
 	textEdit: TextEdit;
@@ -1100,6 +1124,7 @@ export class CompletionItem {
 			documentation: this.documentation,
 			sortText: this.sortText,
 			filterText: this.filterText,
+			preselect: this.preselect,
 			insertText: this.insertText,
 			textEdit: this.textEdit
 		};

@@ -369,7 +369,7 @@ export class MenubarPart extends Part {
 			titleElement.attr('role', 'menu');
 
 			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
-			if (mnemonic) {
+			if (mnemonic && this.currentEnableMenuBarMnemonics) {
 				this.registerMnemonic(titleElement.getHTMLElement(), mnemonic);
 			}
 

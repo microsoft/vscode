@@ -11,6 +11,11 @@ import { TypeScriptServiceConfiguration } from './utils/configuration';
 import Logger from './utils/logger';
 import BufferSyncSupport from './features/bufferSyncSupport';
 
+declare module './protocol' {
+	export type JsxClosingTagRequestArgs = any;
+	export type JsxClosingTagResponse = any;
+}
+
 export interface ITypeScriptServiceClient {
 	/**
 	 * Convert a resource (VS Code) to a normalized path (TypeScript).
@@ -78,6 +83,7 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'organizeImports', args: Proto.OrganizeImportsRequestArgs, token?: CancellationToken): Promise<Proto.OrganizeImportsResponse>;
 	execute(command: 'getOutliningSpans', args: Proto.FileRequestArgs, token: CancellationToken): Promise<Proto.OutliningSpansResponse>;
 	execute(command: 'getEditsForFileRename', args: Proto.GetEditsForFileRenameRequestArgs): Promise<Proto.GetEditsForFileRenameResponse>;
+	execute(command: 'jsxClosingTag', args: Proto.JsxClosingTagRequestArgs, token: CancellationToken): Promise<Proto.JsxClosingTagResponse>;
 	execute(command: string, args: any, expectedResult: boolean | CancellationToken, token?: CancellationToken): Promise<any>;
 
 	executeAsync(command: 'geterr', args: Proto.GeterrRequestArgs, token: CancellationToken): Promise<any>;

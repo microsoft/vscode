@@ -306,10 +306,10 @@ export class ActivitybarPart extends Part {
 	private enableCompositeActions(viewlet: ViewletDescriptor): void {
 		const { activityAction, pinnedAction } = this.getCompositeActions(viewlet.id);
 		if (activityAction instanceof PlaceHolderViewletActivityAction) {
-			activityAction.enable(viewlet);
+			activityAction.setActivity(viewlet);
 		}
 		if (pinnedAction instanceof PlaceHolderToggleCompositePinnedAction) {
-			pinnedAction.enable(viewlet);
+			pinnedAction.setActivity(viewlet);
 		}
 	}
 
@@ -376,9 +376,8 @@ class PlaceHolderViewletActivityAction extends ViewletActivityAction {
 		this.enabled = false;
 	}
 
-	enable(activity: IActivity): void {
-		this.label = activity.name;
-		this.class = activity.cssClass;
+	setActivity(activity: IActivity): void {
+		this.activity = activity;
 		this.enabled = true;
 	}
 
@@ -393,7 +392,7 @@ class PlaceHolderToggleCompositePinnedAction extends ToggleCompositePinnedAction
 		this.enabled = false;
 	}
 
-	enable(activity: IActivity): void {
+	setActivity(activity: IActivity): void {
 		this.label = activity.name;
 		this.enabled = true;
 	}

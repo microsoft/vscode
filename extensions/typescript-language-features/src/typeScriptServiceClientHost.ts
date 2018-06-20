@@ -298,7 +298,7 @@ export default class TypeScriptServiceClientHost {
 			}).filter((x: any) => !!x) as DiagnosticRelatedInformation[];
 		}
 		if (diagnostic.reportsUnnecessary) {
-			converted.customTags = [DiagnosticTag.Unnecessary];
+			converted.tags = [DiagnosticTag.Unnecessary];
 		}
 		(converted as Diagnostic & { reportUnnecessary: any }).reportUnnecessary = diagnostic.reportsUnnecessary;
 		return converted as Diagnostic & { reportUnnecessary: any };

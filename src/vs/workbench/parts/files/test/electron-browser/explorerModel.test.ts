@@ -14,7 +14,7 @@ import { validateFileName } from 'vs/workbench/parts/files/electron-browser/file
 import { ExplorerItem } from 'vs/workbench/parts/files/common/explorerModel';
 
 function createStat(path: string, name: string, isFolder: boolean, hasChildren: boolean, size: number, mtime: number): ExplorerItem {
-	return new ExplorerItem(toResource(path), undefined, false, isFolder, name, mtime);
+	return new ExplorerItem(toResource(path), undefined, false, false, isFolder, name, mtime);
 }
 
 function toResource(path) {
@@ -264,20 +264,20 @@ suite('Files - View Model', () => {
 	test('Merge Local with Disk', function () {
 		const d = new Date().toUTCString();
 
-		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, false, true, 'to', Date.now(), d);
-		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, false, true, 'to', Date.now(), new Date(0).toUTCString());
+		const merge1 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, false, false, true, 'to', Date.now(), d);
+		const merge2 = new ExplorerItem(URI.file(join('C:\\', '/path/to')), undefined, false, false, true, 'to', Date.now(), new Date(0).toUTCString());
 
 		// Merge Properties
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.mtime, merge2.mtime);
 
 		// Merge Child when isDirectoryResolved=false is a no-op
-		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, true, 'foo.html', Date.now(), d));
+		merge2.addChild(new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, false, true, 'foo.html', Date.now(), d));
 		ExplorerItem.mergeLocalWithDisk(merge2, merge1);
 		assert.strictEqual(merge1.getChildrenArray().length, 0);
 
 		// Merge Child with isDirectoryResolved=true
-		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, true, 'foo.html', Date.now(), d);
+		const child = new ExplorerItem(URI.file(join('C:\\', '/path/to/foo.html')), undefined, false, false, true, 'foo.html', Date.now(), d);
 		merge2.removeChild(child);
 		merge2.addChild(child);
 		merge2.isDirectoryResolved = true;

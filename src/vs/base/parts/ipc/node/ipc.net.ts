@@ -31,7 +31,7 @@ export class Protocol implements IMessagePassingProtocol {
 
 	readonly onMessage: Event<any> = this._onMessage.event;
 
-	constructor(private _socket: Socket) {
+	constructor(private _socket: Socket, firstDataChunk?: Buffer) {
 
 		let chunks: Buffer[] = [];
 		let totalLength = 0;
@@ -42,7 +42,7 @@ export class Protocol implements IMessagePassingProtocol {
 			bodyLen: -1,
 		};
 
-		_socket.on('data', (data: Buffer) => {
+		const acceptChunk = (data: Buffer) => {
 
 			chunks.push(data);
 			totalLength += data.length;
@@ -93,6 +93,23 @@ export class Protocol implements IMessagePassingProtocol {
 					}
 				}
 			}
+		};
+
+		const acceptFirstDataChunk = () => {
+			if (firstDataChunk && firstDataChunk.length > 0) {
+				let tmp = firstDataChunk;
+				firstDataChunk = null;
+				acceptChunk(tmp);
+			}
+		};
+
+		_socket.on('data', (data: Buffer) => {
+			acceptFirstDataChunk();
+			acceptChunk(data);
+		});
+
+		_socket.on('end', () => {
+			acceptFirstDataChunk();
 		});
 	}
 

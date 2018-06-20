@@ -13,6 +13,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { getTopLeftOffset, getClientArea } from 'vs/base/browser/dom';
 import * as electron from 'electron';
 import { IWindowService } from 'vs/platform/windows/common/windows';
+import { Terminal } from 'vscode-xterm';
 
 function serializeElement(element: Element, recursive: boolean): IElement {
 	const attributes = Object.create(null);
@@ -172,7 +173,7 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Terminal not found: ' + selector);
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error('Xterm not found: ' + selector);
@@ -180,8 +181,8 @@ class WindowDriver implements IWindowDriver {
 
 		const lines: string[] = [];
 
-		for (let i = 0; i < xterm.buffer.lines.length; i++) {
-			lines.push(xterm.buffer.translateBufferLineToString(i, true));
+		for (let i = 0; i < xterm._core.buffer.lines.length; i++) {
+			lines.push(xterm._core.buffer.translateBufferLineToString(i, true));
 		}
 
 		return lines;
@@ -194,13 +195,13 @@ class WindowDriver implements IWindowDriver {
 			throw new Error('Element not found');
 		}
 
-		const xterm = (element as any).xterm;
+		const xterm: Terminal = (element as any).xterm;
 
 		if (!xterm) {
 			throw new Error('Xterm not found');
 		}
 
-		xterm.send(text);
+		xterm._core.send(text);
 	}
 
 	async openDevTools(): TPromise<void> {

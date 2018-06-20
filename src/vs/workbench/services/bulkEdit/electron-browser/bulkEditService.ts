@@ -5,8 +5,9 @@
 'use strict';
 
 
+import { mergeSort } from 'vs/base/common/arrays';
 import { getPathLabel } from 'vs/base/common/labels';
-import { IDisposable, IReference, dispose } from 'vs/base/common/lifecycle';
+import { dispose, IDisposable, IReference } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
@@ -15,16 +16,17 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
 import { EndOfLineSequence, IIdentifiedSingleEditOperation, ITextModel } from 'vs/editor/common/model';
-import { ResourceFileEdit, ResourceTextEdit, WorkspaceEdit, isResourceFileEdit, isResourceTextEdit } from 'vs/editor/common/modes';
+import { isResourceFileEdit, isResourceTextEdit, ResourceFileEdit, ResourceTextEdit, WorkspaceEdit } from 'vs/editor/common/modes';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextEditorModel, ITextModelService } from 'vs/editor/common/services/resolverService';
 import { localize } from 'vs/nls';
-import { FileChangeType, IFileService } from 'vs/platform/files/common/files';
-import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IProgress, IProgressRunner, emptyProgressRunner } from 'vs/platform/progress/common/progress';
-import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
+import { IFileService } from 'vs/platform/files/common/files';
+import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
+import { ILogService } from 'vs/platform/log/common/log';
+import { emptyProgressRunner, IProgress, IProgressRunner } from 'vs/platform/progress/common/progress';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 
 abstract class Recording {
@@ -32,18 +34,12 @@ abstract class Recording {
 	static start(fileService: IFileService): Recording {
 
 		let _changes = new Set<string>();
-		let stop: IDisposable;
-
-		stop = fileService.onFileChanges(event => {
-			for (const change of event.changes) {
-				if (change.type === FileChangeType.UPDATED) {
-					_changes.add(change.resource.toString());
-				}
-			}
+		let subscription = fileService.onAfterOperation(e => {
+			_changes.add(e.resource.toString());
 		});
 
 		return {
-			stop() { return dispose(stop); },
+			stop() { return subscription.dispose(); },
 			hasChanged(resource) { return _changes.has(resource.toString()); }
 		};
 	}
@@ -96,15 +92,7 @@ class EditTask implements IDisposable {
 
 	apply(): void {
 		if (this._edits.length > 0) {
-
-			this._edits = this._edits.map((value, index) => ({ value, index })).sort((a, b) => {
-				let ret = Range.compareRangesUsingStarts(a.value.range, b.value.range);
-				if (ret === 0) {
-					ret = a.index - b.index;
-				}
-				return ret;
-			}).map(element => element.value);
-
+			this._edits = mergeSort(this._edits, (a, b) => Range.compareRangesUsingStarts(a.range, b.range));
 			this._initialSelections = this._getInitialSelections();
 			this._model.pushStackElement();
 			this._model.pushEditOperations(this._initialSelections, this._edits, (edits) => this._getEndCursorSelections(edits));
@@ -268,6 +256,7 @@ export class BulkEdit {
 	constructor(
 		editor: ICodeEditor,
 		progress: IProgressRunner,
+		@ILogService private readonly _logService: ILogService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
 		@IFileService private readonly _fileService: IFileService,
 		@ITextFileService private readonly _textFileService: ITextFileService,
@@ -342,21 +331,26 @@ export class BulkEdit {
 	}
 
 	private async _performFileEdits(edits: ResourceFileEdit[], progress: IProgress<void>) {
+		this._logService.debug('_performFileEdits', JSON.stringify(edits));
 		for (const edit of edits) {
-
 			progress.report(undefined);
 
+			let overwrite = edit.options && edit.options.overwrite;
 			if (edit.newUri && edit.oldUri) {
-				await this._textFileService.move(edit.oldUri, edit.newUri, false);
+				await this._textFileService.move(edit.oldUri, edit.newUri, overwrite);
 			} else if (!edit.newUri && edit.oldUri) {
 				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
-				await this._fileService.createFile(edit.newUri, undefined, { overwrite: false });
+				let ignoreIfExists = edit.options && edit.options.ignoreIfExists;
+				if (!ignoreIfExists || !await this._fileService.existsFile(edit.newUri)) {
+					await this._fileService.createFile(edit.newUri, undefined, { overwrite });
+				}
 			}
 		}
 	}
 
 	private async _performTextEdits(edits: ResourceTextEdit[], progress: IProgress<void>): TPromise<Selection> {
+		this._logService.debug('_performTextEdits', JSON.stringify(edits));
 
 		const recording = Recording.start(this._fileService);
 		const model = new BulkEditModel(this._textModelService, this._editor, edits, progress);
@@ -385,6 +379,7 @@ export class BulkEditService implements IBulkEditService {
 	_serviceBrand: any;
 
 	constructor(
+		@ILogService private readonly _logService: ILogService,
 		@IModelService private readonly _modelService: IModelService,
 		@IEditorService private readonly _editorService: IEditorService,
 		@ITextModelService private readonly _textModelService: ITextModelService,
@@ -422,13 +417,16 @@ export class BulkEditService implements IBulkEditService {
 			}
 		}
 
-		const bulkEdit = new BulkEdit(options.editor, options.progress, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
+		const bulkEdit = new BulkEdit(options.editor, options.progress, this._logService, this._textModelService, this._fileService, this._textFileService, this._environmentService, this._contextService);
 		bulkEdit.add(edits);
+
 		return bulkEdit.perform().then(selection => {
-			return {
-				selection,
-				ariaSummary: bulkEdit.ariaMessage()
-			};
+			return { selection, ariaSummary: bulkEdit.ariaMessage() };
+		}, err => {
+			// console.log('apply FAILED');
+			// console.log(err);
+			this._logService.error(err);
+			throw err;
 		});
 	}
 }

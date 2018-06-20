@@ -182,7 +182,7 @@ suite('ExtHostLanguageFeatures', function () {
 
 				let entry = value[0];
 				assert.equal(entry.name, 'test');
-				assert.deepEqual(entry.fullRange, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -841,8 +841,10 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				assert.equal(value.edits.length, 1); // least relevant renamer
-				assert.equal((<ResourceTextEdit[]>value.edits)[0].edits.length, 2); // least relevant renamer
+				// least relevant rename provider
+				assert.equal(value.edits.length, 2);
+				assert.equal((<ResourceTextEdit>value.edits[0]).edits.length, 1);
+				assert.equal((<ResourceTextEdit>value.edits[1]).edits.length, 1);
 			});
 		});
 	});

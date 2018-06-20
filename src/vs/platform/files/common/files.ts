@@ -182,7 +182,8 @@ export enum FileSystemProviderCapabilities {
 	FileOpenReadWriteClose = 1 << 2,
 	FileFolderCopy = 1 << 3,
 
-	PathCaseSensitive = 1 << 10
+	PathCaseSensitive = 1 << 10,
+	Readonly = 1 << 11
 }
 
 export interface IFileSystemProvider {
@@ -398,6 +399,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**

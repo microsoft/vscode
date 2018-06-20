@@ -37,6 +37,11 @@ export const IS_WORKSPACE_SHELL_ALLOWED_STORAGE_KEY = 'terminal.integrated.isWor
 export const NEVER_SUGGEST_SELECT_WINDOWS_SHELL_STORAGE_KEY = 'terminal.integrated.neverSuggestSelectWindowsShell';
 export const NEVER_MEASURE_RENDER_TIME_STORAGE_KEY = 'terminal.integrated.neverMeasureRenderTime';
 
+// The creation of extension host terminals is delayed by this value (milliseconds). The purpose of
+// this delay is to allow the terminal instance to initialize correctly and have its ID set before
+// trying to create the corressponding object on the ext host.
+export const EXT_HOST_CREATION_DELAY = 100;
+
 export const ITerminalService = createDecorator<ITerminalService>(TERMINAL_SERVICE_ID);
 
 export const TerminalCursorStyle = {
@@ -159,6 +164,12 @@ export interface IShellLaunchConfig {
 	 * of the terminal. Use \x1b over \033 or \e for the escape control character.
 	 */
 	initialText?: string;
+
+	/**
+	 * When true the terminal will be created with no process. This is primarily used to give
+	 * extensions full control over the terminal.
+	 */
+	isRendererOnly?: boolean;
 }
 
 export interface ITerminalService {
@@ -171,9 +182,11 @@ export interface ITerminalService {
 	onInstanceCreated: Event<ITerminalInstance>;
 	onInstanceDisposed: Event<ITerminalInstance>;
 	onInstanceProcessIdReady: Event<ITerminalInstance>;
+	onInstanceDimensionsChanged: Event<ITerminalInstance>;
 	onInstanceRequestExtHostProcess: Event<ITerminalProcessExtHostRequest>;
 	onInstancesChanged: Event<void>;
 	onInstanceTitleChanged: Event<string>;
+	onActiveInstanceChanged: Event<ITerminalInstance>;
 	terminalInstances: ITerminalInstance[];
 	terminalTabs: ITerminalTab[];
 
@@ -184,6 +197,12 @@ export interface ITerminalService {
 	 * default shell selection dialog may display.
 	 */
 	createTerminal(shell?: IShellLaunchConfig, wasNewTerminalAction?: boolean): ITerminalInstance;
+
+	/**
+	 * Creates a terminal renderer.
+	 * @param name The name of the terminal.
+	 */
+	createTerminalRenderer(name: string): ITerminalInstance;
 	/**
 	 * Creates a raw terminal instance, this should not be used outside of the terminal part.
 	 */
@@ -239,12 +258,27 @@ export interface ITerminalTab {
 	split(terminalFocusContextKey: IContextKey<boolean>, configHelper: ITerminalConfigHelper, shellLaunchConfig: IShellLaunchConfig): ITerminalInstance;
 }
 
+export interface ITerminalDimensions {
+	/**
+	 * The columns of the terminal.
+	 */
+	readonly cols: number;
+
+	/**
+	 * The rows of the terminal.
+	 */
+	readonly rows: number;
+}
+
 export interface ITerminalInstance {
 	/**
 	 * The ID of the terminal instance, this is an arbitrary number only used to identify the
 	 * terminal instance.
 	 */
-	id: number;
+	readonly id: number;
+
+	readonly cols: number;
+	readonly rows: number;
 
 	/**
 	 * The process ID of the shell process, this is undefined when there is no process associated
@@ -267,6 +301,42 @@ export interface ITerminalInstance {
 	onProcessIdReady: Event<ITerminalInstance>;
 
 	onRequestExtHostProcess: Event<ITerminalInstance>;
+
+	onDimensionsChanged: Event<void>;
+
+	onFocus: Event<ITerminalInstance>;
+
+	/**
+	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
+	 * sequences.
+	 */
+	onData: Event<string>;
+
+	/**
+	 * Attach a listener to the "renderer" input event, this event fires for terminal renderers on
+	 * keystrokes and when the Terminal.sendText extension API is used.
+	 * @param listener The listener function.
+	 */
+	onRendererInput: Event<string>;
+
+	/**
+	 * Attach a listener to listen for new lines added to this terminal instance.
+	 *
+	 * @param listener The listener function which takes new line strings added to the terminal,
+	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
+	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
+	 * not fire for the last line, until either the line is ended with a LF character of the process
+	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
+	 * characters.
+	 */
+	onLineData: Event<string>;
+
+	/**
+	 * Attach a listener that fires when the terminal's pty process exits. The number in the event
+	 * is the processes' exit code, an exit code of null means the process was killed as a result of
+	 * the ITerminalInstance being disposed.
+	 */
+	onExit: Event<number>;
 
 	processReady: TPromise<void>;
 
@@ -294,7 +364,7 @@ export interface ITerminalInstance {
 	/**
 	 * The shell launch config used to launch the shell.
 	 */
-	shellLaunchConfig: IShellLaunchConfig;
+	readonly shellLaunchConfig: IShellLaunchConfig;
 
 	/**
 	 * Whether to disable layout for the terminal. This is useful when the size of the terminal is
@@ -397,6 +467,12 @@ export interface ITerminalInstance {
 	 */
 	sendText(text: string, addNewLine: boolean): void;
 
+	/**
+	 * Write text directly to the terminal, skipping the process if it exists.
+	 * @param text The text to write.
+	 */
+	write(text: string): void;
+
 	/** Scroll the terminal buffer down 1 line. */
 	scrollDownLine(): void;
 	/** Scroll the terminal buffer down 1 page. */
@@ -449,33 +525,6 @@ export interface ITerminalInstance {
 	setVisible(visible: boolean): void;
 
 	/**
-	 * Attach a listener to the raw data stream coming from the pty, including ANSI escape
-	 * sequecnes.
-	 * @param listener  The listener function.
-	 */
-	onData(listener: (data: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener to listen for new lines added to this terminal instance.
-	 *
-	 * @param listener The listener function which takes new line strings added to the terminal,
-	 * excluding ANSI escape sequences. The line event will fire when an LF character is added to
-	 * the terminal (ie. the line is not wrapped). Note that this means that the line data will
-	 * not fire for the last line, until either the line is ended with a LF character of the process
-	 * is exited. The lineData string will contain the fully wrapped line, not containing any LF/CR
-	 * characters.
-	 */
-	onLineData(listener: (lineData: string) => void): IDisposable;
-
-	/**
-	 * Attach a listener that fires when the terminal's pty process exits.
-	 *
-	 * @param listener The listener function which takes the processes' exit code, an exit code of
-	 * null means the process was killed as a result of the ITerminalInstance being disposed.
-	 */
-	onExit(listener: (exitCode: number) => void): IDisposable;
-
-	/**
 	 * Immediately kills the terminal's current pty process and launches a new one to replace it.
 	 *
 	 * @param shell The new launch configuration.
@@ -486,6 +535,8 @@ export interface ITerminalInstance {
 	 * Sets the title of the terminal instance.
 	 */
 	setTitle(title: string, eventFromProcess: boolean): void;
+
+	setDimensions(dimensions: ITerminalDimensions): void;
 
 	addDisposable(disposable: IDisposable): void;
 }

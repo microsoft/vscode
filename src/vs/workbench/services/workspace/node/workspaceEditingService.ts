@@ -202,8 +202,9 @@ export class WorkspaceEditingService implements IWorkspaceEditingService {
 					// TODO@Ben TODO@Sandeep the following requires ugly casts and should probably have a service interface
 
 					// Reinitialize backup service
-					const backupFileService = this.backupFileService as BackupFileService;
-					backupFileService.initialize(result.backupPath);
+					if (this.backupFileService instanceof BackupFileService) {
+						this.backupFileService.initialize(result.backupPath);
+					}
 
 					// Reinitialize configuration service
 					const workspaceImpl = this.contextService as WorkspaceService;

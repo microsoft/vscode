@@ -91,6 +91,7 @@ export default class LanguageProvider {
 		this.disposables.push((await import('./features/referencesCodeLens')).register(selector, this.description.id, this.client, cachedResponse));
 		this.disposables.push((await import('./features/rename')).register(selector, this.client));
 		this.disposables.push((await import('./features/signatureHelp')).register(selector, this.client));
+		this.disposables.push((await import('./features/tagCompletion')).register(selector, this.client));
 		this.disposables.push((await import('./features/typeDefinitions')).register(selector, this.client));
 		this.disposables.push((await import('./features/workspaceSymbols')).register(this.client, this.description.modeIds));
 	}
@@ -154,7 +155,7 @@ export default class LanguageProvider {
 		const reportUnnecessary = config.get<boolean>('showUnused', true);
 		this.diagnosticsManager.diagnosticsReceived(diagnosticsKind, file, diagnostics.filter(diag => {
 			if (!reportUnnecessary) {
-				diag.customTags = undefined;
+				diag.tags = undefined;
 				if (diag.reportUnnecessary && diag.severity === vscode.DiagnosticSeverity.Hint) {
 					return false;
 				}
