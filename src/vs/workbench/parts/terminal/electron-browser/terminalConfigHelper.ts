@@ -137,14 +137,14 @@ export class TerminalConfigHelper implements ITerminalConfigHelper {
 
 		// Get the character dimensions from xterm if it's available
 		if (xterm) {
-			if (xterm.charMeasure && xterm.charMeasure.width && xterm.charMeasure.height) {
+			if (xterm._core.charMeasure && xterm._core.charMeasure.width && xterm._core.charMeasure.height) {
 				return {
 					fontFamily,
 					fontSize,
 					letterSpacing,
 					lineHeight,
-					charHeight: xterm.charMeasure.height,
-					charWidth: xterm.charMeasure.width
+					charHeight: xterm._core.charMeasure.height,
+					charWidth: xterm._core.charMeasure.width
 				};
 			}
 		}
