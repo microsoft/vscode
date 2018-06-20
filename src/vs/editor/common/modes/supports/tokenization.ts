@@ -99,7 +99,7 @@ export function parseTokenTheme(source: ITokenThemeRule[]): ParsedTokenThemeRule
 /**
  * Resolve rules (i.e. inheritance).
  */
-function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]): TokenTheme {
+function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
 
 	// Sort rules lexicographically, and then by index if necessary
 	parsedThemeRules.sort((a, b) => {
@@ -127,9 +127,17 @@ function resolveParsedTokenThemeRules(parsedThemeRules: ParsedTokenThemeRule[]):
 		}
 	}
 	let colorMap = new ColorMap();
-	// ensure default foreground gets id 1 and default background gets id 2
-	let defaults = new ThemeTrieElementRule(defaultFontStyle, colorMap.getId(defaultForeground), colorMap.getId(defaultBackground));
 
+	// ensure default foreground gets id 1 and default background gets id 2
+	let foregroundColorId = colorMap.getId(defaultForeground);
+	let backgroundColorId = colorMap.getId(defaultBackground);
+
+	// start with token colors from custom token themes
+	for (let color of customTokenColors) {
+		colorMap.getId(color);
+	}
+
+	let defaults = new ThemeTrieElementRule(defaultFontStyle, foregroundColorId, backgroundColorId);
 	let root = new ThemeTrieElement(defaults);
 	for (let i = 0, len = parsedThemeRules.length; i < len; i++) {
 		let rule = parsedThemeRules[i];
@@ -177,12 +185,12 @@ export class ColorMap {
 
 export class TokenTheme {
 
-	public static createFromRawTokenTheme(source: ITokenThemeRule[]): TokenTheme {
-		return this.createFromParsedTokenTheme(parseTokenTheme(source));
+	public static createFromRawTokenTheme(source: ITokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return this.createFromParsedTokenTheme(parseTokenTheme(source), customTokenColors);
 	}
 
-	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[]): TokenTheme {
-		return resolveParsedTokenThemeRules(source);
+	public static createFromParsedTokenTheme(source: ParsedTokenThemeRule[], customTokenColors: string[]): TokenTheme {
+		return resolveParsedTokenThemeRules(source, customTokenColors);
 	}
 
 	private readonly _colorMap: ColorMap;

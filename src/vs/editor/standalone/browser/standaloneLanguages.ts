@@ -42,6 +42,11 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 	return result;
 }
 
+export function getLanguageNumericId(languageId: string): number {
+	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	return lid && lid.id;
+}
+
 /**
  * An event emitted when a language is first time needed (e.g. a model has it set).
  * @event
@@ -67,6 +72,31 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 		throw new Error(`Cannot set configuration for unknown language ${languageId}`);
 	}
 	return LanguageConfigurationRegistry.register(languageIdentifier, configuration);
+}
+
+/**
+ * @internal
+ */
+export class BinaryTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+
+	private readonly _actual: BinaryTokensProvider;
+
+	constructor(actual: BinaryTokensProvider) {
+		this._actual = actual;
+	}
+
+	public getInitialState(): modes.IState {
+		return this._actual.getInitialState();
+	}
+
+	public tokenize(line: string, state: modes.IState, offsetDelta: number): TokenizationResult {
+		throw new Error('Not supported!');
+	}
+
+	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
+		let result = this._actual.tokenize2(line, state);
+		return new TokenizationResult2(result.tokens, result.endState);
+	}
 }
 
 /**
@@ -204,6 +234,40 @@ export interface ILineTokens {
 }
 
 /**
+ * The result of a line tokenization.
+ */
+export interface IBinaryLineTokens {
+	/**
+	 * The tokens on the line in binary format. Each token occupies two array indices. For token i:
+	 *  - at offset 2*i => startIndex
+	 *  - at offset 2*i + 1 => metadata
+	 * Meta data is in binary format:
+	 * - -------------------------------------------
+	 *     3322 2222 2222 1111 1111 1100 0000 0000
+	 *     1098 7654 3210 9876 5432 1098 7654 3210
+	 * - -------------------------------------------
+	 *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
+	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
+	 * - -------------------------------------------
+	 *  - L = LanguageNumericId (8 bits)
+	 *  - T = StandardTokenType (3 bits)
+	 *  - F = FontStyle (3 bits)
+	 *  - f = foreground colorId (9 bits)
+	 *  - b = background colorId (9 bits)
+	 *
+	 * - Use `getLanguageNumericId` to get the numeric ID of a language.
+	 * - colorIds must be > 0 and are indexes into the `customTokenColors` property in the IStandaloneThemeData:
+	 * - The color value for colorId = 1 is stored in IStandaloneThemeData.customTokenColors[0].
+	 */
+	tokens: Uint32Array;
+	/**
+	 * The tokenization end state.
+	 * A pointer will be held to this and the object should not be modified by the tokenizer after the pointer is returned.
+	 */
+	endState: modes.IState;
+}
+
+/**
  * A "manual" provider of tokens.
  */
 export interface TokensProvider {
@@ -218,6 +282,20 @@ export interface TokensProvider {
 }
 
 /**
+ * A "manual" provider of tokens, returning tokens in a binary form.
+ */
+export interface BinaryTokensProvider {
+	/**
+	 * The initial state of a language. Will be the state passed in to tokenize the first line.
+	 */
+	getInitialState(): modes.IState;
+	/**
+	 * Tokenize a line given the state at the beginning of the line.
+	 */
+	tokenize2(line: string, state: modes.IState): IBinaryLineTokens;
+}
+
+/**
  * Set the tokens provider for a language (manual implementation).
  */
 export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable {
@@ -227,6 +305,18 @@ export function setTokensProvider(languageId: string, provider: TokensProvider):
 	}
 	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
 	return modes.TokenizationRegistry.register(languageId, adapter);
+}
+
+/**
+ * Set the tokens provider for a language (manual implementation with styled tokens).
+ */
+export function setBinaryTokensProvider(languageId: string, provider: BinaryTokensProvider): IDisposable {
+	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
+	if (!languageIdentifier) {
+		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
+	}
+
+	return modes.TokenizationRegistry.register(languageId, new BinaryTokenizationSupport2Adapter(provider));
 }
 
 /**
@@ -764,10 +854,12 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: register,
 		getLanguages: getLanguages,
 		onLanguage: onLanguage,
+		getLanguageNumericId: getLanguageNumericId,
 
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
 		setTokensProvider: setTokensProvider,
+		setBinaryTokensProvider: setBinaryTokensProvider,
 		setMonarchTokensProvider: setMonarchTokensProvider,
 		registerReferenceProvider: registerReferenceProvider,
 		registerRenameProvider: registerRenameProvider,

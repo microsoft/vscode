@@ -38,6 +38,8 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { Event } from 'vs/base/common/event';
+import { ITheme } from 'vs/platform/theme/common/themeService';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -165,8 +167,8 @@ export function createModel(value: string, language?: string, uri?: URI): ITextM
 /**
  * Change the language for a model.
  */
-export function setModelLanguage(model: ITextModel, language: string): void {
-	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(language));
+export function setModelLanguage(model: ITextModel, languageId: string): void {
+	StaticServices.modelService.get().setMode(model, StaticServices.modeService.get().getOrCreateMode(languageId));
 }
 
 /**
@@ -262,14 +264,14 @@ export function colorizeModelLine(model: ITextModel, lineNumber: number, tabSize
 /**
  * @internal
  */
-function getSafeTokenizationSupport(languageId: string): modes.ITokenizationSupport {
-	let tokenizationSupport = modes.TokenizationRegistry.get(languageId);
+function getSafeTokenizationSupport(language: string): modes.ITokenizationSupport {
+	let tokenizationSupport = modes.TokenizationRegistry.get(language);
 	if (tokenizationSupport) {
 		return tokenizationSupport;
 	}
 	return {
 		getInitialState: () => NULL_STATE,
-		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(languageId, line, state, deltaOffset),
+		tokenize: (line: string, state: modes.IState, deltaOffset: number) => nullTokenize(language, line, state, deltaOffset),
 		tokenize2: undefined,
 	};
 }
@@ -297,11 +299,16 @@ export function tokenize(text: string, languageId: string): Token[][] {
 }
 
 /**
- * Define a new theme.
+ * Define a new theme or updte an existing theme.
  */
 export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void {
 	StaticServices.standaloneThemeService.get().defineTheme(themeName, themeData);
 }
+
+/**
+ * Theme change event.
+ */
+export const onThemeChange: Event<ITheme> = StaticServices.standaloneThemeService.get().onThemeChange;
 
 /**
  * Switches to a theme.
@@ -366,6 +373,7 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		tokenize: tokenize,
 		defineTheme: defineTheme,
 		setTheme: setTheme,
+		onThemeChange: onThemeChange,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,
@@ -394,5 +402,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 
 		// vars
 		EditorType: editorCommon.EditorType
+
 	};
 }

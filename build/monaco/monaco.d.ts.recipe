@@ -60,6 +60,11 @@ declare namespace monaco {
 
 declare namespace monaco.editor {
 
+	export type ThemeType = 'light' | 'dark' | 'hc';
+	export interface ITheme {
+		readonly type: ThemeType;
+	}
+
 #includeAll(vs/editor/standalone/browser/standaloneEditor;modes.=>languages.;editorCommon.=>):
 #include(vs/editor/standalone/common/standaloneThemeService): BuiltinTheme, IStandaloneThemeData, IColors
 #include(vs/editor/common/modes/supports/tokenization): ITokenThemeRule

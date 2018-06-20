@@ -17,6 +17,7 @@ export interface IStandaloneThemeData {
 	base: BuiltinTheme;
 	inherit: boolean;
 	rules: ITokenThemeRule[];
+	customTokenColors?: string[];
 	colors: IColors;
 }
 
