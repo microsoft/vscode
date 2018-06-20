@@ -376,11 +376,6 @@ export interface IExtensionEnablementService {
 	setEnablement(extension: ILocalExtension, state: EnablementState): TPromise<boolean>;
 }
 
-export interface IIgnoredRecommendations {
-	global: string[];
-	workspace: string[];
-}
-
 export interface IExtensionsConfigContent {
 	recommendations: string[];
 	unwantedRecommendations: string[];
@@ -402,8 +397,7 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): string[];
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
-	getAllIgnoredRecommendations(): IIgnoredRecommendations;
-	ignoreExtensionRecommendation(extensionId: string): void;
+	toggleExtensionRecommendation(extensionId: string, shouldRecommend: boolean): void;
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
