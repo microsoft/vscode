@@ -89,7 +89,8 @@ export namespace Sizing {
 export class SplitView implements IDisposable {
 
 	readonly orientation: Orientation;
-	private el: HTMLElement;
+	// TODO@Joao have the same pattern as grid here
+	readonly el: HTMLElement;
 	private sashContainer: HTMLElement;
 	private viewContainer: HTMLElement;
 	private size = 0;

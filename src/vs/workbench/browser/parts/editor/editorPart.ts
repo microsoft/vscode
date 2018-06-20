@@ -8,12 +8,12 @@
 import 'vs/workbench/browser/parts/editor/editor.contribution';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { Part } from 'vs/workbench/browser/part';
-import { Dimension, isAncestor, toggleClass, addClass } from 'vs/base/browser/dom';
+import { Dimension, isAncestor, toggleClass, addClass, $ } from 'vs/base/browser/dom';
 import { Event, Emitter, once, Relay, anyEvent } from 'vs/base/common/event';
 import { contrastBorder, editorBackground } from 'vs/platform/theme/common/colorRegistry';
 import { GroupDirection, IAddGroupOptions, GroupsArrangement, GroupOrientation, IMergeGroupOptions, MergeGroupMode, ICopyEditorOptions, GroupsOrder, GroupChangeKind, GroupLocation, IFindGroupScope, EditorGroupLayout, GroupLayoutArgument } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid } from 'vs/base/browser/ui/grid/grid';
+import { Direction, SerializableGrid, Sizing, ISerializedGrid, Orientation, ISerializedNode, GridBranchNode, isGridBranchNode, GridNode, createSerializedGrid, Grid } from 'vs/base/browser/ui/grid/grid';
 import { GroupIdentifier, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
 import { values } from 'vs/base/common/map';
 import { EDITOR_GROUP_BORDER } from 'vs/workbench/common/theme';
@@ -41,6 +41,48 @@ interface IEditorPartUIState {
 	serializedGrid: ISerializedGrid;
 	activeGroup: GroupIdentifier;
 	mostRecentActiveGroups: GroupIdentifier[];
+}
+
+class GridWidgetView<T extends IView> implements IView {
+
+	readonly element: HTMLElement = $('.grid-view-container');
+
+	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
+	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
+	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
+	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+
+	private _onDidChange = new Relay<{ width: number; height: number; }>();
+	readonly onDidChange: Event<{ width: number; height: number; }> = this._onDidChange.event;
+
+	private _gridWidget: Grid<T>;
+
+	get gridWidget(): Grid<T> {
+		return this._gridWidget;
+	}
+
+	set gridWidget(grid: Grid<T>) {
+		this.element.innerHTML = '';
+
+		if (grid) {
+			this.element.appendChild(grid.element);
+			this._onDidChange.input = grid.onDidChange;
+		} else {
+			this._onDidChange.input = Event.None;
+		}
+
+		this._gridWidget = grid;
+	}
+
+	layout(width: number, height: number): void {
+		if (this.gridWidget) {
+			this.gridWidget.layout(width, height);
+		}
+	}
+
+	dispose(): void {
+		this._onDidChange.dispose();
+	}
 }
 
 export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditorGroupsAccessor {
@@ -91,6 +133,7 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 	private container: HTMLElement;
 	private centeredLayoutWidget: CenteredViewLayout;
 	private gridWidget: SerializableGrid<IEditorGroupView>;
+	private gridWidgetView: GridWidgetView<IEditorGroupView>;
 
 	private _whenRestored: TPromise<void>;
 	private whenRestoredComplete: TValueCallback<void>;
@@ -109,6 +152,8 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		@ILifecycleService private lifecycleService: ILifecycleService
 	) {
 		super(id, { hasTitle: false }, themeService);
+
+		this.gridWidgetView = new GridWidgetView<IEditorGroupView>();
 
 		this._partOptions = getEditorPartOptions(this.configurationService.getValue<IWorkbenchEditorConfiguration>());
 		this.memento = this.getMemento(this.storageService, Scope.WORKSPACE);
@@ -720,24 +765,13 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Grid control with center layout
 		this.doCreateGridControl();
-		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.getGridAsView(), this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
+
+		this.centeredLayoutWidget = this._register(new CenteredViewLayout(this.container, this.gridWidgetView, this.globalMemento[EditorPart.EDITOR_PART_CENTERED_VIEW_STORAGE_KEY]));
 
 		// Drop support
 		this._register(this.instantiationService.createInstance(EditorDropTarget, this, this.container));
 
 		return this.container;
-	}
-
-	private getGridAsView(): IView {
-		return {
-			element: this.gridWidget.element,
-			layout: (width, height) => this.gridWidget.layout(width, height),
-			minimumWidth: this.gridWidget.minimumWidth,
-			maximumWidth: this.gridWidget.maximumWidth,
-			minimumHeight: this.gridWidget.minimumHeight,
-			maximumHeight: this.gridWidget.minimumHeight,
-			onDidChange: this.gridWidget.onDidChange
-		};
 	}
 
 	centerLayout(active: boolean): void {
@@ -838,12 +872,9 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 		}
 
 		this.gridWidget = gridWidget;
+		this.gridWidgetView.gridWidget = gridWidget;
 
 		if (gridWidget) {
-			if (this.centeredLayoutWidget) {
-				this.centeredLayoutWidget.resetView(this.getGridAsView());
-			}
-
 			this._onDidSizeConstraintsChange.input = gridWidget.onDidChange;
 		}
 
