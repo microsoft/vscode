@@ -63,6 +63,7 @@ export class TextFileService extends AbstractTextFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: res
 				};
 				return r;

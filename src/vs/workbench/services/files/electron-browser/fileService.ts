@@ -273,6 +273,7 @@ export class FileService implements IFileService {
 					mtime: streamContent.mtime,
 					etag: streamContent.etag,
 					encoding: streamContent.encoding,
+					isReadonly: streamContent.isReadonly,
 					value: ''
 				};
 
@@ -302,6 +303,7 @@ export class FileService implements IFileService {
 			mtime: void 0,
 			etag: void 0,
 			encoding: void 0,
+			isReadonly: false,
 			value: void 0
 		};
 

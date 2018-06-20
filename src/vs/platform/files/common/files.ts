@@ -399,6 +399,11 @@ export interface IBaseStat {
 	 * current state of the file or directory.
 	 */
 	etag: string;
+
+	/**
+	 * The resource is readonly.
+	 */
+	isReadonly?: boolean;
 }
 
 /**
@@ -411,11 +416,6 @@ export interface IFileStat extends IBaseStat {
 	 * {{encoding}} has no meaning.
 	 */
 	isDirectory: boolean;
-
-	/**
-	 * The resource is readonly.
-	 */
-	isReadonly?: boolean;
 
 	/**
 	 * The resource is a symbolic link.
