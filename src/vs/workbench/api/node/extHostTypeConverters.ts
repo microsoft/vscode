@@ -274,7 +274,7 @@ export namespace WorkspaceEdit {
 		const result: WorkspaceEditDto = {
 			edits: []
 		};
-		for (const entry of (value as types.WorkspaceEdit).allEntries()) {
+		for (const entry of (value as types.WorkspaceEdit)._allEntries()) {
 			const [uri, uriOrEdits] = entry;
 			if (Array.isArray(uriOrEdits)) {
 				// text edits

@@ -593,7 +593,7 @@ export class WorkspaceEdit implements vscode.WorkspaceEdit {
 		return values(textEdits);
 	}
 
-	allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] {
+	_allEntries(): ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] {
 		let res: ([URI, TextEdit[]] | [URI, URI, { overwrite?: boolean, ignoreIfExists?: boolean }])[] = [];
 		for (let edit of this._edits) {
 			if (edit._type === 1) {
