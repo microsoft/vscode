@@ -127,7 +127,7 @@ phases:
 
   - powershell: |
       $ErrorActionPreference = "Stop"
-      npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-archive" "vscode-win32-$(VSCODE_ARCH)-setup"
+      npm run gulp -- "vscode-win32-$(VSCODE_ARCH)-archive" "vscode-win32-$(VSCODE_ARCH)-system-setup" "vscode-win32-$(VSCODE_ARCH)-user-setup"
 
   - task: SFP.build-tasks.custom-build-task-1.EsrpCodeSigning@1
     inputs:
@@ -212,7 +212,8 @@ phases:
       $ErrorActionPreference = "Stop"
       $Repo = "$(pwd)"
       $Root = "$Repo\.."
-      $Exe = "$Repo\.build\win32-$(VSCODE_ARCH)\setup\VSCodeSetup.exe"
+      $SystemExe = "$Repo\.build\win32-$(VSCODE_ARCH)\system-setup\VSCodeSetup.exe"
+      $UserExe = "$Repo\.build\win32-$(VSCODE_ARCH)\user-setup\VSCodeSetup.exe"
       $Zip = "$Repo\.build\win32-$(VSCODE_ARCH)\archive\VSCode-win32-$(VSCODE_ARCH).zip"
       $Build = "$Root\VSCode-win32-$(VSCODE_ARCH)"
 
@@ -227,7 +228,8 @@ phases:
       $assetPlatform = if ("$(VSCODE_ARCH)" -eq "ia32") { "win32" } else { "win32-x64" }
 
       node build/tfs/common/publish.js $Quality "$global:assetPlatform-archive" archive "VSCode-win32-$(VSCODE_ARCH)-$Version.zip" $Version true $Zip
-      node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $Exe
+      node build/tfs/common/publish.js $Quality "$global:assetPlatform" setup "VSCodeSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $SystemExe
+      node build/tfs/common/publish.js $Quality "$global:assetPlatform" user-setup "VSCodeUserSetup-$(VSCODE_ARCH)-$Version.exe" $Version true $UserExe
 
       # publish hockeyapp symbols
       $hockeyAppId = if ("$(VSCODE_ARCH)" -eq "ia32") { "$(VSCODE_HOCKEYAPP_ID_WIN32)" } else { "$(VSCODE_HOCKEYAPP_ID_WIN64)" }

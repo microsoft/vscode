@@ -21,7 +21,7 @@ const repoPath = path.dirname(__dirname);
 const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
 const zipDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'archive');
 const zipPath = arch => path.join(zipDir(arch), `VSCode-win32-${arch}.zip`);
-const setupDir = arch => path.join(repoPath, '.build', `win32-${arch}`, 'setup');
+const setupDir = (arch, target) => path.join(repoPath, '.build', `win32-${arch}`, `${target}-setup`);
 const issPath = path.join(__dirname, 'win32', 'code.iss');
 const innoSetupPath = path.join(path.dirname(path.dirname(require.resolve('innosetup-compiler'))), 'bin', 'ISCC.exe');
 
@@ -42,15 +42,19 @@ function packageInnoSetup(iss, options, cb) {
 	const defs = keys.map(key => `/d${key}=${definitions[key]}`);
 	const args = [iss].concat(defs);
 
-	cp.spawn(innoSetupPath, args, { stdio: 'inherit' })
+	cp.spawn(innoSetupPath, args, { stdio: ['ignore', 'ignore', 'inherit'] })
 		.on('error', cb)
 		.on('exit', () => cb(null));
 }
 
-function buildWin32Setup(arch) {
+function buildWin32Setup(arch, target) {
+	if (target !== 'system' && target !== 'user') {
+		throw new Error('Invalid setup target');
+	}
+
 	return cb => {
-		const ia32AppId = product.win32AppId;
-		const x64AppId = product.win32x64AppId;
+		const ia32AppId = target === 'system' ? product.win32AppId : product.win32UserAppId;
+		const x64AppId = target === 'system' ? product.win32x64AppId : product.win32x64UserAppId;
 
 		const definitions = {
 			NameLong: product.nameLong,
@@ -71,19 +75,23 @@ function buildWin32Setup(arch) {
 			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
 			SourceDir: buildPath(arch),
 			RepoDir: repoPath,
-			OutputDir: setupDir(arch),
-			InstallTarget: 'system'
+			OutputDir: setupDir(arch, target),
+			InstallTarget: target
 		};
 
 		packageInnoSetup(issPath, { definitions }, cb);
 	};
 }
 
-gulp.task('clean-vscode-win32-ia32-setup', util.rimraf(setupDir('ia32')));
-gulp.task('vscode-win32-ia32-setup', ['clean-vscode-win32-ia32-setup'], buildWin32Setup('ia32'));
+function defineWin32SetupTasks(arch, target) {
+	gulp.task(`clean-vscode-win32-${arch}-${target}-setup`, util.rimraf(setupDir(arch, target)));
+	gulp.task(`vscode-win32-${arch}-${target}-setup`, [`clean-vscode-win32-${arch}-${target}-setup`], buildWin32Setup(arch, target));
+}
 
-gulp.task('clean-vscode-win32-x64-setup', util.rimraf(setupDir('x64')));
-gulp.task('vscode-win32-x64-setup', ['clean-vscode-win32-x64-setup'], buildWin32Setup('x64'));
+defineWin32SetupTasks('ia32', 'system');
+defineWin32SetupTasks('x64', 'system');
+defineWin32SetupTasks('ia32', 'user');
+defineWin32SetupTasks('x64', 'user');
 
 function archiveWin32Setup(arch) {
 	return cb => {
