@@ -6201,7 +6201,7 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selection: ReadonlyArray<T>;
+		readonly selection: T[];
 
 		/**
 		 * Event that is fired when the [selection](#TreeView.selection) has changed
@@ -6304,14 +6304,9 @@ declare module 'vscode' {
 		tooltip?: string | undefined;
 
 		/**
-		 * The [command](#Command) that should run when the user selects the tree item.
+		 * The [command](#Command) that should be executed when the tree item is selected.
 		 */
 		command?: Command;
-
-		/**
-		 * The [command](#Command) that should run when the user double clicks on the tree item.
-		 */
-		doubleClickCommand?: Command;
 
 		/**
 		 * [TreeItemCollapsibleState](#TreeItemCollapsibleState) of the tree item.
