@@ -110,11 +110,11 @@
 }
 
 .settings-editor > .settings-body .settings-toc-container {
-	width: 200px;
+	width: 175px;
 	margin-right: 5px;
 }
 
-.search-mode .settings-toc-container .monaco-tree {
+.search-mode .settings-toc-container {
 	display: none;
 }
 
@@ -207,8 +207,6 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > *:first-child {
 	width: 100%;
-	min-width: 250px;
-	display: inline-block;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
@@ -255,7 +253,7 @@
 	padding-right: 10px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .settings-group-title,
+.settings-editor > .settings-body > .settings-tree-container .group-title,
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	padding-left: 5px;
 }
