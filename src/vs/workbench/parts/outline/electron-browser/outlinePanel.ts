@@ -549,7 +549,7 @@ export class OutlinePanel extends ViewletPanel {
 		// feature: reveal outline selection in editor
 		// on change -> reveal/select defining range
 		this._editorDisposables.push(this._tree.onDidChangeSelection(e => {
-			if (e.payload === this || e.payload && !e.payload.didClickElement) {
+			if (e.payload === this || e.payload && e.payload.didClickOnTwistie) {
 				return;
 			}
 			let [first] = e.selection;
