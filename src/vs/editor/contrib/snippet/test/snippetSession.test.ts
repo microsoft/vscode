@@ -486,6 +486,46 @@ suite('SnippetSession', function () {
 		assertSelections(editor, new Selection(2, 1, 2, 1));
 	});
 
+	test('snippets, transform with indent', function () {
+		const snippet = [
+			'private readonly ${1} = new Emitter<$2>();',
+			'readonly ${1/^_(.*)/$1/}: Event<$2> = this.$1.event;',
+			'$0'
+		].join('\n');
+		const expected = [
+			'{',
+			'\tprivate readonly _prop = new Emitter<string>();',
+			'\treadonly prop: Event<string> = this._prop.event;',
+			'\t',
+			'}'
+		].join('\n');
+		const base = [
+			'{',
+			'\t',
+			'}'
+		].join('\n');
+
+		editor.getModel().setValue(base);
+		editor.getModel().updateOptions({ insertSpaces: false });
+		editor.setSelection(new Selection(2, 2, 2, 2));
+
+		const session = new SnippetSession(editor, snippet);
+		session.insert();
+
+		assertSelections(editor, new Selection(2, 19, 2, 19), new Selection(3, 11, 3, 11), new Selection(3, 28, 3, 28));
+		editor.trigger('test', 'type', { text: '_prop' });
+		session.next();
+
+		assertSelections(editor, new Selection(2, 39, 2, 39), new Selection(3, 23, 3, 23));
+		editor.trigger('test', 'type', { text: 'string' });
+		session.next();
+
+		assert.equal(model.getValue(), expected);
+		assert.equal(session.isAtLastPlaceholder, true);
+		assertSelections(editor, new Selection(4, 2, 4, 2));
+
+	});
+
 	test('snippets, transform example hit if', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
