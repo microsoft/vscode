@@ -101,7 +101,6 @@
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	margin-top: 5px;
 	max-width: 1000px;
 }
 
@@ -115,7 +114,7 @@
 }
 
 .search-mode .settings-toc-container {
-	/* display: none; */
+	display: none;
 }
 
 .settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry {

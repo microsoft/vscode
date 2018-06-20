@@ -8,10 +8,12 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IRenderer, ITree } from 'vs/base/parts/tree/browser/tree';
 import { SearchResultModel, SettingsTreeElement, SettingsTreeGroupElement, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { ISetting } from 'vs/workbench/services/preferences/common/preferences';
+import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 
 const $ = DOM.$;
 
 export class TOCTreeModel {
+
 	private _currentSearchModel: SearchResultModel;
 	private _settingsTreeRoot: SettingsTreeGroupElement;
 
@@ -67,6 +69,11 @@ export class TOCTreeModel {
 export type TOCTreeElement = SettingsTreeGroupElement | TOCTreeModel;
 
 export class TOCDataSource implements IDataSource {
+	constructor(
+		@IConfigurationService private configService: IConfigurationService
+	) {
+	}
+
 	getId(tree: ITree, element: SettingsTreeGroupElement): string {
 		return element.id;
 	}
@@ -77,7 +84,18 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	getChildren(tree: ITree, element: TOCTreeElement): TPromise<SettingsTreeElement[], any> {
-		return TPromise.as(<SettingsTreeElement[]>element.children);
+		return TPromise.as(this._getChildren(element));
+	}
+
+	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
+		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'filter') {
+			const children = element.children as SettingsTreeElement[]; // ????
+			return children.filter(group => {
+				return (<any>group).count !== 0;
+			});
+		}
+
+		return element.children;
 	}
 
 	getParent(tree: ITree, element: TOCTreeElement): TPromise<any, any> {
@@ -96,6 +114,11 @@ interface ITOCEntryTemplate {
 }
 
 export class TOCRenderer implements IRenderer {
+	constructor(
+		@IConfigurationService private configService: IConfigurationService
+	) {
+	}
+
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		return 22;
 	}
@@ -115,7 +138,10 @@ export class TOCRenderer implements IRenderer {
 			`${element.label} (${(<any>element).count})` :
 			element.label;
 
-		DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
+		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'show') {
+			DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
+		}
+
 		template.element.textContent = label;
 	}
 

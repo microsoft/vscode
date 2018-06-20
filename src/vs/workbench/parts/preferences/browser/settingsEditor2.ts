@@ -468,7 +468,10 @@ export class SettingsEditor2 extends BaseEditor {
 	}
 
 	private toggleSearchMode(): void {
-		DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
+		DOM.removeClass(this.rootElement, 'search-mode');
+		if (this.configurationService.getValue('workbench.settings.settingsSearchTocBehavior') === 'hide') {
+			DOM.toggleClass(this.rootElement, 'search-mode', !!this.searchResultModel);
+		}
 	}
 
 	private onConfigUpdate(): TPromise<void> {
