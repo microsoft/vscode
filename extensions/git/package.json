@@ -880,9 +880,9 @@
           "description": "%config.autorefresh%",
           "default": true
         },
-        "git.refreshSymbol": {
+        "git.refreshIcon": {
           "type": "boolean",
-          "description": "%config.refreshSymbol%",
+          "description": "%config.refreshIcon%",
           "default": true
         },
         "git.autofetch": {
