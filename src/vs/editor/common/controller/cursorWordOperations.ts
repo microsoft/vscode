@@ -10,6 +10,7 @@ import { WordCharacterClassifier, WordCharacterClass, getMapForWordSeparators } 
 import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { Selection } from 'vs/editor/common/core/selection';
+import { CharCode } from 'vs/base/common/charCode';
 
 interface IFindWordResult {
 	/**
@@ -464,6 +465,30 @@ export class WordOperations {
 	}
 }
 
+export function _lastWordPartEnd(str: string, startIndex: number = str.length - 1): number {
+	for (let i = startIndex; i >= 0; i--) {
+		let chCode = str.charCodeAt(i);
+		if (chCode === CharCode.Space || chCode === CharCode.Tab || strings.isUpperAsciiLetter(chCode) || chCode === CharCode.Underline) {
+			return i - 1;
+		}
+	}
+	return -1;
+}
+
+export function _nextWordPartBegin(str: string, startIndex: number = str.length - 1): number {
+	const checkLowerCase = str.charCodeAt(startIndex - 1) === CharCode.Space; // does a lc char count as a part start?
+	for (let i = startIndex; i < str.length; ++i) {
+		let chCode = str.charCodeAt(i);
+		if (chCode === CharCode.Space || chCode === CharCode.Tab || strings.isUpperAsciiLetter(chCode) || (checkLowerCase && strings.isLowerAsciiLetter(chCode))) {
+			return i + 1;
+		}
+		if (chCode === CharCode.Underline) {
+			return i + 2;
+		}
+	}
+	return str.length + 1;
+}
+
 export class WordPartOperations extends WordOperations {
 	public static deleteWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
 		if (!selection.isEmpty()) {
@@ -471,9 +496,8 @@ export class WordPartOperations extends WordOperations {
 		}
 
 		const position = new Position(selection.positionLineNumber, selection.positionColumn);
-
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+		const lineNumber = position.lineNumber;
+		const column = position.column;
 
 		if (lineNumber === 1 && column === 1) {
 			// Ignore deleting at beginning of file
@@ -487,19 +511,14 @@ export class WordPartOperations extends WordOperations {
 			}
 		}
 
-		const lineContent = model.getLineContent(position.lineNumber);
-		const startIndex = position.column - 2;
-		const lastWordPartEnd = strings.lastWordPartEnd(lineContent, startIndex);
 		const wordRange = WordOperations.deleteWordLeft(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		const lastWordPartEnd = _lastWordPartEnd(model.getLineContent(position.lineNumber), position.column - 2);
+		const wordPartRange = new Range(lineNumber, column, lineNumber, lastWordPartEnd + 2);
 
-		if (lastWordPartEnd === -1 || (wordRange.startColumn > lastWordPartEnd && wordRange.startColumn < column)) {
+		if (wordPartRange.getStartPosition().isBeforeOrEqual(wordRange.getStartPosition())) {
 			return wordRange;
 		}
-		else {
-			const range = new Range(lineNumber, column, lineNumber, lastWordPartEnd + 2);
-			return range;
-		}
-
+		return wordPartRange;
 	}
 
 	public static deleteWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, selection: Selection, whitespaceHeuristics: boolean, wordNavigationType: WordNavigationType): Range {
@@ -508,9 +527,8 @@ export class WordPartOperations extends WordOperations {
 		}
 
 		const position = new Position(selection.positionLineNumber, selection.positionColumn);
-
-		let lineNumber = position.lineNumber;
-		let column = position.column;
+		const lineNumber = position.lineNumber;
+		const column = position.column;
 
 		const lineCount = model.getLineCount();
 		const maxColumn = model.getLineMaxColumn(lineNumber);
@@ -526,64 +544,48 @@ export class WordPartOperations extends WordOperations {
 			}
 		}
 
-		const lineContent = model.getLineContent(position.lineNumber);
-		const startIndex = position.column;
-		const nextWordPartBegin = strings.nextWordPartBegin(lineContent, startIndex);
 		const wordRange = WordOperations.deleteWordRight(wordSeparators, model, selection, whitespaceHeuristics, wordNavigationType);
+		const nextWordPartBegin = _nextWordPartBegin(model.getLineContent(position.lineNumber), position.column);
+		const wordPartRange = new Range(lineNumber, column, lineNumber, nextWordPartBegin);
 
-		if (nextWordPartBegin === -1 || (wordRange && wordRange.endColumn < nextWordPartBegin && wordRange.endColumn >= column)) {
+		if (wordRange.getEndPosition().isBeforeOrEqual(wordPartRange.getEndPosition())) {
 			return wordRange;
 		}
-		else {
-			return new Range(lineNumber, column, lineNumber, nextWordPartBegin);
-		}
+		return wordPartRange;
 	}
 
 	public static moveWordPartLeft(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		const startIndex = position.column - 2;
 		const lineNumber = position.lineNumber;
 		const column = position.column;
-		const wordPartCol = strings.lastWordPartEnd(model.getLineContent(lineNumber), startIndex);
-		const wordPos = WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
-
 		if (column === 1) {
-			if (lineNumber > 1) {
-				return new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1));
-			}
-			return null;
+			return (lineNumber > 1 ? new Position(lineNumber - 1, model.getLineMaxColumn(lineNumber - 1)) : position);
 		}
 
-		if (wordPartCol === -1 || (wordPos.column > wordPartCol && wordPos.column < column && wordPos.lineNumber === lineNumber)) {
+		const wordPos = WordOperations.moveWordLeft(wordSeparators, model, position, wordNavigationType);
+		const lastWordPartEnd = _lastWordPartEnd(model.getLineContent(lineNumber), column - 2);
+		const wordPartPos = new Position(lineNumber, lastWordPartEnd + 2);
+
+		if (wordPartPos.isBeforeOrEqual(wordPos)) {
 			return wordPos;
 		}
-		else {
-			return new Position(lineNumber, wordPartCol + 2);
-		}
+		return wordPartPos;
 	}
 
 	public static moveWordPartRight(wordSeparators: WordCharacterClassifier, model: ICursorSimpleModel, position: Position, wordNavigationType: WordNavigationType): Position {
-		const startIndex = position.column;
 		const lineNumber = position.lineNumber;
 		const column = position.column;
-		const wordPartCol = strings.nextWordPartBegin(model.getLineContent(lineNumber), startIndex);
-		const wordPos = WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
-
-		const lineCount = model.getLineCount();
 		const maxColumn = model.getLineMaxColumn(lineNumber);
 		if (column === maxColumn) {
-			if (lineNumber < lineCount) {
-				return new Position(lineNumber + 1, 1);
-			}
-			return null;
+			return (lineNumber < model.getLineCount() ? new Position(lineNumber + 1, 1) : position);
 		}
 
+		const wordPos = WordOperations.moveWordRight(wordSeparators, model, position, wordNavigationType);
+		const nextWordPartBegin = _nextWordPartBegin(model.getLineContent(lineNumber), column);
+		const wordPartPos = new Position(lineNumber, nextWordPartBegin);
 
-		if (wordPartCol === -1 || (wordPos.column < wordPartCol && wordPos.column > column && wordPos.lineNumber === lineNumber)) {
+		if (wordPos.isBeforeOrEqual(wordPartPos)) {
 			return wordPos;
 		}
-		else {
-			return new Position(lineNumber, wordPartCol);
-		}
+		return wordPartPos;
 	}
-
 }

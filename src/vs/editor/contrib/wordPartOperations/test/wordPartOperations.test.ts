@@ -144,10 +144,12 @@ suite('WordPartOperations', () => {
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5-3 */  ', '013');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5-3 */', '014');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5-3 ', '015');
+			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5-3', '015bis');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5-', '016');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +5', '017');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 +', '018');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3 ', '019');
+			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= 3', '019bis');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+= ', '020');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a+=', '021');
 			deleteWordPartLeft(editor); assert.equal(model.getLineContent(1), '   /* Just some text a', '022');

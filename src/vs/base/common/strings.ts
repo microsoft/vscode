@@ -280,30 +280,6 @@ export function lastNonWhitespaceIndex(str: string, startIndex: number = str.len
 	return -1;
 }
 
-export function lastWordPartEnd(str: string, startIndex: number = str.length - 1): number {
-	for (let i = startIndex; i >= 0; i--) {
-		let chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || isUpperAsciiLetter(chCode) || chCode === CharCode.Underline) {
-			return i - 1;
-		}
-	}
-	return -1;
-}
-
-export function nextWordPartBegin(str: string, startIndex: number = str.length - 1): number {
-	const checkLowerCase = str.charCodeAt(startIndex - 1) === CharCode.Space; // does a lc char count as a part start?
-	for (let i = startIndex; i < str.length; ++i) {
-		let chCode = str.charCodeAt(i);
-		if (chCode === CharCode.Space || chCode === CharCode.Tab || isUpperAsciiLetter(chCode) || (checkLowerCase && isLowerAsciiLetter(chCode))) {
-			return i + 1;
-		}
-		if (chCode === CharCode.Underline) {
-			return i + 2;
-		}
-	}
-	return -1;
-}
-
 export function compare(a: string, b: string): number {
 	if (a < b) {
 		return -1;
@@ -357,11 +333,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
