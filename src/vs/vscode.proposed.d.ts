@@ -624,6 +624,10 @@ declare module 'vscode' {
 		createFile(uri: Uri): void;
 		deleteFile(uri: Uri): void;
 		renameFile(oldUri: Uri, newUri: Uri): void;
+
+		// replaceText(uri: Uri, range: Range, newText: string): void;
+		// insertText(uri: Uri, position: Position, newText: string): void;
+		// deleteText(uri: Uri, range: Range): void;
 	}
 
 	//#endregion
