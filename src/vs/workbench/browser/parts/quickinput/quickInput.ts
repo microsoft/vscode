@@ -215,7 +215,9 @@ class QuickInput implements IQuickInput {
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = TPromise.timeout(800);
 			this.busyDelay.then(() => {
-				this.ui.progressBar.infinite();
+				if (this.visible) {
+					this.ui.progressBar.infinite();
+				}
 			}, () => { /* ignore */ });
 		}
 		if (!this.busy && this.busyDelay) {
