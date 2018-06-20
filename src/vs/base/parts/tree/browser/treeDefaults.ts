@@ -211,13 +211,20 @@ export class DefaultController implements _.IController {
 	}
 
 	protected isClickOnTwistie(event: mouse.IMouseEvent): boolean {
-		const target = event.target as HTMLElement;
+		let element = event.target as HTMLElement;
 
-		// There is no way to find out if the ::before element is clicked where
-		// the twistie is drawn, but the <div class="content"> element in the
-		// tree item is the only thing we get back as target when the user clicks
-		// on the twistie.
-		return target && dom.hasClass(target, 'content') && dom.hasClass(target.parentElement, 'monaco-tree-row');
+		if (!dom.hasClass(element, 'content')) {
+			return false;
+		}
+
+		const twistieStyle = window.getComputedStyle(element, ':before');
+
+		if (twistieStyle.backgroundImage === 'none' || twistieStyle.display === 'none') {
+			return false;
+		}
+
+		const twistieWidth = parseInt(twistieStyle.width) + parseInt(twistieStyle.paddingRight);
+		return event.browserEvent.offsetX <= twistieWidth;
 	}
 
 	public onContextMenu(tree: _.ITree, element: any, event: _.ContextMenuEvent): boolean {
