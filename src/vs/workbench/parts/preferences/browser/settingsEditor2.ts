@@ -243,7 +243,11 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 
 		this._register(this.tocTree.onDidChangeSelection(e => {
-			if (this.settingsTreeModel) {
+			if (this.searchResultModel) {
+				const element = e.selection[0];
+				this.viewState.filterToCategory = element;
+				this.refreshTreeAndMaintainFocus();
+			} else if (this.settingsTreeModel) {
 				const element = e.selection[0];
 				const currentSelection = this.settingsTree.getSelection()[0];
 				const isEqualOrParent = (element: SettingsTreeElement, candidate: SettingsTreeElement) => {
@@ -550,6 +554,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 			this.searchResultModel = null;
 			this.tocTreeModel.currentSearchModel = null;
+			this.viewState.filterToCategory = null;
 			this.tocTree.refresh();
 			this.toggleSearchMode();
 			this.settingsTree.setInput(this.settingsTreeModel.root);

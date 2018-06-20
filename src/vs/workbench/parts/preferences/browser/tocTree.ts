@@ -114,11 +114,6 @@ interface ITOCEntryTemplate {
 }
 
 export class TOCRenderer implements IRenderer {
-	constructor(
-		@IConfigurationService private configService: IConfigurationService
-	) {
-	}
-
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		return 22;
 	}
@@ -138,10 +133,7 @@ export class TOCRenderer implements IRenderer {
 			`${element.label} (${(<any>element).count})` :
 			element.label;
 
-		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'show') {
-			DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
-		}
-
+		DOM.toggleClass(template.element, 'no-results', (<any>element).count === 0);
 		template.element.textContent = label;
 	}
 
