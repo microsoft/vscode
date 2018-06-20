@@ -75,7 +75,7 @@ export interface IGridViewOptions {
 class BranchNode implements ISplitView, IDisposable {
 
 	readonly element: HTMLElement;
-	readonly children: Node[];
+	readonly children: Node[] = [];
 	private splitview: SplitView;
 
 	private _size: number;
@@ -127,8 +127,9 @@ class BranchNode implements ISplitView, IDisposable {
 		return this.orientation === Orientation.HORIZONTAL ? this.maximumSize : this.maximumOrthogonalSize;
 	}
 
-	private _onDidChange: Emitter<number | undefined>;
-	get onDidChange(): Event<number | undefined> { return this._onDidChange.event; }
+	private _onDidChange = new Emitter<number | undefined>();
+	readonly onDidChange: Event<number | undefined> = this._onDidChange.event;
+
 	private childrenChangeDisposable: IDisposable = EmptyDisposable;
 
 	private _onDidSashReset = new Emitter<number[]>();
@@ -150,9 +151,6 @@ class BranchNode implements ISplitView, IDisposable {
 		this._styles = styles;
 		this._size = size;
 		this._orthogonalSize = orthogonalSize;
-
-		this._onDidChange = new Emitter<number | undefined>();
-		this.children = [];
 
 		this.element = $('.monaco-grid-branch-node');
 		this.splitview = new SplitView(this.element, { orientation, styles });
@@ -297,11 +295,44 @@ class BranchNode implements ISplitView, IDisposable {
 			return EmptyDisposable;
 		}
 
+		const [firstChild, secondChild] = this.children;
+		const [otherFirstChild, otherSecondChild] = other.children;
+
+		if (!(firstChild instanceof LeafNode) || !(secondChild instanceof LeafNode)) {
+			return EmptyDisposable;
+		}
+
+		if (!(otherFirstChild instanceof LeafNode) || !(otherSecondChild instanceof LeafNode)) {
+			return EmptyDisposable;
+		}
+
+		if (this.orientation === Orientation.VERTICAL) {
+			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = firstChild;
+			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = secondChild;
+			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = otherFirstChild;
+			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = otherSecondChild;
+		} else {
+			otherFirstChild.linkedWidthNode = secondChild.linkedHeightNode = firstChild;
+			otherSecondChild.linkedWidthNode = firstChild.linkedHeightNode = secondChild;
+			firstChild.linkedWidthNode = otherSecondChild.linkedHeightNode = otherFirstChild;
+			secondChild.linkedWidthNode = otherFirstChild.linkedHeightNode = otherSecondChild;
+		}
+
 		const mySash = this.splitview.sashes[0];
 		const otherSash = other.splitview.sashes[0];
 		mySash.linkedSash = otherSash;
 		otherSash.linkedSash = mySash;
-		return toDisposable(() => mySash.linkedSash = otherSash.linkedSash = undefined);
+
+		this._onDidChange.fire();
+		other._onDidChange.fire();
+
+		return toDisposable(() => {
+			mySash.linkedSash = otherSash.linkedSash = undefined;
+			firstChild.linkedHeightNode = firstChild.linkedWidthNode = undefined;
+			secondChild.linkedHeightNode = secondChild.linkedWidthNode = undefined;
+			otherFirstChild.linkedHeightNode = otherFirstChild.linkedWidthNode = undefined;
+			otherSecondChild.linkedHeightNode = otherSecondChild.linkedWidthNode = undefined;
+		});
 	}
 
 	dispose(): void {
@@ -326,12 +357,37 @@ class LeafNode implements ISplitView, IDisposable {
 
 	readonly onDidSashReset: Event<number[]> = Event.None;
 
+	private _onDidLinkedWidthNodeChange = new Relay<number | undefined>();
+	private _linkedWidthNode: LeafNode | undefined = undefined;
+	get linkedWidthNode(): LeafNode | undefined { return this._linkedWidthNode; }
+	set linkedWidthNode(node: LeafNode | undefined) {
+		this._onDidLinkedWidthNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._linkedWidthNode = node;
+		this._onDidSetLinkedNode.fire();
+	}
+
+	private _onDidLinkedHeightNodeChange = new Relay<number | undefined>();
+	private _linkedHeightNode: LeafNode | undefined = undefined;
+	get linkedHeightNode(): LeafNode | undefined { return this._linkedHeightNode; }
+	set linkedHeightNode(node: LeafNode | undefined) {
+		this._onDidLinkedHeightNodeChange.input = node ? node._onDidViewChange : Event.None;
+		this._linkedHeightNode = node;
+		this._onDidSetLinkedNode.fire();
+	}
+
+	private _onDidSetLinkedNode = new Emitter<number | undefined>();
+	private _onDidViewChange: Event<number | undefined>;
+	readonly onDidChange: Event<number | undefined>;
+
 	constructor(
 		readonly view: IView,
 		readonly orientation: Orientation,
 		orthogonalSize: number = 0
 	) {
 		this._orthogonalSize = orthogonalSize;
+
+		this._onDidViewChange = mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		this.onDidChange = anyEvent(this._onDidViewChange, this._onDidSetLinkedNode.event, this._onDidLinkedWidthNodeChange.event, this._onDidLinkedHeightNodeChange.event);
 	}
 
 	get width(): number {
@@ -346,24 +402,36 @@ class LeafNode implements ISplitView, IDisposable {
 		return this.view.element;
 	}
 
+	private get minimumWidth(): number {
+		return this.linkedWidthNode ? Math.max(this.linkedWidthNode.view.minimumWidth, this.view.minimumWidth) : this.view.minimumWidth;
+	}
+
+	private get maximumWidth(): number {
+		return this.linkedWidthNode ? Math.min(this.linkedWidthNode.view.maximumWidth, this.view.maximumWidth) : this.view.maximumWidth;
+	}
+
+	private get minimumHeight(): number {
+		return this.linkedHeightNode ? Math.max(this.linkedHeightNode.view.minimumHeight, this.view.minimumHeight) : this.view.minimumHeight;
+	}
+
+	private get maximumHeight(): number {
+		return this.linkedHeightNode ? Math.min(this.linkedHeightNode.view.maximumHeight, this.view.maximumHeight) : this.view.maximumHeight;
+	}
+
 	get minimumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumHeight : this.view.minimumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumHeight : this.minimumWidth;
 	}
 
 	get maximumSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumHeight : this.view.maximumWidth;
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumHeight : this.maximumWidth;
 	}
 
 	get minimumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.minimumWidth : this.view.minimumHeight;
+		return this.orientation === Orientation.HORIZONTAL ? this.minimumWidth : this.minimumHeight;
 	}
 
 	get maximumOrthogonalSize(): number {
-		return this.orientation === Orientation.HORIZONTAL ? this.view.maximumWidth : this.view.maximumHeight;
-	}
-
-	get onDidChange(): Event<number> {
-		return mapEvent(this.view.onDidChange, this.orientation === Orientation.HORIZONTAL ? e => e && e.width : e => e && e.height);
+		return this.orientation === Orientation.HORIZONTAL ? this.maximumWidth : this.maximumHeight;
 	}
 
 	set orthogonalStartSash(sash: Sash) {
