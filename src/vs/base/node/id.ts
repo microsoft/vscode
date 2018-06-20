@@ -8,6 +8,7 @@ import * as errors from 'vs/base/common/errors';
 import * as uuid from 'vs/base/common/uuid';
 import { networkInterfaces } from 'os';
 import { TernarySearchTree } from 'vs/base/common/map';
+import { winJSRequire } from 'vs/base/common/async';
 
 // http://www.techrepublic.com/blog/data-center/mac-address-scorecard-for-common-virtual-machine-platforms/
 // VMware ESX 3, Server, Workstation, Player	00-50-56, 00-0C-29, 00-05-69
@@ -84,7 +85,7 @@ export function getMachineId(): TPromise<string> {
 
 function getMacMachineId(): TPromise<string> {
 	return new TPromise<string>(resolve => {
-		TPromise.join([import('crypto'), import('getmac')]).then(([crypto, getmac]) => {
+		TPromise.join([winJSRequire<typeof import('crypto')>('crypto'), winJSRequire<typeof import('getmac')>('getmac')]).then(([crypto, getmac]) => {
 			try {
 				getmac.getMac((error, macAddress) => {
 					if (!error) {

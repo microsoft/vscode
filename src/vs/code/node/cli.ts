@@ -19,6 +19,7 @@ import { resolveTerminalEncoding } from 'vs/base/node/encoding';
 import * as iconv from 'iconv-lite';
 import { writeFileAndFlushSync } from 'vs/base/node/extfs';
 import { isWindows } from 'vs/base/common/platform';
+import { winJSRequire } from 'vs/base/common/async';
 
 function shouldSpawnCliProcess(argv: ParsedArgs): boolean {
 	return !!argv['install-source']
@@ -274,7 +275,7 @@ export async function main(argv: string[]): TPromise<any> {
 			processCallbacks.push(async child => {
 
 				// load and start profiler
-				const profiler = await import('v8-inspect-profiler');
+				const profiler = await winJSRequire<typeof import('v8-inspect-profiler')>('v8-inspect-profiler');
 				const main = await profiler.startProfiling({ port: portMain });
 				const renderer = await profiler.startProfiling({ port: portRenderer, tries: 200 });
 				const extHost = await profiler.startProfiling({ port: portExthost, tries: 300 });

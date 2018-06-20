@@ -11,7 +11,7 @@ import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
-import { isThenable } from 'vs/base/common/async';
+import { isThenable, winJSRequire } from 'vs/base/common/async';
 import { isNullOrUndefined } from 'util';
 
 export const IHeapService = createDecorator<IHeapService>('heapService');
@@ -55,13 +55,13 @@ export class HeapService implements IHeapService {
 		}
 	}
 
-	private _doTrackRecursive(obj: any): Promise<any> {
+	private _doTrackRecursive(obj: any): Thenable<any> {
 
 		if (isNullOrUndefined(obj)) {
 			return Promise.resolve(obj);
 		}
 
-		return import('gc-signals').then(({ GCSignal, consumeSignals }) => {
+		return winJSRequire<typeof import('gc-signals')>('gc-signals').then(({ GCSignal, consumeSignals }) => {
 
 			if (this._consumeHandle === void 0) {
 				// ensure that there is one consumer of signals

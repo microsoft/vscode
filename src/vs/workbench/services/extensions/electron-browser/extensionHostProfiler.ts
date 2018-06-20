@@ -10,6 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { TernarySearchTree } from 'vs/base/common/map';
 import { realpathSync } from 'vs/base/node/extfs';
 import { Profile, ProfileNode } from 'v8-inspect-profiler';
+import { winJSRequire } from 'vs/base/common/async';
 
 export class ExtensionHostProfiler {
 
@@ -17,7 +18,7 @@ export class ExtensionHostProfiler {
 	}
 
 	public start(): TPromise<ProfileSession> {
-		return TPromise.wrap(import('v8-inspect-profiler')).then(profiler => {
+		return winJSRequire<typeof import('v8-inspect-profiler')>('v8-inspect-profiler').then(profiler => {
 			return profiler.startProfiling({ port: this._port }).then(session => {
 				return {
 					stop: () => {

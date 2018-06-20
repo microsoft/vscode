@@ -26,7 +26,7 @@ import { WorkbenchList } from 'vs/platform/list/browser/listService';
 import { append, $, addClass, toggleClass, Dimension } from 'vs/base/browser/dom';
 import { ActionBar, Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { dispose, IDisposable } from 'vs/base/common/lifecycle';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, winJSRequire } from 'vs/base/common/async';
 import { clipboard } from 'electron';
 import { LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
@@ -592,7 +592,7 @@ class SaveExtensionHostProfileAction extends Action {
 		let dataToWrite: object = profileInfo.data;
 
 		if (this._environmentService.isBuilt) {
-			const profiler = await import('v8-inspect-profiler');
+			const profiler = await winJSRequire<typeof import('v8-inspect-profiler')>('v8-inspect-profiler');
 			// when running from a not-development-build we remove
 			// absolute filenames because we don't want to reveal anything
 			// about users. We also append the `.txt` suffix to make it

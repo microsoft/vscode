@@ -34,6 +34,7 @@ import { ILogService } from 'vs/platform/log/common/log';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { TerminalProcessManager } from './terminalProcessManager';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { winJSRequire } from 'vs/base/common/async';
 
 // How long in milliseconds should an average frame take to render for a notification to appear
 // which suggests the fallback DOM-based renderer
@@ -257,7 +258,7 @@ export class TerminalInstance implements ITerminalInstance {
 	 */
 	protected async _createXterm(): TPromise<void> {
 		if (!Terminal) {
-			Terminal = (await import('vscode-xterm')).Terminal;
+			Terminal = (await winJSRequire<typeof import('vscode-xterm')>('vscode-xterm')).Terminal;
 			// Enable xterm.js addons
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/search/search'));
 			Terminal.applyAddon(require.__$__nodeRequire('vscode-xterm/lib/addons/webLinks/webLinks'));

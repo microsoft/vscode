@@ -21,6 +21,7 @@ import { IColorCustomizations } from 'vs/workbench/services/themes/electron-brow
 import { getParseErrorMessage } from 'vs/base/common/jsonErrorMessages';
 import URI from 'vs/base/common/uri';
 import { IFileService } from 'vs/platform/files/common/files';
+import { winJSRequire } from 'vs/base/common/async';
 
 let colorRegistry = Registry.as<IColorRegistry>(Extensions.ColorContribution);
 
@@ -321,7 +322,7 @@ function _loadColorTheme(fileService: IFileService, themeLocation: URI, resultRu
 
 let pListParser: Thenable<{ parse(content: string) }>;
 function getPListParser() {
-	return pListParser || import('fast-plist');
+	return pListParser || winJSRequire<typeof import('fast-plist')>('fast-plist');
 }
 
 function _loadSyntaxTokens(fileService: IFileService, themeLocation: URI, resultRules: ITokenColorizationRule[], resultColors: IColorMap): TPromise<any> {

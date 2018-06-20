@@ -36,7 +36,7 @@ import { IWorkspaceEditingService } from 'vs/workbench/services/workspace/common
 import { IMenuService, MenuId, IMenu, MenuItemAction, ICommandAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { fillInActionBarActions } from 'vs/platform/actions/browser/menuItemActionItem';
-import { RunOnceScheduler } from 'vs/base/common/async';
+import { RunOnceScheduler, winJSRequire } from 'vs/base/common/async';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { LifecyclePhase, ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
@@ -302,11 +302,11 @@ export class ElectronWindow extends Themable {
 
 		// Root warning
 		this.lifecycleService.when(LifecyclePhase.Running).then(() => {
-			let isAdminPromise: Promise<boolean>;
+			let isAdminPromise: TPromise<boolean>;
 			if (isWindows) {
-				isAdminPromise = import('native-is-elevated').then(isElevated => isElevated());
+				isAdminPromise = winJSRequire<typeof import('native-is-elevated')>('native-is-elevated').then(isElevated => isElevated());
 			} else {
-				isAdminPromise = Promise.resolve(isRootUser());
+				isAdminPromise = TPromise.as(isRootUser());
 			}
 
 			return isAdminPromise.then(isAdmin => {

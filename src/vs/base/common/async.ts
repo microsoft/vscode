@@ -61,8 +61,10 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
-export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
-	return toWinJsPromise(importPromise); // workaround for https://github.com/Microsoft/vscode/issues/48205
+export function winJSRequire<T>(module: string): TPromise<T> {
+	return new TPromise((resolve, reject) => {
+		require([module], resolve, reject);
+	});
 }
 
 /**

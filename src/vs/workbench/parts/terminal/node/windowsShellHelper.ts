@@ -9,6 +9,7 @@ import { Emitter, debounceEvent } from 'vs/base/common/event';
 import { ITerminalInstance } from 'vs/workbench/parts/terminal/common/terminal';
 import { Terminal as XTermTerminal } from 'vscode-xterm';
 import WindowsProcessTreeType = require('windows-process-tree');
+import { winJSRequire } from 'vs/base/common/async';
 
 const SHELL_EXECUTABLES = [
 	'cmd.exe',
@@ -42,7 +43,7 @@ export class WindowsShellHelper {
 
 		this._isDisposed = false;
 
-		(import('windows-process-tree')).then(mod => {
+		(winJSRequire<typeof import('windows-process-tree')>('windows-process-tree')).then(mod => {
 			if (this._isDisposed) {
 				return;
 			}
