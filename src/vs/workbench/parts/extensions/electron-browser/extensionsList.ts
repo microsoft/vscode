@@ -175,7 +175,6 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			}
 		}));
 
-
 		data.name.textContent = extension.displayName;
 		data.author.textContent = extension.publisherDisplayName;
 		data.description.textContent = extension.description;
@@ -195,12 +194,13 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 		if (!extRecommendations[extension.id.toLowerCase()]) {
 			removeClass(data.root, 'recommended');
-			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
 			data.root.title = '';
 		} else {
 			addClass(data.root, 'recommended');
+			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
 			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 		}
+
 		ariaLabel += localize('viewExtensionDetailsAria', "Press enter for extension details.");
 		data.root.setAttribute('aria-label', ariaLabel);
 
