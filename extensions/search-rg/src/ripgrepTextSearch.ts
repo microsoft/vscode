@@ -9,7 +9,7 @@ import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { rgPath } from 'vscode-ripgrep';
+import { rgPath } from './ripgrep';
 import { anchorGlob } from './ripgrepHelpers';
 
 // If vscode-ripgrep is in an .asar file, then the binary is unpacked.

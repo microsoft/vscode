@@ -7,8 +7,8 @@ import * as cp from 'child_process';
 import { Readable } from 'stream';
 import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as vscode from 'vscode';
-import { rgPath } from 'vscode-ripgrep';
 import { normalizeNFC, normalizeNFD } from './normalization';
+import { rgPath } from './ripgrep';
 import { anchorGlob } from './ripgrepHelpers';
 import { rgErrorMsgForDisplay } from './ripgrepTextSearch';
 
