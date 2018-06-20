@@ -40,6 +40,7 @@ import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
@@ -710,6 +711,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -1036,6 +1038,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
 		this.ui.ignoreFocusOut = false;
+
+		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
+		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
 
 		this.inQuickOpen('quickInput', true);
 
