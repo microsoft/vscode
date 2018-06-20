@@ -882,7 +882,7 @@
         },
         "git.refreshSymbol": {
           "type": "boolean",
-          "description": "%config.refreshSymbol",
+          "description": "%config.refreshSymbol%",
           "default": true
         },
         "git.autofetch": {

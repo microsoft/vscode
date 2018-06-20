@@ -401,8 +401,8 @@ class ProgressManager {
 
 	constructor(repository: Repository) {
 		const config = workspace.getConfiguration('git');
-		const refreshSymbol = config.get<boolean>('refreshSymbol');
-		if (refreshSymbol) {
+		const refreshIcon = config.get<boolean>('refreshIcon');
+		if (refreshIcon) {
 			const start = onceEvent(filterEvent(repository.onDidChangeOperations, () => repository.operations.shouldShowProgress()));
 			const end = onceEvent(filterEvent(debounceEvent(repository.onDidChangeOperations, 300), () => !repository.operations.shouldShowProgress()));
 			const setup = () => {
