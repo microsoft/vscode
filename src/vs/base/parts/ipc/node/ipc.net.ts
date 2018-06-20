@@ -95,10 +95,22 @@ export class Protocol implements IMessagePassingProtocol {
 			}
 		};
 
-		if (firstDataChunk && firstDataChunk.length > 0) {
-			acceptChunk(firstDataChunk);
-		}
-		_socket.on('data', acceptChunk);
+		const acceptFirstDataChunk = () => {
+			if (firstDataChunk && firstDataChunk.length > 0) {
+				let tmp = firstDataChunk;
+				firstDataChunk = null;
+				acceptChunk(tmp);
+			}
+		};
+
+		_socket.on('data', (data: Buffer) => {
+			acceptFirstDataChunk();
+			acceptChunk(data);
+		});
+
+		_socket.on('end', () => {
+			acceptFirstDataChunk();
+		});
 	}
 
 	public send(message: any): void {
