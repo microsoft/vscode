@@ -671,17 +671,29 @@ declare module 'vscode-xterm' {
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
 	interface Terminal {
-		buffer: {
-			y: number;
-			ybase: number;
-			ydisp: number;
-			x: number;
-		};
+		_core: {
+			buffer: {
+				y: number;
+				ybase: number;
+				ydisp: number;
+				x: number;
+			};
 
-		/**
-		 * Emit an event on the terminal.
-		 */
-		emit(type: string, data: any): void;
+			/**
+			 * Emit an event on the terminal.
+			 */
+			emit(type: string, data: any): void;
+
+			charMeasure?: { height: number, width: number };
+
+			renderer: {
+				_renderLayers: any[];
+				onIntersectionChange: any;
+			}
+		}
+
+		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
+		winptyCompatInit(): void;
 
 		/**
 		 * Find the next instance of the term, then scroll to and select it. If it
@@ -698,9 +710,5 @@ declare module 'vscode-xterm' {
 		 * @return Whether a result was found.
 		 */
 		findPrevious(term: string): boolean;
-
-		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
-		winptyCompatInit(): void;
-		charMeasure?: { height: number, width: number };
 	}
 }
