@@ -83,8 +83,6 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.properties = { isPure: true, isAdmin: false };
 		this.activeEditorListeners = [];
 
-		this.setTitle(this.getWindowTitle());
-
 		this.registerListeners();
 	}
 
@@ -269,6 +267,8 @@ export class TitlebarPart extends Part implements ITitleService {
 		this.title = $(this.titleContainer).div({ class: 'window-title' });
 		if (this.pendingTitle) {
 			this.title.text(this.pendingTitle);
+		} else {
+			this.setTitle(this.getWindowTitle());
 		}
 
 		// Maximize/Restore on doubleclick
