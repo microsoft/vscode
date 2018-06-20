@@ -4,19 +4,23 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { Terminal } from 'vscode-xterm';
+import { Terminal, TerminalCore } from 'vscode-xterm';
 import { TerminalCommandTracker } from 'vs/workbench/parts/terminal/node/terminalCommandTracker';
 import { isWindows } from 'vs/base/common/platform';
 
-interface TestTerminal extends Terminal {
+interface TestTerminalCore extends TerminalCore {
 	writeBuffer: string[];
 	_innerWrite(): void;
 }
 
+interface TestTerminal extends Terminal {
+	_core: TestTerminalCore;
+}
+
 function syncWrite(term: TestTerminal, data: string): void {
 	// Terminal.write is asynchronous
-	term.writeBuffer.push(data);
-	term._innerWrite();
+	term._core.writeBuffer.push(data);
+	term._core._innerWrite();
 }
 
 const ROWS = 10;

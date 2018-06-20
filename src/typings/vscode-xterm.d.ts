@@ -670,27 +670,29 @@ declare module 'vscode-xterm' {
 
 // Modifications to official .d.ts below
 declare module 'vscode-xterm' {
+	interface TerminalCore {
+		buffer: {
+			y: number;
+			ybase: number;
+			ydisp: number;
+			x: number;
+		};
+
+		/**
+		 * Emit an event on the terminal.
+		 */
+		emit(type: string, data: any): void;
+
+		charMeasure?: { height: number, width: number };
+
+		renderer: {
+			_renderLayers: any[];
+			onIntersectionChange: any;
+		};
+	}
+
 	interface Terminal {
-		_core: {
-			buffer: {
-				y: number;
-				ybase: number;
-				ydisp: number;
-				x: number;
-			};
-
-			/**
-			 * Emit an event on the terminal.
-			 */
-			emit(type: string, data: any): void;
-
-			charMeasure?: { height: number, width: number };
-
-			renderer: {
-				_renderLayers: any[];
-				onIntersectionChange: any;
-			}
-		}
+		_core: TerminalCore;
 
 		webLinksInit(handler?: (event: MouseEvent, uri: string) => void, options?: ILinkMatcherOptions): void;
 		winptyCompatInit(): void;
