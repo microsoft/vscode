@@ -92,7 +92,7 @@ class ApplyFixAllCodeAction implements Command {
 				return;
 			}
 
-			const edit = typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
+			const edit = typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, combinedCodeFixesResponse.body.changes);
 			await vscode.workspace.applyEdit(edit);
 
 			if (combinedCodeFixesResponse.command) {

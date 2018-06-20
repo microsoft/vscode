@@ -227,7 +227,7 @@ export class UpdateImportsOnFileRenameHandler {
 		for (const edit of response.body) {
 			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
 		}
-		return typeConverters.WorkspaceEdit.fromFromFileCodeEdits(this.client, edits);
+		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);
 	}
 
 	private async fixEdit(
