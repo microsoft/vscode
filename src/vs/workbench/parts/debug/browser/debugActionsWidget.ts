@@ -93,8 +93,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		this.updateScheduler = new RunOnceScheduler(() => {
 			const state = this.debugService.state;
 			const toolBarLocation = this.configurationService.getValue<IDebugConfiguration>('debug').toolBarLocation;
-			if (state === State.Inactive || this.configurationService.getValue<IDebugConfiguration>('debug').hideActionBar
-				|| toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
+			if (state === State.Inactive || toolBarLocation === 'docked' || toolBarLocation === 'hidden') {
 				return this.hide();
 			}
 
