@@ -17,6 +17,7 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
+import { areWebviewInputOptionsEqual } from './webviewEditorService';
 
 export interface WebviewOptions {
 	readonly allowScripts?: boolean;
@@ -255,6 +256,10 @@ export class WebviewElement extends Disposable {
 	}
 
 	public set options(value: WebviewOptions) {
+		if (this._options && areWebviewInputOptionsEqual(value, this._options)) {
+			return;
+		}
+
 		this._options = value;
 		this._send('content', {
 			contents: this._contents,
