@@ -101,7 +101,6 @@
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	margin-top: 5px;
 	max-width: 1000px;
 }
 
@@ -122,6 +121,10 @@
 	overflow: hidden;
 	text-overflow: ellipsis;
 	line-height: 22px;
+}
+
+.settings-editor > .settings-body .settings-toc-container .monaco-tree-row .settings-toc-entry.no-results {
+	opacity: 0.5;
 }
 
 .settings-editor > .settings-body .settings-tree-container {

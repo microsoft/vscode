@@ -85,6 +85,10 @@ export class ContextMenuHandler {
 
 	public showContextMenu(delegate: IContextMenuDelegate): void {
 		delegate.getActions().done((actions: IAction[]) => {
+			if (!actions.length) {
+				return; // Don't render an empty context menu
+			}
+
 			this.contextViewService.showContextView({
 				getAnchor: () => delegate.getAnchor(),
 				canRelayout: false,

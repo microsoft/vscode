@@ -359,6 +359,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	showConfiguredOnly?: boolean;
+	filterToCategory?: SettingsTreeGroupElement;
 }
 
 interface IDisposableTemplate {
@@ -674,7 +675,13 @@ export class SettingsTreeFilter implements IFilter {
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
-		if (this.viewState.showConfiguredOnly && element instanceof SettingsTreeSettingElement) {
+		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
+			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
+				return false;
+			}
+		}
+
+		if (element instanceof SettingsTreeSettingElement && this.viewState.showConfiguredOnly) {
 			return element.isConfigured;
 		}
 
@@ -683,6 +690,18 @@ export class SettingsTreeFilter implements IFilter {
 		}
 
 		return true;
+	}
+
+	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeGroupElement) {
+				return this.settingContainedInGroup(setting, child);
+			} else if (child instanceof SettingsTreeSettingElement) {
+				return child.setting.key === setting.key;
+			} else {
+				return false;
+			}
+		});
 	}
 
 	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {

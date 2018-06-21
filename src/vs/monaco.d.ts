@@ -4805,6 +4805,13 @@ declare namespace monaco.languages {
 	 */
 	export type Definition = Location | Location[];
 
+	export interface DefinitionLink {
+		origin?: IRange;
+		uri: Uri;
+		range: IRange;
+		selectionRange?: IRange;
+	}
+
 	/**
 	 * The definition provider interface defines the contract between extensions and
 	 * the [go to definition](https://code.visualstudio.com/docs/editor/editingevolved#_go-to-definition)
@@ -4814,7 +4821,7 @@ declare namespace monaco.languages {
 		/**
 		 * Provide the definition of the symbol at the given position and document.
 		 */
-		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): Definition | Thenable<Definition>;
+		provideDefinition(model: editor.ITextModel, position: Position, token: CancellationToken): DefinitionLink | Thenable<DefinitionLink[]>;
 	}
 
 	/**

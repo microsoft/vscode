@@ -306,6 +306,12 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
 			'default': true
+		},
+		'workbench.settings.settingsSearchTocBehavior': {
+			'type': 'string',
+			'enum': ['hide', 'filter', 'show'],
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor TOC while searching."),
+			'default': 'hide'
 		}
 	}
 });
