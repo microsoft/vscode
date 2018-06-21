@@ -444,12 +444,12 @@ export interface IEditorOptions {
 	iconsInSuggestions?: boolean;
 	/**
 	 * Options for auto closing brackets.
-	 * Defaults to allowing autoclosing before whitespace and punctuation and allowing autowrapping always.
+	 * Defaults to allowing auto-closing before whitespace and punctuation and allowing auto-wrapping always.
 	 */
 	autoClosingBrackets?: EditorAutoClosingOptions;
 	/**
 	 * Options for auto closing quotes.
-	 * Defaults to allowing autoclosing before whitespace and allowing autowrapping always.
+	 * Defaults to allowing auto-closing before whitespace and allowing auto-wrapping always.
 	 */
 	autoClosingQuotes?: EditorAutoClosingOptions;
 	/**
