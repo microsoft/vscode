@@ -437,7 +437,10 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
+		const chIsQuote = (ch === '\'' || ch === '"');
+		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+		if (!autoCloseConfig.autoClose || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -511,7 +514,9 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
+		const chIsQuote = (ch === '\'' || ch === '"');
+		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+		if (!autoCloseConfig.autoClose || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
 		}
 
@@ -524,8 +529,9 @@ export class TypeOperations {
 			const position = selection.getPosition();
 			const lineText = model.getLineContent(position.lineNumber);
 
+
 			// Do not auto-close ' or " after a word character
-			if ((ch === '\'' || ch === '"') && position.column > 1) {
+			if (chIsQuote && position.column > 1) {
 				const wordSeparators = getMapForWordSeparators(config.wordSeparators);
 				const characterBeforeCode = lineText.charCodeAt(position.column - 2);
 				const characterBeforeType = wordSeparators.get(characterBeforeCode);
@@ -538,7 +544,8 @@ export class TypeOperations {
 			const characterAfter = lineText.charAt(position.column - 1);
 			if (characterAfter) {
 				let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-				if (!isBeforeCloseBrace && config.autoClosingEnabledBefore.indexOf(characterAfter) === -1) {
+
+				if (!isBeforeCloseBrace && autoCloseConfig.enabledBefore.indexOf(characterAfter) === -1) {
 					return false;
 				}
 			}
@@ -580,11 +587,11 @@ export class TypeOperations {
 	}
 
 	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		if (!config.autoClosingBrackets || !config.surroundingPairs.hasOwnProperty(ch)) {
+		const chIsQuote = (ch === '\'' || ch === '"');
+		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+		if (!autoCloseConfig.autoWrap || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
 		}
-
-		const isTypingAQuoteCharacter = (ch === '\'' || ch === '"');
 
 		for (let i = 0, len = selections.length; i < len; i++) {
 			const selection = selections[i];
@@ -611,7 +618,7 @@ export class TypeOperations {
 				return false;
 			}
 
-			if (isTypingAQuoteCharacter && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
+			if (chIsQuote && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
 				const selectionText = model.getValueInRange(selection);
 				if ((selectionText === '\'' || selectionText === '"')) {
 					// Typing a quote character on top of another quote character
@@ -708,7 +715,7 @@ export class TypeOperations {
 	}
 
 	public static compositionEndWithInterceptors(prevEditOperationType: EditOperationType, config: CursorConfiguration, model: ITextModel, selections: Selection[]): EditOperationResult {
-		if (!config.autoClosingBrackets) {
+		if (!config.autoClosingQuotes.autoClose) {
 			return null;
 		}
 
@@ -749,7 +756,9 @@ export class TypeOperations {
 
 				if (characterAfter) {
 					let isBeforeCloseBrace = TypeOperations._isBeforeClosingBrace(config, ch, characterAfter);
-					if (!isBeforeCloseBrace && config.autoClosingEnabledBefore.indexOf(characterAfter) === -1) {
+					const chIsQuote = (ch === '\'' || ch === '"');
+					const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+					if (!autoCloseConfig.autoClose || (!isBeforeCloseBrace && autoCloseConfig.enabledBefore.indexOf(characterAfter) === -1)) {
 						continue;
 					}
 				}

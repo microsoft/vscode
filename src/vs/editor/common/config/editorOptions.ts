@@ -96,6 +96,24 @@ export interface IEditorFindOptions {
 }
 
 /**
+ * Configuration options for auto closing both quotes and brackets
+ */
+export interface EditorAutoClosingOptions {
+	/**
+	 * Controls if we wrap selections with the auto-pairing character
+	 */
+	autoWrap: boolean;
+	/**
+	 * Controls if we automatically insert a matching close to this pair
+	 */
+	autoClose: boolean;
+	/**
+	 * controls the set of characters that we may insert a matching close before
+	 */
+	enabledBefore: string;
+}
+
+/**
  * Configuration options for editor minimap
  */
 export interface IEditorMinimapOptions {
@@ -428,12 +446,12 @@ export interface IEditorOptions {
 	 * Enable auto closing brackets.
 	 * Defaults to true.
 	 */
-	autoClosingBrackets?: boolean;
+	autoClosingBrackets?: EditorAutoClosingOptions;
 	/**
-	 * Which characters may fall after the cursor in order for auto closing of brackets to occur.
-	 * Defaults to " \n\t".
+	 * Enable auto closing quotes.
+	 * Defaults to true.
 	 */
-	autoClosingEnabledBefore?: string;
+	autoClosingQuotes?: EditorAutoClosingOptions;
 	/**
 	 * Enable auto indentation adjustment.
 	 * Defaults to false.
@@ -910,8 +928,8 @@ export interface IValidatedEditorOptions {
 	readonly wordWrapBreakBeforeCharacters: string;
 	readonly wordWrapBreakAfterCharacters: string;
 	readonly wordWrapBreakObtrusiveCharacters: string;
-	readonly autoClosingBrackets: boolean;
-	readonly autoClosingEnabledBefore: string;
+	readonly autoClosingBrackets: EditorAutoClosingOptions;
+	readonly autoClosingQuotes: EditorAutoClosingOptions;
 	readonly autoIndent: boolean;
 	readonly dragAndDrop: boolean;
 	readonly emptySelectionClipboard: boolean;
@@ -946,8 +964,8 @@ export class InternalEditorOptions {
 
 	// ---- cursor options
 	readonly wordSeparators: string;
-	readonly autoClosingBrackets: boolean;
-	readonly autoClosingEnabledBefore: string;
+	readonly autoClosingBrackets: EditorAutoClosingOptions;
+	readonly autoClosingQuotes: EditorAutoClosingOptions;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
@@ -974,8 +992,8 @@ export class InternalEditorOptions {
 		multiCursorModifier: 'altKey' | 'ctrlKey' | 'metaKey';
 		multiCursorMergeOverlapping: boolean;
 		wordSeparators: string;
-		autoClosingBrackets: boolean;
-		autoClosingEnabledBefore: string;
+		autoClosingBrackets: EditorAutoClosingOptions;
+		autoClosingQuotes: EditorAutoClosingOptions;
 		autoIndent: boolean;
 		useTabStops: boolean;
 		tabFocusMode: boolean;
@@ -998,7 +1016,7 @@ export class InternalEditorOptions {
 		this.multiCursorMergeOverlapping = source.multiCursorMergeOverlapping;
 		this.wordSeparators = source.wordSeparators;
 		this.autoClosingBrackets = source.autoClosingBrackets;
-		this.autoClosingEnabledBefore = source.autoClosingEnabledBefore;
+		this.autoClosingQuotes = source.autoClosingQuotes;
 		this.autoIndent = source.autoIndent;
 		this.useTabStops = source.useTabStops;
 		this.tabFocusMode = source.tabFocusMode;
@@ -1026,8 +1044,6 @@ export class InternalEditorOptions {
 			&& this.multiCursorModifier === other.multiCursorModifier
 			&& this.multiCursorMergeOverlapping === other.multiCursorMergeOverlapping
 			&& this.wordSeparators === other.wordSeparators
-			&& this.autoClosingBrackets === other.autoClosingBrackets
-			&& this.autoClosingEnabledBefore === other.autoClosingEnabledBefore
 			&& this.autoIndent === other.autoIndent
 			&& this.useTabStops === other.useTabStops
 			&& this.tabFocusMode === other.tabFocusMode
@@ -1036,6 +1052,8 @@ export class InternalEditorOptions {
 			&& this.emptySelectionClipboard === other.emptySelectionClipboard
 			&& InternalEditorOptions._equalsLayoutInfo(this.layoutInfo, other.layoutInfo)
 			&& this.fontInfo.equals(other.fontInfo)
+			&& InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingBrackets, other.autoClosingBrackets)
+			&& InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingQuotes, other.autoClosingQuotes)
 			&& InternalEditorOptions._equalsViewOptions(this.viewInfo, other.viewInfo)
 			&& InternalEditorOptions._equalsWrappingInfo(this.wrappingInfo, other.wrappingInfo)
 			&& InternalEditorOptions._equalsContribOptions(this.contribInfo, other.contribInfo)
@@ -1056,8 +1074,8 @@ export class InternalEditorOptions {
 			multiCursorModifier: (this.multiCursorModifier !== newOpts.multiCursorModifier),
 			multiCursorMergeOverlapping: (this.multiCursorMergeOverlapping !== newOpts.multiCursorMergeOverlapping),
 			wordSeparators: (this.wordSeparators !== newOpts.wordSeparators),
-			autoClosingBrackets: (this.autoClosingBrackets !== newOpts.autoClosingBrackets),
-			autoClosingEnabledBefore: (this.autoClosingEnabledBefore !== newOpts.autoClosingEnabledBefore),
+			autoClosingBrackets: (!InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingBrackets, newOpts.autoClosingBrackets)),
+			autoClosingQuotes: (!InternalEditorOptions._equalsAutoClosingConfig(this.autoClosingQuotes, newOpts.autoClosingQuotes)),
 			autoIndent: (this.autoIndent !== newOpts.autoIndent),
 			useTabStops: (this.useTabStops !== newOpts.useTabStops),
 			tabFocusMode: (this.tabFocusMode !== newOpts.tabFocusMode),
@@ -1097,6 +1115,17 @@ export class InternalEditorOptions {
 			&& a.verticalScrollbarWidth === b.verticalScrollbarWidth
 			&& a.horizontalScrollbarHeight === b.horizontalScrollbarHeight
 			&& this._equalsOverviewRuler(a.overviewRuler, b.overviewRuler)
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsAutoClosingConfig(a: EditorAutoClosingOptions, b: EditorAutoClosingOptions) {
+		return (
+			a.autoClose === b.autoClose
+			&& a.autoWrap === b.autoWrap
+			&& a.enabledBefore === b.enabledBefore
 		);
 	}
 
@@ -1403,7 +1432,7 @@ export interface IConfigurationChangedEvent {
 	readonly multiCursorMergeOverlapping: boolean;
 	readonly wordSeparators: boolean;
 	readonly autoClosingBrackets: boolean;
-	readonly autoClosingEnabledBefore: boolean;
+	readonly autoClosingQuotes: boolean;
 	readonly autoIndent: boolean;
 	readonly useTabStops: boolean;
 	readonly tabFocusMode: boolean;
@@ -1569,6 +1598,16 @@ export class EditorOptionsValidator {
 			wordWrap = _stringSet<'off' | 'on' | 'wordWrapColumn' | 'bounded'>(wordWrap, defaults.wordWrap, ['off', 'on', 'wordWrapColumn', 'bounded']);
 		}
 
+		const _autoClosingOptions = (config: any, defaultValue: EditorAutoClosingOptions): EditorAutoClosingOptions => {
+			if (typeof config === 'boolean') { return { autoClose: config, autoWrap: config, enabledBefore: ' \t\n' }; }
+
+			let copy: EditorAutoClosingOptions = { autoClose: defaultValue.autoClose, autoWrap: defaultValue.autoWrap, enabledBefore: defaultValue.enabledBefore };
+			if (typeof config.autoClose === 'boolean') { copy.autoClose = config.autoClose; }
+			if (typeof config.autoWrap === 'boolean') { copy.autoWrap = config.autoWrap; }
+			if (typeof config.enabledBefore === 'string') { copy.enabledBefore = config.enabledBefore; }
+			return copy;
+		};
+
 		const viewInfo = this._sanitizeViewInfo(opts, defaults.viewInfo);
 		const contribInfo = this._sanitizeContribInfo(opts, defaults.contribInfo);
 
@@ -1598,8 +1637,8 @@ export class EditorOptionsValidator {
 			wordWrapBreakBeforeCharacters: _string(opts.wordWrapBreakBeforeCharacters, defaults.wordWrapBreakBeforeCharacters),
 			wordWrapBreakAfterCharacters: _string(opts.wordWrapBreakAfterCharacters, defaults.wordWrapBreakAfterCharacters),
 			wordWrapBreakObtrusiveCharacters: _string(opts.wordWrapBreakObtrusiveCharacters, defaults.wordWrapBreakObtrusiveCharacters),
-			autoClosingBrackets: _boolean(opts.autoClosingBrackets, defaults.autoClosingBrackets),
-			autoClosingEnabledBefore: _string(opts.autoClosingEnabledBefore, defaults.autoClosingEnabledBefore),
+			autoClosingBrackets: _autoClosingOptions(opts.autoClosingBrackets, defaults.autoClosingBrackets),
+			autoClosingQuotes: _autoClosingOptions(opts.autoClosingQuotes, defaults.autoClosingQuotes),
 			autoIndent: _boolean(opts.autoIndent, defaults.autoIndent),
 			dragAndDrop: _boolean(opts.dragAndDrop, defaults.dragAndDrop),
 			emptySelectionClipboard: _boolean(opts.emptySelectionClipboard, defaults.emptySelectionClipboard),
@@ -1840,7 +1879,7 @@ export class InternalEditorOptionsFactory {
 			wordWrapBreakAfterCharacters: opts.wordWrapBreakAfterCharacters,
 			wordWrapBreakObtrusiveCharacters: opts.wordWrapBreakObtrusiveCharacters,
 			autoClosingBrackets: opts.autoClosingBrackets,
-			autoClosingEnabledBefore: opts.autoClosingEnabledBefore,
+			autoClosingQuotes: opts.autoClosingQuotes,
 			autoIndent: opts.autoIndent,
 			dragAndDrop: opts.dragAndDrop,
 			emptySelectionClipboard: opts.emptySelectionClipboard,
@@ -2061,7 +2100,7 @@ export class InternalEditorOptionsFactory {
 			multiCursorMergeOverlapping: opts.multiCursorMergeOverlapping,
 			wordSeparators: opts.wordSeparators,
 			autoClosingBrackets: opts.autoClosingBrackets,
-			autoClosingEnabledBefore: opts.autoClosingEnabledBefore,
+			autoClosingQuotes: opts.autoClosingQuotes,
 			autoIndent: opts.autoIndent,
 			useTabStops: opts.useTabStops,
 			tabFocusMode: opts.readOnly ? true : env.tabFocusMode,
@@ -2294,8 +2333,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	wordWrapBreakBeforeCharacters: '([{‘“〈《「『【〔（［｛｢£¥＄￡￥+＋',
 	wordWrapBreakAfterCharacters: ' \t})]?|&,;¢°′″‰℃、。｡､￠，．：；？！％・･ゝゞヽヾーァィゥェォッャュョヮヵヶぁぃぅぇぉっゃゅょゎゕゖㇰㇱㇲㇳㇴㇵㇶㇷㇸㇹㇺㇻㇼㇽㇾㇿ々〻ｧｨｩｪｫｬｭｮｯｰ”〉》」』】〕）］｝｣',
 	wordWrapBreakObtrusiveCharacters: '.',
-	autoClosingBrackets: true,
-	autoClosingEnabledBefore: ',.;:<> \n\t',
+	autoClosingBrackets: { autoClose: true, autoWrap: true, enabledBefore: ',.:; \n\t' },
+	autoClosingQuotes: { autoClose: true, autoWrap: true, enabledBefore: ' \n\t' },
 	autoIndent: true,
 	dragAndDrop: true,
 	emptySelectionClipboard: true,

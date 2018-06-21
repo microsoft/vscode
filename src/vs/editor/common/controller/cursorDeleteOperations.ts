@@ -49,7 +49,8 @@ export class DeleteOperations {
 	}
 
 	private static _isAutoClosingPairDelete(config: CursorConfiguration, model: ICursorSimpleModel, selections: Selection[]): boolean {
-		if (!config.autoClosingBrackets) {
+		if (!(config.autoClosingBrackets.autoClose || config.autoClosingBrackets.autoWrap
+			|| config.autoClosingQuotes.autoClose || config.autoClosingQuotes.autoWrap)) {
 			return false;
 		}
 
@@ -64,7 +65,10 @@ export class DeleteOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 			const character = lineText[position.column - 2];
 
-			if (!config.autoClosingPairsOpen.hasOwnProperty(character)) {
+			const characterIsQuote = (character === '\'' || character === '"');
+			const autoCloseConfig = characterIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
+
+			if (!config.autoClosingPairsOpen.hasOwnProperty(character) || !(autoCloseConfig.autoWrap || autoCloseConfig.autoClose)) {
 				return false;
 			}
 

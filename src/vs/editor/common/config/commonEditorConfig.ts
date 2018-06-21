@@ -424,14 +424,62 @@ const editorConfiguration: IConfigurationNode = {
 			'description': nls.localize('parameterHints', "Enables pop-up that shows parameter documentation and type information as you type")
 		},
 		'editor.autoClosingBrackets': {
-			'type': 'boolean',
+			'anyOf': [
+				{
+					type: 'boolean',
+				},
+				{
+					type: 'object',
+					properties: {
+						autoClose: {
+							type: 'boolean',
+							default: EDITOR_DEFAULTS.autoClosingBrackets.autoClose,
+							description: nls.localize('autoClosingBrackets.autoClose', "Controls if the editor should automatically close brackets after opening them.")
+						},
+						autoWrap: {
+							type: 'boolean',
+							default: EDITOR_DEFAULTS.autoClosingBrackets.autoWrap,
+							description: nls.localize('autoClosingBrackets.autoWrap', "Controls if the editor should automatically wrap selections in brackets.")
+						},
+						enabledBefore: {
+							type: 'string',
+							default: EDITOR_DEFAULTS.autoClosingBrackets.enabledBefore,
+							description: nls.localize('autoClosingBrackets.enabledBefore', "List of all characters which the editor should allow bracket auto-closing before.")
+						}
+					}
+				}
+			],
 			'default': EDITOR_DEFAULTS.autoClosingBrackets,
-			'description': nls.localize('autoClosingBrackets', "Controls if the editor should automatically close brackets after opening them")
+			'description': nls.localize('autoClosingBrackets', "Controls if and when the editor should automatically close brackets after opening them")
 		},
-		'editor.autoClosingEnabledBefore': {
-			'type': 'string',
-			'default': EDITOR_DEFAULTS.autoClosingEnabledBefore,
-			'description': nls.localize('autoClosingEnabledBefore', "Sets which characters may fall after the cursor in order for auto closing of brackets to occur")
+		'editor.autoClosingQuotes': {
+			'anyOf': [
+				{
+					type: 'boolean',
+				},
+				{
+					type: 'object',
+					properties: {
+						autoClose: {
+							type: 'boolean',
+							default: EDITOR_DEFAULTS.autoClosingQuotes.autoClose,
+							description: nls.localize('autoClosingQuotes.autoClose', "Controls if the editor should automatically close quotes after opening them.")
+						},
+						autoWrap: {
+							type: 'boolean',
+							default: EDITOR_DEFAULTS.autoClosingQuotes.autoWrap,
+							description: nls.localize('autoClosingQuotes.autoWrap', "Controls if the editor should automatically wrap selections in quotes.")
+						},
+						enabledBefore: {
+							type: 'string',
+							default: EDITOR_DEFAULTS.autoClosingQuotes.enabledBefore,
+							description: nls.localize('autoClosingQuotes.enabledBefore', "List of all characters which the editor should allow quote auto-closing before.")
+
+						}
+					}
+				}
+			], 'default': EDITOR_DEFAULTS.autoClosingQuotes,
+			'description': nls.localize('autoClosingQuotes', "Controls if and when the editor should automatically close quotes after opening them")
 		},
 		'editor.formatOnType': {
 			'type': 'boolean',
