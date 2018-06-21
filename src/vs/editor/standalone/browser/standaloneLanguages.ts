@@ -42,7 +42,7 @@ export function getLanguages(): ILanguageExtensionPoint[] {
 	return result;
 }
 
-export function getLanguageNumericId(languageId: string): number {
+export function getEncodedLanguageId(languageId: string): number {
 	let lid = StaticServices.modeService.get().getLanguageIdentifier(languageId);
 	return lid && lid.id;
 }
@@ -77,11 +77,11 @@ export function setLanguageConfiguration(languageId: string, configuration: Lang
 /**
  * @internal
  */
-export class BinaryTokenizationSupport2Adapter implements modes.ITokenizationSupport {
+export class EncodedTokenizationSupport2Adapter implements modes.ITokenizationSupport {
 
-	private readonly _actual: BinaryTokensProvider;
+	private readonly _actual: EncodedTokensProvider;
 
-	constructor(actual: BinaryTokensProvider) {
+	constructor(actual: EncodedTokensProvider) {
 		this._actual = actual;
 	}
 
@@ -94,7 +94,7 @@ export class BinaryTokenizationSupport2Adapter implements modes.ITokenizationSup
 	}
 
 	public tokenize2(line: string, state: modes.IState): TokenizationResult2 {
-		let result = this._actual.tokenize2(line, state);
+		let result = this._actual.tokenizeEncoded(line, state);
 		return new TokenizationResult2(result.tokens, result.endState);
 	}
 }
@@ -236,9 +236,9 @@ export interface ILineTokens {
 /**
  * The result of a line tokenization.
  */
-export interface IBinaryLineTokens {
+export interface IEncodedLineTokens {
 	/**
-	 * The tokens on the line in binary format. Each token occupies two array indices. For token i:
+	 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
 	 *  - at offset 2*i => startIndex
 	 *  - at offset 2*i + 1 => metadata
 	 * Meta data is in binary format:
@@ -246,18 +246,16 @@ export interface IBinaryLineTokens {
 	 *     3322 2222 2222 1111 1111 1100 0000 0000
 	 *     1098 7654 3210 9876 5432 1098 7654 3210
 	 * - -------------------------------------------
-	 *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
 	 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
 	 * - -------------------------------------------
-	 *  - L = LanguageNumericId (8 bits)
-	 *  - T = StandardTokenType (3 bits)
-	 *  - F = FontStyle (3 bits)
-	 *  - f = foreground colorId (9 bits)
-	 *  - b = background colorId (9 bits)
-	 *
-	 * - Use `getLanguageNumericId` to get the numeric ID of a language.
-	 * - colorIds must be > 0 and are indexes into the `customTokenColors` property in the IStandaloneThemeData:
-	 * - The color value for colorId = 1 is stored in IStandaloneThemeData.customTokenColors[0].
+	 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
+	 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
+	 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+	 *  - f = foreground ColorId (9 bits)
+	 *  - b = background ColorId (9 bits)
+	 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
+	 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+	 * id = 1 is for the default foreground color, id = 2 for the default background.
 	 */
 	tokens: Uint32Array;
 	/**
@@ -284,7 +282,7 @@ export interface TokensProvider {
 /**
  * A "manual" provider of tokens, returning tokens in a binary form.
  */
-export interface BinaryTokensProvider {
+export interface EncodedTokensProvider {
 	/**
 	 * The initial state of a language. Will be the state passed in to tokenize the first line.
 	 */
@@ -292,32 +290,29 @@ export interface BinaryTokensProvider {
 	/**
 	 * Tokenize a line given the state at the beginning of the line.
 	 */
-	tokenize2(line: string, state: modes.IState): IBinaryLineTokens;
+	tokenizeEncoded(line: string, state: modes.IState): IEncodedLineTokens;
 }
 
+function isEncodedTokensProvider(provider: TokensProvider | EncodedTokensProvider): provider is EncodedTokensProvider {
+	return provider['tokenizeEncoded'];
+}
 /**
  * Set the tokens provider for a language (manual implementation).
  */
-export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable {
+export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable {
 	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
 	if (!languageIdentifier) {
 		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
 	}
-	let adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	let adapter: modes.ITokenizationSupport;
+	if (isEncodedTokensProvider(provider)) {
+		adapter = new EncodedTokenizationSupport2Adapter(provider);
+	} else {
+		adapter = new TokenizationSupport2Adapter(StaticServices.standaloneThemeService.get(), languageIdentifier, provider);
+	}
 	return modes.TokenizationRegistry.register(languageId, adapter);
 }
 
-/**
- * Set the tokens provider for a language (manual implementation with styled tokens).
- */
-export function setBinaryTokensProvider(languageId: string, provider: BinaryTokensProvider): IDisposable {
-	let languageIdentifier = StaticServices.modeService.get().getLanguageIdentifier(languageId);
-	if (!languageIdentifier) {
-		throw new Error(`Cannot set tokens provider for unknown language ${languageId}`);
-	}
-
-	return modes.TokenizationRegistry.register(languageId, new BinaryTokenizationSupport2Adapter(provider));
-}
 
 /**
  * Set the tokens provider for a language (monarch implementation).
@@ -854,12 +849,11 @@ export function createMonacoLanguagesAPI(): typeof monaco.languages {
 		register: register,
 		getLanguages: getLanguages,
 		onLanguage: onLanguage,
-		getLanguageNumericId: getLanguageNumericId,
+		getEncodedLanguageId: getEncodedLanguageId,
 
 		// provider methods
 		setLanguageConfiguration: setLanguageConfiguration,
 		setTokensProvider: setTokensProvider,
-		setBinaryTokensProvider: setBinaryTokensProvider,
 		setMonarchTokensProvider: setMonarchTokensProvider,
 		registerReferenceProvider: registerReferenceProvider,
 		registerRenameProvider: registerRenameProvider,

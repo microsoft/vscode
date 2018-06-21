@@ -776,11 +776,6 @@ declare namespace monaco {
 
 declare namespace monaco.editor {
 
-	export type ThemeType = 'light' | 'dark' | 'hc';
-	export interface ITheme {
-		readonly type: ThemeType;
-	}
-
 
 	/**
 	 * Create a new editor under `domElement`.
@@ -908,11 +903,6 @@ declare namespace monaco.editor {
 	export function defineTheme(themeName: string, themeData: IStandaloneThemeData): void;
 
 	/**
-	 * Theme change event.
-	 */
-	export const onThemeChange: IEvent<ITheme>;
-
-	/**
 	 * Switches to a theme.
 	 */
 	export function setTheme(themeName: string): void;
@@ -923,7 +913,7 @@ declare namespace monaco.editor {
 		base: BuiltinTheme;
 		inherit: boolean;
 		rules: ITokenThemeRule[];
-		customTokenColors?: string[];
+		encodedTokensColors?: string[];
 		colors: IColors;
 	}
 
@@ -4051,7 +4041,7 @@ declare namespace monaco.languages {
 	 */
 	export function getLanguages(): ILanguageExtensionPoint[];
 
-	export function getLanguageNumericId(languageId: string): number;
+	export function getEncodedLanguageId(languageId: string): number;
 
 	/**
 	 * An event emitted when a language is first time needed (e.g. a model has it set).
@@ -4090,9 +4080,9 @@ declare namespace monaco.languages {
 	/**
 	 * The result of a line tokenization.
 	 */
-	export interface IBinaryLineTokens {
+	export interface IEncodedLineTokens {
 		/**
-		 * The tokens on the line in binary format. Each token occupies two array indices. For token i:
+		 * The tokens on the line in a binary, encoded format. Each token occupies two array indices. For token i:
 		 *  - at offset 2*i => startIndex
 		 *  - at offset 2*i + 1 => metadata
 		 * Meta data is in binary format:
@@ -4100,18 +4090,16 @@ declare namespace monaco.languages {
 		 *     3322 2222 2222 1111 1111 1100 0000 0000
 		 *     1098 7654 3210 9876 5432 1098 7654 3210
 		 * - -------------------------------------------
-		 *     xxxx xxxx xxxx xxxx xxxx xxxx xxxx xxxx
 		 *     bbbb bbbb bfff ffff ffFF FTTT LLLL LLLL
 		 * - -------------------------------------------
-		 *  - L = LanguageNumericId (8 bits)
-		 *  - T = StandardTokenType (3 bits)
-		 *  - F = FontStyle (3 bits)
-		 *  - f = foreground colorId (9 bits)
-		 *  - b = background colorId (9 bits)
-		 *
-		 * - Use `getLanguageNumericId` to get the numeric ID of a language.
-		 * - colorIds must be > 0 and are indexes into the `customTokenColors` property in the IStandaloneThemeData:
-		 * - The color value for colorId = 1 is stored in IStandaloneThemeData.customTokenColors[0].
+		 *  - L = EncodedLanguageId (8 bits): Use `getEncodedLanguageId` to get the encoded ID of a language.
+		 *  - T = StandardTokenType (3 bits): Other = 0, Comment = 1, String = 2, RegEx = 4.
+		 *  - F = FontStyle (3 bits): None = 0, Italic = 1, Bold = 2, Underline = 4.
+		 *  - f = foreground ColorId (9 bits)
+		 *  - b = background ColorId (9 bits)
+		 *  - The color value for each colorId is defined in IStandaloneThemeData.customTokenColors:
+		 * e.g colorId = 1 is stored in IStandaloneThemeData.customTokenColors[1]. Color id = 0 means no color,
+		 * id = 1 is for the default foreground color, id = 2 for the default background.
 		 */
 		tokens: Uint32Array;
 		/**
@@ -4138,7 +4126,7 @@ declare namespace monaco.languages {
 	/**
 	 * A "manual" provider of tokens, returning tokens in a binary form.
 	 */
-	export interface BinaryTokensProvider {
+	export interface EncodedTokensProvider {
 		/**
 		 * The initial state of a language. Will be the state passed in to tokenize the first line.
 		 */
@@ -4146,18 +4134,13 @@ declare namespace monaco.languages {
 		/**
 		 * Tokenize a line given the state at the beginning of the line.
 		 */
-		tokenize2(line: string, state: IState): IBinaryLineTokens;
+		tokenizeEncoded(line: string, state: IState): IEncodedLineTokens;
 	}
 
 	/**
 	 * Set the tokens provider for a language (manual implementation).
 	 */
-	export function setTokensProvider(languageId: string, provider: TokensProvider): IDisposable;
-
-	/**
-	 * Set the tokens provider for a language (manual implementation with styled tokens).
-	 */
-	export function setBinaryTokensProvider(languageId: string, provider: BinaryTokensProvider): IDisposable;
+	export function setTokensProvider(languageId: string, provider: TokensProvider | EncodedTokensProvider): IDisposable;
 
 	/**
 	 * Set the tokens provider for a language (monarch implementation).

@@ -38,8 +38,6 @@ import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { ITextModel, OverviewRulerLane, EndOfLinePreference, DefaultEndOfLine, EndOfLineSequence, TrackedRangeStickiness, TextModelResolvedOptions, FindMatch } from 'vs/editor/common/model';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { Event } from 'vs/base/common/event';
-import { ITheme } from 'vs/platform/theme/common/themeService';
 
 function withAllStandaloneServices<T extends editorCommon.IEditor>(domElement: HTMLElement, override: IEditorOverrideServices, callback: (services: DynamicStandaloneServices) => T): T {
 	let services = new DynamicStandaloneServices(domElement, override);
@@ -306,11 +304,6 @@ export function defineTheme(themeName: string, themeData: IStandaloneThemeData):
 }
 
 /**
- * Theme change event.
- */
-export const onThemeChange: Event<ITheme> = StaticServices.standaloneThemeService.get().onThemeChange;
-
-/**
  * Switches to a theme.
  */
 export function setTheme(themeName: string): void {
@@ -373,7 +366,6 @@ export function createMonacoEditorAPI(): typeof monaco.editor {
 		tokenize: tokenize,
 		defineTheme: defineTheme,
 		setTheme: setTheme,
-		onThemeChange: onThemeChange,
 
 		// enums
 		ScrollbarVisibility: ScrollbarVisibility,

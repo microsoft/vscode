@@ -114,19 +114,19 @@ class StandaloneTheme implements IStandaloneTheme {
 	public get tokenTheme(): TokenTheme {
 		if (!this._tokenTheme) {
 			let rules: ITokenThemeRule[] = [];
-			let customTokenColors = [];
+			let encodedTokensColors = [];
 			if (this.themeData.inherit) {
 				let baseData = getBuiltinRules(this.themeData.base);
 				rules = baseData.rules;
-				if (baseData.customTokenColors) {
-					customTokenColors = baseData.customTokenColors;
+				if (baseData.encodedTokensColors) {
+					encodedTokensColors = baseData.encodedTokensColors;
 				}
 			}
 			rules = rules.concat(this.themeData.rules);
-			if (this.themeData.customTokenColors) {
-				customTokenColors = this.themeData.customTokenColors;
+			if (this.themeData.encodedTokensColors) {
+				encodedTokensColors = this.themeData.encodedTokensColors;
 			}
-			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, customTokenColors);
+			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, encodedTokensColors);
 		}
 		return this._tokenTheme;
 	}
