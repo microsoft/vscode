@@ -284,12 +284,27 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
-export function coalesce<T>(array: T[]): T[] {
+export function coalesce<T>(array: T[]): T[];
+export function coalesce<T>(array: T[], inplace: true): void;
+export function coalesce<T>(array: T[], inplace?: true): void | T[] {
 	if (!array) {
-		return array;
+		if (!inplace) {
+			return array;
+		}
 	}
+	if (!inplace) {
+		return array.filter(e => !!e);
 
-	return array.filter(e => !!e);
+	} else {
+		let to = 0;
+		for (let i = 0; i < array.length; i++) {
+			if (!!array[i]) {
+				array[to] = array[i];
+				to += 1;
+			}
+		}
+		array.length = to;
+	}
 }
 
 /**
