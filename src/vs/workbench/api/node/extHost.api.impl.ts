@@ -460,7 +460,7 @@ export function createApiFactory(
 					return extHostQuickOpen.backButton;
 				})();
 			},
-			createQuickPick: proposedApiFunction(extension, (): vscode.QuickPick => {
+			createQuickPick: proposedApiFunction(extension, <T extends vscode.QuickPickItem>(): vscode.QuickPick<T> => {
 				return extHostQuickOpen.createQuickPick(extension.id);
 			}),
 			createInputBox: proposedApiFunction(extension, (): vscode.InputBox => {

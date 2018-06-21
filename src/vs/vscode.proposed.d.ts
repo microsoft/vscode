@@ -525,7 +525,7 @@ declare module 'vscode' {
 
 		export const quickInputBackButton: QuickInputButton;
 
-		export function createQuickPick(): QuickPick;
+		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
 
 		export function createInputBox(): InputBox;
 	}
@@ -553,7 +553,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface QuickPick extends QuickInput {
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		value: string;
 
@@ -567,7 +567,7 @@ declare module 'vscode' {
 
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
-		items: ReadonlyArray<QuickPickItem>;
+		items: ReadonlyArray<T>;
 
 		canSelectMany: boolean;
 
@@ -575,13 +575,13 @@ declare module 'vscode' {
 
 		matchOnDetail: boolean;
 
-		activeItems: ReadonlyArray<QuickPickItem>;
+		activeItems: ReadonlyArray<T>;
 
-		readonly onDidChangeActive: Event<QuickPickItem[]>;
+		readonly onDidChangeActive: Event<T[]>;
 
-		selectedItems: ReadonlyArray<QuickPickItem>;
+		selectedItems: ReadonlyArray<T>;
 
-		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+		readonly onDidChangeSelection: Event<T[]>;
 	}
 
 	export interface InputBox extends QuickInput {

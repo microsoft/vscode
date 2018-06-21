@@ -276,23 +276,23 @@ class QuickInput implements IQuickInput {
 	}
 }
 
-class QuickPick extends QuickInput implements IQuickPick {
+class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
 	private _value = '';
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
-	private _items: IQuickPickItem[] = [];
+	private _items: T[] = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
 	private _matchOnDescription = true;
 	private _matchOnDetail = true;
-	private _activeItems: IQuickPickItem[] = [];
+	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
-	private onDidChangeActiveEmitter = new Emitter<IQuickPickItem[]>();
-	private _selectedItems: IQuickPickItem[] = [];
+	private onDidChangeActiveEmitter = new Emitter<T[]>();
+	private _selectedItems: T[] = [];
 	private selectedItemsUpdated = false;
-	private onDidChangeSelectionEmitter = new Emitter<IQuickPickItem[]>();
+	private onDidChangeSelectionEmitter = new Emitter<T[]>();
 	private quickNavigate = false;
 
 	constructor(ui: QuickInputUI) {
@@ -331,7 +331,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._items;
 	}
 
-	set items(items: IQuickPickItem[]) {
+	set items(items: T[]) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
@@ -368,7 +368,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._activeItems;
 	}
 
-	set activeItems(activeItems: IQuickPickItem[]) {
+	set activeItems(activeItems: T[]) {
 		this._activeItems = activeItems;
 		this.activeItemsUpdated = true;
 		this.update();
@@ -380,7 +380,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._selectedItems;
 	}
 
-	set selectedItems(selectedItems: IQuickPickItem[]) {
+	set selectedItems(selectedItems: T[]) {
 		this._selectedItems = selectedItems;
 		this.selectedItemsUpdated = true;
 		this.update();
@@ -433,8 +433,8 @@ class QuickPick extends QuickInput implements IQuickPick {
 					if (!focusedItems.length && !this._activeItems.length) {
 						return;
 					}
-					this._activeItems = focusedItems;
-					this.onDidChangeActiveEmitter.fire(focusedItems);
+					this._activeItems = focusedItems as T[];
+					this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 				}),
 				this.ui.list.onDidChangeSelection(selectedItems => {
 					if (this.canSelectMany) {
@@ -444,16 +444,16 @@ class QuickPick extends QuickInput implements IQuickPick {
 					if (!selectedItems.length && !this._selectedItems.length) {
 						return;
 					}
-					this._selectedItems = selectedItems;
-					this.onDidChangeSelectionEmitter.fire(selectedItems);
+					this._selectedItems = selectedItems as T[];
+					this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
 					this.onDidAcceptEmitter.fire();
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
 					if (!this.canSelectMany) {
 						return;
 					}
-					this._selectedItems = checkedItems;
-					this.onDidChangeSelectionEmitter.fire(checkedItems);
+					this._selectedItems = checkedItems as T[];
+					this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
 				}),
 			);
 		}
@@ -893,12 +893,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick();
+			const input = this.createQuickPick<T>();
 			const disposables = [
 				input,
 				input.onDidAccept(() => {
 					if (input.canSelectMany) {
-						resolve(<any>input.selectedItems); // TODO: generify interface to use T extends IQuickPickItem
+						resolve(<any>input.selectedItems.slice());
 						input.hide();
 					} else {
 						const result = input.activeItems[0];
@@ -1005,9 +1005,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 	backButton = backButton;
 
-	createQuickPick(): IQuickPick {
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		this.create();
-		return new QuickPick(this.ui);
+		return new QuickPick<T>(this.ui);
 	}
 
 	createInputBox(): IInputBox {

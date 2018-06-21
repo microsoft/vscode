@@ -109,7 +109,7 @@ export interface IQuickInput {
 	dispose(): void;
 }
 
-export interface IQuickPick extends IQuickInput {
+export interface IQuickPick<T extends IQuickPickItem> extends IQuickInput {
 
 	value: string;
 
@@ -123,7 +123,7 @@ export interface IQuickPick extends IQuickInput {
 
 	readonly onDidTriggerButton: Event<IQuickInputButton>;
 
-	items: ReadonlyArray<IQuickPickItem>;
+	items: ReadonlyArray<T>;
 
 	canSelectMany: boolean;
 
@@ -131,13 +131,13 @@ export interface IQuickPick extends IQuickInput {
 
 	matchOnDetail: boolean;
 
-	activeItems: ReadonlyArray<IQuickPickItem>;
+	activeItems: ReadonlyArray<T>;
 
-	readonly onDidChangeActive: Event<IQuickPickItem[]>;
+	readonly onDidChangeActive: Event<T[]>;
 
-	selectedItems: ReadonlyArray<IQuickPickItem>;
+	selectedItems: ReadonlyArray<T>;
 
-	readonly onDidChangeSelection: Event<IQuickPickItem[]>;
+	readonly onDidChangeSelection: Event<T[]>;
 }
 
 export interface IInputBox extends IQuickInput {
@@ -186,7 +186,7 @@ export interface IQuickInputService {
 
 	backButton: IQuickInputButton;
 
-	createQuickPick(): IQuickPick;
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T>;
 	createInputBox(): IInputBox;
 
 	focus(): void;
