@@ -2891,9 +2891,14 @@ declare namespace monaco.editor {
 		renderControlCharacters?: boolean;
 		/**
 		 * Enable rendering of indent guides.
-		 * Defaults to false.
+		 * Defaults to true.
 		 */
 		renderIndentGuides?: boolean;
+		/**
+		 * Enable highlighting of the active indent guide.
+		 * Defaults to true.
+		 */
+		highlightActiveIndentGuide?: boolean;
 		/**
 		 * Enable rendering of current line highlight.
 		 * Defaults to all.
@@ -3124,6 +3129,7 @@ declare namespace monaco.editor {
 		readonly renderControlCharacters: boolean;
 		readonly fontLigatures: boolean;
 		readonly renderIndentGuides: boolean;
+		readonly highlightActiveIndentGuide: boolean;
 		readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 		readonly scrollbar: InternalEditorScrollbarOptions;
 		readonly minimap: InternalEditorMinimapOptions;

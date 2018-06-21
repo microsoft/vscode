@@ -549,9 +549,14 @@ export interface IEditorOptions {
 	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	renderIndentGuides?: boolean;
+	/**
+	 * Enable highlighting of the active indent guide.
+	 * Defaults to true.
+	 */
+	highlightActiveIndentGuide?: boolean;
 	/**
 	 * Enable rendering of current line highlight.
 	 * Defaults to all.
@@ -845,6 +850,7 @@ export interface InternalEditorViewOptions {
 	readonly renderControlCharacters: boolean;
 	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
+	readonly highlightActiveIndentGuide: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
 	readonly minimap: InternalEditorMinimapOptions;
@@ -1131,6 +1137,7 @@ export class InternalEditorOptions {
 			&& a.renderControlCharacters === b.renderControlCharacters
 			&& a.fontLigatures === b.fontLigatures
 			&& a.renderIndentGuides === b.renderIndentGuides
+			&& a.highlightActiveIndentGuide === b.highlightActiveIndentGuide
 			&& a.renderLineHighlight === b.renderLineHighlight
 			&& this._equalsScrollbarOptions(a.scrollbar, b.scrollbar)
 			&& this._equalsMinimapOptions(a.minimap, b.minimap)
@@ -1748,6 +1755,7 @@ export class EditorOptionsValidator {
 			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
 			fontLigatures: fontLigatures,
 			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
+			highlightActiveIndentGuide: _boolean(opts.highlightActiveIndentGuide, defaults.highlightActiveIndentGuide),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
 			minimap: minimap,
@@ -1862,6 +1870,7 @@ export class InternalEditorOptionsFactory {
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
+				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
@@ -2315,6 +2324,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderControlCharacters: false,
 		fontLigatures: false,
 		renderIndentGuides: true,
+		highlightActiveIndentGuide: true,
 		renderLineHighlight: 'line',
 		scrollbar: {
 			vertical: ScrollbarVisibility.Auto,

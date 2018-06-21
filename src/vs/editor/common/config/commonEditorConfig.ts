@@ -572,6 +572,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
+		'editor.highlightActiveIndentGuide': {
+			'type': 'boolean',
+			default: EDITOR_DEFAULTS.viewInfo.highlightActiveIndentGuide,
+			description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide")
+		},
 		'editor.renderLineHighlight': {
 			'type': 'string',
 			'enum': ['none', 'gutter', 'line', 'all'],
