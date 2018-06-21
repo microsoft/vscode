@@ -117,7 +117,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 		let activeIndentStartLineNumber = 0;
 		let activeIndentEndLineNumber = 0;
 		let activeIndentLevel = 0;
-		if (this._primaryLineNumber) {
+		if (this._activeIndentEnabled && this._primaryLineNumber) {
 			const activeIndentInfo = this._context.model.getActiveIndentGuide(this._primaryLineNumber, visibleStartLineNumber, visibleEndLineNumber);
 			activeIndentStartLineNumber = activeIndentInfo.startLineNumber;
 			activeIndentEndLineNumber = activeIndentInfo.endLineNumber;
@@ -126,8 +126,7 @@ export class IndentGuidesOverlay extends DynamicViewOverlay {
 
 		let output: string[] = [];
 		for (let lineNumber = visibleStartLineNumber; lineNumber <= visibleEndLineNumber; lineNumber++) {
-			const containsActiveIndentGuide =
-				this._activeIndentEnabled && (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
+			const containsActiveIndentGuide = (activeIndentStartLineNumber <= lineNumber && lineNumber <= activeIndentEndLineNumber);
 			const lineIndex = lineNumber - visibleStartLineNumber;
 			const indent = indents[lineIndex];
 
