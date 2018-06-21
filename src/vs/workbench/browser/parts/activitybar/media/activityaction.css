@@ -6,16 +6,16 @@
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-item {
 	display: block;
 	position: relative;
-	padding: 5px 0;
+	padding: 0;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .action-label {
 	display: flex;
 	overflow: hidden;
-	height: 40px;
-	line-height: 40px;
+	height: 38px;
+	line-height: 38px;
 	margin-right: 0;
-	padding: 0 0 0 50px;
+	padding: 0;
 	box-sizing: border-box;
 	font-size: 15px;
 }
@@ -46,19 +46,19 @@
 	top: 5px;
 	left: 0;
 	overflow: hidden;
-	width: 50px;
-	height: 40px;
+	width: 38px;
+	height: 38px;
 }
 
 .monaco-workbench > .activitybar > .content .monaco-action-bar .badge .badge-content {
 	position: absolute;
-	top: 20px;
-	right: 8px;
-	font-size: 11px;
-	min-width: 8px;
-	height: 18px;
-	line-height: 18px;
-	padding: 0 5px;
+	top: 15px;
+	right: 5px;
+	font-size: 9px;
+	min-width: 7px;
+	height: 14px;
+	line-height: 14px;
+	padding: 0 4px;
 	border-radius: 20px;
 	text-align: center;
 }
