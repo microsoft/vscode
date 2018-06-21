@@ -443,12 +443,20 @@ export class RemoteFileService extends FileService {
 		}
 	}
 
+	private static _throwIfFileSystemIsReadonly(provider: IFileSystemProvider): IFileSystemProvider {
+		if (provider.capabilities & FileSystemProviderCapabilities.Readonly) {
+			throw new FileOperationError(localize('err.readonly', "Resource can not be modified."), FileOperationResult.FILE_PERMISSION_DENIED);
+		}
+		return provider;
+	}
+
 	createFile(resource: URI, content?: string, options?: ICreateFileOptions): TPromise<IFileStat> {
 		if (resource.scheme === Schemas.file) {
 			return super.createFile(resource, content, options);
 		} else {
 
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
+
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					const encoding = this.encoding.getWriteEncoding(resource);
 					return this._writeFile(provider, resource, new StringSnapshot(content), encoding, { create: true, overwrite: Boolean(options && options.overwrite) });
@@ -469,7 +477,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.updateContent(resource, value, options);
 		} else {
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					const snapshot = typeof value === 'string' ? new StringSnapshot(value) : value;
 					return this._writeFile(provider, resource, snapshot, options && options.encoding, { create: true, overwrite: true });
@@ -515,7 +523,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.del(resource, useTrash);
 		} else {
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return provider.delete(resource).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
@@ -527,7 +535,7 @@ export class RemoteFileService extends FileService {
 		if (resource.scheme === Schemas.file) {
 			return super.createFolder(resource);
 		} else {
-			return this._withProvider(resource).then(provider => {
+			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 				return RemoteFileService._mkdirp(provider, resource.with({ path: posix.dirname(resource.path) })).then(() => {
 					return provider.mkdir(resource).then(() => {
 						return this.resolveFile(resource);
@@ -556,7 +564,7 @@ export class RemoteFileService extends FileService {
 			? this.del(target).then(undefined, err => { /*ignore*/ })
 			: TPromise.as(null);
 
-		return prepare.then(() => this._withProvider(source)).then(provider => {
+		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 			return provider.rename(source, target, { overwrite }).then(() => {
 				return this.resolveFile(target);
 			}).then(fileStat => {
@@ -588,7 +596,7 @@ export class RemoteFileService extends FileService {
 			return super.copyFile(source, target, overwrite);
 		}
 
-		return this._withProvider(target).then(provider => {
+		return this._withProvider(target).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
 
 			if (source.scheme === target.scheme && (provider.capabilities & FileSystemProviderCapabilities.FileFolderCopy)) {
 				// good: provider supports copy withing scheme
