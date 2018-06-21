@@ -443,13 +443,13 @@ export interface IEditorOptions {
 	 */
 	iconsInSuggestions?: boolean;
 	/**
-	 * Enable auto closing brackets.
-	 * Defaults to true.
+	 * Options for auto closing brackets.
+	 * Defaults to allowing autoclosing before whitespace and punctuation and allowing autowrapping always.
 	 */
 	autoClosingBrackets?: EditorAutoClosingOptions;
 	/**
-	 * Enable auto closing quotes.
-	 * Defaults to true.
+	 * Options for auto closing quotes.
+	 * Defaults to allowing autoclosing before whitespace and allowing autowrapping always.
 	 */
 	autoClosingQuotes?: EditorAutoClosingOptions;
 	/**

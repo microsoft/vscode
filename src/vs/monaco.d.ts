@@ -2785,13 +2785,13 @@ declare namespace monaco.editor {
 		 */
 		iconsInSuggestions?: boolean;
 		/**
-		 * Enable auto closing brackets.
-		 * Defaults to true.
+		 * Options for auto closing brackets.
+		 * Defaults to allowing both autowrapping and autoclosing.
 		 */
 		autoClosingBrackets?: EditorAutoClosingOptions;
 		/**
-		 * Enable auto closing quotes.
-		 * Defaults to true.
+		 * Options for auto closing quotes.
+		 * Defaults to allowing autoclosing before whitespace and allwoing autowrapping always.
 		 */
 		autoClosingQuotes?: EditorAutoClosingOptions;
 		/**
