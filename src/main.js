@@ -132,8 +132,7 @@ function mkdirp(dir) {
 	});
 }
 
-function resolveJSFlags() {
-	const jsFlags = [];
+function resolveJSFlags(...jsFlags) {
 
 	if (args['js-flags']) {
 		jsFlags.push(args['js-flags']);
@@ -329,27 +328,37 @@ function getNLSConfiguration(locale) {
 //#endregion
 
 //#region Cached Data Dir
-function getNodeCachedDataDir() {
-	// flag to disable cached data support
-	if (process.argv.indexOf('--no-cached-data') > 0) {
-		return Promise.resolve(undefined);
+const nodeCachedDataDir = new class {
+
+	constructor() {
+		this.value = this._compute();
 	}
 
-	// IEnvironmentService.isBuilt
-	if (process.env['VSCODE_DEV']) {
-		return Promise.resolve(undefined);
+	jsFlags() {
+		return this.value ? '--nolazy' : undefined;
 	}
 
-	// find commit id
-	let commit = product.commit;
-	if (!commit) {
-		return Promise.resolve(undefined);
+	ensureExists() {
+		return mkdirp(this.value).then(() => this.value, () => { /*ignore*/ });
 	}
 
-	let dir = path.join(app.getPath('userData'), 'CachedData', commit);
+	_compute() {
+		if (process.argv.indexOf('--no-cached-data') > 0) {
+			return undefined;
+		}
+		// IEnvironmentService.isBuilt
+		if (process.env['VSCODE_DEV']) {
+			return undefined;
+		}
+		// find commit id
+		let commit = product.commit;
+		if (!commit) {
+			return undefined;
+		}
+		return path.join(app.getPath('userData'), 'CachedData', commit);
+	}
+};
 
-	return mkdirp(dir).then(undefined, function () { /*ignore*/ });
-}
 //#endregion
 
 function getUserDataPath() {
@@ -397,20 +406,6 @@ global.getOpenUrls = function () {
 	return openUrls;
 };
 
-// use '<UserData>/CachedData'-directory to store
-// node/v8 cached data.
-let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {
-	if (value) {
-		// store the data directory
-		process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = value;
-
-		// tell v8 to not be lazy when parsing JavaScript. Generally this makes startup slower
-		// but because we generate cached data it makes subsequent startups much faster
-		let existingJSFlags = resolveJSFlags();
-		app.commandLine.appendSwitch('--js-flags', existingJSFlags ? existingJSFlags + ' --nolazy' : '--nolazy');
-	}
-	return value;
-});
 
 let nlsConfiguration = undefined;
 let userDefinedLocale = getUserDefinedLocale();
@@ -420,7 +415,7 @@ userDefinedLocale.then((locale) => {
 	}
 });
 
-let jsFlags = resolveJSFlags();
+let jsFlags = resolveJSFlags(nodeCachedDataDir.jsFlags());
 if (jsFlags) {
 	app.commandLine.appendSwitch('--js-flags', jsFlags);
 }
@@ -428,8 +423,7 @@ if (jsFlags) {
 // Load our code once ready
 app.once('ready', function () {
 	perf.mark('main:appReady');
-	Promise.all([nodeCachedDataDir, userDefinedLocale]).then((values) => {
-		let locale = values[1];
+	Promise.all([nodeCachedDataDir.ensureExists(), userDefinedLocale]).then(([cachedDataDir, locale]) => {
 		if (locale && !nlsConfiguration) {
 			nlsConfiguration = getNLSConfiguration(locale);
 		}
@@ -441,6 +435,7 @@ app.once('ready', function () {
 		nlsConfiguration.then((nlsConfig) => {
 			let boot = (nlsConfig) => {
 				process.env['VSCODE_NLS_CONFIG'] = JSON.stringify(nlsConfig);
+				if (cachedDataDir) process.env['VSCODE_NODE_CACHED_DATA_DIR_' + process.pid] = cachedDataDir;
 				require('./bootstrap-amd').bootstrap('vs/code/electron-main/main');
 			};
 			// We recevied a valid nlsConfig from a user defined locale
