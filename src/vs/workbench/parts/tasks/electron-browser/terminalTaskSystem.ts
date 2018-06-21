@@ -580,6 +580,10 @@ export class TerminalTaskSystem implements ITaskSystem {
 					if (!shellSpecified) {
 						toAdd.push('-c');
 					}
+				} else if (basename === 'wsl.exe') {
+					if (!shellSpecified) {
+						toAdd.push('-e');
+					}
 				} else {
 					if (!shellSpecified) {
 						toAdd.push('/d', '/c');

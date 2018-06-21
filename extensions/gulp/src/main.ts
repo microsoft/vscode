@@ -82,6 +82,10 @@ class FolderDetector {
 		return vscode.workspace.getConfiguration('gulp', this._workspaceFolder.uri).get<AutoDetect>('autoDetect') === 'on';
 	}
 
+	public useWSL(): boolean {
+		return vscode.workspace.getConfiguration('gulp', this._workspaceFolder.uri).get<boolean>('useWSL') === true;
+	}
+
 	public start(): void {
 		let pattern = path.join(this._workspaceFolder.uri.fsPath, 'gulpfile{.babel.js,.js,.ts}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
@@ -112,9 +116,17 @@ class FolderDetector {
 		}
 
 		let gulpCommand: string;
-		let platform = process.platform;
+		let platform: NodeJS.Platform | 'wsl' = process.platform;
+
+		if (platform === 'win32' && this.useWSL()) {
+			platform = 'wsl';
+		}
+
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp.cmd'))) {
 			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp.cmd');
+		} else if (platform === 'wsl' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp'))) {
+			// Using WSL, so we're on windows, need to build path with proper separators.
+			gulpCommand = path.posix.join('.', 'node_modules', '.bin', 'gulp');
 		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'gulp'))) {
 			gulpCommand = path.join('.', 'node_modules', '.bin', 'gulp');
 		} else {
@@ -123,6 +135,9 @@ class FolderDetector {
 
 		let commandLine = `${gulpCommand} --tasks-simple --no-color`;
 		try {
+			if (platform === 'wsl') {
+				commandLine = `wsl.exe -e ${commandLine}`;
+			}
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr && stderr.length > 0) {
 				getOutputChannel().appendLine(stderr);
