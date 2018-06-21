@@ -48,29 +48,24 @@ export function setup() {
 			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
-
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
+
 			await app.workbench.scm.stage('app.js');
-
-			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
 			await app.workbench.scm.unstage('app.js');
-
-			await app.workbench.scm.waitForChange('app.js', 'Modified');
 		});
 
 		it(`stages, commits changes and verifies outgoing change`, async function () {
 			const app = this.app as Application;
 
 			await app.workbench.scm.openSCMViewlet();
-
 			await app.workbench.scm.waitForChange('app.js', 'Modified');
+
 			await app.workbench.scm.stage('app.js');
-			await app.workbench.scm.waitForChange('app.js', 'Index Modified');
 
 			await app.workbench.scm.commit('first commit');
 			await app.code.waitForTextContent(SYNC_STATUSBAR, ' 0↓ 1↑');
 
-			await app.workbench.runCommand('Git: Stage All Changes');
+			await app.workbench.quickopen.runCommand('Git: Stage All Changes');
 			await app.workbench.scm.waitForChange('index.jade', 'Index Modified');
 
 			await app.workbench.scm.commit('second commit');

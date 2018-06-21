@@ -40,9 +40,8 @@ import { createSpdLogService } from 'vs/platform/log/node/spdlogService';
 import { LogLevelSetterChannelClient, FollowerLogService } from 'vs/platform/log/common/logIpc';
 import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { OcticonLabel } from 'vs/base/browser/ui/octiconLabel/octiconLabel';
-import { normalizeGitHubIssuesUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
+import { normalizeGitHubUrl } from 'vs/code/electron-browser/issue/issueReporterUtil';
 import { Button } from 'vs/base/browser/ui/button/button';
-import { Color } from 'vs/base/common/color';
 
 const MAX_URL_LENGTH = platform.isWindows ? 2081 : 5400;
 
@@ -90,11 +89,7 @@ export class IssueReporter extends Disposable {
 			extensionsDisabled: this.environmentService.disableExtensions,
 		});
 
-		this.previewButton = new Button(document.getElementById('issue-reporter'), {
-			buttonBackground: Color.fromHex(configuration.data.styles.buttonBackground),
-			buttonForeground: Color.fromHex(configuration.data.styles.buttonForeground),
-			buttonHoverBackground: Color.fromHex(configuration.data.styles.buttonHoverBackground)
-		});
+		this.previewButton = new Button(document.getElementById('issue-reporter'));
 
 		ipcRenderer.on('issuePerformanceInfoResponse', (event, info) => {
 			this.logService.trace('issueReporter: Received performance data');
@@ -155,7 +150,7 @@ export class IssueReporter extends Disposable {
 		const content: string[] = [];
 
 		if (styles.inputBackground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { background-color: ${styles.inputBackground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { background-color: ${styles.inputBackground}; }`);
 		}
 
 		if (styles.inputBorder) {
@@ -165,7 +160,7 @@ export class IssueReporter extends Disposable {
 		}
 
 		if (styles.inputForeground) {
-			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state { color: ${styles.inputForeground}; }`);
+			content.push(`input[type="text"], textarea, select, .issues-container > .issue > .issue-state, .block-info { color: ${styles.inputForeground}; }`);
 		}
 
 		if (styles.inputErrorBorder) {
@@ -185,6 +180,10 @@ export class IssueReporter extends Disposable {
 			content.push(`a { color: ${styles.textLinkColor}; }`);
 		}
 
+		if (styles.textLinkActiveForeground) {
+			content.push(`a:hover, .workbenchCommand:hover { color: ${styles.textLinkActiveForeground}; }`);
+		}
+
 		if (styles.sliderBackgroundColor) {
 			content.push(`::-webkit-scrollbar-thumb { background-color: ${styles.sliderBackgroundColor}; }`);
 		}
@@ -195,6 +194,18 @@ export class IssueReporter extends Disposable {
 
 		if (styles.sliderHoverColor) {
 			content.push(`::--webkit-scrollbar-thumb:hover { background-color: ${styles.sliderHoverColor}; }`);
+		}
+
+		if (styles.buttonBackground) {
+			content.push(`.monaco-text-button { background-color: ${styles.buttonBackground} !important; }`);
+		}
+
+		if (styles.buttonForeground) {
+			content.push(`.monaco-text-button { color: ${styles.buttonForeground} !important; }`);
+		}
+
+		if (styles.buttonHoverBackground) {
+			content.push(`.monaco-text-button:hover, .monaco-text-button:focus { background-color: ${styles.buttonHoverBackground} !important; }`);
 		}
 
 		styleTag.innerHTML = content.join('\n');
@@ -310,24 +321,11 @@ export class IssueReporter extends Disposable {
 			});
 		});
 
-		const labelElements = document.getElementsByClassName('caption');
-		for (let i = 0; i < labelElements.length; i++) {
-			const label = labelElements.item(i);
-			label.addEventListener('click', (e) => {
-				e.stopPropagation();
-
-				const containingDiv = (<HTMLLabelElement>e.target).parentElement;
-				const checkbox = <HTMLInputElement>containingDiv.firstElementChild;
-				if (checkbox) {
-					this.issueReporterModel.update({ [checkbox.id]: !this.issueReporterModel.getData()[checkbox.id] });
-				}
-			});
-		}
-
 		const showInfoElements = document.getElementsByClassName('showInfo');
 		for (let i = 0; i < showInfoElements.length; i++) {
 			const showInfo = showInfoElements.item(i);
 			showInfo.addEventListener('click', (e) => {
+				e.preventDefault();
 				const label = (<HTMLDivElement>e.target);
 				const containingElement = label.parentElement.parentElement;
 				const info = containingElement.lastElementChild;
@@ -468,12 +466,19 @@ export class IssueReporter extends Disposable {
 	}
 
 	private searchExtensionIssues(title: string): void {
-		const url = this.getExtensionRepositoryUrl();
+		const url = this.getExtensionGitHubUrl();
 		if (title) {
-			const matches = /^https?:\/\/github\.com\/(.*)(?:.git)/.exec(url);
+			const matches = /^https?:\/\/github\.com\/(.*)/.exec(url);
 			if (matches && matches.length) {
 				const repo = matches[1];
 				return this.searchGitHub(repo, title);
+			}
+
+			// If the extension has no repository, display empty search results
+			if (this.issueReporterModel.getData().selectedExtension) {
+				this.clearSearchResults();
+				return this.displaySearchResults([]);
+
 			}
 		}
 
@@ -743,6 +748,12 @@ export class IssueReporter extends Disposable {
 				this.validateInput('description');
 			});
 
+			if (this.issueReporterModel.fileOnExtension()) {
+				document.getElementById('extension-selector').addEventListener('change', (event) => {
+					this.validateInput('extension-selector');
+				});
+			}
+
 			return false;
 		}
 
@@ -767,16 +778,26 @@ export class IssueReporter extends Disposable {
 		return true;
 	}
 
+	private getExtensionGitHubUrl(): string {
+		let repositoryUrl = '';
+		const bugsUrl = this.getExtensionBugsUrl();
+		const extensionUrl = this.getExtensionRepositoryUrl();
+		// If given, try to match the extension's bug url
+		if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(bugsUrl);
+		} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
+			repositoryUrl = normalizeGitHubUrl(extensionUrl);
+		}
+
+		return repositoryUrl;
+	}
+
 	private getIssueUrlWithTitle(issueTitle: string): string {
 		let repositoryUrl = product.reportIssueUrl;
 		if (this.issueReporterModel.fileOnExtension()) {
-			const bugsUrl = this.getExtensionBugsUrl();
-			const extensionUrl = this.getExtensionRepositoryUrl();
-			// If given, try to match the extension's bug url
-			if (bugsUrl && bugsUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-				repositoryUrl = normalizeGitHubIssuesUrl(bugsUrl);
-			} else if (extensionUrl && extensionUrl.match(/^https?:\/\/github\.com\/(.*)/)) {
-				repositoryUrl = normalizeGitHubIssuesUrl(extensionUrl);
+			const extensionGitHubUrl = this.getExtensionGitHubUrl();
+			if (extensionGitHubUrl) {
+				repositoryUrl = extensionGitHubUrl + '/issues/new';
 			}
 		}
 

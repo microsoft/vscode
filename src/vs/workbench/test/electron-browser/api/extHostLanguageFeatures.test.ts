@@ -163,7 +163,7 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
-				assert.equal(value.entries.length, 1);
+				assert.equal(value.length, 1);
 			});
 		});
 	});
@@ -178,11 +178,11 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return getDocumentSymbols(model).then(value => {
-				assert.equal(value.entries.length, 1);
+				assert.equal(value.length, 1);
 
-				let entry = value.entries[0];
+				let entry = value[0];
 				assert.equal(entry.name, 'test');
-				assert.deepEqual(entry.location.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
+				assert.deepEqual(entry.range, { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 1 });
 			});
 		});
 	});
@@ -654,7 +654,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 2);
 
 				const [first, second] = value;
@@ -681,7 +681,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 
 				const [first] = value;
@@ -707,7 +707,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -727,7 +727,7 @@ suite('ExtHostLanguageFeatures', function () {
 		}));
 
 		return rpcProtocol.sync().then(() => {
-			return getCodeActions(model, model.getFullModelRange()).then(value => {
+			return getCodeActions(model, model.getFullModelRange(), undefined).then(value => {
 				assert.equal(value.length, 1);
 			});
 		});
@@ -841,8 +841,10 @@ suite('ExtHostLanguageFeatures', function () {
 		return rpcProtocol.sync().then(() => {
 
 			return rename(model, new EditorPosition(1, 1), 'newName').then(value => {
-				assert.equal(value.edits.length, 1); // least relevant renamer
-				assert.equal((<ResourceTextEdit[]>value.edits)[0].edits.length, 2); // least relevant renamer
+				// least relevant rename provider
+				assert.equal(value.edits.length, 2);
+				assert.equal((<ResourceTextEdit>value.edits[0]).edits.length, 1);
+				assert.equal((<ResourceTextEdit>value.edits[1]).edits.length, 1);
 			});
 		});
 	});

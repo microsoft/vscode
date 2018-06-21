@@ -25,7 +25,8 @@ import URI from 'vs/base/common/uri';
 import { PANEL_BACKGROUND, PANEL_BORDER } from 'vs/workbench/common/theme';
 import { TERMINAL_BACKGROUND_COLOR, TERMINAL_BORDER_COLOR } from 'vs/workbench/parts/terminal/common/terminalColorRegistry';
 import { DataTransfers } from 'vs/base/browser/dnd';
-import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
+import { INotificationService, IPromptChoice, Severity } from 'vs/platform/notification/common/notification';
+import { TerminalConfigHelper } from 'vs/workbench/parts/terminal/electron-browser/terminalConfigHelper';
 
 export class TerminalPanel extends Panel {
 
@@ -43,9 +44,9 @@ export class TerminalPanel extends Panel {
 		@IContextMenuService private readonly _contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService,
 		@ITerminalService private readonly _terminalService: ITerminalService,
-		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IThemeService protected themeService: IThemeService,
-		@ITelemetryService telemetryService: ITelemetryService
+		@ITelemetryService telemetryService: ITelemetryService,
+		@INotificationService private readonly _notificationService: INotificationService
 	) {
 		super(TERMINAL_PANEL_ID, telemetryService, themeService);
 	}
@@ -74,6 +75,19 @@ export class TerminalPanel extends Panel {
 			if (e.affectsConfiguration('terminal.integrated') || e.affectsConfiguration('editor.fontFamily')) {
 				this._updateFont();
 			}
+
+			if (e.affectsConfiguration('terminal.integrated.fontFamily') || e.affectsConfiguration('editor.fontFamily')) {
+				const configHelper = this._terminalService.configHelper;
+				if (configHelper instanceof TerminalConfigHelper) {
+					if (!configHelper.configFontIsMonospace()) {
+						const choices: IPromptChoice[] = [{
+							label: nls.localize('terminal.useMonospace', "Use 'monospace'"),
+							run: () => this._configurationService.updateValue('terminal.integrated.fontFamily', 'monospace'),
+						}];
+						this._notificationService.prompt(Severity.Warning, nls.localize('terminal.monospaceOnly', "The terminal only supports monospace fonts."), choices);
+					}
+				}
+			}
 		}));
 		this._updateFont();
 		this._updateTheme();
@@ -97,27 +111,14 @@ export class TerminalPanel extends Panel {
 				this._updateTheme();
 			} else {
 				return super.setVisible(visible).then(() => {
-					// Ensure the "Running" lifecycle face has been reached before creating the
-					// first terminal.
-					this._lifecycleService.when(LifecyclePhase.Running).then(() => {
-						// Allow time for the panel to display if it is being shown
-						// for the first time. If there is not wait here the initial
-						// dimensions of the pty could be wrong.
-						setTimeout(() => {
-							// Check if instances were already restored as part of workbench restore
-							if (this._terminalService.terminalInstances.length > 0) {
-								this._updateFont();
-								this._updateTheme();
-								return;
-							}
-
-							const instance = this._terminalService.createTerminal();
-							if (instance) {
-								this._updateFont();
-								this._updateTheme();
-							}
-						}, 0);
-					});
+					// Check if instances were already restored as part of workbench restore
+					if (this._terminalService.terminalInstances.length === 0) {
+						this._terminalService.createTerminal();
+					}
+					if (this._terminalService.terminalInstances.length > 0) {
+						this._updateFont();
+						this._updateTheme();
+					}
 					return TPromise.as(void 0);
 				});
 			}
@@ -190,14 +191,6 @@ export class TerminalPanel extends Panel {
 		this._findWidget.hide();
 	}
 
-	public showNextFindTermFindWidget(): void {
-		this._findWidget.showNextFindTerm();
-	}
-
-	public showPreviousFindTermFindWidget(): void {
-		this._findWidget.showPreviousFindTerm();
-	}
-
 	private _attachEventListeners(): void {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'mousedown', (event: MouseEvent) => {
 			if (this._terminalService.terminalInstances.length === 0) {
@@ -210,7 +203,7 @@ export class TerminalPanel extends Panel {
 				this._terminalService.getActiveInstance().focus();
 			} else if (event.which === 3) {
 				if (this._terminalService.configHelper.config.rightClickBehavior === 'copyPaste') {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 						terminal.clearSelection();
@@ -237,7 +230,7 @@ export class TerminalPanel extends Panel {
 				}
 
 				if (event.which === 1) {
-					let terminal = this._terminalService.getActiveInstance();
+					const terminal = this._terminalService.getActiveInstance();
 					if (terminal.hasSelection()) {
 						terminal.copySelection();
 					}
@@ -247,7 +240,7 @@ export class TerminalPanel extends Panel {
 		this._register(dom.addDisposableListener(this._parentDomElement, 'contextmenu', (event: MouseEvent) => {
 			if (!this._cancelContextMenu) {
 				const standardEvent = new StandardMouseEvent(event);
-				let anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
+				const anchor: { x: number, y: number } = { x: standardEvent.posx, y: standardEvent.posy };
 				this._contextMenuService.showContextMenu({
 					getAnchor: () => anchor,
 					getActions: () => TPromise.as(this._getContextMenuActions()),
@@ -276,7 +269,7 @@ export class TerminalPanel extends Panel {
 
 				// Check if files were dragged from the tree explorer
 				let path: string;
-				let resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
+				const resources = e.dataTransfer.getData(DataTransfers.RESOURCES);
 				if (resources) {
 					path = URI.parse(JSON.parse(resources)[0]).path;
 				} else if (e.dataTransfer.files.length > 0) {
@@ -322,15 +315,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	}
 
 	// Borrow the editor's hover background for now
-	let hoverBackground = theme.getColor(editorHoverBackground);
+	const hoverBackground = theme.getColor(editorHoverBackground);
 	if (hoverBackground) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { background-color: ${hoverBackground}; }`);
 	}
-	let hoverBorder = theme.getColor(editorHoverBorder);
+	const hoverBorder = theme.getColor(editorHoverBorder);
 	if (hoverBorder) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { border: 1px solid ${hoverBorder}; }`);
 	}
-	let hoverForeground = theme.getColor(editorForeground);
+	const hoverForeground = theme.getColor(editorForeground);
 	if (hoverForeground) {
 		collector.addRule(`.monaco-workbench .panel.integrated-terminal .terminal-message-widget { color: ${hoverForeground}; }`);
 	}

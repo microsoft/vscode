@@ -27,6 +27,7 @@ import { PanelView, IPanelViewOptions, IPanelOptions, Panel } from 'vs/base/brow
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { StandardMouseEvent } from 'vs/base/browser/mouseEvent';
+import { IView } from 'vs/workbench/common/views';
 
 export interface IPanelColors extends IColorMapping {
 	dropBackground?: ColorIdentifier;
@@ -37,24 +38,32 @@ export interface IPanelColors extends IColorMapping {
 
 export interface IViewletPanelOptions extends IPanelOptions {
 	actionRunner?: IActionRunner;
+	id: string;
+	title: string;
 }
 
-export abstract class ViewletPanel extends Panel {
+export abstract class ViewletPanel extends Panel implements IView {
 
 	private static AlwaysShowActionsConfig = 'workbench.view.alwaysShowHeaderActions';
 
 	private _onDidFocus = new Emitter<void>();
 	readonly onDidFocus: Event<void> = this._onDidFocus.event;
 
+	private _onDidBlur = new Emitter<void>();
+	readonly onDidBlur: Event<void> = this._onDidBlur.event;
+
 	private _onDidChangeTitleArea = new Emitter<void>();
 	readonly onDidChangeTitleArea: Event<void> = this._onDidChangeTitleArea.event;
+
+	private _isVisible: boolean;
+	readonly id: string;
+	readonly title: string;
 
 	protected actionRunner: IActionRunner;
 	protected toolbar: ToolBar;
 	private headerContainer: HTMLElement;
 
 	constructor(
-		readonly title: string,
 		options: IViewletPanelOptions,
 		@IKeybindingService protected keybindingService: IKeybindingService,
 		@IContextMenuService protected contextMenuService: IContextMenuService,
@@ -62,7 +71,21 @@ export abstract class ViewletPanel extends Panel {
 	) {
 		super(options);
 
+		this.id = options.id;
+		this.title = options.title;
 		this.actionRunner = options.actionRunner;
+	}
+
+	setVisible(visible: boolean): TPromise<void> {
+		if (this._isVisible !== visible) {
+			this._isVisible = visible;
+		}
+
+		return TPromise.wrap(null);
+	}
+
+	isVisible(): boolean {
+		return this._isVisible;
 	}
 
 	render(): void {
@@ -71,6 +94,7 @@ export abstract class ViewletPanel extends Panel {
 		const focusTracker = trackFocus(this.element);
 		this.disposables.push(focusTracker);
 		this.disposables.push(focusTracker.onDidFocus(() => this._onDidFocus.fire()));
+		this.disposables.push(focusTracker.onDidBlur(() => this._onDidBlur.fire()));
 	}
 
 	protected renderHeader(container: HTMLElement): void {
@@ -100,7 +124,10 @@ export abstract class ViewletPanel extends Panel {
 	}
 
 	focus(): void {
-		this._onDidFocus.fire();
+		if (this.element) {
+			this.element.focus();
+			this._onDidFocus.fire();
+		}
 	}
 
 	private setActions(): void {
@@ -137,6 +164,9 @@ export abstract class ViewletPanel extends Panel {
 	getOptimalWidth(): number {
 		return 0;
 	}
+
+	shutdown(): void {
+	}
 }
 
 export interface IViewsViewletOptions extends IPanelViewOptions {
@@ -154,7 +184,7 @@ export class PanelViewlet extends Viewlet {
 	private panelItems: IViewletPanelItem[] = [];
 	private panelview: PanelView;
 
-	get onDidSashChange(): Event<void> {
+	get onDidSashChange(): Event<number> {
 		return this.panelview.onDidSashChange;
 	}
 

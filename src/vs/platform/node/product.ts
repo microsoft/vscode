@@ -30,7 +30,7 @@ export interface IProductConfiguration {
 	};
 	extensionTips: { [id: string]: string; };
 	extensionImportantTips: { [id: string]: { name: string; pattern: string; }; };
-	exeBasedExtensionTips: { [id: string]: any; };
+	exeBasedExtensionTips: { [id: string]: { friendlyName: string, windowsPath?: string, recommendations: string[] }; };
 	extensionKeywords: { [extension: string]: string[]; };
 	extensionAllowedBadgeProviders: string[];
 	extensionAllowedProposedApi: string[];
@@ -73,6 +73,7 @@ export interface IProductConfiguration {
 		'darwin': string;
 	};
 	logUploaderUrl: string;
+	portable?: string;
 }
 
 export interface ISurveyData {

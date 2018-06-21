@@ -394,13 +394,15 @@ export class FolderMatch extends Disposable {
 	public add(raw: IFileMatch[], silent: boolean): void {
 		let changed: FileMatch[] = [];
 		raw.forEach((rawFileMatch) => {
-			if (!this._fileMatches.has(rawFileMatch.resource)) {
-				let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
-				this.doAdd(fileMatch);
-				changed.push(fileMatch);
-				let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
-				fileMatch.onDispose(() => disposable.dispose());
+			if (this._fileMatches.has(rawFileMatch.resource)) {
+				this._fileMatches.get(rawFileMatch.resource).dispose();
 			}
+
+			let fileMatch = this.instantiationService.createInstance(FileMatch, this._query.contentPattern, this._query.maxResults, this, rawFileMatch);
+			this.doAdd(fileMatch);
+			changed.push(fileMatch);
+			let disposable = fileMatch.onChange(() => this.onFileChange(fileMatch));
+			fileMatch.onDispose(() => disposable.dispose());
 		});
 		if (!silent && changed.length) {
 			this._onChange.fire({ elements: changed, added: true });
@@ -789,9 +791,6 @@ export class SearchModel extends Disposable {
 	private onSearchCompleted(completed: ISearchComplete, duration: number): ISearchComplete {
 		this.currentRequest = null;
 
-		if (completed) {
-			this._searchResult.add(completed.results, false);
-		}
 		const options: IPatternInfo = objects.assign({}, this._searchQuery.contentPattern);
 		delete options.pattern;
 		/* __GDPR__

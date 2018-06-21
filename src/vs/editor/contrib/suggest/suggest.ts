@@ -2,9 +2,8 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, first } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
@@ -64,50 +63,44 @@ export function provideSuggestionItems(model: ITextModel, position: Position, sn
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	let hasResult = false;
-	const factory = supports.map(supports => {
-		return () => {
-			// stop when we have a result
-			if (hasResult) {
+	const factory = supports.map(supports => () => {
+		// for each support in the group ask for suggestions
+		return TPromise.join(supports.map(support => {
+
+			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
 				return undefined;
 			}
-			// for each support in the group ask for suggestions
-			return TPromise.join(supports.map(support => {
 
-				if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
-					return undefined;
-				}
+			return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
-				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+				const len = allSuggestions.length;
 
-					const len = allSuggestions.length;
+				if (container && !isFalsyOrEmpty(container.suggestions)) {
+					for (let suggestion of container.suggestions) {
+						if (acceptSuggestion(suggestion)) {
 
-					if (container && !isFalsyOrEmpty(container.suggestions)) {
-						for (let suggestion of container.suggestions) {
-							if (acceptSuggestion(suggestion)) {
+							fixOverwriteBeforeAfter(suggestion, container);
 
-								fixOverwriteBeforeAfter(suggestion, container);
-
-								allSuggestions.push({
-									position,
-									container,
-									suggestion,
-									support,
-									resolve: createSuggestionResolver(support, suggestion, model, position)
-								});
-							}
+							allSuggestions.push({
+								position,
+								container,
+								suggestion,
+								support,
+								resolve: createSuggestionResolver(support, suggestion, model, position)
+							});
 						}
 					}
+				}
 
-					if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
-						hasResult = true;
-					}
+				if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
+					hasResult = true;
+				}
 
-				}, onUnexpectedExternalError);
-			}));
-		};
+			}, onUnexpectedExternalError);
+		}));
 	});
 
-	const result = sequence(factory).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+	const result = first(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
 
 	// result.then(items => {
 	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));

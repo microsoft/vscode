@@ -9,6 +9,7 @@ import severity from 'vs/base/common/severity';
 import { SimpleReplElement, Model, Session, Expression, RawObjectReplElement, StackFrame, Thread } from 'vs/workbench/parts/debug/common/debugModel';
 import * as sinon from 'sinon';
 import { MockSession } from 'vs/workbench/parts/debug/test/common/mockDebug';
+import { Source } from 'vs/workbench/parts/debug/common/debugSource';
 
 suite('Debug - Model', () => {
 	let model: Model;
@@ -58,10 +59,9 @@ suite('Debug - Model', () => {
 		assert.equal(model.getBreakpoints().length, 5);
 		const bp = model.getBreakpoints()[0];
 		const update: any = {};
-		update[bp.getId()] = { line: 100, verified: true };
+		update[bp.getId()] = { lineNumber: 100 };
 		model.updateBreakpoints(update);
 		assert.equal(bp.lineNumber, 100);
-		assert.equal(bp.verified, true);
 
 		model.enableOrDisableAllBreakpoints(false);
 		model.getBreakpoints().forEach(bp => {
@@ -72,9 +72,6 @@ suite('Debug - Model', () => {
 
 		model.removeBreakpoints(model.getBreakpoints({ uri: modelUri1 }));
 		assert.equal(model.getBreakpoints().length, 3);
-
-		model.unverifyBreakpoints();
-		model.getBreakpoints().forEach(bp => assert.equal(bp.verified, false));
 	});
 
 	test('breakpoints conditions', () => {
@@ -95,16 +92,12 @@ suite('Debug - Model', () => {
 	test('function brekapoints', () => {
 		model.addFunctionBreakpoint('foo', '1');
 		model.addFunctionBreakpoint('bar', '2');
-		model.updateFunctionBreakpoints({
-			'1': { name: 'fooUpdated', verified: true, hitCondition: '5' },
-			'2': { name: 'barUpdated', verified: false }
-		});
+		model.renameFunctionBreakpoint('1', 'fooUpdated');
+		model.renameFunctionBreakpoint('2', 'barUpdated');
+
 		const functionBps = model.getFunctionBreakpoints();
 		assert.equal(functionBps[0].name, 'fooUpdated');
-		assert.equal(functionBps[0].verified, true);
-		assert.equal(functionBps[0].hitCondition, '5');
 		assert.equal(functionBps[1].name, 'barUpdated');
-		assert.equal(functionBps[1].verified, false);
 
 		model.removeFunctionBreakpoints();
 		assert.equal(model.getFunctionBreakpoints().length, 0);
@@ -116,7 +109,7 @@ suite('Debug - Model', () => {
 		const threadId = 1;
 		const threadName = 'firstThread';
 
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		assert.equal(model.getSessions().length, 1);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -147,7 +140,7 @@ suite('Debug - Model', () => {
 		const stoppedReason = 'breakpoint';
 
 		// Add the threads
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
 			threadId: threadId1,
@@ -237,7 +230,7 @@ suite('Debug - Model', () => {
 		const runningThreadId = 2;
 		const runningThreadName = 'runningThread';
 		const stoppedReason = 'breakpoint';
-		model.addSession({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		model.addSession({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		// Add the threads
 		model.rawUpdate({
 			sessionId: rawSession.getId(),
@@ -348,7 +341,7 @@ suite('Debug - Model', () => {
 
 	test('repl expressions', () => {
 		assert.equal(model.getReplElements().length, 0);
-		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
 		model.addReplExpression(session, stackFrame, 'myVariable').done();
@@ -364,6 +357,33 @@ suite('Debug - Model', () => {
 
 		model.removeReplExpressions();
 		assert.equal(model.getReplElements().length, 0);
+	});
+
+	test('stack frame get specific source name', () => {
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
+		let firstStackFrame: StackFrame;
+		let secondStackFrame: StackFrame;
+		const thread = new class extends Thread {
+			public getCallStack(): StackFrame[] {
+				return [firstStackFrame, secondStackFrame];
+			}
+		}(session, 'mockthread', 1);
+
+		const firstSource = new Source({
+			name: 'internalModule.js',
+			path: 'a/b/c/d/internalModule.js',
+			sourceReference: 10,
+		}, 'aDebugSessionId');
+		const secondSource = new Source({
+			name: 'internalModule.js',
+			path: 'z/x/c/d/internalModule.js',
+			sourceReference: 11,
+		}, 'aDebugSessionId');
+		firstStackFrame = new StackFrame(thread, 1, firstSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+		secondStackFrame = new StackFrame(thread, 1, secondSource, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: 1, endColumn: 10 }, 1);
+
+		assert.equal(firstStackFrame.getSpecificSourceName(), '.../b/c/d/internalModule.js');
+		assert.equal(secondStackFrame.getSpecificSourceName(), '.../x/c/d/internalModule.js');
 	});
 
 	// Repl output

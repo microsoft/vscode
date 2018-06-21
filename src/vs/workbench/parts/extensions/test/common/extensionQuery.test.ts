@@ -72,72 +72,72 @@ suite('Extension query', () => {
 	});
 
 	test('toString', () => {
-		let query = new Query('hello', '');
+		let query = new Query('hello', '', '');
 		assert.equal(query.toString(), 'hello');
 
-		query = new Query('hello world', '');
+		query = new Query('hello world', '', '');
 		assert.equal(query.toString(), 'hello world');
 
-		query = new Query('  hello    ', '');
+		query = new Query('  hello    ', '', '');
 		assert.equal(query.toString(), 'hello');
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert.equal(query.toString(), '@sort:installs');
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert.equal(query.toString(), '@sort:installs');
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert.equal(query.toString(), '@sort:installs');
 
-		query = new Query('hello', 'installs');
+		query = new Query('hello', 'installs', '');
 		assert.equal(query.toString(), 'hello @sort:installs');
 
-		query = new Query('  hello      ', 'installs');
+		query = new Query('  hello      ', 'installs', '');
 		assert.equal(query.toString(), 'hello @sort:installs');
 	});
 
 	test('isValid', () => {
-		let query = new Query('hello', '');
+		let query = new Query('hello', '', '');
 		assert(query.isValid());
 
-		query = new Query('hello world', '');
+		query = new Query('hello world', '', '');
 		assert(query.isValid());
 
-		query = new Query('  hello    ', '');
+		query = new Query('  hello    ', '', '');
 		assert(query.isValid());
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert(query.isValid());
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert(query.isValid());
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert(query.isValid());
 
-		query = new Query('', 'installs');
+		query = new Query('', 'installs', '');
 		assert(query.isValid());
 
-		query = new Query('hello', 'installs');
+		query = new Query('hello', 'installs', '');
 		assert(query.isValid());
 
-		query = new Query('  hello      ', 'installs');
+		query = new Query('  hello      ', 'installs', '');
 		assert(query.isValid());
 	});
 
 	test('equals', () => {
-		let query1 = new Query('hello', '');
-		let query2 = new Query('hello', '');
+		let query1 = new Query('hello', '', '');
+		let query2 = new Query('hello', '', '');
 		assert(query1.equals(query2));
 
-		query2 = new Query('hello world', '');
+		query2 = new Query('hello world', '', '');
 		assert(!query1.equals(query2));
 
-		query2 = new Query('hello', 'installs');
+		query2 = new Query('hello', 'installs', '');
 		assert(!query1.equals(query2));
 
-		query2 = new Query('hello', 'installs');
+		query2 = new Query('hello', 'installs', '');
 		assert(!query1.equals(query2));
 	});
 });

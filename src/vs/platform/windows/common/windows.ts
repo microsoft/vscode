@@ -13,7 +13,7 @@ import { IProcessEnvironment } from 'vs/base/common/platform';
 import { ParsedArgs } from 'vs/platform/environment/common/environment';
 import { IWorkspaceIdentifier, IWorkspaceFolderCreationData } from 'vs/platform/workspaces/common/workspaces';
 import { IRecentlyOpened } from 'vs/platform/history/common/history';
-import { ICommandAction } from 'vs/platform/actions/common/actions';
+import { ISerializableCommandAction } from 'vs/platform/actions/common/actions';
 import { PerformanceEntry } from 'vs/base/common/performance';
 import { LogLevel } from 'vs/platform/log/common/log';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
@@ -103,6 +103,8 @@ export interface IWindowsService {
 	onWindowOpen: Event<number>;
 	onWindowFocus: Event<number>;
 	onWindowBlur: Event<number>;
+	onWindowMaximize: Event<number>;
+	onWindowUnmaximize: Event<number>;
 
 	// Dialogs
 	pickFileFolderAndOpen(options: INativeOpenDialogOptions): TPromise<void>;
@@ -131,6 +133,7 @@ export interface IWindowsService {
 	isMaximized(windowId: number): TPromise<boolean>;
 	maximizeWindow(windowId: number): TPromise<void>;
 	unmaximizeWindow(windowId: number): TPromise<void>;
+	minimizeWindow(windowId: number): TPromise<void>;
 	onWindowTitleDoubleClick(windowId: number): TPromise<void>;
 	setDocumentEdited(windowId: number, flag: boolean): TPromise<void>;
 	quit(): TPromise<void>;
@@ -144,14 +147,14 @@ export interface IWindowsService {
 	toggleWindowTabsBar(): TPromise<void>;
 
 	// macOS TouchBar
-	updateTouchBar(windowId: number, items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(windowId: number, items: ISerializableCommandAction[][]): TPromise<void>;
 
 	// Shared process
 	whenSharedProcessReady(): TPromise<void>;
 	toggleSharedProcess(): TPromise<void>;
 
 	// Global methods
-	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
+	openWindow(windowId: number, paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
 	openNewWindow(): TPromise<void>;
 	showWindow(windowId: number): TPromise<void>;
 	getWindows(): TPromise<{ id: number; workspace?: IWorkspaceIdentifier; folderPath?: string; title: string; filename?: string; }[]>;
@@ -181,6 +184,7 @@ export interface IWindowService {
 	_serviceBrand: any;
 
 	onDidChangeFocus: Event<boolean>;
+	onDidChangeMaximize: Event<boolean>;
 
 	getConfiguration(): IWindowConfiguration;
 	getCurrentWindowId(): number;
@@ -192,7 +196,7 @@ export interface IWindowService {
 	openDevTools(options?: IDevToolsOptions): TPromise<void>;
 	toggleDevTools(): TPromise<void>;
 	closeWorkspace(): TPromise<void>;
-	updateTouchBar(items: ICommandAction[][]): TPromise<void>;
+	updateTouchBar(items: ISerializableCommandAction[][]): TPromise<void>;
 	createAndEnterWorkspace(folders?: IWorkspaceFolderCreationData[], path?: string): TPromise<IEnterWorkspaceResult>;
 	saveAndEnterWorkspace(path: string): TPromise<IEnterWorkspaceResult>;
 	toggleFullScreen(): TPromise<void>;
@@ -200,8 +204,13 @@ export interface IWindowService {
 	getRecentlyOpened(): TPromise<IRecentlyOpened>;
 	focusWindow(): TPromise<void>;
 	closeWindow(): TPromise<void>;
+	openWindow(paths: string[], options?: { forceNewWindow?: boolean, forceReuseWindow?: boolean, forceOpenWorkspaceAsFile?: boolean; }): TPromise<void>;
 	isFocused(): TPromise<boolean>;
 	setDocumentEdited(flag: boolean): TPromise<void>;
+	isMaximized(): TPromise<boolean>;
+	maximizeWindow(): TPromise<void>;
+	unmaximizeWindow(): TPromise<void>;
+	minimizeWindow(): TPromise<void>;
 	onWindowTitleDoubleClick(): TPromise<void>;
 	show(): TPromise<void>;
 	showMessageBox(options: MessageBoxOptions): TPromise<IMessageBoxResult>;
@@ -325,9 +334,11 @@ export interface IWindowConfiguration extends ParsedArgs, IOpenFileRequest {
 
 	zoomLevel?: number;
 	fullscreen?: boolean;
+	maximized?: boolean;
 	highContrast?: boolean;
 	baseTheme?: string;
 	backgroundColor?: string;
+	frameless?: boolean;
 	accessibilitySupport?: boolean;
 
 	perfEntries: PerformanceEntry[];

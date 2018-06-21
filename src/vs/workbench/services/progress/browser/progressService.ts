@@ -55,7 +55,7 @@ export abstract class ScopedService {
 	public abstract onScopeDeactivated(): void;
 }
 
-export class WorkbenchProgressService extends ScopedService implements IProgressService {
+export class ScopedProgressService extends ScopedService implements IProgressService {
 	public _serviceBrand: any;
 	private isActive: boolean;
 	private progressbar: ProgressBar;
@@ -129,12 +129,12 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 	public show(infinite: boolean, delay?: number): IProgressRunner;
 	public show(total: number, delay?: number): IProgressRunner;
-	public show(infiniteOrTotal: any, delay?: number): IProgressRunner {
+	public show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
 		let infinite: boolean;
 		let total: number;
 
 		// Sort out Arguments
-		if (infiniteOrTotal === false || infiniteOrTotal === true) {
+		if (typeof infiniteOrTotal === 'boolean') {
 			infinite = infiniteOrTotal;
 		} else {
 			total = infiniteOrTotal;
@@ -255,5 +255,50 @@ export class WorkbenchProgressService extends ScopedService implements IProgress
 
 	public dispose(): void {
 		this.toDispose = lifecycle.dispose(this.toDispose);
+	}
+}
+
+export class ProgressService implements IProgressService {
+
+	public _serviceBrand: any;
+
+	constructor(private progressbar: ProgressBar) { }
+
+	public show(infinite: boolean, delay?: number): IProgressRunner;
+	public show(total: number, delay?: number): IProgressRunner;
+	public show(infiniteOrTotal: boolean | number, delay?: number): IProgressRunner {
+		if (typeof infiniteOrTotal === 'boolean') {
+			this.progressbar.infinite().show(delay);
+		} else {
+			this.progressbar.total(infiniteOrTotal).show(delay);
+		}
+
+		return {
+			total: (total: number) => {
+				this.progressbar.total(total);
+			},
+
+			worked: (worked: number) => {
+				if (this.progressbar.hasTotal()) {
+					this.progressbar.worked(worked);
+				} else {
+					this.progressbar.infinite().show();
+				}
+			},
+
+			done: () => {
+				this.progressbar.stop().hide();
+			}
+		};
+	}
+
+	public showWhile(promise: TPromise<any>, delay?: number): TPromise<void> {
+		const stop = () => {
+			this.progressbar.stop().hide();
+		};
+
+		this.progressbar.infinite().show(delay);
+
+		return promise.then(stop, stop);
 	}
 }

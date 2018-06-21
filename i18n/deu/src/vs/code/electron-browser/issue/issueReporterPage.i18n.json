@@ -17,13 +17,12 @@
 	"issueTitleLabel": "Titel",
 	"issueTitleRequired": "Geben Sie einen Titel ein.",
 	"titleLengthValidation": "Der Titel ist zu lang.",
-	"systemInfo": "Eigene Systeminformationen",
-	"sendData": "Eigene Daten senden",
-	"processes": "Derzeit ausgeführte Prozesse",
-	"workspaceStats": "Eigene Arbeitsbereichsstatistiken",
-	"extensions": "Eigene Erweiterungen",
-	"searchedExtensions": "Gesuchte Erweiterungen",
-	"settingsSearchDetails": "Details der Einstellungssuche",
 	"details": "Geben Sie Details ein.",
-	"loadingData": "Daten werden geladen …"
+	"sendSystemInfo": "Meine Systeminformationen einschließen ({0})",
+	"show": "Anzeigen",
+	"sendProcessInfo": "Meine derzeit ausgeführten Prozesse einschließen ({0})",
+	"sendWorkspaceInfo": "Metadaten zu meinem Arbeitsbereich einschließen ({0})",
+	"sendExtensions": "Meine aktivierten Erweiterungen einschließen ({0})",
+	"sendSearchedExtensions": "Gesuchte Erweiterungen senden ({0})",
+	"sendSettingsSearchDetails": "Details der Einstellungssuche senden ({0})"
 }

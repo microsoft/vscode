@@ -11,5 +11,7 @@
 	"pid": "PID",
 	"name": "Nome",
 	"killProcess": "Arresta il processo",
-	"forceKillProcess": "Arresto forzato del processo"
+	"forceKillProcess": "Arresto forzato del processo",
+	"copy": "Copia",
+	"copyAll": "Copia tutti"
 }

@@ -32,5 +32,5 @@
 	"noSymbolsFound": "Szimbólum nem található",
 	"gotoSymbolHandlerAriaLabel": "Írjon az aktív szerkesztőablakban található szimbólumok szűréséhez.",
 	"cannotRunGotoSymbolInFile": "Ehhez a fájlhoz nincs szimbóluminformáció",
-	"cannotRunGotoSymbol": "Szimbólum megkereséséhez nyisson meg egy szövegfájlt"
+	"cannotRunGotoSymbol": "Szimbólumra ugráshoz nyisson meg egy szövegfájlt!"
 }

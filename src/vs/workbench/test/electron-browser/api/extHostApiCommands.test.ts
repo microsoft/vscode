@@ -33,9 +33,6 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import { NullLogService } from 'vs/platform/log/common/log';
 import { ITextModel } from 'vs/editor/common/model';
-import { ExtHostWorkspace } from 'vs/workbench/api/node/extHostWorkspace';
-import { generateUuid } from 'vs/base/common/uuid';
-import { ExtHostTask } from 'vs/workbench/api/node/extHostTask';
 
 const defaultSelector = { scheme: 'far' };
 const model: ITextModel = EditorModel.createFromString(
@@ -52,8 +49,6 @@ let rpcProtocol: TestRPCProtocol;
 let extHost: ExtHostLanguageFeatures;
 let mainThread: MainThreadLanguageFeatures;
 let commands: ExtHostCommands;
-let task: ExtHostTask;
-let workspace: ExtHostWorkspace;
 let disposables: vscode.Disposable[] = [];
 let originalErrorHandler: (e: any) => any;
 
@@ -120,11 +115,9 @@ suite('ExtHostLanguageFeatureCommands', function () {
 		const heapService = new ExtHostHeapService();
 
 		commands = new ExtHostCommands(rpcProtocol, heapService, new NullLogService());
-		workspace = new ExtHostWorkspace(rpcProtocol, { id: generateUuid(), name: 'Test', folders: [] }, new NullLogService());
-		task = new ExtHostTask(rpcProtocol, workspace);
 		rpcProtocol.set(ExtHostContext.ExtHostCommands, commands);
 		rpcProtocol.set(MainContext.MainThreadCommands, inst.createInstance(MainThreadCommands, rpcProtocol));
-		ExtHostApiCommands.register(commands, task);
+		ExtHostApiCommands.register(commands);
 
 		const diagnostics = new ExtHostDiagnostics(rpcProtocol);
 		rpcProtocol.set(ExtHostContext.ExtHostDiagnostics, diagnostics);

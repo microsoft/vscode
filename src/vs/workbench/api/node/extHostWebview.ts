@@ -3,13 +3,14 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle } from './extHost.protocol';
+import { MainContext, MainThreadWebviewsShape, IMainContext, ExtHostWebviewsShape, WebviewPanelHandle, WebviewPanelViewState } from './extHost.protocol';
 import * as vscode from 'vscode';
 import { Event, Emitter } from 'vs/base/common/event';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
-import { Position } from 'vs/platform/editor/common/editor';
+import { EditorViewColumn } from 'vs/workbench/api/shared/editor';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Disposable } from './extHostTypes';
+import URI from 'vs/base/common/uri';
 
 export class ExtHostWebview implements vscode.Webview {
 	private readonly _handle: WebviewPanelHandle;
@@ -18,7 +19,7 @@ export class ExtHostWebview implements vscode.Webview {
 	private _options: vscode.WebviewOptions;
 	private _isDisposed: boolean = false;
 
-	readonly _onMessageEmitter = new Emitter<any>();
+	public readonly _onMessageEmitter = new Emitter<any>();
 	public readonly onDidReceiveMessage: Event<any> = this._onMessageEmitter.event;
 
 	constructor(
@@ -31,16 +32,16 @@ export class ExtHostWebview implements vscode.Webview {
 		this._options = options;
 	}
 
-	dispose() {
+	public dispose() {
 		this._onMessageEmitter.dispose();
 	}
 
-	get html(): string {
+	public get html(): string {
 		this.assertNotDisposed();
 		return this._html;
 	}
 
-	set html(value: string) {
+	public set html(value: string) {
 		this.assertNotDisposed();
 		if (this._html !== value) {
 			this._html = value;
@@ -48,9 +49,15 @@ export class ExtHostWebview implements vscode.Webview {
 		}
 	}
 
-	get options(): vscode.WebviewOptions {
+	public get options(): vscode.WebviewOptions {
 		this.assertNotDisposed();
 		return this._options;
+	}
+
+	public set options(newOptions: vscode.WebviewOptions) {
+		this.assertNotDisposed();
+		this._proxy.$setOptions(this._handle, newOptions);
+		this._options = newOptions;
 	}
 
 	public postMessage(message: any): Thenable<boolean> {
@@ -77,6 +84,7 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 	private _isDisposed: boolean = false;
 	private _viewColumn: vscode.ViewColumn;
 	private _visible: boolean = true;
+	private _active: boolean = true;
 
 	readonly _onDisposeEmitter = new Emitter<void>();
 	public readonly onDidDispose: Event<void> = this._onDisposeEmitter.event;
@@ -156,7 +164,17 @@ export class ExtHostWebviewPanel implements vscode.WebviewPanel {
 		this._viewColumn = value;
 	}
 
-	get visible(): boolean {
+	public get active(): boolean {
+		this.assertNotDisposed();
+		return this._active;
+	}
+
+	_setActive(value: boolean) {
+		this.assertNotDisposed();
+		this._active = value;
+	}
+
+	public get visible(): boolean {
 		this.assertNotDisposed();
 		return this._visible;
 	}
@@ -204,7 +222,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		title: string,
 		showOptions: vscode.ViewColumn | { viewColumn: vscode.ViewColumn, preserveFocus?: boolean },
 		options: (vscode.WebviewPanelOptions & vscode.WebviewOptions) | undefined,
-		extensionFolderPath: string
+		extensionLocation: URI
 	): vscode.WebviewPanel {
 		options = options || {};
 
@@ -215,7 +233,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		};
 
 		const handle = ExtHostWebviews.webviewHandlePool++ + '';
-		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extensionFolderPath);
+		this._proxy.$createWebviewPanel(handle, viewType, title, webviewShowOptions, options, extensionLocation);
 
 		const webview = new ExtHostWebview(handle, this._proxy, options);
 		const panel = new ExtHostWebviewPanel(handle, this._proxy, viewType, title, viewColumn, options, webview);
@@ -247,12 +265,13 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		}
 	}
 
-	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, visible: boolean, position: Position): void {
+	$onDidChangeWebviewPanelViewState(handle: WebviewPanelHandle, newState: WebviewPanelViewState): void {
 		const panel = this.getWebviewPanel(handle);
 		if (panel) {
-			const viewColumn = typeConverters.ViewColumn.to(position);
-			if (panel.visible !== visible || panel.viewColumn !== viewColumn) {
-				panel._setVisible(visible);
+			const viewColumn = typeConverters.ViewColumn.to(newState.position);
+			if (panel.active !== newState.active || panel.visible !== newState.visible || panel.viewColumn !== viewColumn) {
+				panel._setActive(newState.active);
+				panel._setVisible(newState.visible);
 				panel._setViewColumn(viewColumn);
 				panel._onDidChangeViewStateEmitter.fire({ webviewPanel: panel });
 			}
@@ -273,7 +292,7 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		viewType: string,
 		title: string,
 		state: any,
-		position: Position,
+		position: EditorViewColumn,
 		options: vscode.WebviewOptions & vscode.WebviewPanelOptions
 	): Thenable<void> {
 		const serializer = this._serializers.get(viewType);
@@ -285,22 +304,6 @@ export class ExtHostWebviews implements ExtHostWebviewsShape {
 		const revivedPanel = new ExtHostWebviewPanel(webviewHandle, this._proxy, viewType, title, typeConverters.ViewColumn.to(position), options, webview);
 		this._webviewPanels.set(webviewHandle, revivedPanel);
 		return serializer.deserializeWebviewPanel(revivedPanel, state);
-	}
-
-	$serializeWebviewPanel(
-		webviewHandle: WebviewPanelHandle
-	): Thenable<any> {
-		const panel = this.getWebviewPanel(webviewHandle);
-		if (!panel) {
-			return TPromise.as(undefined);
-		}
-
-		const serialzer = this._serializers.get(panel.viewType);
-		if (!serialzer) {
-			return TPromise.as(undefined);
-		}
-
-		return serialzer.serializeWebviewPanel(panel);
 	}
 
 	private getWebviewPanel(handle: WebviewPanelHandle): ExtHostWebviewPanel | undefined {

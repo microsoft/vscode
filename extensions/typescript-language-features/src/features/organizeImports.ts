@@ -8,8 +8,10 @@ import * as nls from 'vscode-nls';
 import * as Proto from '../protocol';
 import { ITypeScriptServiceClient } from '../typescriptService';
 import { Command, CommandManager } from '../utils/commandManager';
-import { isSupportedLanguageMode } from '../utils/languageModeIds';
 import * as typeconverts from '../utils/typeConverters';
+import FileConfigurationManager from './fileConfigurationManager';
+import { VersionDependentRegistration } from '../utils/dependentRegistration';
+import API from '../utils/api';
 
 const localize = nls.loadMessageBundle();
 
@@ -23,21 +25,7 @@ class OrganizeImportsCommand implements Command {
 		private readonly client: ITypeScriptServiceClient
 	) { }
 
-	public async execute(): Promise<boolean> {
-		if (!this.client.apiVersion.has280Features()) {
-			return false;
-		}
-
-		const editor = vscode.window.activeTextEditor;
-		if (!editor || !isSupportedLanguageMode(editor.document)) {
-			return false;
-		}
-
-		const file = this.client.normalizePath(editor.document.uri);
-		if (!file) {
-			return false;
-		}
-
+	public async execute(file: string): Promise<boolean> {
 		const args: Proto.OrganizeImportsRequestArgs = {
 			scope: {
 				type: 'file',
@@ -51,7 +39,7 @@ class OrganizeImportsCommand implements Command {
 			return false;
 		}
 
-		const edits = typeconverts.WorkspaceEdit.fromFromFileCodeEdits(this.client, response.body);
+		const edits = typeconverts.WorkspaceEdit.fromFileCodeEdits(this.client, response.body);
 		return await vscode.workspace.applyEdit(edits);
 	}
 }
@@ -59,7 +47,8 @@ class OrganizeImportsCommand implements Command {
 export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvider {
 	public constructor(
 		private readonly client: ITypeScriptServiceClient,
-		commandManager: CommandManager
+		commandManager: CommandManager,
+		private readonly fileConfigManager: FileConfigurationManager,
 	) {
 		commandManager.register(new OrganizeImportsCommand(client));
 	}
@@ -69,19 +58,36 @@ export class OrganizeImportsCodeActionProvider implements vscode.CodeActionProvi
 	};
 
 	public provideCodeActions(
-		_document: vscode.TextDocument,
+		document: vscode.TextDocument,
 		_range: vscode.Range,
 		_context: vscode.CodeActionContext,
-		_token: vscode.CancellationToken
+		token: vscode.CancellationToken
 	): vscode.CodeAction[] {
-		if (!this.client.apiVersion.has280Features()) {
+		const file = this.client.toPath(document.uri);
+		if (!file) {
 			return [];
 		}
+
+		this.fileConfigManager.ensureConfigurationForDocument(document, token);
 
 		const action = new vscode.CodeAction(
 			localize('oraganizeImportsAction.title', "Organize Imports"),
 			vscode.CodeActionKind.SourceOrganizeImports);
-		action.command = { title: '', command: OrganizeImportsCommand.Id };
+		action.command = { title: '', command: OrganizeImportsCommand.Id, arguments: [file] };
 		return [action];
 	}
+}
+
+export function register(
+	selector: vscode.DocumentSelector,
+	client: ITypeScriptServiceClient,
+	commandManager: CommandManager,
+	fileConfigurationManager: FileConfigurationManager
+) {
+	return new VersionDependentRegistration(client, API.v280, () => {
+		const organizeImportsProvider = new OrganizeImportsCodeActionProvider(client, commandManager, fileConfigurationManager);
+		return vscode.languages.registerCodeActionsProvider(selector,
+			organizeImportsProvider,
+			organizeImportsProvider.metadata);
+	});
 }

@@ -19,7 +19,7 @@ import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IInstantiationService, createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IExtensionsWorkbenchService, IExtension } from 'vs/workbench/parts/extensions/common/extensions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IExtensionService, IExtensionDescription, IExtensionsStatus, IExtensionHostProfile } from 'vs/workbench/services/extensions/common/extensions';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { WorkbenchList } from 'vs/platform/list/browser/listService';
@@ -36,7 +36,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { memoize } from 'vs/base/common/decorators';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { Event } from 'vs/base/common/event';
-import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/browser/extensionsActions';
+import { DisableForWorkspaceAction, DisableGloballyAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export const IExtensionHostProfileService = createDecorator<IExtensionHostProfileService>('extensionHostProfileService');
@@ -465,7 +465,7 @@ export class ShowRuntimeExtensionsAction extends Action {
 
 	constructor(
 		id: string, label: string,
-		@IWorkbenchEditorService private readonly _editorService: IWorkbenchEditorService,
+		@IEditorService private readonly _editorService: IEditorService,
 		@IInstantiationService private readonly _instantiationService: IInstantiationService
 	) {
 		super(id, label);

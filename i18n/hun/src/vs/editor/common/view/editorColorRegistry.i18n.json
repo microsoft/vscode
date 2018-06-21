@@ -32,6 +32,7 @@
 	"infoBorder": "Az információkat jelző hullámvonal keretszíne a szerkesztőablakban. ",
 	"hintForeground": "Az utalásokat jelző hullámvonal előtérszíne a szerkesztőablakban.",
 	"hintBorder": "Az utalásokat jelző hullámvonal keretszíne a szerkesztőablakban.",
+	"unnecessaryForeground": "A szükségtelen kódrészletek előtérszíne a szerkesztőablakban.",
 	"overviewRulerRangeHighlight": "A kiemelt területeket jelölő jelzések színe az áttekintősávon. A színnek áttetszőnek kell lennie, hogy ne fedje el az alatta lévő dekorátorokat.",
 	"overviewRuleError": "A hibákat jelölő jelzések színe az áttekintősávon.",
 	"overviewRuleWarning": "A figyelmeztetéseket jelölő jelzések színe az áttekintősávon.",

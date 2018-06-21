@@ -148,11 +148,6 @@ export class Driver implements IDriver, IWindowDriverRegistry {
 		return windowDriver.doubleClick(selector);
 	}
 
-	async move(windowId: number, selector: string): TPromise<void> {
-		const windowDriver = await this.getWindowDriver(windowId);
-		return windowDriver.move(selector);
-	}
-
 	async setValue(windowId: number, selector: string, text: string): TPromise<void> {
 		const windowDriver = await this.getWindowDriver(windowId);
 		return windowDriver.setValue(selector, text);

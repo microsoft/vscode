@@ -24,7 +24,7 @@ import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { extHostCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { IEditorWorkerService } from 'vs/editor/common/services/editorWorkerService';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
-import { IProgressService2, ProgressLocation } from 'vs/platform/progress/common/progress';
+import { IProgressService2, ProgressLocation } from 'vs/workbench/services/progress/common/progress';
 import { localize } from 'vs/nls';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -271,7 +271,6 @@ class CodeActionOnParticipant implements ISaveParticipant {
 	constructor(
 		@IBulkEditService private readonly _bulkEditService: IBulkEditService,
 		@ICommandService private readonly _commandService: ICommandService,
-		@ICodeEditorService private readonly _codeEditorService: ICodeEditorService,
 		@IConfigurationService private readonly _configurationService: IConfigurationService
 	) { }
 
@@ -281,10 +280,6 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		}
 
 		const model = editorModel.textEditorModel;
-		const editor = findEditor(model, this._codeEditorService);
-		if (!editor) {
-			return undefined;
-		}
 
 		const settingsOverrides = { overrideIdentifier: model.getLanguageIdentifier().language, resource: editorModel.getResource() };
 		const setting = this._configurationService.getValue<ICodeActionsOnSaveOptions>('editor.codeActionsOnSave', settingsOverrides);
@@ -302,17 +297,20 @@ class CodeActionOnParticipant implements ISaveParticipant {
 		return new Promise<CodeAction[]>((resolve, reject) => {
 			setTimeout(() => reject(localize('codeActionsOnSave.didTimeout', "Aborted codeActionsOnSave after {0}ms", timeout)), timeout);
 			this.getActionsToRun(model, codeActionsOnSave).then(resolve);
-		}).then(actionsToRun => this.applyCodeActions(actionsToRun, editor));
+		}).then(actionsToRun => this.applyCodeActions(actionsToRun));
 	}
 
-	private async applyCodeActions(actionsToRun: CodeAction[], editor: ICodeEditor) {
+	private async applyCodeActions(actionsToRun: CodeAction[]) {
 		for (const action of actionsToRun) {
-			await applyCodeAction(action, this._bulkEditService, this._commandService, editor);
+			await applyCodeAction(action, this._bulkEditService, this._commandService);
 		}
 	}
 
 	private async getActionsToRun(model: ITextModel, codeActionsOnSave: CodeActionKind[]) {
-		const actions = await getCodeActions(model, model.getFullModelRange(), { kind: CodeActionKind.Source, includeSourceActions: true });
+		const actions = await getCodeActions(model, model.getFullModelRange(), {
+			type: 'auto',
+			filter: { kind: CodeActionKind.Source, includeSourceActions: true },
+		});
 		const actionsToRun = actions.filter(returnedAction => returnedAction.kind && codeActionsOnSave.some(onSaveKind => onSaveKind.contains(returnedAction.kind)));
 		return actionsToRun;
 	}

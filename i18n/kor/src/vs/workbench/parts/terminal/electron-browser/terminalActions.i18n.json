@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "이전 명령으로 스크롤",
 	"workbench.action.terminal.scrollToNextCommand": "다음 명령으로 스크롤",
 	"workbench.action.terminal.selectToPreviousCommand": "이전 명령까지 선택",
-	"workbench.action.terminal.selectToNextCommand": "다음 명령까지 선택"
+	"workbench.action.terminal.selectToNextCommand": "다음 명령까지 선택",
+	"workbench.action.terminal.selectToPreviousLine": "이전 줄까지 선택",
+	"workbench.action.terminal.selectToNextLine": "다음 줄까지 선택"
 }

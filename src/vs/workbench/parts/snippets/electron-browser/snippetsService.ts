@@ -17,6 +17,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { join, basename, extname } from 'path';
+import * as resources from 'vs/base/common/resources';
 import { mkdirp, readdir, exists } from 'vs/base/node/pfs';
 import { watch } from 'vs/base/node/extfs';
 import { SnippetFile, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
@@ -28,6 +29,8 @@ import { MarkdownString } from 'vs/base/common/htmlContent';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { ILogService } from 'vs/platform/log/common/log';
 import { values } from 'vs/base/common/map';
+import URI from 'vs/base/common/uri';
+import { IFileService } from 'vs/platform/files/common/files';
 
 namespace schema {
 
@@ -36,7 +39,12 @@ namespace schema {
 		path: string;
 	}
 
-	export function isValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): boolean {
+	export interface IValidSnippetsExtensionPoint {
+		language: string;
+		location: URI;
+	}
+
+	export function toValidSnippet(extension: IExtensionPointUser<ISnippetsExtensionPoint[]>, snippet: ISnippetsExtensionPoint, modeService: IModeService): IValidSnippetsExtensionPoint {
 
 		if (isFalsyOrWhitespace(snippet.path)) {
 			extension.collector.error(localize(
@@ -44,36 +52,43 @@ namespace schema {
 				"Expected string in `contributes.{0}.path`. Provided value: {1}",
 				extension.description.name, String(snippet.path)
 			));
-			return false;
-		} else if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
+			return null;
+		}
+
+		if (isFalsyOrWhitespace(snippet.language) && !endsWith(snippet.path, '.code-snippets')) {
 			extension.collector.error(localize(
 				'invalid.language.0',
 				"When omitting the language, the value of `contributes.{0}.path` must be a `.code-snippets`-file. Provided value: {1}",
 				extension.description.name, String(snippet.path)
 			));
-			return false;
-		} else if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
+			return null;
+		}
+
+		if (!isFalsyOrWhitespace(snippet.language) && !modeService.isRegisteredMode(snippet.language)) {
 			extension.collector.error(localize(
 				'invalid.language',
 				"Unknown language in `contributes.{0}.language`. Provided value: {1}",
 				extension.description.name, String(snippet.language)
 			));
-			return false;
+			return null;
 
-		} else {
-			const normalizedAbsolutePath = join(extension.description.extensionFolderPath, snippet.path);
-			if (normalizedAbsolutePath.indexOf(extension.description.extensionFolderPath) !== 0) {
-				extension.collector.error(localize(
-					'invalid.path.1',
-					"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
-					extension.description.name, normalizedAbsolutePath, extension.description.extensionFolderPath
-				));
-				return false;
-			}
-
-			snippet.path = normalizedAbsolutePath;
-			return true;
 		}
+
+		const extensionLocation = extension.description.extensionLocation;
+		const snippetLocation = resources.joinPath(extensionLocation, snippet.path);
+		if (snippetLocation.path.indexOf(extensionLocation.path) !== 0) {
+			extension.collector.error(localize(
+				'invalid.path.1',
+				"Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.",
+				extension.description.name, snippetLocation.path, extensionLocation.path
+			));
+			return null;
+		}
+
+		return {
+			language: snippet.language,
+			location: snippetLocation
+		};
 	}
 
 	export const snippetsContribution: IJSONSchema = {
@@ -110,7 +125,8 @@ class SnippetsService implements ISnippetsService {
 		@IModeService private readonly _modeService: IModeService,
 		@ILogService private readonly _logService: ILogService,
 		@IExtensionService extensionService: IExtensionService,
-		@ILifecycleService lifecycleService: ILifecycleService
+		@ILifecycleService lifecycleService: ILifecycleService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		this._initExtensionSnippets();
 		this._initPromise = Promise.resolve(lifecycleService.when(LifecyclePhase.Running).then(() => this._initUserSnippets()));
@@ -134,7 +150,7 @@ class SnippetsService implements ISnippetsService {
 			this._files.forEach(file => {
 				promises.push(file.load()
 					.then(file => file.select(langName, result))
-					.catch(err => this._logService.error(err, file.filepath))
+					.catch(err => this._logService.error(err, file.location.toString()))
 				);
 			});
 			return Promise.all(promises).then(() => result);
@@ -159,16 +175,17 @@ class SnippetsService implements ISnippetsService {
 		ExtensionsRegistry.registerExtensionPoint<schema.ISnippetsExtensionPoint[]>('snippets', [languagesExtPoint], schema.snippetsContribution).setHandler(extensions => {
 			for (const extension of extensions) {
 				for (const contribution of extension.value) {
-					if (!schema.isValidSnippet(extension, contribution, this._modeService)) {
+					const validContribution = schema.toValidSnippet(extension, contribution, this._modeService);
+					if (!validContribution) {
 						continue;
 					}
 
-					if (this._files.has(contribution.path)) {
-						this._files.get(contribution.path).defaultScopes.push(contribution.language);
+					if (this._files.has(validContribution.location.toString())) {
+						this._files.get(validContribution.location.toString()).defaultScopes.push(validContribution.language);
 
 					} else {
-						const file = new SnippetFile(contribution.path, contribution.language ? [contribution.language] : undefined, extension.description);
-						this._files.set(file.filepath, file);
+						const file = new SnippetFile(validContribution.location, validContribution.language ? [validContribution.language] : undefined, extension.description, this._fileService);
+						this._files.set(file.location.toString(), file);
 
 						if (this._environmentService.isExtensionDevelopment) {
 							file.load().then(file => {
@@ -185,7 +202,7 @@ class SnippetsService implements ISnippetsService {
 								extension.collector.warn(localize(
 									'badFile',
 									"The snippet file \"{0}\" could not be read.",
-									file.filepath
+									file.location
 								));
 							});
 						}
@@ -201,10 +218,10 @@ class SnippetsService implements ISnippetsService {
 			const ext = extname(filepath);
 			if (ext === '.json') {
 				const langName = basename(filepath, '.json');
-				this._files.set(filepath, new SnippetFile(filepath, [langName], undefined));
+				this._files.set(filepath, new SnippetFile(URI.file(filepath), [langName], undefined, this._fileService));
 
 			} else if (ext === '.code-snippets') {
-				this._files.set(filepath, new SnippetFile(filepath, undefined, undefined));
+				this._files.set(filepath, new SnippetFile(URI.file(filepath), undefined, undefined, this._fileService));
 			}
 		};
 

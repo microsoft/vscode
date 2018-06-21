@@ -14,8 +14,8 @@ import { ITypeScriptServiceClient } from '../typescriptService';
 export namespace Range {
 	export const fromTextSpan = (span: Proto.TextSpan): vscode.Range =>
 		new vscode.Range(
-			span.start.line - 1, span.start.offset - 1,
-			span.end.line - 1, span.end.offset - 1);
+			Math.max(0, span.start.line - 1), Math.max(span.start.offset - 1, 0),
+			Math.max(0, span.end.line - 1), Math.max(0, span.end.offset - 1));
 
 	export const toFileRangeRequestArgs = (file: string, range: vscode.Range): Proto.FileRangeRequestArgs => ({
 		file,
@@ -50,14 +50,21 @@ export namespace TextEdit {
 }
 
 export namespace WorkspaceEdit {
-	export function fromFromFileCodeEdits(
+	export function fromFileCodeEdits(
 		client: ITypeScriptServiceClient,
 		edits: Iterable<Proto.FileCodeEdits>
 	): vscode.WorkspaceEdit {
-		const workspaceEdit = new vscode.WorkspaceEdit();
+		return withFileCodeEdits(new vscode.WorkspaceEdit(), client, edits);
+
+	}
+	export function withFileCodeEdits(
+		workspaceEdit: vscode.WorkspaceEdit,
+		client: ITypeScriptServiceClient,
+		edits: Iterable<Proto.FileCodeEdits>
+	): vscode.WorkspaceEdit {
 		for (const edit of edits) {
 			for (const textChange of edit.textChanges) {
-				workspaceEdit.replace(client.asUrl(edit.fileName),
+				workspaceEdit.replace(client.toResource(edit.fileName),
 					Range.fromTextSpan(textChange),
 					textChange.newText);
 			}

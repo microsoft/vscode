@@ -6,7 +6,7 @@
 'use strict';
 
 import * as errors from 'vs/base/common/errors';
-import { Promise, TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
+import { TPromise, ValueCallback, ErrorCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import { CancellationToken, CancellationTokenSource } from 'vs/base/common/cancellation';
 import { Disposable, IDisposable } from 'vs/base/common/lifecycle';
 import { Event, Emitter } from 'vs/base/common/event';
@@ -22,6 +22,14 @@ export function toThenable<T>(arg: T | Thenable<T>): Thenable<T> {
 	} else {
 		return TPromise.as(arg);
 	}
+}
+
+export function toWinJsPromise<T>(arg: Thenable<T> | TPromise<T>): TPromise<T> {
+	if (arg instanceof TPromise) {
+		return arg;
+	}
+
+	return new TPromise((resolve, reject) => arg.then(resolve, reject));
 }
 
 export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TPromise<T> | Thenable<T>): TPromise<T> {
@@ -53,6 +61,10 @@ export function asWinJsPromise<T>(callback: (token: CancellationToken) => T | TP
 	});
 }
 
+export function asWinJSImport<T>(importPromise: Thenable<T>): TPromise<T> {
+	return toWinJsPromise(importPromise); // workaround for https://github.com/Microsoft/vscode/issues/48205
+}
+
 /**
  * Hook a cancellation token to a WinJS Promise
  */
@@ -67,6 +79,33 @@ export function wireCancellationToken<T>(token: CancellationToken, promise: TPro
 		});
 	}
 	return always(promise, () => subscription.dispose());
+}
+
+export function asDisposablePromise<T>(input: Thenable<T>, cancelValue?: T, bucket?: IDisposable[]): { promise: Thenable<T> } & IDisposable {
+	let dispose: () => void;
+	let promise = new TPromise((resolve, reject) => {
+		dispose = function () {
+			resolve(cancelValue);
+			if (isWinJSPromise(input)) {
+				input.cancel();
+			}
+		};
+		input.then(resolve, err => {
+			if (errors.isPromiseCanceledError(err)) {
+				resolve(cancelValue);
+			} else {
+				reject(err);
+			}
+		});
+	});
+	let res = {
+		promise,
+		dispose
+	};
+	if (Array.isArray(bucket)) {
+		bucket.push(res);
+	}
+	return res;
 }
 
 export interface ITask<T> {
@@ -101,9 +140,9 @@ export interface ITask<T> {
  */
 export class Throttler {
 
-	private activePromise: Promise;
-	private queuedPromise: Promise;
-	private queuedPromiseFactory: ITask<Promise>;
+	private activePromise: TPromise;
+	private queuedPromise: TPromise;
+	private queuedPromiseFactory: ITask<TPromise>;
 
 	constructor() {
 		this.activePromise = null;
@@ -169,7 +208,7 @@ export class SimpleThrottler {
  * A helper to delay execution of a task that is being requested often.
  *
  * Following the throttler, now imagine the mail man wants to optimize the number of
- * trips proactively. The trip itself can be long, so the he decides not to make the trip
+ * trips proactively. The trip itself can be long, so he decides not to make the trip
  * as soon as a letter is submitted. Instead he waits a while, in case more
  * letters are submitted. After said waiting period, if no letters were submitted, he
  * decides to make the trip. Imagine that N more letters were submitted after the first
@@ -191,7 +230,7 @@ export class SimpleThrottler {
 export class Delayer<T> {
 
 	private timeout: number;
-	private completionPromise: Promise;
+	private completionPromise: TPromise;
 	private onSuccess: ValueCallback;
 	private task: ITask<T | TPromise<T>>;
 
@@ -254,7 +293,7 @@ export class Delayer<T> {
  * A helper to delay execution of a task that is being requested often, while
  * preventing accumulation of consecutive executions, while the task runs.
  *
- * Simply combine the two mail man strategies from the Throttler and Delayer
+ * Simply combine the two mail men's strategies from the Throttler and Delayer
  * helpers, for an analogy.
  */
 export class ThrottledDelayer<T> extends Delayer<TPromise<T>> {
@@ -327,10 +366,10 @@ export class ShallowCancelThenPromise<T> extends TPromise<T> {
 }
 
 /**
- * Replacement for `WinJS.Promise.timeout`.
+ * Replacement for `WinJS.TPromise.timeout`.
  */
-export function timeout(n: number): Promise<void> {
-	return new Promise(resolve => setTimeout(resolve, n));
+export function timeout(n: number): Thenable<void> {
+	return new TPromise(resolve => setTimeout(resolve, n));
 }
 
 function isWinJSPromise(candidate: any): candidate is TPromise {
@@ -384,16 +423,11 @@ export function always<T>(winjsPromiseOrThenable: Thenable<T> | TPromise<T>, f: 
 
 export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[]> {
 	const results: T[] = [];
+	let index = 0;
+	const len = promiseFactories.length;
 
-	// reverse since we start with last element using pop()
-	promiseFactories = promiseFactories.reverse();
-
-	function next(): Thenable<any> {
-		if (promiseFactories.length) {
-			return promiseFactories.pop()();
-		}
-
-		return null;
+	function next(): Thenable<T> | null {
+		return index < len ? promiseFactories[index++]() : null;
 	}
 
 	function thenHandler(result: any): Thenable<any> {
@@ -413,14 +447,15 @@ export function sequence<T>(promiseFactories: ITask<Thenable<T>>[]): TPromise<T[
 }
 
 export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t: T) => boolean = t => !!t): TPromise<T> {
-	promiseFactories = [...promiseFactories.reverse()];
+	let index = 0;
+	const len = promiseFactories.length;
 
 	const loop: () => TPromise<T> = () => {
-		if (promiseFactories.length === 0) {
+		if (index >= len) {
 			return TPromise.as(null);
 		}
 
-		const factory = promiseFactories.pop();
+		const factory = promiseFactories[index++];
 		const promise = factory();
 
 		return promise.then(result => {
@@ -436,7 +471,7 @@ export function first<T>(promiseFactories: ITask<TPromise<T>>[], shouldStop: (t:
 }
 
 interface ILimitedTaskFactory {
-	factory: ITask<Promise>;
+	factory: ITask<TPromise>;
 	c: ValueCallback;
 	e: ErrorCallback;
 	p: ProgressCallback;
@@ -467,7 +502,7 @@ export class Limiter<T> {
 		return this.runningPromises + this.outstandingPromises.length;
 	}
 
-	queue(promiseFactory: ITask<Promise>): Promise;
+	queue(promiseFactory: ITask<TPromise>): TPromise;
 	queue(promiseFactory: ITask<TPromise<T>>): TPromise<T> {
 		return new TPromise<T>((c, e, p) => {
 			this.outstandingPromises.push({
@@ -620,12 +655,13 @@ export class IntervalTimer extends Disposable {
 
 export class RunOnceScheduler {
 
+	protected runner: (...args: any[]) => void;
+
 	private timeoutToken: number;
-	private runner: () => void;
 	private timeout: number;
 	private timeoutHandler: () => void;
 
-	constructor(runner: () => void, timeout: number) {
+	constructor(runner: (...args: any[]) => void, timeout: number) {
 		this.timeoutToken = -1;
 		this.runner = runner;
 		this.timeout = timeout;
@@ -668,61 +704,52 @@ export class RunOnceScheduler {
 	private onTimeout() {
 		this.timeoutToken = -1;
 		if (this.runner) {
-			this.runner();
+			this.doRun();
 		}
+	}
+
+	protected doRun(): void {
+		this.runner();
 	}
 }
 
-export function nfcall(fn: Function, ...args: any[]): Promise;
+export class RunOnceWorker<T> extends RunOnceScheduler {
+	private units: T[] = [];
+
+	constructor(runner: (units: T[]) => void, timeout: number) {
+		super(runner, timeout);
+	}
+
+	work(unit: T): void {
+		this.units.push(unit);
+
+		if (!this.isScheduled()) {
+			this.schedule();
+		}
+	}
+
+	protected doRun(): void {
+		const units = this.units;
+		this.units = [];
+
+		this.runner(units);
+	}
+
+	dispose(): void {
+		this.units = [];
+
+		super.dispose();
+	}
+}
+
+export function nfcall(fn: Function, ...args: any[]): TPromise;
 export function nfcall<T>(fn: Function, ...args: any[]): TPromise<T>;
 export function nfcall(fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn(...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
 }
 
-export function ninvoke(thisArg: any, fn: Function, ...args: any[]): Promise;
+export function ninvoke(thisArg: any, fn: Function, ...args: any[]): TPromise;
 export function ninvoke<T>(thisArg: any, fn: Function, ...args: any[]): TPromise<T>;
 export function ninvoke(thisArg: any, fn: Function, ...args: any[]): any {
 	return new TPromise((c, e) => fn.call(thisArg, ...args, (err: any, result: any) => err ? e(err) : c(result)), () => null);
-}
-
-/**
- * An emitter that will ignore any events that occur during a specific code
- * execution triggered via throttle() until the promise has finished (either
- * successfully or with an error). Only after the promise has finished, the
- * last event that was fired during the operation will get emitted.
- *
- */
-export class ThrottledEmitter<T> extends Emitter<T> {
-	private suspended: boolean;
-
-	private lastEvent: T;
-	private hasLastEvent: boolean;
-
-	public throttle<C>(promise: TPromise<C>): TPromise<C> {
-		this.suspended = true;
-
-		return always(promise, () => this.resume());
-	}
-
-	public fire(event?: T): any {
-		if (this.suspended) {
-			this.lastEvent = event;
-			this.hasLastEvent = true;
-
-			return;
-		}
-
-		return super.fire(event);
-	}
-
-	private resume(): void {
-		this.suspended = false;
-
-		if (this.hasLastEvent) {
-			this.fire(this.lastEvent);
-		}
-
-		this.hasLastEvent = false;
-		this.lastEvent = void 0;
-	}
 }

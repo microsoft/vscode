@@ -8,12 +8,11 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { Event } from 'vs/base/common/event';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { IEncodingSupport, ConfirmResult } from 'vs/workbench/common/editor';
+import { IEncodingSupport, ConfirmResult, IRevertOptions } from 'vs/workbench/common/editor';
 import { IBaseStat, IResolveContentOptions, ITextSnapshot } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ITextEditorModel } from 'vs/editor/common/services/resolverService';
 import { ITextBufferFactory } from 'vs/editor/common/model';
-import { IRevertOptions } from 'vs/platform/editor/common/editor';
 import { RawContextKey } from 'vs/platform/contextkey/common/contextkey';
 
 /**
@@ -233,18 +232,32 @@ export interface ITextFileEditorModel extends ITextEditorModel, IEncodingSupport
 
 	isResolved(): boolean;
 
+	isReadonly(): boolean;
+
 	isDisposed(): boolean;
+}
+
+
+export interface IWillMoveEvent {
+	oldResource: URI;
+	newResource: URI;
+	waitUntil(p: TPromise<any>): void;
 }
 
 export interface ITextFileService extends IDisposable {
 	_serviceBrand: any;
-	onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
-	onFilesAssociationChange: Event<void>;
+
+	readonly onAutoSaveConfigurationChange: Event<IAutoSaveConfiguration>;
+	readonly onFilesAssociationChange: Event<void>;
+
+	onWillMove: Event<IWillMoveEvent>;
+
+	readonly isHotExitEnabled: boolean;
 
 	/**
 	 * Access to the manager of text file editor models providing further methods to work with them.
 	 */
-	models: ITextFileEditorModelManager;
+	readonly models: ITextFileEditorModelManager;
 
 	/**
 	 * Resolve the contents of a file identified by the resource.
@@ -309,6 +322,16 @@ export interface ITextFileService extends IDisposable {
 	revertAll(resources?: URI[], options?: IRevertOptions): TPromise<ITextFileOperationResult>;
 
 	/**
+	 * Delete a file. If the file is dirty, it will get reverted and then deleted from disk.
+	 */
+	delete(resource: URI, useTrash?: boolean): TPromise<void>;
+
+	/**
+	 * Move a file. If the file is dirty, its contents will be preserved and restored.
+	 */
+	move(source: URI, target: URI, overwrite?: boolean): TPromise<void>;
+
+	/**
 	 * Brings up the confirm dialog to either save, don't save or cancel.
 	 *
 	 * @param resources the resources of the files to ask for confirmation or null if
@@ -325,9 +348,4 @@ export interface ITextFileService extends IDisposable {
 	 * Convinient fast access to the raw configured auto save settings.
 	 */
 	getAutoSaveConfiguration(): IAutoSaveConfiguration;
-
-	/**
-	 * Convinient fast access to the hot exit file setting.
-	 */
-	isHotExitEnabled: boolean;
 }

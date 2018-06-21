@@ -4,32 +4,31 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import * as crypto from 'crypto';
-
 import * as nls from 'vs/nls';
 
 import URI from 'vs/base/common/uri';
 import * as Objects from 'vs/base/common/objects';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as Types from 'vs/base/common/types';
+import * as Platform from 'vs/base/common/platform';
 
 import { IWorkspaceContextService, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 
 import {
-	ContributedTask, ExtensionTaskSourceTransfer, TaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
+	ContributedTask, ExtensionTaskSourceTransfer, KeyedTaskIdentifier, TaskExecution, Task, TaskEvent, TaskEventKind,
 	PresentationOptions, CommandOptions, CommandConfiguration, RuntimeType, CustomTask, TaskScope, TaskSource, TaskSourceKind, ExtensionTaskSource, RevealKind, PanelKind
 } from 'vs/workbench/parts/tasks/common/tasks';
-import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
+import { TaskDefinition } from 'vs/workbench/parts/tasks/node/tasks';
+
+import { ITaskService, TaskFilter } from 'vs/workbench/parts/tasks/common/taskService';
 
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import { ExtHostContext, MainThreadTaskShape, ExtHostTaskShape, MainContext, IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 import {
 	TaskDefinitionDTO, TaskExecutionDTO, ProcessExecutionOptionsDTO, TaskPresentationOptionsDTO,
-	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO
+	ProcessExecutionDTO, ShellExecutionDTO, ShellExecutionOptionsDTO, TaskDTO, TaskSourceDTO, TaskHandleDTO, TaskFilterDTO, TaskProcessStartedDTO, TaskProcessEndedDTO, TaskSystemInfoDTO
 } from 'vs/workbench/api/shared/tasks';
-
-export { TaskDTO, TaskHandleDTO, TaskExecutionDTO, TaskFilterDTO };
 
 namespace TaskExecutionDTO {
 	export function from(value: TaskExecution): TaskExecutionDTO {
@@ -46,18 +45,32 @@ namespace TaskExecutionDTO {
 	}
 }
 
+namespace TaskProcessStartedDTO {
+	export function from(value: TaskExecution, processId: number): TaskProcessStartedDTO {
+		return {
+			id: value.id,
+			processId
+		};
+	}
+}
+
+namespace TaskProcessEndedDTO {
+	export function from(value: TaskExecution, exitCode: number): TaskProcessEndedDTO {
+		return {
+			id: value.id,
+			exitCode
+		};
+	}
+}
+
 namespace TaskDefinitionDTO {
-	export function from(value: TaskIdentifier): TaskDefinitionDTO {
+	export function from(value: KeyedTaskIdentifier): TaskDefinitionDTO {
 		let result = Objects.assign(Object.create(null), value);
 		delete result._key;
 		return result;
 	}
-	export function to(value: TaskDefinitionDTO): TaskIdentifier {
-		const hash = crypto.createHash('md5');
-		hash.update(JSON.stringify(value));
-		let result = Objects.assign(Object.create(null), value);
-		result._key = hash.digest('hex');
-		return result;
+	export function to(value: TaskDefinitionDTO): KeyedTaskIdentifier {
+		return TaskDefinition.createTaskIdentifier(value, console);
 	}
 }
 
@@ -339,6 +352,7 @@ namespace TaskFilterDTO {
 @extHostNamedCustomer(MainContext.MainThreadTask)
 export class MainThreadTask implements MainThreadTaskShape {
 
+	private _extHostContext: IExtHostContext;
 	private _proxy: ExtHostTaskShape;
 	private _activeHandles: { [handle: number]: boolean; };
 
@@ -352,9 +366,13 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.onDidStateChange((event: TaskEvent) => {
 			let task = event.__task;
 			if (event.kind === TaskEventKind.Start) {
-				this._proxy.$taskStarted(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$onDidStartTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+			} else if (event.kind === TaskEventKind.ProcessStarted) {
+				this._proxy.$onDidStartTaskProcess(TaskProcessStartedDTO.from(Task.getTaskExecution(task), event.processId));
+			} else if (event.kind === TaskEventKind.ProcessEnded) {
+				this._proxy.$onDidEndTaskProcess(TaskProcessEndedDTO.from(Task.getTaskExecution(task), event.exitCode));
 			} else if (event.kind === TaskEventKind.End) {
-				this._proxy.$taskEnded(TaskExecutionDTO.from(Task.getTaskExecution(task)));
+				this._proxy.$OnDidEndTask(TaskExecutionDTO.from(Task.getTaskExecution(task)));
 			}
 		});
 	}
@@ -370,15 +388,24 @@ export class MainThreadTask implements MainThreadTaskShape {
 		this._taskService.registerTaskProvider(handle, {
 			provideTasks: () => {
 				return this._proxy.$provideTasks(handle).then((value) => {
+					let tasks: Task[] = [];
 					for (let task of value.tasks) {
-						if (ContributedTask.is(task)) {
-							let uri = (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
-							if (uri) {
-								delete (task._source as any as ExtensionTaskSourceTransfer).__workspaceFolder;
-								(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(uri));
+						let taskTransfer = task._source as any as ExtensionTaskSourceTransfer;
+						if (taskTransfer.__workspaceFolder !== void 0 && taskTransfer.__definition !== void 0) {
+							(task._source as any).workspaceFolder = this._workspaceContextServer.getWorkspaceFolder(URI.revive(taskTransfer.__workspaceFolder));
+							delete taskTransfer.__workspaceFolder;
+							let taskIdentifier = TaskDefinition.createTaskIdentifier(taskTransfer.__definition, console);
+							delete taskTransfer.__definition;
+							if (taskIdentifier !== void 0) {
+								(task as ContributedTask).defines = taskIdentifier;
+								task._id = `${task._id}.${taskIdentifier._key}`;
+								tasks.push(task);
 							}
+						} else {
+							console.warn(`Dropping task ${task.name}. Missing workspace folder and task definition`);
 						}
 					}
+					value.tasks = tasks;
 					return value;
 				});
 			}
@@ -417,7 +444,7 @@ export class MainThreadTask implements MainThreadTaskShape {
 						task: TaskDTO.from(task)
 					};
 					resolve(result);
-				}, (error) => {
+				}, (_error) => {
 					reject(new Error('Task not found'));
 				});
 			} else {
@@ -447,6 +474,39 @@ export class MainThreadTask implements MainThreadTaskShape {
 				}
 				reject(new Error('Task to terminate not found'));
 			});
+		});
+	}
+
+	public $registerTaskSystem(key: string, info: TaskSystemInfoDTO): void {
+		let platform: Platform.Platform;
+		switch (info.platform) {
+			case 'win32':
+				platform = Platform.Platform.Windows;
+				break;
+			case 'darwin':
+				platform = Platform.Platform.Mac;
+				break;
+			case 'linux':
+				platform = Platform.Platform.Linux;
+				break;
+			default:
+				platform = Platform.platform;
+		}
+		this._taskService.registerTaskSystem(key, {
+			platform: platform,
+			uriProvider: (path: string): URI => {
+				return URI.parse(`${info.scheme}://${info.host}:${info.port}${path}`);
+			},
+			context: this._extHostContext,
+			resolveVariables: (workspaceFolder: IWorkspaceFolder, variables: Set<string>): TPromise<Map<string, string>> => {
+				let vars: string[] = [];
+				variables.forEach(item => vars.push(item));
+				return this._proxy.$resolveVariables(workspaceFolder.uri, vars).then(values => {
+					let result = new Map<string, string>();
+					Object.keys(values).forEach(key => result.set(key, values[key]));
+					return result;
+				});
+			}
 		});
 	}
 }

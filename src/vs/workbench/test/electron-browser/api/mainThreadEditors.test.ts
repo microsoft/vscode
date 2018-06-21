@@ -12,10 +12,8 @@ import { TestConfigurationService } from 'vs/platform/configuration/test/common/
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
 import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { Event } from 'vs/base/common/event';
 import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import URI from 'vs/base/common/uri';
@@ -23,11 +21,12 @@ import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
-import { TestFileService } from 'vs/workbench/test/workbenchTestServices';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IFileStat } from 'vs/platform/files/common/files';
 import { ResourceTextEdit } from 'vs/editor/common/modes';
-import { BulkEditService } from '../../../services/bulkEdit/electron-browser/bulkEditService';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadEditors', () => {
 
@@ -50,38 +49,33 @@ suite('MainThreadEditors', () => {
 		deletedResources.clear();
 
 		const fileService = new class extends TestFileService {
-			async moveFile(from: URI, target: URI): TPromise<IFileStat> {
-				movedResources.set(from, target);
-				return createMockFileStat(target);
-			}
 			async createFile(uri: URI): TPromise<IFileStat> {
 				createdResources.add(uri);
 				return createMockFileStat(uri);
-			}
-			async del(uri: URI): TPromise<any> {
-				deletedResources.add(uri);
 			}
 		};
 
 
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
+			delete(resource: URI) {
+				deletedResources.add(resource);
+				return TPromise.as(void 0);
+			}
+			move(source: URI, target: URI) {
+				movedResources.set(source, target);
+				return TPromise.as(void 0);
+			}
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,
 				onModelDirty: Event.None,
 			};
 		};
-		const workbenchEditorService = <IWorkbenchEditorService>{
-			getVisibleEditors() { return []; },
-			getActiveEditor() { return undefined; }
-		};
-		const editorGroupService = new class extends mock<IEditorGroupService>() {
-			onEditorsChanged = Event.None;
-			onEditorGroupMoved = Event.None;
-		};
+		const workbenchEditorService = new TestEditorService();
+		const editorGroupService = new TestEditorGroupsService();
 
-		const bulkEditService = new BulkEditService(modelService, workbenchEditorService, null, fileService);
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -141,9 +135,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource },
-				{ oldUri: undefined, newUri: resource },
-				{ oldUri: resource, newUri: undefined }
+				{ oldUri: resource, newUri: resource, options: undefined },
+				{ oldUri: undefined, newUri: resource, options: undefined },
+				{ oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.equal(result, true);
@@ -164,4 +158,3 @@ function createMockFileStat(target: URI): IFileStat {
 		resource: target
 	};
 }
-

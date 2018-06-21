@@ -36,7 +36,7 @@ import { LifecycleService } from 'vs/platform/lifecycle/electron-browser/lifecyc
 import { MarkerService } from 'vs/platform/markers/common/markerService';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { CodeEditorServiceImpl } from 'vs/editor/browser/services/codeEditorServiceImpl';
+import { CodeEditorService } from 'vs/workbench/services/codeEditor/browser/codeEditorService';
 import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 import { IntegrityServiceImpl } from 'vs/platform/integrity/node/integrityServiceImpl';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -51,7 +51,7 @@ import { IContextViewService } from 'vs/platform/contextview/browser/contextView
 import { ILifecycleService, LifecyclePhase, ShutdownReason, StartupKind } from 'vs/platform/lifecycle/common/lifecycle';
 import { IMarkerService } from 'vs/platform/markers/common/markers';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { ISearchService } from 'vs/platform/search/common/search';
+import { ISearchService, ISearchHistoryService } from 'vs/platform/search/common/search';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { CommandService } from 'vs/workbench/services/commands/common/commandService';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
@@ -62,14 +62,14 @@ import { IUntitledEditorService, UntitledEditorService } from 'vs/workbench/serv
 import { ICrashReporterService, NullCrashReporterService, CrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { getDelayedChannel, IPCClient } from 'vs/base/parts/ipc/common/ipc';
 import { connect as connectNet } from 'vs/base/parts/ipc/node/ipc.net';
+import { DefaultURITransformer } from 'vs/base/common/uriIpc';
 import { IExtensionManagementChannel, ExtensionManagementChannelClient } from 'vs/platform/extensionManagement/common/extensionManagementIpc';
-import { IExtensionManagementService, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IExtensionManagementService, IExtensionEnablementService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { ExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionEnablementService';
 import { ITimerService } from 'vs/workbench/services/timer/common/timerService';
 import { BareFontInfo } from 'vs/editor/common/config/fontInfo';
 import { restoreFontInfo, readFontInfo, saveFontInfo } from 'vs/editor/browser/config/configuration';
 import * as browser from 'vs/base/browser/browser';
-import 'vs/platform/opener/browser/opener.contribution';
 import { IWorkbenchThemeService } from 'vs/workbench/services/themes/common/workbenchThemeService';
 import { WorkbenchThemeService } from 'vs/workbench/services/themes/electron-browser/workbenchThemeService';
 import { ITextResourceConfigurationService } from 'vs/editor/common/services/resourceConfiguration';
@@ -95,6 +95,11 @@ import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { DialogService } from 'vs/workbench/services/dialogs/electron-browser/dialogService';
 import { DialogChannel } from 'vs/platform/dialogs/common/dialogIpc';
 import { EventType, addDisposableListener, addClass, getClientArea } from 'vs/base/browser/dom';
+import { IOpenerService } from 'vs/platform/opener/common/opener';
+import { OpenerService } from 'vs/editor/browser/services/openerService';
+import { SearchHistoryService } from 'vs/workbench/services/search/node/searchHistoryService';
+import { MulitExtensionManagementService } from 'vs/platform/extensionManagement/common/multiExtensionManagement';
+import { ExtensionManagementServerService } from 'vs/workbench/services/extensions/node/extensionManagementServerService';
 
 /**
  * Services that we require for the Shell
@@ -270,22 +275,12 @@ export class WorkbenchShell {
 			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
-			restoredEditors: info.restoredEditors.length,
+			restoredEditors: info.restoredEditorsCount,
 			startupKind: this.lifecycleService.startupKind
 		});
 
 		// Telemetry: startup metrics
 		perf.mark('didStartWorkbench');
-		this.extensionService.whenInstalledExtensionsRegistered().done(() => {
-			/* __GDPR__
-				"startupTime" : {
-					"${include}": [
-						"${IStartupMetrics}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('startupTime', this.timerService.startupMetrics);
-		});
 	}
 
 	private logLocalStorageMetrics(): void {
@@ -415,7 +410,9 @@ export class WorkbenchShell {
 		this.lifecycleService = lifecycleService;
 
 		const extensionManagementChannel = getDelayedChannel<IExtensionManagementChannel>(sharedProcess.then(c => c.getChannel('extensions')));
-		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(ExtensionManagementChannelClient, extensionManagementChannel));
+		const extensionManagementChannelClient = new ExtensionManagementChannelClient(extensionManagementChannel, DefaultURITransformer);
+		serviceCollection.set(IExtensionManagementServerService, new SyncDescriptor(ExtensionManagementServerService, extensionManagementChannelClient));
+		serviceCollection.set(IExtensionManagementService, new SyncDescriptor(MulitExtensionManagementService));
 
 		const extensionEnablementService = instantiationService.createInstance(ExtensionEnablementService);
 		serviceCollection.set(IExtensionEnablementService, extensionEnablementService);
@@ -455,9 +452,13 @@ export class WorkbenchShell {
 
 		serviceCollection.set(ISearchService, new SyncDescriptor(SearchService));
 
+		serviceCollection.set(ISearchHistoryService, new SyncDescriptor(SearchHistoryService));
+
 		serviceCollection.set(IWorkbenchIssueService, new SyncDescriptor(WorkbenchIssueService));
 
-		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorServiceImpl));
+		serviceCollection.set(ICodeEditorService, new SyncDescriptor(CodeEditorService));
+
+		serviceCollection.set(IOpenerService, new SyncDescriptor(OpenerService));
 
 		serviceCollection.set(IIntegrityService, new SyncDescriptor(IntegrityServiceImpl));
 
@@ -495,7 +496,11 @@ export class WorkbenchShell {
 	private registerListeners(): void {
 
 		// Resize
-		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, () => this.layout()));
+		this.toUnbind.push(addDisposableListener(window, EventType.RESIZE, e => {
+			if (e.target === window) {
+				this.layout();
+			}
+		}));
 	}
 
 	public onUnexpectedError(error: any): void {

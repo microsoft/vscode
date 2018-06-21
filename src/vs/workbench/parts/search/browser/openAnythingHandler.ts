@@ -108,12 +108,12 @@ export class OpenAnythingHandler extends QuickOpenHandler {
 			const resultPromises: TPromise<QuickOpenModel | FileQuickOpenModel>[] = [];
 
 			// File Results
-			const filePromise = this.openFileHandler.getResults(query.value, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
+			const filePromise = this.openFileHandler.getResults(query.original, OpenAnythingHandler.MAX_DISPLAYED_RESULTS);
 			resultPromises.push(filePromise);
 
 			// Symbol Results (unless disabled or a range or absolute path is specified)
 			if (this.includeSymbols && !searchWithRange) {
-				resultPromises.push(this.openSymbolHandler.getResults(query.value));
+				resultPromises.push(this.openSymbolHandler.getResults(query.original));
 			}
 
 			// Join and sort unified

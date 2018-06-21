@@ -53,7 +53,7 @@ suite('Debug - Base Debug View', () => {
 
 	test('render variable', () => {
 		const rawSession = new MockSession();
-		const session = new Session({ name: 'mockSession', type: 'node', request: 'launch' }, rawSession);
+		const session = new Session({ resolved: { name: 'mockSession', type: 'node', request: 'launch' }, unresolved: undefined }, rawSession);
 		const thread = new Thread(session, 'mockthread', 1);
 		const stackFrame = new StackFrame(thread, 1, null, 'app.js', 'normal', { startLineNumber: 1, startColumn: 1, endLineNumber: undefined, endColumn: undefined }, 0);
 		const scope = new Scope(stackFrame, 1, 'local', 1, false, 10, 10);

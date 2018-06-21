@@ -25,7 +25,7 @@ import { generateRandomPipeName, Protocol } from 'vs/base/parts/ipc/node/ipc.net
 import { createServer, Server, Socket } from 'net';
 import { Event, Emitter, debounceEvent, mapEvent, anyEvent, fromNodeEventEmitter } from 'vs/base/common/event';
 import { IInitData, IWorkspaceData, IConfigurationInitData } from 'vs/workbench/api/node/extHost.protocol';
-import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
+import { IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import { ICrashReporterService } from 'vs/workbench/services/crashReporter/electron-browser/crashReporterService';
 import { IBroadcastService, IBroadcast } from 'vs/platform/broadcast/electron-browser/broadcastService';
@@ -61,7 +61,7 @@ export class ExtensionHostProcessWorker {
 	private _messageProtocol: TPromise<IMessagePassingProtocol>;
 
 	constructor(
-		/* intentionally not injected */private readonly _extensionService: IExtensionService,
+		private readonly _extensions: TPromise<IExtensionDescription[]>,
 		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
 		@INotificationService private readonly _notificationService: INotificationService,
 		@IWindowsService private readonly _windowsService: IWindowsService,
@@ -193,13 +193,13 @@ export class ExtensionHostProcessWorker {
 				}, 100);
 
 				// Print out extension host output
-				onDebouncedOutput(data => {
-					const inspectorUrlIndex = !this._environmentService.isBuilt && data.data && data.data.indexOf('chrome-devtools://');
-					if (inspectorUrlIndex >= 0) {
-						console.log(`%c[Extension Host] %cdebugger inspector at ${data.data.substr(inspectorUrlIndex)}`, 'color: blue', 'color: black');
+				onDebouncedOutput(output => {
+					const inspectorUrlMatch = !this._environmentService.isBuilt && output.data && output.data.match(/ws:\/\/([^\s]+)/);
+					if (inspectorUrlMatch) {
+						console.log(`%c[Extension Host] %cdebugger inspector at chrome-devtools://devtools/bundled/inspector.html?experiments=true&v8only=true&ws=${inspectorUrlMatch[1]}`, 'color: blue', 'color: black');
 					} else {
 						console.group('Extension Host');
-						console.log(data.data, ...data.format);
+						console.log(output.data, ...output.format);
 						console.groupEnd();
 					}
 				});
@@ -361,7 +361,7 @@ export class ExtensionHostProcessWorker {
 	}
 
 	private _createExtHostInitData(): TPromise<IInitData> {
-		return TPromise.join<any>([this._telemetryService.getTelemetryInfo(), this._extensionService.getExtensions()]).then(([telemetryInfo, extensionDescriptions]) => {
+		return TPromise.join([this._telemetryService.getTelemetryInfo(), this._extensions]).then(([telemetryInfo, extensionDescriptions]) => {
 			const configurationData: IConfigurationInitData = { ...this._configurationService.getConfigurationData(), configurationScopes: {} };
 			const r: IInitData = {
 				parentPid: process.pid,

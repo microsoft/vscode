@@ -9,7 +9,7 @@
 	"callstackSection": "调用堆栈部分",
 	"debugStopped": "因 {0} 已暂停",
 	"callStackAriaLabel": "调试调用堆栈",
-	"process": "进程",
+	"session": "会话",
 	"paused": "已暂停",
 	"running": "正在运行",
 	"thread": "线程",

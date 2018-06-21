@@ -61,9 +61,9 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 		this._toDispose.push(this.debugService.getConfigurationManager().registerDebugAdapterProvider(debugTypes, this));
 	}
 
-	createDebugAdapter(debugType: string, adapterInfo): IDebugAdapter {
+	createDebugAdapter(debugType: string, adapterInfo, debugPort: number): IDebugAdapter {
 		const handle = this._debugAdaptersHandleCounter++;
-		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo);
+		const da = new ExtensionHostDebugAdapter(handle, this._proxy, debugType, adapterInfo, debugPort);
 		this._debugAdapters.set(handle, da);
 		return da;
 	}
@@ -87,7 +87,8 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
 
 			// set up a handler to send more
 			this._toDispose.push(this.debugService.getModel().onDidChangeBreakpoints(e => {
-				if (e) {
+				// Ignore session only breakpoint events since they should only reflect in the UI
+				if (e && !e.sessionOnly) {
 					const delta: IBreakpointsDeltaDto = {};
 					if (e.added) {
 						delta.added = this.convertToDto(e.added);
@@ -262,7 +263,7 @@ export class MainThreadDebugService implements MainThreadDebugServiceShape, IDeb
  */
 class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 
-	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null) {
+	constructor(private _handle: number, private _proxy: ExtHostDebugServiceShape, private _debugType: string, private _adapterExecutable: IAdapterExecutable | null, private _debugPort: number) {
 		super();
 	}
 
@@ -275,7 +276,7 @@ class ExtensionHostDebugAdapter extends AbstractDebugAdapter {
 	}
 
 	public startSession(): TPromise<void> {
-		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable);
+		return this._proxy.$startDASession(this._handle, this._debugType, this._adapterExecutable, this._debugPort);
 	}
 
 	public sendMessage(message: DebugProtocol.ProtocolMessage): void {

@@ -15,6 +15,9 @@ import 'vs/workbench/services/configuration/common/configurationExtensionPoint';
 // Editor
 import 'vs/editor/editor.all';
 
+// Platform
+import 'vs/platform/widget/browser/contextScopedHistoryWidget';
+
 // Menus/Actions
 import 'vs/workbench/services/actions/electron-browser/menusExtensionPoint';
 
@@ -41,6 +44,7 @@ import 'vs/workbench/parts/logs/electron-browser/logs.contribution';
 import 'vs/workbench/browser/parts/quickopen/quickopen.contribution';
 import 'vs/workbench/parts/quickopen/browser/quickopen.contribution';
 import 'vs/workbench/browser/parts/editor/editorPicker';
+import 'vs/workbench/browser/parts/quickinput/quickInput.contribution';
 
 import 'vs/workbench/parts/files/electron-browser/explorerViewlet';
 import 'vs/workbench/parts/files/electron-browser/fileActions.contribution';
@@ -49,7 +53,6 @@ import 'vs/workbench/parts/files/electron-browser/files.contribution';
 import 'vs/workbench/parts/backup/common/backup.contribution';
 
 import 'vs/workbench/parts/stats/node/stats.contribution';
-import 'vs/workbench/parts/cache/node/cache.contribution';
 
 import 'vs/workbench/parts/search/electron-browser/search.contribution';
 import 'vs/workbench/parts/search/browser/searchView'; // can be packaged separately
@@ -65,6 +68,7 @@ import 'vs/workbench/parts/debug/browser/debugEditorActions';
 import 'vs/workbench/parts/debug/browser/debugViewlet'; // can be packaged separately
 
 import 'vs/workbench/parts/markers/electron-browser/markers.contribution';
+import 'vs/workbench/parts/comments/electron-browser/comments.contribution';
 
 import 'vs/workbench/parts/html/electron-browser/html.contribution';
 
@@ -131,6 +135,8 @@ import 'vs/workbench/parts/themes/test/electron-browser/themes.test.contribution
 import 'vs/workbench/parts/watermark/electron-browser/watermark';
 
 import 'vs/workbench/parts/welcome/overlay/browser/welcomeOverlay';
+
+import 'vs/workbench/parts/outline/electron-browser/outline.contribution';
 
 // services
 import 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';

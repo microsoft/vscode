@@ -221,7 +221,7 @@
 	},
 	{
 		"c": "   ",
-		"t": "source.tsx meta.interface.tsx",
+		"t": "source.tsx meta.interface.tsx meta.field.declaration.tsx",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

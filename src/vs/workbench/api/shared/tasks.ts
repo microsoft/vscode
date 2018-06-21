@@ -16,6 +16,7 @@ export interface TaskPresentationOptionsDTO {
 	echo?: boolean;
 	focus?: boolean;
 	panel?: number;
+	showReuseMessage?: boolean;
 }
 
 export interface ExecutionOptionsDTO {
@@ -88,7 +89,25 @@ export interface TaskExecutionDTO {
 	task: TaskDTO;
 }
 
+export interface TaskProcessStartedDTO {
+	id: string;
+	processId: number;
+}
+
+export interface TaskProcessEndedDTO {
+	id: string;
+	exitCode: number;
+}
+
+
 export interface TaskFilterDTO {
 	version?: string;
 	type?: string;
+}
+
+export interface TaskSystemInfoDTO {
+	scheme: string;
+	host: string;
+	port: number;
+	platform: string;
 }

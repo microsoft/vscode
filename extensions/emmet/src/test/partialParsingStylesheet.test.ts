@@ -56,7 +56,7 @@ p {
 		const sassContents = `
 .foo
 // .foo { brs
-/* .foo { op.3 
+/* .foo { op.3
 dn	{
 */
 	@
@@ -80,7 +80,7 @@ dn	{
 
 	test('Block comment between selector and open brace', function (): any {
 		const cssContents = `
-p   
+p
 /* First line
 of a multiline
 comment */
@@ -197,7 +197,6 @@ p.#{dn} {
 		return withRandomFileEditor(sassContents, '.scss', (editor, doc) => {
 			let rangesForEmmet = [
 				new vscode.Range(2, 1, 2, 4),		// p.3 inside a ruleset whose selector uses interpolation
-				new vscode.Range(3, 1, 3, 2),		// # inside ruleset
 				new vscode.Range(4, 1, 4, 3)		// dn inside ruleset after property with variable
 			];
 			let rangesNotEmmet = [
@@ -206,7 +205,8 @@ p.#{dn} {
 				new vscode.Range(1, 4, 1, 6),		// In dn inside variable in selector
 				new vscode.Range(3, 7, 3, 8),		// r of attr inside variable
 				new vscode.Range(5, 2, 5, 4),		// op after ruleset
-				new vscode.Range(7, 1, 7, 3)		// dn inside ruleset whose selector uses nested interpolation
+				new vscode.Range(7, 1, 7, 3),		// dn inside ruleset whose selector uses nested interpolation
+				new vscode.Range(3, 1, 3, 2),		// # inside ruleset
 			];
 			rangesForEmmet.forEach(range => {
 				assert.equal(isValid(doc, range, 'scss'), true);
@@ -230,7 +230,7 @@ om
 ment */{
 	m10
 }
-.boo{ 
+.boo{
 	op.3
 }
 `;
@@ -256,5 +256,5 @@ ment */{
 		});
 	});
 
-	
+
 });

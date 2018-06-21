@@ -55,11 +55,9 @@ export class TestQuickOpenService implements IQuickOpenService {
 	public navigate(): void { }
 }
 
-suite('Workbench QuickOpen', () => {
+suite('QuickOpen', () => {
 
-	class TestHandler extends QuickOpenHandler {
-
-	}
+	class TestHandler extends QuickOpenHandler { }
 
 	test('QuickOpen Handler and Registry', () => {
 		let registry = (Registry.as<IQuickOpenRegistry>(QuickOpenExtensions.Quickopen));

@@ -83,6 +83,7 @@
 			"name": "VS Code API Tests (single folder)",
 			"runtimeExecutable": "${execPath}",
 			"args": [
+				// "${workspaceFolder}", // Uncomment for running out of sources.
 				"${workspaceFolder}/extensions/vscode-api-tests/testWorkspace",
 				"--extensionDevelopmentPath=${workspaceFolder}/extensions/vscode-api-tests",
 				"--extensionTestsPath=${workspaceFolder}/extensions/vscode-api-tests/out/singlefolder-tests"
@@ -201,6 +202,7 @@
 				"runtimeExecutable": "${workspaceFolder}/.build/electron/code-oss"
 			},
 			"stopOnEntry": false,
+			"outputCapture": "std",
 			"args": [
 				"--delay",
 				"--timeout",
@@ -249,6 +251,13 @@
 			"configurations": [
 				"Launch VS Code",
 				"Attach to Search Process"
+			]
+		},
+		{
+			"name": "Renderer and Extension Host processes",
+			"configurations": [
+				"Launch VS Code",
+				"Attach to Extension Host"
 			]
 		}
 	]

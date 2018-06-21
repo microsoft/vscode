@@ -6,10 +6,11 @@
 'use strict';
 
 import { TPromise } from 'vs/base/common/winjs.base';
-import { ProxyIdentifier, IRPCProtocol } from 'vs/workbench/services/extensions/node/proxyIdentifier';
+import { ProxyIdentifier } from 'vs/workbench/services/extensions/node/proxyIdentifier';
 import { CharCode } from 'vs/base/common/charCode';
+import { IExtHostContext } from 'vs/workbench/api/node/extHost.protocol';
 
-export function SingleProxyRPCProtocol(thing: any): IRPCProtocol {
+export function SingleProxyRPCProtocol(thing: any): IExtHostContext {
 	return {
 		getProxy<T>(): T {
 			return thing;
@@ -23,7 +24,7 @@ export function SingleProxyRPCProtocol(thing: any): IRPCProtocol {
 
 declare var Proxy: any; // TODO@TypeScript
 
-export class TestRPCProtocol implements IRPCProtocol {
+export class TestRPCProtocol implements IExtHostContext {
 
 	private _callCountValue: number = 0;
 	private _idle: Promise<any>;

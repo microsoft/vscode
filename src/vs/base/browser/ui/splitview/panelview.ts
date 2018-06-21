@@ -375,7 +375,7 @@ export class PanelView implements IDisposable {
 	private _onDidDrop = new Emitter<{ from: Panel, to: Panel }>();
 	readonly onDidDrop: Event<{ from: Panel, to: Panel }> = this._onDidDrop.event;
 
-	readonly onDidSashChange: Event<void>;
+	readonly onDidSashChange: Event<number>;
 
 	constructor(container: HTMLElement, options: IPanelViewOptions = {}) {
 		this.dnd = options.dnd;

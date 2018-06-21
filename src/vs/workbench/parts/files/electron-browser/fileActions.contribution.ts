@@ -6,7 +6,7 @@
 
 import * as nls from 'vs/nls';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { GlobalNewUntitledFileAction, ShowOpenedFileInNewWindow, CopyPathAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler } from 'vs/workbench/parts/files/electron-browser/fileActions';
+import { ToggleAutoSaveAction, GlobalNewUntitledFileAction, ShowOpenedFileInNewWindow, CopyPathAction, FocusOpenEditorsView, FocusFilesExplorer, GlobalCompareResourcesAction, SaveAllAction, ShowActiveFileInExplorer, CollapseExplorerView, RefreshExplorerView, CompareWithClipboardAction, NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, TRIGGER_RENAME_LABEL, MOVE_FILE_TO_TRASH_LABEL, COPY_FILE_LABEL, PASTE_FILE_LABEL, FileCopiedContext, renameHandler, moveFileToTrashHandler, copyFileHandler, pasteFileHandler, deleteFileHandler } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { revertLocalChangesCommand, acceptLocalChangesCommand, CONFLICT_RESOLUTION_CONTEXT } from 'vs/workbench/parts/files/electron-browser/saveErrorHandler';
 import { SyncActionDescriptor, MenuId, MenuRegistry } from 'vs/platform/actions/common/actions';
 import { IWorkbenchActionRegistry, Extensions as ActionExtensions } from 'vs/workbench/common/actions';
@@ -16,7 +16,7 @@ import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/c
 import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext } from 'vs/workbench/parts/files/common/files';
+import { FilesExplorerFocusCondition, ExplorerRootContext, ExplorerFolderContext, ExplorerResourceNotReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { ADD_ROOT_FOLDER_COMMAND_ID, ADD_ROOT_FOLDER_LABEL } from 'vs/workbench/browser/actions/workspaceCommands';
 import { CLOSE_SAVED_EDITORS_COMMAND_ID, CLOSE_EDITORS_IN_GROUP_COMMAND_ID, CLOSE_EDITOR_COMMAND_ID, CLOSE_OTHER_EDITORS_IN_GROUP_COMMAND_ID } from 'vs/workbench/browser/parts/editor/editorCommands';
 import { OPEN_FOLDER_SETTINGS_COMMAND, OPEN_FOLDER_SETTINGS_LABEL } from 'vs/workbench/parts/preferences/browser/preferencesActions';
@@ -40,6 +40,7 @@ registry.registerWorkbenchAction(new SyncActionDescriptor(RefreshExplorerView, R
 registry.registerWorkbenchAction(new SyncActionDescriptor(GlobalNewUntitledFileAction, GlobalNewUntitledFileAction.ID, GlobalNewUntitledFileAction.LABEL, { primary: KeyMod.CtrlCmd | KeyCode.KEY_N }), 'File: New Untitled File', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(ShowOpenedFileInNewWindow, ShowOpenedFileInNewWindow.ID, ShowOpenedFileInNewWindow.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_O) }), 'File: Open Active File in New Window', category);
 registry.registerWorkbenchAction(new SyncActionDescriptor(CompareWithClipboardAction, CompareWithClipboardAction.ID, CompareWithClipboardAction.LABEL, { primary: KeyChord(KeyMod.CtrlCmd | KeyCode.KEY_K, KeyCode.KEY_C) }), 'File: Compare Active File with Clipboard', category);
+registry.registerWorkbenchAction(new SyncActionDescriptor(ToggleAutoSaveAction, ToggleAutoSaveAction.ID, ToggleAutoSaveAction.LABEL), 'File: Toggle Auto Save', category);
 
 // Commands
 CommandsRegistry.registerCommand('_files.windowOpen', openWindowCommand);
@@ -50,7 +51,7 @@ const RENAME_ID = 'renameFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: RENAME_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.F2,
 	mac: {
 		primary: KeyCode.Enter
@@ -62,7 +63,7 @@ const MOVE_FILE_TO_TRASH_ID = 'moveFileToTrash';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: MOVE_FILE_TO_TRASH_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyCode.Backspace
@@ -74,7 +75,7 @@ const DELETE_FILE_ID = 'deleteFile';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: DELETE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated()),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerRootContext.toNegated(), ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.Shift | KeyCode.Delete,
 	mac: {
 		primary: KeyMod.CtrlCmd | KeyMod.Alt | KeyCode.Backspace
@@ -96,7 +97,7 @@ const PASTE_FILE_ID = 'filesExplorer.paste';
 KeybindingsRegistry.registerCommandAndKeybindingRule({
 	id: PASTE_FILE_ID,
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(explorerCommandsWeightBonus),
-	when: ContextKeyExpr.and(FilesExplorerFocusCondition),
+	when: ContextKeyExpr.and(FilesExplorerFocusCondition, ExplorerResourceNotReadonlyContext),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 	handler: pasteFileHandler
 });
@@ -118,22 +119,22 @@ function appendEditorTitleContextMenuItem(id: string, title: string, when: Conte
 
 // Editor Title Menu for Conflict Resolution
 appendSaveConflictEditorTitleAction('workbench.files.action.acceptLocalChanges', nls.localize('acceptLocalChanges', "Use your changes and overwrite disk contents"), {
-	light: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/check.svg`)).fsPath,
-	dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/check-inverse.svg`)).fsPath
+	light: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/check.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/check-inverse.svg`))
 }, -10, acceptLocalChangesCommand);
 appendSaveConflictEditorTitleAction('workbench.files.action.revertLocalChanges', nls.localize('revertLocalChanges', "Discard your changes and revert to content on disk"), {
-	light: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/undo.svg`)).fsPath,
-	dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/undo-inverse.svg`)).fsPath
+	light: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/undo.svg`)),
+	dark: URI.parse(require.toUrl(`vs/workbench/parts/files/electron-browser/media/undo-inverse.svg`))
 }, -9, revertLocalChangesCommand);
 
-function appendSaveConflictEditorTitleAction(id: string, title: string, iconPath: { dark: string; light?: string; }, order: number, command: ICommandHandler): void {
+function appendSaveConflictEditorTitleAction(id: string, title: string, iconLocation: { dark: URI; light?: URI; }, order: number, command: ICommandHandler): void {
 
 	// Command
 	CommandsRegistry.registerCommand(id, command);
 
 	// Action
 	MenuRegistry.appendMenuItem(MenuId.EditorTitle, {
-		command: { id, title, iconPath },
+		command: { id, title, iconLocation },
 		when: ContextKeyExpr.equals(CONFLICT_RESOLUTION_CONTEXT, true),
 		group: 'navigation',
 		order
@@ -162,7 +163,6 @@ appendToCommandPalette(SAVE_FILE_AS_COMMAND_ID, SAVE_FILE_AS_LABEL, category);
 appendToCommandPalette(CLOSE_EDITOR_COMMAND_ID, nls.localize('closeEditor', "Close Editor"), nls.localize('view', "View"));
 appendToCommandPalette(NEW_FILE_COMMAND_ID, NEW_FILE_LABEL, category);
 appendToCommandPalette(NEW_FOLDER_COMMAND_ID, NEW_FOLDER_LABEL, category);
-
 
 
 // Menu registration - open editors
@@ -329,7 +329,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 4,
 	command: {
 		id: NEW_FILE_COMMAND_ID,
-		title: NEW_FILE_LABEL
+		title: NEW_FILE_LABEL,
+		precondition: ExplorerResourceNotReadonlyContext
 	},
 	when: ExplorerFolderContext
 });
@@ -339,7 +340,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 6,
 	command: {
 		id: NEW_FOLDER_COMMAND_ID,
-		title: NEW_FOLDER_LABEL
+		title: NEW_FOLDER_LABEL,
+		precondition: ExplorerResourceNotReadonlyContext
 	},
 	when: ExplorerFolderContext
 });
@@ -442,7 +444,8 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 10,
 	command: {
 		id: RENAME_ID,
-		title: TRIGGER_RENAME_LABEL
+		title: TRIGGER_RENAME_LABEL,
+		precondition: ExplorerResourceNotReadonlyContext
 	},
 	when: ExplorerRootContext.toNegated()
 });
@@ -452,11 +455,17 @@ MenuRegistry.appendMenuItem(MenuId.ExplorerContext, {
 	order: 20,
 	command: {
 		id: MOVE_FILE_TO_TRASH_ID,
-		title: MOVE_FILE_TO_TRASH_LABEL
+		title: MOVE_FILE_TO_TRASH_LABEL,
+		precondition: ExplorerResourceNotReadonlyContext
 	},
 	alt: {
 		id: DELETE_FILE_ID,
-		title: nls.localize('deleteFile', "Delete Permanently")
+		title: nls.localize('deleteFile', "Delete Permanently"),
+		precondition: ExplorerResourceNotReadonlyContext
 	},
 	when: ExplorerRootContext.toNegated()
 });
+
+// Empty Editor Group Context Menu
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.files.newUntitledFile', title: nls.localize('newFile', "New File") }, group: '1_file', order: 10 });
+MenuRegistry.appendMenuItem(MenuId.EmptyEditorGroupContext, { command: { id: 'workbench.action.quickOpen', title: nls.localize('openFile', "Open File...") }, group: '1_file', order: 20 });

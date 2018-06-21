@@ -6,17 +6,14 @@
 
 import * as nls from 'vs/nls';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
-import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorService } from 'vs/platform/editor/common/editor';
-import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
 import { IContextKeyService, ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { KeybindingsRegistry } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Position, IPosition } from 'vs/editor/common/core/position';
-import { Range } from 'vs/editor/common/core/range';
 import * as editorCommon from 'vs/editor/common/editorCommon';
 import { registerEditorAction, ServicesAccessor, EditorAction, registerEditorContribution, registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { Location, ReferenceProviderRegistry } from 'vs/editor/common/modes';
+import { Range } from 'vs/editor/common/core/range';
 import { PeekContext, getOuterEditor } from './peekViewWidget';
 import { ReferencesController, RequestOptions, ctxReferenceSearchVisible } from './referencesController';
 import { ReferencesModel, OneReference } from './referencesModel';
@@ -28,8 +25,11 @@ import { ICodeEditor, isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { ITextModel } from 'vs/editor/common/model';
 import { IListService } from 'vs/platform/list/browser/listService';
 import { ctxReferenceWidgetSearchTreeFocused } from 'vs/editor/contrib/referenceSearch/referencesWidget';
+import { CommandsRegistry, ICommandHandler } from 'vs/platform/commands/common/commands';
+import URI from 'vs/base/common/uri';
+import { ICodeEditorService } from 'vs/editor/browser/services/codeEditorService';
 
-const defaultReferenceSearchOptions: RequestOptions = {
+export const defaultReferenceSearchOptions: RequestOptions = {
 	getMetaTitle(model) {
 		return model.references.length > 1 && nls.localize('meta.titleReference', " – {0} references", model.references.length);
 	}
@@ -95,7 +95,6 @@ registerEditorContribution(ReferenceController);
 registerEditorAction(ReferenceAction);
 
 let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resource: URI, position: IPosition) => {
-
 	if (!(resource instanceof URI)) {
 		throw new Error('illegal argument, uri');
 	}
@@ -103,9 +102,8 @@ let findReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, position');
 	}
 
-	return accessor.get(IEditorService).openEditor({ resource }).then(editor => {
-
-		let control = editor.getControl();
+	const codeEditorService = accessor.get(ICodeEditorService);
+	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
 		if (!isCodeEditor(control)) {
 			return undefined;
 		}
@@ -126,9 +124,8 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 		throw new Error('illegal argument, uri expected');
 	}
 
-	return accessor.get(IEditorService).openEditor({ resource: resource }).then(editor => {
-
-		let control = editor.getControl();
+	const codeEditorService = accessor.get(ICodeEditorService);
+	return codeEditorService.openCodeEditor({ resource }, codeEditorService.getFocusedCodeEditor()).then(control => {
 		if (!isCodeEditor(control)) {
 			return undefined;
 		}
@@ -144,8 +141,6 @@ let showReferencesCommand: ICommandHandler = (accessor: ServicesAccessor, resour
 			defaultReferenceSearchOptions)).then(() => true);
 	});
 };
-
-
 
 // register commands
 

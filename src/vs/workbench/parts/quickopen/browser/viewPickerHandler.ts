@@ -19,10 +19,10 @@ import { Action } from 'vs/base/common/actions';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { fuzzyContains, stripWildcards } from 'vs/base/common/strings';
 import { matchesFuzzy } from 'vs/base/common/filters';
-import { ViewsRegistry, ViewLocation, IViewsService } from 'vs/workbench/common/views';
+import { ViewsRegistry, ViewContainer, IViewsService, IViewContainersRegistry, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ViewletDescriptor } from 'vs/workbench/browser/viewlet';
-import { VIEWLET_ID as SCM_VIEWLET_ID } from 'vs/workbench/parts/scm/common/scm';
+import { Registry } from 'vs/platform/registry/common/platform';
 
 export const VIEW_PICKER_PREFIX = 'view ';
 
@@ -122,8 +122,8 @@ export class ViewPickerHandler extends QuickOpenHandler {
 	private getViewEntries(): ViewEntry[] {
 		const viewEntries: ViewEntry[] = [];
 
-		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewLocation: ViewLocation): ViewEntry[] => {
-			const views = ViewsRegistry.getViews(viewLocation);
+		const getViewEntriesForViewlet = (viewlet: ViewletDescriptor, viewContainer: ViewContainer): ViewEntry[] => {
+			const views = ViewsRegistry.getViews(viewContainer);
 			const result: ViewEntry[] = [];
 			if (views.length) {
 				for (const view of views) {
@@ -145,24 +145,26 @@ export class ViewPickerHandler extends QuickOpenHandler {
 
 		// Viewlet Views
 		viewlets.forEach((viewlet, index) => {
-			const viewLocation: ViewLocation = viewlet.id === SCM_VIEWLET_ID ? ViewLocation.SCM : ViewLocation.get(viewlet.id);
-			if (viewLocation) {
-				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewLocation);
+			const viewContainer: ViewContainer = Registry.as<IViewContainersRegistry>(ViewContainerExtensions.ViewContainersRegistry).get(viewlet.id);
+			if (viewContainer) {
+				const viewEntriesForViewlet: ViewEntry[] = getViewEntriesForViewlet(viewlet, viewContainer);
 				viewEntries.push(...viewEntriesForViewlet);
 			}
 		});
 
 		// Terminals
-		const terminals = this.terminalService.terminalInstances;
-		terminals.forEach((terminal, index) => {
-			const terminalsCategory = nls.localize('terminals', "Terminal");
-			const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index + 1, terminal.title), terminalsCategory, () => {
-				this.terminalService.showPanel(true).done(() => {
-					this.terminalService.setActiveInstance(terminal);
-				}, errors.onUnexpectedError);
-			});
+		const terminalsCategory = nls.localize('terminals', "Terminal");
+		this.terminalService.terminalTabs.forEach((tab, tabIndex) => {
+			tab.terminalInstances.forEach((terminal, terminalIndex) => {
+				const index = `${tabIndex + 1}.${terminalIndex + 1}`;
+				const entry = new ViewEntry(nls.localize('terminalTitle', "{0}: {1}", index, terminal.title), terminalsCategory, () => {
+					this.terminalService.showPanel(true).done(() => {
+						this.terminalService.setActiveInstance(terminal);
+					}, errors.onUnexpectedError);
+				});
 
-			viewEntries.push(entry);
+				viewEntries.push(entry);
+			});
 		});
 
 		// Output Channels

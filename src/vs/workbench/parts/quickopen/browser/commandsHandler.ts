@@ -16,9 +16,8 @@ import { QuickOpenEntryGroup, IHighlight, QuickOpenModel, QuickOpenEntry } from 
 import { IMenuService, MenuId, MenuItemAction } from 'vs/platform/actions/common/actions';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { QuickOpenHandler, IWorkbenchQuickOpenConfiguration } from 'vs/workbench/browser/quickopen';
-import { IEditorAction, IEditor } from 'vs/editor/common/editorCommon';
+import { IEditorAction } from 'vs/editor/common/editorCommon';
 import { matchesWords, matchesPrefix, matchesContiguousSubString, or } from 'vs/base/common/filters';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -30,7 +29,7 @@ import { once } from 'vs/base/common/event';
 import { LRUCache } from 'vs/base/common/map';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -380,8 +379,7 @@ export class CommandsHandler extends QuickOpenHandler {
 	private commandsHistory: CommandsHistory;
 
 	constructor(
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
-		@IEditorGroupService private editorGroupService: IEditorGroupService,
+		@IEditorService private editorService: IEditorService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IKeybindingService private keybindingService: IKeybindingService,
 		@IMenuService private menuService: IMenuService,
@@ -404,21 +402,16 @@ export class CommandsHandler extends QuickOpenHandler {
 		this.lastSearchValue = searchValue;
 
 		// Editor Actions
-		const activeEditor = this.editorService.getActiveEditor();
-		const activeEditorControl = activeEditor ? activeEditor.getControl() : null;
-
+		const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 		let editorActions: IEditorAction[] = [];
-		if (activeEditorControl) {
-			const editor = <IEditor>activeEditorControl;
-			if (types.isFunction(editor.getSupportedActions)) {
-				editorActions = editor.getSupportedActions();
-			}
+		if (activeTextEditorWidget && types.isFunction(activeTextEditorWidget.getSupportedActions)) {
+			editorActions = activeTextEditorWidget.getSupportedActions();
 		}
 
 		const editorEntries = this.editorActionsToEntries(editorActions, searchValue);
 
 		// Other Actions
-		const menu = this.editorGroupService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
+		const menu = this.editorService.invokeWithinEditorContext(accessor => this.menuService.createMenu(MenuId.CommandPalette, accessor.get(IContextKeyService)));
 		const menuActions = menu.getActions().reduce((r, [, actions]) => [...r, ...actions], <MenuItemAction[]>[]);
 		const commandEntries = this.menuItemActionsToEntries(menuActions, searchValue);
 

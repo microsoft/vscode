@@ -17,14 +17,12 @@ const vfs = require('vinyl-fs');
 const rename = require('gulp-rename');
 const replace = require('gulp-replace');
 const filter = require('gulp-filter');
-const buffer = require('gulp-buffer');
 const json = require('gulp-json-editor');
 const _ = require('underscore');
 const util = require('./lib/util');
 const ext = require('./lib/extensions');
 const buildfile = require('../src/buildfile');
 const common = require('./lib/optimize');
-const nlsDev = require('vscode-nls-dev');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
 // @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
@@ -73,7 +71,7 @@ const vscodeResources = [
 	'out-build/paths.js',
 	'out-build/vs/**/*.{svg,png,cur,html}',
 	'out-build/vs/base/common/performance.js',
-	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh}',
+	'out-build/vs/base/node/{stdForkStart.js,terminateProcess.sh, cpuUsage.sh}',
 	'out-build/vs/base/browser/ui/octiconLabel/octicons/**',
 	'out-build/vs/workbench/browser/media/*-theme.css',
 	'out-build/vs/workbench/electron-browser/bootstrap/**',
@@ -98,8 +96,6 @@ const BUNDLED_FILE_HEADER = [
 	' *--------------------------------------------------------*/'
 ].join('\n');
 
-const languages = i18n.defaultLanguages.concat([]);  // i18n.defaultLanguages.concat(process.env.VSCODE_QUALITY !== 'stable' ? i18n.extraLanguages : []);
-
 gulp.task('clean-optimized-vscode', util.rimraf('out-vscode'));
 gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compile-extensions-build'], common.optimizeTask({
 	entryPoints: vscodeEntryPoints,
@@ -108,7 +104,6 @@ gulp.task('optimize-vscode', ['clean-optimized-vscode', 'compile-build', 'compil
 	loaderConfig: common.loaderConfig(nodeModules),
 	header: BUNDLED_FILE_HEADER,
 	out: 'out-vscode',
-	languages: languages,
 	bundleInfo: undefined
 }));
 
@@ -141,7 +136,7 @@ const config = {
 		name: product.nameLong + ' document',
 		role: 'Editor',
 		ostypes: ["TEXT", "utxt", "TUTX", "****"],
-		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
+		extensions: ["ascx", "asp", "aspx", "bash", "bash_login", "bash_logout", "bash_profile", "bashrc", "bat", "bowerrc", "c", "cc", "clj", "cljs", "cljx", "clojure", "cmd", "code-workspace", "coffee", "config", "cpp", "cs", "cshtml", "csproj", "css", "csx", "ctp", "cxx", "dockerfile", "dot", "dtd", "editorconfig", "edn", "eyaml", "eyml", "fs", "fsi", "fsscript", "fsx", "gemspec", "gitattributes", "gitconfig", "gitignore", "go", "h", "handlebars", "hbs", "hh", "hpp", "htm", "html", "hxx", "ini", "jade", "jav", "java", "js", "jscsrc", "jshintrc", "jshtm", "json", "jsp", "less", "lua", "m", "makefile", "markdown", "md", "mdoc", "mdown", "mdtext", "mdtxt", "mdwn", "mkd", "mkdn", "ml", "mli", "php", "phtml", "pl", "pl6", "pm", "pm6", "pod", "pp", "profile", "properties", "ps1", "psd1", "psgi", "psm1", "pug", "py", "r", "rb", "rhistory", "rprofile", "rs", "rt", "scss", "sh", "shtml", "sql", "svg", "svgz", "t", "ts", "txt", "vb", "wxi", "wxl", "wxs", "xaml", "xcodeproj", "xcworkspace", "xml", "yaml", "yml", "zlogin", "zlogout", "zprofile", "zsh", "zshenv", "zshrc"],
 		iconFile: 'resources/darwin/code_file.icns'
 	}],
 	darwinBundleURLTypes: [{
@@ -244,15 +239,8 @@ function packageTask(platform, arch, opts) {
 			.filter(({ name }) => builtInExtensions.every(b => b.name !== name));
 
 		const localExtensions = es.merge(...localExtensionDescriptions.map(extension => {
-			const nlsFilter = filter('**/*.nls.json', { restore: true });
-
 			return ext.fromLocal(extension.path)
-				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`))
-				// 	// TODO@Dirk: this filter / buffer is here to make sure the nls.json files are buffered
-				.pipe(nlsFilter)
-				.pipe(buffer())
-				.pipe(nlsDev.createAdditionalLanguageFiles(languages, path.join(__dirname, '..', 'i18n')))
-				.pipe(nlsFilter.restore);
+				.pipe(rename(p => p.dirname = `extensions/${extension.name}/${p.dirname}`));
 		}));
 
 		const localExtensionDependencies = gulp.src('extensions/node_modules/**', { base: '.' });

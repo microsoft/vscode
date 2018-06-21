@@ -33,8 +33,9 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		publisher: 'vscode',
 		enableProposedApi: false,
 		engines: undefined,
-		extensionFolderPath: undefined,
+		extensionLocation: undefined,
 		isBuiltin: false,
+		isUnderDevelopment: false,
 		version: undefined
 	};
 
@@ -167,12 +168,12 @@ suite('ExtHostDocumentSaveParticipant', () => {
 		let callCount = 0;
 		let sub1 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
-			event.waitUntil(timeout(17));
+			event.waitUntil(timeout(1));
 		});
 
 		let sub2 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {
 			callCount += 1;
-			event.waitUntil(timeout(17));
+			event.waitUntil(timeout(170));
 		});
 
 		let sub3 = participant.getOnWillSaveTextDocumentEvent(nullExtensionDescription)(function (event) {

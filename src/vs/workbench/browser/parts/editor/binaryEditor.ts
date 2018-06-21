@@ -19,6 +19,8 @@ import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { ResourceViewerContext, ResourceViewer } from 'vs/workbench/browser/parts/editor/resourceViewer';
 import URI from 'vs/base/common/uri';
 import { Dimension } from 'vs/base/browser/dom';
+import { IFileService } from 'vs/platform/files/common/files';
+import { CancellationToken } from 'vs/base/common/cancellation';
 
 export interface IOpenCallbacks {
 	openInternal: (input: EditorInput, options: EditorOptions) => void;
@@ -42,7 +44,8 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		id: string,
 		callbacks: IOpenCallbacks,
 		telemetryService: ITelemetryService,
-		themeService: IThemeService
+		themeService: IThemeService,
+		@IFileService private readonly _fileService: IFileService,
 	) {
 		super(id, telemetryService, themeService);
 
@@ -74,31 +77,24 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 		parent.appendChild(this.scrollbar.getDomNode());
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
-
-		// Return early for same input unless we force to open
-		const forceOpen = options && options.forceOpen;
-		if (!forceOpen && input.matches(this.input)) {
-			return TPromise.wrap<void>(null);
-		}
-
-		// Otherwise set input and resolve
-		return super.setInput(input, options).then(() => {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
+		return super.setInput(input, options, token).then(() => {
 			return input.resolve(true).then(model => {
+
+				// Check for cancellation
+				if (token.isCancellationRequested) {
+					return void 0;
+				}
 
 				// Assert Model instance
 				if (!(model instanceof BinaryEditorModel)) {
 					return TPromise.wrapError<void>(new Error('Unable to open file as binary'));
 				}
 
-				// Assert that the current input is still the one we expect. This prevents a race condition when loading takes long and another input was set meanwhile
-				if (!this.input || this.input !== input) {
-					return null;
-				}
-
 				// Render Input
 				this.resourceViewerContext = ResourceViewer.show(
 					{ name: model.getName(), resource: model.getResource(), size: model.getSize(), etag: model.getETag(), mime: model.getMime() },
+					this._fileService,
 					this.binaryContainer.getHTMLElement(),
 					this.scrollbar,
 					resource => this.callbacks.openInternal(input, options),
@@ -106,7 +102,7 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 					meta => this.handleMetadataChanged(meta)
 				);
 
-				return TPromise.as<void>(null);
+				return void 0;
 			});
 		});
 	}
@@ -118,10 +114,6 @@ export abstract class BaseBinaryResourceEditor extends BaseEditor {
 
 	public getMetadata(): string {
 		return this.metadata;
-	}
-
-	public supportsCenteredLayout(): boolean {
-		return false;
 	}
 
 	public clearInput(): void {

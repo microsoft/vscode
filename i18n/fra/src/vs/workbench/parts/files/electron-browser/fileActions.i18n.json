@@ -65,7 +65,6 @@
 	"emptyFileNameError": "Un nom de fichier ou de dossier doit être fourni.",
 	"fileNameStartsWithSlashError": "Un nom de fichier ou de dossier ne peut commencer par une barre oblique.",
 	"fileNameExistsError": "Un fichier ou dossier **{0}** existe déjà à cet emplacement. Choisissez un autre nom.",
-	"fileUsedAsFolderError": "**{0}** est un fichier et ne peut pas avoir de descendant.",
 	"invalidFileNameError": "Le nom **{0}** est non valide en tant que nom de fichier ou de dossier. Choisissez un autre nom.",
 	"filePathTooLongError": "Le nom **{0}** correspond à un chemin d'accès trop long. Choisissez un nom plus court.",
 	"compareWithClipboard": "Compare le fichier actif avec le presse-papiers",

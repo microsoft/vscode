@@ -11,5 +11,7 @@
 	"pid": "PID",
 	"name": "名称",
 	"killProcess": "结束进程",
-	"forceKillProcess": "强制结束进程"
+	"forceKillProcess": "强制结束进程",
+	"copy": "复制",
+	"copyAll": "全部复制"
 }

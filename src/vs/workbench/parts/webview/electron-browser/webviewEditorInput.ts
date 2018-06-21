@@ -6,12 +6,12 @@
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditorInput, IEditorModel, Position } from 'vs/platform/editor/common/editor';
-import { EditorInput, EditorModel } from 'vs/workbench/common/editor';
+import { IEditorModel } from 'vs/platform/editor/common/editor';
+import { EditorInput, EditorModel, IEditorInput, GroupIdentifier } from 'vs/workbench/common/editor';
 import { IPartService, Parts } from 'vs/workbench/services/part/common/partService';
 import { WebviewEvents, WebviewInputOptions, WebviewReviver } from './webviewEditorService';
 import { WebviewElement } from './webviewElement';
-
+import * as vscode from 'vscode';
 
 export class WebviewEditorInput extends EditorInput {
 	private static handlePool = 0;
@@ -27,14 +27,14 @@ export class WebviewEditorInput extends EditorInput {
 	private _webview: WebviewElement | undefined;
 	private _webviewOwner: any;
 	private _webviewDisposables: IDisposable[] = [];
-	private _position?: Position;
+	private _group?: GroupIdentifier;
 	private _scrollYPercentage: number = 0;
 	private _state: any;
 	private _webviewState: string | undefined;
 
 	private _revived: boolean = false;
 
-	public readonly extensionFolderPath: URI | undefined;
+	public readonly extensionLocation: URI | undefined;
 
 	constructor(
 		public readonly viewType: string,
@@ -42,7 +42,7 @@ export class WebviewEditorInput extends EditorInput {
 		options: WebviewInputOptions,
 		state: any,
 		events: WebviewEvents,
-		extensionFolderPath: string | undefined,
+		extensionLocation: URI | undefined,
 		public readonly reviver: WebviewReviver | undefined,
 		@IPartService private readonly _partService: IPartService,
 	) {
@@ -51,10 +51,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._options = options;
 		this._events = events;
 		this._state = state;
-
-		if (extensionFolderPath) {
-			this.extensionFolderPath = URI.file(extensionFolderPath);
-		}
+		this.extensionLocation = extensionLocation;
 	}
 
 	public getTypeId(): string {
@@ -69,11 +66,12 @@ export class WebviewEditorInput extends EditorInput {
 			this._container = undefined;
 		}
 
-		if (this._events) {
+		if (this._events && this._events.onDispose) {
 			this._events.onDispose();
-			this._events = undefined;
 		}
+		this._events = undefined;
 
+		this._webview = undefined;
 		super.dispose();
 	}
 
@@ -98,12 +96,12 @@ export class WebviewEditorInput extends EditorInput {
 		this._onDidChangeLabel.fire();
 	}
 
-	matches(other: IEditorInput): boolean {
+	public matches(other: IEditorInput): boolean {
 		return other && other === this;
 	}
 
-	public get position(): Position | undefined {
-		return this._position;
+	public get group(): GroupIdentifier | undefined {
+		return this._group;
 	}
 
 	public get html(): string {
@@ -139,8 +137,21 @@ export class WebviewEditorInput extends EditorInput {
 		return this._options;
 	}
 
-	public set options(value: WebviewInputOptions) {
-		this._options = value;
+	public setOptions(value: vscode.WebviewOptions) {
+		this._options = {
+			...this._options,
+			...value
+		};
+
+		if (this._webview) {
+			this._webview.options = {
+				allowScripts: this._options.enableScripts,
+				allowSvgs: true,
+				enableWrappedPostMessage: true,
+				useSameOriginForRoot: false,
+				localResourceRoots: this._options.localResourceRoots
+			};
+		}
 	}
 
 	public resolve(refresh?: boolean): TPromise<IEditorModel, any> {
@@ -233,7 +244,7 @@ export class WebviewEditorInput extends EditorInput {
 		this._currentWebviewHtml = '';
 	}
 
-	public updatePosition(position: Position): void {
-		this._position = position;
+	public updateGroup(group: GroupIdentifier): void {
+		this._group = group;
 	}
 }

@@ -9,12 +9,12 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 import { Emitter } from 'vs/base/common/event';
 import { ITextModel, ISingleEditOperation } from 'vs/editor/common/model';
 import * as modes from 'vs/editor/common/modes';
-import { WorkspaceSymbolProviderRegistry, IWorkspaceSymbolProvider } from 'vs/workbench/parts/search/common/search';
+import * as search from 'vs/workbench/parts/search/common/search';
 import { wireCancellationToken } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Position as EditorPosition } from 'vs/editor/common/core/position';
 import { Range as EditorRange } from 'vs/editor/common/core/range';
-import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, SymbolInformationDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter } from '../node/extHost.protocol';
+import { ExtHostContext, MainThreadLanguageFeaturesShape, ExtHostLanguageFeaturesShape, MainContext, IExtHostContext, ISerializedLanguageConfiguration, ISerializedRegExp, ISerializedIndentationRule, ISerializedOnEnterRule, LocationDto, WorkspaceSymbolDto, CodeActionDto, reviveWorkspaceEditDto, ISerializedDocumentFilter, DefinitionLinkDto } from '../node/extHost.protocol';
 import { LanguageConfigurationRegistry } from 'vs/editor/common/modes/languageConfigurationRegistry';
 import { LanguageConfiguration, IndentationRule, OnEnterRule } from 'vs/editor/common/modes/languageConfiguration';
 import { IHeapService } from './mainThreadHeapService';
@@ -22,6 +22,7 @@ import { IModeService } from 'vs/editor/common/services/modeService';
 import { extHostNamedCustomer } from 'vs/workbench/api/electron-browser/extHostCustomers';
 import * as typeConverters from 'vs/workbench/api/node/extHostTypeConverters';
 import URI from 'vs/base/common/uri';
+import { Selection } from 'vs/editor/common/core/selection';
 
 @extHostNamedCustomer(MainContext.MainThreadLanguageFeatures)
 export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesShape {
@@ -71,17 +72,31 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 		}
 	}
 
-	private static _reviveSymbolInformationDto(data: SymbolInformationDto): modes.SymbolInformation;
-	private static _reviveSymbolInformationDto(data: SymbolInformationDto[]): modes.SymbolInformation[];
-	private static _reviveSymbolInformationDto(data: SymbolInformationDto | SymbolInformationDto[]): modes.SymbolInformation | modes.SymbolInformation[] {
+	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto): modes.DefinitionLink;
+	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto[]): modes.DefinitionLink[];
+	private static _reviveDefinitionLinkDto(data: DefinitionLinkDto | DefinitionLinkDto[]): modes.DefinitionLink | modes.DefinitionLink[] {
 		if (!data) {
-			return <modes.SymbolInformation>data;
+			return <modes.DefinitionLink>data;
 		} else if (Array.isArray(data)) {
-			data.forEach(MainThreadLanguageFeatures._reviveSymbolInformationDto);
-			return <modes.SymbolInformation[]>data;
+			data.forEach(l => MainThreadLanguageFeatures._reviveDefinitionLinkDto(l));
+			return <modes.DefinitionLink[]>data;
+		} else {
+			data.uri = URI.revive(data.uri);
+			return <modes.DefinitionLink>data;
+		}
+	}
+
+	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto): search.IWorkspaceSymbol;
+	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto[]): search.IWorkspaceSymbol[];
+	private static _reviveWorkspaceSymbolDto(data: WorkspaceSymbolDto | WorkspaceSymbolDto[]): search.IWorkspaceSymbol | search.IWorkspaceSymbol[] {
+		if (!data) {
+			return <search.IWorkspaceSymbol>data;
+		} else if (Array.isArray(data)) {
+			data.forEach(MainThreadLanguageFeatures._reviveWorkspaceSymbolDto);
+			return <search.IWorkspaceSymbol[]>data;
 		} else {
 			data.location = MainThreadLanguageFeatures._reviveLocationDto(data.location);
-			return <modes.SymbolInformation>data;
+			return <search.IWorkspaceSymbol>data;
 		}
 	}
 
@@ -96,10 +111,11 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	// --- outline
 
-	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
+	$registerOutlineSupport(handle: number, selector: ISerializedDocumentFilter[], displayName: string): void {
 		this._registrations[handle] = modes.DocumentSymbolProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DocumentSymbolProvider>{
-			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Thenable<modes.SymbolInformation[]> => {
-				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri)).then(MainThreadLanguageFeatures._reviveSymbolInformationDto);
+			displayName,
+			provideDocumentSymbols: (model: ITextModel, token: CancellationToken): Thenable<modes.DocumentSymbol[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDocumentSymbols(handle, model.uri));
 			}
 		});
 	}
@@ -137,8 +153,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerDeclaractionSupport(handle: number, selector: ISerializedDocumentFilter[]): void {
 		this._registrations[handle] = modes.DefinitionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.DefinitionProvider>{
-			provideDefinition: (model, position, token): Thenable<modes.Definition> => {
-				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveLocationDto);
+			provideDefinition: (model, position, token): Thenable<modes.DefinitionLink[]> => {
+				return wireCancellationToken(token, this._proxy.$provideDefinition(handle, model.uri, position)).then(MainThreadLanguageFeatures._reviveDefinitionLinkDto);
 			}
 		});
 	}
@@ -193,8 +209,8 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerQuickFixSupport(handle: number, selector: ISerializedDocumentFilter[], providedCodeActionKinds?: string[]): void {
 		this._registrations[handle] = modes.CodeActionProviderRegistry.register(typeConverters.LanguageSelector.from(selector), <modes.CodeActionProvider>{
-			provideCodeActions: (model: ITextModel, range: EditorRange, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
-				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, range, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
+			provideCodeActions: (model: ITextModel, rangeOrSelection: EditorRange | Selection, context: modes.CodeActionContext, token: CancellationToken): Thenable<modes.CodeAction[]> => {
+				return this._heapService.trackRecursive(wireCancellationToken(token, this._proxy.$provideCodeActions(handle, model.uri, rangeOrSelection, context))).then(MainThreadLanguageFeatures._reviveCodeActionDto);
 			},
 			providedCodeActionKinds
 		});
@@ -233,18 +249,18 @@ export class MainThreadLanguageFeatures implements MainThreadLanguageFeaturesSha
 
 	$registerNavigateTypeSupport(handle: number): void {
 		let lastResultId: number;
-		this._registrations[handle] = WorkspaceSymbolProviderRegistry.register(<IWorkspaceSymbolProvider>{
-			provideWorkspaceSymbols: (search: string): TPromise<modes.SymbolInformation[]> => {
+		this._registrations[handle] = search.WorkspaceSymbolProviderRegistry.register(<search.IWorkspaceSymbolProvider>{
+			provideWorkspaceSymbols: (search: string): TPromise<search.IWorkspaceSymbol[]> => {
 				return this._proxy.$provideWorkspaceSymbols(handle, search).then(result => {
 					if (lastResultId !== undefined) {
 						this._proxy.$releaseWorkspaceSymbols(handle, lastResultId);
 					}
 					lastResultId = result._id;
-					return MainThreadLanguageFeatures._reviveSymbolInformationDto(result.symbols);
+					return MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(result.symbols);
 				});
 			},
-			resolveWorkspaceSymbol: (item: modes.SymbolInformation): TPromise<modes.SymbolInformation> => {
-				return this._proxy.$resolveWorkspaceSymbol(handle, item).then(i => MainThreadLanguageFeatures._reviveSymbolInformationDto(i));
+			resolveWorkspaceSymbol: (item: search.IWorkspaceSymbol): TPromise<search.IWorkspaceSymbol> => {
+				return this._proxy.$resolveWorkspaceSymbol(handle, item).then(i => MainThreadLanguageFeatures._reviveWorkspaceSymbolDto(i));
 			}
 		});
 	}

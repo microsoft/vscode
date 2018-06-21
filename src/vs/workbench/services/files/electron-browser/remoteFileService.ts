@@ -45,6 +45,7 @@ function toIFileStat(provider: IFileSystemProvider, tuple: [URI, IStat], recurse
 		name: posix.basename(resource.path),
 		isDirectory: (stat.type & FileType.Directory) !== 0,
 		isSymbolicLink: (stat.type & FileType.SymbolicLink) !== 0,
+		isReadonly: !!(provider.capabilities & FileSystemProviderCapabilities.Readonly),
 		mtime: stat.mtime,
 		size: stat.size,
 		etag: stat.mtime.toString(29) + stat.size.toString(31),
@@ -267,8 +268,7 @@ export class RemoteFileService extends FileService {
 		}
 
 		return TPromise.join([
-			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme),
-			this._extensionService.activateByEvent('onFileSystemAccess:' + resource.scheme) // todo@remote -> remove
+			this._extensionService.activateByEvent('onFileSystem:' + resource.scheme)
 		]).then(() => {
 			const provider = this._provider.get(resource.scheme);
 			if (!provider) {
@@ -412,6 +412,7 @@ export class RemoteFileService extends FileService {
 						name: fileStat.name,
 						etag: fileStat.etag,
 						mtime: fileStat.mtime,
+						isReadonly: fileStat.isReadonly
 					};
 				});
 			});
@@ -499,7 +500,8 @@ export class RemoteFileService extends FileService {
 				etag: content.etag,
 				mtime: content.mtime,
 				name: content.name,
-				resource: content.resource
+				resource: content.resource,
+				isReadonly: content.isReadonly
 			};
 			content.value.on('data', chunk => result.value += chunk);
 			content.value.on('error', reject);
@@ -535,15 +537,6 @@ export class RemoteFileService extends FileService {
 				this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.CREATE, fileStat));
 				return fileStat;
 			});
-		}
-	}
-
-	rename(resource: URI, newName: string): TPromise<IFileStat, any> {
-		if (resource.scheme === Schemas.file) {
-			return super.rename(resource, newName);
-		} else {
-			const target = resource.with({ path: posix.join(resource.path, '..', newName) });
-			return this._doMoveWithInScheme(resource, target, false);
 		}
 	}
 

@@ -57,5 +57,7 @@
 	"workbench.action.terminal.scrollToPreviousCommand": "Scorri al comando precedente",
 	"workbench.action.terminal.scrollToNextCommand": "Scorri al comando successivo",
 	"workbench.action.terminal.selectToPreviousCommand": "Aggiungi selezione a comando precedente",
-	"workbench.action.terminal.selectToNextCommand": "Aggiungi selezione a comando successivo"
+	"workbench.action.terminal.selectToNextCommand": "Aggiungi selezione a comando successivo",
+	"workbench.action.terminal.selectToPreviousLine": "Aggiungi selezione a riga precedente",
+	"workbench.action.terminal.selectToNextLine": "Aggiungi selezione a riga successiva"
 }

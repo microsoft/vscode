@@ -43,6 +43,8 @@ export class BaseActionItem implements IActionItem {
 	public _context: any;
 	public _action: IAction;
 
+	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
+
 	private _actionRunner: IActionRunner;
 
 	constructor(context: any, action: IAction, protected options?: IBaseActionItemOptions) {
@@ -167,12 +169,14 @@ export class BaseActionItem implements IActionItem {
 	public focus(): void {
 		if (this.builder) {
 			this.builder.domFocus();
+			this.builder.addClass('focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
 			this.builder.domBlur();
+			this.builder.removeClass('focused');
 		}
 	}
 
@@ -273,7 +277,11 @@ export class ActionItem extends BaseActionItem {
 
 	public _updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this.getAction().label);
+			let label = this.getAction().label;
+			if (label && this.options.isMenu) {
+				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '$1\u0332');
+			}
+			this.$e.text(label);
 		}
 	}
 
@@ -372,7 +380,6 @@ export class ActionBar implements IActionRunner {
 
 	// Items
 	public items: IActionItem[];
-
 	private focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
 
@@ -487,7 +494,7 @@ export class ActionBar implements IActionRunner {
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
 		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menubar');
+			this.actionsList.setAttribute('role', 'menu');
 		} else {
 			this.actionsList.setAttribute('role', 'toolbar');
 		}
@@ -558,6 +565,15 @@ export class ActionBar implements IActionRunner {
 		return this.domNode;
 	}
 
+	private _addMnemonic(action: IAction, actionItemElement: HTMLElement): void {
+		let matches = BaseActionItem.MNEMONIC_REGEX.exec(action.label);
+		if (matches && matches.length === 2) {
+			let mnemonic = matches[1];
+
+			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
+		}
+	}
+
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
 
 		const actions: IAction[] = !Array.isArray(arg) ? [arg] : arg;
@@ -575,6 +591,10 @@ export class ActionBar implements IActionRunner {
 				e.stopPropagation();
 			});
 
+			if (options.isMenu) {
+				this._addMnemonic(action, actionItemElement);
+			}
+
 			let item: IActionItem = null;
 
 			if (this.options.actionItemProvider) {
@@ -591,11 +611,13 @@ export class ActionBar implements IActionRunner {
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionItemElement);
+				this.items.push(item);
 			} else {
-				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index++]);
+				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index]);
+				this.items.splice(index, 0, item);
+				index++;
 			}
 
-			this.items.push(item);
 		});
 	}
 

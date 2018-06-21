@@ -11,7 +11,7 @@ import * as paths from 'vs/base/common/paths';
 import * as resources from 'vs/base/common/resources';
 import * as labels from 'vs/base/common/labels';
 import URI from 'vs/base/common/uri';
-import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel } from 'vs/workbench/common/editor';
+import { EncodingMode, ConfirmResult, EditorInput, IFileEditorInput, ITextEditorModel, Verbosity, IRevertOptions } from 'vs/workbench/common/editor';
 import { TextFileEditorModel } from 'vs/workbench/services/textfile/common/textFileEditorModel';
 import { BinaryEditorModel } from 'vs/workbench/common/editor/binaryEditorModel';
 import { FileOperationError, FileOperationResult } from 'vs/platform/files/common/files';
@@ -20,11 +20,11 @@ import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IDisposable, dispose, IReference } from 'vs/base/common/lifecycle';
 import { telemetryURIDescriptor } from 'vs/platform/telemetry/common/telemetryUtils';
-import { Verbosity, IRevertOptions } from 'vs/platform/editor/common/editor';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { IHashService } from 'vs/workbench/services/hash/common/hashService';
 import { FILE_EDITOR_INPUT_ID, TEXT_FILE_EDITOR_ID, BINARY_FILE_EDITOR_ID } from 'vs/workbench/parts/files/common/files';
+import { Schemas } from 'vs/base/common/network';
 
 /**
  * A file editor input is the input type for the file editor of file system resources.
@@ -139,17 +139,18 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get shortDescription(): string {
-		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService));
+		return paths.basename(labels.getPathLabel(resources.dirname(this.resource), this.environmentService));
 	}
 
 	@memoize
 	private get mediumDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), this.contextService, this.environmentService);
+		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, this.contextService);
 	}
 
 	@memoize
 	private get longDescription(): string {
-		return labels.getPathLabel(resources.dirname(this.resource), void 0, this.environmentService);
+		const rootProvider = this.resource.scheme !== Schemas.file ? this.contextService : undefined;
+		return labels.getPathLabel(resources.dirname(this.resource), this.environmentService, rootProvider);
 	}
 
 	public getDescription(verbosity: Verbosity = Verbosity.MEDIUM): string {
@@ -177,12 +178,13 @@ export class FileEditorInput extends EditorInput implements IFileEditorInput {
 
 	@memoize
 	private get mediumTitle(): string {
-		return labels.getPathLabel(this.resource, this.contextService, this.environmentService);
+		return labels.getPathLabel(this.resource, this.environmentService, this.contextService);
 	}
 
 	@memoize
 	private get longTitle(): string {
-		return labels.getPathLabel(this.resource, void 0, this.environmentService);
+		const rootProvider = this.resource.scheme !== Schemas.file ? this.contextService : undefined;
+		return labels.getPathLabel(this.resource, this.environmentService, rootProvider);
 	}
 
 	public getTitle(verbosity: Verbosity): string {

@@ -4,13 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as fs from 'fs';
-import * as https from 'https';
 import * as cp from 'child_process';
 import * as path from 'path';
 import * as minimist from 'minimist';
 import * as tmp from 'tmp';
 import * as rimraf from 'rimraf';
 import * as mkdirp from 'mkdirp';
+import { ncp } from 'ncp';
 import { Application, Quality } from './application';
 
 import { setup as setupDataMigrationTests } from './areas/workbench/data-migration.test';
@@ -40,7 +40,6 @@ const opts = minimist(args, {
 		'stable-build',
 		'wait-time',
 		'test-repo',
-		'keybindings',
 		'screenshots',
 		'log'
 	],
@@ -55,7 +54,6 @@ const opts = minimist(args, {
 const workspaceFilePath = path.join(testDataPath, 'smoketest.code-workspace');
 const testRepoUrl = 'https://github.com/Microsoft/vscode-smoketest-express';
 const workspacePath = path.join(testDataPath, 'vscode-smoketest-express');
-const keybindingsPath = path.join(testDataPath, 'keybindings.json');
 const extensionsPath = path.join(testDataPath, 'extensions-dir');
 mkdirp.sync(extensionsPath);
 
@@ -133,8 +131,6 @@ if (!fs.existsSync(electronPath || '')) {
 }
 
 const userDataDir = path.join(testDataPath, 'd');
-// process.env.VSCODE_WORKSPACE_PATH = workspaceFilePath;
-process.env.VSCODE_KEYBINDINGS_PATH = keybindingsPath;
 
 let quality: Quality;
 if (process.env.VSCODE_DEV === '1') {
@@ -145,41 +141,12 @@ if (process.env.VSCODE_DEV === '1') {
 	quality = Quality.Stable;
 }
 
-function getKeybindingPlatform(): string {
-	switch (process.platform) {
-		case 'darwin': return 'osx';
-		case 'win32': return 'win';
-		default: return process.platform;
-	}
-}
-
 function toUri(path: string): string {
 	if (process.platform === 'win32') {
 		return `${path.replace(/\\/g, '/')}`;
 	}
 
 	return `${path}`;
-}
-
-async function getKeybindings(): Promise<void> {
-	if (opts.keybindings) {
-		console.log('*** Using keybindings: ', opts.keybindings);
-		const rawKeybindings = fs.readFileSync(opts.keybindings);
-		fs.writeFileSync(keybindingsPath, rawKeybindings);
-	} else {
-		const keybindingsUrl = `https://raw.githubusercontent.com/Microsoft/vscode-docs/master/build/keybindings/doc.keybindings.${getKeybindingPlatform()}.json`;
-		console.log('*** Fetching keybindings...');
-
-		await new Promise((c, e) => {
-			https.get(keybindingsUrl, res => {
-				const output = fs.createWriteStream(keybindingsPath);
-				res.on('error', e);
-				output.on('error', e);
-				output.on('close', c);
-				res.pipe(output);
-			}).on('error', e);
-		});
-	}
 }
 
 async function createWorkspaceFile(): Promise<void> {
@@ -222,8 +189,8 @@ async function setupRepository(): Promise<void> {
 			cp.spawnSync('git', ['clean', '-xdf'], { cwd: workspacePath });
 		}
 
-		console.log('*** Running npm install...');
-		cp.execSync('npm install', { cwd: workspacePath, stdio: 'inherit' });
+		console.log('*** Running yarn...');
+		cp.execSync('yarn', { cwd: workspacePath, stdio: 'inherit' });
 	}
 }
 
@@ -231,7 +198,6 @@ async function setup(): Promise<void> {
 	console.log('*** Test data:', testDataPath);
 	console.log('*** Preparing smoketest setup...');
 
-	await getKeybindings();
 	await createWorkspaceFile();
 	await setupRepository();
 
@@ -245,8 +211,11 @@ function createApp(quality: Quality): Application {
 		loggers.push(new ConsoleLogger());
 	}
 
+	let log: string | undefined = undefined;
+
 	if (opts.log) {
 		loggers.push(new FileLogger(opts.log));
+		log = 'trace';
 	}
 
 	return new Application({
@@ -258,7 +227,8 @@ function createApp(quality: Quality): Application {
 		workspaceFilePath,
 		waitTime: parseInt(opts['wait-time'] || '0') || 20,
 		logger: new MultiLogger(loggers),
-		verbose: opts.verbose
+		verbose: opts.verbose,
+		log
 	});
 }
 
@@ -270,6 +240,13 @@ before(async function () {
 
 after(async function () {
 	await new Promise(c => setTimeout(c, 500)); // wait for shutdown
+
+	if (opts.log) {
+		const logsDir = path.join(userDataDir, 'logs');
+		const destLogsDir = path.join(path.dirname(opts.log), 'logs');
+		await new Promise((c, e) => ncp(logsDir, destLogsDir, err => err ? e(err) : c()));
+	}
+
 	await new Promise((c, e) => rimraf(testDataPath, { maxBusyTries: 10 }, err => err ? e(err) : c()));
 });
 

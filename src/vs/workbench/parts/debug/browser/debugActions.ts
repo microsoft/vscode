@@ -16,7 +16,7 @@ import { IDebugService, State, ISession, IThread, IEnablement, IBreakpoint, ISta
 import { Variable, Expression, Thread, Breakpoint, Session } from 'vs/workbench/parts/debug/common/debugModel';
 import { IPartService } from 'vs/workbench/services/part/common/partService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { TogglePanelAction } from 'vs/workbench/browser/panel';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
 import { INotificationService } from 'vs/platform/notification/common/notification';
@@ -24,6 +24,7 @@ import { CollapseAction } from 'vs/workbench/browser/viewlet';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { first } from 'vs/base/common/arrays';
 import { IHistoryService } from 'vs/workbench/services/history/common/history';
+import { memoize } from 'vs/base/common/decorators';
 
 export abstract class AbstractDebugAction extends Action {
 
@@ -32,7 +33,7 @@ export abstract class AbstractDebugAction extends Action {
 	constructor(
 		id: string, label: string, cssClass: string,
 		@IDebugService protected debugService: IDebugService,
-		@IKeybindingService private keybindingService: IKeybindingService,
+		@IKeybindingService protected keybindingService: IKeybindingService,
 		public weight?: number
 	) {
 		super(id, label, cssClass, false);
@@ -155,19 +156,11 @@ export class StartAction extends AbstractDebugAction {
 
 	public static isEnabled(debugService: IDebugService, contextService: IWorkspaceContextService, configName: string) {
 		const sessions = debugService.getModel().getSessions();
-		const launch = debugService.getConfigurationManager().selectedConfiguration.launch;
 
 		if (debugService.state === State.Initializing) {
 			return false;
 		}
 		if (contextService && contextService.getWorkbenchState() === WorkbenchState.EMPTY && sessions.length > 0) {
-			return false;
-		}
-		if (sessions.some(p => p.getName(false) === configName && (!launch || !launch.workspace || !p.raw.root || p.raw.root.uri.toString() === launch.workspace.uri.toString()))) {
-			return false;
-		}
-		const compound = launch && launch.getCompound(configName);
-		if (compound && compound.configurations && sessions.some(p => compound.configurations.indexOf(p.getName(false)) !== -1)) {
 			return false;
 		}
 
@@ -215,21 +208,20 @@ export class RestartAction extends AbstractDebugAction {
 	static LABEL = nls.localize('restartDebug', "Restart");
 	static RECONNECT_LABEL = nls.localize('reconnectDebug', "Reconnect");
 
-	private startAction: StartAction;
-
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkspaceContextService private contextService?: IWorkspaceContextService,
-		@IHistoryService historyService?: IHistoryService
+		@IWorkspaceContextService private contextService: IWorkspaceContextService,
+		@IHistoryService private historyService: IHistoryService
 	) {
 		super(id, label, 'debug-action restart', debugService, keybindingService, 70);
 		this.setLabel(this.debugService.getViewModel().focusedSession);
 		this.toDispose.push(this.debugService.getViewModel().onDidFocusStackFrame(() => this.setLabel(this.debugService.getViewModel().focusedSession)));
+	}
 
-		if (contextService !== undefined && historyService !== undefined) {
-			this.startAction = new StartAction(id, label, debugService, keybindingService, contextService, historyService);
-		}
+	@memoize
+	private get startAction(): StartAction {
+		return new StartAction(StartAction.ID, StartAction.LABEL, this.debugService, this.keybindingService, this.contextService, this.historyService);
 	}
 
 	private setLabel(session: ISession): void {
@@ -340,7 +332,7 @@ export class StopAction extends AbstractDebugAction {
 	}
 
 	protected isEnabled(state: State): boolean {
-		return super.isEnabled(state) && (state === State.Running || state === State.Stopped);
+		return super.isEnabled(state) && (state !== State.Inactive);
 	}
 }
 
@@ -770,7 +762,7 @@ export class FocusSessionAction extends AbstractDebugAction {
 	constructor(id: string, label: string,
 		@IDebugService debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label, null, debugService, keybindingService, 100);
 	}

@@ -35,6 +35,10 @@
 			"project": "vscode-workbench"
 		},
 		{
+			"name": "vs/workbench/parts/comments",
+			"project": "vscode-workbench"
+		},
+		{
 			"name": "vs/workbench/parts/debug",
 			"project": "vscode-workbench"
 		},
@@ -144,6 +148,10 @@
 		},
 		{
 			"name": "vs/workbench/parts/welcome",
+			"project": "vscode-workbench"
+		},
+		{
+			"name": "vs/workbench/parts/outline",
 			"project": "vscode-workbench"
 		},
 		{

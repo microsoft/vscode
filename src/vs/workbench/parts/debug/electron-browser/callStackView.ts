@@ -8,8 +8,8 @@ import { RunOnceScheduler } from 'vs/base/common/async';
 import * as dom from 'vs/base/browser/dom';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
-import { TreeViewsViewletPanel, IViewletViewOptions, IViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
-import { IDebugService, State, IStackFrame, ISession, IThread } from 'vs/workbench/parts/debug/common/debug';
+import { TreeViewsViewletPanel, IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
+import { IDebugService, State, IStackFrame, ISession, IThread, CONTEXT_CALLSTACK_ITEM_TYPE } from 'vs/workbench/parts/debug/common/debug';
 import { Thread, StackFrame, ThreadAndSessionIds, Session, Model } from 'vs/workbench/parts/debug/common/debugModel';
 import { IContextMenuService } from 'vs/platform/contextview/browser/contextView';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -21,13 +21,14 @@ import { IAction, IActionItem } from 'vs/base/common/actions';
 import { RestartAction, StopAction, ContinueAction, StepOverAction, StepIntoAction, StepOutAction, PauseAction, RestartFrameAction, TerminateThreadAction } from 'vs/workbench/parts/debug/browser/debugActions';
 import { CopyStackTraceAction } from 'vs/workbench/parts/debug/electron-browser/electronDebugActions';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
-import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import { Source } from 'vs/workbench/parts/debug/common/debugSource';
-import { basenameOrAuthority } from 'vs/base/common/resources';
 import { TreeResourceNavigator, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
+import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 const $ = dom.$;
 
@@ -41,6 +42,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	private needsRefresh: boolean;
 	private ignoreSelectionChangedEvent: boolean;
 	private treeContainer: HTMLElement;
+	private callStackItemType: IContextKey<string>;
 
 	constructor(
 		private options: IViewletViewOptions,
@@ -48,11 +50,13 @@ export class CallStackView extends TreeViewsViewletPanel {
 		@IDebugService private debugService: IDebugService,
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
+		@IContextKeyService contextKeyService: IContextKeyService
 	) {
-		super({ ...(options as IViewOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
+		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: nls.localize('callstackSection', "Call Stack Section") }, keybindingService, contextMenuService, configurationService);
 		this.settings = options.viewletSettings;
+		this.callStackItemType = CONTEXT_CALLSTACK_ITEM_TYPE.bindTo(contextKeyService);
 
 		// Create scheduler to prevent unnecessary flashing of tree when reacting to changes
 		this.onCallStackChangeScheduler = new RunOnceScheduler(() => {
@@ -86,7 +90,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	protected renderHeaderTitle(container: HTMLElement): void {
 		const title = dom.append(container, $('.title.debug-call-stack-title'));
 		const name = dom.append(title, $('span'));
-		name.textContent = this.options.name;
+		name.textContent = this.options.title;
 		this.pauseMessage = dom.append(title, $('span.pause-message'));
 		this.pauseMessage.hidden = true;
 		this.pauseMessageLabel = dom.append(this.pauseMessage, $('span.label'));
@@ -95,7 +99,7 @@ export class CallStackView extends TreeViewsViewletPanel {
 	public renderBody(container: HTMLElement): void {
 		dom.addClass(container, 'debug-call-stack');
 		this.treeContainer = renderViewTree(container);
-		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService);
+		const actionProvider = new CallStackActionProvider(this.debugService, this.keybindingService, this.instantiationService);
 		const controller = this.instantiationService.createInstance(CallStackController, actionProvider, MenuId.DebugCallStackContext, {});
 
 		this.tree = this.instantiationService.createInstance(WorkbenchTree, this.treeContainer, {
@@ -133,6 +137,18 @@ export class CallStackView extends TreeViewsViewletPanel {
 					(<Thread>thread).fetchCallStack()
 						.done(() => this.tree.refresh(), errors.onUnexpectedError);
 				}
+			}
+		}));
+		this.disposables.push(this.tree.onDidChangeFocus(() => {
+			const focus = this.tree.getFocus();
+			if (focus instanceof StackFrame) {
+				this.callStackItemType.set('stackFrame');
+			} else if (focus instanceof Thread) {
+				this.callStackItemType.set('thread');
+			} else if (focus instanceof Session) {
+				this.callStackItemType.set('session');
+			} else {
+				this.callStackItemType.reset();
 			}
 		}));
 
@@ -238,7 +254,7 @@ class CallStackController extends BaseDebugController {
 
 class CallStackActionProvider implements IActionProvider {
 
-	constructor(private debugService: IDebugService, private keybindingService: IKeybindingService) {
+	constructor(private debugService: IDebugService, private keybindingService: IKeybindingService, private instantiationService: IInstantiationService) {
 		// noop
 	}
 
@@ -257,7 +273,7 @@ class CallStackActionProvider implements IActionProvider {
 	public getSecondaryActions(tree: ITree, element: any): TPromise<IAction[]> {
 		const actions: IAction[] = [];
 		if (element instanceof Session) {
-			actions.push(new RestartAction(RestartAction.ID, RestartAction.LABEL, this.debugService, this.keybindingService));
+			actions.push(this.instantiationService.createInstance(RestartAction, RestartAction.ID, RestartAction.LABEL));
 			actions.push(new StopAction(StopAction.ID, StopAction.LABEL, this.debugService, this.keybindingService));
 		} else if (element instanceof Thread) {
 			const thread = <Thread>element;
@@ -463,7 +479,7 @@ class CallStackRenderer implements IRenderer {
 		} else if (templateId === CallStackRenderer.ERROR_TEMPLATE_ID) {
 			this.renderError(element, templateData);
 		} else if (templateId === CallStackRenderer.LOAD_MORE_TEMPLATE_ID) {
-			this.renderLoadMore(element, templateData);
+			this.renderLoadMore(templateData);
 		}
 	}
 
@@ -493,7 +509,7 @@ class CallStackRenderer implements IRenderer {
 		data.label.title = element;
 	}
 
-	private renderLoadMore(element: any, data: ILoadMoreTemplateData): void {
+	private renderLoadMore(data: ILoadMoreTemplateData): void {
 		data.label.textContent = nls.localize('loadMoreStackFrames', "Load More Stack Frames");
 	}
 
@@ -502,13 +518,14 @@ class CallStackRenderer implements IRenderer {
 		dom.toggleClass(data.stackFrame, 'label', stackFrame.presentationHint === 'label');
 		dom.toggleClass(data.stackFrame, 'subtle', stackFrame.presentationHint === 'subtle');
 
-		data.file.title = stackFrame.source.raw.path || stackFrame.source.name;
+		const path = stackFrame.source.raw.path || stackFrame.source.name;
+		data.file.title = getPathLabel(path, this.environmentService);
 		if (stackFrame.source.raw.origin) {
 			data.file.title += `\n${stackFrame.source.raw.origin}`;
 		}
 		data.label.textContent = stackFrame.name;
 		data.label.title = stackFrame.name;
-		data.fileName.textContent = getSourceName(stackFrame.source, this.contextService, this.environmentService);
+		data.fileName.textContent = stackFrame.getSpecificSourceName();
 		if (stackFrame.range.startLineNumber !== undefined) {
 			data.lineNumber.textContent = `${stackFrame.range.startLineNumber}`;
 			if (stackFrame.range.startColumn) {
@@ -527,7 +544,7 @@ class CallStackRenderer implements IRenderer {
 
 class CallstackAccessibilityProvider implements IAccessibilityProvider {
 
-	constructor(@IWorkspaceContextService private contextService: IWorkspaceContextService) {
+	constructor() {
 		// noop
 	}
 
@@ -536,17 +553,9 @@ class CallstackAccessibilityProvider implements IAccessibilityProvider {
 			return nls.localize('threadAriaLabel', "Thread {0}, callstack, debug", (<Thread>element).name);
 		}
 		if (element instanceof StackFrame) {
-			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", (<StackFrame>element).name, (<StackFrame>element).range.startLineNumber, getSourceName((<StackFrame>element).source, this.contextService));
+			return nls.localize('stackFrameAriaLabel', "Stack Frame {0} line {1} {2}, callstack, debug", element.name, element.range.startLineNumber, element.getSpecificSourceName());
 		}
 
 		return null;
 	}
-}
-
-function getSourceName(source: Source, contextService: IWorkspaceContextService, environmentService?: IEnvironmentService): string {
-	if (source.name) {
-		return source.name;
-	}
-
-	return basenameOrAuthority(source.uri);
 }

@@ -13,7 +13,7 @@ import uri from 'vs/base/common/uri';
 import * as paths from 'vs/base/common/paths';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ITextModel } from 'vs/editor/common/model';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
@@ -24,9 +24,8 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDebugConfigurationProvider, ICompound, IDebugConfiguration, IConfig, IGlobalConfig, IConfigurationManager, ILaunch, IAdapterExecutable, IDebugAdapterProvider, IDebugAdapter, ITerminalSettings, ITerminalLauncher } from 'vs/workbench/parts/debug/common/debug';
 import { Debugger } from 'vs/workbench/parts/debug/node/debugger';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService, ACTIVE_GROUP, SIDE_GROUP } from 'vs/workbench/services/editor/common/editorService';
 import { IQuickOpenService } from 'vs/platform/quickOpen/common/quickOpen';
-import { IConfigurationResolverService } from 'vs/workbench/services/configurationResolver/common/configurationResolver';
 import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { launchSchemaId } from 'vs/workbench/services/configuration/common/configuration';
 import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
@@ -56,7 +55,7 @@ export class ConfigurationManager implements IConfigurationManager {
 
 	constructor(
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService,
+		@IEditorService private editorService: IEditorService,
 		@IConfigurationService private configurationService: IConfigurationService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IInstantiationService private instantiationService: IInstantiationService,
@@ -141,10 +140,10 @@ export class ConfigurationManager implements IConfigurationManager {
 		return this.debugAdapterProviders.get(type);
 	}
 
-	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable): IDebugAdapter | undefined {
+	public createDebugAdapter(debugType: string, adapterExecutable: IAdapterExecutable, debugPort: number): IDebugAdapter | undefined {
 		let dap = this.getDebugAdapterProvider(debugType);
 		if (dap) {
-			return dap.createDebugAdapter(debugType, adapterExecutable);
+			return dap.createDebugAdapter(debugType, adapterExecutable, debugPort);
 		}
 		return undefined;
 	}
@@ -329,26 +328,25 @@ export class ConfigurationManager implements IConfigurationManager {
 				return TPromise.as(adapter);
 			}
 
-			const editor = this.editorService.getActiveEditor();
+			const activeTextEditorWidget = this.editorService.activeTextEditorWidget;
 			let candidates: Debugger[];
-			if (editor) {
-				const codeEditor = editor.getControl();
-				if (isCodeEditor(codeEditor)) {
-					const model = codeEditor.getModel();
-					const language = model ? model.getLanguageIdentifier().language : undefined;
-					const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
-					if (adapters.length === 1) {
-						return TPromise.as(adapters[0]);
-					}
-					if (adapters.length > 1) {
-						candidates = adapters;
-					}
+			if (isCodeEditor(activeTextEditorWidget)) {
+				const model = activeTextEditorWidget.getModel();
+				const language = model ? model.getLanguageIdentifier().language : undefined;
+				const adapters = this.debuggers.filter(a => a.languages && a.languages.indexOf(language) >= 0);
+				if (adapters.length === 1) {
+					return TPromise.as(adapters[0]);
+				}
+				if (adapters.length > 1) {
+					candidates = adapters;
 				}
 			}
 
 			if (!candidates) {
 				candidates = this.debuggers.filter(a => a.hasInitialConfiguration() || a.hasConfigurationProvider);
 			}
+
+			candidates = candidates.sort((first, second) => first.label.localeCompare(second.label));
 			return this.quickOpenService.pick([...candidates, { label: 'More...', separator: { border: true } }], { placeHolder: nls.localize('selectDebug', "Select Environment") })
 				.then(picked => {
 					if (picked instanceof Debugger) {
@@ -384,7 +382,7 @@ class Launch implements ILaunch {
 		private configurationManager: ConfigurationManager,
 		public workspace: IWorkspaceFolder,
 		@IFileService private fileService: IFileService,
-		@IWorkbenchEditorService protected editorService: IWorkbenchEditorService,
+		@IEditorService protected editorService: IEditorService,
 		@IConfigurationService protected configurationService: IConfigurationService,
 		@IWorkspaceContextService protected contextService: IWorkspaceContextService,
 	) {
@@ -443,10 +441,10 @@ class Launch implements ILaunch {
 		return config.configurations.filter(config => config && config.name === name).shift();
 	}
 
-	public openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
+	public openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
 		return this.configurationManager.activateDebuggers().then(() => {
 			const resource = this.uri;
-			let pinned = false;
+			let created = false;
 
 			return this.fileService.resolveContent(resource).then(content => content.value, err => {
 
@@ -466,7 +464,7 @@ class Launch implements ILaunch {
 						return undefined;
 					}
 
-					pinned = true; // pin only if config file is created #8727
+					created = true; // pin only if config file is created #8727
 					return this.fileService.updateContent(resource, content).then(() => {
 						// convert string into IContent; see #32135
 						return content;
@@ -490,10 +488,10 @@ class Launch implements ILaunch {
 					options: {
 						forceOpen: true,
 						selection,
-						pinned,
+						pinned: created,
 						revealIfVisible: true
 					},
-				}, sideBySide);
+				}, sideBySide ? SIDE_GROUP : ACTIVE_GROUP).then(editor => ({ editor, created }));
 			}, (error) => {
 				throw new Error(nls.localize('DebugConfig.failed', "Unable to create 'launch.json' file inside the '.vscode' folder ({0}).", error));
 			});
@@ -506,9 +504,8 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 	constructor(
 		configurationManager: ConfigurationManager,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 	) {
 		super(configurationManager, undefined, fileService, editorService, configurationService, contextService);
@@ -526,8 +523,8 @@ class WorkspaceLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').workspace;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration });
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.editorService.openEditor({ resource: this.contextService.getWorkspace().configuration }).then(editor => ({ editor, created: false }));
 	}
 }
 
@@ -536,9 +533,8 @@ class UserLaunch extends Launch implements ILaunch {
 	constructor(
 		configurationManager: ConfigurationManager,
 		@IFileService fileService: IFileService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
+		@IEditorService editorService: IEditorService,
 		@IConfigurationService configurationService: IConfigurationService,
-		@IConfigurationResolverService configurationResolverService: IConfigurationResolverService,
 		@IPreferencesService private preferencesService: IPreferencesService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService
 	) {
@@ -561,7 +557,7 @@ class UserLaunch extends Launch implements ILaunch {
 		return this.configurationService.inspect<IGlobalConfig>('launch').user;
 	}
 
-	openConfigFile(sideBySide: boolean, type?: string): TPromise<IEditor> {
-		return this.preferencesService.openGlobalSettings();
+	openConfigFile(sideBySide: boolean, type?: string): TPromise<{ editor: IEditor, created: boolean }> {
+		return this.preferencesService.openGlobalSettings().then(editor => ({ editor, created: false }));
 	}
 }

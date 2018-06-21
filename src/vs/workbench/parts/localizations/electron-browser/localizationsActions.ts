@@ -9,23 +9,23 @@ import { IFileService } from 'vs/platform/files/common/files';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IEditor } from 'vs/workbench/common/editor';
 import { join } from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { getPathLabel } from 'vs/base/common/labels';
 import { language } from 'vs/base/common/platform';
 
 export class ConfigureLocaleAction extends Action {
 	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = localize('configureLocale', "Configure Language");
+	public static readonly LABEL = localize('configureLocale', "Configure Display Language");
 
 	private static DEFAULT_CONTENT: string = [
 		'{',
 		`\t// ${localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
 		`\t// ${localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${localize('restart', 'Changing the value requires restarting VSCode.')}`,
-		`\t"locale":"${language}"`,
+		`\t`,
+		`\t"locale":"${language}" // ${localize('restart', 'Changes will not take effect until VSCode has been restarted.')}`,
 		'}'
 	].join('\n');
 
@@ -33,7 +33,7 @@ export class ConfigureLocaleAction extends Action {
 		@IFileService private fileService: IFileService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorService private editorService: IEditorService
 	) {
 		super(id, label);
 	}
@@ -53,7 +53,7 @@ export class ConfigureLocaleAction extends Action {
 				}
 			});
 		}, (error) => {
-			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
+			throw new Error(localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.environmentService, this.contextService), error));
 		});
 	}
 }

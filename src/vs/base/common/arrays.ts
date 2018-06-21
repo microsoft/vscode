@@ -16,6 +16,14 @@ export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
+export function tail2<T>(arr: T[]): [T[], T] {
+	if (arr.length === 0) {
+		throw new Error('Invalid tail call');
+	}
+
+	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
+}
+
 export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
@@ -276,12 +284,27 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
-export function coalesce<T>(array: T[]): T[] {
+export function coalesce<T>(array: T[]): T[];
+export function coalesce<T>(array: T[], inplace: true): void;
+export function coalesce<T>(array: T[], inplace?: true): void | T[] {
 	if (!array) {
-		return array;
+		if (!inplace) {
+			return array;
+		}
 	}
+	if (!inplace) {
+		return array.filter(e => !!e);
 
-	return array.filter(e => !!e);
+	} else {
+		let to = 0;
+		for (let i = 0; i < array.length; i++) {
+			if (!!array[i]) {
+				array[to] = array[i];
+				to += 1;
+			}
+		}
+		array.length = to;
+	}
 }
 
 /**
@@ -453,5 +476,29 @@ export function shuffle<T>(array: T[]): void {
 		temp = array[i];
 		array[i] = array[j];
 		array[j] = temp;
+	}
+}
+
+/**
+ * Pushes an element to the start of the array, if found.
+ */
+export function pushToStart<T>(arr: T[], value: T): void {
+	const index = arr.indexOf(value);
+
+	if (index > -1) {
+		arr.splice(index, 1);
+		arr.unshift(value);
+	}
+}
+
+/**
+ * Pushes an element to the end of the array, if found.
+ */
+export function pushToEnd<T>(arr: T[], value: T): void {
+	const index = arr.indexOf(value);
+
+	if (index > -1) {
+		arr.splice(index, 1);
+		arr.push(value);
 	}
 }

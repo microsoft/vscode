@@ -8,12 +8,12 @@
 	],
 	"quickFixWithKb": "Mostrar correcciones ({0})",
 	"quickFix": "Mostrar correcciones",
-	"quickfix.trigger.label": "Solución rápida...",
+	"quickfix.trigger.label": "Corrección Rápida",
 	"editor.action.quickFix.noneMessage": "No hay acciones de código disponibles",
 	"refactor.label": "Refactorizar...",
 	"editor.action.refactor.noneMessage": "No hay refactorizaciones disponibles",
-	"source.label": "Acción de la fuente...",
-	"editor.action.source.noneMessage": "No hay acciones de fuente disponibles",
+	"source.label": "Acción de Origen...",
+	"editor.action.source.noneMessage": "No hay acciones de origen disponibles",
 	"organizeImports.label": "Organizar Importaciones",
 	"editor.action.organize.noneMessage": "No hay acciones de importación disponibles"
 }

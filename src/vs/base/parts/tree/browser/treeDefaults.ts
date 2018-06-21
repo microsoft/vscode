@@ -14,7 +14,7 @@ import * as dom from 'vs/base/browser/dom';
 import * as mouse from 'vs/base/browser/mouseEvent';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as _ from 'vs/base/parts/tree/browser/tree';
-import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding } from 'vs/base/common/keyCodes';
+import { KeyCode, KeyMod, Keybinding, createKeybinding, SimpleKeybinding, createSimpleKeybinding } from 'vs/base/common/keyCodes';
 
 export interface IKeyBindingCallback {
 	(tree: _.ITree, event: IKeyboardEvent): void;
@@ -62,7 +62,17 @@ export class KeybindingDispatcher {
 		this._arr = [];
 	}
 
-	public set(keybinding: number, callback: IKeyBindingCallback) {
+	public has(keybinding: KeyCode): boolean {
+		let target = createSimpleKeybinding(keybinding, platform.OS);
+		for (const a of this._arr) {
+			if (target.equals(a.keybinding)) {
+				return true;
+			}
+		}
+		return false;
+	}
+
+	public set(keybinding: KeyCode, callback: IKeyBindingCallback) {
 		this._arr.push({
 			keybinding: createKeybinding(keybinding, platform.OS),
 			callback: callback
@@ -158,9 +168,8 @@ export class DefaultController implements _.IController {
 	}
 
 	protected onLeftClick(tree: _.ITree, element: any, eventish: ICancelableEvent, origin: string = 'mouse'): boolean {
-		const payload = { origin: origin, originalEvent: eventish };
 		const event = <mouse.IMouseEvent>eventish;
-		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		const payload = { origin: origin, originalEvent: eventish, didClickOnTwistie: this.isClickOnTwistie(event) };
 
 		if (tree.getInput() === element) {
 			tree.clearFocus(payload);
@@ -176,7 +185,7 @@ export class DefaultController implements _.IController {
 			tree.setSelection([element], payload);
 			tree.setFocus(element, payload);
 
-			if (this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event)) {
+			if (this.shouldToggleExpansion(element, event, origin)) {
 				if (tree.isExpanded(element)) {
 					tree.collapse(element).done(null, errors.onUnexpectedError);
 				} else {
@@ -188,6 +197,11 @@ export class DefaultController implements _.IController {
 		return true;
 	}
 
+	protected shouldToggleExpansion(element: any, event: mouse.IMouseEvent, origin: string): boolean {
+		const isDoubleClick = (origin === 'mouse' && event.detail === 2);
+		return this.openOnSingleClick || isDoubleClick || this.isClickOnTwistie(event);
+	}
+
 	protected setOpenMode(openMode: OpenMode) {
 		this.options.openMode = openMode;
 	}
@@ -197,13 +211,20 @@ export class DefaultController implements _.IController {
 	}
 
 	protected isClickOnTwistie(event: mouse.IMouseEvent): boolean {
-		const target = event.target as HTMLElement;
+		let element = event.target as HTMLElement;
 
-		// There is no way to find out if the ::before element is clicked where
-		// the twistie is drawn, but the <div class="content"> element in the
-		// tree item is the only thing we get back as target when the user clicks
-		// on the twistie.
-		return target && target.className === 'content' && dom.hasClass(target.parentElement, 'monaco-tree-row');
+		if (!dom.hasClass(element, 'content')) {
+			return false;
+		}
+
+		const twistieStyle = window.getComputedStyle(element, ':before');
+
+		if (twistieStyle.backgroundImage === 'none' || twistieStyle.display === 'none') {
+			return false;
+		}
+
+		const twistieWidth = parseInt(twistieStyle.width) + parseInt(twistieStyle.paddingRight);
+		return event.browserEvent.offsetX <= twistieWidth;
 	}
 
 	public onContextMenu(tree: _.ITree, element: any, event: _.ContextMenuEvent): boolean {

@@ -277,7 +277,7 @@ export class QueryBuilder {
 			const relativeSearchPathMatch = searchPath.match(/\.[\/\\]([^\/\\]+)([\/\\].+)?/);
 			if (relativeSearchPathMatch) {
 				const searchPathRoot = relativeSearchPathMatch[1];
-				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot);
+				const matchingRoots = this.workspaceContextService.getWorkspace().folders.filter(folder => paths.basename(folder.uri.fsPath) === searchPathRoot || folder.name === searchPathRoot);
 				if (matchingRoots.length) {
 					return matchingRoots.map(root => {
 						return relativeSearchPathMatch[2] ?
@@ -359,8 +359,10 @@ function splitGlobPattern(pattern: string): string[] {
  * Note - we used {} here previously but ripgrep can't handle nested {} patterns. See https://github.com/Microsoft/vscode/issues/32761
  */
 function expandGlobalGlob(pattern: string): string[] {
-	return [
+	const patterns = [
 		`**/${pattern}/**`,
 		`**/${pattern}`
 	];
+
+	return patterns.map(p => p.replace(/\*\*\/\*\*/g, '**'));
 }

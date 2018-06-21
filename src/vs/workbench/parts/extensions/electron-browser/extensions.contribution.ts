@@ -23,7 +23,7 @@ import {
 	OpenExtensionsViewletAction, InstallExtensionsAction, ShowOutdatedExtensionsAction, ShowRecommendedExtensionsAction, ShowRecommendedKeymapExtensionsAction, ShowPopularExtensionsAction,
 	ShowEnabledExtensionsAction, ShowInstalledExtensionsAction, ShowDisabledExtensionsAction, ShowBuiltInExtensionsAction, UpdateAllAction,
 	EnableAllAction, EnableAllWorkpsaceAction, DisableAllAction, DisableAllWorkpsaceAction, CheckForUpdatesAction, ShowLanguageExtensionsAction, ShowAzureExtensionsAction, EnableAutoUpdateAction, DisableAutoUpdateAction, ConfigureRecommendedExtensionsCommandsContributor, OpenExtensionsFolderAction, InstallVSIXAction, ReinstallAction
-} from 'vs/workbench/parts/extensions/browser/extensionsActions';
+} from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import { ViewletRegistry, Extensions as ViewletExtensions, ViewletDescriptor } from 'vs/workbench/browser/viewlet';
 import { ExtensionEditor } from 'vs/workbench/parts/extensions/electron-browser/extensionEditor';
@@ -35,7 +35,7 @@ import { ExtensionsConfigurationSchema, ExtensionsConfigurationSchemaId } from '
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { KeymapExtensions } from 'vs/workbench/parts/extensions/electron-browser/extensionsUtils';
-import { adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { GalleryExtensionsHandler, ExtensionsHandler } from 'vs/workbench/parts/extensions/browser/extensionsQuickOpen';
 import { EditorDescriptor, IEditorRegistry, Extensions as EditorExtensions } from 'vs/workbench/browser/editor';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
@@ -217,6 +217,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration)
 				type: 'boolean',
 				description: localize('extensionsShowRecommendationsOnlyOnDemand', "If set to true, recommendations will not be fetched or shown unless specifically requested by the user."),
 				default: false
+			},
+			'extensions.closeExtensionDetailsOnViewChange': {
+				type: 'boolean',
+				description: localize('extensionsCloseExtensionDetailsOnViewChange', "If set to true, editors with extension details will be automatically closed upon navigating away from the Extensions View."),
+				default: false
 			}
 		}
 	});
@@ -227,8 +232,7 @@ jsonRegistry.registerSchema(ExtensionsConfigurationSchemaId, ExtensionsConfigura
 // Register Commands
 CommandsRegistry.registerCommand('_extensions.manage', (accessor: ServicesAccessor, extensionId: string) => {
 	const extensionService = accessor.get(IExtensionsWorkbenchService);
-	extensionId = adoptToGalleryExtensionId(extensionId);
-	const extension = extensionService.local.filter(e => e.id === extensionId);
+	const extension = extensionService.local.filter(e => areSameExtensions(e, { id: extensionId }));
 	if (extension.length === 1) {
 		extensionService.open(extension[0]).done(null, errors.onUnexpectedError);
 	}

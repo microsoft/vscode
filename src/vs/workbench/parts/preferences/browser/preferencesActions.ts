@@ -37,7 +37,7 @@ export class OpenRawDefaultSettingsAction extends Action {
 export class OpenSettings2Action extends Action {
 
 	public static readonly ID = 'workbench.action.openSettings2';
-	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (Experimental)");
+	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (Preview)");
 
 	constructor(
 		id: string,

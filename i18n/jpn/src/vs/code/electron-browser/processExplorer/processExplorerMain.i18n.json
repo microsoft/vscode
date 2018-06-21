@@ -11,5 +11,7 @@
 	"pid": "pid",
 	"name": "名前",
 	"killProcess": "プロセスの終了",
-	"forceKillProcess": "プロセスの強制終了"
+	"forceKillProcess": "プロセスの強制終了",
+	"copy": "コピー",
+	"copyAll": "すべてコピー"
 }

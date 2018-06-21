@@ -52,7 +52,6 @@ export class CachedNavTreeResponse {
 }
 
 export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider {
-	private enabled: boolean = true;
 	private onDidChangeCodeLensesEmitter = new EventEmitter<void>();
 
 	public constructor(
@@ -64,19 +63,8 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 		return this.onDidChangeCodeLensesEmitter.event;
 	}
 
-	protected setEnabled(enabled: false): void {
-		if (this.enabled !== enabled) {
-			this.enabled = enabled;
-			this.onDidChangeCodeLensesEmitter.fire();
-		}
-	}
-
 	async provideCodeLenses(document: TextDocument, token: CancellationToken): Promise<CodeLens[]> {
-		if (!this.enabled) {
-			return [];
-		}
-
-		const filepath = this.client.normalizePath(document.uri);
+		const filepath = this.client.toPath(document.uri);
 		if (!filepath) {
 			return [];
 		}
@@ -121,16 +109,17 @@ export abstract class TypeScriptBaseCodeLensProvider implements CodeLensProvider
 
 		(item.childItems || []).forEach(child => this.walkNavTree(document, child, item, results));
 	}
-
-	/**
-	 * TODO: TS currently requires the position for 'references 'to be inside of the identifer
-	 * Massage the range to make sure this is the case
-	 */
 	protected getSymbolRange(document: TextDocument, item: Proto.NavigationTree): Range | null {
 		if (!item) {
 			return null;
 		}
 
+		// TS 3.0+ provides a span for just the symbol
+		if ((item as any).nameSpan) {
+			return typeConverters.Range.fromTextSpan((item as any).nameSpan);
+		}
+
+		// In older versions, we have to calculate this manually. See #23924
 		const span = item.spans && item.spans[0];
 		if (!span) {
 			return null;

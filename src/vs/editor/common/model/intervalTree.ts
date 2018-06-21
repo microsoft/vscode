@@ -16,7 +16,9 @@ export const ClassName = {
 	EditorHintDecoration: 'squiggly-hint',
 	EditorInfoDecoration: 'squiggly-info',
 	EditorWarningDecoration: 'squiggly-warning',
-	EditorErrorDecoration: 'squiggly-error'
+	EditorErrorDecoration: 'squiggly-error',
+	EditorUnnecessaryDecoration: 'squiggly-unnecessary',
+	EditorUnnecessaryInlineDecoration: 'squiggly-inline-unnecessary'
 };
 
 /**

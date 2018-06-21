@@ -4,17 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 
 import { addClass, addDisposableListener } from 'vs/base/browser/dom';
-import { Emitter, Event } from 'vs/base/common/event';
-import { IDisposable, dispose } from 'vs/base/common/lifecycle';
+import { Emitter } from 'vs/base/common/event';
+import { Disposable } from 'vs/base/common/lifecycle';
 import { getMediaMime, guessMimeTypes } from 'vs/base/common/mime';
-import { nativeSep, extname } from 'vs/base/common/paths';
+import { extname, nativeSep } from 'vs/base/common/paths';
 import { startsWith } from 'vs/base/common/strings';
 import URI from 'vs/base/common/uri';
 import { IContextKey } from 'vs/platform/contextkey/common/contextkey';
-import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IFileService } from 'vs/platform/files/common/files';
-import { editorBackground, editorForeground, textLinkForeground } from 'vs/platform/theme/common/colorRegistry';
+import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
+import * as colorRegistry from 'vs/platform/theme/common/colorRegistry';
 import { DARK, ITheme, IThemeService, LIGHT } from 'vs/platform/theme/common/themeService';
 import { WebviewFindWidget } from './webviewFindWidget';
 
@@ -27,10 +27,12 @@ export interface WebviewOptions {
 	readonly localResourceRoots?: ReadonlyArray<URI>;
 }
 
-export class WebviewElement {
-	private readonly _webview: Electron.WebviewTag;
+const CORE_RESOURCE_PROTOCOL = 'vscode-core-resource';
+const VSCODE_RESOURCE_PROTOCOL = 'vscode-resource';
+
+export class WebviewElement extends Disposable {
+	private _webview: Electron.WebviewTag;
 	private _ready: Promise<this>;
-	private _disposables: IDisposable[] = [];
 
 	private _webviewFindWidget: WebviewFindWidget;
 	private _findStarted: boolean = false;
@@ -42,11 +44,12 @@ export class WebviewElement {
 		private readonly _contextKey: IContextKey<boolean>,
 		private readonly _findInputContextKey: IContextKey<boolean>,
 		private _options: WebviewOptions,
+		@IInstantiationService instantiationService: IInstantiationService,
 		@IThemeService private readonly _themeService: IThemeService,
 		@IEnvironmentService private readonly _environmentService: IEnvironmentService,
-		@IContextViewService private readonly _contextViewService: IContextViewService,
 		@IFileService private readonly _fileService: IFileService,
 	) {
+		super();
 		this._webview = document.createElement('webview');
 		this._webview.setAttribute('partition', this._options.allowSvgs ? 'webview' : `webview${Date.now()}`);
 
@@ -65,7 +68,7 @@ export class WebviewElement {
 		this._webview.src = this._options.useSameOriginForRoot ? require.toUrl('./webview.html') : 'data:text/html;charset=utf-8,%3C%21DOCTYPE%20html%3E%0D%0A%3Chtml%20lang%3D%22en%22%20style%3D%22width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3Chead%3E%0D%0A%09%3Ctitle%3EVirtual%20Document%3C%2Ftitle%3E%0D%0A%3C%2Fhead%3E%0D%0A%3Cbody%20style%3D%22margin%3A%200%3B%20overflow%3A%20hidden%3B%20width%3A%20100%25%3B%20height%3A%20100%25%22%3E%0D%0A%3C%2Fbody%3E%0D%0A%3C%2Fhtml%3E';
 
 		this._ready = new Promise<this>(resolve => {
-			const subscription = addDisposableListener(this._webview, 'ipc-message', (event) => {
+			const subscription = this._register(addDisposableListener(this._webview, 'ipc-message', (event) => {
 				if (event.channel === 'webview-ready') {
 					// console.info('[PID Webview] ' event.args[0]);
 					addClass(this._webview, 'ready'); // can be found by debug command
@@ -73,12 +76,12 @@ export class WebviewElement {
 					subscription.dispose();
 					resolve(this);
 				}
-			});
+			}));
 		});
 
 		if (!this._options.useSameOriginForRoot) {
 			let loaded = false;
-			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
+			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
 				if (loaded) {
 					return;
 				}
@@ -91,7 +94,7 @@ export class WebviewElement {
 
 		if (!this._options.allowSvgs) {
 			let loaded = false;
-			this._disposables.push(addDisposableListener(this._webview, 'did-start-loading', () => {
+			this._register(addDisposableListener(this._webview, 'did-start-loading', () => {
 				if (loaded) {
 					return;
 				}
@@ -127,7 +130,7 @@ export class WebviewElement {
 			}));
 		}
 
-		this._disposables.push(
+		this._toDispose.push(
 			addDisposableListener(this._webview, 'console-message', function (e: { level: number; message: string; line: number; sourceId: string; }) {
 				console.log(`[Embedded Page] ${e.message}`);
 			}),
@@ -188,11 +191,10 @@ export class WebviewElement {
 			}),
 		);
 
-		this._webviewFindWidget = new WebviewFindWidget(this._contextViewService, this);
-		this._disposables.push(this._webviewFindWidget);
+		this._webviewFindWidget = this._register(instantiationService.createInstance(WebviewFindWidget, this));
 
 		this.style(this._themeService.getTheme());
-		this._themeService.onThemeChange(this.style, this, this._disposables);
+		this._themeService.onThemeChange(this.style, this, this._toDispose);
 	}
 
 	public mountTo(parent: HTMLElement) {
@@ -209,31 +211,34 @@ export class WebviewElement {
 	}
 
 	dispose(): void {
-		this._onDidClickLink.dispose();
-		this._disposables = dispose(this._disposables);
-
 		if (this._contextKey) {
 			this._contextKey.reset();
 		}
 
-		if (this._webview.parentElement) {
-			this._webview.parentElement.removeChild(this._webview);
+		if (this._webview) {
+			this._webview.guestinstance = 'none';
+
+			if (this._webview.parentElement) {
+				this._webview.parentElement.removeChild(this._webview);
+			}
 		}
 
-		this._webviewFindWidget.dispose();
+		this._webview = undefined;
+		this._webviewFindWidget = undefined;
+		super.dispose();
 	}
 
-	private readonly _onDidClickLink = new Emitter<URI>();
-	public readonly onDidClickLink: Event<URI> = this._onDidClickLink.event;
+	private readonly _onDidClickLink = this._register(new Emitter<URI>());
+	public readonly onDidClickLink = this._onDidClickLink.event;
 
-	private readonly _onDidScroll = new Emitter<{ scrollYPercentage: number }>();
-	public readonly onDidScroll: Event<{ scrollYPercentage: number }> = this._onDidScroll.event;
+	private readonly _onDidScroll = this._register(new Emitter<{ scrollYPercentage: number }>());
+	public readonly onDidScroll = this._onDidScroll.event;
 
-	private readonly _onDidUpdateState = new Emitter<string | undefined>();
-	public readonly onDidUpdateState: Event<string | undefined> = this._onDidUpdateState.event;
+	private readonly _onDidUpdateState = this._register(new Emitter<string | undefined>());
+	public readonly onDidUpdateState = this._onDidUpdateState.event;
 
-	private readonly _onMessage = new Emitter<any>();
-	public readonly onMessage: Event<any> = this._onMessage.event;
+	private readonly _onMessage = this._register(new Emitter<any>());
+	public readonly onMessage = this._onMessage.event;
 
 	private _send(channel: string, ...args: any[]): void {
 		this._ready
@@ -251,6 +256,11 @@ export class WebviewElement {
 
 	public set options(value: WebviewOptions) {
 		this._options = value;
+		this._send('content', {
+			contents: this._contents,
+			options: this._options,
+			state: this._state
+		});
 	}
 
 	public set contents(value: string) {
@@ -284,13 +294,30 @@ export class WebviewElement {
 	private style(theme: ITheme): void {
 		const { fontFamily, fontWeight, fontSize } = window.getComputedStyle(this._styleElement); // TODO@theme avoid styleElement
 
+		const exportedColors = colorRegistry.getColorRegistry().getColors().reduce((colors, entry) => {
+			const color = theme.getColor(entry.id);
+			if (color) {
+				colors['vscode-' + entry.id.replace('.', '-')] = color.toString();
+			}
+			return colors;
+		}, {});
+
+
 		const styles = {
-			'background-color': theme.getColor(editorBackground).toString(),
-			'color': theme.getColor(editorForeground).toString(),
+			// Old vars
 			'font-family': fontFamily,
 			'font-weight': fontWeight,
 			'font-size': fontSize,
-			'link-color': theme.getColor(textLinkForeground).toString()
+			'background-color': theme.getColor(colorRegistry.editorBackground).toString(),
+			'color': theme.getColor(colorRegistry.editorForeground).toString(),
+			'link-color': theme.getColor(colorRegistry.textLinkForeground).toString(),
+			'link-active-color': theme.getColor(colorRegistry.textLinkActiveForeground).toString(),
+
+			// Offical API
+			'vscode-editor-font-family': fontFamily,
+			'vscode-editor-font-weight': fontWeight,
+			'vscode-editor-font-size': fontSize,
+			...exportedColors
 		};
 
 		const activeTheme = ApiThemeClassName.fromTheme(theme);
@@ -346,11 +373,11 @@ export class WebviewElement {
 
 		const appRootUri = URI.file(this._environmentService.appRoot);
 
-		registerFileProtocol(contents, 'vscode-core-resource', this._fileService, () => [
+		registerFileProtocol(contents, CORE_RESOURCE_PROTOCOL, this._fileService, () => [
 			appRootUri
 		]);
 
-		registerFileProtocol(contents, 'vscode-resource', this._fileService, () =>
+		registerFileProtocol(contents, VSCODE_RESOURCE_PROTOCOL, this._fileService, () =>
 			(this._options.localResourceRoots || [])
 		);
 	}
@@ -410,14 +437,6 @@ export class WebviewElement {
 		this._webviewFindWidget.hide();
 	}
 
-	public showNextFindTerm() {
-		this._webviewFindWidget.showNextFindTerm();
-	}
-
-	public showPreviousFindTerm() {
-		this._webviewFindWidget.showPreviousFindTerm();
-	}
-
 	public reload() {
 		this.contents = this._contents;
 	}
@@ -460,7 +479,7 @@ function registerFileProtocol(
 						mimeType: mime
 					});
 				}, () => {
-					callback({ error: -1 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
+					callback({ error: -2 /* FAILED: https://cs.chromium.org/chromium/src/net/base/net_error_list.h */ });
 				});
 				return;
 			}

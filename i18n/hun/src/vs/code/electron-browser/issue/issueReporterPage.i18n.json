@@ -17,13 +17,12 @@
 	"issueTitleLabel": "Cím",
 	"issueTitleRequired": "Kérjük, adja meg a címet!",
 	"titleLengthValidation": "A cím túl hosszú.",
-	"systemInfo": "Rendszerinformációk",
-	"sendData": "Adatok elküldése",
-	"processes": "Jelenleg futó folyamatok",
-	"workspaceStats": "Munkaterület-statisztikák",
-	"extensions": "Kiegészítők",
-	"searchedExtensions": "Keresett kiegészítők",
-	"settingsSearchDetails": "Beállításokban való keresés részletei",
 	"details": "Írja le a részleteket!",
-	"loadingData": "Adatok betöltése..."
+	"sendSystemInfo": "Rendszerinformációk csatolása ({0})",
+	"show": "megjelenítés",
+	"sendProcessInfo": "Jelenleg futó folyamatok listájának csatolása ({0})",
+	"sendWorkspaceInfo": "Munkaterülettel kapcsolatos metaadatok csatolása ({0})",
+	"sendExtensions": "Engedélyezett kiegészítők listájának csatolása ({0})",
+	"sendSearchedExtensions": "Keresett kiegészítők elküldése ({0})",
+	"sendSettingsSearchDetails": "Beállításokban való keresés részleteinek elküldése ({0})"
 }

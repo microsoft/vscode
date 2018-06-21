@@ -28,6 +28,7 @@
 	"JsonSchema.tasks.group.none": "N'assigne la tâche à aucun groupe",
 	"JsonSchema.tasks.group": "Définit le groupe d'exécution auquel la tâche appartient. Prend en charge \"build\" pour l'ajouter au groupe de génération et \"test\" pour l'ajouter au groupe de test.",
 	"JsonSchema.tasks.type": "Définit si la tâche est exécutée comme un processus ou comme une commande à l’intérieur d’un shell.",
+	"JsonSchema.commandArray": "La commande shell à exécuter. Les éléments du tableau seront joints en utilisant un caractère d’espacement",
 	"JsonSchema.command.quotedString.value": "La valeur réelle de la commande",
 	"JsonSchema.tasks.quoting.escape": "Echappe les caractères à l’aide du caractère d’échappement du shell (par exemple: ` sous PowerShell et \\ sous bash).",
 	"JsonSchema.tasks.quoting.strong": "Entoure l’argument en utilisant le caractère guillemet du shell (par exemple: \" sous PowerShell et bash).",
