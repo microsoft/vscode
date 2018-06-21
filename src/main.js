@@ -112,7 +112,7 @@ function stripComments(content) {
 	return result;
 }
 
-const mkdir = dir => new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c()));
+const mkdir = dir => new Promise((c, e) => fs.mkdir(dir, err => (err && err.code !== 'EEXIST') ? e(err) : c(dir)));
 const exists = file => new Promise(c => fs.exists(file, c));
 const readFile = file => new Promise((c, e) => fs.readFile(file, 'utf8', (err, data) => err ? e(err) : c(data)));
 const writeFile = (file, content) => new Promise((c, e) => fs.writeFile(file, content, 'utf8', err => err ? e(err) : c()));
@@ -232,7 +232,7 @@ function getNLSConfiguration(locale) {
 
 	perf.mark('nlsGeneration:start');
 
-	let defaultResult = function(locale) {
+	let defaultResult = function (locale) {
 		perf.mark('nlsGeneration:end');
 		return Promise.resolve({ locale: locale, availableLanguages: {} });
 	};
