@@ -4158,7 +4158,7 @@ suite('autoClosingPairs', () => {
 			],
 			languageIdentifier: mode.getLanguageIdentifier(),
 			editorOpts: {
-				autoClosingBrackets: {
+				autoClosingQuotes: {
 					autoWrap: false,
 					autoClose: true,
 					enabledBefore: ''
