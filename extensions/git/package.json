@@ -966,6 +966,11 @@
           "default": true,
           "description": "%config.showInlineOpenFileAction%"
         },
+        "git.statusBarSyncRebase": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.statusBarSyncRebase%"
+        },
         "git.inputValidation": {
           "type": "string",
           "enum": [
