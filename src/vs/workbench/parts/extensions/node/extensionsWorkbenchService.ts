@@ -10,7 +10,6 @@ import { readFile } from 'vs/base/node/pfs';
 import * as semver from 'semver';
 import { Event, Emitter } from 'vs/base/common/event';
 import { index } from 'vs/base/common/arrays';
-import { assign } from 'vs/base/common/objects';
 import { ThrottledDelayer } from 'vs/base/common/async';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
@@ -19,7 +18,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, InstallOperation
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState,
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -358,7 +357,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
 		@IExtensionService private runtimeExtensionService: IExtensionService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
@@ -860,10 +858,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					this.installed.push(extension);
 				}
 			}
-			if (extension.gallery && event.operation === InstallOperation.Install) {
-				// Report recommendation telemetry only for gallery extensions that are first time installs
-				this.reportExtensionRecommendationsTelemetry(installingExtension);
-			}
 		}
 		this._onChange.fire();
 	}
@@ -920,24 +914,6 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		const local = this.installed.filter(e => e === extension || (e.gallery && extension.gallery && areSameExtensions(e.gallery.identifier, extension.gallery.identifier)))[0];
 		return local ? ExtensionState.Installed : ExtensionState.Uninstalled;
-	}
-
-	private reportExtensionRecommendationsTelemetry(extension: Extension): void {
-		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason() || {};
-		const recommendationReason = extRecommendations[extension.id.toLowerCase()];
-		if (recommendationReason) {
-			const recommendationsData = { recommendationReason: recommendationReason.reasonId };
-			const data = extension.telemetryData;
-			/* __GDPR__
-				"extensionGallery:install:recommendations" : {
-					"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
-					"${include}": [
-						"${GalleryExtensionTelemetryData}"
-					]
-				}
-			*/
-			this.telemetryService.publicLog('extensionGallery:install:recommendations', assign(data, recommendationsData));
-		}
 	}
 
 	private onError(err: any): void {

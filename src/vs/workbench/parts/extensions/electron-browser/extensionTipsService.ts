@@ -10,7 +10,10 @@ import { forEach } from 'vs/base/common/collections';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
 import * as json from 'vs/base/common/json';
-import { IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN, IIgnoredRecommendations, IExtensionsConfigContent, RecommendationChangeNotification } from 'vs/platform/extensionManagement/common/extensionManagement';
+import {
+	IExtensionManagementService, IExtensionGalleryService, IExtensionTipsService, ExtensionRecommendationReason, LocalExtensionType, EXTENSION_IDENTIFIER_PATTERN,
+	IIgnoredRecommendations, IExtensionsConfigContent, RecommendationChangeNotification, InstallOperation
+} from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { ITextModel } from 'vs/editor/common/model';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
@@ -37,6 +40,7 @@ import { isNumber } from 'vs/base/common/types';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { Emitter, Event } from 'vs/base/common/event';
+import { assign } from 'vs/base/common/objects';
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -92,7 +96,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IExtensionService private extensionService: IExtensionService,
 		@IRequestService private requestService: IRequestService,
 		@IViewletService private viewletService: IViewletService,
-		@INotificationService private notificationService: INotificationService
+		@INotificationService private notificationService: INotificationService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
 	) {
 		super();
 
@@ -126,6 +131,23 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._register(this.configurationService.onDidChangeConfiguration(e => {
 			if (!this.proactiveRecommendationsFetched && !this.configurationService.getValue<boolean>(ShowRecommendationsOnlyOnDemandKey)) {
 				this.fetchProactiveRecommendations();
+			}
+		}));
+		this._register(this.extensionManagementService.onDidInstallExtension(e => {
+			if (e.gallery && e.operation === InstallOperation.Install) {
+				const extRecommendations = this.getAllRecommendationsWithReason() || {};
+				const recommendationReason = extRecommendations[e.gallery.identifier.id.toLowerCase()];
+				if (recommendationReason) {
+					/* __GDPR__
+						"extensionGallery:install:recommendations" : {
+							"recommendationReason": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+							"${include}": [
+								"${GalleryExtensionTelemetryData}"
+							]
+						}
+					*/
+					this.telemetryService.publicLog('extensionGallery:install:recommendations', assign(e.gallery.telemetryData, { recommendationReason: recommendationReason.reasonId }));
+				}
 			}
 		}));
 	}
