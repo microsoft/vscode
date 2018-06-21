@@ -55,7 +55,7 @@ function isTestTask(name: string): boolean {
 let _channel: vscode.OutputChannel;
 function getOutputChannel(): vscode.OutputChannel {
 	if (!_channel) {
-		_channel = vscode.window.createOutputChannel('Gulp Auto Detection');
+		_channel = vscode.window.createOutputChannel('Grunt Auto Detection');
 	}
 	return _channel;
 }
@@ -79,6 +79,10 @@ class FolderDetector {
 
 	public isEnabled(): boolean {
 		return vscode.workspace.getConfiguration('grunt', this._workspaceFolder.uri).get<AutoDetect>('autoDetect') === 'on';
+	}
+
+	public useWSL(): boolean {
+		return vscode.workspace.getConfiguration('grunt', this._workspaceFolder.uri).get<boolean>('useWSL') === true;
 	}
 
 	public start(): void {
@@ -107,9 +111,17 @@ class FolderDetector {
 		}
 
 		let command: string;
-		let platform = process.platform;
+		let platform: NodeJS.Platform | 'wsl' = process.platform;
+
+		if (platform === 'win32' && this.useWSL()) {
+			platform = 'wsl';
+		}
+
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt.cmd'))) {
 			command = path.join('.', 'node_modules', '.bin', 'grunt.cmd');
+		} else if (platform === 'wsl' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt'))) {
+			// Using WSL, so we're on windows, need to build path with proper separators.
+			command = path.posix.join('.', 'node_modules', '.bin', 'grunt');
 		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'grunt'))) {
 			command = path.join('.', 'node_modules', '.bin', 'grunt');
 		} else {
@@ -118,6 +130,9 @@ class FolderDetector {
 
 		let commandLine = `${command} --help --no-color`;
 		try {
+			if (platform === 'wsl') {
+				commandLine = `wsl.exe -e ${commandLine}`;
+			}
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr) {
 				getOutputChannel().appendLine(stderr);
@@ -267,7 +282,7 @@ class TaskDetector {
 
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
+			this.taskProvider = vscode.workspace.registerTaskProvider('grunt', {
 				provideTasks: () => {
 					return this.getTasks();
 				},

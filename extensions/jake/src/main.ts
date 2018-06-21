@@ -81,6 +81,10 @@ class FolderDetector {
 		return vscode.workspace.getConfiguration('jake', this._workspaceFolder.uri).get<AutoDetect>('autoDetect') === 'on';
 	}
 
+	public useWSL(): boolean {
+		return vscode.workspace.getConfiguration('jake', this._workspaceFolder.uri).get<boolean>('useWSL') === true;
+	}
+
 	public start(): void {
 		let pattern = path.join(this._workspaceFolder.uri.fsPath, '{Jakefile,Jakefile.js}');
 		this.fileWatcher = vscode.workspace.createFileSystemWatcher(pattern);
@@ -111,9 +115,17 @@ class FolderDetector {
 		}
 
 		let jakeCommand: string;
-		let platform = process.platform;
+		let platform: NodeJS.Platform | 'wsl' = process.platform;
+
+		if (platform === 'win32' && this.useWSL()) {
+			platform = 'wsl';
+		}
+
 		if (platform === 'win32' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'jake.cmd'))) {
 			jakeCommand = path.join('.', 'node_modules', '.bin', 'jake.cmd');
+		} else if (platform === 'wsl' && await exists(path.join(rootPath!, 'node_modules', '.bin', 'jake'))) {
+			// Using WSL, so we're on windows, need to build path with proper separators.
+			jakeCommand = path.posix.join('.', 'node_modules', '.bin', 'jake');
 		} else if ((platform === 'linux' || platform === 'darwin') && await exists(path.join(rootPath!, 'node_modules', '.bin', 'jake'))) {
 			jakeCommand = path.join('.', 'node_modules', '.bin', 'jake');
 		} else {
@@ -122,6 +134,9 @@ class FolderDetector {
 
 		let commandLine = `${jakeCommand} --tasks`;
 		try {
+			if (platform === 'wsl') {
+				commandLine = `wsl.exe -e ${commandLine}`;
+			}
 			let { stdout, stderr } = await exec(commandLine, { cwd: rootPath });
 			if (stderr) {
 				getOutputChannel().appendLine(stderr);
@@ -244,7 +259,7 @@ class TaskDetector {
 
 	private updateProvider(): void {
 		if (!this.taskProvider && this.detectors.size > 0) {
-			this.taskProvider = vscode.workspace.registerTaskProvider('gulp', {
+			this.taskProvider = vscode.workspace.registerTaskProvider('jake', {
 				provideTasks: () => {
 					return this.getTasks();
 				},

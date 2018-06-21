@@ -2,6 +2,7 @@
 	"description": "Extension to add Grunt capabilities to VSCode.",
 	"displayName": "Grunt support for VSCode",
 	"config.grunt.autoDetect": "Controls whether auto detection of Grunt tasks is on or off. Default is on.",
+	"config.grunt.useWSL": "Instructs the extension to attempt to run Grunt tasks using the Windows Subsystem for Linux. Default is false.",
 	"grunt.taskDefinition.type.description": "The Grunt task to customize.",
 	"grunt.taskDefinition.file.description": "The Grunt file that provides the task. Can be omitted."
 }
