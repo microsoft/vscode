@@ -130,7 +130,7 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createEnabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.enabledExtensionsList',
+			id: 'extensions.enabledExtensions',
 			name: localize('enabledExtensions', "Enabled"),
 			container: VIEW_CONTAINER,
 			ctor: EnabledExtensionsView,
@@ -143,15 +143,15 @@ export class ExtensionsViewletViewsContribution implements IWorkbenchContributio
 
 	private createDisabledExtensionsListViewDescriptor(): IViewDescriptor {
 		return {
-			id: 'extensions.disabledExtensionsList',
+			id: 'extensions.disabledExtensions',
 			name: localize('disabledExtensions', "Disabled"),
 			container: VIEW_CONTAINER,
 			ctor: DisabledExtensionsView,
 			when: ContextKeyExpr.not('searchExtensions'),
 			weight: 30,
 			canToggleVisibility: true,
-			order: 1,
-			hideByDefault: true
+			order: 0,
+			collapsed: true
 		};
 	}
 
