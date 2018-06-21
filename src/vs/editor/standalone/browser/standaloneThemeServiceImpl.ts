@@ -33,6 +33,7 @@ class StandaloneTheme implements IStandaloneTheme {
 	private _tokenTheme: TokenTheme;
 
 	constructor(name: string, standaloneThemeData: IStandaloneThemeData) {
+		this.themeData = standaloneThemeData;
 		let base = standaloneThemeData.base;
 		if (name.length > 0) {
 			this.id = base + ' ' + name;
@@ -42,7 +43,7 @@ class StandaloneTheme implements IStandaloneTheme {
 			this.themeName = base;
 		}
 		this.colors = null;
-		this.defaultColors = {};
+		this.defaultColors = Object.create(null);
 		this._tokenTheme = null;
 	}
 
@@ -78,9 +79,9 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	public getColor(colorId: ColorIdentifier, useDefault?: boolean): Color {
-		const colors = this.getColors();
-		if (colors.hasOwnProperty(colorId)) {
-			return colors[colorId];
+		const color = this.getColors()[colorId];
+		if (color) {
+			return color;
 		}
 		if (useDefault !== false) {
 			return this.getDefault(colorId);
@@ -89,10 +90,11 @@ class StandaloneTheme implements IStandaloneTheme {
 	}
 
 	private getDefault(colorId: ColorIdentifier): Color {
-		if (this.defaultColors.hasOwnProperty(colorId)) {
-			return this.defaultColors[colorId];
+		let color = this.defaultColors[colorId];
+		if (color) {
+			return color;
 		}
-		let color = colorRegistry.resolveDefaultColor(colorId, this);
+		color = colorRegistry.resolveDefaultColor(colorId, this);
 		this.defaultColors[colorId] = color;
 		return color;
 	}
@@ -116,11 +118,13 @@ class StandaloneTheme implements IStandaloneTheme {
 			if (this.themeData.inherit) {
 				let baseData = getBuiltinRules(this.themeData.base);
 				rules = baseData.rules;
-				customTokenColors = baseData.customTokenColors || [];
+				if (baseData.customTokenColors) {
+					customTokenColors = baseData.customTokenColors;
+				}
 			}
 			rules = rules.concat(this.themeData.rules);
 			if (this.themeData.customTokenColors) {
-				customTokenColors = customTokenColors.concat(this.themeData.customTokenColors);
+				customTokenColors = this.themeData.customTokenColors;
 			}
 			this._tokenTheme = TokenTheme.createFromRawTokenTheme(rules, customTokenColors);
 		}
