@@ -65,7 +65,7 @@ export class DeleteOperations {
 			const lineText = model.getLineContent(position.lineNumber);
 			const character = lineText[position.column - 2];
 
-			const characterIsQuote = (character === '\'' || character === '"');
+			const characterIsQuote = (character === '\'' || character === '"' || character === '`');
 			const autoCloseConfig = characterIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 
 			if (!config.autoClosingPairsOpen.hasOwnProperty(character) || !(autoCloseConfig.autoWrap || autoCloseConfig.autoClose)) {

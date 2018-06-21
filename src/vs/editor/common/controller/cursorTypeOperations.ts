@@ -437,7 +437,7 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingCloseCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		const chIsQuote = (ch === '\'' || ch === '"');
+		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 
 		if (!autoCloseConfig.autoClose || !config.autoClosingPairsClose.hasOwnProperty(ch)) {
@@ -514,7 +514,7 @@ export class TypeOperations {
 	}
 
 	private static _isAutoClosingOpenCharType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		const chIsQuote = (ch === '\'' || ch === '"');
+		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 		if (!autoCloseConfig.autoClose || !config.autoClosingPairsOpen.hasOwnProperty(ch)) {
 			return false;
@@ -587,7 +587,7 @@ export class TypeOperations {
 	}
 
 	private static _isSurroundSelectionType(config: CursorConfiguration, model: ITextModel, selections: Selection[], ch: string): boolean {
-		const chIsQuote = (ch === '\'' || ch === '"');
+		const chIsQuote = (ch === '\'' || ch === '"' || ch === '`');
 		const autoCloseConfig = chIsQuote ? config.autoClosingQuotes : config.autoClosingBrackets;
 		if (!autoCloseConfig.autoWrap || !config.surroundingPairs.hasOwnProperty(ch)) {
 			return false;
@@ -620,7 +620,7 @@ export class TypeOperations {
 
 			if (chIsQuote && selection.startLineNumber === selection.endLineNumber && selection.startColumn + 1 === selection.endColumn) {
 				const selectionText = model.getValueInRange(selection);
-				if ((selectionText === '\'' || selectionText === '"')) {
+				if ((selectionText === '\'' || selectionText === '"' || selectionText === '`')) {
 					// Typing a quote character on top of another quote character
 					// => disable surround selection type
 					return false;

@@ -1600,7 +1600,7 @@ export class EditorOptionsValidator {
 
 		const _autoClosingOptions = (config: any, defaultValue: EditorAutoClosingOptions): EditorAutoClosingOptions => {
 			if (typeof config === 'boolean') { return { autoClose: config, autoWrap: config, enabledBefore: ' \t\n' }; }
-
+			if (!config) { config = {}; }
 			let copy: EditorAutoClosingOptions = { autoClose: defaultValue.autoClose, autoWrap: defaultValue.autoWrap, enabledBefore: defaultValue.enabledBefore };
 			if (typeof config.autoClose === 'boolean') { copy.autoClose = config.autoClose; }
 			if (typeof config.autoWrap === 'boolean') { copy.autoWrap = config.autoWrap; }

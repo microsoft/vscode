@@ -3999,14 +3999,14 @@ suite('autoClosingPairs', () => {
 		}, (model, cursor) => {
 
 			let autoClosePositions = [
-				'var| a| =| [|];|',
-				'var| b| =| `asd`;|',
-				'var| c| =| \'asd\';|',
-				'var| d| =| "asd";|',
-				'var| e| =| /*3*/|	3;|',
-				'var| f| =| /**| 3| */3;|',
-				'var| g| =| (3+5|);|',
-				'var| h| =| {| a:| \'value\'| |};|',
+				'var| a| =| [|]|;|',
+				'var| b| =| `asd`|;|',
+				'var| c| =| \'asd\'|;|',
+				'var| d| =| "asd"|;|',
+				'var| e| =| /*3*/|	3|;|',
+				'var| f| =| /**| 3| */3|;|',
+				'var| g| =| (3+5|)|;|',
+				'var| h| =| {| a|:| \'value\'| |}|;|',
 			];
 			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
 				const lineNumber = i + 1;
@@ -4021,6 +4021,159 @@ suite('autoClosingPairs', () => {
 					}
 				}
 			}
+		});
+		mode.dispose();
+	});
+
+
+	test('configurable open parens', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: {
+					enabledBefore: 'abc',
+					autoClose: true,
+					autoWrap: true
+				}
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'v|ar |a = [|];|',
+				'v|ar |b = `|asd`;|',
+				'v|ar |c = \'|asd\';|',
+				'v|ar d = "|asd";|',
+				'v|ar e = /*3*/	3;|',
+				'v|ar f = /** 3 */3;|',
+				'v|ar g = (3+5|);|',
+				'v|ar h = { |a: \'v|alue\' |};|',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto-pairing can be disabled', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: {
+					enabledBefore: 'abc',
+					autoClose: false,
+					autoWrap: true
+				},
+				autoClosingQuotes: {
+					enabledBefore: 'abc',
+					autoClose: false,
+					autoWrap: true
+				}
+			}
+		}, (model, cursor) => {
+
+			let autoClosePositions = [
+				'var a = [];',
+				'var b = `asd`;',
+				'var c = \'asd\';',
+				'var d = "asd";',
+				'var e = /*3*/	3;',
+				'var f = /** 3 */3;',
+				'var g = (3+5);',
+				'var h = { a: \'value\' };',
+			];
+			for (let i = 0, len = autoClosePositions.length; i < len; i++) {
+				const lineNumber = i + 1;
+				const autoCloseColumns = extractSpecialColumns(model.getLineMaxColumn(lineNumber), autoClosePositions[i]);
+
+				for (let column = 1; column < autoCloseColumns.length; column++) {
+					model.forceTokenization(lineNumber);
+					if (autoCloseColumns[column] === ColumnType.Special1) {
+						assertType(model, cursor, lineNumber, column, '(', '()', `auto closes @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '""', `auto closes @ (${lineNumber}, ${column})`);
+					} else {
+						assertType(model, cursor, lineNumber, column, '(', '(', `does not auto close @ (${lineNumber}, ${column})`);
+						assertType(model, cursor, lineNumber, column, '"', '"', `does not auto close @ (${lineNumber}, ${column})`);
+					}
+				}
+			}
+		});
+		mode.dispose();
+	});
+
+	test('auto wrapping is configurable', () => {
+		let mode = new AutoClosingMode();
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier()
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+				new Selection(1, 9, 1, 12),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '`var` a = `asd`');
+		});
+		usingCursor({
+			text: [
+				'var a = asd'
+			],
+			languageIdentifier: mode.getLanguageIdentifier(),
+			editorOpts: {
+				autoClosingBrackets: {
+					autoWrap: false,
+					autoClose: true,
+					enabledBefore: ''
+				}
+			}
+		}, (model, cursor) => {
+
+			cursor.setSelections('test', [
+				new Selection(1, 1, 1, 4),
+			]);
+
+			// type a `
+			cursorCommand(cursor, H.Type, { text: '`' }, 'keyboard');
+
+			assert.equal(model.getValue(), '` a = asd');
 		});
 		mode.dispose();
 	});
