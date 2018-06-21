@@ -207,15 +207,11 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		const isWin10 = isWindows && parseFloat(os.release()) >= 10;
-		let needsWinTransparency = false;
-		if (isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none') {
-			if (isWin10 && useCustomTitleStyle) {
-				this.setTransparentInfo(options);
-				needsWinTransparency = true;
-			} else if (!isWin10 && windowConfig.compositionAttribute === 'blur') {
-				this.setTransparentInfo(options);
-				needsWinTransparency = true;
-			}
+		const needsWinTransparency =
+			isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none' &&
+			((isWin10 && useCustomTitleStyle) || (!isWin10 && windowConfig.compositionAttribute === 'blur'));
+		if (needsWinTransparency) {
+			this.setTransparentInfo(options);
 		}
 
 		// Create the browser window.
