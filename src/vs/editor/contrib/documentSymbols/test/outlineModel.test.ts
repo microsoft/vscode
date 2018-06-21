@@ -149,4 +149,37 @@ suite('OutlineModel', function () {
 		assert.equal(c1.marker, undefined);
 		assert.equal(c2.marker.count, 1);
 	});
+
+	test('OutlineElement - updateMarker/multiple groups', function () {
+
+		let model = new class extends OutlineModel {
+			constructor() {
+				super(null);
+			}
+			readyForTesting() {
+				this._groups = this.children as any;
+			}
+		};
+		model.children['g1'] = new OutlineGroup('g1', model, null, 1);
+		model.children['g1'].children['c1'] = new OutlineElement('c1', model.children['g1'], fakeSymbolInformation(new Range(1, 1, 11, 1)));
+
+		model.children['g2'] = new OutlineGroup('g2', model, null, 1);
+		model.children['g2'].children['c2'] = new OutlineElement('c2', model.children['g2'], fakeSymbolInformation(new Range(1, 1, 7, 1)));
+		model.children['g2'].children['c2'].children['c2.1'] = new OutlineElement('c2.1', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(1, 3, 2, 19)));
+		model.children['g2'].children['c2'].children['c2.2'] = new OutlineElement('c2.2', model.children['g2'].children['c2'], fakeSymbolInformation(new Range(4, 1, 6, 10)));
+
+		model.readyForTesting();
+
+		const data = [
+			fakeMarker(new Range(1, 1, 2, 8)),
+			fakeMarker(new Range(6, 1, 6, 98)),
+		];
+
+		model.updateMarker(data);
+
+		assert.equal(model.children['g1'].children['c1'].marker.count, 2);
+		assert.equal(model.children['g2'].children['c2'].children['c2.1'].marker.count, 1);
+		assert.equal(model.children['g2'].children['c2'].children['c2.2'].marker.count, 1);
+	});
+
 });
