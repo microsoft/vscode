@@ -116,6 +116,11 @@ export class CodeWindow implements ICodeWindow {
 		this.registerListeners();
 	}
 
+	private setTransparentInfo(options: Electron.BrowserWindowConstructorOptions): void {
+		options.backgroundColor = '#00000000';
+		this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+	}
+
 	private createBrowserWindow(config: IWindowCreationOptions): void {
 
 		// Load window state
@@ -150,9 +155,10 @@ export class CodeWindow implements ICodeWindow {
 		if (isLinux) {
 			options.icon = path.join(this.environmentService.appRoot, 'resources/linux/code.png'); // Windows and Mac are better off using the embedded icon(s)
 
-			options.transparent = windowConfig.transparent; // TODO: requires hardware acceleration off
+			// Make sure hardware acceleration is actually disabled.
+			options.transparent = windowConfig && windowConfig.transparent && app.getGPUFeatureStatus().gpu_compositing !== 'enabled';
 			if (options.transparent) {
-				this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
+				this.setTransparentInfo(options);
 			}
 		}
 
@@ -179,12 +185,10 @@ export class CodeWindow implements ICodeWindow {
 				useCustomTitleStyle = false; // not enabled when developing due to https://github.com/electron/electron/issues/3647
 			}
 
-			// TODO
-			//if (windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
-			//	options.backgroundColor = '#00000000';
-			//	this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
-			//	options.vibrancy = windowConfig.vibrancy;
-			//}
+			if (windowConfig && windowConfig.vibrancy && windowConfig.vibrancy !== 'none') {
+				this.setTransparentInfo(options);
+				options.vibrancy = windowConfig.vibrancy;
+			}
 		} else {
 			useCustomTitleStyle = windowConfig && windowConfig.titleBarStyle === 'custom'; // Must be specified on Windows/Linux
 		}
@@ -202,14 +206,14 @@ export class CodeWindow implements ICodeWindow {
 		}
 
 		const isWin10 = true; // TODO
-		let compAttribSet = false;
+		let needsWinTransparency = false;
 		if (isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none') {
 			if (isWin10 && useCustomTitleStyle) {
-				options.backgroundColor = '#00000000';
-				this.stateService.setItem(CodeWindow.themeBackgroundStorageKey, 'transparent');
-				compAttribSet = true;
-			} else {
-				// TODO: DwmEnableBlurBehind for older OSes.
+				this.setTransparentInfo(options);
+				needsWinTransparency = true;
+			} else if (!isWin10 && windowConfig.compositionAttribute === 'blur') {
+				this.setTransparentInfo(options);
+				needsWinTransparency = true;
 			}
 		}
 
@@ -221,7 +225,7 @@ export class CodeWindow implements ICodeWindow {
 			this._win.setSheetOffset(22); // offset dialogs by the height of the custom title bar if we have any
 		}
 
-		if (compAttribSet && isWin10) {
+		if (needsWinTransparency && isWin10) {
 			const { SetWindowCompositionAttribute, AccentState } = require.__$__nodeRequire('windows-swca') as any;
 
 			let attribValue: number;
@@ -243,8 +247,8 @@ export class CodeWindow implements ICodeWindow {
 
 			// using a small alpha because acrylic bugs out at full transparency.
 			SetWindowCompositionAttribute(this._win, attribValue, 0x01000000);
-		} else if (compAttribSet) {
-			// TODO: DwnEnableBlurBehind
+		} else if (needsWinTransparency) {
+			// TODO: DwnEnableBlurBehindWindow
 		}
 
 		if (isFullscreenOrMaximized) {

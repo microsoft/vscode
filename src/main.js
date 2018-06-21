@@ -397,6 +397,22 @@ global.getOpenUrls = function () {
 	return openUrls;
 };
 
+// Linux: disable hardware acceleration when transparent window is enabled
+try {
+	if (process.platform === 'linux') {
+		const configFile = path.join(getUserDataPath(), 'User', 'settings.json');
+		if (fs.existsSync(configFile)) {
+			const config = JSON.parse(stripComments(fs.readFileSync(configFile, 'utf8')));
+			if (config['window.transparent']) {
+				app.commandLine.appendSwitch('enable-transparent-visuals');
+				app.disableHardwareAcceleration();
+			}
+		}
+	}
+} catch (err) {
+	console.error(err);
+}
+
 // use '<UserData>/CachedData'-directory to store
 // node/v8 cached data.
 let nodeCachedDataDir = getNodeCachedDataDir().then(function (value) {

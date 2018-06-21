@@ -242,6 +242,7 @@ export interface IWindowSettings {
 	clickThroughInactive: boolean;
 	transparent: boolean;
 	compositionAttribute: 'none' | 'transparent' | 'blur' | 'acrylic';
+	vibrancy: 'none' | 'appearance-based' | 'light' | 'dark' | 'titlebar' | 'medium-light' | 'ultra-dark';
 }
 
 export enum OpenContext {

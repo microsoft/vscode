@@ -465,7 +465,7 @@ configurationRegistry.registerConfiguration({
 			'type': 'boolean',
 			'default': false,
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.transparent', "Makes window ARGB. Needs color customizations or a transparent theme to affect appearance."),
+			'description': nls.localize('window.transparent', "Makes window ARGB. Needs color customizations or a transparent theme to affect appearance. IMPORTANT: Disables hardware acceleration."),
 			'included': isLinux
 		},
 		'window.compositionAttribute': {
@@ -473,8 +473,16 @@ configurationRegistry.registerConfiguration({
 			'enum': ['none', 'transparent', 'blur', 'acrylic'],
 			'default': 'none',
 			'scope': ConfigurationScope.APPLICATION,
-			'description': nls.localize('window.compositionAttribute', "Changes window composition attribute. Transparent and Acrylic are only available on Windows 10. Furthermore, Acrylic requires the April 2018 update. Needs color customizations or a transparent theme to affect appearance."),
+			'description': nls.localize('window.compositionAttribute', "Changes window composition attribute. Requires custom titlebar to be active on Windows 10, but not required for earlier OSes. Transparent and Acrylic are only available on Windows 10. Furthermore, Acrylic requires the April 2018 update. Needs color customizations or a transparent theme to affect appearance."),
 			'included': isWindows
+		},
+		'window.vibrancy': {
+			'type': 'string',
+			'enum': ['none', 'appearance-based', 'light', 'dark', 'titlebar', 'medium-light', 'ultra-dark'],
+			'default': 'none',
+			'scope': ConfigurationScope.APPLICATION,
+			'description': nls.localize('window.vibrancy', "Sets window vibrancy effect. Needs color customizations or a transparent theme to affect appearance."),
+			'included': isMacintosh && parseFloat(os.release()) >= 14
 		}
 	}
 });
