@@ -342,14 +342,28 @@ export class OutlineModel extends TreeElement {
 		return topMatch;
 	}
 
-	getItemEnclosingPosition(position: IPosition): OutlineElement {
-		for (const key in this._groups) {
-			let result = this._groups[key].getItemEnclosingPosition(position);
-			if (result) {
-				return result;
+	getItemEnclosingPosition(position: IPosition, context?: OutlineElement): OutlineElement {
+
+		let preferredGroup: OutlineGroup;
+		if (context) {
+			let candidate = context.parent;
+			while (candidate && !preferredGroup) {
+				if (candidate instanceof OutlineGroup) {
+					preferredGroup = candidate;
+				}
+				candidate = candidate.parent;
 			}
 		}
-		return undefined;
+
+		let result: OutlineElement = undefined;
+		for (const key in this._groups) {
+			const group = this._groups[key];
+			result = group.getItemEnclosingPosition(position);
+			if (result && (!preferredGroup || preferredGroup === group)) {
+				break;
+			}
+		}
+		return result;
 	}
 
 	getItemById(id: string): TreeElement {

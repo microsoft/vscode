@@ -16,9 +16,9 @@ VS Code is updated monthly with new features and bug fixes. You can download it 
 
 The [`vscode`](https://github.com/microsoft/vscode) repository is where we do development and there are many ways you can participate in the project, for example:
 
-* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in
-* Review [source code changes](https://github.com/microsoft/vscode/pulls)
-* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content
+* [Submit bugs and feature requests](https://github.com/microsoft/vscode/issues) and help us verify as they are checked in.
+* Review [source code changes](https://github.com/microsoft/vscode/pulls).
+* Review the [documentation](https://github.com/microsoft/vscode-docs) and make pull requests for anything from typos to new content.
 
 ## Contributing
 

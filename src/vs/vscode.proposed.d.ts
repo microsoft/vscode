@@ -614,6 +614,13 @@ declare module 'vscode' {
 
 	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
+	/**
+	 * A workspace edit is a collection of textual and files changes for
+	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
+	 * to apply a workspace edit. Note that all changes are applied in the same order in which
+	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
+	 * file a' causes failure of the operation.
+	 */
 	export interface WorkspaceEdit {
 
 		/**
