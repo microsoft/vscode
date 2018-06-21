@@ -325,7 +325,7 @@ class ExtHostQuickInput implements QuickInput {
 	}
 
 	set buttons(buttons: QuickInputButton[]) {
-		this._buttons = buttons;
+		this._buttons = buttons.slice();
 		this._handlesToButtons.clear();
 		buttons.forEach((button, i) => {
 			const handle = button === backButton ? -1 : i;
@@ -478,7 +478,7 @@ class ExtHostQuickPick extends ExtHostQuickInput implements QuickPick {
 	}
 
 	set items(items: QuickPickItem[]) {
-		this._items = items;
+		this._items = items.slice();
 		this._handlesToItems.clear();
 		this._itemsToHandles.clear();
 		items.forEach((item, i) => {
