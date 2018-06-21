@@ -25,7 +25,8 @@ import { editorActiveLinkForeground } from 'vs/platform/theme/common/colorRegist
 import { EditorState, CodeEditorStateFlag } from 'vs/editor/browser/core/editorState';
 import { DefinitionAction, DefinitionActionConfig } from './goToDefinitionCommands';
 import { ClickLinkGesture, ClickLinkMouseEvent, ClickLinkKeyboardEvent } from 'vs/editor/contrib/goToDefinition/clickLinkGesture';
-import { IWordAtPosition, IModelDeltaDecoration } from 'vs/editor/common/model';
+import { IWordAtPosition, IModelDeltaDecoration, ITextModel } from 'vs/editor/common/model';
+import { Position } from 'vs/editor/common/core/position';
 
 class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorContribution {
 
@@ -141,21 +142,7 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 						return;
 					}
 
-					const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
-					const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
-					let endLineNumber = startLineNumber + 1;
-					let minIndent = startIndent;
-
-					for (; endLineNumber < maxLineNumber; endLineNumber++) {
-						let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
-						minIndent = Math.min(minIndent, endIndent);
-						if (startIndent === endIndent) {
-							break;
-						}
-					}
-
-					const previewRange = new Range(startLineNumber, 1, endLineNumber + 1, 1);
-					const value = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+					const previewValue = this.getPreviewValue(textEditorModel, startLineNumber);
 
 					let wordRange: Range;
 					if (result.origin) {
@@ -166,12 +153,98 @@ class GotoDefinitionWithMouseEditorContribution implements editorCommon.IEditorC
 
 					this.addDecoration(
 						wordRange,
-						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), value)
+						new MarkdownString().appendCodeblock(this.modeService.getModeIdByFilenameOrFirstLine(textEditorModel.uri.fsPath), previewValue)
 					);
 					ref.dispose();
 				});
 			}
 		}).done(undefined, onUnexpectedError);
+	}
+
+	private getPreviewValue(textEditorModel: ITextModel, startLineNumber: number) {
+		let rangeToUse = this.getPreviewRangeBasedOnBrackets(textEditorModel, startLineNumber);
+		const numberOfLinesInRange = rangeToUse.endLineNumber - rangeToUse.startLineNumber;
+		if (numberOfLinesInRange >= GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES) {
+			rangeToUse = this.getPreviewRangeBasedOnIndentation(textEditorModel, startLineNumber);
+		}
+
+		const previewValue = this.stripIndentationFromPreviewRange(textEditorModel, startLineNumber, rangeToUse);
+		return previewValue;
+	}
+
+	private stripIndentationFromPreviewRange(textEditorModel: ITextModel, startLineNumber: number, previewRange: Range) {
+		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+		let minIndent = startIndent;
+
+		for (let endLineNumber = startLineNumber + 1; endLineNumber < previewRange.endLineNumber; endLineNumber++) {
+			const endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+			minIndent = Math.min(minIndent, endIndent);
+		}
+
+		const previewValue = textEditorModel.getValueInRange(previewRange).replace(new RegExp(`^\\s{${minIndent - 1}}`, 'gm'), '').trim();
+		return previewValue;
+	}
+
+	private getPreviewRangeBasedOnIndentation(textEditorModel: ITextModel, startLineNumber: number) {
+		const startIndent = textEditorModel.getLineFirstNonWhitespaceColumn(startLineNumber);
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+		let endLineNumber = startLineNumber + 1;
+
+		for (; endLineNumber < maxLineNumber; endLineNumber++) {
+			let endIndent = textEditorModel.getLineFirstNonWhitespaceColumn(endLineNumber);
+
+			if (startIndent === endIndent) {
+				break;
+			}
+		}
+
+		return new Range(startLineNumber, 1, endLineNumber + 1, 1);
+	}
+
+	private getPreviewRangeBasedOnBrackets(textEditorModel: ITextModel, startLineNumber: number) {
+		const maxLineNumber = Math.min(textEditorModel.getLineCount(), startLineNumber + GotoDefinitionWithMouseEditorContribution.MAX_SOURCE_PREVIEW_LINES);
+
+		const brackets = [];
+
+		let ignoreFirstEmpty = true;
+		let currentBracket = textEditorModel.findNextBracket(new Position(startLineNumber, 1));
+		while (currentBracket !== null) {
+
+			if (brackets.length === 0) {
+				brackets.push(currentBracket);
+			} else {
+				const lastBracket = brackets[brackets.length - 1];
+				if (lastBracket.open === currentBracket.open && lastBracket.isOpen && !currentBracket.isOpen) {
+					brackets.pop();
+				} else {
+					brackets.push(currentBracket);
+				}
+
+				if (brackets.length === 0) {
+					if (ignoreFirstEmpty) {
+						ignoreFirstEmpty = false;
+					} else {
+						return new Range(startLineNumber, 1, currentBracket.range.endLineNumber + 1, 1);
+					}
+				}
+			}
+
+			const maxColumn = textEditorModel.getLineMaxColumn(startLineNumber);
+			let nextLineNumber = currentBracket.range.endLineNumber;
+			let nextColumn = currentBracket.range.endColumn;
+			if (maxColumn === currentBracket.range.endColumn) {
+				nextLineNumber++;
+				nextColumn = 1;
+			}
+
+			if (nextLineNumber > maxLineNumber) {
+				return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
+			}
+
+			currentBracket = textEditorModel.findNextBracket(new Position(nextLineNumber, nextColumn));
+		}
+
+		return new Range(startLineNumber, 1, maxLineNumber + 1, 1);
 	}
 
 	private addDecoration(range: Range, hoverMessage: MarkdownString): void {
