@@ -7,6 +7,7 @@
 
 import * as path from 'path';
 import * as objects from 'vs/base/common/objects';
+import * as os from 'os';
 import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { IStateService } from 'vs/platform/state/common/state';
@@ -205,7 +206,7 @@ export class CodeWindow implements ICodeWindow {
 			}
 		}
 
-		const isWin10 = true; // TODO
+		const isWin10 = isWindows && parseFloat(os.release()) >= 10;
 		let needsWinTransparency = false;
 		if (isWindows && windowConfig && windowConfig.compositionAttribute && windowConfig.compositionAttribute !== 'none') {
 			if (isWin10 && useCustomTitleStyle) {
