@@ -6294,6 +6294,10 @@ window-size@0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/window-size/-/window-size-0.1.0.tgz#5438cd2ea93b202efa3a19fe8887aee7c94f9c9d"
 
+windows-blurbehind@1.0.0:
+  version "1.0.0"
+  resolved "https://registry.yarnpkg.com/windows-blurbehind/-/windows-blurbehind-1.0.0.tgz#050efb988704c44335bdc3efefd757f6e463b8ac"
+
 windows-foreground-love@0.1.0:
   version "0.1.0"
   resolved "https://registry.yarnpkg.com/windows-foreground-love/-/windows-foreground-love-0.1.0.tgz#948e4beac0733cd58624710cc09432b7e8bf3521"
@@ -6311,7 +6315,7 @@ windows-process-tree@0.2.2:
   dependencies:
     nan "^2.6.2"
 
-windows-swca@^1.1.1:
+windows-swca@1.1.1:
   version "1.1.1"
   resolved "https://registry.yarnpkg.com/windows-swca/-/windows-swca-1.1.1.tgz#0b3530278c67d408baac71c3a6aeb16d55318bf8"
 
