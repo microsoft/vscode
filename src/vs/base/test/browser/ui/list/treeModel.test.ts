@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeListElement } from 'vs/base/browser/ui/list/treeModel';
+import { TreeModel, ITreeListElement, CollapsibleTreeModel, ICollapsibleTreeListElement } from 'vs/base/browser/ui/list/treeModel';
 import { ISpliceable } from 'vs/base/browser/ui/list/splice';
 import { iter } from 'vs/base/common/iterator';
 
@@ -144,5 +144,65 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[0].depth, 1);
 		assert.deepEqual(list[1].element, 2);
 		assert.deepEqual(list[1].depth, 1);
+	});
+});
+
+suite('CollapsibleTreeModel', () => {
+
+	test('ctor', () => {
+		const list = [] as ICollapsibleTreeListElement<number>[];
+		const model = new CollapsibleTreeModel<number>(toSpliceable(list));
+		assert(model);
+		assert.equal(list.length, 0);
+	});
+
+	test('insert', () => {
+		const list = [] as ICollapsibleTreeListElement<number>[];
+		const model = new CollapsibleTreeModel<number>(toSpliceable(list));
+
+		model.splice([0], 0, iter([
+			{ element: { element: 0, collapsed: false }, children: iter([]) },
+			{ element: { element: 1, collapsed: false }, children: iter([]) },
+			{ element: { element: 2, collapsed: false }, children: iter([]) }
+		]));
+
+		assert.deepEqual(list.length, 3);
+		assert.deepEqual(list[0].element.element, 0);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element.element, 1);
+		assert.deepEqual(list[1].depth, 1);
+		assert.deepEqual(list[2].element.element, 2);
+		assert.deepEqual(list[2].depth, 1);
+	});
+
+	test('deep insert', () => {
+		const list = [] as ICollapsibleTreeListElement<number>[];
+		const model = new CollapsibleTreeModel<number>(toSpliceable(list));
+
+		model.splice([0], 0, iter([
+			{
+				element: { element: 0, collapsed: false }, children: iter([
+					{ element: { element: 10, collapsed: false }, children: iter([]) },
+					{ element: { element: 11, collapsed: false }, children: iter([]) },
+					{ element: { element: 12, collapsed: false }, children: iter([]) },
+				])
+			},
+			{ element: { element: 1, collapsed: false }, children: iter([]) },
+			{ element: { element: 2, collapsed: false }, children: iter([]) }
+		]));
+
+		assert.deepEqual(list.length, 6);
+		assert.deepEqual(list[0].element.element, 0);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element.element, 10);
+		assert.deepEqual(list[1].depth, 2);
+		assert.deepEqual(list[2].element.element, 11);
+		assert.deepEqual(list[2].depth, 2);
+		assert.deepEqual(list[3].element.element, 12);
+		assert.deepEqual(list[3].depth, 2);
+		assert.deepEqual(list[4].element.element, 1);
+		assert.deepEqual(list[4].depth, 1);
+		assert.deepEqual(list[5].element.element, 2);
+		assert.deepEqual(list[5].depth, 1);
 	});
 });

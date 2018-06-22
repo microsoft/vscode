@@ -70,6 +70,21 @@ export class Tree<T> {
 		return nodePath.map(node => node.element);
 	}
 
+	getElementRange(location: number[], length: number): [T[], IIterator<ITreeElement<T>>] {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const [parentLocation, index] = tail2(location);
+		const parentPath = this.getNodePath(parentLocation);
+		const parent = last(parentPath);
+
+		return [
+			parentPath.slice(1).map(node => node.element),
+			map(iter(parent.children, index, length), asElement)
+		];
+	}
+
 	getNodes(): ITreeNode<T>[] {
 		return this.root.children;
 	}

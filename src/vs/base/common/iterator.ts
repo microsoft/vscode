@@ -14,12 +14,10 @@ export interface IIterator<T> {
 	next(): IIteratorResult<T>;
 }
 
-export function iter<T>(array: T[]): IIterator<T> {
-	let index = 0;
-
+export function iter<T>(array: T[], index = 0, length = array.length): IIterator<T> {
 	return {
 		next(): IIteratorResult<T> {
-			if (index === array.length) {
+			if (index >= length) {
 				return { done: true, value: undefined };
 			}
 
