@@ -513,7 +513,7 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				if (focusedRowId) {
 					const rowSelector = `.setting-item#${focusedRowId}`;
-					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a`);
+					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a, ${rowSelector} .monaco-custom-checkbox`);
 					if (inputElementToFocus) {
 						inputElementToFocus.focus();
 						if (typeof selection === 'number') {

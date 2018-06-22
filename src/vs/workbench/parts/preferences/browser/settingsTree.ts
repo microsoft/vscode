@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
@@ -22,8 +23,8 @@ import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from '
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { editorActiveLinkForeground, editorBackground, inputBackground, registerColor, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -42,6 +43,20 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
+	}
+});
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const inputBackgroundColor = theme.getColor(inputBackground);
+	const selectBorderColor = theme.getColor(selectBorder);
+	const editorBackgroundColor = theme.getColor(editorBackground);
+
+	if (inputBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${inputBackgroundColor} !important; }`);
+	}
+
+	if (selectBorderColor && (editorBackgroundColor.equals(inputBackgroundColor))) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${selectBorderColor} !important; }`);
 	}
 });
 
@@ -684,12 +699,15 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
-		const checkboxElement = <HTMLInputElement>DOM.append(element, $('input.setting-value-checkbox.setting-value-input'));
-		checkboxElement.type = 'checkbox';
-		checkboxElement.checked = dataElement.value;
-		checkboxElement.tabIndex = isSelected ? 0 : -1;
+		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: dataElement.value, title: '', inputActiveOptionBorder: null });
+		template.toDispose.push(checkbox);
 
-		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
+		template.toDispose.push(checkbox.onChange(() => {
+			onChange(checkbox.checked);
+		}));
+
+		element.appendChild(checkbox.domNode);
+		checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
