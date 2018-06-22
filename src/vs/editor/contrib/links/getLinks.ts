@@ -9,7 +9,7 @@ import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Range, IRange } from 'vs/editor/common/core/range';
-import { IReadOnlyModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { ILink, LinkProvider, LinkProviderRegistry } from 'vs/editor/common/modes';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { CommandsRegistry } from 'vs/platform/commands/common/commands';
@@ -65,7 +65,7 @@ export class Link implements ILink {
 	}
 }
 
-export function getLinks(model: IReadOnlyModel): TPromise<Link[]> {
+export function getLinks(model: ITextModel): TPromise<Link[]> {
 
 	let links: Link[] = [];
 
@@ -86,18 +86,15 @@ export function getLinks(model: IReadOnlyModel): TPromise<Link[]> {
 
 function union(oldLinks: Link[], newLinks: Link[]): Link[] {
 	// reunite oldLinks with newLinks and remove duplicates
-	var result: Link[] = [],
-		oldIndex: number,
-		oldLen: number,
-		newIndex: number,
-		newLen: number,
-		oldLink: Link,
-		newLink: Link,
-		comparisonResult: number;
+	let result: Link[] = [];
+	let oldIndex: number;
+	let oldLen: number;
+	let newIndex: number;
+	let newLen: number;
 
 	for (oldIndex = 0, newIndex = 0, oldLen = oldLinks.length, newLen = newLinks.length; oldIndex < oldLen && newIndex < newLen;) {
-		oldLink = oldLinks[oldIndex];
-		newLink = newLinks[newIndex];
+		const oldLink = oldLinks[oldIndex];
+		const newLink = newLinks[newIndex];
 
 		if (Range.areIntersectingOrTouching(oldLink.range, newLink.range)) {
 			// Remove the oldLink
@@ -105,7 +102,7 @@ function union(oldLinks: Link[], newLinks: Link[]): Link[] {
 			continue;
 		}
 
-		comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
+		const comparisonResult = Range.compareRangesUsingStarts(oldLink.range, newLink.range);
 
 		if (comparisonResult < 0) {
 			// oldLink is before

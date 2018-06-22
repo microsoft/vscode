@@ -21,8 +21,22 @@ suite('ExtHostTypes', function () {
 	test('URI, toJSON', function () {
 
 		let uri = URI.parse('file:///path/test.file');
-		let data = uri.toJSON();
-		assert.deepEqual(data, {
+		assert.deepEqual(uri.toJSON(), {
+			$mid: 1,
+			scheme: 'file',
+			path: '/path/test.file'
+		});
+
+		assert.ok(uri.fsPath);
+		assert.deepEqual(uri.toJSON(), {
+			$mid: 1,
+			scheme: 'file',
+			path: '/path/test.file',
+			fsPath: '/path/test.file'.replace(/\//g, isWindows ? '\\' : '/'),
+		});
+
+		assert.ok(uri.toString());
+		assert.deepEqual(uri.toJSON(), {
 			$mid: 1,
 			scheme: 'file',
 			path: '/path/test.file',
@@ -182,8 +196,8 @@ suite('ExtHostTypes', function () {
 		assert.throws(() => new types.Range(null, new types.Position(0, 0)));
 
 		let range = new types.Range(1, 0, 0, 0);
-		assert.throws(() => (range as any).start = null);
-		assert.throws(() => (range as any).start = new types.Position(0, 3));
+		assert.throws(() => { (range as any).start = null; });
+		assert.throws(() => { (range as any).start = new types.Position(0, 3); });
 	});
 
 	test('Range, toJSON', function () {
@@ -342,24 +356,72 @@ suite('ExtHostTypes', function () {
 		edit.set(a, [types.TextEdit.insert(new types.Position(0, 0), 'fff')]);
 		assert.ok(edit.has(a));
 		assert.equal(edit.size, 1);
-		assertToJSON(edit, [[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
+		assertToJSON(edit, [[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]]]);
 
 		edit.insert(b, new types.Position(1, 1), 'fff');
 		edit.delete(b, new types.Range(0, 0, 0, 0));
 		assert.ok(edit.has(b));
 		assert.equal(edit.size, 2);
 		assertToJSON(edit, [
-			[URI.parse('file:///a.ts').toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
-			[URI.parse('file:///b.ts').toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
+			[a.toJSON(), [{ range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: 'fff' }]],
+			[b.toJSON(), [{ range: [{ line: 1, character: 1 }, { line: 1, character: 1 }], newText: 'fff' }, { range: [{ line: 0, character: 0 }, { line: 0, character: 0 }], newText: '' }]]
 		]);
 
 		edit.set(b, undefined);
-		assert.ok(edit.has(b));
-		assert.equal(edit.size, 2);
+		assert.ok(!edit.has(b));
+		assert.equal(edit.size, 1);
 
 		edit.set(b, [types.TextEdit.insert(new types.Position(0, 0), 'ffff')]);
 		assert.equal(edit.get(b).length, 1);
+	});
 
+	test('WorkspaceEdit - keep order of text and file changes', function () {
+
+		const edit = new types.WorkspaceEdit();
+		edit.replace(URI.parse('foo:a'), new types.Range(1, 1, 1, 1), 'foo');
+		edit.renameFile(URI.parse('foo:a'), URI.parse('foo:b'));
+		edit.replace(URI.parse('foo:a'), new types.Range(2, 1, 2, 1), 'bar');
+		edit.replace(URI.parse('foo:b'), new types.Range(3, 1, 3, 1), 'bazz');
+
+		const all = edit._allEntries();
+		assert.equal(all.length, 4);
+
+		function isFileChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, URI, { overwrite?: boolean }] {
+			const [f, s] = thing;
+			return URI.isUri(f) && URI.isUri(s);
+		}
+
+		function isTextChange(thing: [URI, types.TextEdit[]] | [URI, URI, { overwrite?: boolean }]): thing is [URI, types.TextEdit[]] {
+			const [f, s] = thing;
+			return URI.isUri(f) && Array.isArray(s);
+		}
+
+		const [first, second, third, fourth] = all;
+		assert.equal(first[0].toString(), 'foo:a');
+		assert.ok(!isFileChange(first));
+		assert.ok(isTextChange(first) && first[1].length === 1);
+
+		assert.equal(second[0].toString(), 'foo:a');
+		assert.ok(isFileChange(second));
+
+		assert.equal(third[0].toString(), 'foo:a');
+		assert.ok(isTextChange(third) && third[1].length === 1);
+
+		assert.equal(fourth[0].toString(), 'foo:b');
+		assert.ok(!isFileChange(fourth));
+		assert.ok(isTextChange(fourth) && fourth[1].length === 1);
+	});
+
+	test('WorkspaceEdit - two edits for one resource', function () {
+		let edit = new types.WorkspaceEdit();
+		let uri = URI.parse('foo:bar');
+		edit.insert(uri, new types.Position(0, 0), 'Hello');
+		edit.insert(uri, new types.Position(0, 0), 'Foo');
+
+		assert.equal(edit._allEntries().length, 2);
+		let [first, second] = edit._allEntries();
+		assert.equal((first as [URI, types.TextEdit[]])[1][0].newText, 'Hello');
+		assert.equal((second as [URI, types.TextEdit[]])[1][0].newText, 'Foo');
 	});
 
 	test('DocumentLink', function () {
@@ -465,5 +527,11 @@ suite('ExtHostTypes', function () {
 		string.appendVariable('BAR', b => { });
 		assert.equal(string.value, '${BAR}');
 
+	});
+
+	test('instanceof doesn\'t work for FileSystemError #49386', function () {
+		const error = types.FileSystemError.Unavailable('foo');
+		assert.ok(error instanceof Error);
+		assert.ok(error instanceof types.FileSystemError);
 	});
 });

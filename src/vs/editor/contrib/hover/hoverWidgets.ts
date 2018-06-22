@@ -140,6 +140,10 @@ export class ContentHoverWidget extends Widget implements editorBrowser.IContent
 		this.updateFont();
 
 		this._editor.layoutContentWidget(this);
+		this.onContentsChange();
+	}
+
+	protected onContentsChange(): void {
 		this.scrollbar.scanDomNode();
 	}
 

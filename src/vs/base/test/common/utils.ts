@@ -5,11 +5,10 @@
 
 'use strict';
 
-import * as assert from 'assert';
-import { TPromise, PPromise, TValueCallback, TProgressCallback, ProgressCallback } from 'vs/base/common/winjs.base';
 import * as errors from 'vs/base/common/errors';
 import * as paths from 'vs/base/common/paths';
 import URI from 'vs/base/common/uri';
+import { PPromise, ProgressCallback, TProgressCallback, TPromise, TValueCallback } from 'vs/base/common/winjs.base';
 
 export class DeferredTPromise<T> extends TPromise<T> {
 
@@ -80,11 +79,18 @@ export class DeferredPPromise<C, P> extends PPromise<C, P> {
 	}
 }
 
-export function onError(error: Error, done: () => void): void {
-	assert.fail(error);
-	done();
+export function toResource(this: any, path: string) {
+	return URI.file(paths.join('C:\\', Buffer.from(this.test.fullTitle()).toString('base64'), path));
 }
 
-export function toResource(this: any, path: string) {
-	return URI.file(paths.join('C:\\', new Buffer(this.test.fullTitle()).toString('base64'), path));
+export function suiteRepeat(n: number, description: string, callback: (this: any) => void): void {
+	for (let i = 0; i < n; i++) {
+		suite(`${description} (iteration ${i})`, callback);
+	}
+}
+
+export function testRepeat(n: number, description: string, callback: (this: any, done: MochaDone) => any): void {
+	for (let i = 0; i < n; i++) {
+		test(`${description} (iteration ${i})`, callback);
+	}
 }

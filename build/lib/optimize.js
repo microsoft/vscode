@@ -17,7 +17,6 @@ var concat = require("gulp-concat");
 var VinylFile = require("vinyl");
 var bundle = require("./bundle");
 var util = require("./util");
-var i18n = require("./i18n");
 var gulpUtil = require("gulp-util");
 var flatmap = require("gulp-flatmap");
 var pump = require("pump");
@@ -57,7 +56,7 @@ function loader(bundledFileHeader, bundleLoader) {
             this.emit('data', new VinylFile({
                 path: 'fake',
                 base: '',
-                contents: new Buffer(bundledFileHeader)
+                contents: Buffer.from(bundledFileHeader)
             }));
             this.emit('data', data);
         }
@@ -96,7 +95,7 @@ function toConcatStream(bundledFileHeader, sources, dest) {
         return new VinylFile({
             path: source.path ? root + '/' + source.path.replace(/\\/g, '/') : 'fake',
             base: base,
-            contents: new Buffer(source.contents)
+            contents: Buffer.from(source.contents)
         });
     });
     return es.readArray(treatedSources)
@@ -139,7 +138,7 @@ function optimizeTask(opts) {
                 bundleInfoArray.push(new VinylFile({
                     path: 'bundleInfo.json',
                     base: '.',
-                    contents: new Buffer(JSON.stringify(result.bundleData, null, '\t'))
+                    contents: Buffer.from(JSON.stringify(result.bundleData, null, '\t'))
                 }));
             }
             es.readArray(bundleInfoArray).pipe(bundleInfoStream);
@@ -164,15 +163,10 @@ function optimizeTask(opts) {
             addComment: true,
             includeContent: true
         }))
-            .pipe(i18n.processNlsFiles({
-            fileHeader: bundledFileHeader,
-            languages: opts.languages
-        }))
             .pipe(gulp.dest(out));
     };
 }
 exports.optimizeTask = optimizeTask;
-;
 /**
  * Wrap around uglify and allow the preserveComments function
  * to have a file "context" to include our copyright only once per file.
@@ -235,4 +229,3 @@ function minifyTask(src, sourceMapBaseUrl) {
     };
 }
 exports.minifyTask = minifyTask;
-;

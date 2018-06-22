@@ -2,15 +2,15 @@
  *  Copyright (c) Microsoft Corporation. All rights reserved.
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
-'use strict';
 
-import { sequence, asWinJsPromise } from 'vs/base/common/async';
+import { asWinJsPromise, first } from 'vs/base/common/async';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { compareIgnoreCase } from 'vs/base/common/strings';
 import { assign } from 'vs/base/common/objects';
 import { onUnexpectedExternalError } from 'vs/base/common/errors';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { IModel, IEditorContribution } from 'vs/editor/common/editorCommon';
+import { IEditorContribution } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import { ISuggestResult, ISuggestSupport, ISuggestion, SuggestRegistry, SuggestContext, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { Position, IPosition } from 'vs/editor/common/core/position';
@@ -43,7 +43,7 @@ export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupp
 	return old;
 }
 
-export function provideSuggestionItems(model: IModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
+export function provideSuggestionItems(model: ITextModel, position: Position, snippetConfig: SnippetConfig = 'bottom', onlyFrom?: ISuggestSupport[], context?: SuggestContext): TPromise<ISuggestionItem[]> {
 
 	const allSuggestions: ISuggestionItem[] = [];
 	const acceptSuggestion = createSuggesionFilter(snippetConfig);
@@ -63,50 +63,44 @@ export function provideSuggestionItems(model: IModel, position: Position, snippe
 	// add suggestions from contributed providers - providers are ordered in groups of
 	// equal score and once a group produces a result the process stops
 	let hasResult = false;
-	const factory = supports.map(supports => {
-		return () => {
-			// stop when we have a result
-			if (hasResult) {
+	const factory = supports.map(supports => () => {
+		// for each support in the group ask for suggestions
+		return TPromise.join(supports.map(support => {
+
+			if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
 				return undefined;
 			}
-			// for each support in the group ask for suggestions
-			return TPromise.join(supports.map(support => {
 
-				if (!isFalsyOrEmpty(onlyFrom) && onlyFrom.indexOf(support) < 0) {
-					return undefined;
-				}
+			return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
 
-				return asWinJsPromise(token => support.provideCompletionItems(model, position, suggestConext, token)).then(container => {
+				const len = allSuggestions.length;
 
-					const len = allSuggestions.length;
+				if (container && !isFalsyOrEmpty(container.suggestions)) {
+					for (let suggestion of container.suggestions) {
+						if (acceptSuggestion(suggestion)) {
 
-					if (container && !isFalsyOrEmpty(container.suggestions)) {
-						for (let suggestion of container.suggestions) {
-							if (acceptSuggestion(suggestion)) {
+							fixOverwriteBeforeAfter(suggestion, container);
 
-								fixOverwriteBeforeAfter(suggestion, container);
-
-								allSuggestions.push({
-									position,
-									container,
-									suggestion,
-									support,
-									resolve: createSuggestionResolver(support, suggestion, model, position)
-								});
-							}
+							allSuggestions.push({
+								position,
+								container,
+								suggestion,
+								support,
+								resolve: createSuggestionResolver(support, suggestion, model, position)
+							});
 						}
 					}
+				}
 
-					if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
-						hasResult = true;
-					}
+				if (len !== allSuggestions.length && support !== _snippetSuggestSupport) {
+					hasResult = true;
+				}
 
-				}, onUnexpectedExternalError);
-			}));
-		};
+			}, onUnexpectedExternalError);
+		}));
 	});
 
-	const result = sequence(factory).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
+	const result = first(factory, () => hasResult).then(() => allSuggestions.sort(getSuggestionComparator(snippetConfig)));
 
 	// result.then(items => {
 	// 	console.log(model.getWordUntilPosition(position), items.map(item => `${item.suggestion.label}, type=${item.suggestion.type}, incomplete?${item.container.incomplete}, overwriteBefore=${item.suggestion.overwriteBefore}`));
@@ -127,7 +121,7 @@ function fixOverwriteBeforeAfter(suggestion: ISuggestion, container: ISuggestRes
 	}
 }
 
-function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: IModel, position: Position): () => TPromise<void> {
+function createSuggestionResolver(provider: ISuggestSupport, suggestion: ISuggestion, model: ITextModel, position: Position): () => TPromise<void> {
 	return () => {
 		if (typeof provider.resolveCompletionItem === 'function') {
 			return asWinJsPromise(token => provider.resolveCompletionItem(model, position, suggestion, token))
@@ -209,13 +203,20 @@ registerDefaultLanguageCommand('_executeCompletionItemProvider', (model, positio
 		suggestions: []
 	};
 
+	let resolving: Thenable<any>[] = [];
+	let maxItemsToResolve = args['maxItemsToResolve'] || 0;
+
 	return provideSuggestionItems(model, position).then(items => {
-
-		for (const { container, suggestion } of items) {
-			result.incomplete = result.incomplete || container.incomplete;
-			result.suggestions.push(suggestion);
+		for (const item of items) {
+			if (resolving.length < maxItemsToResolve) {
+				resolving.push(item.resolve());
+			}
+			result.incomplete = result.incomplete || item.container.incomplete;
+			result.suggestions.push(item.suggestion);
 		}
-
+	}).then(() => {
+		return TPromise.join(resolving);
+	}).then(() => {
 		return result;
 	});
 });

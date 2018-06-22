@@ -4,8 +4,8 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as vscode from 'vscode';
-import { getNodesInBetween, getNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
-import { Node, Stylesheet, Rule, HtmlNode } from 'EmmetNode';
+import { getNodesInBetween, getNode, getHtmlNode, parseDocument, sameNodes, isStyleSheet, validate } from './util';
+import { Node, Stylesheet, Rule } from 'EmmetNode';
 import parseStylesheet from '@emmetio/css-parser';
 import { DocumentStreamReader } from './bufferStream';
 
@@ -33,12 +33,29 @@ export function toggleComment(): Thenable<boolean> | undefined {
 	}
 
 	return editor.edit(editBuilder => {
+		let allEdits: vscode.TextEdit[][] = [];
 		editor.selections.reverse().forEach(selection => {
 			let edits = toggleCommentInternal(editor.document, selection, rootNode!);
-			edits.forEach(x => {
-				editBuilder.replace(x.range, x.newText);
-			});
+			if (edits.length > 0) {
+				allEdits.push(edits);
+			}
 		});
+
+		// Apply edits in order so we can skip nested ones.
+		allEdits.sort((arr1, arr2) => {
+			let result = arr1[0].range.start.line - arr2[0].range.start.line;
+			return result === 0 ? arr1[0].range.start.character - arr2[0].range.start.character : result;
+		});
+		let lastEditPosition = new vscode.Position(0, 0);
+		for (let i = 0; i < allEdits.length; i++) {
+			const edits = allEdits[i];
+			if (edits[0].range.end.isAfterOrEqual(lastEditPosition)) {
+				edits.forEach(x => {
+					editBuilder.replace(x.range, x.newText);
+					lastEditPosition = x.range.end;
+				});
+			}
+		}
 	});
 }
 
@@ -46,8 +63,8 @@ function toggleCommentHTML(document: vscode.TextDocument, selection: vscode.Sele
 	const selectionStart = selection.isReversed ? selection.active : selection.anchor;
 	const selectionEnd = selection.isReversed ? selection.anchor : selection.active;
 
-	let startNode = <HtmlNode>getNode(rootNode, selectionStart, true);
-	let endNode = <HtmlNode>getNode(rootNode, selectionEnd, true);
+	let startNode = getHtmlNode(document, rootNode, selectionStart, true);
+	let endNode = getHtmlNode(document, rootNode, selectionEnd, true);
 
 	if (!startNode || !endNode) {
 		return [];

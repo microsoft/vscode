@@ -6,9 +6,10 @@
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import URI from 'vs/base/common/uri';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { ColorIdentifier } from 'vs/platform/theme/common/colorRegistry';
 import { IDisposable } from 'vs/base/common/lifecycle';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 export const IDecorationsService = createDecorator<IDecorationsService>('IFileDecorationsService');
 
@@ -31,7 +32,7 @@ export interface IDecoration {
 export interface IDecorationsProvider {
 	readonly label: string;
 	readonly onDidChange: Event<URI[]>;
-	provideDecorations(uri: URI): IDecorationData | Thenable<IDecorationData>;
+	provideDecorations(uri: URI): IDecorationData | TPromise<IDecorationData>;
 }
 
 export interface IResourceDecorationChangeEvent {

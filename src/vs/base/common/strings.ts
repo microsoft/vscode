@@ -4,7 +4,6 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { LRUCache } from 'vs/base/common/map';
 import { CharCode } from 'vs/base/common/charCode';
 
 /**
@@ -159,6 +158,10 @@ export function startsWith(haystack: string, needle: string): boolean {
 		return false;
 	}
 
+	if (haystack === needle) {
+		return true;
+	}
+
 	for (let i = 0; i < needle.length; i++) {
 		if (haystack[i] !== needle[i]) {
 			return false;
@@ -233,48 +236,6 @@ export function regExpLeadsToEndlessLoop(regexp: RegExp): boolean {
 
 export function regExpContainsBackreference(regexpValue: string): boolean {
 	return !!regexpValue.match(/([^\\]|^)(\\\\)*\\\d+/);
-}
-
-/**
- * The normalize() method returns the Unicode Normalization Form of a given string. The form will be
- * the Normalization Form Canonical Composition.
- *
- * @see {@link https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/normalize}
- */
-export const canNormalize = typeof ((<any>'').normalize) === 'function';
-
-const nfcCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
-export function normalizeNFC(str: string): string {
-	return normalize(str, 'NFC', nfcCache);
-}
-
-const nfdCache = new LRUCache<string, string>(10000); // bounded to 10000 elements
-export function normalizeNFD(str: string): string {
-	return normalize(str, 'NFD', nfdCache);
-}
-
-const nonAsciiCharactersPattern = /[^\u0000-\u0080]/;
-function normalize(str: string, form: string, normalizedCache: LRUCache<string, string>): string {
-	if (!canNormalize || !str) {
-		return str;
-	}
-
-	const cached = normalizedCache.get(str);
-	if (cached) {
-		return cached;
-	}
-
-	let res: string;
-	if (nonAsciiCharactersPattern.test(str)) {
-		res = (<any>str).normalize(form);
-	} else {
-		res = str;
-	}
-
-	// Use the cache for fast lookup
-	normalizedCache.set(str, res);
-
-	return res;
 }
 
 /**
@@ -372,11 +333,11 @@ export function compareIgnoreCase(a: string, b: string): number {
 	}
 }
 
-function isLowerAsciiLetter(code: number): boolean {
+export function isLowerAsciiLetter(code: number): boolean {
 	return code >= CharCode.a && code <= CharCode.z;
 }
 
-function isUpperAsciiLetter(code: number): boolean {
+export function isUpperAsciiLetter(code: number): boolean {
 	return code >= CharCode.A && code <= CharCode.Z;
 }
 
@@ -427,7 +388,7 @@ function doEqualsIgnoreCase(a: string, b: string, stopAt = a.length): boolean {
 	return true;
 }
 
-export function beginsWithIgnoreCase(str: string, candidate: string): boolean {
+export function startsWithIgnoreCase(str: string, candidate: string): boolean {
 	const candidateLength = candidate.length;
 	if (candidate.length > str.length) {
 		return false;
@@ -711,4 +672,16 @@ export function fuzzyContains(target: string, query: string): boolean {
 	}
 
 	return true;
+}
+
+export function containsUppercaseCharacter(target: string, ignoreEscapedChars = false): boolean {
+	if (!target) {
+		return false;
+	}
+
+	if (ignoreEscapedChars) {
+		target = target.replace(/\\./g, '');
+	}
+
+	return target.toLowerCase() !== target;
 }

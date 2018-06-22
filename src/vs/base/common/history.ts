@@ -34,19 +34,11 @@ export class HistoryNavigator<T> implements INavigator<T> {
 	}
 
 	public next(): T {
-		if (this._navigator.next()) {
-			return this._navigator.current();
-		}
-		this.last();
-		return null;
+		return this._navigator.next();
 	}
 
 	public previous(): T {
-		if (this._navigator.previous()) {
-			return this._navigator.current();
-		}
-		this.first();
-		return null;
+		return this._navigator.previous();
 	}
 
 	public current(): T {
@@ -65,10 +57,14 @@ export class HistoryNavigator<T> implements INavigator<T> {
 		return this._navigator.last();
 	}
 
+	public clear(): void {
+		this._initialize([]);
+		this._onChange();
+	}
+
 	private _onChange() {
 		this._reduceToLimit();
-		this._navigator = new ArrayNavigator(this._elements);
-		this._navigator.last();
+		this._navigator = new ArrayNavigator(this._elements, 0, this._elements.length, this._elements.length);
 	}
 
 	private _reduceToLimit() {

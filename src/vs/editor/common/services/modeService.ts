@@ -4,12 +4,13 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { IMode, LanguageId, LanguageIdentifier } from 'vs/editor/common/modes';
+import URI from 'vs/base/common/uri';
 
-export var IModeService = createDecorator<IModeService>('modeService');
+export const IModeService = createDecorator<IModeService>('modeService');
 
 export interface ILanguageExtensionPoint {
 	id: string;
@@ -19,18 +20,7 @@ export interface ILanguageExtensionPoint {
 	firstLine?: string;
 	aliases?: string[];
 	mimetypes?: string[];
-	configuration?: string;
-}
-
-export interface IValidLanguageExtensionPoint {
-	id: string;
-	extensions: string[];
-	filenames: string[];
-	filenamePatterns: string[];
-	firstLine: string;
-	aliases: string[];
-	mimetypes: string[];
-	configuration: string;
+	configuration?: URI;
 }
 
 export interface IModeService {
@@ -50,7 +40,7 @@ export interface IModeService {
 	getModeIdByFilenameOrFirstLine(filename: string, firstLine?: string): string;
 	getModeId(commaSeparatedMimetypesOrCommaSeparatedIds: string): string;
 	getLanguageIdentifier(modeId: string | LanguageId): LanguageIdentifier;
-	getConfigurationFiles(modeId: string): string[];
+	getConfigurationFiles(modeId: string): URI[];
 
 	// --- instantiation
 	getMode(commaSeparatedMimetypesOrCommaSeparatedIds: string): IMode;

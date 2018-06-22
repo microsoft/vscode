@@ -22,7 +22,6 @@
 	cursor: default !important;
 }
 
-
 .monaco-shell .screen-reader-detected-explanation {
 	width: 420px;
 	top: 30px;
@@ -35,7 +34,6 @@
 	position: absolute;
 	top: 0;
 	right: 0;
-	margin: .5em 0 0;
 	padding: .5em;
 	width: 22px;
 	height: 22px;
@@ -54,42 +52,28 @@
 	font-size: 1.2em;
 }
 
-.monaco-shell .screen-reader-detected-explanation p.question {
-	font-size: 1.4em;
-	font-weight: bold;
+.monaco-shell .screen-reader-detected-explanation hr {
+	border: 0;
+	height: 2px;
 }
 
-.monaco-shell .screen-reader-detected-explanation .button {
-	color: white;
-	border: none;
-	cursor: pointer;
-	background-color: #007ACC;
+.monaco-shell .screen-reader-detected-explanation .buttons {
+	display: flex;
+}
+
+.monaco-shell .screen-reader-detected-explanation .buttons a {
+	font-size: 13px;
 	padding-left: 12px;
 	padding-right: 12px;
-	border: 4px solid #007ACC;
-	border-radius: 4px;
-	float: left;
 	margin-right: 5px;
+	max-width: fit-content;
 }
 
 .monaco-shell.vs .screen-reader-detected-explanation .cancel {
-	background: url('close-big.svg') center center no-repeat;
-}
-.monaco-shell.vs .screen-reader-detected-explanation .cancel:hover {
-	background-color: #eaeaea;
+	background: url('close-statusview.svg') center center no-repeat;
 }
 
 .monaco-shell.vs-dark .screen-reader-detected-explanation .cancel,
 .monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	background: url('close-big-dark.svg') center center no-repeat;
-}
-.monaco-shell.vs-dark .screen-reader-detected-explanation .cancel:hover {
-	background-color: rgba(30,30,30,0.8);
-}
-
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel {
-	opacity: 0.6;
-}
-.monaco-shell.hc-black .screen-reader-detected-explanation .cancel:hover {
-	opacity: 1;
+	background: url('close-statusview-inverse.svg') center center no-repeat;
 }

@@ -9,5 +9,6 @@
 			"always"
 		],
 		"triple-equals": true
-	}
+	},
+	"defaultSeverity": "warning"
 }

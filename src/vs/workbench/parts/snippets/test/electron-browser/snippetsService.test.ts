@@ -10,8 +10,9 @@ import { SnippetSuggestProvider } from 'vs/workbench/parts/snippets/electron-bro
 import { Position } from 'vs/editor/common/core/position';
 import { ModesRegistry } from 'vs/editor/common/modes/modesRegistry';
 import { ModeServiceImpl } from 'vs/editor/common/services/modeServiceImpl';
-import { Model } from 'vs/editor/common/model/model';
-import { ISnippetsService, Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { TextModel } from 'vs/editor/common/model/textModel';
+import { ISnippetsService } from 'vs/workbench/parts/snippets/electron-browser/snippets.contribution';
+import { Snippet } from 'vs/workbench/parts/snippets/electron-browser/snippetsFile';
 
 class SimpleSnippetService implements ISnippetsService {
 	_serviceBrand: any;
@@ -22,6 +23,9 @@ class SimpleSnippetService implements ISnippetsService {
 	}
 	getSnippetsSync(): Snippet[] {
 		return this.snippets;
+	}
+	getSnippetFiles(): any {
+		throw new Error();
 	}
 }
 
@@ -40,12 +44,14 @@ suite('SnippetsService', function () {
 	setup(function () {
 		modeService = new ModeServiceImpl();
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'barTest',
 			'bar',
 			'',
 			'barCodeSnippet',
 			''
 		), new Snippet(
+			['fooLang'],
 			'bazzTest',
 			'bazz',
 			'',
@@ -58,7 +64,7 @@ suite('SnippetsService', function () {
 	test('snippet completions - simple', function () {
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
-		const model = Model.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
 			assert.equal(result.incomplete, undefined);
@@ -69,7 +75,7 @@ suite('SnippetsService', function () {
 	test('snippet completions - with prefix', function () {
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
-		const model = Model.createFromString('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
+		const model = TextModel.createFromString('bar', undefined, modeService.getLanguageIdentifier('fooLang'));
 
 		return provider.provideCompletionItems(model, new Position(1, 4)).then(result => {
 			assert.equal(result.incomplete, undefined);
@@ -81,6 +87,7 @@ suite('SnippetsService', function () {
 
 	test('Cannot use "<?php" as user snippet prefix anymore, #26275', function () {
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'',
 			'<?php',
 			'',
@@ -90,18 +97,18 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
-		let model = Model.createFromString('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = TextModel.createFromString('\t<?php', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 7)).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			model.dispose();
 
-			model = Model.createFromString('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
+			model = TextModel.createFromString('\t<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4));
 		}).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			model.dispose();
 
-			model = Model.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
+			model = TextModel.createFromString('a<?', undefined, modeService.getLanguageIdentifier('fooLang'));
 			return provider.provideCompletionItems(model, new Position(1, 4));
 		}).then(result => {
 
@@ -113,6 +120,7 @@ suite('SnippetsService', function () {
 	test('No user snippets in suggestions, when inside the code, #30508', function () {
 
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'',
 			'foo',
 			'',
@@ -122,7 +130,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
-		let model = Model.createFromString('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = TextModel.createFromString('<head>\n\t\n>/head>', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
 			assert.equal(result.suggestions.length, 1);
 			return provider.provideCompletionItems(model, new Position(2, 2));
@@ -133,6 +141,7 @@ suite('SnippetsService', function () {
 
 	test('SnippetSuggest - ensure extension snippets come last ', function () {
 		snippetService = new SimpleSnippetService([new Snippet(
+			['fooLang'],
 			'second',
 			'second',
 			'',
@@ -140,6 +149,7 @@ suite('SnippetsService', function () {
 			'',
 			true
 		), new Snippet(
+			['fooLang'],
 			'first',
 			'first',
 			'',
@@ -150,7 +160,7 @@ suite('SnippetsService', function () {
 
 		const provider = new SnippetSuggestProvider(modeService, snippetService);
 
-		let model = Model.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
+		let model = TextModel.createFromString('', undefined, modeService.getLanguageIdentifier('fooLang'));
 		return provider.provideCompletionItems(model, new Position(1, 1)).then(result => {
 			assert.equal(result.suggestions.length, 2);
 			let [first, second] = result.suggestions;

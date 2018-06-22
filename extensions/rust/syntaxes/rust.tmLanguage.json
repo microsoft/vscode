@@ -4,213 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/zargony/atom-language-rust/commit/59893b659a6d674d0d1f6c4158d0f60cea20d190",
+	"version": "https://github.com/zargony/atom-language-rust/commit/179f449a69182cae4fcdf644d59d842b7e445f89",
 	"name": "Rust",
 	"scopeName": "source.rust",
-	"fileTypes": [
-		"rs"
-	],
-	"repository": {
-		"block_doc_comment": {
-			"comment": "Block documentation comment",
-			"name": "comment.block.documentation.rust",
-			"begin": "/\\*[\\*!](?![\\*/])",
-			"end": "\\*/",
-			"patterns": [
-				{
-					"include": "#block_doc_comment"
-				},
-				{
-					"include": "#block_comment"
-				}
-			]
-		},
-		"block_comment": {
-			"comment": "Block comment",
-			"name": "comment.block.rust",
-			"begin": "/\\*",
-			"end": "\\*/",
-			"patterns": [
-				{
-					"include": "#block_doc_comment"
-				},
-				{
-					"include": "#block_comment"
-				}
-			]
-		},
-		"line_doc_comment": {
-			"comment": "Single-line documentation comment",
-			"name": "comment.line.documentation.rust",
-			"begin": "//[!/](?=[^/])",
-			"end": "$"
-		},
-		"line_comment": {
-			"comment": "Single-line comment",
-			"name": "comment.line.double-slash.rust",
-			"begin": "//",
-			"end": "$"
-		},
-		"escaped_character": {
-			"name": "constant.character.escape.rust",
-			"match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
-		},
-		"string_literal": {
-			"comment": "Double-quote string literal",
-			"name": "string.quoted.double.rust",
-			"begin": "b?\"",
-			"end": "\"",
-			"patterns": [
-				{
-					"include": "#escaped_character"
-				}
-			]
-		},
-		"raw_string_literal": {
-			"comment": "Raw double-quote string literal",
-			"name": "string.quoted.double.raw.rust",
-			"begin": "b?r(#*)\"",
-			"end": "\"\\1"
-		},
-		"sigils": {
-			"comment": "Sigil",
-			"name": "keyword.operator.sigil.rust",
-			"match": "[&*](?=[a-zA-Z0-9_\\(\\[\\|\\\"]+)"
-		},
-		"self": {
-			"comment": "Self variable",
-			"name": "variable.language.rust",
-			"match": "\\bself\\b"
-		},
-		"mut": {
-			"comment": "Mutable storage modifier",
-			"name": "storage.modifier.mut.rust",
-			"match": "\\bmut\\b"
-		},
-		"box": {
-			"comment": "Box storage modifier",
-			"name": "storage.modifier.box.rust",
-			"match": "\\bbox\\b"
-		},
-		"const": {
-			"comment": "Const storage modifier",
-			"name": "storage.modifier.const.rust",
-			"match": "\\bconst\\b"
-		},
-		"pub": {
-			"comment": "Visibility modifier",
-			"name": "storage.modifier.visibility.rust",
-			"match": "\\bpub\\b"
-		},
-		"unsafe": {
-			"comment": "Unsafe code keyword",
-			"name": "keyword.other.unsafe.rust",
-			"match": "\\bunsafe\\b"
-		},
-		"where": {
-			"comment": "Generic where clause",
-			"name": "keyword.other.where.rust",
-			"match": "\\bwhere\\b"
-		},
-		"lifetime": {
-			"comment": "Named lifetime",
-			"name": "storage.modifier.lifetime.rust",
-			"match": "'([a-zA-Z_][a-zA-Z0-9_]*)\\b",
-			"captures": {
-				"1": {
-					"name": "entity.name.lifetime.rust"
-				}
-			}
-		},
-		"ref_lifetime": {
-			"comment": "Reference with named lifetime",
-			"match": "&('([a-zA-Z_][a-zA-Z0-9_]*))\\b",
-			"captures": {
-				"1": {
-					"name": "storage.modifier.lifetime.rust"
-				},
-				"2": {
-					"name": "entity.name.lifetime.rust"
-				}
-			}
-		},
-		"core_types": {
-			"comment": "Built-in/core type",
-			"name": "storage.type.core.rust",
-			"match": "\\b(bool|char|usize|isize|u8|u16|u32|u64|u128|i8|i16|i32|i64|i128|f32|f64|str|Self|Option|Result)\\b"
-		},
-		"core_vars": {
-			"comment": "Core type variant",
-			"name": "support.constant.core.rust",
-			"match": "\\b(Some|None|Ok|Err)\\b"
-		},
-		"core_marker": {
-			"comment": "Core trait (marker)",
-			"name": "support.type.marker.rust",
-			"match": "\\b(Copy|Send|Sized|Sync)\\b"
-		},
-		"core_traits": {
-			"comment": "Core trait",
-			"name": "support.type.core.rust",
-			"match": "\\b(Drop|Fn|FnMut|FnOnce|Clone|PartialEq|PartialOrd|Eq|Ord|AsRef|AsMut|Into|From|Default|Iterator|Extend|IntoIterator|DoubleEndedIterator|ExactSizeIterator)\\b"
-		},
-		"std_types": {
-			"comment": "Standard library type",
-			"name": "storage.class.std.rust",
-			"match": "\\b(Box|String|Vec|Path|PathBuf)\\b"
-		},
-		"std_traits": {
-			"comment": "Standard library trait",
-			"name": "support.type.std.rust",
-			"match": "\\b(ToOwned|ToString)\\b"
-		},
-		"type": {
-			"comment": "A type",
-			"name": "entity.name.type.rust",
-			"match": "\\b([A-Za-z][_A-Za-z0-9]*|_[_A-Za-z0-9]+)\\b"
-		},
-		"type_params": {
-			"comment": "Type parameters",
-			"name": "meta.type_params.rust",
-			"begin": "<(?![=<])",
-			"end": "(?<![-])>",
-			"patterns": [
-				{
-					"include": "#block_comment"
-				},
-				{
-					"include": "#line_comment"
-				},
-				{
-					"include": "#sigils"
-				},
-				{
-					"include": "#mut"
-				},
-				{
-					"include": "#lifetime"
-				},
-				{
-					"include": "#core_types"
-				},
-				{
-					"include": "#core_marker"
-				},
-				{
-					"include": "#core_traits"
-				},
-				{
-					"include": "#std_types"
-				},
-				{
-					"include": "#std_traits"
-				},
-				{
-					"include": "#type_params"
-				}
-			]
-		}
-	},
 	"patterns": [
 		{
 			"comment": "Implementation",
@@ -446,17 +242,17 @@
 		{
 			"comment": "Built-in macro",
 			"name": "support.function.builtin.rust",
-			"match": "\\b(macro_rules|format_args|env|option_env|concat_idents|concat|log_syntax|line|column|file|stringify|include|include_str|include_bytes|module_path|asm|cfg|trace_macros)!"
+			"match": "\\b(macro_rules|compile_error|format_args|env|option_env|concat_idents|concat|line|column|file|stringify|include|include_str|include_bytes|module_path|cfg)!"
 		},
 		{
 			"comment": "Core macro",
 			"name": "support.function.core.rust",
-			"match": "\\b(panic|assert|assert_eq|debug_assert|debug_assert_eq|try|write|writeln|unreachable|unimplemented)!"
+			"match": "\\b(panic|assert|assert_eq|assert_ne|debug_assert|debug_assert_eq|debug_assert_ne|try|write|writeln|unreachable|unimplemented)!"
 		},
 		{
 			"comment": "Standard library macro",
 			"name": "support.function.std.rust",
-			"match": "\\b(format|print|println|select|vec)!"
+			"match": "\\b(format|print|println|eprint|eprintln|select|vec)!"
 		},
 		{
 			"comment": "Logging macro",
@@ -654,5 +450,206 @@
 				}
 			]
 		}
-	]
+	],
+	"repository": {
+		"block_doc_comment": {
+			"comment": "Block documentation comment",
+			"name": "comment.block.documentation.rust",
+			"begin": "/\\*[\\*!](?![\\*/])",
+			"end": "\\*/",
+			"patterns": [
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				}
+			]
+		},
+		"block_comment": {
+			"comment": "Block comment",
+			"name": "comment.block.rust",
+			"begin": "/\\*",
+			"end": "\\*/",
+			"patterns": [
+				{
+					"include": "#block_doc_comment"
+				},
+				{
+					"include": "#block_comment"
+				}
+			]
+		},
+		"line_doc_comment": {
+			"comment": "Single-line documentation comment",
+			"name": "comment.line.documentation.rust",
+			"begin": "//[!/](?=[^/])",
+			"end": "$"
+		},
+		"line_comment": {
+			"comment": "Single-line comment",
+			"name": "comment.line.double-slash.rust",
+			"begin": "//",
+			"end": "$"
+		},
+		"escaped_character": {
+			"name": "constant.character.escape.rust",
+			"match": "\\\\(x[0-9A-Fa-f]{2}|[0-2][0-7]{0,2}|3[0-6][0-7]?|37[0-7]?|[4-7][0-7]?|.)"
+		},
+		"string_literal": {
+			"comment": "Double-quote string literal",
+			"name": "string.quoted.double.rust",
+			"begin": "b?\"",
+			"end": "\"",
+			"patterns": [
+				{
+					"include": "#escaped_character"
+				}
+			]
+		},
+		"raw_string_literal": {
+			"comment": "Raw double-quote string literal",
+			"name": "string.quoted.double.raw.rust",
+			"begin": "b?r(#*)\"",
+			"end": "\"\\1"
+		},
+		"sigils": {
+			"comment": "Sigil",
+			"name": "keyword.operator.sigil.rust",
+			"match": "[&*](?=[a-zA-Z0-9_\\(\\[\\|\\\"]+)"
+		},
+		"self": {
+			"comment": "Self variable",
+			"name": "variable.language.rust",
+			"match": "\\bself\\b"
+		},
+		"mut": {
+			"comment": "Mutable storage modifier",
+			"name": "storage.modifier.mut.rust",
+			"match": "\\bmut\\b"
+		},
+		"box": {
+			"comment": "Box storage modifier",
+			"name": "storage.modifier.box.rust",
+			"match": "\\bbox\\b"
+		},
+		"const": {
+			"comment": "Const storage modifier",
+			"name": "storage.modifier.const.rust",
+			"match": "\\bconst\\b"
+		},
+		"pub": {
+			"comment": "Visibility modifier",
+			"name": "storage.modifier.visibility.rust",
+			"match": "\\bpub\\b"
+		},
+		"unsafe": {
+			"comment": "Unsafe code keyword",
+			"name": "keyword.other.unsafe.rust",
+			"match": "\\bunsafe\\b"
+		},
+		"where": {
+			"comment": "Generic where clause",
+			"name": "keyword.other.where.rust",
+			"match": "\\bwhere\\b"
+		},
+		"lifetime": {
+			"comment": "Named lifetime",
+			"name": "storage.modifier.lifetime.rust",
+			"match": "'([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+			"captures": {
+				"1": {
+					"name": "entity.name.lifetime.rust"
+				}
+			}
+		},
+		"ref_lifetime": {
+			"comment": "Reference with named lifetime",
+			"match": "&('([a-zA-Z_][a-zA-Z0-9_]*))\\b",
+			"captures": {
+				"1": {
+					"name": "storage.modifier.lifetime.rust"
+				},
+				"2": {
+					"name": "entity.name.lifetime.rust"
+				}
+			}
+		},
+		"core_types": {
+			"comment": "Built-in/core type",
+			"name": "storage.type.core.rust",
+			"match": "\\b(bool|char|usize|isize|u8|u16|u32|u64|u128|i8|i16|i32|i64|i128|f32|f64|str|Self|Option|Result)\\b"
+		},
+		"core_vars": {
+			"comment": "Core type variant",
+			"name": "support.constant.core.rust",
+			"match": "\\b(Some|None|Ok|Err)\\b"
+		},
+		"core_marker": {
+			"comment": "Core trait (marker)",
+			"name": "support.type.marker.rust",
+			"match": "\\b(Copy|Send|Sized|Sync)\\b"
+		},
+		"core_traits": {
+			"comment": "Core trait",
+			"name": "support.type.core.rust",
+			"match": "\\b(Drop|Fn|FnMut|FnOnce|Clone|PartialEq|PartialOrd|Eq|Ord|AsRef|AsMut|Into|From|Default|Iterator|Extend|IntoIterator|DoubleEndedIterator|ExactSizeIterator)\\b"
+		},
+		"std_types": {
+			"comment": "Standard library type",
+			"name": "storage.class.std.rust",
+			"match": "\\b(Box|String|Vec|Path|PathBuf)\\b"
+		},
+		"std_traits": {
+			"comment": "Standard library trait",
+			"name": "support.type.std.rust",
+			"match": "\\b(ToOwned|ToString)\\b"
+		},
+		"type": {
+			"comment": "A type",
+			"name": "entity.name.type.rust",
+			"match": "\\b([A-Za-z][_A-Za-z0-9]*|_[_A-Za-z0-9]+)\\b"
+		},
+		"type_params": {
+			"comment": "Type parameters",
+			"name": "meta.type_params.rust",
+			"begin": "<(?![=<])",
+			"end": "(?<![-])>",
+			"patterns": [
+				{
+					"include": "#block_comment"
+				},
+				{
+					"include": "#line_comment"
+				},
+				{
+					"include": "#sigils"
+				},
+				{
+					"include": "#mut"
+				},
+				{
+					"include": "#lifetime"
+				},
+				{
+					"include": "#core_types"
+				},
+				{
+					"include": "#core_marker"
+				},
+				{
+					"include": "#core_traits"
+				},
+				{
+					"include": "#std_types"
+				},
+				{
+					"include": "#std_traits"
+				},
+				{
+					"include": "#type_params"
+				}
+			]
+		}
+	}
 }

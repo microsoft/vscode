@@ -1,14 +1,12 @@
 {
   "name": "configuration-editing",
-  "version": "0.0.1",
+  "displayName": "%displayName%",
+  "description": "%description%",
+  "version": "1.0.0",
   "publisher": "vscode",
   "engines": {
     "vscode": "^1.0.0"
   },
-  "categories": [
-    "Languages",
-    "Other"
-  ],
   "activationEvents": [
     "onLanguage:json",
     "onLanguage:jsonc"
@@ -20,9 +18,28 @@
   },
   "dependencies": {
     "jsonc-parser": "^1.0.0",
-    "vscode-nls": "^2.0.1"
+    "vscode-nls": "^3.2.1"
   },
   "contributes": {
+    "languages": [
+      {
+        "id": "jsonc",
+        "extensions": [
+          ".code-workspace",
+          "language-configuration.json",
+          "icon-theme.json",
+          "color-theme.json",
+          ".code-snippets"
+        ],
+        "filenames": [
+          "settings.json",
+          "launch.json",
+          "tasks.json",
+          "keybindings.json",
+          "extensions.json"
+        ]
+      }
+    ],
     "jsonValidation": [
       {
         "fileMatch": "vscode://defaultsettings/keybindings.json",
@@ -67,6 +84,10 @@
       {
         "fileMatch": "%APP_SETTINGS_HOME%/snippets/*.json",
         "url": "vscode://schemas/snippets"
+      },
+      {
+        "fileMatch": "**/*.code-snippets",
+        "url": "vscode://schemas/global-snippets"
       },
       {
         "fileMatch": "/.vscode/extensions.json",

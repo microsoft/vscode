@@ -10,47 +10,72 @@ import { MainThreadDocumentsAndEditors } from 'vs/workbench/api/electron-browser
 import { SingleProxyRPCProtocol, TestRPCProtocol } from './testRPCProtocol';
 import { TestConfigurationService } from 'vs/platform/configuration/test/common/testConfigurationService';
 import { ModelServiceImpl } from 'vs/editor/common/services/modelServiceImpl';
-import { TestCodeEditorService } from 'vs/editor/test/browser/testCodeEditorService';
+import { TestCodeEditorService } from 'vs/editor/test/browser/editorTestServices';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import { ExtHostDocumentsAndEditorsShape, IWorkspaceResourceEdit, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
+import { ExtHostDocumentsAndEditorsShape, ExtHostContext, ExtHostDocumentsShape } from 'vs/workbench/api/node/extHost.protocol';
 import { mock } from 'vs/workbench/test/electron-browser/api/mock';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
-import Event from 'vs/base/common/event';
-import { MainThreadEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
+import { Event } from 'vs/base/common/event';
+import { MainThreadTextEditors } from 'vs/workbench/api/electron-browser/mainThreadEditors';
 import URI from 'vs/base/common/uri';
 import { Range } from 'vs/editor/common/core/range';
 import { Position } from 'vs/editor/common/core/position';
 import { IModelService } from 'vs/editor/common/services/modelService';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
+import { TestFileService, TestEditorService, TestEditorGroupsService, TestEnvironmentService, TestContextService } from 'vs/workbench/test/workbenchTestServices';
+import { TPromise } from 'vs/base/common/winjs.base';
+import { IFileStat } from 'vs/platform/files/common/files';
+import { ResourceTextEdit } from 'vs/editor/common/modes';
+import { BulkEditService } from 'vs/workbench/services/bulkEdit/electron-browser/bulkEditService';
+import { NullLogService } from 'vs/platform/log/common/log';
 
 suite('MainThreadEditors', () => {
 
 	const resource = URI.parse('foo:bar');
 
 	let modelService: IModelService;
-	let editors: MainThreadEditors;
+	let editors: MainThreadTextEditors;
+
+	const movedResources = new Map<URI, URI>();
+	const createdResources = new Set<URI>();
+	const deletedResources = new Set<URI>();
 
 	setup(() => {
 		const configService = new TestConfigurationService();
 		modelService = new ModelServiceImpl(null, configService);
 		const codeEditorService = new TestCodeEditorService();
+
+		movedResources.clear();
+		createdResources.clear();
+		deletedResources.clear();
+
+		const fileService = new class extends TestFileService {
+			async createFile(uri: URI): TPromise<IFileStat> {
+				createdResources.add(uri);
+				return createMockFileStat(uri);
+			}
+		};
+
+
 		const textFileService = new class extends mock<ITextFileService>() {
 			isDirty() { return false; }
+			delete(resource: URI) {
+				deletedResources.add(resource);
+				return TPromise.as(void 0);
+			}
+			move(source: URI, target: URI) {
+				movedResources.set(source, target);
+				return TPromise.as(void 0);
+			}
 			models = <any>{
 				onModelSaved: Event.None,
 				onModelReverted: Event.None,
 				onModelDirty: Event.None,
 			};
 		};
-		const workbenchEditorService = <IWorkbenchEditorService>{
-			getVisibleEditors() { return []; },
-			getActiveEditor() { return undefined; }
-		};
-		const editorGroupService = new class extends mock<IEditorGroupService>() {
-			onEditorsChanged = Event.None;
-			onEditorGroupMoved = Event.None;
-		};
+		const workbenchEditorService = new TestEditorService();
+		const editorGroupService = new TestEditorGroupsService();
+
+		const bulkEditService = new BulkEditService(new NullLogService(), modelService, new TestEditorService(), null, fileService, textFileService, TestEnvironmentService, new TestContextService());
 
 		const rpcProtocol = new TestRPCProtocol();
 		rpcProtocol.set(ExtHostContext.ExtHostDocuments, new class extends mock<ExtHostDocumentsShape>() {
@@ -69,21 +94,20 @@ suite('MainThreadEditors', () => {
 			workbenchEditorService,
 			codeEditorService,
 			null,
-			null,
+			fileService,
 			null,
 			null,
 			editorGroupService,
+			bulkEditService,
 		);
 
-		editors = new MainThreadEditors(
+		editors = new MainThreadTextEditors(
 			documentAndEditor,
 			SingleProxyRPCProtocol(null),
 			codeEditorService,
+			bulkEditService,
 			workbenchEditorService,
 			editorGroupService,
-			null,
-			null,
-			modelService
 		);
 	});
 
@@ -91,11 +115,11 @@ suite('MainThreadEditors', () => {
 
 		let model = modelService.createModel('something', null, resource);
 
-		let workspaceResourceEdit: IWorkspaceResourceEdit = {
+		let workspaceResourceEdit: ResourceTextEdit = {
 			resource: resource,
 			modelVersionId: model.getVersionId(),
 			edits: [{
-				newText: 'asdfg',
+				text: 'asdfg',
 				range: new Range(1, 1, 1, 1)
 			}]
 		};
@@ -103,8 +127,34 @@ suite('MainThreadEditors', () => {
 		// Act as if the user edited the model
 		model.applyEdits([EditOperation.insert(new Position(0, 0), 'something')]);
 
-		return editors.$tryApplyWorkspaceEdit([workspaceResourceEdit]).then((result) => {
+		return editors.$tryApplyWorkspaceEdit({ edits: [workspaceResourceEdit] }).then((result) => {
 			assert.equal(result, false);
 		});
 	});
+
+	test(`applyWorkspaceEdit with only resource edit`, () => {
+		return editors.$tryApplyWorkspaceEdit({
+			edits: [
+				{ oldUri: resource, newUri: resource, options: undefined },
+				{ oldUri: undefined, newUri: resource, options: undefined },
+				{ oldUri: resource, newUri: undefined, options: undefined }
+			]
+		}).then((result) => {
+			assert.equal(result, true);
+			assert.equal(movedResources.get(resource), resource);
+			assert.equal(createdResources.has(resource), true);
+			assert.equal(deletedResources.has(resource), true);
+		});
+	});
 });
+
+
+function createMockFileStat(target: URI): IFileStat {
+	return {
+		etag: '',
+		isDirectory: false,
+		name: target.path,
+		mtime: 0,
+		resource: target
+	};
+}

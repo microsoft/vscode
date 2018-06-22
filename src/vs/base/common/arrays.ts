@@ -16,7 +16,15 @@ export function tail<T>(array: T[], n: number = 0): T {
 	return array[array.length - (1 + n)];
 }
 
-export function equals<T>(one: T[], other: T[], itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
+export function tail2<T>(arr: T[]): [T[], T] {
+	if (arr.length === 0) {
+		throw new Error('Invalid tail call');
+	}
+
+	return [arr.slice(0, arr.length - 1), arr[arr.length - 1]];
+}
+
+export function equals<T>(one: ReadonlyArray<T>, other: ReadonlyArray<T>, itemEquals: (a: T, b: T) => boolean = (a, b) => a === b): boolean {
 	if (one.length !== other.length) {
 		return false;
 	}
@@ -53,7 +61,7 @@ export function binarySearch<T>(array: T[], key: T, comparator: (op1: T, op2: T)
  * are located before all elements where p(x) is true.
  * @returns the least x for which p(x) is true or array.length if no element fullfills the given function.
  */
-export function findFirst<T>(array: T[], p: (x: T) => boolean): number {
+export function findFirstInSorted<T>(array: T[], p: (x: T) => boolean): number {
 	let low = 0, high = array.length;
 	if (high === 0) {
 		return 0; // no children
@@ -267,7 +275,7 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 		const element = array[i];
 		if (compare(element, result[n - 1]) < 0) {
 			result.pop();
-			const j = findFirst(result, e => compare(element, e) < 0);
+			const j = findFirstInSorted(result, e => compare(element, e) < 0);
 			result.splice(j, 0, element);
 		}
 	}
@@ -276,12 +284,27 @@ function topStep<T>(array: T[], compare: (a: T, b: T) => number, result: T[], i:
 /**
  * @returns a new array with all undefined or null values removed. The original array is not modified at all.
  */
-export function coalesce<T>(array: T[]): T[] {
+export function coalesce<T>(array: T[]): T[];
+export function coalesce<T>(array: T[], inplace: true): void;
+export function coalesce<T>(array: T[], inplace?: true): void | T[] {
 	if (!array) {
-		return array;
+		if (!inplace) {
+			return array;
+		}
 	}
+	if (!inplace) {
+		return array.filter(e => !!e);
 
-	return array.filter(e => !!e);
+	} else {
+		let to = 0;
+		for (let i = 0; i < array.length; i++) {
+			if (!!array[i]) {
+				array[to] = array[i];
+				to += 1;
+			}
+		}
+		array.length = to;
+	}
 }
 
 /**
@@ -338,7 +361,7 @@ export function uniqueFilter<T>(keyFn: (t: T) => string): (t: T) => boolean {
 	};
 }
 
-export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
+export function firstIndex<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean): number {
 	for (let i = 0; i < array.length; i++) {
 		const element = array[i];
 
@@ -350,7 +373,7 @@ export function firstIndex<T>(array: T[], fn: (item: T) => boolean): number {
 	return -1;
 }
 
-export function first<T>(array: T[], fn: (item: T) => boolean, notFoundValue: T = null): T {
+export function first<T>(array: T[] | ReadonlyArray<T>, fn: (item: T) => boolean, notFoundValue: T = null): T {
 	const index = firstIndex(array, fn);
 	return index < 0 ? notFoundValue : array[index];
 }
@@ -437,4 +460,45 @@ export function arrayInsert<T>(target: T[], insertIndex: number, insertArr: T[])
 	const before = target.slice(0, insertIndex);
 	const after = target.slice(insertIndex);
 	return before.concat(insertArr, after);
+}
+
+/**
+ * Uses Fisher-Yates shuffle to shuffle the given array
+ * @param array
+ */
+export function shuffle<T>(array: T[]): void {
+	var i = 0
+		, j = 0
+		, temp = null;
+
+	for (i = array.length - 1; i > 0; i -= 1) {
+		j = Math.floor(Math.random() * (i + 1));
+		temp = array[i];
+		array[i] = array[j];
+		array[j] = temp;
+	}
+}
+
+/**
+ * Pushes an element to the start of the array, if found.
+ */
+export function pushToStart<T>(arr: T[], value: T): void {
+	const index = arr.indexOf(value);
+
+	if (index > -1) {
+		arr.splice(index, 1);
+		arr.unshift(value);
+	}
+}
+
+/**
+ * Pushes an element to the end of the array, if found.
+ */
+export function pushToEnd<T>(arr: T[], value: T): void {
+	const index = arr.indexOf(value);
+
+	if (index > -1) {
+		arr.splice(index, 1);
+		arr.push(value);
+	}
 }

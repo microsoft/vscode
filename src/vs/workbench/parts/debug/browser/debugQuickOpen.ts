@@ -3,20 +3,18 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
-import Filters = require('vs/base/common/filters');
+import * as nls from 'vs/nls';
+import * as Filters from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Quickopen = require('vs/workbench/browser/quickopen');
-import QuickOpen = require('vs/base/parts/quickopen/common/quickOpen');
-import Model = require('vs/base/parts/quickopen/browser/quickOpenModel');
+import * as Quickopen from 'vs/workbench/browser/quickopen';
+import * as QuickOpen from 'vs/base/parts/quickopen/common/quickOpen';
+import * as Model from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IDebugService, ILaunch } from 'vs/workbench/parts/debug/common/debug';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import * as errors from 'vs/base/common/errors';
-import { QuickOpenEntry, QuickOpenEntryGroup } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { StartAction } from 'vs/workbench/parts/debug/browser/debugActions';
-import { IMessageService } from 'vs/platform/message/common/message';
-import { Severity } from 'vs/workbench/services/message/browser/messageList';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class AddConfigEntry extends Model.QuickOpenEntry {
 
@@ -29,7 +27,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -40,7 +38,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 		if (mode === QuickOpen.Mode.PREVIEW) {
 			return false;
 		}
-		this.commandService.executeCommand('debug.addConfiguration', this.launch.workspace.uri.toString()).done(undefined, errors.onUnexpectedError);
+		this.commandService.executeCommand('debug.addConfiguration', this.launch.uri.toString()).done(undefined, errors.onUnexpectedError);
 
 		return true;
 	}
@@ -48,7 +46,7 @@ class AddConfigEntry extends Model.QuickOpenEntry {
 
 class StartDebugEntry extends Model.QuickOpenEntry {
 
-	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private messageService: IMessageService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
+	constructor(private debugService: IDebugService, private contextService: IWorkspaceContextService, private notificationService: INotificationService, private launch: ILaunch, private configurationName: string, highlights: Model.IHighlight[] = []) {
 		super(highlights);
 	}
 
@@ -57,7 +55,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 	}
 
 	public getDescription(): string {
-		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.workspace.name : '';
+		return this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? this.launch.name : '';
 	}
 
 	public getAriaLabel(): string {
@@ -70,7 +68,7 @@ class StartDebugEntry extends Model.QuickOpenEntry {
 		}
 		// Run selected debug configuration
 		this.debugService.getConfigurationManager().selectConfiguration(this.launch, this.configurationName);
-		this.debugService.startDebugging(this.launch.workspace).done(undefined, e => this.messageService.show(Severity.Error, e));
+		this.debugService.startDebugging(this.launch).done(undefined, e => this.notificationService.error(e));
 
 		return true;
 	}
@@ -85,7 +83,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 		@IDebugService private debugService: IDebugService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@ICommandService private commandService: ICommandService,
-		@IMessageService private messageService: IMessageService
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 	}
@@ -95,7 +93,7 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 	}
 
 	public getResults(input: string): TPromise<Model.QuickOpenModel> {
-		const configurations: QuickOpenEntry[] = [];
+		const configurations: Model.QuickOpenEntry[] = [];
 
 		const configManager = this.debugService.getConfigurationManager();
 		const launches = configManager.getLaunches();
@@ -103,17 +101,18 @@ export class DebugQuickOpenHandler extends Quickopen.QuickOpenHandler {
 			launch.getConfigurationNames().map(config => ({ config: config, highlights: Filters.matchesContiguousSubString(input, config) }))
 				.filter(({ highlights }) => !!highlights)
 				.forEach(({ config, highlights }) => {
-					if (launch === configManager.selectedLaunch && config === configManager.selectedName) {
+					if (launch === configManager.selectedConfiguration.launch && config === configManager.selectedConfiguration.name) {
 						this.autoFocusIndex = configurations.length;
 					}
-					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.messageService, launch, config, highlights));
+					configurations.push(new StartDebugEntry(this.debugService, this.contextService, this.notificationService, launch, config, highlights));
 				});
 		}
-		launches.forEach((l, index) => {
-			const label = launches.length > 1 ? nls.localize("addConfigTo", "Add Config ({0})...", l.workspace.name) : nls.localize('addConfiguration', "Add Configuration...");
+		launches.filter(l => !l.hidden).forEach((l, index) => {
+
+			const label = this.contextService.getWorkbenchState() === WorkbenchState.WORKSPACE ? nls.localize("addConfigTo", "Add Config ({0})...", l.name) : nls.localize('addConfiguration', "Add Configuration...");
 			const entry = new AddConfigEntry(label, l, this.commandService, this.contextService, Filters.matchesContiguousSubString(input, label));
 			if (index === 0) {
-				configurations.push(new QuickOpenEntryGroup(entry, undefined, true));
+				configurations.push(new Model.QuickOpenEntryGroup(entry, undefined, true));
 			} else {
 				configurations.push(entry);
 			}

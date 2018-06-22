@@ -141,7 +141,11 @@ export class Range {
 	 * The smallest position will be used as the start point, and the largest one as the end point.
 	 */
 	public static plusRange(a: IRange, b: IRange): Range {
-		var startLineNumber: number, startColumn: number, endLineNumber: number, endColumn: number;
+		let startLineNumber: number;
+		let startColumn: number;
+		let endLineNumber: number;
+		let endColumn: number;
+
 		if (b.startLineNumber < a.startLineNumber) {
 			startLineNumber = b.startLineNumber;
 			startColumn = b.startColumn;
@@ -178,14 +182,14 @@ export class Range {
 	 * A intersection of the two ranges.
 	 */
 	public static intersectRanges(a: IRange, b: IRange): Range {
-		var resultStartLineNumber = a.startLineNumber,
-			resultStartColumn = a.startColumn,
-			resultEndLineNumber = a.endLineNumber,
-			resultEndColumn = a.endColumn,
-			otherStartLineNumber = b.startLineNumber,
-			otherStartColumn = b.startColumn,
-			otherEndLineNumber = b.endLineNumber,
-			otherEndColumn = b.endColumn;
+		let resultStartLineNumber = a.startLineNumber;
+		let resultStartColumn = a.startColumn;
+		let resultEndLineNumber = a.endLineNumber;
+		let resultEndColumn = a.endColumn;
+		let otherStartLineNumber = b.startLineNumber;
+		let otherStartColumn = b.startColumn;
+		let otherEndLineNumber = b.endLineNumber;
+		let otherEndColumn = b.endColumn;
 
 		if (resultStartLineNumber < otherStartLineNumber) {
 			resultStartLineNumber = otherStartLineNumber;
@@ -321,6 +325,24 @@ export class Range {
 
 		// Check if `b` is before `a`
 		if (b.endLineNumber < a.startLineNumber || (b.endLineNumber === a.startLineNumber && b.endColumn < a.startColumn)) {
+			return false;
+		}
+
+		// These ranges must intersect
+		return true;
+	}
+
+	/**
+	 * Test if the two ranges are intersecting. If the ranges are touching it returns true.
+	 */
+	public static areIntersecting(a: IRange, b: IRange): boolean {
+		// Check if `a` is before `b`
+		if (a.endLineNumber < b.startLineNumber || (a.endLineNumber === b.startLineNumber && a.endColumn <= b.startColumn)) {
+			return false;
+		}
+
+		// Check if `b` is before `a`
+		if (b.endLineNumber < a.startLineNumber || (b.endLineNumber === a.startLineNumber && b.endColumn <= a.startColumn)) {
 			return false;
 		}
 

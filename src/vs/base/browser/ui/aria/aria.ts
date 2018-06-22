@@ -6,7 +6,7 @@
 'use strict';
 
 import 'vs/css!./aria';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { isMacintosh } from 'vs/base/common/platform';
 import * as dom from 'vs/base/browser/dom';
 

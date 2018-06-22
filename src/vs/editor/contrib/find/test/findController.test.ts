@@ -6,15 +6,13 @@
 
 import * as assert from 'assert';
 import { TPromise } from 'vs/base/common/winjs.base';
-import { Emitter } from 'vs/base/common/event';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { Position } from 'vs/editor/common/core/position';
 import { Selection } from 'vs/editor/common/core/selection';
 import { Range } from 'vs/editor/common/core/range';
 import * as platform from 'vs/base/common/platform';
-import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction } from 'vs/editor/contrib/find/findController';
+import { CommonFindController, FindStartFocusAction, IFindStartOptions, NextMatchFindAction, StartFindAction, NextSelectionMatchFindAction } from 'vs/editor/contrib/find/findController';
 import { withTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
-import { HistoryNavigator } from 'vs/base/common/history';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { IStorageService } from 'vs/platform/storage/common/storage';
@@ -27,8 +25,6 @@ export class TestFindController extends CommonFindController {
 	public hasFocus: boolean;
 	public delayUpdateHistory: boolean = false;
 	public delayedUpdateHistoryPromise: TPromise<void>;
-
-	private _delayedUpdateHistoryEvent: Emitter<void> = new Emitter<void>();
 
 	constructor(
 		editor: ICodeEditor,
@@ -46,28 +42,6 @@ export class TestFindController extends CommonFindController {
 		if (opts.shouldFocus !== FindStartFocusAction.NoFocusChange) {
 			this.hasFocus = true;
 		}
-	}
-
-	protected _delayedUpdateHistory() {
-		if (!this.delayedUpdateHistoryPromise) {
-			this.delayedUpdateHistoryPromise = new TPromise<void>((c, e) => {
-				const disposable = this._delayedUpdateHistoryEvent.event(() => {
-					disposable.dispose();
-					this.delayedUpdateHistoryPromise = null;
-					c(null);
-				});
-			});
-		}
-		if (this.delayUpdateHistory) {
-			super._delayedUpdateHistory();
-		} else {
-			this._updateHistory();
-		}
-	}
-
-	protected _updateHistory() {
-		super._updateHistory();
-		this._delayedUpdateHistoryEvent.fire();
 	}
 }
 
@@ -87,12 +61,12 @@ suite('FindController', () => {
 
 	if (platform.isMacintosh) {
 		serviceCollection.set(IClipboardService, <any>{
-			readFindText: _ => clipboardState,
+			readFindText: () => clipboardState,
 			writeFindText: (value: any) => { clipboardState = value; }
 		});
 	}
 
-	test('stores to the global clipboard buffer on start find action', () => {
+	/* test('stores to the global clipboard buffer on start find action', () => {
 		withTestCodeEditor([
 			'ABC',
 			'ABC',
@@ -165,7 +139,7 @@ suite('FindController', () => {
 
 			findController.dispose();
 		});
-	});
+	}); */
 
 	test('issue #1857: F3, Find Next, acts like "Find Under Cursor"', () => {
 		withTestCodeEditor([
@@ -303,116 +277,6 @@ suite('FindController', () => {
 		});
 	});
 
-	test('find term is added to history on state change', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-
-			assert.deepEqual(['1', '2', '3'], toArray(findController.getHistory()));
-		});
-	});
-
-	test('find term is added with delay', (done) => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.delayUpdateHistory = true;
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-
-			findController.delayedUpdateHistoryPromise.then(() => {
-				assert.deepEqual(['3'], toArray(findController.getHistory()));
-				done();
-			});
-		});
-	});
-
-	test('show previous find term', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-
-			findController.showPreviousFindTerm();
-			assert.deepEqual('2', findController.getState().searchString);
-		});
-	});
-
-	test('show previous find term do not update history', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-
-			findController.showPreviousFindTerm();
-			assert.deepEqual(['1', '2', '3'], toArray(findController.getHistory()));
-		});
-	});
-
-	test('show next find term', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-			findController.getState().change({ searchString: '4' }, false);
-
-			findController.showPreviousFindTerm();
-			findController.showPreviousFindTerm();
-			findController.showNextFindTerm();
-			assert.deepEqual('3', findController.getState().searchString);
-		});
-	});
-
-	test('show next find term do not update history', () => {
-		withTestCodeEditor([
-			'var x = (3 * 5)',
-			'var y = (3 * 5)',
-			'var z = (3 * 5)',
-		], { serviceCollection: serviceCollection }, (editor, cursor) => {
-			clipboardState = '';
-			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
-			findController.getState().change({ searchString: '1' }, false);
-			findController.getState().change({ searchString: '2' }, false);
-			findController.getState().change({ searchString: '3' }, false);
-			findController.getState().change({ searchString: '4' }, false);
-
-			findController.showPreviousFindTerm();
-			findController.showPreviousFindTerm();
-			findController.showNextFindTerm();
-			assert.deepEqual(['1', '2', '3', '4'], toArray(findController.getHistory()));
-		});
-	});
-
 	test('issue #18111: Regex replace with single space replaces with no space', () => {
 		withTestCodeEditor([
 			'HRESULT OnAmbientPropertyChange(DISPID   dispid);'
@@ -465,16 +329,63 @@ suite('FindController', () => {
 		});
 	});
 
-	function toArray(historyNavigator: HistoryNavigator<string>): string[] {
-		let result = [];
-		historyNavigator.first();
-		if (historyNavigator.current()) {
-			do {
-				result.push(historyNavigator.current());
-			} while (historyNavigator.next());
-		}
-		return result;
-	}
+	test('issue #38232: Find Next Selection, regex enabled', () => {
+		withTestCodeEditor([
+			'([funny]',
+			'',
+			'([funny]'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// toggle regex
+			findController.getState().change({ isRegex: true }, false);
+
+			// change selection
+			editor.setSelection(new Selection(1, 1, 1, 9));
+
+			// cmd+f3
+			nextSelectionMatchFindAction.run(null, editor);
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[3, 1, 3, 9]
+			]);
+
+			findController.dispose();
+		});
+	});
+
+	test('issue #38232: Find Next Selection, regex enabled, find widget open', () => {
+		withTestCodeEditor([
+			'([funny]',
+			'',
+			'([funny]'
+		], { serviceCollection: serviceCollection }, (editor, cursor) => {
+			clipboardState = '';
+			let findController = editor.registerAndInstantiateContribution<TestFindController>(TestFindController);
+			let startFindAction = new StartFindAction();
+			let nextSelectionMatchFindAction = new NextSelectionMatchFindAction();
+
+			// cmd+f - open find widget
+			startFindAction.run(null, editor);
+
+			// toggle regex
+			findController.getState().change({ isRegex: true }, false);
+
+			// change selection
+			editor.setSelection(new Selection(1, 1, 1, 9));
+
+			// cmd+f3
+			nextSelectionMatchFindAction.run(null, editor);
+
+			assert.deepEqual(editor.getSelections().map(fromRange), [
+				[3, 1, 3, 9]
+			]);
+
+			findController.dispose();
+		});
+	});
 });
 
 suite('FindController query options persistence', () => {

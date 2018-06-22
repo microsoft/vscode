@@ -7,8 +7,8 @@ import 'vs/css!./selectBoxCustom';
 
 import * as nls from 'vs/nls';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
-import Event, { Emitter, chain } from 'vs/base/common/event';
-import { KeyCode } from 'vs/base/common/keyCodes';
+import { Event, Emitter, chain } from 'vs/base/common/event';
+import { KeyCode, KeyCodeUtils } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import * as dom from 'vs/base/browser/dom';
 import * as arrays from 'vs/base/common/arrays';
@@ -17,7 +17,7 @@ import { List } from 'vs/base/browser/ui/list/listWidget';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { domEvent } from 'vs/base/browser/event';
 import { ScrollbarVisibility } from 'vs/base/common/scrollable';
-import { ISelectBoxDelegate, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
+import { ISelectBoxDelegate, ISelectBoxOptions, ISelectBoxStyles, ISelectData } from 'vs/base/browser/ui/selectBox/selectBox';
 import { isMacintosh } from 'vs/base/common/platform';
 
 const $ = dom.$;
@@ -61,6 +61,9 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 		// pseudo-select disabled option
 		if (optionDisabled) {
 			dom.addClass((<HTMLElement>data.root), 'option-disabled');
+		} else {
+			// Make sure we do class removal from prior template rendering
+			dom.removeClass((<HTMLElement>data.root), 'option-disabled');
 		}
 	}
 
@@ -71,14 +74,15 @@ class SelectListRenderer implements IRenderer<ISelectOptionItem, ISelectListTemp
 
 export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptionItem> {
 
-	private static SELECT_DROPDOWN_BOTTOM_MARGIN = 10;
+	private static readonly DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN = 32;
 
 	private _isVisible: boolean;
+	private selectBoxOptions: ISelectBoxOptions;
 	private selectElement: HTMLSelectElement;
 	private options: string[];
 	private selected: number;
 	private disabledOptionIndex: number;
-	private _onDidSelect: Emitter<ISelectData>;
+	private readonly _onDidSelect: Emitter<ISelectData>;
 	private toDispose: IDisposable[];
 	private styles: ISelectBoxStyles;
 	private listRenderer: SelectListRenderer;
@@ -88,14 +92,22 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private selectList: List<ISelectOptionItem>;
 	private selectDropDownListContainer: HTMLElement;
 	private widthControlElement: HTMLElement;
+	private _currentSelection: number;
 
-	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles) {
+	constructor(options: string[], selected: number, contextViewProvider: IContextViewProvider, styles: ISelectBoxStyles, selectBoxOptions?: ISelectBoxOptions) {
 
 		this.toDispose = [];
 		this._isVisible = false;
+		this.selectBoxOptions = selectBoxOptions || Object.create(null);
+
+		if (typeof this.selectBoxOptions.minBottomMargin !== 'number') {
+			this.selectBoxOptions.minBottomMargin = SelectBoxList.DEFAULT_DROPDOWN_MINIMUM_BOTTOM_MARGIN;
+		} else if (this.selectBoxOptions.minBottomMargin < 0) {
+			this.selectBoxOptions.minBottomMargin = 0;
+		}
 
 		this.selectElement = document.createElement('select');
-		this.selectElement.className = 'select-box';
+		this.selectElement.className = 'monaco-select-box';
 
 		this._onDidSelect = new Emitter<ISelectData>();
 		this.styles = styles;
@@ -120,7 +132,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		// SetUp ContextView container to hold select Dropdown
 		this.contextViewProvider = contextViewProvider;
-		this.selectDropDownContainer = dom.$('.select-box-dropdown-container');
+		this.selectDropDownContainer = dom.$('.monaco-select-box-dropdown-container');
 
 		// Setup list for drop-down select
 		this.createSelectList(this.selectDropDownContainer);
@@ -155,14 +167,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			dom.EventHelper.stop(e);
 
 			if (this._isVisible) {
-				this.hideSelectDropDown();
+				this.hideSelectDropDown(true);
 			} else {
 				this.showSelectDropDown();
 			}
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_UP, (e) => {
-			dom.EventHelper.stop(e);
 		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.MOUSE_DOWN, (e) => {
@@ -170,10 +178,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		}));
 
 		// Intercept keyboard handling
-
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_UP, (e: KeyboardEvent) => {
-			dom.EventHelper.stop(e);
-		}));
 
 		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			const event = new StandardKeyboardEvent(e);
@@ -185,7 +189,7 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 					showDropDown = true;
 				}
 			} else {
-				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
+				if (event.keyCode === KeyCode.DownArrow && event.altKey || event.keyCode === KeyCode.UpArrow && event.altKey || event.keyCode === KeyCode.Space || event.keyCode === KeyCode.Enter) {
 					showDropDown = true;
 				}
 			}
@@ -194,10 +198,6 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				this.showSelectDropDown();
 				dom.EventHelper.stop(e);
 			}
-		}));
-
-		this.toDispose.push(dom.addDisposableListener(this.selectElement, dom.EventType.KEY_PRESS, (e: KeyboardEvent) => {
-			dom.EventHelper.stop(e);
 		}));
 	}
 
@@ -245,6 +245,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 
 		if (index >= 0 && index < this.options.length) {
 			this.selected = index;
+		} else if (index > this.options.length - 1) {
+			// Adjust index to end of list
+			// This could make client out of sync with the select
+			this.select(this.options.length - 1);
 		} else if (this.selected < 0) {
 			this.selected = 0;
 		}
@@ -281,33 +285,33 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		// Style non-native select mode
 
 		if (this.styles.listFocusBackground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { background-color: ${this.styles.listFocusBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { background-color: ${this.styles.listFocusBackground} !important; }`);
 		}
 
 		if (this.styles.listFocusForeground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused:not(:hover) { color: ${this.styles.listFocusForeground} !important; }`);
 		}
 
 		// Hover foreground - ignore for disabled options
 		if (this.styles.listHoverForeground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover { color: ${this.styles.listHoverForeground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.listActiveSelectionForeground} !important; }`);
 		}
 
 		// Hover background - ignore for disabled options
 		if (this.styles.listHoverBackground) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:not(.option-disabled):not(.focused):hover { background-color: ${this.styles.listHoverBackground} !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { background-color: ${this.styles.selectBackground} !important; }`);
 		}
 
 		// Match quickOpen outline styles - ignore for disabled options
 		if (this.styles.listFocusOutline) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.focused { outline: 1.6px dotted ${this.styles.listFocusOutline} !important; outline-offset: -1.6px !important; }`);
 		}
 
 		if (this.styles.listHoverOutline) {
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
-			content.push(`.monaco-shell .select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row:hover:not(.focused) { outline: 1.6px dashed ${this.styles.listHoverOutline} !important; outline-offset: -1.6px !important; }`);
+			content.push(`.monaco-select-box-dropdown-container > .select-box-dropdown-list-container .monaco-list .monaco-list-row.option-disabled:hover { outline: none !important; }`);
 		}
 
 		this.styleElement.innerHTML = content.join('\n');
@@ -318,8 +322,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	public applyStyles(): void {
 
 		// Style parent select
+
+		let background = null;
+
 		if (this.selectElement) {
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
+			background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
 			const foreground = this.styles.selectForeground ? this.styles.selectForeground.toString() : null;
 			const border = this.styles.selectBorder ? this.styles.selectBorder.toString() : null;
 
@@ -333,8 +340,8 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		if (this.selectList) {
 			this.selectList.style({});
 
-			const background = this.styles.selectBackground ? this.styles.selectBackground.toString() : null;
-			this.selectDropDownListContainer.style.backgroundColor = background;
+			let listBackground = this.styles.selectListBackground ? this.styles.selectListBackground.toString() : background;
+			this.selectDropDownListContainer.style.backgroundColor = listBackground;
 			const optionsBorder = this.styles.focusBorder ? this.styles.focusBorder.toString() : null;
 			this.selectDropDownContainer.style.outlineColor = optionsBorder;
 			this.selectDropDownContainer.style.outlineOffset = '-1px';
@@ -362,28 +369,36 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		this.cloneElementFont(this.selectElement, this.selectDropDownContainer);
 		this.contextViewProvider.showContextView({
 			getAnchor: () => this.selectElement,
-			render: (container: HTMLElement) => { return this.renderSelectDropDown(container); },
+			render: (container: HTMLElement) => this.renderSelectDropDown(container),
 			layout: () => this.layoutSelectDropDown(),
 			onHide: () => {
 				dom.toggleClass(this.selectDropDownContainer, 'visible', false);
 				dom.toggleClass(this.selectElement, 'synthetic-focus', false);
 			}
 		});
+		this._currentSelection = this.selected;
 	}
 
-	private hideSelectDropDown() {
+	private hideSelectDropDown(focusSelect: boolean) {
 		if (!this.contextViewProvider || !this._isVisible) {
 			return;
 		}
 
 		this._isVisible = false;
+
+		if (focusSelect) {
+			this.selectElement.focus();
+		}
 		this.contextViewProvider.hideContextView();
 	}
 
-	private renderSelectDropDown(container: HTMLElement) {
-		dom.append(container, this.selectDropDownContainer);
+	private renderSelectDropDown(container: HTMLElement): IDisposable {
+		container.appendChild(this.selectDropDownContainer);
+
 		this.layoutSelectDropDown();
-		return null;
+		return {
+			dispose: () => container.removeChild(this.selectDropDownContainer) // remove to take out the CSS rules we add
+		};
 	}
 
 	private layoutSelectDropDown() {
@@ -397,9 +412,12 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		const selectWidth = dom.getTotalWidth(this.selectElement);
 		const selectPosition = dom.getDomNodePagePosition(this.selectElement);
 
-		// Set container height to max from select bottom to margin above status bar
-		const statusBarHeight = dom.getTotalHeight(document.getElementById('workbench.parts.statusbar'));
-		const maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - statusBarHeight - SelectBoxList.SELECT_DROPDOWN_BOTTOM_MARGIN);
+		// Set container height to max from select bottom to margin (default/minBottomMargin)
+		let maxSelectDropDownHeight = (window.innerHeight - selectPosition.top - selectPosition.height - this.selectBoxOptions.minBottomMargin);
+
+		if (maxSelectDropDownHeight < 0) {
+			maxSelectDropDownHeight = 0;
+		}
 
 		// SetUp list dimensions and layout - account for container padding
 		if (this.selectList) {
@@ -417,8 +435,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 			this.selectList.domFocus();
 
 			// Finally set focus on selected item
-			this.selectList.setFocus([this.selected]);
-			this.selectList.reveal(this.selectList.getFocus()[0]);
+			if (this.selectList.length > 0) {
+				this.selectList.setFocus([this.selected || 0]);
+				this.selectList.reveal(this.selectList.getFocus()[0] || 0);
+			}
 
 			// Set final container height after adjustments
 			this.selectDropDownContainer.style.height = (listHeight + totalVerticalListPadding) + 'px';
@@ -486,6 +506,11 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Escape).on(e => this.onEscape(e), this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.UpArrow).on(this.onUpArrow, this, this.toDispose);
 		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.DownArrow).on(this.onDownArrow, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageDown).on(this.onPageDown, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.PageUp).on(this.onPageUp, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.Home).on(this.onHome, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => e.keyCode === KeyCode.End).on(this.onEnd, this, this.toDispose);
+		onSelectDropDownKeyDown.filter(e => (e.keyCode >= KeyCode.KEY_0 && e.keyCode <= KeyCode.KEY_Z) || (e.keyCode >= KeyCode.US_SEMICOLON && e.keyCode <= KeyCode.NUMPAD_DIVIDE)).on(this.onCharacter, this, this.toDispose);
 
 		// SetUp list mouse controller - control navigation, disabled items, focus
 
@@ -521,7 +546,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 				index: this.selectElement.selectedIndex,
 				selected: this.selectElement.title
 			});
-			this.hideSelectDropDown();
+
+			// Reset Selection Handler
+			this._currentSelection = -1;
+			this.hideSelectDropDown(true);
 		}
 		dom.EventHelper.stop(e);
 	}
@@ -529,21 +557,26 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	// List Exit - passive - hide drop-down, fire onDidSelect
 	private onListBlur(): void {
 
+		if (this._currentSelection >= 0) {
+			this.select(this._currentSelection);
+		}
+
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
 		});
 
-		this.hideSelectDropDown();
+		this.hideSelectDropDown(false);
 	}
 
 	// List keyboard controller
 	// List exit - active - hide ContextView dropdown, return focus to parent select, fire onDidSelect
 	private onEscape(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
+		this.select(this._currentSelection);
 
-		this.hideSelectDropDown();
-		this.selectElement.focus();
+		this.hideSelectDropDown(true);
+
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
@@ -554,8 +587,10 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 	private onEnter(e: StandardKeyboardEvent): void {
 		dom.EventHelper.stop(e);
 
-		this.selectElement.focus();
-		this.hideSelectDropDown();
+		// Reset current selection
+		this._currentSelection = -1;
+
+		this.hideSelectDropDown(true);
 		this._onDidSelect.fire({
 			index: this.selectElement.selectedIndex,
 			selected: this.selectElement.title
@@ -593,7 +628,93 @@ export class SelectBoxList implements ISelectBoxDelegate, IDelegate<ISelectOptio
 		}
 	}
 
+	private onPageUp(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		this.selectList.focusPreviousPage();
+
+		// Allow scrolling to settle
+		setTimeout(() => {
+			this.selected = this.selectList.getFocus()[0];
+
+			// Shift selection down if we land on a disabled option
+			if (this.selected === this.disabledOptionIndex && this.selected < this.options.length - 1) {
+				this.selected++;
+				this.selectList.setFocus([this.selected]);
+			}
+			this.selectList.reveal(this.selected);
+			this.select(this.selected);
+		}, 1);
+	}
+
+	private onPageDown(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		this.selectList.focusNextPage();
+
+		// Allow scrolling to settle
+		setTimeout(() => {
+			this.selected = this.selectList.getFocus()[0];
+
+			// Shift selection up if we land on a disabled option
+			if (this.selected === this.disabledOptionIndex && this.selected > 0) {
+				this.selected--;
+				this.selectList.setFocus([this.selected]);
+			}
+			this.selectList.reveal(this.selected);
+			this.select(this.selected);
+		}, 1);
+	}
+
+	private onHome(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		if (this.options.length < 2) {
+			return;
+		}
+		this.selected = 0;
+		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+			this.selected++;
+		}
+		this.selectList.setFocus([this.selected]);
+		this.selectList.reveal(this.selected);
+		this.select(this.selected);
+	}
+
+	private onEnd(e: StandardKeyboardEvent): void {
+		dom.EventHelper.stop(e);
+
+		if (this.options.length < 2) {
+			return;
+		}
+		this.selected = this.options.length - 1;
+		if (this.selected === this.disabledOptionIndex && this.selected > 1) {
+			this.selected--;
+		}
+		this.selectList.setFocus([this.selected]);
+		this.selectList.reveal(this.selected);
+		this.select(this.selected);
+	}
+
+	// Mimic option first character navigation of native select
+	private onCharacter(e: StandardKeyboardEvent): void {
+		const ch = KeyCodeUtils.toString(e.keyCode);
+		let optionIndex = -1;
+
+		for (let i = 0; i < this.options.length - 1; i++) {
+			optionIndex = (i + this.selected + 1) % this.options.length;
+			if (this.options[optionIndex].charAt(0).toUpperCase() === ch) {
+				this.select(optionIndex);
+				this.selectList.setFocus([optionIndex]);
+				this.selectList.reveal(this.selectList.getFocus()[0]);
+				dom.EventHelper.stop(e);
+				break;
+			}
+		}
+	}
+
 	public dispose(): void {
+		this.hideSelectDropDown(false);
 		this.toDispose = dispose(this.toDispose);
 	}
 }

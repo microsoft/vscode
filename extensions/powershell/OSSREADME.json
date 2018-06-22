@@ -1,7 +1,7 @@
 // ATTENTION - THIS DIRECTORY CONTAINS THIRD PARTY OPEN SOURCE MATERIALS:
 [{
-	"name": "SublimeText/PowerShell",
+	"name": "PowerShell/EditorSyntax",
 	"version": "0.0.0",
 	"license": "MIT",
-	"repositoryURL": "https://github.com/SublimeText/PowerShell"
+	"repositoryURL": "https://github.com/powershell/editorsyntax"
 }]

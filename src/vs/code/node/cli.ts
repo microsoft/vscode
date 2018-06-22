@@ -57,8 +57,8 @@ export async function main(argv: string[]): TPromise<any> {
 		return mainCli.then(cli => cli.main(args));
 	}
 
-	// Write Elevated
-	else if (args['sudo-write']) {
+	// Write File
+	else if (args['file-write']) {
 		const source = args._[0];
 		const target = args._[1];
 
@@ -69,7 +69,7 @@ export async function main(argv: string[]): TPromise<any> {
 			!fs.existsSync(source) || !fs.statSync(source).isFile() ||	// make sure source exists as file
 			!fs.existsSync(target) || !fs.statSync(target).isFile()		// make sure target exists as file
 		) {
-			return TPromise.wrapError(new Error('Using --sudo-write with invalid arguments.'));
+			return TPromise.wrapError(new Error('Using --file-write with invalid arguments.'));
 		}
 
 		try {
@@ -77,7 +77,7 @@ export async function main(argv: string[]): TPromise<any> {
 			// Check for readonly status and chmod if so if we are told so
 			let targetMode: number;
 			let restoreMode = false;
-			if (!!args['sudo-chmod']) {
+			if (!!args['file-chmod']) {
 				targetMode = fs.statSync(target).mode;
 				if (!(targetMode & 128) /* readonly */) {
 					fs.chmodSync(target, targetMode | 128);
@@ -106,7 +106,7 @@ export async function main(argv: string[]): TPromise<any> {
 				fs.chmodSync(target, targetMode);
 			}
 		} catch (error) {
-			return TPromise.wrapError(new Error(`Using --sudo-write resulted in an error: ${error}`));
+			return TPromise.wrapError(new Error(`Using --file-write resulted in an error: ${error}`));
 		}
 
 		return TPromise.as(null);
@@ -123,7 +123,7 @@ export async function main(argv: string[]): TPromise<any> {
 
 		const processCallbacks: ((child: ChildProcess) => Thenable<any>)[] = [];
 
-		const verbose = args.verbose || args.status;
+		const verbose = args.verbose || args.status || typeof args['upload-logs'] !== 'undefined';
 		if (verbose) {
 			env['ELECTRON_ENABLE_LOGGING'] = '1';
 
@@ -142,17 +142,20 @@ export async function main(argv: string[]): TPromise<any> {
 			// Windows workaround for https://github.com/nodejs/node/issues/11656
 		}
 
+		const readFromStdin = args._.some(a => a === '-');
+		if (readFromStdin) {
+			// remove the "-" argument when we read from stdin
+			args._ = args._.filter(a => a !== '-');
+			argv = argv.filter(a => a !== '-');
+		}
+
 		let stdinFilePath: string;
 		if (stdinWithoutTty) {
 
 			// Read from stdin: we require a single "-" argument to be passed in order to start reading from
 			// stdin. We do this because there is no reliable way to find out if data is piped to stdin. Just
 			// checking for stdin being connected to a TTY is not enough (https://github.com/Microsoft/vscode/issues/40351)
-			if (args._.length === 1 && args._[0] === '-') {
-
-				// remove the "-" argument when we read from stdin
-				args._ = [];
-				argv = argv.filter(a => a !== '-');
+			if (args._.length === 0 && readFromStdin) {
 
 				// prepare temp file to read stdin to
 				stdinFilePath = paths.join(os.tmpdir(), `code-stdin-${Math.random().toString(36).replace(/[^a-z]+/g, '').substr(0, 3)}.txt`);
@@ -303,12 +306,21 @@ export async function main(argv: string[]): TPromise<any> {
 			});
 		}
 
+		if (args['js-flags']) {
+			const match = /max_old_space_size=(\d+)/g.exec(args['js-flags']);
+			if (match && !args['max-memory']) {
+				argv.push(`--max-memory=${match[1]}`);
+			}
+		}
+
 		const options = {
 			detached: true,
 			env
 		};
 
-		if (!verbose) {
+		if (typeof args['upload-logs'] !== undefined) {
+			options['stdio'] = ['pipe', 'pipe', 'pipe'];
+		} else if (!verbose) {
 			options['stdio'] = 'ignore';
 		}
 
@@ -344,6 +356,6 @@ function eventuallyExit(code: number): void {
 main(process.argv)
 	.then(() => eventuallyExit(0))
 	.then(null, err => {
-		console.error(err.stack ? err.stack : err);
+		console.error(err.message || err.stack || err);
 		eventuallyExit(1);
 	});

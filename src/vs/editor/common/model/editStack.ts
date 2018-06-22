@@ -5,21 +5,95 @@
 'use strict';
 
 import { onUnexpectedError } from 'vs/base/common/errors';
-import { ICursorStateComputer, IEditableTextModel, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ICursorStateComputer, IIdentifiedSingleEditOperation, EndOfLineSequence } from 'vs/editor/common/model';
 import { Selection } from 'vs/editor/common/core/selection';
+import { TextModel } from 'vs/editor/common/model/textModel';
 
 interface IEditOperation {
 	operations: IIdentifiedSingleEditOperation[];
 }
 
 interface IStackElement {
-	beforeVersionId: number;
-	beforeCursorState: Selection[];
+	readonly beforeVersionId: number;
+	readonly beforeCursorState: Selection[];
+	readonly afterCursorState: Selection[];
+	readonly afterVersionId: number;
 
-	editOperations: IEditOperation[];
+	undo(model: TextModel): void;
+	redo(model: TextModel): void;
+}
 
-	afterCursorState: Selection[];
-	afterVersionId: number;
+class EditStackElement implements IStackElement {
+	public readonly beforeVersionId: number;
+	public readonly beforeCursorState: Selection[];
+	public afterCursorState: Selection[];
+	public afterVersionId: number;
+
+	public editOperations: IEditOperation[];
+
+	constructor(beforeVersionId: number, beforeCursorState: Selection[]) {
+		this.beforeVersionId = beforeVersionId;
+		this.beforeCursorState = beforeCursorState;
+		this.afterCursorState = null;
+		this.afterVersionId = -1;
+		this.editOperations = [];
+	}
+
+	public undo(model: TextModel): void {
+		// Apply all operations in reverse order
+		for (let i = this.editOperations.length - 1; i >= 0; i--) {
+			this.editOperations[i] = {
+				operations: model.applyEdits(this.editOperations[i].operations)
+			};
+		}
+	}
+
+	public redo(model: TextModel): void {
+		// Apply all operations
+		for (let i = 0; i < this.editOperations.length; i++) {
+			this.editOperations[i] = {
+				operations: model.applyEdits(this.editOperations[i].operations)
+			};
+		}
+	}
+}
+
+function getModelEOL(model: TextModel): EndOfLineSequence {
+	const eol = model.getEOL();
+	if (eol === '\n') {
+		return EndOfLineSequence.LF;
+	} else {
+		return EndOfLineSequence.CRLF;
+	}
+}
+
+class EOLStackElement implements IStackElement {
+	public readonly beforeVersionId: number;
+	public readonly beforeCursorState: Selection[];
+	public readonly afterCursorState: Selection[];
+	public afterVersionId: number;
+
+	public eol: EndOfLineSequence;
+
+	constructor(beforeVersionId: number, setEOL: EndOfLineSequence) {
+		this.beforeVersionId = beforeVersionId;
+		this.beforeCursorState = null;
+		this.afterCursorState = null;
+		this.afterVersionId = -1;
+		this.eol = setEOL;
+	}
+
+	public undo(model: TextModel): void {
+		let redoEOL = getModelEOL(model);
+		model.setEOL(this.eol);
+		this.eol = redoEOL;
+	}
+
+	public redo(model: TextModel): void {
+		let undoEOL = getModelEOL(model);
+		model.setEOL(this.eol);
+		this.eol = undoEOL;
+	}
 }
 
 export interface IUndoRedoResult {
@@ -29,12 +103,12 @@ export interface IUndoRedoResult {
 
 export class EditStack {
 
-	private model: IEditableTextModel;
+	private model: TextModel;
 	private currentOpenStackElement: IStackElement;
 	private past: IStackElement[];
 	private future: IStackElement[];
 
-	constructor(model: IEditableTextModel) {
+	constructor(model: TextModel) {
 		this.model = model;
 		this.currentOpenStackElement = null;
 		this.past = [];
@@ -54,34 +128,60 @@ export class EditStack {
 		this.future = [];
 	}
 
+	public pushEOL(eol: EndOfLineSequence): void {
+		// No support for parallel universes :(
+		this.future = [];
+
+		if (this.currentOpenStackElement) {
+			this.pushStackElement();
+		}
+
+		const prevEOL = getModelEOL(this.model);
+		let stackElement = new EOLStackElement(this.model.getAlternativeVersionId(), prevEOL);
+
+		this.model.setEOL(eol);
+
+		stackElement.afterVersionId = this.model.getVersionId();
+		this.currentOpenStackElement = stackElement;
+		this.pushStackElement();
+	}
+
 	public pushEditOperation(beforeCursorState: Selection[], editOperations: IIdentifiedSingleEditOperation[], cursorStateComputer: ICursorStateComputer): Selection[] {
 		// No support for parallel universes :(
 		this.future = [];
 
-		if (!this.currentOpenStackElement) {
-			this.currentOpenStackElement = {
-				beforeVersionId: this.model.getAlternativeVersionId(),
-				beforeCursorState: beforeCursorState,
-				editOperations: [],
-				afterCursorState: null,
-				afterVersionId: -1
-			};
+		let stackElement: EditStackElement = null;
+
+		if (this.currentOpenStackElement) {
+			if (this.currentOpenStackElement instanceof EditStackElement) {
+				stackElement = this.currentOpenStackElement;
+			} else {
+				this.pushStackElement();
+			}
 		}
 
-		var inverseEditOperation: IEditOperation = {
+		if (!this.currentOpenStackElement) {
+			stackElement = new EditStackElement(this.model.getAlternativeVersionId(), beforeCursorState);
+			this.currentOpenStackElement = stackElement;
+		}
+
+		const inverseEditOperation: IEditOperation = {
 			operations: this.model.applyEdits(editOperations)
 		};
 
-		this.currentOpenStackElement.editOperations.push(inverseEditOperation);
+		stackElement.editOperations.push(inverseEditOperation);
+		stackElement.afterCursorState = EditStack._computeCursorState(cursorStateComputer, inverseEditOperation.operations);
+		stackElement.afterVersionId = this.model.getVersionId();
+		return stackElement.afterCursorState;
+	}
+
+	private static _computeCursorState(cursorStateComputer: ICursorStateComputer, inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] {
 		try {
-			this.currentOpenStackElement.afterCursorState = cursorStateComputer ? cursorStateComputer(inverseEditOperation.operations) : null;
+			return cursorStateComputer ? cursorStateComputer(inverseEditOperations) : null;
 		} catch (e) {
 			onUnexpectedError(e);
-			this.currentOpenStackElement.afterCursorState = null;
+			return null;
 		}
-
-		this.currentOpenStackElement.afterVersionId = this.model.getVersionId();
-		return this.currentOpenStackElement.afterCursorState;
 	}
 
 	public undo(): IUndoRedoResult {
@@ -89,16 +189,12 @@ export class EditStack {
 		this.pushStackElement();
 
 		if (this.past.length > 0) {
-			var pastStackElement = this.past.pop();
+			const pastStackElement = this.past.pop();
 
 			try {
-				// Apply all operations in reverse order
-				for (var i = pastStackElement.editOperations.length - 1; i >= 0; i--) {
-					pastStackElement.editOperations[i] = {
-						operations: this.model.applyEdits(pastStackElement.editOperations[i].operations)
-					};
-				}
+				pastStackElement.undo(this.model);
 			} catch (e) {
+				onUnexpectedError(e);
 				this.clear();
 				return null;
 			}
@@ -117,20 +213,12 @@ export class EditStack {
 	public redo(): IUndoRedoResult {
 
 		if (this.future.length > 0) {
-			if (this.currentOpenStackElement) {
-				throw new Error('How is this possible?');
-			}
-
-			var futureStackElement = this.future.pop();
+			const futureStackElement = this.future.pop();
 
 			try {
-				// Apply all operations
-				for (var i = 0; i < futureStackElement.editOperations.length; i++) {
-					futureStackElement.editOperations[i] = {
-						operations: this.model.applyEdits(futureStackElement.editOperations[i].operations)
-					};
-				}
+				futureStackElement.redo(this.model);
 			} catch (e) {
+				onUnexpectedError(e);
 				this.clear();
 				return null;
 			}

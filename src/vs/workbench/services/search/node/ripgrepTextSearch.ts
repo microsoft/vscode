@@ -4,29 +4,29 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
+import * as cp from 'child_process';
 import { EventEmitter } from 'events';
 import * as path from 'path';
-import { StringDecoder, NodeStringDecoder } from 'string_decoder';
-
-import * as cp from 'child_process';
-import { rgPath } from 'vscode-ripgrep';
-
-import objects = require('vs/base/common/objects');
-import platform = require('vs/base/common/platform');
-import * as strings from 'vs/base/common/strings';
-import * as paths from 'vs/base/common/paths';
-import * as extfs from 'vs/base/node/extfs';
-import * as encoding from 'vs/base/node/encoding';
+import { NodeStringDecoder, StringDecoder } from 'string_decoder';
 import * as glob from 'vs/base/common/glob';
-import { ISearchLog } from 'vs/platform/search/common/search';
+import * as objects from 'vs/base/common/objects';
+import * as paths from 'vs/base/common/paths';
+import * as platform from 'vs/base/common/platform';
+import * as strings from 'vs/base/common/strings';
 import { TPromise } from 'vs/base/common/winjs.base';
+import * as encoding from 'vs/base/node/encoding';
+import * as extfs from 'vs/base/node/extfs';
+import { IProgress } from 'vs/platform/search/common/search';
+import { rgPath } from 'vscode-ripgrep';
+import { FileMatch, IFolderSearch, IRawSearch, ISerializedFileMatch, ISerializedSearchComplete, LineMatch } from './search';
 
-import { ISerializedFileMatch, ISerializedSearchComplete, IRawSearch, IFolderSearch, LineMatch, FileMatch } from './search';
+// If vscode-ripgrep is in an .asar file, then the binary is unpacked.
+const rgDiskPath = rgPath.replace(/\bnode_modules\.asar\b/, 'node_modules.asar.unpacked');
 
 export class RipgrepEngine {
 	private isDone = false;
 	private rgProc: cp.ChildProcess;
-	private killRgProcFn: Function;
+	private killRgProcFn: (code?: number) => void;
 	private postProcessExclusions: glob.ParsedExpression;
 
 	private ripgrepParser: RipgrepParser;
@@ -44,7 +44,7 @@ export class RipgrepEngine {
 	}
 
 	// TODO@Rob - make promise-based once the old search is gone, and I don't need them to have matching interfaces anymore
-	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: ISearchLog) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
+	search(onResult: (match: ISerializedFileMatch) => void, onMessage: (message: IProgress) => void, done: (error: Error, complete: ISerializedSearchComplete) => void): void {
 		if (!this.config.folderQueries.length && !this.config.extraFiles.length) {
 			process.removeListener('exit', this.killRgProcFn);
 			done(null, {
@@ -61,17 +61,18 @@ export class RipgrepEngine {
 
 		const cwd = platform.isWindows ? 'c:/' : '/';
 		process.nextTick(() => { // Allow caller to register progress callback
-			const escapedArgs = rgArgs.globArgs
+			const escapedArgs = rgArgs.args
 				.map(arg => arg.match(/^-/) ? arg : `'${arg}'`)
 				.join(' ');
 
-			const rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}\n`;
-			onMessage({ message: rgCmd });
+			let rgCmd = `rg ${escapedArgs}\n - cwd: ${cwd}`;
 			if (rgArgs.siblingClauses) {
-				onMessage({ message: ` - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}\n` });
+				rgCmd += `\n - Sibling clauses: ${JSON.stringify(rgArgs.siblingClauses)}`;
 			}
+
+			onMessage({ message: rgCmd });
 		});
-		this.rgProc = cp.spawn(rgPath, rgArgs.globArgs, { cwd });
+		this.rgProc = cp.spawn(rgDiskPath, rgArgs.args, { cwd });
 		process.once('exit', this.killRgProcFn);
 
 		this.ripgrepParser = new RipgrepParser(this.config.maxResults, cwd, this.config.extraFiles);
@@ -144,7 +145,7 @@ export class RipgrepEngine {
  * "failed" when a fatal error was produced.
  */
 export function rgErrorMsgForDisplay(msg: string): string | undefined {
-	const firstLine = msg.split('\n')[0];
+	const firstLine = msg.split('\n')[0].trim();
 
 	if (strings.startsWith(firstLine, 'Error parsing regex')) {
 		return firstLine;
@@ -156,15 +157,25 @@ export function rgErrorMsgForDisplay(msg: string): string | undefined {
 		return firstLine.charAt(0).toUpperCase() + firstLine.substr(1);
 	}
 
+	if (firstLine === `Literal '\\n' not allowed.`) {
+		// I won't localize this because none of the Ripgrep error messages are localized
+		return `Literal '\\n' currently not supported`;
+	}
+
+	if (strings.startsWith(firstLine, 'Literal ')) {
+		// Other unsupported chars
+		return firstLine;
+	}
+
 	return undefined;
 }
 
 export class RipgrepParser extends EventEmitter {
-	private static readonly RESULT_REGEX = /^\u001b\[m(\d+)\u001b\[m:(.*)(\r?)/;
-	private static readonly FILE_REGEX = /^\u001b\[m(.+)\u001b\[m$/;
+	private static readonly RESULT_REGEX = /^\u001b\[0m(\d+)\u001b\[0m:(.*)(\r?)/;
+	private static readonly FILE_REGEX = /^\u001b\[0m(.+)\u001b\[0m$/;
 
-	public static readonly MATCH_START_MARKER = '\u001b[m\u001b[31m';
-	public static readonly MATCH_END_MARKER = '\u001b[m';
+	public static readonly MATCH_START_MARKER = '\u001b[0m\u001b[31m';
+	public static readonly MATCH_END_MARKER = '\u001b[0m';
 
 	private fileMatch: FileMatch;
 	private remainder: string;
@@ -375,8 +386,13 @@ function globExprsToRgGlobs(patterns: glob.IExpression, folder?: string, exclude
 			const value = patterns[key];
 			key = trimTrailingSlash(folder ? getAbsoluteGlob(folder, key) : key);
 
-			// glob.ts requires forward slashes
-			key = key.replace(/\\/g, '/');
+			// glob.ts requires forward slashes, but a UNC path still must start with \\
+			// #38165 and #38151
+			if (strings.startsWith(key, '\\\\')) {
+				key = '\\\\' + key.substr(2).replace(/\\/g, '/');
+			} else {
+				key = key.replace(/\\/g, '/');
+			}
 
 			if (typeof value === 'boolean' && value) {
 				globArgs.push(fixDriveC(key));
@@ -416,7 +432,7 @@ export function fixDriveC(path: string): string {
 		path;
 }
 
-function getRgArgs(config: IRawSearch): IRgGlobResult {
+function getRgArgs(config: IRawSearch) {
 	const args = ['--hidden', '--heading', '--line-number', '--color', 'ansi', '--colors', 'path:none', '--colors', 'line:none', '--colors', 'match:fg:red', '--colors', 'match:style:nobold'];
 	args.push(config.contentPattern.isCaseSensitive ? '--case-sensitive' : '--ignore-case');
 
@@ -446,6 +462,8 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	if (config.disregardIgnoreFiles) {
 		// Don't use .gitignore or .ignore
 		args.push('--no-ignore');
+	} else {
+		args.push('--no-ignore-parent');
 	}
 
 	// Follow symlinks
@@ -453,9 +471,11 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		args.push('--follow');
 	}
 
-	// Set default encoding if only one folder is opened
-	if (config.folderQueries.length === 1 && config.folderQueries[0].fileEncoding && config.folderQueries[0].fileEncoding !== 'utf8') {
-		args.push('--encoding', encoding.toCanonicalName(config.folderQueries[0].fileEncoding));
+	if (config.folderQueries[0]) {
+		const folder0Encoding = config.folderQueries[0].fileEncoding;
+		if (folder0Encoding && folder0Encoding !== 'utf8' && config.folderQueries.every(fq => fq.fileEncoding === folder0Encoding)) {
+			args.push('--encoding', encoding.toCanonicalName(folder0Encoding));
+		}
 	}
 
 	// Ripgrep handles -- as a -- arg separator. Only --.
@@ -471,11 +491,13 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 		const regexpStr = regexp.source.replace(/\\\//g, '/'); // RegExp.source arbitrarily returns escaped slashes. Search and destroy.
 		args.push('--regexp', regexpStr);
 	} else if (config.contentPattern.isRegExp) {
-		args.push('--regexp', config.contentPattern.pattern);
+		args.push('--regexp', fixRegexEndingPattern(config.contentPattern.pattern));
 	} else {
 		searchPatternAfterDoubleDashes = config.contentPattern.pattern;
 		args.push('--fixed-strings');
 	}
+
+	args.push('--no-config');
 
 	// Folder to search
 	args.push('--');
@@ -488,7 +510,7 @@ function getRgArgs(config: IRawSearch): IRgGlobResult {
 	args.push(...config.folderQueries.map(q => q.folder));
 	args.push(...config.extraFiles);
 
-	return { globArgs: args, siblingClauses };
+	return { args, siblingClauses };
 }
 
 function getSiblings(file: string): TPromise<string[]> {
@@ -522,4 +544,13 @@ function findUniversalExcludes(folderQueries: IFolderSearch[]): Set<string> {
 	});
 
 	return universalExcludes;
+}
+
+// Exported for testing
+export function fixRegexEndingPattern(pattern: string): string {
+	// Replace an unescaped $ at the end of the pattern with \r?$
+	// Match $ preceeded by none or even number of literal \
+	return pattern.match(/([^\\]|^)(\\\\)*\$$/) ?
+		pattern.replace(/\$$/, '\\r?$') :
+		pattern;
 }

@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { onUnexpectedError } from 'vs/base/common/errors';
@@ -12,32 +12,32 @@ import { ThrottledDelayer } from 'vs/base/common/async';
 import { QuickOpenHandler, EditorQuickOpenEntry } from 'vs/workbench/browser/quickopen';
 import { QuickOpenModel, QuickOpenEntry, compareEntries } from 'vs/base/parts/quickopen/browser/quickOpenModel';
 import { IAutoFocus, Mode, IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
-import filters = require('vs/base/common/filters');
-import strings = require('vs/base/common/strings');
+import * as filters from 'vs/base/common/filters';
+import * as strings from 'vs/base/common/strings';
 import { Range } from 'vs/editor/common/core/range';
 import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/editor';
-import labels = require('vs/base/common/labels');
-import { SymbolInformation, symbolKindToCssClass } from 'vs/editor/common/modes';
+import * as labels from 'vs/base/common/labels';
+import { symbolKindToCssClass } from 'vs/editor/common/modes';
 import { IResourceInput } from 'vs/platform/editor/common/editor';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
-import { IWorkspaceSymbolProvider, getWorkspaceSymbols } from 'vs/workbench/parts/search/common/search';
+import { IWorkspaceSymbolProvider, getWorkspaceSymbols, IWorkspaceSymbol } from 'vs/workbench/parts/search/common/search';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { basename } from 'vs/base/common/paths';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
 class SymbolEntry extends EditorQuickOpenEntry {
 
 	private _bearingResolve: TPromise<this>;
 
 	constructor(
-		private _bearing: SymbolInformation,
+		private _bearing: IWorkspaceSymbol,
 		private _provider: IWorkspaceSymbolProvider,
-		@IConfigurationService private _configurationService: IConfigurationService,
-		@IWorkspaceContextService private _contextService: IWorkspaceContextService,
-		@IWorkbenchEditorService editorService: IWorkbenchEditorService,
-		@IEnvironmentService private _environmentService: IEnvironmentService
+		@IConfigurationService private readonly _configurationService: IConfigurationService,
+		@IWorkspaceContextService private readonly _contextService: IWorkspaceContextService,
+		@IEditorService editorService: IEditorService,
+		@IEnvironmentService private readonly _environmentService: IEnvironmentService
 	) {
 		super(editorService);
 	}
@@ -56,7 +56,7 @@ class SymbolEntry extends EditorQuickOpenEntry {
 			if (containerName) {
 				return `${containerName} — ${basename(this._bearing.location.uri.fsPath)}`;
 			} else {
-				return labels.getPathLabel(this._bearing.location.uri, this._contextService, this._environmentService);
+				return labels.getPathLabel(this._bearing.location.uri, this._environmentService, this._contextService);
 			}
 		}
 		return containerName;
@@ -137,7 +137,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 	private delayer: ThrottledDelayer<QuickOpenEntry[]>;
 	private options: IOpenSymbolOptions;
 
-	constructor( @IInstantiationService private instantiationService: IInstantiationService) {
+	constructor(@IInstantiationService private instantiationService: IInstantiationService) {
 		super();
 
 		this.delayer = new ThrottledDelayer<QuickOpenEntry[]>(OpenSymbolHandler.SEARCH_DELAY);
@@ -183,7 +183,7 @@ export class OpenSymbolHandler extends QuickOpenHandler {
 		});
 	}
 
-	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: SymbolInformation[], searchValue: string): void {
+	private fillInSymbolEntries(bucket: SymbolEntry[], provider: IWorkspaceSymbolProvider, types: IWorkspaceSymbol[], searchValue: string): void {
 
 		// Convert to Entries
 		for (let element of types) {

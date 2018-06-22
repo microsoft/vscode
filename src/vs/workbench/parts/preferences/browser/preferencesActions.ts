@@ -11,10 +11,10 @@ import { Action } from 'vs/base/common/actions';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IModeService } from 'vs/editor/common/services/modeService';
 import { IQuickOpenService, IPickOpenEntry, IFilePickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
-import { IPreferencesService } from 'vs/workbench/parts/preferences/common/preferences';
+import { IPreferencesService } from 'vs/workbench/services/preferences/common/preferences';
 import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import { ICommandService } from 'vs/platform/commands/common/commands';
-import { PICK_WORKSPACE_FOLDER_COMMAND } from 'vs/workbench/browser/actions/workspaceActions';
+import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 
 export class OpenRawDefaultSettingsAction extends Action {
 
@@ -31,6 +31,43 @@ export class OpenRawDefaultSettingsAction extends Action {
 
 	public run(event?: any): TPromise<any> {
 		return this.preferencesService.openRawDefaultSettings();
+	}
+}
+
+export class OpenSettings2Action extends Action {
+
+	public static readonly ID = 'workbench.action.openSettings2';
+	public static readonly LABEL = nls.localize('openSettings2', "Open Settings (Preview)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService2: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService2.openSettings2();
+	}
+}
+
+
+export class OpenSettingsAction extends Action {
+
+	public static readonly ID = 'workbench.action.openSettings';
+	public static readonly LABEL = nls.localize('openSettings', "Open Settings");
+
+	constructor(
+		id: string,
+		label: string,
+		@IPreferencesService private preferencesService: IPreferencesService
+	) {
+		super(id, label);
+	}
+
+	public run(event?: any): TPromise<any> {
+		return this.preferencesService.openSettings();
 	}
 }
 
@@ -121,10 +158,11 @@ export class OpenWorkspaceSettingsAction extends Action {
 }
 
 export const OPEN_FOLDER_SETTINGS_COMMAND = '_workbench.action.openFolderSettings';
+export const OPEN_FOLDER_SETTINGS_LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
 export class OpenFolderSettingsAction extends Action {
 
 	public static readonly ID = 'workbench.action.openFolderSettings';
-	public static readonly LABEL = nls.localize('openFolderSettings', "Open Folder Settings");
+	public static readonly LABEL = OPEN_FOLDER_SETTINGS_LABEL;
 
 	private disposables: IDisposable[] = [];
 
@@ -146,10 +184,10 @@ export class OpenFolderSettingsAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND)
+		return this.commandService.executeCommand<IWorkspaceFolder>(PICK_WORKSPACE_FOLDER_COMMAND_ID)
 			.then(workspaceFolder => {
 				if (workspaceFolder) {
-					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder);
+					return this.commandService.executeCommand(OPEN_FOLDER_SETTINGS_COMMAND, workspaceFolder.uri);
 				}
 				return null;
 			});

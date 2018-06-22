@@ -42,7 +42,7 @@ abstract class ExecCommandAction extends EditorAction {
 	public runCommand(accessor: ServicesAccessor, args: any): void {
 		let focusedEditor = accessor.get(ICodeEditorService).getFocusedCodeEditor();
 		// Only if editor text focus (i.e. not if editor has widget focus).
-		if (focusedEditor && focusedEditor.isFocused()) {
+		if (focusedEditor && focusedEditor.hasTextFocus()) {
 			focusedEditor.trigger('keyboard', this.id, args);
 			return;
 		}
@@ -60,7 +60,7 @@ class ExecCommandCutAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_X,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_X, secondary: [KeyMod.Shift | KeyCode.Delete] }
 		};
@@ -97,7 +97,7 @@ class ExecCommandCopyAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_C,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_C, secondary: [KeyMod.CtrlCmd | KeyCode.Insert] }
 		};
@@ -135,7 +135,7 @@ class ExecCommandPasteAction extends ExecCommandAction {
 
 	constructor() {
 		let kbOpts: ICommandKeybindingsOptions = {
-			kbExpr: EditorContextKeys.textFocus,
+			kbExpr: EditorContextKeys.textInputFocus,
 			primary: KeyMod.CtrlCmd | KeyCode.KEY_V,
 			win: { primary: KeyMod.CtrlCmd | KeyCode.KEY_V, secondary: [KeyMod.Shift | KeyCode.Insert] }
 		};
@@ -168,7 +168,7 @@ class ExecCommandCopyWithSyntaxHighlightingAction extends ExecCommandAction {
 			alias: 'Copy With Syntax Highlighting',
 			precondition: null,
 			kbOpts: {
-				kbExpr: EditorContextKeys.textFocus,
+				kbExpr: EditorContextKeys.textInputFocus,
 				primary: null
 			}
 		});

@@ -5,7 +5,7 @@
 'use strict';
 
 import * as nls from 'vs/nls';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Disposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as platform from 'vs/base/common/platform';
@@ -34,8 +34,8 @@ export interface ITabFocus {
 export const TabFocus: ITabFocus = new class implements ITabFocus {
 	private _tabFocus: boolean = false;
 
-	private _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
-	public onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
+	private readonly _onDidChangeTabFocus: Emitter<boolean> = new Emitter<boolean>();
+	public readonly onDidChangeTabFocus: Event<boolean> = this._onDidChangeTabFocus.event;
 
 	public getTabFocusMode(): boolean {
 		return this._tabFocus;
@@ -70,7 +70,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	private _lineNumbersDigitCount: number;
 
 	private _onDidChange = this._register(new Emitter<editorOptions.IConfigurationChangedEvent>());
-	public onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
+	public readonly onDidChange: Event<editorOptions.IConfigurationChangedEvent> = this._onDidChange.event;
 
 	constructor(options: editorOptions.IEditorOptions) {
 		super();
@@ -88,6 +88,9 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 		this._register(EditorZoom.onDidChangeZoomLevel(_ => this._recomputeOptions()));
 		this._register(TabFocus.onDidChangeTabFocus(_ => this._recomputeOptions()));
+	}
+
+	public observeReferenceElement(dimension?: editorCommon.IDimension): void {
 	}
 
 	public dispose(): void {
@@ -153,7 +156,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 	}
 
 	private static _digitCount(n: number): number {
-		var r = 0;
+		let r = 0;
 		while (n) {
 			n = Math.floor(n / 10);
 			r++;
@@ -166,7 +169,7 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 
 }
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(Extensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(Extensions.Configuration);
 const editorConfiguration: IConfigurationNode = {
 	'id': 'editor',
 	'order': 5,
@@ -211,7 +214,7 @@ const editorConfiguration: IConfigurationNode = {
 				nls.localize('lineNumbers.interval', "Line numbers are rendered every 10 lines.")
 			],
 			'default': 'on',
-			'description': nls.localize('lineNumbers', "Controls the display of line numbers. Possible values are 'on', 'off', 'relative' and 'interval'.")
+			'description': nls.localize('lineNumbers', "Controls the display of line numbers.")
 		},
 		'editor.rulers': {
 			'type': 'array',
@@ -254,6 +257,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastLine,
 			'description': nls.localize('scrollBeyondLastLine', "Controls if the editor will scroll beyond the last line")
 		},
+		'editor.scrollBeyondLastColumn': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.viewInfo.scrollBeyondLastColumn,
+			'description': nls.localize('scrollBeyondLastColumn', "Controls the number of extra characters beyond which the editor will scroll horizontally")
+		},
 		'editor.smoothScrolling': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.viewInfo.smoothScrolling,
@@ -264,11 +272,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.enabled,
 			'description': nls.localize('minimap.enabled', "Controls if the minimap is shown")
 		},
+		'editor.minimap.side': {
+			'type': 'string',
+			'enum': ['left', 'right'],
+			'default': EDITOR_DEFAULTS.viewInfo.minimap.side,
+			'description': nls.localize('minimap.side', "Controls the side where to render the minimap.")
+		},
 		'editor.minimap.showSlider': {
 			'type': 'string',
 			'enum': ['always', 'mouseover'],
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.showSlider,
-			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden. Possible values are \'always\' and \'mouseover\'")
+			'description': nls.localize('minimap.showSlider', "Controls whether the minimap slider is automatically hidden.")
 		},
 		'editor.minimap.renderCharacters': {
 			'type': 'boolean',
@@ -339,9 +353,9 @@ const editorConfiguration: IConfigurationNode = {
 		},
 		'editor.wrappingIndent': {
 			'type': 'string',
-			'enum': ['none', 'same', 'indent'],
+			'enum': ['none', 'same', 'indent', 'deepIndent'],
 			'default': 'same',
-			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same' or 'indent'.")
+			'description': nls.localize('wrappingIndent', "Controls the indentation of wrapped lines. Can be one of 'none', 'same', 'indent' or 'deepIndent'.")
 		},
 		'editor.mouseWheelScrollSensitivity': {
 			'type': 'number',
@@ -352,8 +366,8 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['ctrlCmd', 'alt'],
 			'enumDescriptions': [
-				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on OSX."),
-				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on OSX.")
+				nls.localize('multiCursorModifier.ctrlCmd', "Maps to `Control` on Windows and Linux and to `Command` on macOS."),
+				nls.localize('multiCursorModifier.alt', "Maps to `Alt` on Windows and Linux and to `Option` on macOS.")
 			],
 			'default': 'alt',
 			'description': nls.localize({
@@ -362,7 +376,12 @@ const editorConfiguration: IConfigurationNode = {
 					'- `ctrlCmd` refers to a value the setting can take and should not be localized.',
 					'- `Control` and `Command` refer to the modifier keys Ctrl or Cmd on the keyboard and can be localized.'
 				]
-			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on OSX. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+			}, "The modifier to be used to add multiple cursors with the mouse. `ctrlCmd` maps to `Control` on Windows and Linux and to `Command` on macOS. The Go To Definition and Open Link mouse gestures will adapt such that they do not conflict with the multicursor modifier.")
+		},
+		'editor.multiCursorMergeOverlapping': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.multiCursorMergeOverlapping,
+			'description': nls.localize('multiCursorMergeOverlapping', "Merge multiple cursors when they are overlapping.")
 		},
 		'editor.quickSuggestions': {
 			'anyOf': [
@@ -462,6 +481,17 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.wordBasedSuggestions,
 			'description': nls.localize('wordBasedSuggestions', "Controls whether completions should be computed based on words in the document.")
 		},
+		'editor.suggestSelection': {
+			'type': 'string',
+			'enum': ['first', 'recentlyUsed', 'recentlyUsedByPrefix'],
+			'enumDescriptions': [
+				nls.localize('suggestSelection.first', "Always select the first suggestion."),
+				nls.localize('suggestSelection.recentlyUsed', "Select recent suggestions unless further typing selects one, e.g. `console.| -> console.log` because `log` has been completed recently."),
+				nls.localize('suggestSelection.recentlyUsedByPrefix', "Select suggestions based on previous prefixes that have completed those suggestions, e.g. `co -> console` and `con -> const`."),
+			],
+			'default': 'recentlyUsed',
+			'description': nls.localize('suggestSelection', "Controls how suggestions are pre-selected when showing the suggest list.")
+		},
 		'editor.suggestFontSize': {
 			'type': 'integer',
 			'default': 0,
@@ -498,7 +528,7 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'string',
 			'enum': ['blink', 'smooth', 'phase', 'expand', 'solid'],
 			'default': editorOptions.blinkingStyleToString(EDITOR_DEFAULTS.viewInfo.cursorBlinking),
-			'description': nls.localize('cursorBlinking', "Control the cursor animation style, possible values are 'blink', 'smooth', 'phase', 'expand' and 'solid'")
+			'description': nls.localize('cursorBlinking', "Control the cursor animation style.")
 		},
 		'editor.mouseWheelZoom': {
 			'type': 'boolean',
@@ -510,6 +540,11 @@ const editorConfiguration: IConfigurationNode = {
 			'enum': ['block', 'block-outline', 'line', 'line-thin', 'underline', 'underline-thin'],
 			'default': editorOptions.cursorStyleToString(EDITOR_DEFAULTS.viewInfo.cursorStyle),
 			'description': nls.localize('cursorStyle', "Controls the cursor style, accepted values are 'block', 'block-outline', 'line', 'line-thin', 'underline' and 'underline-thin'")
+		},
+		'editor.cursorWidth': {
+			'type': 'integer',
+			'default': EDITOR_DEFAULTS.viewInfo.cursorWidth,
+			'description': nls.localize('cursorWidth', "Controls the width of the cursor when editor.cursorStyle is set to 'line'")
 		},
 		'editor.fontLigatures': {
 			'type': 'boolean',
@@ -537,6 +572,11 @@ const editorConfiguration: IConfigurationNode = {
 			default: EDITOR_DEFAULTS.viewInfo.renderIndentGuides,
 			description: nls.localize('renderIndentGuides', "Controls whether the editor should render indent guides")
 		},
+		'editor.highlightActiveIndentGuide': {
+			'type': 'boolean',
+			default: EDITOR_DEFAULTS.viewInfo.highlightActiveIndentGuide,
+			description: nls.localize('highlightActiveIndentGuide', "Controls whether the editor should highlight the active indent guide")
+		},
 		'editor.renderLineHighlight': {
 			'type': 'string',
 			'enum': ['none', 'gutter', 'line', 'all'],
@@ -546,12 +586,22 @@ const editorConfiguration: IConfigurationNode = {
 		'editor.codeLens': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.codeLens,
-			'description': nls.localize('codeLens', "Controls if the editor shows code lenses")
+			'description': nls.localize('codeLens', "Controls if the editor shows CodeLens")
 		},
 		'editor.folding': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.folding,
 			'description': nls.localize('folding', "Controls whether the editor has code folding enabled")
+		},
+		'editor.foldingStrategy': {
+			'type': 'string',
+			'enum': ['auto', 'indentation'],
+			'enumDescriptions': [
+				nls.localize('foldingStrategyAuto', 'If available, use a language specific folding strategy, otherwise falls back to the indentation based strategy.'),
+				nls.localize('foldingStrategyIndentation', 'Always use the indentation based folding strategy')
+			],
+			'default': EDITOR_DEFAULTS.contribInfo.foldingStrategy,
+			'description': nls.localize('foldingStrategy', "Controls the way folding ranges are computed. 'auto' picks uses a language specific folding strategy, if available. 'indentation' forces that the indentation based folding strategy is used.")
 		},
 		'editor.showFoldingControls': {
 			'type': 'string',
@@ -600,6 +650,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.accessibilitySupport,
 			'description': nls.localize('accessibilitySupport', "Controls whether the editor should run in a mode where it is optimized for screen readers.")
 		},
+		'editor.showUnused': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.showUnused,
+			'description': nls.localize('showUnused', "Controls fading out of unused code.")
+		},
 		'editor.links': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.links,
@@ -614,6 +669,25 @@ const editorConfiguration: IConfigurationNode = {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.lightbulbEnabled,
 			'description': nls.localize('codeActions', "Enables the code action lightbulb")
+		},
+		'editor.codeActionsOnSave': {
+			'type': 'object',
+			'properties': {
+				'source.organizeImports': {
+					'type': 'boolean',
+					'description': nls.localize('codeActionsOnSave.organizeImports', "Run organize imports on save?")
+				}
+			},
+			'additionalProperties': {
+				'type': 'boolean'
+			},
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSave,
+			'description': nls.localize('codeActionsOnSave', "Code action kinds to be run on save.")
+		},
+		'editor.codeActionsOnSaveTimeout': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.contribInfo.codeActionsOnSaveTimeout,
+			'description': nls.localize('codeActionsOnSaveTimeout', "Timeout for code actions run on save.")
 		},
 		'editor.selectionClipboard': {
 			'type': 'boolean',
@@ -631,6 +705,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': true,
 			'description': nls.localize('ignoreTrimWhitespace', "Controls if the diff editor shows changes in leading or trailing whitespace as diffs")
 		},
+		'editor.largeFileOptimizations': {
+			'type': 'boolean',
+			'default': EDITOR_MODEL_DEFAULTS.largeFileOptimizations,
+			'description': nls.localize('largeFileOptimizations', "Special handling for large files to disable certain memory intensive features.")
+		},
 		'diffEditor.renderIndicators': {
 			'type': 'boolean',
 			'default': true,
@@ -638,5 +717,25 @@ const editorConfiguration: IConfigurationNode = {
 		}
 	}
 };
+
+let cachedEditorConfigurationKeys: { [key: string]: boolean; } = null;
+function getEditorConfigurationKeys(): { [key: string]: boolean; } {
+	if (cachedEditorConfigurationKeys === null) {
+		cachedEditorConfigurationKeys = Object.create(null);
+		Object.keys(editorConfiguration.properties).forEach((prop) => {
+			cachedEditorConfigurationKeys[prop] = true;
+		});
+	}
+	return cachedEditorConfigurationKeys;
+}
+
+export function isEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`editor.${key}`] || false);
+}
+export function isDiffEditorConfigurationKey(key: string): boolean {
+	const editorConfigurationKeys = getEditorConfigurationKeys();
+	return (editorConfigurationKeys[`diffEditor.${key}`] || false);
+}
 
 configurationRegistry.registerConfiguration(editorConfiguration);

@@ -11,6 +11,7 @@ import { QuickOpenHandler } from 'vs/workbench/browser/quickopen';
 import { IExtensionsViewlet, VIEWLET_ID } from 'vs/workbench/parts/extensions/common/extensions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IExtensionGalleryService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 class SimpleEntry extends QuickOpenEntry {
 
@@ -41,7 +42,7 @@ export class ExtensionsHandler extends QuickOpenHandler {
 
 	public static readonly ID = 'workbench.picker.extensions';
 
-	constructor( @IViewletService private viewletService: IViewletService) {
+	constructor(@IViewletService private viewletService: IViewletService) {
 		super();
 	}
 
@@ -75,7 +76,8 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 	constructor(
 		@IViewletService private viewletService: IViewletService,
 		@IExtensionGalleryService private galleryService: IExtensionGalleryService,
-		@IExtensionManagementService private extensionsService: IExtensionManagementService
+		@IExtensionManagementService private extensionsService: IExtensionManagementService,
+		@INotificationService private notificationService: INotificationService
 	) {
 		super();
 	}
@@ -97,7 +99,8 @@ export class GalleryExtensionsHandler extends QuickOpenHandler {
 							return this.viewletService.openViewlet(VIEWLET_ID, true)
 								.then(viewlet => viewlet as IExtensionsViewlet)
 								.then(viewlet => viewlet.search(`@id:${text}`))
-								.done(() => this.extensionsService.installFromGallery(galleryExtension));
+								.then(() => this.extensionsService.installFromGallery(galleryExtension))
+								.done(null, err => this.notificationService.error(err));
 						};
 
 						entries.push(new SimpleEntry(label, action));

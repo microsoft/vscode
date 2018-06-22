@@ -4,28 +4,28 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { Range } from 'vs/editor/common/core/range';
-import { IModelDecoration } from 'vs/editor/common/editorCommon';
+import { IModelDecoration, TrackedRangeStickiness as ActualTrackedRangeStickiness } from 'vs/editor/common/model';
 
 //
 // The red-black tree is based on the "Introduction to Algorithms" by Cormen, Leiserson and Rivest.
 //
 
-/**
- * The class name sort order must match the severity order. Highest severity last.
- */
 export const ClassName = {
-	EditorInfoDecoration: 'squiggly-a-info',
-	EditorWarningDecoration: 'squiggly-b-warning',
-	EditorErrorDecoration: 'squiggly-c-error'
+	EditorHintDecoration: 'squiggly-hint',
+	EditorInfoDecoration: 'squiggly-info',
+	EditorWarningDecoration: 'squiggly-warning',
+	EditorErrorDecoration: 'squiggly-error',
+	EditorUnnecessaryDecoration: 'squiggly-unnecessary',
+	EditorUnnecessaryInlineDecoration: 'squiggly-inline-unnecessary'
 };
 
 /**
  * Describes the behavior of decorations when typing/editing near their edges.
  * Note: Please do not edit the values, as they very carefully match `DecorationRangeBehavior`
  */
-export const enum TrackedRangeStickiness {
+const enum TrackedRangeStickiness {
 	AlwaysGrowsWhenTypingAtEdges = 0,
 	NeverGrowsWhenTypingAtEdges = 1,
 	GrowsOnlyWhenTypingBefore = 2,
@@ -116,10 +116,13 @@ function setNodeIsInOverviewRuler(node: IntervalNode, value: boolean): void {
 function getNodeStickiness(node: IntervalNode): TrackedRangeStickiness {
 	return ((node.metadata & Constants.StickinessMask) >>> Constants.StickinessOffset);
 }
-function setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickiness): void {
+function _setNodeStickiness(node: IntervalNode, stickiness: TrackedRangeStickiness): void {
 	node.metadata = (
 		(node.metadata & Constants.StickinessMaskInverse) | (stickiness << Constants.StickinessOffset)
 	);
+}
+export function setNodeStickiness(node: IntervalNode, stickiness: ActualTrackedRangeStickiness): void {
+	_setNodeStickiness(node, <number>stickiness);
 }
 
 export class IntervalNode implements IModelDecoration {
@@ -165,7 +168,7 @@ export class IntervalNode implements IModelDecoration {
 		this.ownerId = 0;
 		this.options = null;
 		setNodeIsForValidation(this, false);
-		setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
+		_setNodeStickiness(this, TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges);
 		setNodeIsInOverviewRuler(this, false);
 
 		this.cachedVersionId = 0;
@@ -194,7 +197,7 @@ export class IntervalNode implements IModelDecoration {
 			|| className === ClassName.EditorWarningDecoration
 			|| className === ClassName.EditorInfoDecoration
 		));
-		setNodeStickiness(this, <number>this.options.stickiness);
+		_setNodeStickiness(this, <number>this.options.stickiness);
 		setNodeIsInOverviewRuler(this, this.options.overviewRuler.color ? true : false);
 	}
 
@@ -393,7 +396,7 @@ function adjustMarkerBeforeColumn(markerOffset: number, markerStickToPreviousCha
  * This is a lot more complicated than strictly necessary to maintain the same behaviour
  * as when decorations were implemented using two markers.
  */
-function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
+export function nodeAcceptEdit(node: IntervalNode, start: number, end: number, textLength: number, forceMoveMarkers: boolean): void {
 	const nodeStickiness = getNodeStickiness(node);
 	const startStickToPreviousCharacter = (
 		nodeStickiness === TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges

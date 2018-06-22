@@ -4,26 +4,9 @@
 		"If you want to provide a fix or improvement, please create a pull request against the original repository.",
 		"Once accepted there, we are happy to receive an update request."
 	],
-	"version": "https://github.com/atom/language-clojure/commit/71068a45499cace7a69c45e337860ebbc9b7fccc",
-	"scopeName": "source.clojure",
-	"fileTypes": [
-		"boot",
-		"clj",
-		"clj.hl",
-		"cljc",
-		"cljs",
-		"cljs.hl",
-		"cljx",
-		"clojure",
-		"edn",
-		"org",
-		"joke",
-		"joker"
-	],
-	"foldingStartMarker": "\\(\\s*$",
-	"foldingStopMarker": "^\\s*\\)",
-	"firstLineMatch": "(?x)\n# Hashbang\n^\\#!.*(?:\\s|\\/)\n  boot\n(?:$|\\s)\n|\n# Modeline\n(?i:\n  # Emacs\n  -\\*-(?:\\s*(?=[^:;\\s]+\\s*-\\*-)|(?:.*?[;\\s]|(?<=-\\*-))mode\\s*:\\s*)\n    clojure(script)?\n  (?=[\\s;]|(?<![-*])-\\*-).*?-\\*-\n  |\n  # Vim\n  (?:(?:\\s|^)vi(?:m[<=>]?\\d+|m)?|\\sex)(?=:(?=\\s*set?\\s[^\\n:]+:)|:(?!\\s*set?\\s))(?:(?:\\s|\\s*:\\s*)\\w*(?:\\s*=(?:[^\\n\\\\\\s]|\\\\.)*)?)*[\\s:](?:filetype|ft|syntax)\\s*=\n    clojure\n  (?=\\s|:|$)\n)",
+	"version": "https://github.com/atom/language-clojure/commit/ecc790326bc8e14220e4d2d72a392a30876c3219",
 	"name": "Clojure",
+	"scopeName": "source.clojure",
 	"patterns": [
 		{
 			"include": "#comment"
@@ -326,7 +309,7 @@
 							"include": "#dynamic-variables"
 						},
 						{
-							"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)",
+							"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
 							"name": "entity.global.clojure"
 						},
 						{
@@ -404,7 +387,7 @@
 		"namespace-symbol": {
 			"patterns": [
 				{
-					"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)/",
+					"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)/",
 					"captures": {
 						"1": {
 							"name": "meta.symbol.namespace.clojure"
@@ -416,7 +399,7 @@
 		"symbol": {
 			"patterns": [
 				{
-					"match": "([\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]+)",
+					"match": "([a-zA-Z\\.\\-\\_\\+\\=\\>\\<\\!\\?\\*][\\w\\.\\-\\_\\:\\+\\=\\>\\<\\!\\?\\*\\d]*)",
 					"name": "meta.symbol.clojure"
 				}
 			]

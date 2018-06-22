@@ -30,7 +30,7 @@ export class EditorState {
 		this.flags = flags;
 
 		if ((this.flags & CodeEditorStateFlag.Value) !== 0) {
-			var model = editor.getModel();
+			let model = editor.getModel();
 			this.modelVersionId = model ? strings.format('{0}#{1}', model.uri.toString(), model.getVersionId()) : null;
 		}
 		if ((this.flags & CodeEditorStateFlag.Position) !== 0) {
@@ -50,7 +50,7 @@ export class EditorState {
 		if (!(other instanceof EditorState)) {
 			return false;
 		}
-		var state = <EditorState>other;
+		let state = <EditorState>other;
 
 		if (this.modelVersionId !== state.modelVersionId) {
 			return false;
@@ -69,5 +69,35 @@ export class EditorState {
 
 	public validate(editor: ICodeEditor): boolean {
 		return this._equals(new EditorState(editor, this.flags));
+	}
+}
+
+export class StableEditorScrollState {
+
+	public static capture(editor: ICodeEditor): StableEditorScrollState {
+		let visiblePosition: Position = null;
+		let visiblePositionScrollDelta = 0;
+		if (editor.getScrollTop() !== 0) {
+			const visibleRanges = editor.getVisibleRanges();
+			if (visibleRanges.length > 0) {
+				visiblePosition = visibleRanges[0].getStartPosition();
+				const visiblePositionScrollTop = editor.getTopForPosition(visiblePosition.lineNumber, visiblePosition.column);
+				visiblePositionScrollDelta = editor.getScrollTop() - visiblePositionScrollTop;
+			}
+		}
+		return new StableEditorScrollState(visiblePosition, visiblePositionScrollDelta);
+	}
+
+	constructor(
+		private readonly _visiblePosition: Position,
+		private readonly _visiblePositionScrollDelta: number
+	) {
+	}
+
+	public restore(editor: ICodeEditor): void {
+		if (this._visiblePosition) {
+			const visiblePositionScrollTop = editor.getTopForPosition(this._visiblePosition.lineNumber, this._visiblePosition.column);
+			editor.setScrollTop(visiblePositionScrollTop + this._visiblePositionScrollDelta);
+		}
 	}
 }

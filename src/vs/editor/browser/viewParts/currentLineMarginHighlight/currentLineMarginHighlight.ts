@@ -91,21 +91,21 @@ export class CurrentLineMarginHighlightOverlay extends DynamicViewOverlay {
 
 	public render(startLineNumber: number, lineNumber: number): string {
 		if (lineNumber === this._primaryCursorLineNumber) {
+			let className = 'current-line';
 			if (this._shouldShowCurrentLine()) {
 				const paintedInContent = this._willRenderContentCurrentLine();
-				const className = 'current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
-				return (
-					'<div class="'
-					+ className
-					+ '" style="width:'
-					+ String(this._contentLeft)
-					+ 'px; height:'
-					+ String(this._lineHeight)
-					+ 'px;"></div>'
-				);
-			} else {
-				return '';
+				className = 'current-line current-line-margin' + (paintedInContent ? ' current-line-margin-both' : '');
 			}
+
+			return (
+				'<div class="'
+				+ className
+				+ '" style="width:'
+				+ String(this._contentLeft)
+				+ 'px; height:'
+				+ String(this._lineHeight)
+				+ 'px;"></div>'
+			);
 		}
 		return '';
 	}

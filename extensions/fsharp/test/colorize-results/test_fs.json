@@ -44,7 +44,7 @@
 		}
 	},
 	{
-		"c": "Person(name:string, age:int)",
+		"c": "Person",
 		"t": "source.fsharp record.fsharp entity.name.type.fsharp",
 		"r": {
 			"dark_plus": "entity.name.type: #4EC9B0",
@@ -55,7 +55,95 @@
 		}
 	},
 	{
-		"c": " ",
+		"c": "(",
+		"t": "source.fsharp record.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "name",
+		"t": "source.fsharp record.fsharp variable.parameter.fsharp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "string",
+		"t": "source.fsharp record.fsharp entity.name.type.fsharp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ", ",
+		"t": "source.fsharp record.fsharp",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "age",
+		"t": "source.fsharp record.fsharp variable.parameter.fsharp",
+		"r": {
+			"dark_plus": "variable: #9CDCFE",
+			"light_plus": "variable: #001080",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "variable: #9CDCFE"
+		}
+	},
+	{
+		"c": ":",
+		"t": "source.fsharp record.fsharp keyword.other.fsharp",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
+		}
+	},
+	{
+		"c": "int",
+		"t": "source.fsharp record.fsharp entity.name.type.fsharp",
+		"r": {
+			"dark_plus": "entity.name.type: #4EC9B0",
+			"light_plus": "entity.name.type: #267F99",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "entity.name.type: #4EC9B0"
+		}
+	},
+	{
+		"c": ") ",
 		"t": "source.fsharp record.fsharp",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

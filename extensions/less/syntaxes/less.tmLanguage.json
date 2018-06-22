@@ -7,14 +7,6 @@
 	"version": "https://github.com/atom/language-less/commit/b5b3438916bd617fe2b61e090b438c3e27034fc1",
 	"name": "Less",
 	"scopeName": "source.css.less",
-	"fileTypes": [
-		"less",
-		"less.erb",
-		"rc",
-		"gtkrc",
-		"gtkrc-2.0",
-		"themerc"
-	],
 	"patterns": [
 		{
 			"include": "#strings"

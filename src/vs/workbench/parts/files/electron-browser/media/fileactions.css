@@ -75,22 +75,6 @@
 	background-image: url('split-editor-horizontal-inverse.svg');
 }
 
-.monaco-workbench .save-conflict-action-accept-changes {
-	background: url('check.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .save-conflict-action-accept-changes {
-	background: url('check-inverse.svg') center center no-repeat;
-}
-
-.monaco-workbench .save-conflict-action-revert-changes {
-	background: url('undo.svg') center center no-repeat;
-}
-
-.vs-dark .monaco-workbench .save-conflict-action-revert-changes {
-	background: url('undo-inverse.svg') center center no-repeat;
-}
-
 .monaco-workbench .file-editor-action.action-open-preview {
 	background: url('Preview.svg') center center no-repeat;
 }

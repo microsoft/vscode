@@ -15,19 +15,19 @@ import { IWorkbenchActionRegistry, Extensions as WorkbenchActionExtensions } fro
 import { KeyMod, KeyCode } from 'vs/base/common/keyCodes';
 import { SyncActionDescriptor } from 'vs/platform/actions/common/actions';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { StatusUpdater, StatusBarController } from './scmActivity';
 import { SCMViewlet } from 'vs/workbench/parts/scm/electron-browser/scmViewlet';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 import { IConfigurationRegistry, Extensions as ConfigurationExtensions } from 'vs/platform/configuration/common/configurationRegistry';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 
 class OpenSCMViewletAction extends ToggleViewletAction {
 
 	static readonly ID = VIEWLET_ID;
 	static LABEL = localize('toggleGitViewlet', "Show Git");
 
-	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IWorkbenchEditorService editorService: IWorkbenchEditorService) {
-		super(id, label, VIEWLET_ID, viewletService, editorService);
+	constructor(id: string, label: string, @IViewletService viewletService: IViewletService, @IEditorGroupsService editorGroupService: IEditorGroupsService) {
+		super(id, label, VIEWLET_ID, viewletService, editorGroupService);
 	}
 }
 
@@ -39,16 +39,16 @@ const viewletDescriptor = new ViewletDescriptor(
 	VIEWLET_ID,
 	localize('source control', "Source Control"),
 	'scm',
-	36
+	2
 );
 
 Registry.as<ViewletRegistry>(ViewletExtensions.Viewlets)
 	.registerViewlet(viewletDescriptor);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusUpdater, LifecyclePhase.Running);
 
-Registry.as(WorkbenchExtensions.Workbench)
+Registry.as<IWorkbenchContributionsRegistry>(WorkbenchExtensions.Workbench)
 	.registerWorkbenchContribution(StatusBarController, LifecyclePhase.Running);
 
 // Register Action to Open Viewlet
@@ -80,11 +80,11 @@ Registry.as<IConfigurationRegistry>(ConfigurationExtensions.Configuration).regis
 			default: 'all',
 			description: localize('diffDecorations', "Controls diff decorations in the editor.")
 		},
-		'scm.inputCounter': {
-			type: 'string',
-			enum: ['always', 'warn', 'off'],
-			default: 'warn',
-			description: localize('inputCounter', "Controls when to display the input counter.")
+		'scm.diffDecorationsGutterWidth': {
+			type: 'number',
+			enum: [1, 2, 3, 4, 5],
+			default: 3,
+			description: localize('diffGutterWidth', "Controls the width(px) of diff decorations in gutter (added & modified).")
 		}
 	}
 });

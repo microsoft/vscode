@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { ExtHostWindowShape, MainContext, MainThreadWindowShape, IMainContext } from './extHost.protocol';
 import { WindowState } from 'vscode';
 

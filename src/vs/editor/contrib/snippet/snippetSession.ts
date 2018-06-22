@@ -7,7 +7,7 @@
 
 import 'vs/css!./snippetSession';
 import { getLeadingWhitespace } from 'vs/base/common/strings';
-import { IModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/editorCommon';
+import { ITextModel, TrackedRangeStickiness, IIdentifiedSingleEditOperation } from 'vs/editor/common/model';
 import { EditOperation } from 'vs/editor/common/core/editOperation';
 import { TextmateSnippet, Placeholder, Choice, SnippetParser } from './snippetParser';
 import { Selection } from 'vs/editor/common/core/selection';
@@ -15,8 +15,8 @@ import { Range } from 'vs/editor/common/core/range';
 import { IPosition } from 'vs/editor/common/core/position';
 import { groupBy } from 'vs/base/common/arrays';
 import { dispose } from 'vs/base/common/lifecycle';
-import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver } from './snippetVariables';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { SelectionBasedVariableResolver, CompositeSnippetVariableResolver, ModelBasedVariableResolver, ClipboardBasedVariableResolver, TimeBasedVariableResolver } from './snippetVariables';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { IClipboardService } from 'vs/platform/clipboard/common/clipboardService';
 import { optional } from 'vs/platform/instantiation/common/instantiation';
@@ -50,7 +50,9 @@ export class OneSnippet {
 
 	dispose(): void {
 		if (this._placeholderDecorations) {
-			this._editor.changeDecorations(accessor => this._placeholderDecorations.forEach(handle => accessor.removeDecoration(handle)));
+			let toRemove: string[] = [];
+			this._placeholderDecorations.forEach(handle => toRemove.push(handle));
+			this._editor.deltaDecorations(toRemove, []);
 		}
 		this._placeholderGroups.length = 0;
 	}
@@ -84,6 +86,23 @@ export class OneSnippet {
 	move(fwd: boolean | undefined): Selection[] {
 
 		this._initDecorations();
+
+		// Transform placeholder text if necessary
+		if (this._placeholderGroupsIdx >= 0) {
+			let operations: IIdentifiedSingleEditOperation[] = [];
+
+			for (const placeholder of this._placeholderGroups[this._placeholderGroupsIdx]) {
+				// Check if the placeholder has a transformation
+				if (placeholder.transform) {
+					const id = this._placeholderDecorations.get(placeholder);
+					const range = this._editor.getModel().getDecorationRange(id);
+					const currentValue = this._editor.getModel().getValueInRange(range);
+
+					operations.push({ range: range, text: placeholder.transform.resolve(currentValue) });
+				}
+			}
+			this._editor.getModel().applyEdits(operations);
+		}
 
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {
 			this._placeholderGroupsIdx += 1;
@@ -224,11 +243,25 @@ export class OneSnippet {
 			this._placeholderGroups = groupBy(this._snippet.placeholders, Placeholder.compareByIndex);
 		});
 	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		const model = this._editor.getModel();
+		this._placeholderDecorations.forEach((decorationId) => {
+			const placeholderRange = model.getDecorationRange(decorationId);
+			if (!result) {
+				result = placeholderRange;
+			} else {
+				result = result.plusRange(placeholderRange);
+			}
+		});
+		return result;
+	}
 }
 
 export class SnippetSession {
 
-	static adjustWhitespace(model: IModel, position: IPosition, template: string): string {
+	static adjustWhitespace(model: ITextModel, position: IPosition, template: string): string {
 
 		const line = model.getLineContent(position.lineNumber);
 		const lineLeadingWhitespace = getLeadingWhitespace(line, 0, position.column - 1);
@@ -241,7 +274,7 @@ export class SnippetSession {
 		return templateLines.join(model.getEOL());
 	}
 
-	static adjustSelection(model: IModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
+	static adjustSelection(model: ITextModel, selection: Selection, overwriteBefore: number, overwriteAfter: number): Selection {
 		if (overwriteBefore !== 0 || overwriteAfter !== 0) {
 			// overwrite[Before|After] is compute using the position, not the whole
 			// selection. therefore we adjust the selection around that position
@@ -318,7 +351,8 @@ export class SnippetSession {
 				.resolveVariables(new CompositeSnippetVariableResolver([
 					modelBasedVariableResolver,
 					new ClipboardBasedVariableResolver(clipboardService, idx, indexedSelections.length),
-					new SelectionBasedVariableResolver(model, selection)
+					new SelectionBasedVariableResolver(model, selection),
+					new TimeBasedVariableResolver
 				]));
 
 			const offset = model.getOffsetAt(start) + delta;
@@ -364,13 +398,15 @@ export class SnippetSession {
 		const { edits, snippets } = SnippetSession.createEditsAndSnippets(this._editor, this._template, this._overwriteBefore, this._overwriteAfter, false);
 		this._snippets = snippets;
 
-		this._editor.setSelections(model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
+		const selections = model.pushEditOperations(this._editor.getSelections(), edits, undoEdits => {
 			if (this._snippets[0].hasPlaceholder) {
 				return this._move(true);
 			} else {
 				return undoEdits.map(edit => Selection.fromPositions(edit.range.getEndPosition()));
 			}
-		}));
+		});
+		this._editor.setSelections(selections);
+		this._editor.revealRange(selections[0]);
 	}
 
 	merge(template: string, overwriteBefore: number = 0, overwriteAfter: number = 0): void {
@@ -443,8 +479,7 @@ export class SnippetSession {
 			return false;
 		}
 
-		let ranges: Range[] = [];
-		let placeholderIndex: number = -1;
+		let allPossibleSelections: Map<number, Range[]>;
 		for (const snippet of this._snippets) {
 
 			const possibleSelections = snippet.computePossibleSelections();
@@ -452,49 +487,71 @@ export class SnippetSession {
 			// for the first snippet find the placeholder (and its ranges)
 			// that contain at least one selection. for all remaining snippets
 			// the same placeholder (and their ranges) must be used.
-			if (placeholderIndex < 0) {
+			if (!allPossibleSelections) {
+				allPossibleSelections = new Map<number, Range[]>();
 				possibleSelections.forEach((ranges, index) => {
-					if (placeholderIndex >= 0) {
-						return;
-					}
+
 					ranges.sort(Range.compareRangesUsingStarts);
 					for (const selection of selections) {
 						if (ranges[0].containsRange(selection)) {
-							placeholderIndex = index;
+							allPossibleSelections.set(index, []);
 							break;
 						}
 					}
 				});
 			}
 
-			if (placeholderIndex < 0) {
+			if (allPossibleSelections.size === 0) {
 				// return false if we couldn't associate a selection to
 				// this (the first) snippet
 				return false;
 			}
 
-			ranges.push(...possibleSelections.get(placeholderIndex));
+			// add selections from 'this' snippet so that we know all
+			// selections for this placeholder
+			allPossibleSelections.forEach((array, index) => {
+				array.push(...possibleSelections.get(index));
+			});
 		}
 
-		if (selections.length !== ranges.length) {
-			// this means we started at a placeholder with N
-			// ranges and new have M (N > M) selections.
-			// So (at least) one placeholder is without selection -> cancel
-			return false;
-		}
-
-		// also sort (placeholder)-ranges. then walk both arrays and
-		// make sure the placeholder-ranges contain the corresponding
+		// sort selections (and later placeholder-ranges). then walk both
+		// arrays and make sure the placeholder-ranges contain the corresponding
 		// selection
 		selections.sort(Range.compareRangesUsingStarts);
-		ranges.sort(Range.compareRangesUsingStarts);
 
-		for (let i = 0; i < ranges.length; i++) {
-			if (!ranges[i].containsRange(selections[i])) {
-				return false;
+		allPossibleSelections.forEach((ranges, index) => {
+
+			if (ranges.length !== selections.length) {
+				allPossibleSelections.delete(index);
+				return;
+			}
+
+			ranges.sort(Range.compareRangesUsingStarts);
+
+			for (let i = 0; i < ranges.length; i++) {
+				if (!ranges[i].containsRange(selections[i])) {
+					allPossibleSelections.delete(index);
+					return;
+				}
+			}
+		});
+
+		// from all possible selections we have deleted those
+		// that don't match with the current selection. if we don't
+		// have any left, we don't have a selection anymore
+		return allPossibleSelections.size > 0;
+	}
+
+	public getEnclosingRange(): Range {
+		let result: Range;
+		for (const snippet of this._snippets) {
+			const snippetRange = snippet.getEnclosingRange();
+			if (!result) {
+				result = snippetRange;
+			} else {
+				result = result.plusRange(snippetRange);
 			}
 		}
-
-		return true;
+		return result;
 	}
 }

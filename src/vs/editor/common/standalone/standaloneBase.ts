@@ -25,6 +25,17 @@ export enum Severity {
 	Error = 3,
 }
 
+export enum MarkerTag {
+	Unnecessary = 1,
+}
+
+export enum MarkerSeverity {
+	Hint = 1,
+	Info = 2,
+	Warning = 4,
+	Error = 8,
+}
+
 // --------------------------------------------
 // This is repeated here so it can be exported
 // because TS inlines const enums
@@ -238,6 +249,8 @@ export function createMonacoBaseAPI(): typeof monaco {
 		Selection: Selection,
 		SelectionDirection: SelectionDirection,
 		Severity: Severity,
+		MarkerSeverity: MarkerSeverity,
+		MarkerTag: MarkerTag,
 		Promise: TPromise,
 		Uri: <any>URI,
 		Token: Token

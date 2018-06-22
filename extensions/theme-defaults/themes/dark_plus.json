@@ -22,6 +22,11 @@
 				"support.type",
 				"entity.name.type",
 				"entity.name.class",
+				"storage.type.numeric.go",
+				"storage.type.byte.go",
+				"storage.type.boolean.go",
+				"storage.type.string.go",
+				"storage.type.uintptr.go",
 				"storage.type.cs",
 				"storage.type.generic.cs",
 				"storage.type.modifier.cs",
@@ -71,7 +76,8 @@
 			"scope": [
 				"variable",
 				"meta.definition.variable.name",
-				"support.variable"
+				"support.variable",
+				"entity.name.variable"
 			],
 			"settings": {
 				"foreground": "#9CDCFE"

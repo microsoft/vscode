@@ -12,19 +12,27 @@ import { IKeybindings } from 'vs/platform/keybinding/common/keybindingsRegistry'
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import URI, { UriComponents } from 'vs/base/common/uri';
 
 export interface ILocalizedString {
 	value: string;
 	original: string;
 }
 
-export interface ICommandAction {
+export interface IBaseCommandAction {
 	id: string;
 	title: string | ILocalizedString;
 	category?: string | ILocalizedString;
-	iconClass?: string;
-	iconPath?: string;
+}
+
+export interface ICommandAction extends IBaseCommandAction {
+	iconLocation?: { dark: URI; light?: URI; };
+	precondition?: ContextKeyExpr;
+}
+
+export interface ISerializableCommandAction extends IBaseCommandAction {
+	iconLocation?: { dark: UriComponents; light?: UriComponents; };
 }
 
 export interface IMenuItem {
@@ -42,7 +50,9 @@ export class MenuId {
 	static readonly EditorTitle = new MenuId();
 	static readonly EditorTitleContext = new MenuId();
 	static readonly EditorContext = new MenuId();
+	static readonly EmptyEditorGroupContext = new MenuId();
 	static readonly ExplorerContext = new MenuId();
+	static readonly OpenEditorsContext = new MenuId();
 	static readonly ProblemsPanelContext = new MenuId();
 	static readonly DebugVariablesContext = new MenuId();
 	static readonly DebugWatchContext = new MenuId();
@@ -58,6 +68,19 @@ export class MenuId {
 	static readonly ViewTitle = new MenuId();
 	static readonly ViewItemContext = new MenuId();
 	static readonly TouchBarContext = new MenuId();
+	static readonly SearchContext = new MenuId();
+	static readonly MenubarFileMenu = new MenuId();
+	static readonly MenubarEditMenu = new MenuId();
+	static readonly MenubarRecentMenu = new MenuId();
+	static readonly MenubarSelectionMenu = new MenuId();
+	static readonly MenubarViewMenu = new MenuId();
+	static readonly MenubarLayoutMenu = new MenuId();
+	static readonly MenubarGoMenu = new MenuId();
+	static readonly MenubarDebugMenu = new MenuId();
+	static readonly MenubarTasksMenu = new MenuId();
+	static readonly MenubarWindowMenu = new MenuId();
+	static readonly MenubarPreferencesMenu = new MenuId();
+	static readonly MenubarHelpMenu = new MenuId();
 
 	readonly id: string = String(MenuId.ID++);
 }
@@ -153,7 +176,7 @@ export class ExecuteCommandAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@ICommandService private _commandService: ICommandService) {
+		@ICommandService private readonly _commandService: ICommandService) {
 
 		super(id, label);
 	}
@@ -174,15 +197,16 @@ export class MenuItemAction extends ExecuteCommandAction {
 		item: ICommandAction,
 		alt: ICommandAction,
 		options: IMenuActionOptions,
+		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService
 	) {
 		typeof item.title === 'string' ? super(item.id, item.title, commandService) : super(item.id, item.title.value, commandService);
-		this._cssClass = item.iconClass;
-		this._enabled = true;
+		this._cssClass = undefined;
+		this._enabled = !item.precondition || contextKeyService.contextMatchesRules(item.precondition);
 		this._options = options || {};
 
 		this.item = item;
-		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, commandService) : undefined;
+		this.alt = alt ? new MenuItemAction(alt, undefined, this._options, contextKeyService, commandService) : undefined;
 	}
 
 	run(...args: any[]): TPromise<any> {

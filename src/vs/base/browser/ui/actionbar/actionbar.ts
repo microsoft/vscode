@@ -6,19 +6,20 @@
 'use strict';
 
 import 'vs/css!./actionbar';
-import nls = require('vs/nls');
-import lifecycle = require('vs/base/common/lifecycle');
+import * as platform from 'vs/base/common/platform';
+import * as nls from 'vs/nls';
+import * as lifecycle from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import { IAction, IActionRunner, Action, IActionChangeEvent, ActionRunner, IRunEvent } from 'vs/base/common/actions';
-import DOM = require('vs/base/browser/dom');
-import types = require('vs/base/common/types');
+import * as DOM from 'vs/base/browser/dom';
+import * as types from 'vs/base/common/types';
 import { EventType, Gesture } from 'vs/base/browser/touch';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { KeyCode, KeyMod } from 'vs/base/common/keyCodes';
 import { IContextViewProvider } from 'vs/base/browser/ui/contextview/contextview';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 
 export interface IActionItem {
 	actionRunner: IActionRunner;
@@ -41,6 +42,8 @@ export class BaseActionItem implements IActionItem {
 	public _callOnDispose: lifecycle.IDisposable[];
 	public _context: any;
 	public _action: IAction;
+
+	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
 
 	private _actionRunner: IActionRunner;
 
@@ -139,7 +142,7 @@ export class BaseActionItem implements IActionItem {
 			if (this.options && this.options.isMenu) {
 				this.onClick(e);
 			} else {
-				setTimeout(() => this.onClick(e), 50);
+				platform.setImmediate(() => this.onClick(e));
 			}
 		});
 
@@ -166,12 +169,14 @@ export class BaseActionItem implements IActionItem {
 	public focus(): void {
 		if (this.builder) {
 			this.builder.domFocus();
+			this.builder.addClass('focused');
 		}
 	}
 
 	public blur(): void {
 		if (this.builder) {
 			this.builder.domBlur();
+			this.builder.removeClass('focused');
 		}
 	}
 
@@ -272,7 +277,11 @@ export class ActionItem extends BaseActionItem {
 
 	public _updateLabel(): void {
 		if (this.options.label) {
-			this.$e.text(this.getAction().label);
+			let label = this.getAction().label;
+			if (label && this.options.isMenu) {
+				label = label.replace(BaseActionItem.MNEMONIC_REGEX, '$1\u0332');
+			}
+			this.$e.text(label);
 		}
 	}
 
@@ -371,7 +380,6 @@ export class ActionBar implements IActionRunner {
 
 	// Items
 	public items: IActionItem[];
-
 	private focusedItem: number;
 	private focusTracker: DOM.IFocusTracker;
 
@@ -386,7 +394,7 @@ export class ActionBar implements IActionRunner {
 	private _onDidRun = new Emitter<IRunEvent>();
 	private _onDidBeforeRun = new Emitter<IRunEvent>();
 
-	constructor(container: HTMLElement | Builder, options: IActionBarOptions = defaultOptions) {
+	constructor(container: HTMLElement, options: IActionBarOptions = defaultOptions) {
 		this.options = options;
 		this._context = options.context;
 		this.toDispose = [];
@@ -486,7 +494,7 @@ export class ActionBar implements IActionRunner {
 		this.actionsList = document.createElement('ul');
 		this.actionsList.className = 'actions-container';
 		if (this.options.isMenu) {
-			this.actionsList.setAttribute('role', 'menubar');
+			this.actionsList.setAttribute('role', 'menu');
 		} else {
 			this.actionsList.setAttribute('role', 'toolbar');
 		}
@@ -496,7 +504,7 @@ export class ActionBar implements IActionRunner {
 
 		this.domNode.appendChild(this.actionsList);
 
-		((container instanceof Builder) ? container.getHTMLElement() : container).appendChild(this.domNode);
+		container.appendChild(this.domNode);
 	}
 
 	public get onDidBlur(): Event<void> {
@@ -553,8 +561,17 @@ export class ActionBar implements IActionRunner {
 		}
 	}
 
-	public getContainer(): Builder {
-		return $(this.domNode);
+	public getContainer(): HTMLElement {
+		return this.domNode;
+	}
+
+	private _addMnemonic(action: IAction, actionItemElement: HTMLElement): void {
+		let matches = BaseActionItem.MNEMONIC_REGEX.exec(action.label);
+		if (matches && matches.length === 2) {
+			let mnemonic = matches[1];
+
+			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
+		}
 	}
 
 	public push(arg: IAction | IAction[], options: IActionOptions = {}): void {
@@ -574,6 +591,10 @@ export class ActionBar implements IActionRunner {
 				e.stopPropagation();
 			});
 
+			if (options.isMenu) {
+				this._addMnemonic(action, actionItemElement);
+			}
+
 			let item: IActionItem = null;
 
 			if (this.options.actionItemProvider) {
@@ -590,11 +611,13 @@ export class ActionBar implements IActionRunner {
 
 			if (index === null || index < 0 || index >= this.actionsList.children.length) {
 				this.actionsList.appendChild(actionItemElement);
+				this.items.push(item);
 			} else {
-				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index++]);
+				this.actionsList.insertBefore(actionItemElement, this.actionsList.children[index]);
+				this.items.splice(index, 0, item);
+				index++;
 			}
 
-			this.items.push(item);
 		});
 	}
 
@@ -748,7 +771,7 @@ export class ActionBar implements IActionRunner {
 
 		this.toDispose = lifecycle.dispose(this.toDispose);
 
-		this.getContainer().destroy();
+		$(this.getContainer()).destroy();
 	}
 }
 
@@ -766,8 +789,8 @@ export class SelectActionItem extends BaseActionItem {
 		this.registerListeners();
 	}
 
-	public setOptions(options: string[], selected?: number): void {
-		this.selectBox.setOptions(options, selected);
+	public setOptions(options: string[], selected?: number, disabled?: number): void {
+		this.selectBox.setOptions(options, selected, disabled);
 	}
 
 	public select(index: number): void {

@@ -6,16 +6,16 @@
 'use strict';
 
 import 'vs/css!./parameterHints';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import * as dom from 'vs/base/browser/dom';
-import aria = require('vs/base/browser/ui/aria/aria');
+import * as aria from 'vs/base/browser/ui/aria/aria';
 import { SignatureHelp, SignatureInformation, SignatureHelpProviderRegistry } from 'vs/editor/common/modes';
 import { ContentWidgetPositionPreference, ICodeEditor, IContentWidget, IContentWidgetPosition } from 'vs/editor/browser/editorBrowser';
 import { RunOnceScheduler } from 'vs/base/common/async';
 import { onUnexpectedError } from 'vs/base/common/errors';
-import Event, { Emitter, chain } from 'vs/base/common/event';
+import { Event, Emitter, chain } from 'vs/base/common/event';
 import { domEvent, stop } from 'vs/base/browser/event';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { Context, provideSignatureHelp } from 'vs/editor/contrib/parameterHints/provideSignatureHelp';
@@ -50,6 +50,7 @@ export class ParameterHintsModel extends Disposable {
 	private triggerCharactersListeners: IDisposable[];
 	private active: boolean;
 	private throttledDelayer: RunOnceScheduler;
+	private provideSignatureHelpRequest?: TPromise<boolean, any>;
 
 	constructor(editor: ICodeEditor) {
 		super();
@@ -66,6 +67,7 @@ export class ParameterHintsModel extends Disposable {
 		this._register(this.editor.onDidChangeModel(e => this.onModelChanged()));
 		this._register(this.editor.onDidChangeModelLanguage(_ => this.onModelChanged()));
 		this._register(this.editor.onDidChangeCursorSelection(e => this.onCursorChange(e)));
+		this._register(this.editor.onDidChangeModelContent(e => this.onModelContentChange()));
 		this._register(SignatureHelpProviderRegistry.onDidChange(this.onModelChanged, this));
 
 		this.onEditorConfigurationChange();
@@ -80,6 +82,11 @@ export class ParameterHintsModel extends Disposable {
 		if (!silent) {
 			this._onCancel.fire(void 0);
 		}
+
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+			this.provideSignatureHelpRequest = undefined;
+		}
 	}
 
 	trigger(delay = ParameterHintsModel.DELAY): void {
@@ -92,7 +99,11 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private doTrigger(): void {
-		provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
+		if (this.provideSignatureHelpRequest) {
+			this.provideSignatureHelpRequest.cancel();
+		}
+
+		this.provideSignatureHelpRequest = provideSignatureHelp(this.editor.getModel(), this.editor.getPosition())
 			.then(null, onUnexpectedError)
 			.then(result => {
 				if (!result || !result.signatures || result.signatures.length === 0) {
@@ -114,9 +125,8 @@ export class ParameterHintsModel extends Disposable {
 	}
 
 	private onModelChanged(): void {
-		if (this.active) {
-			this.cancel();
-		}
+		this.cancel();
+
 		this.triggerCharactersListeners = dispose(this.triggerCharactersListeners);
 
 		const model = this.editor.getModel();
@@ -152,6 +162,12 @@ export class ParameterHintsModel extends Disposable {
 		}
 	}
 
+	private onModelContentChange(): void {
+		if (this.isTriggered()) {
+			this.trigger();
+		}
+	}
+
 	private onEditorConfigurationChange(): void {
 		this.enabled = this.editor.getConfiguration().contribInfo.parameterHints;
 
@@ -172,10 +188,11 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	private static readonly ID = 'editor.widget.parameterHintsWidget';
 
-	private markdownRenderer: MarkdownRenderer;
+	private readonly markdownRenderer: MarkdownRenderer;
+	private renderDisposeables: IDisposable[];
 	private model: ParameterHintsModel;
-	private keyVisible: IContextKey<boolean>;
-	private keyMultipleSignatures: IContextKey<boolean>;
+	private readonly keyVisible: IContextKey<boolean>;
+	private readonly keyMultipleSignatures: IContextKey<boolean>;
 	private element: HTMLElement;
 	private signature: HTMLElement;
 	private docs: HTMLElement;
@@ -337,16 +354,20 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 			this.renderParameters(code, signature, this.hints.activeParameter);
 		}
 
+		dispose(this.renderDisposeables);
+		this.renderDisposeables = [];
+
 		const activeParameter = signature.parameters[this.hints.activeParameter];
 
 		if (activeParameter && activeParameter.documentation) {
 			const documentation = $('span.documentation');
 			if (typeof activeParameter.documentation === 'string') {
-				dom.removeClass(this.docs, 'markdown-docs');
 				documentation.textContent = activeParameter.documentation;
 			} else {
-				dom.addClass(this.docs, 'markdown-docs');
-				documentation.appendChild(this.markdownRenderer.render(activeParameter.documentation));
+				const renderedContents = this.markdownRenderer.render(activeParameter.documentation);
+				dom.addClass(renderedContents.element, 'markdown-docs');
+				this.renderDisposeables.push(renderedContents);
+				documentation.appendChild(renderedContents.element);
 			}
 			dom.append(this.docs, $('p', null, documentation));
 		}
@@ -356,7 +377,10 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 		if (typeof signature.documentation === 'string') {
 			dom.append(this.docs, $('p', null, signature.documentation));
 		} else {
-			dom.append(this.docs, this.markdownRenderer.render(signature.documentation));
+			const renderedContents = this.markdownRenderer.render(signature.documentation);
+			dom.addClass(renderedContents.element, 'markdown-docs');
+			this.renderDisposeables.push(renderedContents);
+			dom.append(this.docs, renderedContents.element);
 		}
 
 		let currentOverload = String(this.currentSignature + 1);
@@ -498,7 +522,12 @@ export class ParameterHintsWidget implements IContentWidget, IDisposable {
 
 	dispose(): void {
 		this.disposables = dispose(this.disposables);
-		this.model = null;
+		this.renderDisposeables = dispose(this.renderDisposeables);
+
+		if (this.model) {
+			this.model.dispose();
+			this.model = null;
+		}
 	}
 }
 

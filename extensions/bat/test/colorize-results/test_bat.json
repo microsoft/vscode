@@ -22,7 +22,7 @@
 		}
 	},
 	{
-		"c": " off",
+		"c": " ",
 		"t": "source.batchfile",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -30,6 +30,17 @@
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "off",
+		"t": "source.batchfile keyword.other.special-method.batchfile",
+		"r": {
+			"dark_plus": "keyword: #569CD6",
+			"light_plus": "keyword: #0000FF",
+			"dark_vs": "keyword: #569CD6",
+			"light_vs": "keyword: #0000FF",
+			"hc_black": "keyword: #569CD6"
 		}
 	},
 	{
@@ -89,13 +100,13 @@
 	},
 	{
 		"c": "%",
-		"t": "source.batchfile variable.parameter.batchfile punctuation.definition.variable.batchfile",
+		"t": "source.batchfile punctuation.definition.variable.batchfile",
 		"r": {
-			"dark_plus": "variable: #9CDCFE",
-			"light_plus": "variable: #001080",
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
-			"hc_black": "variable: #9CDCFE"
+			"hc_black": "default: #FFFFFF"
 		}
 	},
 	{
@@ -477,7 +488,7 @@
 		"t": "source.batchfile constant.character.escape.batchfile",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "constant.character: #569CD6"
@@ -499,7 +510,7 @@
 		"t": "source.batchfile constant.character.escape.batchfile",
 		"r": {
 			"dark_plus": "constant.character.escape: #D7BA7D",
-			"light_plus": "constant.character.escape: #A31515",
+			"light_plus": "constant.character.escape: #FF0000",
 			"dark_vs": "default: #D4D4D4",
 			"light_vs": "default: #000000",
 			"hc_black": "constant.character: #569CD6"

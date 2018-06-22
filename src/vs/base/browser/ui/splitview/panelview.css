@@ -54,6 +54,7 @@
 
 /* TODO: actions should be part of the panel, but they aren't yet */
 .monaco-panel-view .panel:hover > .panel-header.expanded > .actions,
+.monaco-panel-view .panel > .panel-header.actions-always-visible.expanded > .actions,
 .monaco-panel-view .panel > .panel-header.focused.expanded > .actions {
 	display: initial;
 }

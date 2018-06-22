@@ -199,13 +199,13 @@
 	},
 	{
 		"c": "42",
-		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure constant.numeric.long.clojure",
 		"r": {
-			"dark_plus": "default: #D4D4D4",
-			"light_plus": "default: #000000",
-			"dark_vs": "default: #D4D4D4",
-			"light_vs": "default: #000000",
-			"hc_black": "default: #FFFFFF"
+			"dark_plus": "constant.numeric: #B5CEA8",
+			"light_plus": "constant.numeric: #09885A",
+			"dark_vs": "constant.numeric: #B5CEA8",
+			"light_vs": "constant.numeric: #09885A",
+			"hc_black": "constant.numeric: #B5CEA8"
 		}
 	},
 	{
@@ -1342,7 +1342,18 @@
 		}
 	},
 	{
-		"c": "+ ",
+		"c": "+",
+		"t": "source.clojure meta.quoted-expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.quoted-expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -1870,7 +1881,29 @@
 		}
 	},
 	{
-		"c": " v   ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "   ",
 		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2134,7 +2167,29 @@
 		}
 	},
 	{
-		"c": " v  ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "v",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "  ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2310,7 +2365,18 @@
 		}
 	},
 	{
-		"c": "v   ",
+		"c": "v",
+		"t": "source.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "   ",
 		"t": "source.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2431,7 +2497,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure entity.global.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure meta.definition.global.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2574,7 +2662,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -2684,7 +2794,29 @@
 		}
 	},
 	{
-		"c": " m ",
+		"c": " ",
+		"t": "source.clojure meta.expression.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "m",
+		"t": "source.clojure meta.expression.clojure meta.symbol.clojure",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": " ",
 		"t": "source.clojure meta.expression.clojure",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

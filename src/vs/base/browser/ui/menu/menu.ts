@@ -7,17 +7,18 @@
 
 import 'vs/css!./menu';
 import { IDisposable } from 'vs/base/common/lifecycle';
-import { $ } from 'vs/base/browser/builder';
 import { IActionRunner, IAction } from 'vs/base/common/actions';
 import { ActionBar, IActionItemProvider, ActionsOrientation } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding } from 'vs/base/common/keyCodes';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
+import { addClass } from 'vs/base/browser/dom';
 
 export interface IMenuOptions {
 	context?: any;
 	actionItemProvider?: IActionItemProvider;
 	actionRunner?: IActionRunner;
 	getKeyBinding?: (action: IAction) => ResolvedKeybinding;
+	ariaLabel?: string;
 }
 
 export class Menu {
@@ -26,19 +27,24 @@ export class Menu {
 	private listener: IDisposable;
 
 	constructor(container: HTMLElement, actions: IAction[], options: IMenuOptions = {}) {
-		$(container).addClass('monaco-menu-container');
+		addClass(container, 'monaco-menu-container');
+		container.setAttribute('role', 'presentation');
 
-		let $menu = $('.monaco-menu').appendTo(container);
+		let menuContainer = document.createElement('div');
+		addClass(menuContainer, 'monaco-menu');
+		menuContainer.setAttribute('role', 'presentation');
+		container.appendChild(menuContainer);
 
-		this.actionBar = new ActionBar($menu, {
+		this.actionBar = new ActionBar(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
 			actionItemProvider: options.actionItemProvider,
 			context: options.context,
 			actionRunner: options.actionRunner,
-			isMenu: true
+			isMenu: true,
+			ariaLabel: options.ariaLabel
 		});
 
-		this.actionBar.push(actions, { icon: true, label: true });
+		this.actionBar.push(actions, { icon: true, label: true, isMenu: true });
 	}
 
 	public get onDidCancel(): Event<void> {

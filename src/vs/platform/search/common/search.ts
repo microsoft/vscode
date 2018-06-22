@@ -4,18 +4,20 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import uri from 'vs/base/common/uri';
+import { Event } from 'vs/base/common/event';
+import * as glob from 'vs/base/common/glob';
+import { IDisposable } from 'vs/base/common/lifecycle';
 import * as objects from 'vs/base/common/objects';
 import * as paths from 'vs/base/common/paths';
-import * as glob from 'vs/base/common/glob';
+import uri, { UriComponents } from 'vs/base/common/uri';
+import { PPromise, TPromise } from 'vs/base/common/winjs.base';
 import { IFilesConfiguration } from 'vs/platform/files/common/files';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IDisposable } from 'vs/base/common/lifecycle';
 
-export const ID = 'searchService';
+export const VIEW_ID = 'workbench.view.search';
 
-export const ISearchService = createDecorator<ISearchService>(ID);
+export const ISearchHistoryService = createDecorator<ISearchHistoryService>('searchHistoryService');
+export const ISearchService = createDecorator<ISearchService>('searchService');
 
 /**
  * A service that enables to search for files or with in files.
@@ -28,20 +30,35 @@ export interface ISearchService {
 	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
 }
 
+export interface ISearchHistoryValues {
+	search?: string[];
+	replace?: string[];
+	include?: string[];
+	exclude?: string[];
+}
+
+export interface ISearchHistoryService {
+	_serviceBrand: any;
+	onDidClearHistory: Event<void>;
+	clearHistory(): void;
+	load(): ISearchHistoryValues;
+	save(history: ISearchHistoryValues): void;
+}
+
 export interface ISearchResultProvider {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 }
 
-export interface IFolderQuery {
-	folder: uri;
+export interface IFolderQuery<U extends UriComponents=uri> {
+	folder: U;
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	fileEncoding?: string;
 	disregardIgnoreFiles?: boolean;
 }
 
-export interface ICommonQueryOptions {
-	extraFileResources?: uri[];
+export interface ICommonQueryOptions<U> {
+	extraFileResources?: U[];
 	filePattern?: string; // file search only
 	fileEncoding?: string;
 	maxResults?: number;
@@ -57,22 +74,26 @@ export interface ICommonQueryOptions {
 	disregardIgnoreFiles?: boolean;
 	disregardExcludeSettings?: boolean;
 	ignoreSymlinks?: boolean;
+	maxFileSize?: number;
 }
 
-export interface IQueryOptions extends ICommonQueryOptions {
+export interface IQueryOptions extends ICommonQueryOptions<uri> {
 	excludePattern?: string;
 	includePattern?: string;
 }
 
-export interface ISearchQuery extends ICommonQueryOptions {
+export interface ISearchQueryProps<U extends UriComponents> extends ICommonQueryOptions<U> {
 	type: QueryType;
 
 	excludePattern?: glob.IExpression;
 	includePattern?: glob.IExpression;
 	contentPattern?: IPatternInfo;
-	folderQueries?: IFolderQuery[];
+	folderQueries?: IFolderQuery<U>[];
 	usingSearchPaths?: boolean;
 }
+
+export type ISearchQuery = ISearchQueryProps<uri>;
+export type IRawSearchQuery = ISearchQueryProps<UriComponents>;
 
 export enum QueryType {
 	File = 1,
@@ -81,11 +102,12 @@ export enum QueryType {
 /* __GDPR__FRAGMENT__
 	"IPatternInfo" : {
 		"pattern" : { "classification": "CustomerContent", "purpose": "FeatureInsight" },
-		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
+		"isRegExp": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isWordMatch": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 		"wordSeparators": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
-		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+		"isMultiline": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isCaseSensitive": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
+		"isSmartCase": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 	}
 */
 export interface IPatternInfo {
@@ -95,12 +117,15 @@ export interface IPatternInfo {
 	wordSeparators?: string;
 	isMultiline?: boolean;
 	isCaseSensitive?: boolean;
+	isSmartCase?: boolean;
 }
 
-export interface IFileMatch {
-	resource?: uri;
+export interface IFileMatch<U extends UriComponents = uri> {
+	resource?: U;
 	lineMatches?: ILineMatch[];
 }
+
+export type IRawFileMatch2 = IFileMatch<UriComponents>;
 
 export interface ILineMatch {
 	preview: string;
@@ -111,20 +136,20 @@ export interface ILineMatch {
 export interface IProgress {
 	total?: number;
 	worked?: number;
-}
-
-export interface ISearchLog {
 	message?: string;
 }
 
-export interface ISearchProgressItem extends IFileMatch, IProgress, ISearchLog {
+export interface ISearchProgressItem extends IFileMatch, IProgress {
 	// Marker interface to indicate the possible values for progress calls from the engine
 }
 
-export interface ISearchComplete {
+export interface ISearchCompleteStats {
 	limitHit?: boolean;
+	stats?: ISearchStats;
+}
+
+export interface ISearchComplete extends ISearchCompleteStats {
 	results: IFileMatch[];
-	stats: ISearchStats;
 }
 
 export interface ISearchStats {
@@ -170,16 +195,21 @@ export class LineMatch implements ILineMatch {
 	}
 }
 
+export interface ISearchConfigurationProperties {
+	exclude: glob.IExpression;
+	useRipgrep: boolean;
+	/**
+	 * Use ignore file for file search.
+	 */
+	useIgnoreFiles: boolean;
+	followSymlinks: boolean;
+	smartCase: boolean;
+	globalFindClipboard: boolean;
+	location: 'sidebar' | 'panel';
+}
+
 export interface ISearchConfiguration extends IFilesConfiguration {
-	search: {
-		exclude: glob.IExpression;
-		useRipgrep: boolean;
-		/**
-		 * Use ignore file for file search.
-		 */
-		useIgnoreFiles: boolean;
-		followSymlinks: boolean;
-	};
+	search: ISearchConfigurationProperties;
 	editor: {
 		wordSeparators: string;
 	};

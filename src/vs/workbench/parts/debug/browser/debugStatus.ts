@@ -13,6 +13,7 @@ import { IStatusbarItem } from 'vs/workbench/browser/parts/statusbar/statusbar';
 import { IDebugService, State, IDebugConfiguration } from 'vs/workbench/parts/debug/common/debug';
 import { Themable, STATUS_BAR_FOREGROUND } from 'vs/workbench/common/theme';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { STATUS_BAR_DEBUGGING_FOREGROUND, isStatusbarInDebugMode } from 'vs/workbench/parts/debug/browser/statusbarColorProvider';
 
 const $ = dom.$;
 
@@ -44,15 +45,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 		this.toDispose.push(configurationService.onDidChangeConfiguration(e => {
 			if (e.affectsConfiguration('debug.showInStatusBar')) {
 				this.showInStatusBar = configurationService.getValue<IDebugConfiguration>('debug').showInStatusBar;
-				if (this.showInStatusBar === 'never' && this.statusBarItem) {
-					this.statusBarItem.hidden = true;
-				} else {
-					if (this.statusBarItem) {
-						this.statusBarItem.hidden = false;
-					}
-					if (this.showInStatusBar === 'always') {
-						this.doRender();
-					}
+				if (this.showInStatusBar === 'always') {
+					this.doRender();
+				}
+				if (this.statusBarItem) {
+					dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never');
 				}
 			}
 		}));
@@ -61,7 +58,11 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 	protected updateStyles(): void {
 		super.updateStyles();
 		if (this.icon) {
-			this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			if (isStatusbarInDebugMode(this.debugService)) {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_DEBUGGING_FOREGROUND);
+			} else {
+				this.icon.style.backgroundColor = this.getColor(STATUS_BAR_FOREGROUND);
+			}
 		}
 	}
 
@@ -85,19 +86,19 @@ export class DebugStatus extends Themable implements IStatusbarItem {
 			this.icon = dom.append(a, $('.icon'));
 			this.label = dom.append(a, $('span.label'));
 			this.setLabel();
-			this.updateStyles();
 		}
+
+		this.updateStyles();
 	}
 
 	private setLabel(): void {
 		if (this.label && this.statusBarItem) {
 			const manager = this.debugService.getConfigurationManager();
-			if (manager.selectedName) {
-				const name = manager.selectedName;
-				this.statusBarItem.style.display = 'block';
-				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedLaunch.workspace.name})` : name;
-			} else {
-				this.statusBarItem.style.display = 'none';
+			const name = manager.selectedConfiguration.name;
+			const nameAndLaunchPresent = name && manager.selectedConfiguration.launch;
+			dom.toggleClass(this.statusBarItem, 'hidden', this.showInStatusBar === 'never' || !nameAndLaunchPresent);
+			if (nameAndLaunchPresent) {
+				this.label.textContent = manager.getLaunches().length > 1 ? `${name} (${manager.selectedConfiguration.launch.name})` : name;
 			}
 		}
 	}

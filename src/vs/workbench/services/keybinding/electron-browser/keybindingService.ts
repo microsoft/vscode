@@ -8,7 +8,7 @@ import * as nls from 'vs/nls';
 import { IJSONSchema } from 'vs/base/common/jsonSchema';
 import { ResolvedKeybinding, Keybinding } from 'vs/base/common/keyCodes';
 import { OS, OperatingSystem } from 'vs/base/common/platform';
-import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/platform/extensions/common/extensionsRegistry';
+import { ExtensionMessageCollector, ExtensionsRegistry } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { Extensions, IJSONContributionRegistry } from 'vs/platform/jsonschemas/common/jsonContributionRegistry';
 import { AbstractKeybindingService } from 'vs/platform/keybinding/common/abstractKeybindingService';
 import { IStatusbarService } from 'vs/platform/statusbar/common/statusbar';
@@ -16,11 +16,10 @@ import { KeybindingResolver } from 'vs/platform/keybinding/common/keybindingReso
 import { ICommandService } from 'vs/platform/commands/common/commands';
 import { IKeybindingEvent, IUserFriendlyKeybinding, KeybindingSource, IKeyboardEvent } from 'vs/platform/keybinding/common/keybinding';
 import { ContextKeyExpr, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2 } from 'vs/platform/keybinding/common/keybindingsRegistry';
+import { IKeybindingItem, KeybindingsRegistry, IKeybindingRule2, KeybindingRuleSource } from 'vs/platform/keybinding/common/keybindingsRegistry';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { keybindingsTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IMessageService } from 'vs/platform/message/common/message';
 import { ConfigWatcher } from 'vs/base/node/config';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import * as dom from 'vs/base/browser/dom';
@@ -32,10 +31,12 @@ import { IKeyboardMapper, CachedKeyboardMapper } from 'vs/workbench/services/key
 import { WindowsKeyboardMapper, IWindowsKeyboardMapping, windowsKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/windowsKeyboardMapper';
 import { IMacLinuxKeyboardMapping, MacLinuxKeyboardMapper, macLinuxKeyboardMappingEquals } from 'vs/workbench/services/keybinding/common/macLinuxKeyboardMapper';
 import { MacLinuxFallbackKeyboardMapper } from 'vs/workbench/services/keybinding/common/macLinuxFallbackKeyboardMapper';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { Extensions as ConfigExtensions, IConfigurationRegistry, IConfigurationNode } from 'vs/platform/configuration/common/configurationRegistry';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { release } from 'os';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 export class KeyboardMapperFactory {
 	public static readonly INSTANCE = new KeyboardMapperFactory();
@@ -45,8 +46,8 @@ export class KeyboardMapperFactory {
 	private _keyboardMapper: IKeyboardMapper;
 	private _initialized: boolean;
 
-	private _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
-	public onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
+	private readonly _onDidChangeKeyboardMapper: Emitter<void> = new Emitter<void>();
+	public readonly onDidChangeKeyboardMapper: Event<void> = this._onDidChangeKeyboardMapper.event;
 
 	private constructor() {
 		this._layoutInfo = null;
@@ -262,12 +263,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@ICommandService commandService: ICommandService,
 		@ITelemetryService telemetryService: ITelemetryService,
-		@IMessageService messageService: IMessageService,
+		@INotificationService notificationService: INotificationService,
 		@IEnvironmentService environmentService: IEnvironmentService,
 		@IStatusbarService statusBarService: IStatusbarService,
 		@IConfigurationService configurationService: IConfigurationService
 	) {
-		super(contextKeyService, commandService, telemetryService, messageService, statusBarService);
+		super(contextKeyService, commandService, telemetryService, notificationService, statusBarService);
 
 		let dispatchConfig = getDispatchConfig(configurationService);
 		configurationService.onDidChangeConfiguration((e) => {
@@ -290,8 +291,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		this._cachedResolver = null;
 		this._firstTimeComputingResolver = true;
 
-		this.userKeybindings = new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) });
-		this.toDispose.push(this.userKeybindings);
+		this.userKeybindings = this._register(new ConfigWatcher(environmentService.appKeybindingsPath, { defaultConfig: [], onError: error => onUnexpectedError(error) }));
 
 		keybindingsExtPoint.setHandler((extensions) => {
 			let commandAdded = false;
@@ -305,12 +305,12 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 			}
 		});
 
-		this.toDispose.push(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
+		this._register(this.userKeybindings.onDidUpdateConfiguration(event => this.updateResolver({
 			source: KeybindingSource.User,
 			keybindings: event.config
 		})));
 
-		this.toDispose.push(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
+		this._register(dom.addDisposableListener(windowElement, dom.EventType.KEY_DOWN, (e: KeyboardEvent) => {
 			let keyEvent = new StandardKeyboardEvent(e);
 			let shouldPreventDefault = this._dispatch(keyEvent, keyEvent.target);
 			if (shouldPreventDefault) {
@@ -366,6 +366,10 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		return this._cachedResolver;
 	}
 
+	protected _documentHasFocus(): boolean {
+		return document.hasFocus();
+	}
+
 	private _resolveKeybindingItems(items: IKeybindingItem[], isDefault: boolean): ResolvedKeybindingItem[] {
 		let result: ResolvedKeybindingItem[] = [], resultLen = 0;
 		for (let i = 0, len = items.length; i < len; i++) {
@@ -414,7 +418,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 
 			/* __GDPR__
 				"customKeybindingsChanged" : {
-					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight" }
+					"keyCount" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 				}
 			*/
 			this._telemetryService.publicLog('customKeybindingsChanged', {
@@ -458,7 +462,7 @@ export class WorkbenchKeybindingService extends AbstractKeybindingService {
 		if (isValidContributedKeyBinding(keybindings, rejects)) {
 			let rule = this._asCommandRule(isBuiltin, idx++, keybindings);
 			if (rule) {
-				KeybindingsRegistry.registerKeybindingRule2(rule);
+				KeybindingsRegistry.registerKeybindingRule2(rule, KeybindingRuleSource.Extension);
 				commandAdded = true;
 			}
 		}
@@ -566,10 +570,10 @@ let schema: IJSONSchema = {
 	}
 };
 
-let schemaRegistry = <IJSONContributionRegistry>Registry.as(Extensions.JSONContribution);
+let schemaRegistry = Registry.as<IJSONContributionRegistry>(Extensions.JSONContribution);
 schemaRegistry.registerSchema(schemaId, schema);
 
-const configurationRegistry = <IConfigurationRegistry>Registry.as(ConfigExtensions.Configuration);
+const configurationRegistry = Registry.as<IConfigurationRegistry>(ConfigExtensions.Configuration);
 const keyboardConfiguration: IConfigurationNode = {
 	'id': 'keyboard',
 	'order': 15,
@@ -583,6 +587,12 @@ const keyboardConfiguration: IConfigurationNode = {
 			'default': 'code',
 			'description': nls.localize('dispatch', "Controls the dispatching logic for key presses to use either `code` (recommended) or `keyCode`."),
 			'included': OS === OperatingSystem.Macintosh || OS === OperatingSystem.Linux
+		},
+		'keyboard.touchbar.enabled': {
+			'type': 'boolean',
+			'default': true,
+			'description': nls.localize('touchbar.enabled', "Enables the macOS touchbar buttons on the keyboard if available."),
+			'included': OS === OperatingSystem.Macintosh && parseFloat(release()) >= 16 // Minimum: macOS Sierra (10.12.x = darwin 16.x)
 		}
 	}
 };

@@ -11,8 +11,11 @@ const assert = require('assert');
 const cp = require('child_process');
 const _7z = require('7zip')['7z'];
 const util = require('./lib/util');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const pkg = require('../package.json');
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
+const vfs = require('vinyl-fs');
 
 const repoPath = path.dirname(__dirname);
 const buildPath = arch => path.join(path.dirname(repoPath), `VSCode-win32-${arch}`);
@@ -90,3 +93,13 @@ gulp.task('vscode-win32-ia32-archive', ['clean-vscode-win32-ia32-archive'], arch
 
 gulp.task('clean-vscode-win32-x64-archive', util.rimraf(zipDir('x64')));
 gulp.task('vscode-win32-x64-archive', ['clean-vscode-win32-x64-archive'], archiveWin32Setup('x64'));
+
+function copyInnoUpdater(arch) {
+	return () => {
+		return gulp.src('build/win32/{inno_updater.exe,vcruntime140.dll}', { base: 'build/win32' })
+			.pipe(vfs.dest(path.join(buildPath(arch), 'tools')));
+	};
+}
+
+gulp.task('vscode-win32-ia32-copy-inno-updater', copyInnoUpdater('ia32'));
+gulp.task('vscode-win32-x64-copy-inno-updater', copyInnoUpdater('x64'));

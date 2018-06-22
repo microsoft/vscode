@@ -8,31 +8,27 @@
 import 'vs/css!./media/actions';
 
 import URI from 'vs/base/common/uri';
-import * as collections from 'vs/base/common/collections';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action } from 'vs/base/common/actions';
 import { IWindowService, IWindowsService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import product from 'vs/platform/node/product';
 import pkg from 'vs/platform/node/package';
-import errors = require('vs/base/common/errors');
-import { IMessageService, Severity } from 'vs/platform/message/common/message';
+import * as errors from 'vs/base/common/errors';
 import { IWorkspaceContextService, WorkbenchState } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
-import { IExtensionManagementService, LocalExtensionType, ILocalExtension, IExtensionEnablementService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
-import paths = require('vs/base/common/paths');
-import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
+import * as paths from 'vs/base/common/paths';
+import { isMacintosh, isLinux } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
+import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
-import { IPartService, Parts, Position as SidebarPosition } from 'vs/workbench/services/part/common/partService';
+import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
@@ -41,36 +37,21 @@ import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
 import { IWorkspaceIdentifier, getWorkspaceLabel, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier } from 'vs/platform/workspaces/common/workspaces';
-import { FileKind, IFileService } from 'vs/platform/files/common/files';
+import { FileKind } from 'vs/platform/files/common/files';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IExtensionService, ActivationTimes } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService, ActivationTimes } from 'vs/workbench/services/extensions/common/extensions';
 import { getEntries } from 'vs/base/common/performance';
-import { IEditor } from 'vs/platform/editor/common/editor';
+import { IssueType } from 'vs/platform/issue/common/issue';
+import { domEvent } from 'vs/base/browser/event';
+import { once } from 'vs/base/common/event';
+import { IDisposable, toDisposable, dispose } from 'vs/base/common/lifecycle';
+import { getDomNodePagePosition, createStyleSheet, createCSSRule } from 'vs/base/browser/dom';
+import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
+import { Context } from 'vs/platform/contextkey/browser/contextKeyService';
+import { IWorkbenchIssueService } from 'vs/workbench/services/issue/common/issue';
+import { INotificationService } from 'vs/platform/notification/common/notification';
 
 // --- actions
-
-export class CloseEditorAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeActiveEditor';
-	public static readonly LABEL = nls.localize('closeActiveEditor', "Close Editor");
-
-	constructor(
-		id: string,
-		label: string,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<void> {
-		const activeEditor = this.editorService.getActiveEditor();
-		if (activeEditor) {
-			return this.editorService.closeEditor(activeEditor.position, activeEditor.input);
-		}
-
-		return TPromise.as(null);
-	}
-}
 
 export class CloseCurrentWindowAction extends Action {
 
@@ -97,7 +78,7 @@ export class CloseWorkspaceAction extends Action {
 		id: string,
 		label: string,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IMessageService private messageService: IMessageService,
+		@INotificationService private notificationService: INotificationService,
 		@IWindowService private windowService: IWindowService
 	) {
 		super(id, label);
@@ -105,7 +86,7 @@ export class CloseWorkspaceAction extends Action {
 
 	run(): TPromise<void> {
 		if (this.contextService.getWorkbenchState() === WorkbenchState.EMPTY) {
-			this.messageService.show(Severity.Info, nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
+			this.notificationService.info(nls.localize('noWorkspaceOpened', "There is currently no workspace opened in this instance to close."));
 
 			return TPromise.as(null);
 		}
@@ -371,11 +352,10 @@ export class ShowStartupPerformance extends Action {
 			(<any>console).groupEnd();
 
 			(<any>console).group('Raw Startup Timers (CSV)');
-			let value = `Name\tStart\tDuration\n`;
-			const entries = getEntries('measure');
-			let offset = entries[0].startTime;
+			let value = `Name\tStart\n`;
+			let entries = getEntries('mark').slice(0).sort((a, b) => a.startTime - b.startTime);
 			for (const entry of entries) {
-				value += `${entry.name}\t${entry.startTime - offset}\t${entry.duration}\n`;
+				value += `${entry.name}\t${entry.startTime}\n`;
 			}
 			console.log(value);
 			(<any>console).groupEnd();
@@ -390,6 +370,7 @@ export class ShowStartupPerformance extends Action {
 
 		if (metrics.initialStartup) {
 			table.push({ Topic: '[main] start => app.isReady', 'Took (ms)': metrics.timers.ellapsedAppReady });
+			table.push({ Topic: '[main] nls:start => nls:end', 'Took (ms)': metrics.timers.ellapsedNlsGeneration });
 			table.push({ Topic: '[main] app.isReady => window.loadUrl()', 'Took (ms)': metrics.timers.ellapsedWindowLoad });
 		}
 
@@ -573,6 +554,24 @@ export class ReloadWindowAction extends Action {
 	}
 }
 
+export class ReloadWindowWithExtensionsDisabledAction extends Action {
+
+	static readonly ID = 'workbench.action.reloadWindowWithExtensionsDisabled';
+	static LABEL = nls.localize('reloadWindowWithExntesionsDisabled', "Reload Window With Extensions Disabled");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowService private windowService: IWindowService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		return this.windowService.reloadWindow({ _: [], 'disable-extensions': true }).then(() => true);
+	}
+}
+
 export abstract class BaseSwitchWindow extends Action {
 	private closeWindowAction: CloseWindowAction;
 
@@ -703,7 +702,6 @@ export abstract class BaseOpenRecentAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		private windowsService: IWindowsService,
 		private windowService: IWindowService,
 		private quickOpenService: IQuickOpenService,
 		private contextService: IWorkspaceContextService,
@@ -732,11 +730,11 @@ export abstract class BaseOpenRecentAction extends Action {
 			if (isSingleFolderWorkspaceIdentifier(workspace)) {
 				path = workspace;
 				label = getBaseLabel(path);
-				description = getPathLabel(paths.dirname(path), null, environmentService);
+				description = getPathLabel(paths.dirname(path), environmentService);
 			} else {
 				path = workspace.configPath;
 				label = getWorkspaceLabel(workspace, environmentService);
-				description = getPathLabel(paths.dirname(workspace.configPath), null, environmentService);
+				description = getPathLabel(paths.dirname(workspace.configPath), environmentService);
 			}
 
 			return {
@@ -758,7 +756,7 @@ export abstract class BaseOpenRecentAction extends Action {
 
 		const runPick = (path: string, isFile: boolean, context: IEntryRunContext) => {
 			const forceNewWindow = context.keymods.ctrlCmd;
-			this.windowsService.openWindow([path], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
+			this.windowService.openWindow([path], { forceNewWindow, forceOpenWorkspaceAsFile: isFile });
 		};
 
 		const workspacePicks: IFilePickOpenEntry[] = recentWorkspaces.map((workspace, index) => toPick(workspace, index === 0 ? { label: nls.localize('workspaces', "workspaces") } : void 0, isSingleFolderWorkspaceIdentifier(workspace) ? FileKind.FOLDER : FileKind.ROOT_FOLDER, this.environmentService, !this.isQuickNavigate() ? this.removeAction : void 0));
@@ -813,7 +811,6 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -821,7 +818,7 @@ export class OpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
+		super(id, label, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -837,7 +834,6 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	constructor(
 		id: string,
 		label: string,
-		@IWindowsService windowsService: IWindowsService,
 		@IWindowService windowService: IWindowService,
 		@IQuickOpenService quickOpenService: IQuickOpenService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
@@ -845,7 +841,7 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 		@IKeybindingService keybindingService: IKeybindingService,
 		@IInstantiationService instantiationService: IInstantiationService
 	) {
-		super(id, label, windowsService, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
+		super(id, label, windowService, quickOpenService, contextService, environmentService, keybindingService, instantiationService);
 	}
 
 	protected isQuickNavigate(): boolean {
@@ -853,135 +849,62 @@ export class QuickOpenRecentAction extends BaseOpenRecentAction {
 	}
 }
 
-export class CloseMessagesAction extends Action {
-
-	public static readonly ID = 'workbench.action.closeMessages';
-	public static readonly LABEL = nls.localize('closeMessages', "Close Notification Messages");
-
-	constructor(
-		id: string,
-		label: string,
-		@IMessageService private messageService: IMessageService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
-	) {
-		super(id, label);
-	}
-
-	public run(): TPromise<boolean> {
-
-		// Close any Message if visible
-		this.messageService.hideAll();
-
-		// Restore focus if we got an editor
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
-
-		return TPromise.as(true);
-	}
-}
-
-export class ReportIssueAction extends Action {
-
-	public static readonly ID = 'workbench.action.reportIssues';
+export class OpenIssueReporterAction extends Action {
+	public static readonly ID = 'workbench.action.openIssueReporter';
 	public static readonly LABEL = nls.localize({ key: 'reportIssueInEnglish', comment: ['Translate this to "Report Issue in English" in all languages please!'] }, "Report Issue");
 
 	constructor(
 		id: string,
 		label: string,
-		@IIntegrityService private integrityService: IIntegrityService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionEnablementService private extensionEnablementService: IExtensionEnablementService,
-		@IEnvironmentService private environmentService: IEnvironmentService
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
 	) {
 		super(id, label);
 	}
 
-	private _optimisticIsPure(): TPromise<boolean> {
-		let isPure = true;
-		let integrityPromise = this.integrityService.isPure().then(res => {
-			isPure = res.isPure;
-		});
-
-		return TPromise.any([TPromise.timeout(100), integrityPromise]).then(() => {
-			return isPure;
-		});
-	}
-
 	public run(): TPromise<boolean> {
-		return this._optimisticIsPure().then(isPure => {
-			return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(extensions => {
-				extensions = extensions.filter(extension => this.extensionEnablementService.isEnabled(extension.identifier));
-				const issueUrl = this.generateNewIssueUrl(product.reportIssueUrl, pkg.name, pkg.version, product.commit, product.date, isPure, extensions, this.environmentService.disableExtensions);
-
-				window.open(issueUrl);
-
-				return TPromise.as(true);
-			});
-		});
-	}
-
-	private generateNewIssueUrl(baseUrl: string, name: string, version: string, commit: string, date: string, isPure: boolean, extensions: ILocalExtension[], areExtensionsDisabled: boolean): string {
-		// Avoid backticks, these can trigger XSS detectors. (https://github.com/Microsoft/vscode/issues/13098)
-		const osVersion = `${os.type()} ${os.arch()} ${os.release()}`;
-		const queryStringPrefix = baseUrl.indexOf('?') === -1 ? '?' : '&';
-		const body = encodeURIComponent(
-			`- VSCode Version: ${name} ${version}${isPure ? '' : ' **[Unsupported]**'} (${product.commit || 'Commit unknown'}, ${product.date || 'Date unknown'})
-- OS Version: ${osVersion}
-- Extensions: ${areExtensionsDisabled ? 'Extensions are disabled' : this.generateExtensionTable(extensions)}
----
-
-Steps to Reproduce:
-
-1.
-2.` + (extensions.length ? `
-
-<!-- Launch with \`code --disable-extensions\` to check. -->
-Reproduces without extensions: Yes/No` : '')
-		);
-
-		return `${baseUrl}${queryStringPrefix}body=${body}`;
-	}
-
-	private generateExtensionTable(extensions: ILocalExtension[]): string {
-		const { nonThemes, themes } = collections.groupBy(extensions, ext => {
-			const manifestKeys = ext.manifest.contributes ? Object.keys(ext.manifest.contributes) : [];
-			const onlyTheme = !ext.manifest.activationEvents && manifestKeys.length === 1 && manifestKeys[0] === 'themes';
-			return onlyTheme ? 'themes' : 'nonThemes';
-		});
-
-		const themeExclusionStr = (themes && themes.length) ? `\n(${themes.length} theme extensions excluded)` : '';
-		extensions = nonThemes || [];
-
-		if (!extensions.length) {
-			return 'none' + themeExclusionStr;
-		}
-
-		let tableHeader = `Extension|Author (truncated)|Version
----|---|---`;
-		const table = extensions.map(e => {
-			return `${e.manifest.name}|${e.manifest.publisher.substr(0, 3)}|${e.manifest.version}`;
-		}).join('\n');
-
-		const extensionTable = `
-
-${tableHeader}
-${table}
-${themeExclusionStr}
-
-`;
-
-		// 2000 chars is browsers de-facto limit for URLs, 400 chars are allowed for other string parts of the issue URL
-		// http://stackoverflow.com/questions/417142/what-is-the-maximum-length-of-a-url-in-different-browsers
-		if (encodeURIComponent(extensionTable).length > 1600) {
-			return 'the listing length exceeds browsers\' URL characters limit';
-		}
-
-		return extensionTable;
+		return this.issueService.openReporter()
+			.then(() => true);
 	}
 }
 
+export class OpenProcessExplorer extends Action {
+	public static readonly ID = 'workbench.action.openProcessExplorer';
+	public static readonly LABEL = nls.localize('openProcessExplorer', "Open Process Explorer");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		return this.issueService.openProcessExplorer()
+			.then(() => true);
+	}
+}
+
+export class ReportPerformanceIssueUsingReporterAction extends Action {
+	public static readonly ID = 'workbench.action.reportPerformanceIssueUsingReporter';
+	public static readonly LABEL = nls.localize('reportPerformanceIssue', "Report Performance Issue");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWorkbenchIssueService private issueService: IWorkbenchIssueService
+	) {
+		super(id, label);
+	}
+
+	public run(): TPromise<boolean> {
+		// TODO: Reporter should send timings table as well
+		return this.issueService.openReporter({ issueType: IssueType.PerformanceIssue })
+			.then(() => true);
+	}
+}
+
+// NOTE: This is still used when running --prof-startup, which already opens a dialog, so the reporter is not used.
 export class ReportPerformanceIssueAction extends Action {
 
 	public static readonly ID = 'workbench.action.reportPerformanceIssue';
@@ -1210,7 +1133,7 @@ export abstract class BaseNavigationAction extends Action {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService protected groupService: IEditorGroupService,
+		@IEditorGroupsService protected editorGroupService: IEditorGroupsService,
 		@IPanelService protected panelService: IPanelService,
 		@IPartService protected partService: IPartService,
 		@IViewletService protected viewletService: IViewletService
@@ -1223,33 +1146,33 @@ export abstract class BaseNavigationAction extends Action {
 		const isPanelFocus = this.partService.hasFocus(Parts.PANEL_PART);
 		const isSidebarFocus = this.partService.hasFocus(Parts.SIDEBAR_PART);
 
-		const isEditorGroupVertical = this.groupService.getGroupOrientation() === 'vertical';
-		const isSidebarPositionLeft = this.partService.getSideBarPosition() === SidebarPosition.LEFT;
+		const isSidebarPositionLeft = this.partService.getSideBarPosition() === PartPosition.LEFT;
+		const isPanelPositionDown = this.partService.getPanelPosition() === PartPosition.BOTTOM;
 
 		if (isEditorFocus) {
-			return this.navigateOnEditorFocus(isEditorGroupVertical, isSidebarPositionLeft);
+			return this.navigateOnEditorFocus(isSidebarPositionLeft, isPanelPositionDown);
 		}
 
 		if (isPanelFocus) {
-			return this.navigateOnPanelFocus(isEditorGroupVertical, isSidebarPositionLeft);
+			return this.navigateOnPanelFocus(isSidebarPositionLeft, isPanelPositionDown);
 		}
 
 		if (isSidebarFocus) {
-			return this.navigateOnSidebarFocus(isEditorGroupVertical, isSidebarPositionLeft);
+			return this.navigateOnSidebarFocus(isSidebarPositionLeft, isPanelPositionDown);
 		}
 
 		return TPromise.as(false);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet | IPanel> {
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IPanel> {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
 		return TPromise.as(true);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
 		return TPromise.as(true);
 	}
 
@@ -1273,38 +1196,19 @@ export abstract class BaseNavigationAction extends Action {
 		return this.viewletService.openViewlet(activeViewletId, true);
 	}
 
-	protected navigateAcrossEditorGroup(direction: Direction): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		const currentPosition = model.positionOfGroup(model.activeGroup);
-		const nextPosition = direction === Direction.Next ? currentPosition + 1 : currentPosition - 1;
+	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
+		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup);
+		if (nextGroup) {
+			nextGroup.focus();
 
-		if (nextPosition < 0 || nextPosition > model.groups.length - 1) {
-			return TPromise.as(false);
+			return TPromise.as(true);
 		}
 
-		this.groupService.focusGroup(nextPosition);
-
-		return TPromise.as(true);
+		return TPromise.as(false);
 	}
 
-	protected navigateToLastActiveGroup(): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		const lastActiveGroup = model.activeGroup;
-		this.groupService.focusGroup(lastActiveGroup);
-
-		return TPromise.as(true);
-	}
-
-	protected navigateToFirstEditorGroup(): TPromise<boolean> {
-		this.groupService.focusGroup(0);
-
-		return TPromise.as(true);
-	}
-
-	protected navigateToLastEditorGroup(): TPromise<boolean> {
-		const model = this.groupService.getStacksModel();
-		const lastEditorGroupPosition = model.groups.length - 1;
-		this.groupService.focusGroup(lastEditorGroupPosition);
+	protected navigateToActiveEditorGroup(): TPromise<boolean> {
+		this.editorGroupService.activeGroup.focus();
 
 		return TPromise.as(true);
 	}
@@ -1318,48 +1222,47 @@ export class NavigateLeftAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService groupService: IEditorGroupService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
-		if (!isEditorGroupVertical) {
-			if (isSidebarPositionLeft) {
-				return this.navigateToSidebar();
-			}
-			return TPromise.as(false);
-		}
-		return this.navigateAcrossEditorGroup(Direction.Previous)
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
+		return this.navigateAcrossEditorGroup(GroupDirection.LEFT)
 			.then(didNavigate => {
-				if (!didNavigate && isSidebarPositionLeft) {
+				if (didNavigate) {
+					return TPromise.as(true);
+				}
+
+				if (isSidebarPositionLeft) {
 					return this.navigateToSidebar();
 				}
-				return TPromise.as(true);
+
+				return TPromise.as(false);
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertica: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
-		if (isSidebarPositionLeft) {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
+		if (isPanelPositionDown && isSidebarPositionLeft) {
 			return this.navigateToSidebar();
+		}
+
+		if (!isPanelPositionDown) {
+			return this.navigateToActiveEditorGroup();
 		}
 
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		if (isSidebarPositionLeft) {
-			return TPromise.as(false);
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+		if (!isSidebarPositionLeft) {
+			return this.navigateToActiveEditorGroup();
 		}
 
-		if (isEditorGroupVertical) {
-			return this.navigateToLastEditorGroup();
-		}
-
-		return this.navigateToLastActiveGroup();
+		return TPromise.as(false);
 	}
 }
 
@@ -1371,32 +1274,34 @@ export class NavigateRightAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService groupService: IEditorGroupService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
-		if (!isEditorGroupVertical) {
-			if (!isSidebarPositionLeft) {
-				return this.navigateToSidebar();
-			}
-			return TPromise.as(false);
-		}
-
-		return this.navigateAcrossEditorGroup(Direction.Next)
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet | IPanel> {
+		return this.navigateAcrossEditorGroup(GroupDirection.RIGHT)
 			.then(didNavigate => {
-				if (!didNavigate && !isSidebarPositionLeft) {
+				if (didNavigate) {
+					return TPromise.as(true);
+				}
+
+				if (!isPanelPositionDown) {
+					return this.navigateToPanel();
+				}
+
+				if (!isSidebarPositionLeft) {
 					return this.navigateToSidebar();
 				}
-				return TPromise.as(true);
+
+				return TPromise.as(false);
 			});
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IViewlet> {
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IViewlet> {
 		if (!isSidebarPositionLeft) {
 			return this.navigateToSidebar();
 		}
@@ -1404,16 +1309,12 @@ export class NavigateRightAction extends BaseNavigationAction {
 		return TPromise.as(false);
 	}
 
-	protected navigateOnSidebarFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		if (!isSidebarPositionLeft) {
-			return TPromise.as(false);
+	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+		if (isSidebarPositionLeft) {
+			return this.navigateToActiveEditorGroup();
 		}
 
-		if (isEditorGroupVertical) {
-			return this.navigateToFirstEditorGroup();
-		}
-
-		return this.navigateToLastActiveGroup();
+		return TPromise.as(false);
 	}
 }
 
@@ -1425,26 +1326,24 @@ export class NavigateUpAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService groupService: IEditorGroupService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		if (isEditorGroupVertical) {
-			return TPromise.as(false);
-		}
-		return this.navigateAcrossEditorGroup(Direction.Previous);
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+		return this.navigateAcrossEditorGroup(GroupDirection.UP);
 	}
 
-	protected navigateOnPanelFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean> {
-		if (isEditorGroupVertical) {
-			return this.navigateToLastActiveGroup();
+	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
+		if (isPanelPositionDown) {
+			return this.navigateToActiveEditorGroup();
 		}
-		return this.navigateToLastEditorGroup();
+
+		return TPromise.as(false);
 	}
 }
 
@@ -1456,25 +1355,26 @@ export class NavigateDownAction extends BaseNavigationAction {
 	constructor(
 		id: string,
 		label: string,
-		@IEditorGroupService groupService: IEditorGroupService,
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
 		@IPanelService panelService: IPanelService,
 		@IPartService partService: IPartService,
 		@IViewletService viewletService: IViewletService
 	) {
-		super(id, label, groupService, panelService, partService, viewletService);
+		super(id, label, editorGroupService, panelService, partService, viewletService);
 	}
 
-	protected navigateOnEditorFocus(isEditorGroupVertical: boolean, isSidebarPositionLeft: boolean): TPromise<boolean | IPanel> {
-		if (isEditorGroupVertical) {
-			return this.navigateToPanel();
-		}
-
-		return this.navigateAcrossEditorGroup(Direction.Next)
+	protected navigateOnEditorFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean | IPanel> {
+		return this.navigateAcrossEditorGroup(GroupDirection.DOWN)
 			.then(didNavigate => {
 				if (didNavigate) {
 					return TPromise.as(true);
 				}
-				return this.navigateToPanel();
+
+				if (isPanelPositionDown) {
+					return this.navigateToPanel();
+				}
+
+				return TPromise.as(false);
 			});
 	}
 }
@@ -1642,44 +1542,80 @@ export class ToggleWindowTabsBar extends Action {
 	}
 }
 
-export class ConfigureLocaleAction extends Action {
-	public static readonly ID = 'workbench.action.configureLocale';
-	public static readonly LABEL = nls.localize('configureLocale', "Configure Language");
+export class ShowAboutDialogAction extends Action {
 
-	private static DEFAULT_CONTENT: string = [
-		'{',
-		`\t// ${nls.localize('displayLanguage', 'Defines VSCode\'s display language.')}`,
-		`\t// ${nls.localize('doc', 'See {0} for a list of supported languages.', 'https://go.microsoft.com/fwlink/?LinkId=761051')}`,
-		`\t// ${nls.localize('restart', 'Changing the value requires restarting VSCode.')}`,
-		`\t"locale":"${language}"`,
-		'}'
-	].join('\n');
+	public static readonly ID = 'workbench.action.showAboutDialog';
+	public static LABEL = nls.localize('about', "About {0}", product.applicationName);
 
-	constructor(id: string, label: string,
-		@IFileService private fileService: IFileService,
-		@IWorkspaceContextService private contextService: IWorkspaceContextService,
-		@IEnvironmentService private environmentService: IEnvironmentService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
 	) {
 		super(id, label);
 	}
 
-	public run(event?: any): TPromise<IEditor> {
-		const file = URI.file(paths.join(this.environmentService.appSettingsHome, 'locale.json'));
-		return this.fileService.resolveFile(file).then(null, (error) => {
-			return this.fileService.createFile(file, ConfigureLocaleAction.DEFAULT_CONTENT);
-		}).then((stat) => {
-			if (!stat) {
-				return undefined;
-			}
-			return this.editorService.openEditor({
-				resource: stat.resource,
-				options: {
-					forceOpen: true
-				}
-			});
-		}, (error) => {
-			throw new Error(nls.localize('fail.createSettings', "Unable to create '{0}' ({1}).", getPathLabel(file, this.contextService), error));
-		});
+	run(): TPromise<void> {
+		return this.windowsService.openAboutDialog();
+	}
+}
+
+export class InspectContextKeysAction extends Action {
+
+	public static readonly ID = 'workbench.action.inspectContextKeys';
+	public static LABEL = nls.localize('inspect context keys', "Inspect Context Keys");
+
+	constructor(
+		id: string,
+		label: string,
+		@IContextKeyService private contextKeyService: IContextKeyService,
+		@IWindowService private windowService: IWindowService,
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		const disposables: IDisposable[] = [];
+
+		const stylesheet = createStyleSheet();
+		disposables.push(toDisposable(() => stylesheet.parentNode.removeChild(stylesheet)));
+		createCSSRule('*', 'cursor: crosshair !important;', stylesheet);
+
+		const hoverFeedback = document.createElement('div');
+		document.body.appendChild(hoverFeedback);
+		disposables.push(toDisposable(() => document.body.removeChild(hoverFeedback)));
+
+		hoverFeedback.style.position = 'absolute';
+		hoverFeedback.style.pointerEvents = 'none';
+		hoverFeedback.style.backgroundColor = 'rgba(255, 0, 0, 0.5)';
+		hoverFeedback.style.zIndex = '1000';
+
+		const onMouseMove = domEvent(document.body, 'mousemove', true);
+		disposables.push(onMouseMove(e => {
+			const target = e.target as HTMLElement;
+			const position = getDomNodePagePosition(target);
+
+			hoverFeedback.style.top = `${position.top}px`;
+			hoverFeedback.style.left = `${position.left}px`;
+			hoverFeedback.style.width = `${position.width}px`;
+			hoverFeedback.style.height = `${position.height}px`;
+		}));
+
+		const onMouseDown = once(domEvent(document.body, 'mousedown', true));
+		onMouseDown(e => { e.preventDefault(); e.stopPropagation(); }, null, disposables);
+
+		const onMouseUp = once(domEvent(document.body, 'mouseup', true));
+		onMouseUp(e => {
+			e.preventDefault();
+			e.stopPropagation();
+
+			const context = this.contextKeyService.getContext(e.target as HTMLElement) as Context;
+			console.log(context.collectAllValues());
+			this.windowService.openDevTools();
+
+			dispose(disposables);
+		}, null, disposables);
+
+		return TPromise.as(null);
 	}
 }

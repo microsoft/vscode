@@ -5,13 +5,13 @@
 
 import { IDisposable } from 'vs/base/common/lifecycle';
 import URI from 'vs/base/common/uri';
-import Event, { Emitter } from 'vs/base/common/event';
-import * as editorCommon from 'vs/editor/common/editorCommon';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
+import { Event, Emitter } from 'vs/base/common/event';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IRange } from 'vs/editor/common/core/range';
 import { CursorChangeReason, ICursorPositionChangedEvent } from 'vs/editor/common/controller/cursorEvents';
-import { ModelDecorationOptions } from 'vs/editor/common/model/textModelWithDecorations';
+import { ModelDecorationOptions } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { TrackedRangeStickiness, IModelDecorationsChangeAccessor } from 'vs/editor/common/model';
 
 export interface IRangeHighlightDecoration {
 	resource: URI;
@@ -25,10 +25,10 @@ export class RangeHighlightDecorations implements IDisposable {
 	private editor: ICodeEditor = null;
 	private editorDisposables: IDisposable[] = [];
 
-	private _onHighlightRemoved: Emitter<void> = new Emitter<void>();
+	private readonly _onHighlightRemoved: Emitter<void> = new Emitter<void>();
 	public readonly onHighlghtRemoved: Event<void> = this._onHighlightRemoved.event;
 
-	constructor( @IWorkbenchEditorService private editorService: IWorkbenchEditorService) {
+	constructor(@IEditorService private editorService: IEditorService) {
 	}
 
 	public removeHighlightRange() {
@@ -48,18 +48,18 @@ export class RangeHighlightDecorations implements IDisposable {
 
 	private doHighlightRange(editor: ICodeEditor, selectionRange: IRangeHighlightDecoration) {
 		this.removeHighlightRange();
-		editor.changeDecorations((changeAccessor: editorCommon.IModelDecorationsChangeAccessor) => {
+		editor.changeDecorations((changeAccessor: IModelDecorationsChangeAccessor) => {
 			this.rangeHighlightDecorationId = changeAccessor.addDecoration(selectionRange.range, this.createRangeHighlightDecoration(selectionRange.isWholeLine));
 		});
 		this.setEditor(editor);
 	}
 
 	private getEditor(resourceRange: IRangeHighlightDecoration): ICodeEditor {
-		const activeInput = this.editorService.getActiveEditorInput();
-		const resource = activeInput && activeInput.getResource();
+		const activeEditor = this.editorService.activeEditor;
+		const resource = activeEditor && activeEditor.getResource();
 		if (resource) {
 			if (resource.toString() === resourceRange.resource.toString()) {
-				return <ICodeEditor>this.editorService.getActiveEditor().getControl();
+				return this.editorService.activeTextEditorWidget as ICodeEditor;
 			}
 		}
 		return null;
@@ -93,13 +93,13 @@ export class RangeHighlightDecorations implements IDisposable {
 	}
 
 	private static readonly _WHOLE_LINE_RANGE_HIGHLIGHT = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight',
 		isWholeLine: true
 	});
 
 	private static readonly _RANGE_HIGHLIGHT = ModelDecorationOptions.register({
-		stickiness: editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
+		stickiness: TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges,
 		className: 'rangeHighlight'
 	});
 

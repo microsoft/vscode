@@ -12,7 +12,7 @@ import { localize } from 'vs/nls';
 import { basename, dirname, join } from 'vs/base/common/paths';
 import { isLinux } from 'vs/base/common/platform';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
-import Event from 'vs/base/common/event';
+import { Event } from 'vs/base/common/event';
 import { tildify, getPathLabel } from 'vs/base/common/labels';
 import { IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
 import URI from 'vs/base/common/uri';
@@ -125,7 +125,7 @@ export function getWorkspaceLabel(workspace: (IWorkspaceIdentifier | ISingleFold
 	const filename = basename(workspace.configPath);
 	const workspaceName = filename.substr(0, filename.length - WORKSPACE_EXTENSION.length - 1);
 	if (options && options.verbose) {
-		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), null, environmentService));
+		return localize('workspaceNameVerbose', "{0} (Workspace)", getPathLabel(join(dirname(workspace.configPath), workspaceName), environmentService));
 	}
 
 	return localize('workspaceName', "{0} (Workspace)", workspaceName);

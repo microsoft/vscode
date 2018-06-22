@@ -11,7 +11,29 @@
 		}
 	},
 	{
-		"c": " VIEW METRIC_STATS (ID, MONTH, TEMP_C, RAIN_C) ",
+		"c": " VIEW METRIC_STATS (ID, ",
+		"t": "source.sql",
+		"r": {
+			"dark_plus": "default: #D4D4D4",
+			"light_plus": "default: #000000",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "default: #FFFFFF"
+		}
+	},
+	{
+		"c": "MONTH",
+		"t": "source.sql support.function.datetime.sql",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ", TEMP_C, RAIN_C) ",
 		"t": "source.sql",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
@@ -55,7 +77,18 @@
 		}
 	},
 	{
-		"c": "MONTH,",
+		"c": "MONTH",
+		"t": "source.sql support.function.datetime.sql",
+		"r": {
+			"dark_plus": "support.function: #DCDCAA",
+			"light_plus": "support.function: #795E26",
+			"dark_vs": "default: #D4D4D4",
+			"light_vs": "default: #000000",
+			"hc_black": "support.function: #DCDCAA"
+		}
+	},
+	{
+		"c": ",",
 		"t": "source.sql",
 		"r": {
 			"dark_plus": "default: #D4D4D4",

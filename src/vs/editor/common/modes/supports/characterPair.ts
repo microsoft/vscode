@@ -45,7 +45,7 @@ export class CharacterPairSupport {
 			}
 		}
 
-		return true;
+		return false;
 	}
 
 	public getSurroundingPairs(): IAutoClosingPair[] {

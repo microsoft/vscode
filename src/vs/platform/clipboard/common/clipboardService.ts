@@ -6,6 +6,7 @@
 'use strict';
 
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
+import URI from 'vs/base/common/uri';
 
 export const IClipboardService = createDecorator<IClipboardService>('clipboardService');
 
@@ -32,4 +33,19 @@ export interface IClipboardService {
 	 * Writes text to the system find pasteboard.
 	 */
 	writeFindText(text: string): void;
+
+	/**
+	 * Writes resources to the system clipboard.
+	 */
+	writeResources(resources: URI[]): void;
+
+	/**
+	 * Reads resources from the system clipboard.
+	 */
+	readResources(): URI[];
+
+	/**
+	 * Find out if resources are copied to the clipboard.
+	 */
+	hasResources(): boolean;
 }

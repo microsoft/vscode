@@ -200,7 +200,7 @@ export class QuickOpenActionContributor extends ActionBarContributor {
 
 	private action: CustomizeTaskAction;
 
-	constructor( @ITaskService taskService: ITaskService, @IQuickOpenService quickOpenService: IQuickOpenService) {
+	constructor(@ITaskService taskService: ITaskService, @IQuickOpenService quickOpenService: IQuickOpenService) {
 		super();
 		this.action = new CustomizeTaskAction(taskService, quickOpenService);
 	}

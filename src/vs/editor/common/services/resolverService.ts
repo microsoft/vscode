@@ -7,7 +7,7 @@
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { IEditorModel } from 'vs/platform/editor/common/editor';
 import { IDisposable, IReference } from 'vs/base/common/lifecycle';
 
@@ -31,15 +31,15 @@ export interface ITextModelService {
 export interface ITextModelContentProvider {
 
 	/**
-	 * Given a resource, return the content of the resource as IModel.
+	 * Given a resource, return the content of the resource as `ITextModel`.
 	 */
-	provideTextContent(resource: URI): TPromise<IModel>;
+	provideTextContent(resource: URI): TPromise<ITextModel>;
 }
 
 export interface ITextEditorModel extends IEditorModel {
 
 	/**
-	 * Provides access to the underlying IModel.
+	 * Provides access to the underlying `ITextModel`.
 	 */
-	textEditorModel: IModel;
+	textEditorModel: ITextModel;
 }

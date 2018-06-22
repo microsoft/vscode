@@ -19,7 +19,8 @@ import { RawContentChangedType } from 'vs/editor/common/model/textModelEvents';
 import { CursorChangeReason } from 'vs/editor/common/controller/cursorEvents';
 import { IViewModel } from 'vs/editor/common/viewModel/viewModel';
 import * as viewEvents from 'vs/editor/common/view/viewEvents';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
+import { ITextModel, IIdentifiedSingleEditOperation, TrackedRangeStickiness } from 'vs/editor/common/model';
 
 function containsLineMappingChanged(events: viewEvents.ViewEvent[]): boolean {
 	for (let i = 0, len = events.length; i < len; i++) {
@@ -60,7 +61,7 @@ export class CursorModelState {
 	public readonly modelVersionId: number;
 	public readonly cursorState: CursorState[];
 
-	constructor(model: editorCommon.IModel, cursor: Cursor) {
+	constructor(model: ITextModel, cursor: Cursor) {
 		this.modelVersionId = model.getVersionId();
 		this.cursorState = cursor.getAll();
 	}
@@ -86,11 +87,20 @@ export class CursorModelState {
 
 export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
+	public static MAX_CURSOR_COUNT = 10000;
+
+	private readonly _onDidReachMaxCursorCount: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidReachMaxCursorCount: Event<void> = this._onDidReachMaxCursorCount.event;
+
+	private readonly _onDidAttemptReadOnlyEdit: Emitter<void> = this._register(new Emitter<void>());
+	public readonly onDidAttemptReadOnlyEdit: Event<void> = this._onDidAttemptReadOnlyEdit.event;
+
 	private readonly _onDidChange: Emitter<CursorStateChangedEvent> = this._register(new Emitter<CursorStateChangedEvent>());
 	public readonly onDidChange: Event<CursorStateChangedEvent> = this._onDidChange.event;
 
 	private readonly _configuration: editorCommon.IConfiguration;
-	private readonly _model: editorCommon.IModel;
+	private readonly _model: ITextModel;
+	private _knownModelVersionId: number;
 	private readonly _viewModel: IViewModel;
 	public context: CursorContext;
 	private _cursors: CursorCollection;
@@ -100,10 +110,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	private _columnSelectData: IColumnSelectData;
 	private _prevEditOperationType: EditOperationType;
 
-	constructor(configuration: editorCommon.IConfiguration, model: editorCommon.IModel, viewModel: IViewModel) {
+	constructor(configuration: editorCommon.IConfiguration, model: ITextModel, viewModel: IViewModel) {
 		super();
 		this._configuration = configuration;
 		this._model = model;
+		this._knownModelVersionId = this._model.getVersionId();
 		this._viewModel = viewModel;
 		this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 		this._cursors = new CursorCollection(this.context);
@@ -114,6 +125,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		this._prevEditOperationType = EditOperationType.Other;
 
 		this._register(this._model.onDidChangeRawContent((e) => {
+			this._knownModelVersionId = e.versionId;
 			if (this._isHandling) {
 				return;
 			}
@@ -127,6 +139,16 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				return;
 			}
 
+			if (this._knownModelVersionId !== this._model.getVersionId()) {
+				// There are model change events that I didn't yet receive.
+				//
+				// This can happen when editing the model, and the view model receives the change events first,
+				// and the view model emits line mapping changed events, all before the cursor gets a chance to
+				// recover from markers.
+				//
+				// The model change listener above will be called soon and we'll ensure a valid cursor state there.
+				return;
+			}
 			// Ensure valid state
 			this.setStates('viewModel', CursorChangeReason.NotSet, this.getAll());
 		}));
@@ -135,13 +157,13 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			this.context = new CursorContext(this._configuration, this._model, this._viewModel);
 			this._cursors.updateContext(this.context);
 		};
-		this._register(model.onDidChangeLanguage((e) => {
+		this._register(this._model.onDidChangeLanguage((e) => {
 			updateCursorContext();
 		}));
-		this._register(model.onDidChangeLanguageConfiguration(() => {
+		this._register(this._model.onDidChangeLanguageConfiguration(() => {
 			updateCursorContext();
 		}));
-		this._register(model.onDidChangeOptions(() => {
+		this._register(this._model.onDidChangeOptions(() => {
 			updateCursorContext();
 		}));
 		this._register(this._configuration.onDidChange((e) => {
@@ -171,6 +193,11 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public setStates(source: string, reason: CursorChangeReason, states: CursorState[]): void {
+		if (states.length > Cursor.MAX_CURSOR_COUNT) {
+			states = states.slice(0, Cursor.MAX_CURSOR_COUNT);
+			this._onDidReachMaxCursorCount.fire(void 0);
+		}
+
 		const oldState = new CursorModelState(this._model, this);
 
 		this._cursors.setStates(states);
@@ -328,11 +355,6 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 			return;
 		}
 
-		if (this._configuration.editor.readOnly) {
-			// Cannot execute when read only
-			return;
-		}
-
 		if (opResult.shouldPushStackElementBefore) {
 			this._model.pushStackElement();
 		}
@@ -352,7 +374,7 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 	private _interpretCommandResult(cursorState: Selection[]): void {
 		if (!cursorState || cursorState.length === 0) {
-			return;
+			cursorState = this._cursors.readSelectionFromMarkers();
 		}
 
 		this._columnSelectData = null;
@@ -373,7 +395,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 		const viewSelections = this._cursors.getViewSelections();
 
 		// Let the view get the event first.
-		this._emit([new viewEvents.ViewCursorStateChangedEvent(viewSelections)]);
+		try {
+			const eventsCollector = this._beginEmit();
+			eventsCollector.emit(new viewEvents.ViewCursorStateChangedEvent(viewSelections));
+		} finally {
+			this._endEmit();
+		}
 
 		// Only after the view has been notified, let the rest of the world know...
 		if (!oldState
@@ -415,7 +442,12 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 	}
 
 	public emitCursorRevealRange(viewRange: Range, verticalType: viewEvents.VerticalRevealType, revealHorizontal: boolean, scrollType: editorCommon.ScrollType) {
-		this._emit([new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType)]);
+		try {
+			const eventsCollector = this._beginEmit();
+			eventsCollector.emit(new viewEvents.ViewRevealRangeRequestEvent(viewRange, verticalType, revealHorizontal, scrollType));
+		} finally {
+			this._endEmit();
+		}
 	}
 
 	// -----------------------------------------------------------------------------------------------------------
@@ -431,11 +463,23 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		if (handlerId === H.CompositionEnd) {
 			this._isDoingComposition = false;
+		}
+
+		if (this._configuration.editor.readOnly) {
+			// All the remaining handlers will try to edit the model,
+			// but we cannot edit when read only...
+			this._onDidAttemptReadOnlyEdit.fire(void 0);
 			return;
 		}
 
 		const oldState = new CursorModelState(this._model, this);
 		let cursorChangeReason = CursorChangeReason.NotSet;
+
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			// TODO@Alex: if the undo/redo stack contains non-null selections
+			// it would also be OK to stop tracking selections here
+			this._cursors.stopTrackingSelections();
+		}
 
 		// ensure valid state on all cursors
 		this._cursors.ensureValidState();
@@ -478,6 +522,10 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 				case H.ExecuteCommands:
 					this._externalExecuteCommands(<editorCommon.ICommand[]>payload);
 					break;
+
+				case H.CompositionEnd:
+					this._interpretCompositionEnd(source);
+					break;
 			}
 		} catch (err) {
 			onUnexpectedError(err);
@@ -485,8 +533,19 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 
 		this._isHandling = false;
 
+		if (handlerId !== H.Undo && handlerId !== H.Redo) {
+			this._cursors.startTrackingSelections();
+		}
+
 		if (this._emitStateChangedIfNecessary(source, cursorChangeReason, oldState)) {
 			this._revealRange(RevealTarget.Primary, viewEvents.VerticalRevealType.Simple, true, editorCommon.ScrollType.Smooth);
+		}
+	}
+
+	private _interpretCompositionEnd(source: string) {
+		if (!this._isDoingComposition && source === 'keyboard') {
+			// composition finishes, let's check if we need to auto complete if necessary.
+			this._executeEditOperation(TypeOperations.compositionEndWithInterceptors(this._prevEditOperationType, this.context.config, this.context.model, this.getSelections()));
 		}
 	}
 
@@ -543,25 +602,25 @@ export class Cursor extends viewEvents.ViewEventEmitter implements ICursors {
 }
 
 interface IExecContext {
-	readonly model: editorCommon.IModel;
+	readonly model: ITextModel;
 	readonly selectionsBefore: Selection[];
 	readonly trackedRanges: string[];
 	readonly trackedRangesDirection: SelectionDirection[];
 }
 
 interface ICommandData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
 }
 
 interface ICommandsData {
-	operations: editorCommon.IIdentifiedSingleEditOperation[];
+	operations: IIdentifiedSingleEditOperation[];
 	hadTrackedEditOperation: boolean;
 }
 
 class CommandExecutor {
 
-	public static executeCommands(model: editorCommon.IModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
+	public static executeCommands(model: ITextModel, selectionsBefore: Selection[], commands: editorCommon.ICommand[]): Selection[] {
 
 		const ctx: IExecContext = {
 			model: model,
@@ -573,7 +632,7 @@ class CommandExecutor {
 		const result = this._innerExecuteCommands(ctx, commands);
 
 		for (let i = 0, len = ctx.trackedRanges.length; i < len; i++) {
-			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, editorCommon.TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
+			ctx.model._setTrackedRange(ctx.trackedRanges[i], null, TrackedRangeStickiness.AlwaysGrowsWhenTypingAtEdges);
 		}
 
 		return result;
@@ -600,7 +659,7 @@ class CommandExecutor {
 		}
 
 		// Remove operations belonging to losing cursors
-		let filteredOperations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let filteredOperations: IIdentifiedSingleEditOperation[] = [];
 		for (let i = 0, len = rawOperations.length; i < len; i++) {
 			if (!loserCursorsMap.hasOwnProperty(rawOperations[i].identifier.major.toString())) {
 				filteredOperations.push(rawOperations[i]);
@@ -612,8 +671,8 @@ class CommandExecutor {
 		if (commandsData.hadTrackedEditOperation && filteredOperations.length > 0) {
 			filteredOperations[0]._isTracked = true;
 		}
-		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[]): Selection[] => {
-			let groupedInverseEditOperations: editorCommon.IIdentifiedSingleEditOperation[][] = [];
+		const selectionsAfter = ctx.model.pushEditOperations(ctx.selectionsBefore, filteredOperations, (inverseEditOperations: IIdentifiedSingleEditOperation[]): Selection[] => {
+			let groupedInverseEditOperations: IIdentifiedSingleEditOperation[][] = [];
 			for (let i = 0; i < ctx.selectionsBefore.length; i++) {
 				groupedInverseEditOperations[i] = [];
 			}
@@ -625,7 +684,7 @@ class CommandExecutor {
 				}
 				groupedInverseEditOperations[op.identifier.major].push(op);
 			}
-			const minorBasedSorter = (a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation) => {
+			const minorBasedSorter = (a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation) => {
 				return a.identifier.minor - b.identifier.minor;
 			};
 			let cursorSelections: Selection[] = [];
@@ -684,7 +743,7 @@ class CommandExecutor {
 	}
 
 	private static _getEditOperations(ctx: IExecContext, commands: editorCommon.ICommand[]): ICommandsData {
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let operations: IIdentifiedSingleEditOperation[] = [];
 		let hadTrackedEditOperation: boolean = false;
 
 		for (let i = 0, len = commands.length; i < len; i++) {
@@ -703,7 +762,7 @@ class CommandExecutor {
 	private static _getEditOperationsFromCommand(ctx: IExecContext, majorIdentifier: number, command: editorCommon.ICommand): ICommandData {
 		// This method acts as a transaction, if the command fails
 		// everything it has done is ignored
-		let operations: editorCommon.IIdentifiedSingleEditOperation[] = [];
+		let operations: IIdentifiedSingleEditOperation[] = [];
 		let operationMinor = 0;
 
 		const addEditOperation = (selection: Range, text: string) => {
@@ -730,25 +789,25 @@ class CommandExecutor {
 		};
 
 		const trackSelection = (selection: Selection, trackPreviousOnEmpty?: boolean) => {
-			let stickiness: editorCommon.TrackedRangeStickiness;
+			let stickiness: TrackedRangeStickiness;
 			if (selection.isEmpty()) {
 				if (typeof trackPreviousOnEmpty === 'boolean') {
 					if (trackPreviousOnEmpty) {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				} else {
 					// Try to lock it with surrounding text
 					const maxLineColumn = ctx.model.getLineMaxColumn(selection.startLineNumber);
 					if (selection.startColumn === maxLineColumn) {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingBefore;
 					} else {
-						stickiness = editorCommon.TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
+						stickiness = TrackedRangeStickiness.GrowsOnlyWhenTypingAfter;
 					}
 				}
 			} else {
-				stickiness = editorCommon.TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
+				stickiness = TrackedRangeStickiness.NeverGrowsWhenTypingAtEdges;
 			}
 
 			const l = ctx.trackedRanges.length;
@@ -781,12 +840,12 @@ class CommandExecutor {
 		};
 	}
 
-	private static _getLoserCursorMap(operations: editorCommon.IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
+	private static _getLoserCursorMap(operations: IIdentifiedSingleEditOperation[]): { [index: string]: boolean; } {
 		// This is destructive on the array
 		operations = operations.slice(0);
 
 		// Sort operations with last one first
-		operations.sort((a: editorCommon.IIdentifiedSingleEditOperation, b: editorCommon.IIdentifiedSingleEditOperation): number => {
+		operations.sort((a: IIdentifiedSingleEditOperation, b: IIdentifiedSingleEditOperation): number => {
 			// Note the minus!
 			return -(Range.compareRangesUsingEnds(a.range, b.range));
 		});

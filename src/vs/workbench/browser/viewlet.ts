@@ -3,22 +3,44 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
-import DOM = require('vs/base/browser/dom');
+import * as DOM from 'vs/base/browser/dom';
 import { Registry } from 'vs/platform/registry/common/platform';
-import { Action } from 'vs/base/common/actions';
+import { Action, IAction } from 'vs/base/common/actions';
 import { ITree } from 'vs/base/parts/tree/browser/tree';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
-import { IWorkbenchEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { Composite, CompositeDescriptor, CompositeRegistry } from 'vs/workbench/browser/composite';
 import { IConstructorSignature0 } from 'vs/platform/instantiation/common/instantiation';
+import { ToggleSidebarVisibilityAction } from 'vs/workbench/browser/actions/toggleSidebarVisibility';
+import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
+import { IPartService } from 'vs/workbench/services/part/common/partService';
+import { IThemeService } from 'vs/platform/theme/common/themeService';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import URI from 'vs/base/common/uri';
 
 export abstract class Viewlet extends Composite implements IViewlet {
 
+	constructor(id: string,
+		private partService: IPartService,
+		telemetryService: ITelemetryService,
+		themeService: IThemeService
+	) {
+		super(id, telemetryService, themeService);
+	}
+
 	public getOptimalWidth(): number {
 		return null;
+	}
+
+	public getContextMenuActions(): IAction[] {
+		return [<IAction>{
+			id: ToggleSidebarVisibilityAction.ID,
+			label: nls.localize('compositePart.hideSideBarLabel', "Hide Side Bar"),
+			enabled: true,
+			run: () => this.partService.setSideBarHidden(true)
+		}];
 	}
 }
 
@@ -33,13 +55,13 @@ export class ViewletDescriptor extends CompositeDescriptor<Viewlet> {
 		name: string,
 		cssClass?: string,
 		order?: number,
-		private _extensionId?: string
+		private _iconUrl?: URI
 	) {
 		super(ctor, id, name, cssClass, order, id);
 	}
 
-	public get extensionId(): string {
-		return this._extensionId;
+	public get iconUrl(): URI {
+		return this._iconUrl;
 	}
 }
 
@@ -99,12 +121,12 @@ export class ToggleViewletAction extends Action {
 		name: string,
 		viewletId: string,
 		@IViewletService protected viewletService: IViewletService,
-		@IWorkbenchEditorService private editorService: IWorkbenchEditorService
+		@IEditorGroupsService private editorGroupService: IEditorGroupsService
 	) {
 		super(id, name);
 
 		this.viewletId = viewletId;
-		this.enabled = !!this.viewletService && !!this.editorService;
+		this.enabled = !!this.viewletService && !!this.editorGroupService;
 	}
 
 	public run(): TPromise<any> {
@@ -114,11 +136,8 @@ export class ToggleViewletAction extends Action {
 			return this.viewletService.openViewlet(this.viewletId, true);
 		}
 
-		// Otherwise pass focus to editor if possible
-		const editor = this.editorService.getActiveEditor();
-		if (editor) {
-			editor.focus();
-		}
+		// Otherwise pass focus to editor group
+		this.editorGroupService.activeGroup.focus();
 
 		return TPromise.as(true);
 	}
@@ -133,7 +152,7 @@ export class ToggleViewletAction extends Action {
 		const activeViewlet = this.viewletService.getActiveViewlet();
 		const activeElement = document.activeElement;
 
-		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer().getHTMLElement());
+		return activeViewlet && activeElement && DOM.isAncestor(activeElement, (<Viewlet>activeViewlet).getContainer());
 	}
 }
 
@@ -149,7 +168,7 @@ export class CollapseAction extends Action {
 			viewer.collapseAll();
 			viewer.clearSelection();
 			viewer.clearFocus();
-			viewer.DOMFocus();
+			viewer.domFocus();
 			viewer.focusFirst();
 
 			return TPromise.as(null);

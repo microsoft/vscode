@@ -4,10 +4,9 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./media/output';
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Action, IAction } from 'vs/base/common/actions';
-import { Builder } from 'vs/base/browser/builder';
 import { IActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { IEditorOptions } from 'vs/editor/common/config/editorOptions';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
@@ -17,15 +16,17 @@ import { IInstantiationService } from 'vs/platform/instantiation/common/instanti
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { EditorInput, EditorOptions } from 'vs/workbench/common/editor';
-import { TextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
+import { AbstractTextResourceEditor } from 'vs/workbench/browser/parts/editor/textResourceEditor';
 import { OUTPUT_PANEL_ID, IOutputService, CONTEXT_IN_OUTPUT } from 'vs/workbench/parts/output/common/output';
-import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenFileAction } from 'vs/workbench/parts/output/browser/outputActions';
+import { SwitchOutputAction, SwitchOutputActionItem, ClearOutputAction, ToggleOutputScrollLockAction, OpenLogOutputFile } from 'vs/workbench/parts/output/browser/outputActions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IEditorGroupService } from 'vs/workbench/services/group/common/groupService';
 import { ITextFileService } from 'vs/workbench/services/textfile/common/textfiles';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
+import { CancellationToken } from 'vs/base/common/cancellation';
+import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 
-export class OutputPanel extends TextResourceEditor {
+export class OutputPanel extends AbstractTextResourceEditor {
 	private actions: IAction[];
 	private scopedInstantiationService: IInstantiationService;
 
@@ -38,10 +39,11 @@ export class OutputPanel extends TextResourceEditor {
 		@IThemeService themeService: IThemeService,
 		@IOutputService private outputService: IOutputService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
-		@IEditorGroupService editorGroupService: IEditorGroupService,
-		@ITextFileService textFileService: ITextFileService
+		@IEditorGroupsService editorGroupService: IEditorGroupsService,
+		@ITextFileService textFileService: ITextFileService,
+		@IEditorService editorService: IEditorService
 	) {
-		super(telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService);
+		super(OUTPUT_PANEL_ID, telemetryService, instantiationService, storageService, textResourceConfigurationService, themeService, editorGroupService, textFileService, editorService);
 
 		this.scopedInstantiationService = instantiationService;
 	}
@@ -50,13 +52,17 @@ export class OutputPanel extends TextResourceEditor {
 		return OUTPUT_PANEL_ID;
 	}
 
+	public getTitle(): string {
+		return nls.localize('output', "Output");
+	}
+
 	public getActions(): IAction[] {
 		if (!this.actions) {
 			this.actions = [
 				this.instantiationService.createInstance(SwitchOutputAction),
 				this.instantiationService.createInstance(ClearOutputAction, ClearOutputAction.ID, ClearOutputAction.LABEL),
-				this.instantiationService.createInstance(OpenFileAction, OpenFileAction.ID, OpenFileAction.LABEL),
-				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL)
+				this.instantiationService.createInstance(ToggleOutputScrollLockAction, ToggleOutputScrollLockAction.ID, ToggleOutputScrollLockAction.LABEL),
+				this.instantiationService.createInstance(OpenLogOutputFile)
 			];
 
 			this.actions.forEach(a => {
@@ -88,8 +94,13 @@ export class OutputPanel extends TextResourceEditor {
 		options.minimap = { enabled: false };
 
 		const outputConfig = this.baseConfigurationService.getValue('[Log]');
-		if (outputConfig && outputConfig['editor.minimap.enabled']) {
-			options.minimap = { enabled: true };
+		if (outputConfig) {
+			if (outputConfig['editor.minimap.enabled']) {
+				options.minimap = { enabled: true };
+			}
+			if ('editor.wordWrap' in outputConfig) {
+				options.wordWrap = outputConfig['editor.wordWrap'];
+			}
 		}
 
 		return options;
@@ -101,27 +112,29 @@ export class OutputPanel extends TextResourceEditor {
 		return channel ? nls.localize('outputPanelWithInputAriaLabel', "{0}, Output panel", channel.label) : nls.localize('outputPanelAriaLabel', "Output panel");
 	}
 
-	public setInput(input: EditorInput, options?: EditorOptions): TPromise<void> {
+	public setInput(input: EditorInput, options: EditorOptions, token: CancellationToken): Thenable<void> {
 		if (input.matches(this.input)) {
 			return TPromise.as(null);
 		}
 
 		if (this.input) {
+			// Dispose previous input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
-		return super.setInput(input, options).then(() => this.revealLastLine());
+		return super.setInput(input, options, token).then(() => this.revealLastLine(false));
 	}
 
 	public clearInput(): void {
 		if (this.input) {
+			// Dispose current input (Output panel is not a workbench editor)
 			this.input.dispose();
 		}
 		super.clearInput();
 	}
 
-	protected createEditor(parent: Builder): void {
+	protected createEditor(parent: HTMLElement): void {
 		// First create the scoped instantation service and only then construct the editor using the scoped service
-		const scopedContextKeyService = this.contextKeyService.createScoped(parent.getHTMLElement());
+		const scopedContextKeyService = this.contextKeyService.createScoped(parent);
 		this.toUnbind.push(scopedContextKeyService);
 		this.scopedInstantiationService = this.instantiationService.createChild(new ServiceCollection([IContextKeyService, scopedContextKeyService]));
 		super.createEditor(parent);

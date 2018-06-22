@@ -1,0 +1,22 @@
+{
+	"compilerOptions": {
+		"module": "commonjs",
+		"target": "es2017",
+		"lib": [
+			"es6",
+			"es2015.promise",
+			"dom"
+		],
+		"outDir": "./out",
+		"sourceMap": true,
+		"noImplicitAny": true,
+		"noImplicitReturns": true,
+		"noUnusedLocals": true,
+		"noUnusedParameters": true,
+		"strict": true,
+		"alwaysStrict": true
+	},
+	"include": [
+		"src/**/*"
+	]
+}

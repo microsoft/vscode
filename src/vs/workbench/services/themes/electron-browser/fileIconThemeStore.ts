@@ -4,16 +4,17 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import nls = require('vs/nls');
+import * as nls from 'vs/nls';
 
 import * as types from 'vs/base/common/types';
-import * as Paths from 'path';
-import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/platform/extensions/common/extensionsRegistry';
+import * as resources from 'vs/base/common/resources';
+import { ExtensionsRegistry, ExtensionMessageCollector } from 'vs/workbench/services/extensions/common/extensionsRegistry';
 import { ExtensionData, IThemeExtensionPoint } from 'vs/workbench/services/themes/common/workbenchThemeService';
-import { IExtensionService } from 'vs/platform/extensions/common/extensions';
+import { IExtensionService } from 'vs/workbench/services/extensions/common/extensions';
 import { TPromise } from 'vs/base/common/winjs.base';
-import Event, { Emitter } from 'vs/base/common/event';
+import { Event, Emitter } from 'vs/base/common/event';
 import { FileIconThemeData } from 'vs/workbench/services/themes/electron-browser/fileIconThemeData';
+import URI from 'vs/base/common/uri';
 
 let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensionPoint[]>('iconThemes', [], {
 	description: nls.localize('vscode.extension.contributes.iconThemes', 'Contributes file icon themes.'),
@@ -41,11 +42,11 @@ let iconThemeExtPoint = ExtensionsRegistry.registerExtensionPoint<IThemeExtensio
 export class FileIconThemeStore {
 
 	private knownIconThemes: FileIconThemeData[];
-	private onDidChangeEmitter: Emitter<FileIconThemeData[]>;
+	private readonly onDidChangeEmitter: Emitter<FileIconThemeData[]>;
 
 	public get onDidChange(): Event<FileIconThemeData[]> { return this.onDidChangeEmitter.event; }
 
-	constructor( @IExtensionService private extensionService: IExtensionService) {
+	constructor(@IExtensionService private extensionService: IExtensionService) {
 		this.knownIconThemes = [];
 		this.onDidChangeEmitter = new Emitter<FileIconThemeData[]>();
 		this.initialize();
@@ -60,13 +61,13 @@ export class FileIconThemeStore {
 					extensionName: ext.description.name,
 					extensionIsBuiltin: ext.description.isBuiltin
 				};
-				this.onIconThemes(ext.description.extensionFolderPath, extensionData, ext.value, ext.collector);
+				this.onIconThemes(ext.description.extensionLocation, extensionData, ext.value, ext.collector);
 			}
 			this.onDidChangeEmitter.fire(this.knownIconThemes);
 		});
 	}
 
-	private onIconThemes(extensionFolderPath: string, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
+	private onIconThemes(extensionLocation: URI, extensionData: ExtensionData, iconThemes: IThemeExtensionPoint[], collector: ExtensionMessageCollector): void {
 		if (!Array.isArray(iconThemes)) {
 			collector.error(nls.localize(
 				'reqarray',
@@ -94,13 +95,13 @@ export class FileIconThemeStore {
 				));
 				return;
 			}
-			let normalizedAbsolutePath = Paths.normalize(Paths.join(extensionFolderPath, iconTheme.path));
 
-			if (normalizedAbsolutePath.indexOf(Paths.normalize(extensionFolderPath)) !== 0) {
-				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, normalizedAbsolutePath, extensionFolderPath));
+			const iconThemeLocation = resources.joinPath(extensionLocation, iconTheme.path);
+			if (iconThemeLocation.path.indexOf(extensionLocation.path) !== 0) {
+				collector.warn(nls.localize('invalid.path.1', "Expected `contributes.{0}.path` ({1}) to be included inside extension's folder ({2}). This might make the extension non-portable.", iconThemeExtPoint.name, iconThemeLocation.path, extensionLocation.path));
 			}
 
-			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, normalizedAbsolutePath, extensionData);
+			let themeData = FileIconThemeData.fromExtensionTheme(iconTheme, iconThemeLocation, extensionData);
 			this.knownIconThemes.push(themeData);
 		});
 

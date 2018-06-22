@@ -10,7 +10,7 @@
 	z-index: 50;
 	animation-duration: 0.15s;
 	animation-name: fadeIn;
-	-webkit-user-select: text;
+	user-select: text;
 	word-break: break-all;
 	padding: 4px 5px;
 }
@@ -35,7 +35,7 @@
 }
 
 .monaco-editor .debug-hover-widget .debug-hover-tree .monaco-tree .monaco-tree-row > .content {
-	-webkit-user-select: text;
+	user-select: text;
 	white-space: pre;
 }
 

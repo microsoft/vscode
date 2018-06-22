@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { IModel } from 'vs/editor/common/editorCommon';
+import { ITextModel } from 'vs/editor/common/model';
 import { TPromise } from 'vs/base/common/winjs.base';
 import URI from 'vs/base/common/uri';
 import { ResourceEditorInput } from 'vs/workbench/common/editor/resourceEditorInput';
@@ -22,6 +22,7 @@ import { ITextFileService } from 'vs/workbench/services/textfile/common/textfile
 import { IUntitledEditorService } from 'vs/workbench/services/untitled/common/untitledEditorService';
 import { TextFileEditorModelManager } from 'vs/workbench/services/textfile/common/textFileEditorModelManager';
 import { once } from 'vs/base/common/event';
+import { snapshotToString } from 'vs/platform/files/common/files';
 
 class ServiceAccessor {
 	constructor(
@@ -55,9 +56,9 @@ suite('Workbench - TextModelResolverService', () => {
 		accessor.untitledEditorService.revertAll();
 	});
 
-	test('resolve resource', function (done) {
+	test('resolve resource', function () {
 		const dispose = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: function (resource: URI): TPromise<IModel> {
+			provideTextContent: function (resource: URI): TPromise<ITextModel> {
 				if (resource.scheme === 'test') {
 					let modelContent = 'Hello Test';
 					let mode = accessor.modeService.getOrCreateMode('json');
@@ -71,9 +72,9 @@ suite('Workbench - TextModelResolverService', () => {
 		let resource = URI.from({ scheme: 'test', authority: null, path: 'thePath' });
 		let input: ResourceEditorInput = instantiationService.createInstance(ResourceEditorInput, 'The Name', 'The Description', resource);
 
-		input.resolve().then(model => {
+		return input.resolve().then(model => {
 			assert.ok(model);
-			assert.equal((model as ResourceEditorModel).getValue(), 'Hello Test');
+			assert.equal(snapshotToString((model as ResourceEditorModel).createSnapshot()), 'Hello Test');
 
 			let disposed = false;
 			once(model.onDispose)(() => {
@@ -84,7 +85,6 @@ suite('Workbench - TextModelResolverService', () => {
 			assert.equal(disposed, true);
 
 			dispose.dispose();
-			done();
 		});
 	});
 
@@ -133,7 +133,7 @@ suite('Workbench - TextModelResolverService', () => {
 		let waitForIt = new TPromise(c => resolveModel = c);
 
 		const disposable = accessor.textModelResolverService.registerTextModelContentProvider('test', {
-			provideTextContent: async (resource: URI): TPromise<IModel> => {
+			provideTextContent: async (resource: URI): TPromise<ITextModel> => {
 				await waitForIt;
 
 				let modelContent = 'Hello Test';

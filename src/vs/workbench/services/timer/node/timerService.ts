@@ -70,6 +70,9 @@ export class TimerService implements ITimerService {
 			// ignore, be on the safe side with these hardware method calls
 		}
 
+		let nlsStart = perf.getEntry('mark', 'nlsGeneration:start');
+		let nlsEnd = perf.getEntry('mark', 'nlsGeneration:end');
+		let nlsTime = nlsStart && nlsEnd ? nlsEnd.startTime - nlsStart.startTime : 0;
 		this._startupMetrics = {
 			version: 1,
 			ellapsed: perf.getEntry('mark', 'didStartWorkbench').startTime - start,
@@ -81,7 +84,8 @@ export class TimerService implements ITimerService {
 				ellapsedViewletRestore: perf.getDuration('willRestoreViewlet', 'didRestoreViewlet'),
 				ellapsedWorkbench: perf.getDuration('willStartWorkbench', 'didStartWorkbench'),
 				ellapsedWindowLoadToRequire: perf.getEntry('mark', 'willLoadWorkbenchMain').startTime - this.windowLoad,
-				ellapsedTimersToTimersComputed: Date.now() - now
+				ellapsedTimersToTimersComputed: Date.now() - now,
+				ellapsedNlsGeneration: nlsTime
 			},
 			platform,
 			release,
