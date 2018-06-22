@@ -5,53 +5,65 @@
 
 'use strict';
 
-import { clamp } from './numbers';
+import { tail2, last } from 'vs/base/common/arrays';
 
 export interface ITreeNode<T> {
 	readonly element: T;
 	readonly children: ITreeNode<T>[];
 }
 
-function clone<T>(nodes: ITreeNode<T>[]): ITreeNode<T>[] {
-	return nodes.map(({ element, children }) => ({ element, children: clone(children) }));
-}
-
 export class Tree<T> {
 
-	private root: ITreeNode<T>[] = [];
+	private root: ITreeNode<T> = { element: undefined, children: [] };
 
 	splice(start: number[], deleteCount: number, nodes: ITreeNode<T>[] = []): ITreeNode<T>[] {
 		if (start.length === 0) {
-			throw new Error('invalid tree location');
+			throw new Error('Invalid tree location');
 		}
 
-		const children = this.findChildren(start);
-		const index = start[start.length - 1];
-		return children.splice(index, deleteCount, ...clone(nodes));
+		const [rest, index] = tail2(start);
+		const parentPath = this.getNodePath(rest);
+		const parent = last(parentPath);
+
+		return parent.children.splice(index, deleteCount, ...nodes);
 	}
 
-	getElement(location: number[]): T | undefined {
-		const node = this.findElement(location);
-		return node && node.element;
+	getElement(location: number[]): T {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const nodePath = this.getNodePath(location);
+		const node = last(nodePath);
+
+		return node.element;
+	}
+
+	getElementPath(location: number[]): T[] {
+		if (location.length === 0) {
+			throw new Error('Invalid tree location');
+		}
+
+		const nodePath = this.getNodePath(location);
+		return nodePath.map(node => node.element);
 	}
 
 	getNodes(): ITreeNode<T>[] {
-		return clone(this.root);
+		return this.root.children;
 	}
 
-	private findElement(location: number[]): ITreeNode<T> {
-		const children = this.findChildren(location);
-		const lastIndex = clamp(location[location.length - 1], 0, children.length);
-		return children[lastIndex];
-	}
-
-	private findChildren(location: number[], children: ITreeNode<T>[] = this.root): ITreeNode<T>[] {
-		if (location.length === 1) {
-			return children;
+	private getNodePath(location: number[], node: ITreeNode<T> = this.root): ITreeNode<T>[] {
+		if (location.length === 0) {
+			return [node];
 		}
 
-		let [i, ...rest] = location;
-		i = clamp(i, 0, children.length);
-		return this.findChildren(rest, children[i].children);
+		let [index, ...rest] = location;
+
+		if (index < 0 || index >= node.children.length) {
+			throw new Error('Invalid location');
+		}
+
+		const child = node.children[index];
+		return [node, ...this.getNodePath(rest, child)];
 	}
 }
