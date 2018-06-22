@@ -672,8 +672,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutSettingsList(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
-		this.tocTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
-		this.tocTree.layout(listHeight, 200);
+
+		const tocHeight = listHeight - 5; // padding
+		this.tocTreeContainer.style.height = `${tocHeight}px`;
+		this.tocTree.layout(tocHeight, 175);
 	}
 }

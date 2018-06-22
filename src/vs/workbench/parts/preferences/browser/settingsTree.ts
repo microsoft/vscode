@@ -320,8 +320,6 @@ function wordifyKey(key: string): string {
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {
-	// const categoryWithoutSpaces = category.replace(/ /g, '');
-
 	const doTrim = forward => {
 		const parts = groupId.split('.');
 		while (parts.length) {
@@ -329,10 +327,6 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 			if (reg.test(category)) {
 				return category.replace(reg, '');
 			}
-
-			// if (reg.test(categoryWithoutSpaces)) {
-			// 	return categoryWithoutSpaces.replace(reg, '');
-			// }
 
 			if (forward) {
 				parts.pop();
@@ -394,7 +388,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 82;
+	private static readonly SETTING_ROW_HEIGHT = 92;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -414,7 +408,7 @@ export class SettingsRenderer implements IRenderer {
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			return 40 + (4 * element.level);
+			return 40 + (7 * element.level);
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
@@ -435,7 +429,7 @@ export class SettingsRenderer implements IRenderer {
 		const template = this.renderSettingTemplate(tree, measureHelper);
 		this.renderSettingElement(tree, element, template);
 
-		const height = measureHelper.offsetHeight;
+		const height = this.measureContainer.offsetHeight;
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
 	}
@@ -527,7 +521,7 @@ export class SettingsRenderer implements IRenderer {
 
 	private renderGroupElement(element: SettingsTreeGroupElement, template: IGroupTitleTemplate): void {
 		template.parent.innerHTML = '';
-		const labelElement = DOM.append(template.parent, $('h3.settings-group-title-label'));
+		const labelElement = DOM.append(template.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.level}`);
 		labelElement.textContent = (<SettingsTreeGroupElement>element).label;
 	}
