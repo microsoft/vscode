@@ -12,7 +12,7 @@ import { Position } from 'vs/editor/common/core/position';
 import { HoverProviderRegistry, Hover, IColor, DocumentColorProvider } from 'vs/editor/common/modes';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
 import { getHover } from 'vs/editor/contrib/hover/getHover';
-import { HoverOperation, IHoverComputer } from './hoverOperation';
+import { HoverOperation, IHoverComputer, HoverStartMode } from './hoverOperation';
 import { ContentHoverWidget } from './hoverWidgets';
 import { IMarkdownString, MarkdownString, isEmptyMarkdownString, markedStringsEquals } from 'vs/base/common/htmlContent';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
@@ -220,12 +220,12 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 			this._computer.clearResult();
 
 			if (!this._colorPicker) { // TODO@Michel ensure that displayed text for other decorations is computed even if color picker is in place
-				this._hoverOperation.start();
+				this._hoverOperation.start(HoverStartMode.Delayed);
 			}
 		}
 	}
 
-	startShowingAt(range: Range, focus: boolean): void {
+	startShowingAt(range: Range, mode: HoverStartMode, focus: boolean): void {
 		if (this._lastRange && this._lastRange.equalsRange(range)) {
 			// We have to show the widget at the exact same range as before, so no work is needed
 			return;
@@ -262,7 +262,7 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this._lastRange = range;
 		this._computer.setRange(range);
 		this._shouldFocus = focus;
-		this._hoverOperation.start();
+		this._hoverOperation.start(mode);
 	}
 
 	hide(): void {

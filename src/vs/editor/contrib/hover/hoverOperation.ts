@@ -46,6 +46,11 @@ const enum ComputeHoverOperationState {
 	WAITING_FOR_ASYNC_COMPUTATION = 3
 }
 
+export const enum HoverStartMode {
+	Delayed = 0,
+	Immediate = 1
+}
+
 export class HoverOperation<Result> {
 
 	static HOVER_TIME = 300;
@@ -152,11 +157,25 @@ export class HoverOperation<Result> {
 		}
 	}
 
-	public start(): void {
-		if (this._state === ComputeHoverOperationState.IDLE) {
-			this._state = ComputeHoverOperationState.FIRST_WAIT;
-			this._firstWaitScheduler.schedule();
-			this._loadingMessageScheduler.schedule();
+	public start(mode: HoverStartMode): void {
+		if (mode === HoverStartMode.Delayed) {
+			if (this._state === ComputeHoverOperationState.IDLE) {
+				this._state = ComputeHoverOperationState.FIRST_WAIT;
+				this._firstWaitScheduler.schedule();
+				this._loadingMessageScheduler.schedule();
+			}
+		} else {
+			switch (this._state) {
+				case ComputeHoverOperationState.IDLE:
+					this._triggerAsyncComputation();
+					this._secondWaitScheduler.cancel();
+					this._triggerSyncComputation();
+					break;
+				case ComputeHoverOperationState.SECOND_WAIT:
+					this._secondWaitScheduler.cancel();
+					this._triggerSyncComputation();
+					break;
+			}
 		}
 	}
 
