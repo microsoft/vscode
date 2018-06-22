@@ -8,8 +8,6 @@
 import { ISpliceable } from 'vs/base/common/sequence';
 import { IIterator } from 'vs/base/common/iterator';
 
-export type Location = number[];
-
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children: ITreeElement<T>[];
@@ -119,7 +117,7 @@ export class TreeModel<T> {
 
 	constructor(private spliceable: ISpliceable<ITreeNode<T>>) { }
 
-	splice(start: Location, deleteCount: number, elements: ITreeElement<T>[] = []): IIterator<ITreeElement<T>> {
+	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[] = []): IIterator<ITreeElement<T>> {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
@@ -133,19 +131,19 @@ export class TreeModel<T> {
 		return deletedIterator;
 	}
 
-	getElement(location: Location): T | undefined {
+	getElement(location: number[]): T | undefined {
 		const node = this.findNode(location);
 		return node && node.element;
 	}
 
-	private findNode(location: Location): TreeNode<T> {
+	private findNode(location: number[]): TreeNode<T> {
 		const { parentNode } = this.findParentNode(location);
 		const lastIndex = location[location.length - 1];
 
 		return parentNode.children[lastIndex];
 	}
 
-	private findParentNode(location: Location, node: TreeNode<T> = this.root, listIndex: number = 0): { parentNode: TreeNode<T>; parentListIndex: number } {
+	private findParentNode(location: number[], node: TreeNode<T> = this.root, listIndex: number = 0): { parentNode: TreeNode<T>; parentListIndex: number } {
 		if (location.length === 1) {
 			return { parentNode: node, parentListIndex: listIndex };
 		}
@@ -167,18 +165,17 @@ export class TreeModel<T> {
 // { key: 1, children: {} }
 // { 1: { 2: {} } }
 
-type TrieNodeMap<T> = { [key: string]: TrieNode<T> };
-type TrieNode<T> = { value: T | undefined, children: TrieNodeMap<T> };
+type TrieNode<K, T> = { value: T | undefined, children: Map<K, TrieNode<K, T>> };
 
-export class Trie<T> {
+export class Trie<K, T> {
 
-	private root: TrieNode<T>;
+	private root: TrieNode<K, T>;
 
 	constructor() {
 		this.clear();
 	}
 
-	set(path: string[], element: T): void {
+	set(path: K[], element: T): void {
 		if (path.length === 0) {
 			throw new Error('Invalid path length');
 		}
@@ -186,10 +183,11 @@ export class Trie<T> {
 		let node = this.root;
 
 		for (const key of path) {
-			let child = node.children[key];
+			let child = node.children.get(key);
 
 			if (!child) {
-				child = node.children[key] = { value: undefined, children: Object.create(null) };
+				child = { value: undefined, children: new Map<K, TrieNode<K, T>>() };
+				node.children.set(key, child);
 			}
 
 			node = child;
@@ -198,7 +196,7 @@ export class Trie<T> {
 		node.value = element;
 	}
 
-	get(path: string[]): T | undefined {
+	get(path: K[]): T | undefined {
 		if (path.length === 0) {
 			throw new Error('Invalid path length');
 		}
@@ -206,7 +204,7 @@ export class Trie<T> {
 		let node = this.root;
 
 		for (const key of path) {
-			let child = node.children[key];
+			let child = node.children.get(key);
 
 			if (!child) {
 				return undefined;
@@ -218,16 +216,16 @@ export class Trie<T> {
 		return node.value;
 	}
 
-	delete(path: string[]): void {
+	delete(path: K[]): void {
 		if (path.length === 0) {
 			throw new Error('Invalid path length');
 		}
 
-		let nodePath: { key: string, node: TrieNode<T> }[] = [];
+		let nodePath: { key: K, node: TrieNode<K, T> }[] = [];
 		let node = this.root;
 
 		for (const key of path) {
-			let child = node.children[key];
+			let child = node.children.get(key);
 
 			if (!child) {
 				return;
@@ -240,7 +238,7 @@ export class Trie<T> {
 		for (let i = nodePath.length - 1; i >= 0; i--) {
 			const { key, node } = nodePath[i];
 
-			delete node.children[key];
+			node.children.delete(key);
 
 			if (Object.keys(node.children).length > 0) {
 				return;
@@ -249,7 +247,7 @@ export class Trie<T> {
 	}
 
 	clear(): void {
-		this.root = { value: undefined, children: {} };
+		this.root = { value: undefined, children: new Map<K, TrieNode<K, T>>() };
 	}
 }
 
@@ -261,18 +259,18 @@ export class CollapsibleTreeModel<T> {
 		this.model = new TreeModel<T>(spliceable);
 	}
 
-	splice(start: Location, deleteCount: number, elements: ITreeElement<T>[]): void {
+	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[]): void {
 		this.model.splice(start, deleteCount, elements);
 	}
 
-	expand(location: Location): boolean {
+	expand(location: number[]): boolean {
 
 		// this.model.splice(start, deleteCount, elements);
 		// const element = this.model.getElement()
 		return false;
 	}
 
-	collapse(location: Location): boolean {
+	collapse(location: number[]): boolean {
 		// const element = this.model.getElement(location);
 		// const collapsedElement: ITreeElement<T> = { element, children: [] };
 		// const deletedIterator = this.model.splice(location, 1, [collapsedElement]);

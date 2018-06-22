@@ -149,58 +149,58 @@ suite('TreeModel2', () => {
 suite('Trie', function () {
 
 	test('simple test', () => {
-		const trie = new Trie<string>();
+		const trie = new Trie<number, string>();
 
-		trie.set(['0', '0', '0'], 'hello');
-		assert.equal(trie.get(['0']), undefined);
-		assert.equal(trie.get(['0', '0']), undefined);
-		assert.equal(trie.get(['0', '0', '0']), 'hello');
-		assert.equal(trie.get(['1', '0', '0']), undefined);
-		assert.equal(trie.get(['0', '1', '0']), undefined);
-		assert.equal(trie.get(['0', '0', '1']), undefined);
-		assert.equal(trie.get(['0', '0', '0', '0']), undefined);
+		trie.set([0, 0, 0], 'hello');
+		assert.equal(trie.get([0]), undefined);
+		assert.equal(trie.get([0, 0]), undefined);
+		assert.equal(trie.get([0, 0, 0]), 'hello');
+		assert.equal(trie.get([1, 0, 0]), undefined);
+		assert.equal(trie.get([0, 1, 0]), undefined);
+		assert.equal(trie.get([0, 0, 1]), undefined);
+		assert.equal(trie.get([0, 0, 0, 0]), undefined);
 	});
 
 	test('clear', () => {
-		const trie = new Trie<string>();
+		const trie = new Trie<number, string>();
 
-		trie.set(['0', '0', '0'], 'hello');
-		assert.equal(trie.get(['0', '0', '0']), 'hello');
+		trie.set([0, 0, 0], 'hello');
+		assert.equal(trie.get([0, 0, 0]), 'hello');
 
 		trie.clear();
-		assert.equal(trie.get(['0', '0', '0']), undefined);
+		assert.equal(trie.get([0, 0, 0]), undefined);
 	});
 
 	test('delete', () => {
-		const trie = new Trie<string>();
+		const trie = new Trie<number, string>();
 
-		trie.set(['1', '2', '3'], 'hello');
-		assert.equal(trie.get(['1', '2', '3']), 'hello');
+		trie.set([1, 2, 3], 'hello');
+		assert.equal(trie.get([1, 2, 3]), 'hello');
 
-		trie.delete(['1', '2', '3']);
-		assert.equal(trie.get(['1', '2', '3']), undefined);
+		trie.delete([1, 2, 3]);
+		assert.equal(trie.get([1, 2, 3]), undefined);
 	});
 
 	test('nested delete', () => {
-		const trie = new Trie<string>();
+		const trie = new Trie<number, string>();
 
-		trie.set(['1', '2', '3'], 'hello');
-		assert.equal(trie.get(['1', '2', '3']), 'hello');
+		trie.set([1, 2, 3], 'hello');
+		assert.equal(trie.get([1, 2, 3]), 'hello');
 
-		trie.delete(['1']);
-		assert.equal(trie.get(['1', '2', '3']), undefined);
+		trie.delete([1]);
+		assert.equal(trie.get([1, 2, 3]), undefined);
 	});
 
 	test('map tests', () => {
-		const trie = new Trie<string>();
+		const trie = new Trie<number, string>();
 
-		trie.set(['0', '0', '0'], 'hello');
-		assert.equal(trie.get(['0', '0', '0']), 'hello');
+		trie.set([0, 0, 0], 'hello');
+		assert.equal(trie.get([0, 0, 0]), 'hello');
 
-		trie.set(['0', '0'], 'world');
-		assert.equal(trie.get(['0', '0']), 'world');
+		trie.set([0, 0], 'world');
+		assert.equal(trie.get([0, 0]), 'world');
 
-		trie.set(['0', '0', '1'], 'cool');
-		assert.equal(trie.get(['0', '0', '1']), 'cool');
+		trie.set([0, 0, 1], 'cool');
+		assert.equal(trie.get([0, 0, 1]), 'cool');
 	});
 });
