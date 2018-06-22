@@ -17,9 +17,9 @@ declare module 'vscode' {
 
 	export interface TextSearchQuery {
 		pattern: string;
-		isRegExp: boolean;
-		isCaseSensitive: boolean;
-		isWordMatch: boolean;
+		isRegExp?: boolean;
+		isCaseSensitive?: boolean;
+		isWordMatch?: boolean;
 	}
 
 	export interface SearchOptions {
@@ -51,8 +51,20 @@ declare module 'vscode' {
 		provideTextSearchResults?(query: TextSearchQuery, options: TextSearchOptions, progress: Progress<TextSearchResult>, token: CancellationToken): Thenable<void>;
 	}
 
+	export interface FindTextInFilesOptions {
+		includes?: GlobPattern[];
+		excludes?: GlobPattern[];
+		maxResults?: number;
+		useIgnoreFiles?: boolean;
+		followSymlinks?: boolean;
+		encoding?: string;
+	}
+
 	export namespace workspace {
 		export function registerSearchProvider(scheme: string, provider: SearchProvider): Disposable;
+
+		// Maybe keep includes and excludes separate to mirror findFiles and make it more natural to pass 'null' to disable excludes
+		export function findTextInFiles(query: TextSearchQuery, options: FindTextInFilesOptions, callback: (result: TextSearchResult) => void, token?: CancellationToken): Thenable<void>;
 	}
 
 	//#endregion
