@@ -154,7 +154,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const installed = this.extensionsWorkbenchService.local.filter(e => e.id === extension.id)[0];
 
 		this.extensionService.getExtensions().then(runningExtensions => {
-			toggleClass(data.root, 'disabled', installed ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
+			toggleClass(data.root, 'disabled', installed && installed.local ? runningExtensions.every(e => !(installed.local.location.toString() === e.extensionLocation.toString() && areSameExtensions(e, extension))) : false);
 		});
 
 		const onError = once(domEvent(data.icon, 'error'));

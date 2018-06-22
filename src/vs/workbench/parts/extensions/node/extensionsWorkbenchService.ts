@@ -510,7 +510,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 				this.syncLocalWithGalleryExtension(result, gallery);
 			}
 		} else {
-			result = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
+			result = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService);
 		}
 
 		if (maliciousExtensionSet.has(result.id)) {
@@ -844,7 +844,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		let extension = this.installed.filter(e => areSameExtensions(e, gallery.identifier))[0];
 
 		if (!extension) {
-			extension = new Extension(this.galleryService, this.stateProvider, null, gallery, this.telemetryService);
+			extension = new Extension(this.galleryService, this.stateProvider, [], gallery, this.telemetryService);
 		}
 
 		extension.gallery = gallery;
