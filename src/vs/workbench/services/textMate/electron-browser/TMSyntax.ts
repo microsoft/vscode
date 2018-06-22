@@ -211,6 +211,9 @@ export class TextMateService implements ITextMateService {
 				const grammarRegistry = new Registry({
 					loadGrammar: (scopeName: string) => {
 						const location = this._scopeRegistry.getGrammarLocation(scopeName);
+						if (!location) {
+							return null;
+						}
 						return this._fileService.resolveContent(location).then(content => {
 							return parseRawGrammar(content.value, location.path);
 						});
