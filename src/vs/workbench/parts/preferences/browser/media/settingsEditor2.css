@@ -203,6 +203,14 @@
 	white-space: pre-wrap;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-item-value-description {
+	display: flex;
+}
+
+.settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container > .setting-reset-button {
+	width: initial;
+}
+
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value {
 	margin-top: 7px;
 	display: flex;

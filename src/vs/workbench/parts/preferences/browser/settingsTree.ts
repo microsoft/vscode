@@ -368,7 +368,23 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
-	valueElement: HTMLElement;
+	controlElement: HTMLElement;
+	resetButtonElement: HTMLElement;
+	isConfiguredElement: HTMLElement;
+	otherOverridesElement: HTMLElement;
+}
+
+interface ISettingBoolItemTemplate extends IDisposableTemplate {
+	parent: HTMLElement;
+
+	context?: SettingsTreeSettingElement;
+	containerElement: HTMLElement;
+	categoryElement: HTMLElement;
+	labelElement: HTMLElement;
+	descriptionAndValueElement: HTMLElement;
+	descriptionElement: HTMLElement;
+	controlElement: HTMLElement;
+	resetButtonElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
@@ -379,6 +395,7 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 }
 
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
+const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
 const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 
 export interface ISettingChangeEvent {
@@ -435,11 +452,16 @@ export class SettingsRenderer implements IRenderer {
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
+
 		if (element instanceof SettingsTreeGroupElement) {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === 'boolean') {
+				return SETTINGS_BOOL_TEMPLATE_ID;
+			}
+
 			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
 
@@ -453,6 +475,10 @@ export class SettingsRenderer implements IRenderer {
 
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
 			return this.renderSettingTemplate(tree, container);
+		}
+
+		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			return this.renderSettingBoolTemplate(tree, container);
 		}
 
 		return null;
@@ -481,6 +507,8 @@ export class SettingsRenderer implements IRenderer {
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
+		const controlElement = DOM.append(valueElement, $('div'));
+		const resetButtonElement = DOM.append(valueElement, $('.reset-button-container'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -491,7 +519,8 @@ export class SettingsRenderer implements IRenderer {
 			categoryElement,
 			labelElement,
 			descriptionElement,
-			valueElement,
+			controlElement,
+			resetButtonElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -509,8 +538,57 @@ export class SettingsRenderer implements IRenderer {
 		return template;
 	}
 
+	private renderSettingBoolTemplate(tree: ITree, container: HTMLElement): ISettingBoolItemTemplate {
+		DOM.addClass(container, 'setting-item');
+		DOM.addClass(container, 'setting-item-bool');
+
+		const titleElement = DOM.append(container, $('.setting-item-title'));
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
+		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+
+		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
+		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
+		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
+
+		const resetButtonElement = DOM.append(container, $('.reset-button-container'));
+
+		const toDispose = [];
+		const template: ISettingBoolItemTemplate = {
+			parent: container,
+			toDispose,
+
+			containerElement: container,
+			categoryElement,
+			labelElement,
+			descriptionAndValueElement,
+			descriptionElement,
+			controlElement,
+			resetButtonElement,
+			isConfiguredElement,
+			otherOverridesElement
+		};
+
+		// Prevent clicks from being handled by list
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Escape) {
+				tree.domFocus();
+				e.browserEvent.stopPropagation();
+			}
+		}));
+
+		return template;
+	}
+
 	renderElement(tree: ITree, element: SettingsTreeElement, templateId: string, template: any): void {
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
+			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
+		}
+
+		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
 			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
 		}
 
@@ -532,7 +610,7 @@ export class SettingsRenderer implements IRenderer {
 		return selectedElement && selectedElement.id === element.id;
 	}
 
-	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate): void {
+	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
@@ -550,7 +628,9 @@ export class SettingsRenderer implements IRenderer {
 		template.descriptionElement.textContent = element.description;
 
 		this.renderValue(element, isSelected, template);
-		const resetButton = new Button(template.valueElement);
+
+		template.resetButtonElement.innerHTML = '';
+		const resetButton = new Button(template.resetButtonElement);
 		const resetText = localize('resetButtonTitle', "reset");
 		resetButton.label = resetText;
 		resetButton.element.title = resetText;
@@ -581,15 +661,16 @@ export class SettingsRenderer implements IRenderer {
 
 	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
-		template.valueElement.innerHTML = '';
+		const valueControlElement = template.controlElement;
+		valueControlElement.innerHTML = '';
 
-		const valueControlElement = DOM.append(template.valueElement, $('.setting-item-control'));
+		valueControlElement.setAttribute('class', 'setting-item-control');
 		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			valueControlElement.classList.add('setting-type-enum');
 			this.renderEnum(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'boolean') {
 			valueControlElement.classList.add('setting-type-boolean');
-			this.renderBool(element, isSelected, template, valueControlElement, onChange);
+			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, valueControlElement, onChange);
 		} else if (element.valueType === 'string') {
 			valueControlElement.classList.add('setting-type-string');
 			this.renderText(element, isSelected, template, valueControlElement, onChange);
@@ -602,7 +683,7 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
+	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
 		const checkboxElement = <HTMLInputElement>DOM.append(element, $('input.setting-value-checkbox.setting-value-input'));
 		checkboxElement.type = 'checkbox';
 		checkboxElement.checked = dataElement.value;
