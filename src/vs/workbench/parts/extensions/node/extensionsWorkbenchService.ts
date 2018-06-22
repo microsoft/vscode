@@ -46,12 +46,13 @@ interface IExtensionStateProvider<T> {
 
 class Extension implements IExtension {
 
+	public get local(): ILocalExtension { return this.locals[0]; }
 	public enablementState: EnablementState = EnablementState.Enabled;
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
 		private stateProvider: IExtensionStateProvider<ExtensionState>,
-		public local: ILocalExtension,
+		public locals: ILocalExtension[],
 		public gallery: IGalleryExtension,
 		private telemetryService: ITelemetryService
 	) { }
@@ -392,18 +393,24 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
-		return this.getDistinctInstalledExtensions().then(result => {
-			const installedById = index(this.installed, e => e.local.identifier.id);
-			this.installed = result.map(local => {
-				const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService);
-				extension.local = local;
-				extension.enablementState = this.extensionEnablementService.getEnablementState(local);
-				return extension;
-			});
+		return this.extensionService.getInstalled()
+			.then(installed => this.getDistinctInstalledExtensions(installed)
+				.then(distinctInstalled => {
+					const installedById = index(this.installed, e => e.local.identifier.id);
+					const groupById = groupBy(installed, i => getGalleryExtensionIdFromLocal(i));
+					this.installed = distinctInstalled.map(local => {
+						const locals = groupById[getGalleryExtensionIdFromLocal(local)];
+						locals.splice(locals.indexOf(local), 1);
+						locals.splice(0, 0, local);
+						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, null, this.telemetryService);
+						extension.locals = locals;
+						extension.enablementState = this.extensionEnablementService.getEnablementState(local);
+						return extension;
+					});
 
-			this._onChange.fire();
-			return this.local;
-		});
+					this._onChange.fire();
+					return this.local;
+				}));
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
@@ -447,30 +454,34 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.editorService.openEditor(this.instantiationService.createInstance(ExtensionsInput, extension), null, sideByside ? SIDE_GROUP : ACTIVE_GROUP);
 	}
 
-	private getDistinctInstalledExtensions(): TPromise<ILocalExtension[]> {
-		return this.extensionService.getInstalled()
-			.then(allInstalled => {
-				if (!this.hasDuplicates(allInstalled)) {
-					return allInstalled;
+	private getDistinctInstalledExtensions(allInstalled: ILocalExtension[]): TPromise<ILocalExtension[]> {
+		if (!this.hasDuplicates(allInstalled)) {
+			return TPromise.as(allInstalled);
+		}
+		return TPromise.join([this.runtimeExtensionService.getExtensions(), this.extensionEnablementService.getDisabledExtensions()])
+			.then(([runtimeExtensions, disabledExtensionIdentifiers]) => {
+				const groups = groupBy(allInstalled, (extension: ILocalExtension) => {
+					const isDisabled = disabledExtensionIdentifiers.some(identifier => areSameExtensions(identifier, { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid }));
+					if (isDisabled) {
+						return extension.location.scheme === Schemas.file ? 'disabled:primary' : 'disabled:secondary';
+					} else {
+						return 'enabled';
+					}
+				});
+				const enabled: ILocalExtension[] = [];
+				for (const extension of (groups['enabled'] || [])) {
+					if (runtimeExtensions.some(r => r.extensionLocation.toString() === extension.location.toString())) {
+						enabled.push(extension);
+					} else if (enabled.some(e => areSameExtensions({ id: extension.identifier.id }, { id: e.identifier.id }))) {
+						enabled.push(extension);
+					}
 				}
-				return TPromise.join([this.runtimeExtensionService.getExtensions(), this.extensionEnablementService.getDisabledExtensions()])
-					.then(([runtimeExtensions, disabledExtensionIdentifiers]) => {
-						const groups = groupBy(allInstalled, (extension: ILocalExtension) => {
-							const isDisabled = disabledExtensionIdentifiers.some(identifier => areSameExtensions(identifier, { id: getGalleryExtensionIdFromLocal(extension), uuid: extension.identifier.uuid }));
-							if (isDisabled) {
-								return extension.location.scheme === Schemas.file ? 'disabled:primary' : 'disabled:secondary';
-							} else {
-								return 'enabled';
-							}
-						});
-						const enabled = (groups['enabled'] || []).filter(enabled => runtimeExtensions.some(r => r.extensionLocation.toString() === enabled.location.toString()));
-						const primaryDisabled = groups['disabled:primary'] || [];
-						const secondaryDisabled = (groups['disabled:secondary'] || []).filter(disabled => {
-							const identifier: IExtensionIdentifier = { id: getGalleryExtensionIdFromLocal(disabled), uuid: disabled.identifier.uuid };
-							return primaryDisabled.every(p => !areSameExtensions({ id: getGalleryExtensionIdFromLocal(p), uuid: p.identifier.uuid }, identifier));
-						});
-						return [...enabled, ...primaryDisabled, ...secondaryDisabled];
-					});
+				const primaryDisabled = groups['disabled:primary'] || [];
+				const secondaryDisabled = (groups['disabled:secondary'] || []).filter(disabled => {
+					const identifier: IExtensionIdentifier = { id: getGalleryExtensionIdFromLocal(disabled), uuid: disabled.identifier.uuid };
+					return primaryDisabled.every(p => !areSameExtensions({ id: getGalleryExtensionIdFromLocal(p), uuid: p.identifier.uuid }, identifier));
+				});
+				return [...enabled, ...primaryDisabled, ...secondaryDisabled];
 			});
 	}
 
@@ -524,12 +535,12 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return null;
 	}
 
-	private syncLocalWithGalleryExtension(local: Extension, gallery: IGalleryExtension) {
+	private syncLocalWithGalleryExtension(extension: Extension, gallery: IGalleryExtension) {
 		// Sync the local extension with gallery extension if local extension doesnot has metadata
-		(local.local.metadata ? TPromise.as(local.local) : this.extensionService.updateMetadata(local.local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId }))
-			.then(localExtension => {
-				local.local = localExtension;
-				local.gallery = gallery;
+		TPromise.join(extension.locals.map(local => local.metadata ? TPromise.as(local) : this.extensionService.updateMetadata(local, { id: gallery.identifier.uuid, publisherDisplayName: gallery.publisherDisplayName, publisherId: gallery.publisherId })))
+			.then(locals => {
+				extension.locals = locals;
+				extension.gallery = gallery;
 				this._onChange.fire();
 				this.eventuallyAutoUpdateExtensions();
 			});
@@ -642,9 +653,9 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		const ext = extension as Extension;
-		const local = ext.local || this.installed.filter(e => e.id === extension.id)[0].local;
+		const toUninstall: ILocalExtension[] = ext.locals || this.installed.filter(e => e.id === extension.id)[0].locals;
 
-		if (!local) {
+		if (!toUninstall.length) {
 			return TPromise.wrapError<void>(new Error('Missing local'));
 		}
 
@@ -652,8 +663,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
 			title: nls.localize('uninstallingExtension', 'Uninstalling extension....'),
-			source: `${local.identifier.id}`
-		}, () => this.extensionService.uninstall(local));
+			source: `${toUninstall[0].identifier.id}`
+		}, () => TPromise.join(toUninstall.map(local => this.extensionService.uninstall(local))).then(() => null));
 	}
 
 	reinstall(extension: IExtension): TPromise<void> {
@@ -662,16 +673,16 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		const ext = extension as Extension;
-		const local = ext.local || this.installed.filter(e => e.id === extension.id)[0].local;
+		const toReinstall: ILocalExtension[] = ext.locals || this.installed.filter(e => e.id === extension.id)[0].locals;
 
-		if (!local) {
+		if (!toReinstall.length) {
 			return TPromise.wrapError<void>(new Error('Missing local'));
 		}
 
 		return this.progressService.withProgress({
 			location: ProgressLocation.Extensions,
-			source: `${local.identifier.id}`
-		}, () => this.extensionService.reinstallFromGallery(local).then(() => null));
+			source: `${toReinstall[0].identifier.id}`
+		}, () => TPromise.join(toReinstall.map(local => this.extensionService.reinstallFromGallery(local))).then(() => null));
 	}
 
 	private promptAndSetEnablement(extensions: IExtension[], enablementState: EnablementState): TPromise<any> {
@@ -846,15 +857,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	private onDidInstallExtension(event: DidInstallExtensionEvent): void {
 		const { local, zipPath, error, gallery } = event;
 		const installingExtension = gallery ? this.installing.filter(e => areSameExtensions(e, gallery.identifier))[0] : null;
-		const extension: Extension = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, local, null, this.telemetryService) : null;
+		const extension: Extension = installingExtension ? installingExtension : zipPath ? new Extension(this.galleryService, this.stateProvider, [local], null, this.telemetryService) : null;
 		if (extension) {
 			this.installing = installingExtension ? this.installing.filter(e => e !== installingExtension) : this.installing;
 			if (!error) {
 				const installed = this.installed.filter(e => e.id === extension.id)[0];
-				extension.local = local;
 				if (installed) {
-					installed.local = local;
+					const existingLocal = installed.locals.filter(l => l.location.toString() === local.location.toString())[0];
+					if (existingLocal) {
+						installed.locals = [...installed.locals].splice(installed.locals.indexOf(existingLocal), 1, local);
+					} else {
+						installed.locals = [...installed.locals, local];
+					}
 				} else {
+					extension.locals = [local];
 					this.installed.push(extension);
 				}
 			}
