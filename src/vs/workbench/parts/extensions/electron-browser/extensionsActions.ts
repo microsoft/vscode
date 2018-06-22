@@ -18,7 +18,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionManagementServer, IExtensionManagementServerService, IGalleryExtension, ILocalExtension, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionManagementServer, IExtensionManagementServerService, IExtensionRecommendation, ExtensionRecommendationSource, IExtensionGalleryService, IGalleryExtension, ILocalExtension, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
@@ -71,6 +71,21 @@ const promptDownloadManually = (extension: IGalleryExtension, message: string, i
 			);
 		})
 	}]);
+};
+
+const getExtensionManagementServerForRecommendationSource = (source: ExtensionRecommendationSource, extensionManagementServerService: IExtensionManagementServerService, contextService: IWorkspaceContextService): IExtensionManagementServer => {
+	if (source instanceof URI) {
+		return extensionManagementServerService.getExtensionManagementServer(source);
+	}
+	if (source === contextService.getWorkspace()) {
+		return extensionManagementServerService.getDefaultExtensionManagementServer();
+	}
+	for (const workspaceFolder of contextService.getWorkspace().folders) {
+		if (source === workspaceFolder) {
+			return extensionManagementServerService.getExtensionManagementServer(workspaceFolder.uri);
+		}
+	}
+	return extensionManagementServerService.getDefaultExtensionManagementServer();
 };
 
 export interface IExtensionAction extends IAction {
@@ -446,7 +461,8 @@ export class MultiServerInstallAction extends Action {
 	constructor(
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(MultiServerInstallAction.ID, MultiServerInstallAction.InstallLabel, MultiServerInstallAction.Class, false);
 		this._installActions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
@@ -464,7 +480,21 @@ export class MultiServerInstallAction extends Action {
 			return;
 		}
 
-		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && this.extension.state === ExtensionState.Uninstalled;
+		let isExtensionNotInstalledInRecommendedServer: boolean = false;
+		this._installActions.forEach((installAction, index) => {
+			const server = this.extensionManagementServerService.extensionManagementServers[index];
+			installAction.extension = this.extension.gallery;
+			installAction.label = localize('installInServer', "{0}", server.location.authority);
+			installAction.enabled = !this.extension.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location) === server);
+			if (this.extension.recommendationSources && this.extension.recommendationSources.length) {
+				if (this.extension.recommendationSources.some(recommendationSource => getExtensionManagementServerForRecommendationSource(recommendationSource, this.extensionManagementServerService, this.contextService) === server)) {
+					installAction.label = localize('installInRecommendedServer', "{0} (Recommended)", server.location.authority);
+					isExtensionNotInstalledInRecommendedServer = isExtensionNotInstalledInRecommendedServer || installAction.enabled;
+				}
+			}
+		});
+
+		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && (isExtensionNotInstalledInRecommendedServer || this.extension.locals.length === 0);
 
 		if (this.extension.state === ExtensionState.Installing) {
 			this.label = MultiServerInstallAction.InstallingLabel;
@@ -474,10 +504,6 @@ export class MultiServerInstallAction extends Action {
 			this.label = MultiServerInstallAction.InstallLabel;
 			this.class = MultiServerInstallAction.Class;
 			this.tooltip = MultiServerInstallAction.InstallLabel;
-		}
-
-		for (const installAction of this._installActions) {
-			installAction.extension = this.extension ? this.extension.gallery : null;
 		}
 	}
 
@@ -522,14 +548,6 @@ export class MultiServerUpdateAction extends Action {
 	}
 
 	private update(): void {
-		if (this.extension && this.extension.type === LocalExtensionType.User) {
-			const canInstall = this.extensionsWorkbenchService.canInstall(this.extension);
-			const isInstalled = this.extension.state === ExtensionState.Installed;
-			this.enabled = canInstall && isInstalled;
-		} else {
-			this.enabled = false;
-		}
-
 		this._updateActions.forEach((updateAction, index) => {
 			updateAction.extension = null;
 			if (this.extension && this.extension.locals && this.extension.gallery) {
@@ -538,6 +556,7 @@ export class MultiServerUpdateAction extends Action {
 				updateAction.extension = { local, gallery: this.extension.gallery };
 			}
 		});
+		this.enabled = this._updateActions.some(action => action.enabled);
 	}
 
 	public run(): TPromise<any> {
@@ -1382,82 +1401,69 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 
 	private disposables: IDisposable[] = [];
 
+	private _recommendations: IExtensionRecommendation[] = [];
+	get recommendations(): IExtensionRecommendation[] { return this._recommendations; }
+	set recommendations(recommendations: IExtensionRecommendation[]) { this._recommendations = recommendations; this.enabled = this._recommendations.length > 0; }
+
 	constructor(
 		id: string = InstallWorkspaceRecommendedExtensionsAction.ID,
 		label: string = InstallWorkspaceRecommendedExtensionsAction.LABEL,
+		recommendations: IExtensionRecommendation[],
 		@IWorkspaceContextService private contextService: IWorkspaceContextService,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IExtensionTipsService private extensionTipsService: IExtensionTipsService,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@IOpenerService private openerService: IOpenerService,
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) {
 		super(id, label, 'extension-action');
-		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
-		this.contextService.onDidChangeWorkbenchState(() => this.update(), this, this.disposables);
-	}
-
-	private update(): void {
-		this.enabled = this.contextService.getWorkbenchState() !== WorkbenchState.EMPTY;
-		if (this.enabled) {
-			this.extensionTipsService.getWorkspaceRecommendations().then(names => {
-				const installed = this.extensionsWorkbenchService.local.map(x => x.id.toLowerCase());
-				this.enabled = names.some(x => installed.indexOf(x.toLowerCase()) === -1);
-			});
-		}
+		this.recommendations = recommendations;
 	}
 
 	run(): TPromise<any> {
-		return this.extensionTipsService.getWorkspaceRecommendations().then(names => {
-			const installed = this.extensionsWorkbenchService.local.map(x => x.id.toLowerCase());
-			const toInstall = names.filter(x => installed.indexOf(x.toLowerCase()) === -1);
+		return this.viewletService.openViewlet(VIEWLET_ID, true)
+			.then(viewlet => viewlet as IExtensionsViewlet)
+			.then(viewlet => {
+				viewlet.search('@recommended ');
+				viewlet.focus();
+				if (this.recommendations.length === 0) {
+					this.notificationService.info(localize('extensionInstalled', "The recommended extension has already been installed"));
+					return TPromise.as(null);
+				}
 
-			return this.viewletService.openViewlet(VIEWLET_ID, true)
-				.then(viewlet => viewlet as IExtensionsViewlet)
-				.then(viewlet => {
-					if (!toInstall.length) {
-						this.enabled = false;
-						this.notificationService.info(localize('allExtensionsInstalled', "All extensions recommended for this workspace have already been installed"));
-						viewlet.focus();
-						return TPromise.as(null);
+				const names = this.recommendations.map(({ extensionId }) => extensionId);
+				return this.extensionGalleryService.query({ names, source: 'install-all-workspace-recommendations' }).then(pager => {
+					let installPromises = [];
+					let model = new PagedModel(pager);
+					for (let i = 0; i < pager.total; i++) {
+						installPromises.push(model.resolve(i).then(e => {
+							return this.install(e);
+						}));
 					}
-
-					viewlet.search('@recommended ');
-					viewlet.focus();
-
-					return this.extensionsWorkbenchService.queryGallery({ names: toInstall, source: 'install-all-workspace-recommendations' }).then(pager => {
-						let installPromises = [];
-						let model = new PagedModel(pager);
-						let extensionsWithDependencies = [];
-						for (let i = 0; i < pager.total; i++) {
-							installPromises.push(model.resolve(i).then(e => {
-								if (e.dependencies && e.dependencies.length > 0) {
-									extensionsWithDependencies.push(e);
-									return TPromise.as(null);
-								} else {
-									return this.install(e);
-								}
-							}));
-						}
-						return TPromise.join(installPromises).then(() => {
-							return TPromise.join(extensionsWithDependencies.map(e => this.install(e)));
-						});
-					});
+					return TPromise.join(installPromises);
 				});
-		});
+			});
 	}
 
-	private install(extension: IExtension): TPromise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
+	private install(extension: IGalleryExtension): TPromise<void> {
+		const servers: IExtensionManagementServer[] = [];
+		const recommendation = this.recommendations.filter(r => areSameExtensions({ id: r.extensionId }, extension.identifier))[0];
+		if (recommendation) {
+			for (const source of recommendation.sources || []) {
+				const server = getExtensionManagementServerForRecommendationSource(source, this.extensionManagementServerService, this.contextService);
+				if (servers.indexOf(server) === -1) {
+					servers.push(server);
+				}
 			}
-
+		}
+		if (!servers.length) {
+			servers.push(this.extensionManagementServerService.getDefaultExtensionManagementServer());
+		}
+		return TPromise.join(servers.map(server => server.extensionManagementService.installFromGallery(extension).then(null, err => {
 			console.error(err);
-
-			promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
-		});
+			promptDownloadManually(extension, localize('failedToInstall', "Failed to install \'{0}\'.", extension.identifier.id), this.instantiationService, this.notificationService, this.openerService);
+		}))).then(() => null);
 	}
 
 	dispose(): void {
@@ -1466,66 +1472,39 @@ export class InstallWorkspaceRecommendedExtensionsAction extends Action {
 	}
 }
 
-export class InstallRecommendedExtensionAction extends Action {
+export class InstallRecommendedExtensionAction extends InstallGalleryExtensionAction {
 
 	static readonly ID = 'workbench.extensions.action.installRecommendedExtension';
 	static LABEL = localize('installRecommendedExtension', "Install Recommended Extension");
 
 	private extensionId: string;
-	private disposables: IDisposable[] = [];
 
 	constructor(
-		extensionId: string,
+		extensionId: string, server: IExtensionManagementServer,
 		@IViewletService private viewletService: IViewletService,
-		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@INotificationService private notificationService: INotificationService,
-		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService
+		@INotificationService notificationService: INotificationService,
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IOpenerService openerService: IOpenerService,
+		@IExtensionGalleryService private extensionGalleryService: IExtensionGalleryService
 	) {
-		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, null);
+		super(InstallRecommendedExtensionAction.ID, InstallRecommendedExtensionAction.LABEL, server, notificationService, instantiationService, openerService);
 		this.extensionId = extensionId;
-		this.extensionsWorkbenchService.onChange(() => this.update(), this, this.disposables);
-	}
-
-	private update(): void {
-		this.enabled = !this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase());
 	}
 
 	run(): TPromise<any> {
 		return this.viewletService.openViewlet(VIEWLET_ID, true)
 			.then(viewlet => viewlet as IExtensionsViewlet)
 			.then(viewlet => {
-				if (this.extensionsWorkbenchService.local.some(x => x.id.toLowerCase() === this.extensionId.toLowerCase())) {
-					this.enabled = false;
-					this.notificationService.info(localize('extensionInstalled', "The recommended extension has already been installed"));
-					viewlet.focus();
-					return TPromise.as(null);
-				}
-
 				viewlet.search('@recommended ');
 				viewlet.focus();
-
-				return this.extensionsWorkbenchService.queryGallery({ names: [this.extensionId], source: 'install-recommendation' }).then(pager => {
-					return (pager && pager.firstPage && pager.firstPage.length) ? this.install(pager.firstPage[0]) : TPromise.as(null);
-				});
+				return this.extensionGalleryService.query({ names: [this.extensionId], source: 'install-recommendation', pageSize: 1 })
+					.then(pager => {
+						if (pager && pager.firstPage && pager.firstPage.length) {
+							this.extension = pager.firstPage[0];
+						}
+						return super.run();
+					});
 			});
-	}
-
-	private install(extension: IExtension): TPromise<void> {
-		return this.extensionsWorkbenchService.install(extension).then(null, err => {
-			if (!extension.gallery) {
-				return this.notificationService.error(err);
-			}
-
-			console.error(err);
-
-			promptDownloadManually(extension.gallery, localize('failedToInstall', "Failed to install \'{0}\'.", extension.id), this.instantiationService, this.notificationService, this.openerService);
-		});
-	}
-
-	dispose(): void {
-		this.disposables = dispose(this.disposables);
-		super.dispose();
 	}
 }
 

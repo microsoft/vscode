@@ -16,7 +16,7 @@ import { IExtensionManagementService, ILocalExtension, IExtensionEnablementServi
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
 import { ServicesAccessor, IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { areSameExtensions, adoptToGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { areSameExtensions, adoptToGalleryExtensionId, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { getIdAndVersionFromLocalExtensionId } from 'vs/platform/extensionManagement/node/extensionManagementUtil';
 import { Severity, INotificationService } from 'vs/platform/notification/common/notification';
 
@@ -136,7 +136,7 @@ export function getInstalledExtensions(accessor: ServicesAccessor): TPromise<IEx
 
 export function isKeymapExtension(tipsService: IExtensionTipsService, extension: IExtensionStatus): boolean {
 	const cats = extension.local.manifest.categories;
-	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().indexOf(stripVersion(extension.identifier.id)) !== -1;
+	return cats && cats.indexOf('Keymaps') !== -1 || tipsService.getKeymapRecommendations().some(({ extensionId }) => areSameExtensions({ id: extensionId }, { id: getGalleryExtensionIdFromLocal(extension.local) }));
 }
 
 function stripVersion(id: string): string {

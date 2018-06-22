@@ -506,9 +506,9 @@ suite('ExtensionsTipsService Test', () => {
 			return testObject.loadRecommendationsPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'eg2.tslint')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
 			});
 		});
 	});
@@ -525,10 +525,10 @@ suite('ExtensionsTipsService Test', () => {
 			return testObject.loadRecommendationsPromise.then(() => {
 				const recommendations = testObject.getFileBasedRecommendations();
 				assert.equal(recommendations.length, 2);
-				assert.ok(recommendations.indexOf('ms-vscode.csharp') > -1); // stored recommendation that exists in product.extensionTips
-				assert.ok(recommendations.indexOf('ms-python.python') > -1); // stored recommendation that exists in product.extensionImportantTips
-				assert.ok(recommendations.indexOf('eg2.tslint') === -1); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
-				assert.ok(recommendations.indexOf('lukehoban.Go') === -1); //stored recommendation that is older than a week
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-vscode.csharp')); // stored recommendation that exists in product.extensionTips
+				assert.ok(recommendations.some(({ extensionId }) => extensionId === 'ms-python.python')); // stored recommendation that exists in product.extensionImportantTips
+				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'eg2.tslint')); // stored recommendation that is no longer in neither product.extensionTips nor product.extensionImportantTips
+				assert.ok(recommendations.every(({ extensionId }) => extensionId !== 'lukehoban.Go')); //stored recommendation that is older than a week
 			});
 		});
 	});
