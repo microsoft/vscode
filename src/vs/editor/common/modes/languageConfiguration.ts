@@ -176,6 +176,7 @@ export interface IAutoClosingPair {
 
 export interface IAutoClosingPairConditional extends IAutoClosingPair {
 	notIn?: string[];
+	onlyIn?: string[];
 }
 
 /**
@@ -233,6 +234,10 @@ export class StandardAutoClosingPairConditional {
 	readonly open: string;
 	readonly close: string;
 	private readonly _standardTokenMask: number;
+	
+	private readonly _onlyInOptions: string;
+	private readonly _value: number;
+	private readonly _optionSum: number;
 
 	constructor(source: IAutoClosingPairConditional) {
 		this.open = source.open;
@@ -255,6 +260,78 @@ export class StandardAutoClosingPairConditional {
 						this._standardTokenMask |= StandardTokenType.RegEx;
 						break;
 				}
+			}
+	    /**
+	 	* The onlyIn array will define the scopes we only want the autoCompletion to be used for
+		* It is the opposite of the notIn array.
+	 	*/
+		} else if (Array.isArray(source.onlyIn)) {
+			for (let i = 0, len = source.onlyIn.length; i < len; i++) {
+				let onlyIn = source.onlyIn[i];
+				/**
+				* Use a string variable (_onlyInOptions) to keep track of which scopes
+				* have (already) been listed. The 'other' option is not considered.
+				*/
+				this._onlyInOptions = '';
+				switch (onlyIn) {
+					case 'string':
+						if !(_onlyInOptions.includes(<string>StandardTokenType.String)) {
+							this._onlyInOptions += <string>StandardTokenType.String;
+						}
+						break;
+					case 'comment':
+						if !(_onlyInOptions.includes(<string>StandardTokenType.Comment)) {
+							this._onlyInOptions += <string>StandardTokenType.Comment;
+						}
+						break;
+					case 'regex':
+						if !(_onlyInOptions.includes(<string>StandardTokenType.RegEx)) {
+							this._onlyInOptions += <string>StandardTokenType.RegEx;
+						}
+						break;
+				}
+			}
+			this._value = <number>this._onlyInOptions
+			this._optionSum = 0;
+			
+			/**
+			* Loop through each digit and add them all together to determine the case,
+			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6.
+			*/
+			while (this._value > 0) {
+			   this._optionSum += this._value % 10;
+			   this._value = Math.floor(this._value / 10);
+			}
+
+			switch (this._optionSum) {
+				case 1: // ['comment']
+					// AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
+					this._standardTokenMask = 6; 
+					break;
+				case 2: // ['string']
+					// AND result 0 only if standardToken = 'string' (2)
+					this._standardTokenMask = 5;
+					break;
+				case 3: // ['comment', 'string']
+					// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
+					this._standardTokenMask = 4; 
+					break;
+				case 4: // ['regex']
+					// AND result returns 0 only if standardToken 'regex' (4)
+					this._standardTokenMask = 3;
+					break;
+				case 5: // ['comment', 'regex']
+				    // AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
+					this._standardTokenMask = 2;
+					break;
+				case 6: // ['string', 'regex']
+					// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
+					this._standardTokenMask = 1;
+					break;
+				case 7: // ['comment', 'string', 'regex']
+					// AND result returns 0 for any given scope
+					this._standardTokenMask = 0;
+					break;
 			}
 		}
 	}
