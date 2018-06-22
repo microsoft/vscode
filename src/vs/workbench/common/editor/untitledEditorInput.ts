@@ -198,16 +198,25 @@ export class UntitledEditorInput extends EditorInput implements IEncodingSupport
 	}
 
 	public suggestFileName(): string {
+		let fileName: string;
+
+		try {
+			const data = this.cachedModel.createSnapshot().read();
+			fileName = data.split('\n')[0];
+		}
+		catch (e) {
+			fileName = this.getName();
+		}
 		if (!this.hasAssociatedFilePath) {
 			if (this.cachedModel) {
 				const modeId = this.cachedModel.getModeId();
 				if (modeId !== PLAINTEXT_MODE_ID) { // do not suggest when the mode ID is simple plain text
-					return suggestFilename(modeId, this.getName());
+					return suggestFilename(modeId, fileName);
 				}
 			}
 		}
 
-		return this.getName();
+		return fileName;
 	}
 
 	public getEncoding(): string {
