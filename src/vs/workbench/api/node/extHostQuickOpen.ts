@@ -396,17 +396,13 @@ class ExtHostQuickInput implements QuickInput {
 			this._pendingUpdate[key] = value === undefined ? null : value;
 		}
 
-		if (!this._visible) {
-			return;
-		}
-
 		if ('visible' in this._pendingUpdate) {
 			if (this._updateTimeout) {
 				clearTimeout(this._updateTimeout);
 				this._updateTimeout = undefined;
 			}
 			this.dispatchUpdate();
-		} else if (!this._updateTimeout) {
+		} else if (this._visible && !this._updateTimeout) {
 			// Defer the update so that multiple changes to setters dont cause a redraw each
 			this._updateTimeout = setTimeout(() => {
 				this._updateTimeout = undefined;
