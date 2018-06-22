@@ -304,5 +304,43 @@ suite('Arrays', () => {
 		sparse = arrays.coalesce(sparse);
 		assert.equal(sparse.length, 5);
 	});
+
+	test('coalesce - inplace', function () {
+		let a = [null, 1, null, 2, 3];
+		arrays.coalesce(a, true);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		a = [null, 1, null, void 0, undefined, 2, 3];
+		arrays.coalesce(a, true);
+		assert.equal(a.length, 3);
+		assert.equal(a[0], 1);
+		assert.equal(a[1], 2);
+		assert.equal(a[2], 3);
+
+		let b = [];
+		b[10] = 1;
+		b[20] = 2;
+		b[30] = 3;
+		arrays.coalesce(b, true);
+		assert.equal(b.length, 3);
+		assert.equal(b[0], 1);
+		assert.equal(b[1], 2);
+		assert.equal(b[2], 3);
+
+		let sparse = [];
+		sparse[0] = 1;
+		sparse[1] = 1;
+		sparse[17] = 1;
+		sparse[1000] = 1;
+		sparse[1001] = 1;
+
+		assert.equal(sparse.length, 1002);
+
+		arrays.coalesce(sparse, true);
+		assert.equal(sparse.length, 5);
+	});
 });
 

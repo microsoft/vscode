@@ -39,7 +39,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
-    "node-pty": "0.7.4",
+    "node-pty": "0.7.5",
     "semver": "^5.5.0",
     "spdlog": "0.6.0",
     "sudo-prompt": "8.2.0",
@@ -48,8 +48,8 @@
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
-    "vscode-textmate": "^4.0.0-next.2",
-    "vscode-xterm": "3.5.0-beta15",
+    "vscode-textmate": "^4.0.1",
+    "vscode-xterm": "3.5.0-beta17",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {

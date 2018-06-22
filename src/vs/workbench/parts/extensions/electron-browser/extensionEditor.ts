@@ -370,8 +370,8 @@ export class ExtensionEditor extends BaseEditor {
 
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, true);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
-		const installAction = servers.length === 1 ? this.instantiationService.createInstance(CombinedInstallAction, servers[0]) : this.instantiationService.createInstance(MultiServerInstallAction);
-		const updateAction = servers.length === 1 ? this.instantiationService.createInstance(UpdateAction, servers[0]) : this.instantiationService.createInstance(MultiServerUpdateAction);
+		const installAction = servers.length === 1 ? this.instantiationService.createInstance(CombinedInstallAction) : this.instantiationService.createInstance(MultiServerInstallAction);
+		const updateAction = servers.length === 1 ? this.instantiationService.createInstance(UpdateAction) : this.instantiationService.createInstance(MultiServerUpdateAction);
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);

@@ -330,7 +330,9 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 			// Retry one more time in case the terminal has not yet been initialized.
 			setTimeout(() => {
 				terminal = this._getTerminalById(id);
-				terminal._setProcessId(processId);
+				if (terminal) {
+					terminal._setProcessId(processId);
+				}
 			}, EXT_HOST_CREATION_DELAY);
 		}
 	}

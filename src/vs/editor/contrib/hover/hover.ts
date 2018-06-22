@@ -24,6 +24,7 @@ import { editorHoverHighlight, editorHoverBackground, editorHoverBorder, textLin
 import { EditorContextKeys } from 'vs/editor/common/editorContextKeys';
 import { MarkdownRenderer } from 'vs/editor/contrib/markdown/markdownRenderer';
 import { IEmptyContentData } from 'vs/editor/browser/controller/mouseTarget';
+import { HoverStartMode } from 'vs/editor/contrib/hover/hoverOperation';
 
 export class ModesHoverController implements editorCommon.IEditorContribution {
 
@@ -143,7 +144,7 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 
 		if (this._editor.getConfiguration().contribInfo.hover && targetType === MouseTargetType.CONTENT_TEXT) {
 			this.glyphWidget.hide();
-			this.contentWidget.startShowingAt(mouseEvent.target.range, false);
+			this.contentWidget.startShowingAt(mouseEvent.target.range, HoverStartMode.Delayed, false);
 		} else if (targetType === MouseTargetType.GUTTER_GLYPH_MARGIN) {
 			this.contentWidget.hide();
 			this.glyphWidget.startShowingAt(mouseEvent.target.position.lineNumber);
@@ -174,8 +175,8 @@ export class ModesHoverController implements editorCommon.IEditorContribution {
 		this._glyphWidget = new ModesGlyphHoverWidget(this._editor, renderer);
 	}
 
-	public showContentHover(range: Range, focus: boolean): void {
-		this.contentWidget.startShowingAt(range, focus);
+	public showContentHover(range: Range, mode: HoverStartMode, focus: boolean): void {
+		this.contentWidget.startShowingAt(range, mode, focus);
 	}
 
 	public getId(): string {
@@ -223,7 +224,7 @@ class ShowHoverAction extends EditorAction {
 		}
 		const position = editor.getPosition();
 		const range = new Range(position.lineNumber, position.column, position.lineNumber, position.column);
-		controller.showContentHover(range, true);
+		controller.showContentHover(range, HoverStartMode.Immediate, true);
 	}
 }
 
