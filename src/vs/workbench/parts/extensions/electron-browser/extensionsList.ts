@@ -5,6 +5,7 @@
 
 'use strict';
 
+import { localize } from 'vs/nls';
 import { append, $, addClass, removeClass, toggleClass } from 'vs/base/browser/dom';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { Action } from 'vs/base/common/actions';
@@ -189,16 +190,20 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 
 	private updateRecommendationStatus(extension: IExtension, data: ITemplateData) {
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
+		let ariaLabel = extension.displayName + '. ';
 
 		if (!extRecommendations[extension.id.toLowerCase()]) {
-			data.root.setAttribute('aria-label', extension.displayName);
-			data.root.title = '';
 			removeClass(data.root, 'recommended');
+			data.root.title = '';
 		} else {
-			data.root.setAttribute('aria-label', extension.displayName + '. ' + extRecommendations[extension.id]);
-			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 			addClass(data.root, 'recommended');
+			ariaLabel += extRecommendations[extension.id.toLowerCase()].reasonText + ' ';
+			data.root.title = extRecommendations[extension.id.toLowerCase()].reasonText;
 		}
+
+		ariaLabel += localize('viewExtensionDetailsAria', "Press enter for extension details.");
+		data.root.setAttribute('aria-label', ariaLabel);
+
 	}
 
 	disposeTemplate(data: ITemplateData): void {
