@@ -44,7 +44,7 @@ export class Tree<T> {
 			throw new Error('Invalid tree location');
 		}
 
-		const nodePath = this.getNodePath(location);
+		const [, ...nodePath] = this.getNodePath(location);
 		return nodePath.map(node => node.element);
 	}
 

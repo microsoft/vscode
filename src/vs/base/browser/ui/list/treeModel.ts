@@ -6,59 +6,21 @@
 'use strict';
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IIterator } from 'vs/base/common/iterator';
+import { Tree } from 'vs/base/common/tree';
+import { tail2 } from 'vs/base/common/arrays';
+import { Trie } from 'vs/base/browser/ui/list/trie';
 
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children: ITreeElement<T>[];
 }
 
-export interface ITreeNode<T> {
+export interface ITreeListElement<T> {
 	readonly element: T;
 	readonly depth: number;
 }
 
-class TreeNodeIterator<T> implements IIterator<ITreeElement<T>> {
-
-	private stack: TreeNode<T>[] = [];
-
-	constructor(node: TreeNode<T>) {
-		this.stack.push(node);
-	}
-
-	next(): { readonly done: boolean; readonly value: ITreeElement<T>; } {
-		const value = this.stack.pop();
-
-		for (let i = value.children.length - 1; i >= 0; i--) {
-			this.stack.push(value.children[i]);
-		}
-
-		return { done: this.stack.length === 0, value };
-	}
-}
-
-class TreeNodesIterator<T> implements IIterator<ITreeElement<T>> {
-
-	private index = 0;
-
-	constructor(private iterators: TreeNodeIterator<T>[]) { }
-
-	next(): { readonly done: boolean; readonly value: ITreeElement<T> | undefined; } {
-		if (this.index >= this.iterators.length) {
-			return { done: true, value: undefined };
-		}
-
-		const result = this.iterators[this.index].next();
-
-		if (result.done) {
-			this.index++;
-		}
-
-		return result;
-	}
-}
-
-class TreeNode<T> implements ITreeNode<T> {
+class TreeNode<T> implements ITreeListElement<T> {
 
 	static createRoot<T>(): TreeNode<T> {
 		const node = new TreeNode<T>();
@@ -68,15 +30,15 @@ class TreeNode<T> implements ITreeNode<T> {
 		return node;
 	}
 
-	static createNode<T>(treeElement: ITreeElement<T>, depth: number, list: ITreeNode<T>[]): TreeNode<T> {
+	static createNode<T>(treeElement: ITreeElement<T>, depth: number, list: ITreeListElement<T>[]): TreeNode<T> {
 		const node = new TreeNode<T>();
 		list.push(node);
 
 		let count = 1;
 		const children: TreeNode<T>[] = [];
 
-		for (const element of treeElement.children) {
-			const node = TreeNode.createNode<T>(element, depth + 1, list);
+		for (const childItem of treeElement.children) {
+			const node = TreeNode.createNode<T>(childItem, depth + 1, list);
 			children.push(node);
 			count += node.count;
 		}
@@ -96,18 +58,17 @@ class TreeNode<T> implements ITreeNode<T> {
 
 	private constructor() { }
 
-	splice(index: number, deleteCount: number, elements: ITreeElement<T>[]): { listDeleteCount: number; listElements: ITreeNode<T>[]; deletedIterator: IIterator<ITreeElement<T>>; } {
-		const listElements = [] as ITreeNode<T>[];
+	splice(index: number, deleteCount: number, treeElements: ITreeElement<T>[]): { listDeleteCount: number; listElements: ITreeListElement<T>[]; deletedNodes: TreeNode<T>[]; } {
+		const listElements = [] as ITreeListElement<T>[];
 
-		const added = elements.map(e => TreeNode.createNode<T>(e, this.depth + 1, listElements));
+		const added = treeElements.map(e => TreeNode.createNode<T>(e, this.depth + 1, listElements));
 		const listAddCount = added.reduce((r, n) => r + n.count, 0);
 
-		const deleted = this.children.splice(index, deleteCount, ...added);
-		const deletedIterator = new TreeNodesIterator(deleted.map(node => new TreeNodeIterator(node)));
-		const listDeleteCount = deleted.reduce((r, n) => r + n.count, 0);
+		const deletedNodes = this.children.splice(index, deleteCount, ...added);
+		const listDeleteCount = deletedNodes.reduce((r, n) => r + n.count, 0);
 
 		this.count += listAddCount - listDeleteCount;
-		return { listDeleteCount, listElements, deletedIterator };
+		return { listDeleteCount, listElements, deletedNodes };
 	}
 }
 
@@ -115,32 +76,20 @@ export class TreeModel<T> {
 
 	private root = TreeNode.createRoot<T>();
 
-	constructor(private spliceable: ISpliceable<ITreeNode<T>>) { }
+	constructor(private spliceable: ISpliceable<ITreeListElement<T>>) { }
 
-	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[] = []): IIterator<ITreeElement<T>> {
+	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[] = []): ITreeElement<T>[] {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
 		const { parentNode, parentListIndex } = this.findParentNode(start);
 		const lastIndex = start[start.length - 1];
-		const { listDeleteCount, listElements, deletedIterator } = parentNode.splice(lastIndex, deleteCount, elements);
+		const { listDeleteCount, listElements, deletedNodes } = parentNode.splice(lastIndex, deleteCount, elements);
 
 		this.spliceable.splice(parentListIndex + lastIndex, listDeleteCount, listElements);
 
-		return deletedIterator;
-	}
-
-	getElement(location: number[]): T | undefined {
-		const node = this.findNode(location);
-		return node && node.element;
-	}
-
-	private findNode(location: number[]): TreeNode<T> {
-		const { parentNode } = this.findParentNode(location);
-		const lastIndex = location[location.length - 1];
-
-		return parentNode.children[lastIndex];
+		return deletedNodes;
 	}
 
 	private findParentNode(location: number[], node: TreeNode<T> = this.root, listIndex: number = 0): { parentNode: TreeNode<T>; parentListIndex: number } {
@@ -151,6 +100,7 @@ export class TreeModel<T> {
 		const [i, ...rest] = location;
 		const limit = Math.min(i, node.children.length);
 
+		// TODO@joao perf!
 		for (let j = 0; j < limit; j++) {
 			listIndex += node.children[j].count;
 		}
@@ -159,122 +109,60 @@ export class TreeModel<T> {
 	}
 }
 
-// type TrieNode<T> = TrieNode<T>[] | T;
-
-// [[], [], T]
-// { key: 1, children: {} }
-// { 1: { 2: {} } }
-
-type TrieNode<K, T> = { value: T | undefined, children: Map<K, TrieNode<K, T>> };
-
-export class Trie<K, T> {
-
-	private root: TrieNode<K, T>;
-
-	constructor() {
-		this.clear();
-	}
-
-	set(path: K[], element: T): void {
-		if (path.length === 0) {
-			throw new Error('Invalid path length');
-		}
-
-		let node = this.root;
-
-		for (const key of path) {
-			let child = node.children.get(key);
-
-			if (!child) {
-				child = { value: undefined, children: new Map<K, TrieNode<K, T>>() };
-				node.children.set(key, child);
-			}
-
-			node = child;
-		}
-
-		node.value = element;
-	}
-
-	get(path: K[]): T | undefined {
-		if (path.length === 0) {
-			throw new Error('Invalid path length');
-		}
-
-		let node = this.root;
-
-		for (const key of path) {
-			let child = node.children.get(key);
-
-			if (!child) {
-				return undefined;
-			}
-
-			node = child;
-		}
-
-		return node.value;
-	}
-
-	delete(path: K[]): void {
-		if (path.length === 0) {
-			throw new Error('Invalid path length');
-		}
-
-		let nodePath: { key: K, node: TrieNode<K, T> }[] = [];
-		let node = this.root;
-
-		for (const key of path) {
-			let child = node.children.get(key);
-
-			if (!child) {
-				return;
-			}
-
-			nodePath.push({ key, node });
-			node = child;
-		}
-
-		for (let i = nodePath.length - 1; i >= 0; i--) {
-			const { key, node } = nodePath[i];
-
-			node.children.delete(key);
-
-			if (Object.keys(node.children).length > 0) {
-				return;
-			}
-		}
-	}
-
-	clear(): void {
-		this.root = { value: undefined, children: new Map<K, TrieNode<K, T>>() };
-	}
+export interface ICollapsibleTreeElement<T> {
+	element: T;
+	collapsed: boolean;
 }
 
 export class CollapsibleTreeModel<T> {
 
-	private model: TreeModel<T>;
+	private model = new Tree<ICollapsibleTreeElement<T>>();
+	private collapsedElements = new Trie<number, ITreeElement<T>>();
+	private visibleModel: TreeModel<T>;
 
-	constructor(spliceable: ISpliceable<ITreeNode<T>>) {
-		this.model = new TreeModel<T>(spliceable);
+	constructor(spliceable: ISpliceable<ITreeListElement<T>>) {
+		this.visibleModel = new TreeModel<T>(spliceable);
 	}
 
-	splice(start: number[], deleteCount: number, elements: ITreeElement<T>[]): void {
-		this.model.splice(start, deleteCount, elements);
+	splice(start: number[], deleteCount: number, items: ITreeElement<ICollapsibleTreeElement<T>>[]): void {
+		// const elementPath = this.model.getElementPath(start);
+
+		this.model.splice(start, deleteCount, items);
+		// this.visibleModel.splice(start, deleteCount, items);
 	}
 
-	expand(location: number[]): boolean {
+	setCollapsed(location: number[], collapsed: boolean): void {
+		const elementPath = this.model.getElementPath(location);
+		const [pathToElement, collapsibleElement] = tail2(elementPath);
 
-		// this.model.splice(start, deleteCount, elements);
-		// const element = this.model.getElement()
-		return false;
+		if (collapsibleElement.collapsed === collapsed) {
+			return;
+		}
+
+		collapsibleElement.collapsed = collapsed;
+
+		if (pathToElement.some(e => e.collapsed)) {
+			return;
+		}
+
+		if (collapsed) {
+			const collapsedElement: ITreeElement<T> = {
+				element: collapsibleElement.element,
+				children: []
+			};
+
+			const [element] = this.visibleModel.splice(location, 1, [collapsedElement]);
+			this.collapsedElements.set(location, element);
+		} else {
+			const expandedElement = this.collapsedElements.delete(location);
+			this.visibleModel.splice(location, 1, [expandedElement]);
+		}
+
+
+		// gotta reflect the state on the visibleModel
 	}
 
-	collapse(location: number[]): boolean {
-		// const element = this.model.getElement(location);
-		// const collapsedElement: ITreeElement<T> = { element, children: [] };
-		// const deletedIterator = this.model.splice(location, 1, [collapsedElement]);
-
-		return false;
+	isCollapsed(location: number[]): boolean {
+		return this.model.getElement(location).collapsed;
 	}
 }

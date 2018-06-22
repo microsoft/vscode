@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { TreeModel, ITreeNode, Trie } from 'vs/base/browser/ui/list/treeModel';
+import { TreeModel, ITreeListElement } from 'vs/base/browser/ui/list/treeModel';
 import { ISpliceable } from 'vs/base/browser/ui/list/splice';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
@@ -18,14 +18,14 @@ function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 suite('TreeModel2', () => {
 
 	test('ctor', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
 	test('insert', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, [
@@ -44,7 +44,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('deep insert', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, [
@@ -75,7 +75,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('delete', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, [
@@ -90,7 +90,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('nested delete', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, [
@@ -121,7 +121,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('deep delete', () => {
-		const list = [] as ITreeNode<number>[];
+		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, [
@@ -143,64 +143,5 @@ suite('TreeModel2', () => {
 		assert.deepEqual(list[0].depth, 1);
 		assert.deepEqual(list[1].element, 2);
 		assert.deepEqual(list[1].depth, 1);
-	});
-});
-
-suite('Trie', function () {
-
-	test('simple test', () => {
-		const trie = new Trie<number, string>();
-
-		trie.set([0, 0, 0], 'hello');
-		assert.equal(trie.get([0]), undefined);
-		assert.equal(trie.get([0, 0]), undefined);
-		assert.equal(trie.get([0, 0, 0]), 'hello');
-		assert.equal(trie.get([1, 0, 0]), undefined);
-		assert.equal(trie.get([0, 1, 0]), undefined);
-		assert.equal(trie.get([0, 0, 1]), undefined);
-		assert.equal(trie.get([0, 0, 0, 0]), undefined);
-	});
-
-	test('clear', () => {
-		const trie = new Trie<number, string>();
-
-		trie.set([0, 0, 0], 'hello');
-		assert.equal(trie.get([0, 0, 0]), 'hello');
-
-		trie.clear();
-		assert.equal(trie.get([0, 0, 0]), undefined);
-	});
-
-	test('delete', () => {
-		const trie = new Trie<number, string>();
-
-		trie.set([1, 2, 3], 'hello');
-		assert.equal(trie.get([1, 2, 3]), 'hello');
-
-		trie.delete([1, 2, 3]);
-		assert.equal(trie.get([1, 2, 3]), undefined);
-	});
-
-	test('nested delete', () => {
-		const trie = new Trie<number, string>();
-
-		trie.set([1, 2, 3], 'hello');
-		assert.equal(trie.get([1, 2, 3]), 'hello');
-
-		trie.delete([1]);
-		assert.equal(trie.get([1, 2, 3]), undefined);
-	});
-
-	test('map tests', () => {
-		const trie = new Trie<number, string>();
-
-		trie.set([0, 0, 0], 'hello');
-		assert.equal(trie.get([0, 0, 0]), 'hello');
-
-		trie.set([0, 0], 'world');
-		assert.equal(trie.get([0, 0]), 'world');
-
-		trie.set([0, 0, 1], 'cool');
-		assert.equal(trie.get([0, 0, 1]), 'cool');
 	});
 });
