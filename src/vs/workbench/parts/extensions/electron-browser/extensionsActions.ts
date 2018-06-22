@@ -24,7 +24,7 @@ import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { Query } from 'vs/workbench/parts/extensions/common/extensionQuery';
 import { IFileService, IContent } from 'vs/platform/files/common/files';
-import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder } from 'vs/platform/workspace/common/workspace';
+import { IWorkspaceContextService, WorkbenchState, IWorkspaceFolder, IWorkspaceFoldersChangeEvent } from 'vs/platform/workspace/common/workspace';
 import { IWindowService, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IExtensionService, IExtensionDescription } from 'vs/workbench/services/extensions/common/extensions';
 import URI from 'vs/base/common/uri';
@@ -38,7 +38,7 @@ import { ITextEditorSelection } from 'vs/platform/editor/common/editor';
 import { ITextModelService } from 'vs/editor/common/services/resolverService';
 import { PagedModel } from 'vs/base/common/paging';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
-import { IContextKeyService, RawContextKey } from 'vs/platform/contextkey/common/contextkey';
+import { IContextKeyService, RawContextKey, IContextKey } from 'vs/platform/contextkey/common/contextkey';
 import { MenuRegistry, MenuId } from 'vs/platform/actions/common/actions';
 import { PICK_WORKSPACE_FOLDER_COMMAND_ID } from 'vs/workbench/browser/actions/workspaceCommands';
 import { INotificationService, Severity } from 'vs/platform/notification/common/notification';
@@ -51,6 +51,7 @@ import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorG
 import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import { SyncDescriptor } from 'vs/platform/instantiation/common/descriptors';
 import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
+import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 
 const promptDownloadManually = (extension: IExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	notificationService.prompt(Severity.Error, message, [{
@@ -1669,20 +1670,36 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 
 	private workspaceContextKey = new RawContextKey<boolean>('workspaceRecommendations', true);
 	private workspaceFolderContextKey = new RawContextKey<boolean>('workspaceFolderRecommendations', true);
+	private addToRecommendationsContextKey = new RawContextKey<boolean>('addToRecommendations', false);
+
+	private boundAddToRecommendationsContextKey: IContextKey<boolean>;
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
-		@IWorkspaceContextService workspaceContextService: IWorkspaceContextService
+		@IWorkspaceContextService private workspaceContextService: IWorkspaceContextService,
+		@IEditorService private editorService: IEditorService,
+		@IFileService private fileService: IFileService,
 	) {
 		super();
 		const boundWorkspaceContextKey = this.workspaceContextKey.bindTo(contextKeyService);
 		boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
 		this._register(workspaceContextService.onDidChangeWorkbenchState(() => boundWorkspaceContextKey.set(workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE)));
 
-
 		const boundWorkspaceFolderContextKey = this.workspaceFolderContextKey.bindTo(contextKeyService);
 		boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0);
 		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0)));
+
+		this.boundAddToRecommendationsContextKey = this.addToRecommendationsContextKey.bindTo(contextKeyService);
+		this.updateAddToRecommendationsCommandContextKey();
+		this._register(editorService.onDidActiveEditorChange(() => {
+			this.updateAddToRecommendationsCommandContextKey();
+		}));
+		this._register(workspaceContextService.onDidChangeWorkspaceFolders((event: IWorkspaceFoldersChangeEvent) => {
+			const enabled = this.boundAddToRecommendationsContextKey.get();
+			if ((event.added.length && enabled) || (event.removed.length && !enabled)) {
+				this.updateAddToRecommendationsCommandContextKey();
+			}
+		}));
 
 		this.registerCommands();
 	}
@@ -1709,6 +1726,64 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			},
 			when: this.workspaceFolderContextKey
 		});
+
+		CommandsRegistry.registerCommand(AddToWorkspaceRecommendationsAction.ID, serviceAccesor => {
+			this.boundAddToRecommendationsContextKey.set(false);
+			const extensionId = (this.editorService.activeEditor as ExtensionsInput).extension.id;
+			serviceAccesor
+				.get(IInstantiationService)
+				.createInstance(
+					AddToWorkspaceRecommendationsAction,
+					AddToWorkspaceRecommendationsAction.ID,
+					AddToWorkspaceRecommendationsAction.LABEL
+				)
+				.run(extensionId)
+				.then(
+					(quickPickCancelled) => this.boundAddToRecommendationsContextKey.set(quickPickCancelled),
+					() => this.boundAddToRecommendationsContextKey.set(this.editorService.activeEditor instanceof ExtensionsInput)
+				);
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: AddToWorkspaceRecommendationsAction.ID,
+				title: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.LABEL}`
+			},
+			when: this.addToRecommendationsContextKey
+		});
+	}
+
+	private updateAddToRecommendationsCommandContextKey(): void {
+		if (!(this.editorService.activeEditor instanceof ExtensionsInput)) {
+			return this.boundAddToRecommendationsContextKey.set(false);
+		}
+
+		const folders = this.workspaceContextService.getWorkspace().folders;
+		const configurationFiles = folders
+			.map(workspaceFolder => workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
+		const getFoldersRecommendedExtensionsPromises = configurationFiles.map(configurationFile => {
+			return this.getFolderRecommendedExtensions(configurationFile);
+		});
+		Promise.all(getFoldersRecommendedExtensionsPromises).then(foldersRecommendationsArray => {
+			if (this.editorService.activeEditor instanceof ExtensionsInput) {
+				// Don't show the command if the selected extension is
+				// recommended in ANY the folders of the current workspace
+				const extensionId = this.editorService.activeEditor.extension.id.toLowerCase();
+				const enabled = !foldersRecommendationsArray.some((recommendations: string[]) => {
+					return recommendations.some(r => r.toLowerCase() === extensionId);
+				});
+				this.boundAddToRecommendationsContextKey.set(enabled);
+			} else {
+				this.boundAddToRecommendationsContextKey.set(false);
+			}
+		});
+	}
+
+	private getFolderRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
+		return this.fileService.resolveContent(extensionsFileResource)
+			.then(content => {
+				const folderRecommendations = (<IExtensionsContent>json.parse(content.value));
+				return folderRecommendations.recommendations || [];
+			}, err => []);
 	}
 }
 
@@ -1755,14 +1830,6 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 					selection
 				}
 			}));
-	}
-
-	protected getFolderRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
-		return this.fileService.resolveContent(extensionsFileResource)
-			.then(content => {
-				const folderRecommendations = (<IExtensionsContent>json.parse(content.value));
-				return folderRecommendations.recommendations || [];
-			}, err => []);
 	}
 
 	protected addRecommendedExtensionToFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
@@ -1920,21 +1987,12 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 
 export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecommendedExtensionsAction {
 
-	private static readonly AddLabel = localize('addToWorkspaceRecommendations', "Add to workspace recommendations");
-	private static readonly AddingLabel = localize('addingToWorkspaceRecommendations', "Adding to workspace recommendations...");
-	private static readonly AddedLabel = localize('addedToWorkspaceRecommendations', "Added to workspace recommendations");
-
-	private static readonly AddClass = 'extension-action add-to-workspace-recommendations';
-	private static readonly AddingClass = 'extension-action add-to-workspace-recommendations adding';
-	private static readonly AddedClass = 'extension-action add-to-workspace-recommendations added';
-
-	private _extension: IExtension;
-	get extension(): IExtension { return this._extension; }
-	set extension(extension: IExtension) { this._extension = extension; this.update(); }
-
-	private disposables: IDisposable[] = [];
+	static readonly ID = 'workbench.extensions.action.addToWorkspaceRecommendations';
+	static LABEL = localize('addToWorkspaceRecommendations', "Add to workspace recommendations");
 
 	constructor(
+		id: string,
+		label: string,
 		@IFileService fileService: IFileService,
 		@IWorkspaceContextService contextService: IWorkspaceContextService,
 		@IEditorService editorService: IEditorService,
@@ -1944,56 +2002,17 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		@INotificationService private notificationService: INotificationService,
 	) {
 		super(
-			'extensions.add-to-workspace-recommendations',
-			AddToWorkspaceRecommendationsAction.AddLabel,
+			id,
+			label,
 			contextService,
 			fileService,
 			editorService,
 			jsonEditingService,
 			textModelResolverService
 		);
-		this.class = AddToWorkspaceRecommendationsAction.AddClass;
-		this.enabled = false;
-		this.disposables.push(this.contextService.onDidChangeWorkspaceFolders((event) => {
-			if ((event.added.length && this.enabled) || (event.removed.length && !this.enabled)) {
-				this.update();
-			}
-		}));
 	}
 
-	private update(): void {
-		if (
-			this.contextService.getWorkbenchState() === WorkbenchState.EMPTY ||
-			!this.extension ||
-			this.extension.state !== ExtensionState.Installed
-		) {
-			this.enabled = false;
-		} else {
-			const folders = this.contextService.getWorkspace().folders;
-			const configurationFiles = folders
-				.map(workspaceFolder => workspaceFolder.toResource(paths.join('.vscode', 'extensions.json')));
-			const getFoldersRecommendedExtensionsPromises = configurationFiles.map(configurationFile => {
-				return this.getFolderRecommendedExtensions(configurationFile);
-			});
-			Promise.all(getFoldersRecommendedExtensionsPromises).then(foldersRecommendationsArray => {
-				// Don't enable the button if the selected extension is
-				// recommended in ANY the folders of the current workspace
-				const extensionIdLowercase = this.extension.id.toLowerCase();
-				this.enabled = !foldersRecommendationsArray.some((recommendations: string[]) => {
-					return recommendations.some(r => r.toLowerCase() === extensionIdLowercase);
-				});
-			});
-		}
-	}
-
-	run(): TPromise<any> {
-		if (!this.enabled) {
-			return null;
-		}
-
-		this.enabled = false;
-		this.label = AddToWorkspaceRecommendationsAction.AddingLabel;
-		this.class = AddToWorkspaceRecommendationsAction.AddingClass;
+	run(extensionId: string): TPromise<boolean> {
 		const folders = this.contextService.getWorkspace().folders;
 		const pickFolderPromise = folders.length === 1
 			? TPromise.as(folders[0])
@@ -2002,35 +2021,20 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 			.then(async workspaceFolder => {
 				if (workspaceFolder) {
 					const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
-					await this.addRecommendedExtensionToFolder(configurationFile, this.extension.id);
+					await this.addRecommendedExtensionToFolder(configurationFile, extensionId);
 					return false;
 				}
 				return true;
 			})
 			.then((pickCancelled: boolean) => {
-				if (pickCancelled) {
-					this.enableButton();
-				} else {
+				if (!pickCancelled) {
 					this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was recommended in the selected folder.'));
-					this.enabled = false;
-					this.label = AddToWorkspaceRecommendationsAction.AddedLabel;
-					this.class = AddToWorkspaceRecommendationsAction.AddedClass;
 				}
+				return pickCancelled;
 			}, err => {
 				this.notificationService.error(err);
-				this.enableButton();
+				throw err;
 			});
-	}
-
-	dispose(): void {
-		super.dispose();
-		this.disposables = dispose(this.disposables);
-	}
-
-	private enableButton(): void {
-		this.enabled = true;
-		this.label = AddToWorkspaceRecommendationsAction.AddLabel;
-		this.class = AddToWorkspaceRecommendationsAction.AddClass;
 	}
 }
 

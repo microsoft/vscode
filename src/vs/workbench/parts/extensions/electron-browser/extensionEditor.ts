@@ -31,7 +31,7 @@ import { Renderer, DataSource, Controller } from 'vs/workbench/parts/extensions/
 import { RatingsWidget, InstallCountWidget } from 'vs/workbench/parts/extensions/browser/extensionsWidgets';
 import { EditorOptions } from 'vs/workbench/common/editor';
 import { ActionBar } from 'vs/base/browser/ui/actionbar/actionbar';
-import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction, IgnoreExtensionRecommendationAction, AddToWorkspaceRecommendationsAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
+import { CombinedInstallAction, UpdateAction, EnableAction, DisableAction, ReloadAction, MaliciousStatusLabelAction, DisabledStatusLabelAction, MultiServerInstallAction, MultiServerUpdateAction, IgnoreExtensionRecommendationAction } from 'vs/workbench/parts/extensions/electron-browser/extensionsActions';
 import { WebviewElement } from 'vs/workbench/parts/webview/electron-browser/webviewElement';
 import { KeybindingIO } from 'vs/workbench/services/keybinding/common/keybindingIO';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
@@ -375,7 +375,6 @@ export class ExtensionEditor extends BaseEditor {
 		const enableAction = this.instantiationService.createInstance(EnableAction);
 		const disableAction = this.instantiationService.createInstance(DisableAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
-		const addToWorkspaceRecommendationsAction = this.instantiationService.createInstance(AddToWorkspaceRecommendationsAction);
 
 		installAction.extension = extension;
 		maliciousStatusAction.extension = extension;
@@ -384,10 +383,9 @@ export class ExtensionEditor extends BaseEditor {
 		enableAction.extension = extension;
 		disableAction.extension = extension;
 		reloadAction.extension = extension;
-		addToWorkspaceRecommendationsAction.extension = extension;
 
 		this.extensionActionBar.clear();
-		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, addToWorkspaceRecommendationsAction, maliciousStatusAction], { icon: true, label: true });
+		this.extensionActionBar.push([disabledStatusAction, reloadAction, updateAction, enableAction, disableAction, installAction, maliciousStatusAction], { icon: true, label: true });
 		this.transientDisposables.push(enableAction, updateAction, reloadAction, disableAction, installAction, maliciousStatusAction, disabledStatusAction);
 
 		const ignoreAction = this.instantiationService.createInstance(IgnoreExtensionRecommendationAction);

@@ -34,7 +34,6 @@
 .monaco-action-bar .action-item.disabled .action-label.extension-action.enable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.disable,
 .monaco-action-bar .action-item.disabled .action-label.extension-action.reload,
-.monaco-action-bar .action-item.disabled .action-label.extension-action.add-to-workspace-recommendations:not(.adding):not(.added),
 .monaco-action-bar .action-item.disabled .action-label.disable-status.hide,
 .monaco-action-bar .action-item.disabled .action-label.malicious-status.not-malicious {
 	display: none;
