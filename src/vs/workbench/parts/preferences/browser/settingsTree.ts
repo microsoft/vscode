@@ -632,7 +632,7 @@ export class SettingsRenderer implements IRenderer {
 		template.context = element;
 		DOM.toggleClass(template.parent, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.parent, 'is-expanded', isSelected);
-		template.containerElement.id = element.id;
+		template.containerElement.id = element.id.replace(/\./g, '_');
 
 		const titleTooltip = setting.key;
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');

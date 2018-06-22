@@ -445,6 +445,9 @@ export class TreeView extends HeightMap {
 	private readonly _onDOMBlur: Emitter<void> = new Emitter<void>();
 	get onDOMBlur(): Event<void> { return this._onDOMBlur.event; }
 
+	private readonly _onDidScroll: Emitter<void> = new Emitter<void>();
+	get onDidScroll(): Event<void> { return this._onDidScroll.event; }
+
 	constructor(context: _.ITreeContext, container: HTMLElement) {
 		super();
 
@@ -510,6 +513,7 @@ export class TreeView extends HeightMap {
 		});
 		this.scrollableElement.onScroll((e) => {
 			this.render(e.scrollTop, e.height, e.scrollLeft, e.width, e.scrollWidth);
+			this._onDidScroll.fire();
 		});
 
 		if (Browser.isIE) {
@@ -647,6 +651,11 @@ export class TreeView extends HeightMap {
 		if (this.horizontalScrolling) {
 			this.viewWidth = width || DOM.getContentWidth(this.wrapper);
 		}
+	}
+
+	public getFirstVisibleElement(): any {
+		const item = this.itemAtIndex(this.indexAt(this.lastRenderTop));
+		return item && item.model.getElement();
 	}
 
 	private render(scrollTop: number, viewHeight: number, scrollLeft: number, viewWidth: number, scrollWidth: number): void {

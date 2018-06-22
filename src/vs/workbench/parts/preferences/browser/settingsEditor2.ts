@@ -260,7 +260,7 @@ export class SettingsEditor2 extends BaseEditor {
 					return false;
 				};
 
-				if (element && (!currentSelection || !isEqualOrParent(currentSelection, element))) {
+				if (element && !e.payload.fromScroll && (!currentSelection || !isEqualOrParent(currentSelection, element))) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
@@ -336,14 +336,29 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
-		this._register(this.settingsTree.onDidChangeSelection(e => {
-			const element = e.selection[0] instanceof SettingsTreeSettingElement ? e.selection[0].parent :
-				e.selection[0] instanceof SettingsTreeGroupElement ? e.selection[0] :
+		this._register(this.settingsTree.onDidScroll(() => {
+			if (this.searchResultModel) {
+				return;
+			}
+
+			if (!this.tocTree.getInput()) {
+				return;
+			}
+
+			const topElement = this.settingsTree.getFirstVisibleElement();
+			const element = topElement instanceof SettingsTreeSettingElement ? topElement.parent :
+				topElement instanceof SettingsTreeGroupElement ? topElement :
 					null;
 
 			if (element && this.tocTree.getSelection()[0] !== element) {
-				this.tocTree.reveal(element, 0);
-				this.tocTree.setSelection([element]);
+				const elementTop = this.tocTree.getRelativeTop(element);
+				if (elementTop < 0) {
+					this.tocTree.reveal(element, 0);
+				} else if (elementTop > 1) {
+					this.tocTree.reveal(element, 1);
+				}
+
+				this.tocTree.setSelection([element], { fromScroll: true });
 				this.tocTree.setFocus(element);
 			}
 		}));
