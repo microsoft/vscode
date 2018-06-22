@@ -10,9 +10,9 @@ import { isMacintosh } from 'vs/base/common/platform';
 
 // TODO: Add submenu support to remove layout, preferences, and recent top level
 menubarCommands.setup();
+recentMenuRegistration();
 fileMenuRegistration();
 editMenuRegistration();
-recentMenuRegistration();
 selectionMenuRegistration();
 viewMenuRegistration();
 layoutMenuRegistration();
@@ -75,6 +75,13 @@ function fileMenuRegistration() {
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miRecentSubmenu', comment: ['&& denotes a mnemonic'] }, "Open Recent"),
+		submenu: MenuId.MenubarRecentMenu,
+		group: '2_open',
+		order: 4
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
 		group: '3_workspace',
 		command: {
 			id: 'workbench.action.addRootFolder',
@@ -126,6 +133,13 @@ function fileMenuRegistration() {
 			title: nls.localize('miAutoSave', "Auto Save")
 		},
 		order: 1
+	});
+
+	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
+		title: nls.localize({ key: 'miPreferencesSubmenu', comment: ['&& denotes a mnemonic'] }, "Preferences"),
+		submenu: MenuId.MenubarPreferencesMenu,
+		group: '5_autosave',
+		order: 2
 	});
 
 	MenuRegistry.appendMenuItem(MenuId.MenubarFileMenu, {
@@ -603,6 +617,13 @@ function viewMenuRegistration() {
 	});
 
 	// TODO: Editor Layout Submenu
+	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
+		title: nls.localize({ key: 'miEditorLayoutSubmenu', comment: ['&& denotes a mnemonic'] }, "Editor Layout"),
+		submenu: MenuId.MenubarLayoutMenu,
+		group: '5_layout',
+		order: 1
+	});
+
 
 	// Workbench Layout
 	MenuRegistry.appendMenuItem(MenuId.MenubarViewMenu, {
