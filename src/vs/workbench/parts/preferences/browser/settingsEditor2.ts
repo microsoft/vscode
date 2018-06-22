@@ -13,14 +13,14 @@ import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
-import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -235,6 +235,7 @@ export class SettingsEditor2 extends BaseEditor {
 			<ITreeConfiguration>{
 				dataSource: tocDataSource,
 				renderer: tocRenderer,
+				controller: this.instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
 				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
