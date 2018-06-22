@@ -11,11 +11,6 @@ import { TPromise } from 'vs/base/common/winjs.base';
 export interface IHoverComputer<Result> {
 
 	/**
-	 * Overwrite the default hover time
-	 */
-	getHoverTimeMillis?: () => number;
-
-	/**
 	 * This is called after half the hover time
 	 */
 	computeAsync?: () => TPromise<Result>;
@@ -57,6 +52,7 @@ export class HoverOperation<Result> {
 
 	private _computer: IHoverComputer<Result>;
 	private _state: ComputeHoverOperationState;
+	private _hoverTime: number;
 
 	private _firstWaitScheduler: RunOnceScheduler;
 	private _secondWaitScheduler: RunOnceScheduler;
@@ -71,10 +67,11 @@ export class HoverOperation<Result> {
 	constructor(computer: IHoverComputer<Result>, success: (r: Result) => void, error: (err: any) => void, progress: (progress: any) => void) {
 		this._computer = computer;
 		this._state = ComputeHoverOperationState.IDLE;
+		this._hoverTime = HoverOperation.HOVER_TIME;
 
-		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), this._getHoverTimeMillis() / 2);
-		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), this._getHoverTimeMillis() / 2);
-		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 3 * this._getHoverTimeMillis());
+		this._firstWaitScheduler = new RunOnceScheduler(() => this._triggerAsyncComputation(), 0);
+		this._secondWaitScheduler = new RunOnceScheduler(() => this._triggerSyncComputation(), 0);
+		this._loadingMessageScheduler = new RunOnceScheduler(() => this._showLoadingMessage(), 0);
 
 		this._asyncComputationPromise = null;
 		this._asyncComputationPromiseDone = false;
@@ -84,16 +81,25 @@ export class HoverOperation<Result> {
 		this._progressCallback = progress;
 	}
 
-	private _getHoverTimeMillis(): number {
-		if (this._computer.getHoverTimeMillis) {
-			return this._computer.getHoverTimeMillis();
-		}
-		return HoverOperation.HOVER_TIME;
+	public setHoverTime(hoverTime: number): void {
+		this._hoverTime = hoverTime;
+	}
+
+	private _firstWaitTime(): number {
+		return this._hoverTime / 2;
+	}
+
+	private _secondWaitTime(): number {
+		return this._hoverTime / 2;
+	}
+
+	private _loadingMessageTime(): number {
+		return 3 * this._hoverTime;
 	}
 
 	private _triggerAsyncComputation(): void {
 		this._state = ComputeHoverOperationState.SECOND_WAIT;
-		this._secondWaitScheduler.schedule();
+		this._secondWaitScheduler.schedule(this._secondWaitTime());
 
 		if (this._computer.computeAsync) {
 			this._asyncComputationPromiseDone = false;
@@ -161,8 +167,8 @@ export class HoverOperation<Result> {
 		if (mode === HoverStartMode.Delayed) {
 			if (this._state === ComputeHoverOperationState.IDLE) {
 				this._state = ComputeHoverOperationState.FIRST_WAIT;
-				this._firstWaitScheduler.schedule();
-				this._loadingMessageScheduler.schedule();
+				this._firstWaitScheduler.schedule(this._firstWaitTime());
+				this._loadingMessageScheduler.schedule(this._loadingMessageTime());
 			}
 		} else {
 			switch (this._state) {

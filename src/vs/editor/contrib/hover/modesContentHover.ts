@@ -199,6 +199,9 @@ export class ModesContentHoverWidget extends ContentHoverWidget {
 		this.toDispose.push(dom.addStandardDisposableListener(this.getDomNode(), dom.EventType.BLUR, () => {
 			dom.removeClass(this.getDomNode(), 'colorpicker-hover');
 		}));
+		this.toDispose.push(editor.onDidChangeConfiguration((e) => {
+			this._hoverOperation.setHoverTime(this._editor.getConfiguration().contribInfo.hover.delay);
+		}));
 	}
 
 	dispose(): void {

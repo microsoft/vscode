@@ -347,6 +347,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.hover.enabled,
 			'description': nls.localize('hover.enabled', "Controls if the hover is shown")
 		},
+		'editor.hover.delay': {
+			'type': 'number',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
+			'description': nls.localize('hover.delay', "Controls the delay after which to show the hover")
+		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,

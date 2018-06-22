@@ -2496,6 +2496,11 @@ declare namespace monaco.editor {
 		 * Defaults to true.
 		 */
 		enabled?: boolean;
+		/**
+		 * Delay for showing the hover.
+		 * Defaults to 300.
+		 */
+		delay?: number;
 	}
 
 	/**
@@ -3095,6 +3100,7 @@ declare namespace monaco.editor {
 
 	export interface InternalEditorHoverOptions {
 		readonly enabled: boolean;
+		readonly delay: number;
 	}
 
 	export interface EditorWrappingInfo {

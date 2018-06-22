@@ -146,6 +146,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to true.
 	 */
 	enabled?: boolean;
+	/**
+	 * Delay for showing the hover.
+	 * Defaults to 300.
+	 */
+	delay?: number;
 }
 
 /**
@@ -816,6 +821,7 @@ export interface InternalEditorFindOptions {
 
 export interface InternalEditorHoverOptions {
 	readonly enabled: boolean;
+	readonly delay: number;
 }
 
 export interface EditorWrappingInfo {
@@ -1209,6 +1215,7 @@ export class InternalEditorOptions {
 	private static _equalsHoverOptions(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
 		return (
 			a.enabled === b.enabled
+			&& a.delay === b.delay
 		);
 	}
 
@@ -1694,7 +1701,8 @@ export class EditorOptionsValidator {
 		}
 
 		return {
-			enabled: _boolean(opts.enabled, defaults.enabled)
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000)
 		};
 	}
 
@@ -2392,7 +2400,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 	contribInfo: {
 		selectionClipboard: true,
 		hover: {
-			enabled: true
+			enabled: true,
+			delay: 300
 		},
 		links: true,
 		contextmenu: true,
