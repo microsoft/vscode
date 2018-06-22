@@ -133,7 +133,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 						this.availableUpdate = { packagePath };
 
 						if (fastUpdatesEnabled && update.supportsFastUpdate) {
-							this.setState(State.Downloaded(update));
+							if (product.target === 'user') {
+								this.doApplyUpdate();
+							} else {
+								this.setState(State.Downloaded(update));
+							}
 						} else {
 							this.setState(State.Ready(update));
 						}
@@ -169,7 +173,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	protected doApplyUpdate(): TPromise<void> {
-		if (this.state.type !== StateType.Downloaded || !this.availableUpdate) {
+		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
+			return TPromise.as(null);
+		}
+
+		if (!this.availableUpdate) {
 			return TPromise.as(null);
 		}
 
