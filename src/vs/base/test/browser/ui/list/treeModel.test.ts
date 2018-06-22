@@ -205,4 +205,29 @@ suite('CollapsibleTreeModel', () => {
 		assert.deepEqual(list[5].element.element, 2);
 		assert.deepEqual(list[5].depth, 1);
 	});
+
+	test('deep insert collapsed', () => {
+		const list = [] as ICollapsibleTreeListElement<number>[];
+		const model = new CollapsibleTreeModel<number>(toSpliceable(list));
+
+		model.splice([0], 0, iter([
+			{
+				element: { element: 0, collapsed: true }, children: iter([
+					{ element: { element: 10, collapsed: false }, children: iter([]) },
+					{ element: { element: 11, collapsed: false }, children: iter([]) },
+					{ element: { element: 12, collapsed: false }, children: iter([]) },
+				])
+			},
+			{ element: { element: 1, collapsed: false }, children: iter([]) },
+			{ element: { element: 2, collapsed: false }, children: iter([]) }
+		]));
+
+		assert.deepEqual(list.length, 3);
+		assert.deepEqual(list[0].element.element, 0);
+		assert.deepEqual(list[0].depth, 1);
+		assert.deepEqual(list[1].element.element, 1);
+		assert.deepEqual(list[1].depth, 1);
+		assert.deepEqual(list[2].element.element, 2);
+		assert.deepEqual(list[2].depth, 1);
+	});
 });

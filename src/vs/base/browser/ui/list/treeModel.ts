@@ -6,7 +6,7 @@
 'use strict';
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IIterator, map, collect, forEach, iter } from 'vs/base/common/iterator';
+import { IIterator, map, collect, forEach, iter, empty } from 'vs/base/common/iterator';
 import { last } from 'vs/base/common/arrays';
 import { Tree } from 'vs/base/common/tree';
 
@@ -127,6 +127,17 @@ interface ICollapsibleElement<T> {
 export type ICollapsibleTreeElement<T> = ITreeElement<ICollapsibleElement<T>>;
 export type ICollapsibleTreeListElement<T> = ITreeListElement<ICollapsibleElement<T>>;
 
+function asVisibleElement<T>(element: ICollapsibleTreeElement<T>): ICollapsibleTreeElement<T> {
+	if (element.element.collapsed) {
+		return { element: element.element, children: empty() };
+	}
+
+	return {
+		element: element.element,
+		children: map(element.children, asVisibleElement)
+	};
+}
+
 export class CollapsibleTreeModel<T> {
 
 	private model = new Tree<ICollapsibleElement<T>>();
@@ -145,7 +156,7 @@ export class CollapsibleTreeModel<T> {
 		const isVisible = ancestors.every(el => !el.collapsed);
 
 		if (isVisible) {
-			this.viewModel.splice(location, deleteCount, elementsToInsert);
+			this.viewModel.splice(location, deleteCount, map(elementsToInsert, asVisibleElement));
 		}
 
 		return result;

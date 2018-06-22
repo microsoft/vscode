@@ -14,6 +14,16 @@ export interface IIterator<T> {
 	next(): IIteratorResult<T>;
 }
 
+const _empty: IIterator<any> = {
+	next() {
+		return { done: true, value: undefined };
+	}
+};
+
+export function empty<T>(): IIterator<T> {
+	return _empty;
+}
+
 export function iter<T>(array: T[], index = 0, length = array.length): IIterator<T> {
 	return {
 		next(): IIteratorResult<T> {
