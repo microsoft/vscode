@@ -212,9 +212,9 @@
 	width: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:hover,
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button:active {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:hover,
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value .edit-in-settings-button:active {
 	margin: auto;
 	text-align: left;
 	text-decoration: underline;
