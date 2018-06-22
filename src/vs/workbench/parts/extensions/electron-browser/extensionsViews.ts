@@ -656,8 +656,11 @@ export class DefaultRecommendedExtensionsView extends ExtensionsListView {
 	}
 
 	async show(query: string): TPromise<IPagedModel<IExtension>> {
-		return super.show('@recommended:all');
+		let model = await super.show('@recommended:all');
+		this.setExpanded(model.length > 0);
+		return model;
 	}
+
 }
 
 export class RecommendedExtensionsView extends ExtensionsListView {
