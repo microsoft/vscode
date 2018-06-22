@@ -10,8 +10,43 @@ export interface IIteratorResult<T> {
 	readonly value: T | undefined;
 }
 
-export interface IIterator<E> {
-	next(): IIteratorResult<E>;
+export interface IIterator<T> {
+	next(): IIteratorResult<T>;
+}
+
+export function iter<T>(array: T[]): IIterator<T> {
+	let index = 0;
+
+	return {
+		next(): IIteratorResult<T> {
+			if (index === array.length) {
+				return { done: true, value: undefined };
+			}
+
+			return { done: false, value: array[index++] };
+		}
+	};
+}
+
+export function map<T, R>(iterator: IIterator<T>, fn: (t: T) => R): IIterator<R> {
+	return {
+		next() {
+			const { done, value } = iterator.next();
+			return { done, value: done ? undefined : fn(value) };
+		}
+	};
+}
+
+export function forEach<T>(iterator: IIterator<T>, fn: (t: T) => void): void {
+	for (let next = iterator.next(); !next.done; next = iterator.next()) {
+		fn(next.value);
+	}
+}
+
+export function collect<T>(iterator: IIterator<T>): T[] {
+	const result: T[] = [];
+	forEach(iterator, value => result.push(value));
+	return result;
 }
 
 export interface INextIterator<T> {

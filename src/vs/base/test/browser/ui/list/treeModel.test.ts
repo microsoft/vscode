@@ -6,6 +6,7 @@
 import * as assert from 'assert';
 import { TreeModel, ITreeListElement } from 'vs/base/browser/ui/list/treeModel';
 import { ISpliceable } from 'vs/base/browser/ui/list/splice';
+import { iter } from 'vs/base/common/iterator';
 
 function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 	return {
@@ -28,11 +29,11 @@ suite('TreeModel2', () => {
 		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, [
-			{ element: 0, children: [] },
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+		model.splice([0], 0, iter([
+			{ element: 0, children: iter([]) },
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
 		assert.deepEqual(list.length, 3);
 		assert.deepEqual(list[0].element, 0);
@@ -47,17 +48,17 @@ suite('TreeModel2', () => {
 		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, [
+		model.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
 		assert.deepEqual(list.length, 6);
 		assert.deepEqual(list[0].element, 0);
@@ -78,13 +79,13 @@ suite('TreeModel2', () => {
 		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, [
-			{ element: 0, children: [] },
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+		model.splice([0], 0, iter([
+			{ element: 0, children: iter([]) },
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		model.splice([0], 3, []);
+		model.splice([0], 3, iter([]));
 
 		assert.equal(list.length, 0);
 	});
@@ -93,19 +94,19 @@ suite('TreeModel2', () => {
 		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, [
+		model.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		model.splice([0, 1], 1, []);
+		model.splice([0, 1], 1, iter([]));
 
 		assert.deepEqual(list.length, 5, 'list has 5 elements');
 		assert.deepEqual(list[0].element, 0);
@@ -124,19 +125,19 @@ suite('TreeModel2', () => {
 		const list = [] as ITreeListElement<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
-		model.splice([0], 0, [
+		model.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		model.splice([0], 1, []);
+		model.splice([0], 1, iter([]));
 
 		assert.deepEqual(list.length, 2, 'list has 2 elements only');
 		assert.deepEqual(list[0].element, 1);
