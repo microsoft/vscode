@@ -2488,6 +2488,17 @@ declare namespace monaco.editor {
 	}
 
 	/**
+	 * Configuration options for editor hover
+	 */
+	export interface IEditorHoverOptions {
+		/**
+		 * Enable the hover.
+		 * Defaults to true.
+		 */
+		enabled?: boolean;
+	}
+
+	/**
 	 * Configuration map for codeActionsOnSave
 	 */
 	export interface ICodeActionsOnSaveOptions {
@@ -2705,10 +2716,9 @@ declare namespace monaco.editor {
 		 */
 		stopRenderingLineAfter?: number;
 		/**
-		 * Enable hover.
-		 * Defaults to true.
+		 * Configure the editor's hover.
 		 */
-		hover?: boolean;
+		hover?: boolean | IEditorHoverOptions;
 		/**
 		 * Enable detecting links and making them clickable.
 		 * Defaults to true.
@@ -3083,6 +3093,10 @@ declare namespace monaco.editor {
 		readonly autoFindInSelection: boolean;
 	}
 
+	export interface InternalEditorHoverOptions {
+		readonly enabled: boolean;
+	}
+
 	export interface EditorWrappingInfo {
 		readonly inDiffEditor: boolean;
 		readonly isDominatedByLongLines: boolean;
@@ -3138,7 +3152,7 @@ declare namespace monaco.editor {
 
 	export interface EditorContribOptions {
 		readonly selectionClipboard: boolean;
-		readonly hover: boolean;
+		readonly hover: InternalEditorHoverOptions;
 		readonly links: boolean;
 		readonly contextmenu: boolean;
 		readonly quickSuggestions: boolean | {

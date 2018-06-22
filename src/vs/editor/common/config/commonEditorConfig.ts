@@ -294,6 +294,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.viewInfo.minimap.maxColumn,
 			'description': nls.localize('minimap.maxColumn', "Limit the width of the minimap to render at most a certain number of columns")
 		},
+		'editor.hover.enabled': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.enabled,
+			'description': nls.localize('hover.enabled', "Controls if the hover is shown")
+		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,

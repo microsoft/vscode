@@ -138,6 +138,17 @@ export interface IEditorLightbulbOptions {
 }
 
 /**
+ * Configuration options for editor hover
+ */
+export interface IEditorHoverOptions {
+	/**
+	 * Enable the hover.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+}
+
+/**
  * Configuration map for codeActionsOnSave
  */
 export interface ICodeActionsOnSaveOptions {
@@ -367,10 +378,9 @@ export interface IEditorOptions {
 	 */
 	stopRenderingLineAfter?: number;
 	/**
-	 * Enable hover.
-	 * Defaults to true.
+	 * Configure the editor's hover.
 	 */
-	hover?: boolean;
+	hover?: boolean | IEditorHoverOptions;
 	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
@@ -804,6 +814,10 @@ export interface InternalEditorFindOptions {
 	readonly globalFindClipboard: boolean;
 }
 
+export interface InternalEditorHoverOptions {
+	readonly enabled: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -859,7 +873,7 @@ export interface InternalEditorViewOptions {
 
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
-	readonly hover: boolean;
+	readonly hover: InternalEditorHoverOptions;
 	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
@@ -1181,12 +1195,20 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-
 	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
 		return (
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
 			&& a.globalFindClipboard === b.globalFindClipboard
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsHoverOptions(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
+		return (
+			a.enabled === b.enabled
 		);
 	}
 
@@ -1213,7 +1235,7 @@ export class InternalEditorOptions {
 	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
 		return (
 			a.selectionClipboard === b.selectionClipboard
-			&& a.hover === b.hover
+			&& this._equalsHoverOptions(a.hover, b.hover)
 			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
@@ -1659,6 +1681,23 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
+		let opts: IEditorHoverOptions;
+		if (typeof _opts === 'boolean') {
+			opts = {
+				enabled: _opts
+			};
+		} else if (typeof _opts === 'object') {
+			opts = _opts;
+		} else {
+			return defaults;
+		}
+
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled)
+		};
+	}
+
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
 		let rulers: number[] = [];
@@ -1777,7 +1816,7 @@ export class EditorOptionsValidator {
 		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
-			hover: _boolean(opts.hover, defaults.hover),
+			hover: this._santizeHoverOpts(opts.hover, defaults.hover),
 			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
@@ -2352,7 +2391,9 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 
 	contribInfo: {
 		selectionClipboard: true,
-		hover: true,
+		hover: {
+			enabled: true
+		},
 		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },
