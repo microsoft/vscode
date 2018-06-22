@@ -461,11 +461,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 					}
 				});
 				const enabled: ILocalExtension[] = [];
+				const notRunningExtensions: ILocalExtension[] = [];
+				const seenExtensions: { [id: string]: boolean } = Object.create({});
 				for (const extension of (groups['enabled'] || [])) {
 					if (runtimeExtensions.some(r => r.extensionLocation.toString() === extension.location.toString())) {
 						enabled.push(extension);
-					} else if (enabled.some(e => areSameExtensions({ id: extension.identifier.id }, { id: e.identifier.id }))) {
+						seenExtensions[getGalleryExtensionIdFromLocal(extension)] = true;
+					} else {
+						notRunningExtensions.push(extension);
+					}
+				}
+				for (const extension of notRunningExtensions) {
+					if (!seenExtensions[getGalleryExtensionIdFromLocal(extension)]) {
 						enabled.push(extension);
+						seenExtensions[getGalleryExtensionIdFromLocal(extension)] = true;
 					}
 				}
 				const primaryDisabled = groups['disabled:primary'] || [];
@@ -645,7 +654,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		const ext = extension as Extension;
-		const toUninstall: ILocalExtension[] = ext.locals || this.installed.filter(e => e.id === extension.id)[0].locals;
+		const toUninstall: ILocalExtension[] = ext.locals.length ? ext.locals : this.installed.filter(e => e.id === extension.id)[0].locals;
 
 		if (!toUninstall.length) {
 			return TPromise.wrapError<void>(new Error('Missing local'));
@@ -665,7 +674,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		}
 
 		const ext = extension as Extension;
-		const toReinstall: ILocalExtension[] = ext.locals || this.installed.filter(e => e.id === extension.id)[0].locals;
+		const toReinstall: ILocalExtension[] = ext.locals.length ? ext.locals : this.installed.filter(e => e.id === extension.id)[0].locals;
 
 		if (!toReinstall.length) {
 			return TPromise.wrapError<void>(new Error('Missing local'));

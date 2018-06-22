@@ -394,7 +394,7 @@ export class UpdateGalleryExtensionAction extends Action {
 	private local: ILocalExtension;
 	private gallery: IGalleryExtension;
 	get extension(): { local: ILocalExtension, gallery: IGalleryExtension } { return { local: this.local, gallery: this.gallery }; }
-	set extension({ local, gallery }: { local: ILocalExtension, gallery: IGalleryExtension }) { this.local = local; this.gallery = gallery; this.update(); }
+	set extension(extension: { local: ILocalExtension, gallery: IGalleryExtension }) { this.local = extension ? extension.local : null; this.gallery = extension ? extension.gallery : null; this.update(); }
 
 	constructor(
 		id: string, label: string, server: IExtensionManagementServer,
@@ -407,7 +407,7 @@ export class UpdateGalleryExtensionAction extends Action {
 	}
 
 	private update(): void {
-		this.enabled = this.local && this.gallery && semver.gt(this.gallery.version, this.local.manifest.version);
+		this.enabled = this.local && this.gallery && this.local.type === LocalExtensionType.User && semver.gt(this.gallery.version, this.local.manifest.version);
 		this.label = this.enabled ? localize('updateToInServer', "Update to {0} ({1})", this.local.manifest.version, this.server.location.authority) : localize('updateLabelInServer', "Update ({0})", this.server.location.authority);
 	}
 
@@ -450,9 +450,8 @@ export class MultiServerInstallAction extends Action {
 		super(MultiServerInstallAction.ID, MultiServerInstallAction.InstallLabel, MultiServerInstallAction.Class, false);
 		this._installActions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._installActions]);
-		this.disposables.push(this._actionItem);
-		this.disposables.push(...this._installActions);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
+		this.disposables.push(...[this._actionItem, ...this._installActions]);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.extension = this.extension ? this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] : this.extension));
 		this.update();
 	}
 
