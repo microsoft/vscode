@@ -37,6 +37,24 @@ export function map<T, R>(iterator: IIterator<T>, fn: (t: T) => R): IIterator<R>
 	};
 }
 
+export function filter<T>(iterator: IIterator<T>, fn: (t: T) => boolean): IIterator<T> {
+	return {
+		next() {
+			while (true) {
+				const { done, value } = iterator.next();
+
+				if (done) {
+					return { done, value: undefined };
+				}
+
+				if (fn(value)) {
+					return { done, value };
+				}
+			}
+		}
+	};
+}
+
 export function forEach<T>(iterator: IIterator<T>, fn: (t: T) => void): void {
 	for (let next = iterator.next(); !next.done; next = iterator.next()) {
 		fn(next.value);
