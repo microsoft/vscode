@@ -136,12 +136,12 @@ export class StartAction extends AbstractDebugAction {
 	public run(): TPromise<any> {
 		const configurationManager = this.debugService.getConfigurationManager();
 		let launch = configurationManager.selectedConfiguration.launch;
-		if (!launch) {
+		if (!launch || launch.getConfigurationNames().length === 0) {
 			const rootUri = this.historyService.getLastActiveWorkspaceRoot();
 			launch = configurationManager.getLaunch(rootUri);
 			if (!launch || launch.getConfigurationNames().length === 0) {
 				const launches = configurationManager.getLaunches();
-				launch = first(launches, l => !!l.getConfigurationNames().length, launches.length ? launches[0] : launch);
+				launch = first(launches, l => !!l.getConfigurationNames().length, launch);
 			}
 
 			configurationManager.selectConfiguration(launch);
