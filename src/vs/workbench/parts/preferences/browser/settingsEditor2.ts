@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import * as arrays from 'vs/base/common/arrays';
+import * as collections from 'vs/base/common/collections';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
@@ -30,7 +31,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData, commonlyUsedData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree, resolveExtensionsSettings } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -480,9 +481,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onConfigUpdate(): TPromise<void> {
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const resolvedSettingsRoot = resolveSettingsTree(tocData, groups);
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, groups);
+		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
+		const resolvedSettingsRoot = resolveSettingsTree(tocData, dividedGroups.core);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core);
 		resolvedSettingsRoot.children.unshift(commonlyUsed);
+
+		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);

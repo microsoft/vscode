@@ -184,11 +184,6 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				}
 			]
-		},
-		{
-			id: 'extensions',
-			label: localize('extensions', "Extensions"),
-			settings: ['*']
 		}
 	]
 };
