@@ -49,7 +49,6 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IQuickOpenService, IPickOpenEntry } from 'vs/platform/quickOpen/common/quickOpen';
 import { IEditorService } from 'vs/workbench/services/editor/common/editorService';
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
-import { ServiceCollection } from 'vs/platform/instantiation/common/serviceCollection';
 import product from 'vs/platform/node/product';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
@@ -361,23 +360,24 @@ export class UpdateAction extends Action {
 
 export class InstallGalleryExtensionAction extends Action {
 
+	private _server: IExtensionManagementServer;
 	private _extension: IGalleryExtension;
 	get extension(): IGalleryExtension { return this._extension; }
 	set extension(extension: IGalleryExtension) { this._extension = extension; this.enabled = !!this._extension; }
 
 	constructor(
-		id: string, label: string,
+		id: string, label: string, server: IExtensionManagementServer,
 		@INotificationService private notificationService: INotificationService,
 		@IInstantiationService private instantiationService: IInstantiationService,
-		@IOpenerService private openerService: IOpenerService,
-		@IExtensionManagementService private extensionManagementService: IExtensionManagementService
+		@IOpenerService private openerService: IOpenerService
 	) {
 		super(id, label, null, false);
+		this._server = server;
 	}
 
 	run(): TPromise<any> {
 		if (this.extension) {
-			return this.extensionManagementService.installFromGallery(this.extension)
+			return this._server.extensionManagementService.installFromGallery(this.extension)
 				.then(() => null, err => {
 					console.error(err);
 					promptDownloadManually(this.extension, localize('failedToInstall', "Failed to install \'{0}\'.", this.extension.identifier.id), this.instantiationService, this.notificationService, this.openerService);
@@ -448,7 +448,7 @@ export class MultiServerInstallAction extends Action {
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService
 	) {
 		super(MultiServerInstallAction.ID, MultiServerInstallAction.InstallLabel, MultiServerInstallAction.Class, false);
-		this._installActions = this.extensionManagementServerService.extensionManagementServers.map(server => this.createInstallActionForServer(server));
+		this._installActions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._installActions]);
 		this.disposables.push(this._actionItem);
 		this.disposables.push(...this._installActions);
@@ -479,13 +479,6 @@ export class MultiServerInstallAction extends Action {
 		for (const installAction of this._installActions) {
 			installAction.extension = this.extension ? this.extension.gallery : null;
 		}
-	}
-
-	private createInstallActionForServer(extensionManagementServer: IExtensionManagementServer): InstallGalleryExtensionAction {
-		const servicesCollection: ServiceCollection = new ServiceCollection();
-		servicesCollection.set(IExtensionManagementService, extensionManagementServer.extensionManagementService);
-		const instantiationService = this.instantiationService.createChild(servicesCollection);
-		return instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${extensionManagementServer.location.authority}`, localize('installInServer', "{0}", extensionManagementServer.location.authority));
 	}
 
 	public run(): TPromise<any> {
