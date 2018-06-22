@@ -6,17 +6,37 @@
 'use strict';
 
 import { tail2, last } from 'vs/base/common/arrays';
+import { IIterator, map, iter, collect } from 'vs/base/common/iterator';
+
+export interface ITreeElement<T> {
+	readonly element: T;
+	readonly children: IIterator<ITreeElement<T>>;
+}
 
 export interface ITreeNode<T> {
 	readonly element: T;
 	readonly children: ITreeNode<T>[];
 }
 
+function asNode<T>(element: ITreeElement<T>): ITreeNode<T> {
+	return {
+		element: element.element,
+		children: collect(map(element.children, asNode))
+	};
+}
+
+function asElement<T>(element: ITreeNode<T>): ITreeElement<T> {
+	return {
+		element: element.element,
+		children: map(iter(element.children), asElement)
+	};
+}
+
 export class Tree<T> {
 
 	private root: ITreeNode<T> = { element: undefined, children: [] };
 
-	splice(start: number[], deleteCount: number, nodes: ITreeNode<T>[] = []): ITreeNode<T>[] {
+	splice(start: number[], deleteCount: number, elements: IIterator<ITreeElement<T>>): IIterator<ITreeElement<T>> {
 		if (start.length === 0) {
 			throw new Error('Invalid tree location');
 		}
@@ -24,8 +44,10 @@ export class Tree<T> {
 		const [rest, index] = tail2(start);
 		const parentPath = this.getNodePath(rest);
 		const parent = last(parentPath);
+		const nodes = collect(map(elements, asNode));
+		const deletedNodes = parent.children.splice(index, deleteCount, ...nodes);
 
-		return parent.children.splice(index, deleteCount, ...nodes);
+		return map(iter(deletedNodes), asElement);
 	}
 
 	getElement(location: number[]): T {

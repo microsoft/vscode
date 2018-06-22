@@ -5,6 +5,7 @@
 
 import * as assert from 'assert';
 import { Tree } from 'vs/base/common/tree';
+import { iter } from 'vs/base/common/iterator';
 
 suite('Base Tree', () => {
 
@@ -19,11 +20,11 @@ suite('Base Tree', () => {
 	test('insert', () => {
 		const tree = new Tree<number>();
 
-		tree.splice([0], 0, [
-			{ element: 0, children: [] },
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+		tree.splice([0], 0, iter([
+			{ element: 0, children: iter([]) },
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
 		const nodes = tree.getNodes();
 		assert.deepEqual(nodes.length, 3);
@@ -35,17 +36,17 @@ suite('Base Tree', () => {
 	test('deep insert', () => {
 		const tree = new Tree<number>();
 
-		tree.splice([0], 0, [
+		tree.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
 		const nodes = tree.getNodes();
 		assert.deepEqual(nodes.length, 3);
@@ -61,13 +62,13 @@ suite('Base Tree', () => {
 	test('delete', () => {
 		const tree = new Tree<number>();
 
-		tree.splice([0], 0, [
-			{ element: 0, children: [] },
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+		tree.splice([0], 0, iter([
+			{ element: 0, children: iter([]) },
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		tree.splice([0], 3, []);
+		tree.splice([0], 3, iter([]));
 
 		const nodes = tree.getNodes();
 		assert.equal(nodes.length, 0);
@@ -76,19 +77,19 @@ suite('Base Tree', () => {
 	test('nested delete', () => {
 		const tree = new Tree<number>();
 
-		tree.splice([0], 0, [
+		tree.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		tree.splice([0, 1], 1, []);
+		tree.splice([0, 1], 1, iter([]));
 
 		const nodes = tree.getNodes();
 		assert.deepEqual(nodes.length, 3);
@@ -103,19 +104,19 @@ suite('Base Tree', () => {
 	test('deep delete', () => {
 		const tree = new Tree<number>();
 
-		tree.splice([0], 0, [
+		tree.splice([0], 0, iter([
 			{
-				element: 0, children: [
-					{ element: 10, children: [] },
-					{ element: 11, children: [] },
-					{ element: 12, children: [] },
-				]
+				element: 0, children: iter([
+					{ element: 10, children: iter([]) },
+					{ element: 11, children: iter([]) },
+					{ element: 12, children: iter([]) },
+				])
 			},
-			{ element: 1, children: [] },
-			{ element: 2, children: [] }
-		]);
+			{ element: 1, children: iter([]) },
+			{ element: 2, children: iter([]) }
+		]));
 
-		tree.splice([0], 1, []);
+		tree.splice([0], 1, iter([]));
 
 		const nodes = tree.getNodes();
 		assert.deepEqual(nodes.length, 2);
