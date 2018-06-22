@@ -663,7 +663,7 @@ declare module 'vscode' {
 	export interface FileWillRenameEvent {
 		readonly oldUri: Uri;
 		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export namespace workspace {
