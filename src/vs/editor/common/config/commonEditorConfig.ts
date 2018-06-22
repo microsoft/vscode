@@ -61,6 +61,8 @@ export interface IEnvConfiguration {
 	accessibilitySupport: platform.AccessibilitySupport;
 }
 
+const hasOwnProperty = Object.hasOwnProperty;
+
 export abstract class CommonEditorConfiguration extends Disposable implements editorCommon.IConfiguration {
 
 	protected _rawOptions: editorOptions.IEditorOptions;
@@ -135,7 +137,53 @@ export abstract class CommonEditorConfiguration extends Disposable implements ed
 		return editorOptions.InternalEditorOptionsFactory.createInternalEditorOptions(env, opts);
 	}
 
+	private static _primitiveArrayEquals(a: any[], b: any[]): boolean {
+		if (a.length !== b.length) {
+			return false;
+		}
+		for (let i = 0; i < a.length; i++) {
+			if (a[i] !== b[i]) {
+				return false;
+			}
+		}
+		return true;
+	}
+
+	private static _subsetEquals(base: object, subset: object): boolean {
+		for (let key in subset) {
+			if (hasOwnProperty.call(subset, key)) {
+				const subsetValue = subset[key];
+				const baseValue = base[key];
+
+				if (baseValue === subsetValue) {
+					continue;
+				}
+				if (Array.isArray(baseValue) && Array.isArray(subsetValue)) {
+					if (!this._primitiveArrayEquals(baseValue, subsetValue)) {
+						return false;
+					}
+					continue;
+				}
+				if (typeof baseValue === 'object' && typeof subsetValue === 'object') {
+					if (!this._subsetEquals(baseValue, subsetValue)) {
+						return false;
+					}
+					continue;
+				}
+
+				return false;
+			}
+		}
+		return true;
+	}
+
 	public updateOptions(newOptions: editorOptions.IEditorOptions): void {
+		if (typeof newOptions === 'undefined') {
+			return;
+		}
+		if (CommonEditorConfiguration._subsetEquals(this._rawOptions, newOptions)) {
+			return;
+		}
 		this._rawOptions = objects.mixin(this._rawOptions, newOptions || {});
 		this._validatedOptions = editorOptions.EditorOptionsValidator.validate(this._rawOptions, EDITOR_DEFAULTS);
 		this._recomputeOptions();
