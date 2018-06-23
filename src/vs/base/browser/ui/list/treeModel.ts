@@ -88,12 +88,15 @@ export class TreeModel<T> {
 	}
 
 	private findParentNode(location: number[], node: ITreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: ITreeNode<T>; listIndex: number; visible: boolean; } {
-		const [i, ...rest] = location;
-		const limit = Math.min(i, node.children.length);
+		const [index, ...rest] = location;
+
+		if (index < 0 || index > node.children.length) {
+			throw new Error('Invalid tree location');
+		}
 
 		// TODO@joao perf!
-		for (let j = 0; j < limit; j++) {
-			listIndex += node.children[j].visibleCount;
+		for (let i = 0; i < index; i++) {
+			listIndex += node.children[i].visibleCount;
 		}
 
 		visible = visible && !node.collapsed;
@@ -102,6 +105,6 @@ export class TreeModel<T> {
 			return { parentNode: node, listIndex, visible };
 		}
 
-		return this.findParentNode(rest, node.children[i], listIndex + 1, visible);
+		return this.findParentNode(rest, node.children[index], listIndex + 1, visible);
 	}
 }
