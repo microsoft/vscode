@@ -37,14 +37,26 @@ function getVisibleCount<T>(nodes: ITreeNode<T>[]): number {
 	return nodes.reduce(visibleCountReducer, 0);
 }
 
-function treeElementToNode<T>(treeElement: ITreeElement<T>, depth: number, visible: boolean, visibleElements: ITreeListElement<T>[]): ITreeNode<T> {
+function getVisibleNodes<T>(nodes: ITreeNode<T>[], result: ITreeListElement<T>[] = []): ITreeListElement<T>[] {
+	for (const node of nodes) {
+		result.push(node);
+
+		if (!node.collapsed) {
+			getVisibleNodes(node.children, result);
+		}
+	}
+
+	return result;
+}
+
+function treeElementToNode<T>(treeElement: ITreeElement<T>, depth: number, visible: boolean, treeListElements: ITreeListElement<T>[]): ITreeNode<T> {
 	const { element, collapsed } = treeElement;
 
 	if (visible) {
-		visibleElements.push({ element, collapsed, depth });
+		treeListElements.push({ element, collapsed, depth });
 	}
 
-	const children = collect(map(treeElement.children, el => treeElementToNode(el, depth + 1, visible && !treeElement.collapsed, visibleElements)));
+	const children = collect(map(treeElement.children, el => treeElementToNode(el, depth + 1, visible && !treeElement.collapsed, treeListElements)));
 	const visibleCount = 1 + getVisibleCount(children);
 
 	return { element, children, depth, collapsed, visibleCount };
@@ -75,18 +87,59 @@ export class TreeModel<T> {
 		}
 
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
-		const listToInsert: ITreeListElement<T>[] = [];
-		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode.depth + 1, visible, listToInsert)));
+		const treeListElementsToInsert: ITreeListElement<T>[] = [];
+		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode.depth + 1, visible, treeListElementsToInsert)));
 		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = getVisibleCount(deletedNodes);
 
 		parentNode.visibleCount += getVisibleCount(nodesToInsert) - visibleDeleteCount;
 
 		if (visible) {
-			this.list.splice(listIndex, visibleDeleteCount, listToInsert);
+			this.list.splice(listIndex, visibleDeleteCount, treeListElementsToInsert);
 		}
 
 		return map(iter(deletedNodes), treeNodeToElement);
+	}
+
+	setCollapsed(location: number[], collapsed: boolean): void {
+		const { node, listIndex, visible } = this.findNode(location);
+
+		if (node.collapsed === collapsed) {
+			return;
+		}
+
+		node.collapsed = collapsed;
+
+		if (visible) {
+			if (collapsed) {
+				const deleteCount = getVisibleCount(node.children);
+				const { element, depth } = node;
+
+				this.list.splice(listIndex, 1 + deleteCount, [{ element, collapsed, depth }]);
+			} else {
+				const toInsert = [node, ...getVisibleNodes(node.children)];
+
+				this.list.splice(listIndex, 1, toInsert);
+			}
+		}
+	}
+
+	isCollapsed(location: number[]): boolean {
+		const { node } = this.findNode(location);
+		return node.collapsed;
+	}
+
+	private findNode(location: number[]): { node: ITreeNode<T>, listIndex: number, visible: boolean } {
+		const { parentNode, listIndex, visible } = this.findParentNode(location);
+		const index = last(location);
+
+		if (index < 0 || index > parentNode.children.length) {
+			throw new Error('Invalid tree location');
+		}
+
+		const node = parentNode.children[index];
+
+		return { node, listIndex, visible };
 	}
 
 	private findParentNode(location: number[], node: ITreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: ITreeNode<T>; listIndex: number; visible: boolean; } {
