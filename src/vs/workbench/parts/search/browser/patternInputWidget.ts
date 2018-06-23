@@ -215,17 +215,17 @@ export class ExcludePatternInputWidget extends PatternInputWidget {
 	}
 
 	protected renderSubcontrols(controlsDiv: HTMLDivElement): void {
-		this.useExcludesAndIgnoreFilesBox = new Checkbox({
+		this.useExcludesAndIgnoreFilesBox = this._register(new Checkbox({
 			actionClassName: 'useExcludesAndIgnoreFiles',
 			title: nls.localize('useExcludesAndIgnoreFilesDescription', "Use Exclude Settings and Ignore Files"),
 			isChecked: true,
-			onChange: (viaKeyboard) => {
-				this.onOptionChange(null);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
+		}));
+		this._register(this.useExcludesAndIgnoreFilesBox.onChange(viaKeyboard => {
+			this.onOptionChange(null);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
 			}
-		});
+		}));
 		this._register(attachCheckboxStyler(this.useExcludesAndIgnoreFilesBox, this.themeService));
 
 		controlsDiv.appendChild(this.useExcludesAndIgnoreFilesBox.domNode);

@@ -322,6 +322,7 @@ export interface IExtensionManagementServer {
 export interface IExtensionManagementServerService {
 	_serviceBrand: any;
 	readonly extensionManagementServers: IExtensionManagementServer[];
+	getDefaultExtensionManagementServer(): IExtensionManagementServer;
 	getExtensionManagementServer(location: URI): IExtensionManagementServer;
 }
 

@@ -144,7 +144,13 @@ export class WebviewEditorInput extends EditorInput {
 		};
 
 		if (this._webview) {
-			this._webview.options = this._options;
+			this._webview.options = {
+				allowScripts: this._options.enableScripts,
+				allowSvgs: true,
+				enableWrappedPostMessage: true,
+				useSameOriginForRoot: false,
+				localResourceRoots: this._options.localResourceRoots
+			};
 		}
 	}
 

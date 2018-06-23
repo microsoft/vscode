@@ -57,11 +57,7 @@ class ApplyRefactoringCommand implements Command {
 	private async toWorkspaceEdit(body: Proto.RefactorEditInfo) {
 		const workspaceEdit = new vscode.WorkspaceEdit();
 		for (const edit of body.edits) {
-			try {
-				await vscode.workspace.openTextDocument(edit.fileName);
-			} catch {
-				workspaceEdit.createFile(this.client.toResource(edit.fileName));
-			}
+			workspaceEdit.createFile(this.client.toResource(edit.fileName), { ignoreIfExists: true });
 		}
 		typeConverters.WorkspaceEdit.withFileCodeEdits(workspaceEdit, this.client, body.edits);
 		return workspaceEdit;

@@ -4,11 +4,11 @@
  *--------------------------------------------------------------------------------------------*/
 'use strict';
 
-import { IDisposable, toDisposable, combinedDisposable, empty as EmptyDisposable } from 'vs/base/common/lifecycle';
-import { TPromise } from 'vs/base/common/winjs.base';
-import { once as onceFn } from 'vs/base/common/functional';
 import { onUnexpectedError } from 'vs/base/common/errors';
+import { once as onceFn } from 'vs/base/common/functional';
+import { combinedDisposable, empty as EmptyDisposable, IDisposable, toDisposable } from 'vs/base/common/lifecycle';
 import { LinkedList } from 'vs/base/common/linkedList';
+import { TPromise } from 'vs/base/common/winjs.base';
 
 /**
  * To an event a function with one or zero parameters
@@ -58,9 +58,9 @@ export class Emitter<T> {
 	private static readonly _noop = function () { };
 
 	private _event: Event<T>;
-	private _listeners: LinkedList<Listener>;
-	private _deliveryQueue: [Listener, T][];
 	private _disposed: boolean;
+	private _deliveryQueue: [Listener, T][];
+	protected _listeners: LinkedList<Listener>;
 
 	constructor(private _options?: EmitterOptions) {
 
@@ -156,6 +156,52 @@ export class Emitter<T> {
 			this._deliveryQueue.length = 0;
 		}
 		this._disposed = true;
+	}
+}
+
+export interface IWaitUntil {
+	waitUntil(thenable: Thenable<any>): void;
+}
+
+export class AsyncEmitter<T extends IWaitUntil> extends Emitter<T> {
+
+	private _asyncDeliveryQueue: [Listener, T, Thenable<any>[]][];
+
+	async fireAsync(eventFn: (thenables: Thenable<any>[], listener: Function) => T): TPromise<void> {
+		if (!this._listeners) {
+			return;
+		}
+
+		// put all [listener,event]-pairs into delivery queue
+		// then emit all event. an inner/nested event might be
+		// the driver of this
+		if (!this._asyncDeliveryQueue) {
+			this._asyncDeliveryQueue = [];
+		}
+
+		for (let iter = this._listeners.iterator(), e = iter.next(); !e.done; e = iter.next()) {
+			let thenables: Thenable<void>[] = [];
+			this._asyncDeliveryQueue.push([e.value, eventFn(thenables, typeof e.value === 'function' ? e.value : e.value[0]), thenables]);
+		}
+
+		while (this._asyncDeliveryQueue.length > 0) {
+			const [listener, event, thenables] = this._asyncDeliveryQueue.shift();
+			try {
+				if (typeof listener === 'function') {
+					listener.call(undefined, event);
+				} else {
+					listener[0].call(listener[1], event);
+				}
+			} catch (e) {
+				onUnexpectedError(e);
+				continue;
+			}
+
+			// freeze thenables-collection to enforce sync-calls to
+			// wait until and then wait for all thenables to resolve
+			Object.freeze(thenables);
+			await TPromise.join(thenables);
+		}
 	}
 }
 

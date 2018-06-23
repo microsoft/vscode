@@ -336,10 +336,6 @@ export class BaseNewAction extends BaseFileAction {
 		this.renameAction = editableAction;
 	}
 
-	_isEnabled(): boolean {
-		return super._isEnabled() && (!this.presetFolder || !this.presetFolder.isReadonly);
-	}
-
 	public run(context?: any): TPromise<any> {
 		if (!context) {
 			return TPromise.wrapError(new Error('No context provided to BaseNewAction.'));
@@ -363,6 +359,9 @@ export class BaseNewAction extends BaseFileAction {
 
 		if (!folder) {
 			return TPromise.wrapError(new Error('Invalid parent folder to create.'));
+		}
+		if (folder.isReadonly) {
+			return TPromise.wrapError(new Error('Parent folder is readonly.'));
 		}
 		if (!!folder.getChild(NewStatPlaceholder.NAME)) {
 			// Do not allow to creatae a new file/folder while in the process of creating a new file/folder #47606

@@ -638,10 +638,11 @@ export class OutlinePanel extends ViewletPanel {
 		if (!this._outlineViewState.followCursor || !this._tree.getInput()) {
 			return;
 		}
+		let [first] = this._tree.getSelection();
 		let item = model.getItemEnclosingPosition({
 			lineNumber: selection.selectionStartLineNumber,
 			column: selection.selectionStartColumn
-		});
+		}, first instanceof OutlineElement ? first : undefined);
 		if (item) {
 			await this._tree.reveal(item, .5);
 			this._tree.setFocus(item, this);

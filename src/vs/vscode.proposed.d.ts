@@ -525,7 +525,7 @@ declare module 'vscode' {
 
 		export const quickInputBackButton: QuickInputButton;
 
-		export function createQuickPick(): QuickPick;
+		export function createQuickPick<T extends QuickPickItem>(): QuickPick<T>;
 
 		export function createInputBox(): InputBox;
 	}
@@ -553,7 +553,7 @@ declare module 'vscode' {
 		dispose(): void;
 	}
 
-	export interface QuickPick extends QuickInput {
+	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
 		value: string;
 
@@ -567,7 +567,7 @@ declare module 'vscode' {
 
 		readonly onDidTriggerButton: Event<QuickInputButton>;
 
-		items: ReadonlyArray<QuickPickItem>;
+		items: ReadonlyArray<T>;
 
 		canSelectMany: boolean;
 
@@ -575,13 +575,13 @@ declare module 'vscode' {
 
 		matchOnDetail: boolean;
 
-		activeItems: ReadonlyArray<QuickPickItem>;
+		activeItems: ReadonlyArray<T>;
 
-		readonly onDidChangeActive: Event<QuickPickItem[]>;
+		readonly onDidChangeActive: Event<T[]>;
 
-		selectedItems: ReadonlyArray<QuickPickItem>;
+		selectedItems: ReadonlyArray<T>;
 
-		readonly onDidChangeSelection: Event<QuickPickItem[]>;
+		readonly onDidChangeSelection: Event<T[]>;
 	}
 
 	export interface InputBox extends QuickInput {
@@ -614,6 +614,13 @@ declare module 'vscode' {
 
 	//#region joh: https://github.com/Microsoft/vscode/issues/10659
 
+	/**
+	 * A workspace edit is a collection of textual and files changes for
+	 * multiple resources and documents. Use the [applyEdit](#workspace.applyEdit)-function
+	 * to apply a workspace edit. Note that all changes are applied in the same order in which
+	 * they have been added and that invalid sequences like 'delete file a' -> 'insert text in
+	 * file a' causes failure of the operation.
+	 */
 	export interface WorkspaceEdit {
 
 		/**
@@ -656,7 +663,7 @@ declare module 'vscode' {
 	export interface FileWillRenameEvent {
 		readonly oldUri: Uri;
 		readonly newUri: Uri;
-		waitUntil(thenable: Thenable<any>): void;
+		waitUntil(thenable: Thenable<WorkspaceEdit>): void;
 	}
 
 	export namespace workspace {
@@ -724,6 +731,49 @@ declare module 'vscode' {
 		 * @param serializer Webview serializer.
 		 */
 		export function registerWebviewPanelSerializer(viewType: string, serializer: WebviewPanelSerializer): Disposable;
+	}
+
+	//#endregion
+
+	//#region Matt: Deinition range
+
+	/**
+	 * Information about where a symbol is defined.
+	 *
+	 * Provides additional metadata over normal [location](#Location) definitions, including the range of
+	 * the defining symbol
+	 */
+	export interface DefinitionLink {
+		/**
+		 * Span of the symbol being defined in the source file.
+		 *
+		 * Used as the underlined span for mouse definition hover. Defaults to the word range at
+		 * the definition position.
+		 */
+		origin?: Range;
+
+		/**
+		 * The resource identifier of the definition.
+		 */
+		uri: Uri;
+
+		/**
+		 * The full range of the definition.
+		 *
+		 * For a class definition for example, this would be the entire body of the class definition.
+		 */
+		range: Range;
+
+		/**
+		 * The span of the symbol definition.
+		 *
+		 * For a class definition, this would be the class name itself in the class definition.
+		 */
+		selectionRange?: Range;
+	}
+
+	export interface DefinitionProvider {
+		provideDefinition2?(document: TextDocument, position: Position, token: CancellationToken): ProviderResult<Definition | DefinitionLink[]>;
 	}
 
 	//#endregion

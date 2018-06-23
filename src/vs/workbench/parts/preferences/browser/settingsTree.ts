@@ -7,6 +7,7 @@ import * as DOM from 'vs/base/browser/dom';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { Button } from 'vs/base/browser/ui/button/button';
+import { Checkbox } from 'vs/base/browser/ui/checkbox/checkbox';
 import { InputBox } from 'vs/base/browser/ui/inputbox/inputBox';
 import { SelectBox } from 'vs/base/browser/ui/selectBox/selectBox';
 import * as arrays from 'vs/base/common/arrays';
@@ -22,8 +23,8 @@ import { IAccessibilityProvider, IDataSource, IFilter, IRenderer, ITree } from '
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
-import { WorkbenchTreeController, WorkbenchTree } from 'vs/platform/list/browser/listService';
-import { editorActiveLinkForeground, registerColor } from 'vs/platform/theme/common/colorRegistry';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
+import { editorActiveLinkForeground, registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -42,6 +43,19 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const modifiedItemForegroundColor = theme.getColor(modifiedItemForeground);
 	if (modifiedItemForegroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-is-configured-label { color: ${modifiedItemForegroundColor}; }`);
+	}
+});
+
+registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	const selectBackgroundColor = theme.getColor(selectBackground);
+	if (selectBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${selectBackgroundColor} !important; }`);
+	}
+
+	const selectBorderColor = theme.getColor(selectBorder);
+	if (selectBorderColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${selectBorderColor} !important; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-control > .monaco-inputbox { border: solid 1px ${selectBorderColor} !important; }`);
 	}
 });
 
@@ -320,8 +334,6 @@ function wordifyKey(key: string): string {
 }
 
 function trimCategoryForGroup(category: string, groupId: string): string {
-	// const categoryWithoutSpaces = category.replace(/ /g, '');
-
 	const doTrim = forward => {
 		const parts = groupId.split('.');
 		while (parts.length) {
@@ -329,10 +341,6 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 			if (reg.test(category)) {
 				return category.replace(reg, '');
 			}
-
-			// if (reg.test(categoryWithoutSpaces)) {
-			// 	return categoryWithoutSpaces.replace(reg, '');
-			// }
 
 			if (forward) {
 				parts.pop();
@@ -359,6 +367,7 @@ function trimCategoryForGroup(category: string, groupId: string): string {
 export interface ISettingsEditorViewState {
 	settingsTarget: SettingsTarget;
 	showConfiguredOnly?: boolean;
+	filterToCategory?: SettingsTreeGroupElement;
 }
 
 interface IDisposableTemplate {
@@ -368,12 +377,26 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 
-	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
-	valueElement: HTMLElement;
+	controlElement: HTMLElement;
+	resetButtonElement: HTMLElement;
+	isConfiguredElement: HTMLElement;
+	otherOverridesElement: HTMLElement;
+}
+
+interface ISettingBoolItemTemplate extends IDisposableTemplate {
+	parent: HTMLElement;
+
+	onChange?: (newState: boolean) => void;
+	containerElement: HTMLElement;
+	categoryElement: HTMLElement;
+	labelElement: HTMLElement;
+	descriptionElement: HTMLElement;
+	checkbox: Checkbox;
+	resetButtonElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
@@ -384,6 +407,7 @@ interface IGroupTitleTemplate extends IDisposableTemplate {
 }
 
 const SETTINGS_ELEMENT_TEMPLATE_ID = 'settings.entry.template';
+const SETTINGS_BOOL_TEMPLATE_ID = 'settings.bool.template';
 const SETTINGS_GROUP_ELEMENT_TEMPLATE_ID = 'settings.group.template';
 
 export interface ISettingChangeEvent {
@@ -393,7 +417,7 @@ export interface ISettingChangeEvent {
 
 export class SettingsRenderer implements IRenderer {
 
-	private static readonly SETTING_ROW_HEIGHT = 82;
+	private static readonly SETTING_ROW_HEIGHT = 94;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -413,7 +437,7 @@ export class SettingsRenderer implements IRenderer {
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
-			return 40 + (4 * element.level);
+			return 40 + (7 * element.level);
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
@@ -434,17 +458,22 @@ export class SettingsRenderer implements IRenderer {
 		const template = this.renderSettingTemplate(tree, measureHelper);
 		this.renderSettingElement(tree, element, template);
 
-		const height = measureHelper.offsetHeight;
+		const height = this.measureContainer.offsetHeight;
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
 		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
+
 		if (element instanceof SettingsTreeGroupElement) {
 			return SETTINGS_GROUP_ELEMENT_TEMPLATE_ID;
 		}
 
 		if (element instanceof SettingsTreeSettingElement) {
+			if (element.valueType === 'boolean') {
+				return SETTINGS_BOOL_TEMPLATE_ID;
+			}
+
 			return SETTINGS_ELEMENT_TEMPLATE_ID;
 		}
 
@@ -458,6 +487,10 @@ export class SettingsRenderer implements IRenderer {
 
 		if (templateId === SETTINGS_ELEMENT_TEMPLATE_ID) {
 			return this.renderSettingTemplate(tree, container);
+		}
+
+		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			return this.renderSettingBoolTemplate(tree, container);
 		}
 
 		return null;
@@ -486,6 +519,8 @@ export class SettingsRenderer implements IRenderer {
 		const descriptionElement = DOM.append(container, $('.setting-item-description'));
 
 		const valueElement = DOM.append(container, $('.setting-item-value'));
+		const controlElement = DOM.append(valueElement, $('div'));
+		const resetButtonElement = DOM.append(valueElement, $('.reset-button-container'));
 
 		const toDispose = [];
 		const template: ISettingItemTemplate = {
@@ -496,15 +531,70 @@ export class SettingsRenderer implements IRenderer {
 			categoryElement,
 			labelElement,
 			descriptionElement,
-			valueElement,
+			controlElement,
+			resetButtonElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(resetButtonElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
+			if (e.keyCode === KeyCode.Escape) {
+				tree.domFocus();
+				e.browserEvent.stopPropagation();
+			}
+		}));
+
+		return template;
+	}
+
+	private renderSettingBoolTemplate(tree: ITree, container: HTMLElement): ISettingBoolItemTemplate {
+		DOM.addClass(container, 'setting-item');
+		DOM.addClass(container, 'setting-item-bool');
+
+		const titleElement = DOM.append(container, $('.setting-item-title'));
+		const categoryElement = DOM.append(titleElement, $('span.setting-item-category'));
+		const labelElement = DOM.append(titleElement, $('span.setting-item-label'));
+		const isConfiguredElement = DOM.append(titleElement, $('span.setting-item-is-configured-label'));
+		const otherOverridesElement = DOM.append(titleElement, $('span.setting-item-overrides'));
+
+		const descriptionAndValueElement = DOM.append(container, $('.setting-item-value-description'));
+		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
+		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
+
+		const resetButtonElement = DOM.append(container, $('.reset-button-container'));
+
+		const toDispose = [];
+		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
+		controlElement.appendChild(checkbox.domNode);
+		toDispose.push(checkbox);
+		toDispose.push(checkbox.onChange(() => {
+			if (template.onChange) {
+				template.onChange(checkbox.checked);
+			}
+		}));
+
+		const template: ISettingBoolItemTemplate = {
+			parent: container,
+			toDispose,
+
+			containerElement: container,
+			categoryElement,
+			labelElement,
+			checkbox,
+			descriptionElement,
+			resetButtonElement,
+			isConfiguredElement,
+			otherOverridesElement
+		};
+
+		// Prevent clicks from being handled by list
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+
+		toDispose.push(DOM.addStandardDisposableListener(controlElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {
 				tree.domFocus();
 				e.browserEvent.stopPropagation();
@@ -519,6 +609,10 @@ export class SettingsRenderer implements IRenderer {
 			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
 		}
 
+		if (templateId === SETTINGS_BOOL_TEMPLATE_ID) {
+			return this.renderSettingElement(tree, <SettingsTreeSettingElement>element, template);
+		}
+
 		if (templateId === SETTINGS_GROUP_ELEMENT_TEMPLATE_ID) {
 			return this.renderGroupElement(<SettingsTreeGroupElement>element, template);
 		}
@@ -526,7 +620,7 @@ export class SettingsRenderer implements IRenderer {
 
 	private renderGroupElement(element: SettingsTreeGroupElement, template: IGroupTitleTemplate): void {
 		template.parent.innerHTML = '';
-		const labelElement = DOM.append(template.parent, $('h3.settings-group-title-label'));
+		const labelElement = DOM.append(template.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.level}`);
 		labelElement.textContent = (<SettingsTreeGroupElement>element).label;
 	}
@@ -537,14 +631,13 @@ export class SettingsRenderer implements IRenderer {
 		return selectedElement && selectedElement.id === element.id;
 	}
 
-	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate): void {
+	private renderSettingElement(tree: ITree, element: SettingsTreeSettingElement, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
-		template.context = element;
 		DOM.toggleClass(template.parent, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.parent, 'is-expanded', isSelected);
-		template.containerElement.id = element.id;
+		template.containerElement.id = element.id.replace(/\./g, '_');
 
 		const titleTooltip = setting.key;
 		template.categoryElement.textContent = element.displayCategory && (element.displayCategory + ': ');
@@ -554,8 +647,10 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = element.description;
 
-		this.renderValue(element, isSelected, template);
-		const resetButton = new Button(template.valueElement);
+		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
+
+		template.resetButtonElement.innerHTML = '';
+		const resetButton = new Button(template.resetButtonElement);
 		const resetText = localize('resetButtonTitle', "reset");
 		resetButton.label = resetText;
 		resetButton.element.title = resetText;
@@ -584,17 +679,24 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
+	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
-		template.valueElement.innerHTML = '';
 
-		const valueControlElement = DOM.append(template.valueElement, $('.setting-item-control'));
+		if (element.valueType === 'boolean') {
+			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, onChange);
+		} else {
+			return this._renderValue(element, isSelected, <ISettingItemTemplate>template, onChange);
+		}
+	}
+
+	private _renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: any) => void): void {
+		const valueControlElement = template.controlElement;
+		valueControlElement.innerHTML = '';
+
+		valueControlElement.setAttribute('class', 'setting-item-control');
 		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			valueControlElement.classList.add('setting-type-enum');
 			this.renderEnum(element, isSelected, template, valueControlElement, onChange);
-		} else if (element.valueType === 'boolean') {
-			valueControlElement.classList.add('setting-type-boolean');
-			this.renderBool(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'string') {
 			valueControlElement.classList.add('setting-type-string');
 			this.renderText(element, isSelected, template, valueControlElement, onChange);
@@ -607,13 +709,12 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
-		const checkboxElement = <HTMLInputElement>DOM.append(element, $('input.setting-value-checkbox.setting-value-input'));
-		checkboxElement.type = 'checkbox';
-		checkboxElement.checked = dataElement.value;
-		checkboxElement.tabIndex = isSelected ? 0 : -1;
+	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
+		template.onChange = null;
+		template.checkbox.checked = dataElement.value;
+		template.onChange = onChange;
 
-		template.toDispose.push(DOM.addDisposableListener(checkboxElement, 'change', e => onChange(checkboxElement.checked)));
+		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
@@ -674,7 +775,13 @@ export class SettingsTreeFilter implements IFilter {
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
-		if (this.viewState.showConfiguredOnly && element instanceof SettingsTreeSettingElement) {
+		if (this.viewState.filterToCategory && element instanceof SettingsTreeSettingElement) {
+			if (!this.settingContainedInGroup(element.setting, this.viewState.filterToCategory)) {
+				return false;
+			}
+		}
+
+		if (element instanceof SettingsTreeSettingElement && this.viewState.showConfiguredOnly) {
 			return element.isConfigured;
 		}
 
@@ -683,6 +790,18 @@ export class SettingsTreeFilter implements IFilter {
 		}
 
 		return true;
+	}
+
+	private settingContainedInGroup(setting: ISetting, group: SettingsTreeGroupElement): boolean {
+		return group.children.some(child => {
+			if (child instanceof SettingsTreeGroupElement) {
+				return this.settingContainedInGroup(setting, child);
+			} else if (child instanceof SettingsTreeSettingElement) {
+				return child.setting.key === setting.key;
+			} else {
+				return false;
+			}
+		});
 	}
 
 	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {
