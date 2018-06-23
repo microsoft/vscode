@@ -244,7 +244,7 @@
 	min-width: initial;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > *:first-child {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-item-control.setting-type-enum > select {
 	width: 100%;
 }
 

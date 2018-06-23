@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { editorActiveLinkForeground, editorBackground, inputBackground, registerColor, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { editorActiveLinkForeground, registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -47,16 +47,15 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 });
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
-	const inputBackgroundColor = theme.getColor(inputBackground);
-	const selectBorderColor = theme.getColor(selectBorder);
-	const editorBackgroundColor = theme.getColor(editorBackground);
-
-	if (inputBackgroundColor) {
-		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${inputBackgroundColor} !important; }`);
+	const selectBackgroundColor = theme.getColor(selectBackground);
+	if (selectBackgroundColor) {
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${selectBackgroundColor} !important; }`);
 	}
 
-	if (selectBorderColor && (editorBackgroundColor.equals(inputBackgroundColor))) {
+	const selectBorderColor = theme.getColor(selectBorder);
+	if (selectBorderColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${selectBorderColor} !important; }`);
+		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-control > .monaco-inputbox { border: solid 1px ${selectBorderColor} !important; }`);
 	}
 });
 
@@ -378,7 +377,6 @@ interface IDisposableTemplate {
 interface ISettingItemTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 
-	context?: SettingsTreeSettingElement;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
@@ -392,13 +390,12 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 interface ISettingBoolItemTemplate extends IDisposableTemplate {
 	parent: HTMLElement;
 
-	context?: SettingsTreeSettingElement;
+	onChange?: (newState: boolean) => void;
 	containerElement: HTMLElement;
 	categoryElement: HTMLElement;
 	labelElement: HTMLElement;
-	descriptionAndValueElement: HTMLElement;
 	descriptionElement: HTMLElement;
-	controlElement: HTMLElement;
+	checkbox: Checkbox;
 	resetButtonElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
@@ -571,6 +568,15 @@ export class SettingsRenderer implements IRenderer {
 		const resetButtonElement = DOM.append(container, $('.reset-button-container'));
 
 		const toDispose = [];
+		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
+		controlElement.appendChild(checkbox.domNode);
+		toDispose.push(checkbox);
+		toDispose.push(checkbox.onChange(() => {
+			if (template.onChange) {
+				template.onChange(checkbox.checked);
+			}
+		}));
+
 		const template: ISettingBoolItemTemplate = {
 			parent: container,
 			toDispose,
@@ -578,9 +584,8 @@ export class SettingsRenderer implements IRenderer {
 			containerElement: container,
 			categoryElement,
 			labelElement,
-			descriptionAndValueElement,
+			checkbox,
 			descriptionElement,
-			controlElement,
 			resetButtonElement,
 			isConfiguredElement,
 			otherOverridesElement
@@ -630,7 +635,6 @@ export class SettingsRenderer implements IRenderer {
 		const isSelected = !!this.elementIsSelected(tree, element);
 		const setting = element.setting;
 
-		template.context = element;
 		DOM.toggleClass(template.parent, 'is-configured', element.isConfigured);
 		DOM.toggleClass(template.parent, 'is-expanded', isSelected);
 		template.containerElement.id = element.id.replace(/\./g, '_');
@@ -643,7 +647,7 @@ export class SettingsRenderer implements IRenderer {
 		template.labelElement.title = titleTooltip;
 		template.descriptionElement.textContent = element.description;
 
-		this.renderValue(element, isSelected, template);
+		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
 
 		template.resetButtonElement.innerHTML = '';
 		const resetButton = new Button(template.resetButtonElement);
@@ -675,8 +679,17 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate): void {
+	private renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate | ISettingBoolItemTemplate): void {
 		const onChange = value => this._onDidChangeSetting.fire({ key: element.setting.key, value });
+
+		if (element.valueType === 'boolean') {
+			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, onChange);
+		} else {
+			return this._renderValue(element, isSelected, <ISettingItemTemplate>template, onChange);
+		}
+	}
+
+	private _renderValue(element: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, onChange: (value: any) => void): void {
 		const valueControlElement = template.controlElement;
 		valueControlElement.innerHTML = '';
 
@@ -684,9 +697,6 @@ export class SettingsRenderer implements IRenderer {
 		if (element.enum && (element.valueType === 'string' || !element.valueType)) {
 			valueControlElement.classList.add('setting-type-enum');
 			this.renderEnum(element, isSelected, template, valueControlElement, onChange);
-		} else if (element.valueType === 'boolean') {
-			valueControlElement.classList.add('setting-type-boolean');
-			this.renderBool(element, isSelected, <ISettingBoolItemTemplate>template, valueControlElement, onChange);
 		} else if (element.valueType === 'string') {
 			valueControlElement.classList.add('setting-type-string');
 			this.renderText(element, isSelected, template, valueControlElement, onChange);
@@ -699,16 +709,12 @@ export class SettingsRenderer implements IRenderer {
 		}
 	}
 
-	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, element: HTMLElement, onChange: (value: boolean) => void): void {
-		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: dataElement.value, title: '', inputActiveOptionBorder: null });
-		template.toDispose.push(checkbox);
+	private renderBool(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingBoolItemTemplate, onChange: (value: boolean) => void): void {
+		template.onChange = null;
+		template.checkbox.checked = dataElement.value;
+		template.onChange = onChange;
 
-		template.toDispose.push(checkbox.onChange(() => {
-			onChange(checkbox.checked);
-		}));
-
-		element.appendChild(checkbox.domNode);
-		checkbox.domNode.tabIndex = isSelected ? 0 : -1;
+		template.checkbox.domNode.tabIndex = isSelected ? 0 : -1;
 	}
 
 	private renderEnum(dataElement: SettingsTreeSettingElement, isSelected: boolean, template: ISettingItemTemplate, element: HTMLElement, onChange: (value: string) => void): void {
