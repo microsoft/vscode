@@ -3,6 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+import 'vs/css!./tree';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { TreeModel, ITreeListElement, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
@@ -67,9 +68,9 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeListElement<T>, I
 	}
 
 	renderTemplate(container: HTMLElement): ITreeListTemplateData<TTemplateData> {
-		const el = append(container, $('.monaco-tree-row'));
-		const twistie = append(el, $('.row-twistie'));
-		const contents = append(el, $('.row-contents'));
+		const el = append(container, $('.monaco-tl-row'));
+		const twistie = append(el, $('.tl-twistie'));
+		const contents = append(el, $('.tl-contents'));
 		const templateData = this.renderer.renderTemplate(contents);
 
 		return { twistie, templateData };
@@ -78,7 +79,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeListElement<T>, I
 	renderElement(element: ITreeListElement<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		const { twistie } = templateData;
 		twistie.innerText = element.collapsed ? '▹' : '◢';
-		twistie.style.width = `${element.depth * 20}px`;
+		twistie.style.width = `${10 + element.depth * 10}px`;
 
 		this.renderer.renderElement(element.element, index, templateData.templateData);
 	}

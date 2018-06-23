@@ -1,0 +1,53 @@
+<html>
+
+<head>
+	<meta charset="utf-8">
+	<title>Tree</title>
+	<style>
+		#container {
+			width: 400;
+			height: 600;
+			border: 1px solid black;
+		}
+	</style>
+</head>
+
+<body>
+	<div id="container"></div>
+
+	<script src="../out/vs/loader.js"></script>
+	<script>
+		require.config({ baseUrl: '../out' });
+
+		require(['vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ Tree }, { iter }) => {
+			const delegate = {
+				getHeight() { return 22; },
+				getTemplateId() { return 'template'; }
+			};
+
+			const renderer = {
+				templateId: 'template',
+				renderTemplate(container) { return container; },
+				renderElement(element, index, container) {
+					container.textContent = element;
+				},
+				disposeTemplate() { }
+			};
+
+			const tree = new Tree(container, delegate, [renderer]);
+			tree.splice([0], 0, iter([
+				{
+					element: '0', collapsed: false, children: iter([
+						{ element: '10', collapsed: false, children: iter([]) },
+						{ element: '11', collapsed: true, children: iter([]) },
+						{ element: '12', collapsed: true, children: iter([]) },
+					])
+				},
+				{ element: '1', collapsed: false, children: iter([]) },
+				{ element: '2', collapsed: false, children: iter([]) }
+			]))
+		});
+	</script>
+</body>
+
+</html>
