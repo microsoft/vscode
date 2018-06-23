@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeListElement, TreeModel } from 'vs/base/browser/ui/list/treeModel';
+import { ITreeListElement, TreeModel } from 'vs/base/browser/ui/tree/treeModel';
 import { ISpliceable } from 'vs/base/browser/ui/list/splice';
 import { iter } from 'vs/base/common/iterator';
 

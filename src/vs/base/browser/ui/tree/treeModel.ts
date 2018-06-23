@@ -9,12 +9,6 @@ import { ISpliceable } from 'vs/base/common/sequence';
 import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
 import { last } from 'vs/base/common/arrays';
 
-/**
- * TODO:
- * remove trie
- * remove tree
- */
-
 export interface ITreeElement<T> {
 	readonly element: T;
 	readonly children: IIterator<ITreeElement<T>>;
