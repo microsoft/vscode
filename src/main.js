@@ -409,7 +409,7 @@ global.getOpenUrls = function () {
 // Linux: disable hardware acceleration when transparent window is enabled
 try {
 	if (process.platform === 'linux') {
-		const configFile = path.join(getUserDataPath(), 'User', 'settings.json');
+		const configFile = path.join(app.getPath('userData'), 'User', 'settings.json');
 		if (fs.existsSync(configFile)) {
 			const config = JSON.parse(stripComments(fs.readFileSync(configFile, 'utf8')));
 			if (config['window.transparent']) {
