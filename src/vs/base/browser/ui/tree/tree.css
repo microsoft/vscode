@@ -5,6 +5,8 @@
 
 .monaco-tl-row {
 	display: flex;
+	height: 100%;
+	align-items: center;
 }
 
 .monaco-tl-row > .tl-twistie {

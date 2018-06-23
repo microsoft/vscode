@@ -11,6 +11,12 @@ import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 
+/**
+ * Remove ITreeListElement and just use ITreeNode instead.
+ * We need ITreeNode live objects to associate them with the respective rendered
+ * HTMLElement. That way we can find the right node when DOM events happen, eg click.
+ */
+
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeListElement<T>> {
 	if (!options) {
 		return undefined;
