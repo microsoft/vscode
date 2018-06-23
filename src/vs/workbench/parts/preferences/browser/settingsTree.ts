@@ -541,7 +541,8 @@ export class SettingsRenderer implements IRenderer {
 		};
 
 		// Prevent clicks from being handled by list
-		toDispose.push(DOM.addDisposableListener(valueElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(controlElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
+		toDispose.push(DOM.addDisposableListener(resetButtonElement, 'mousedown', (e: IMouseEvent) => e.stopPropagation()));
 
 		toDispose.push(DOM.addStandardDisposableListener(valueElement, 'keydown', (e: StandardKeyboardEvent) => {
 			if (e.keyCode === KeyCode.Escape) {

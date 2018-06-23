@@ -250,21 +250,11 @@ export class SettingsEditor2 extends BaseEditor {
 				this.refreshTreeAndMaintainFocus();
 			} else if (this.settingsTreeModel) {
 				const element = e.selection[0];
-				const currentSelection = this.settingsTree.getSelection()[0];
-				const isEqualOrParent = (element: SettingsTreeElement, candidate: SettingsTreeElement) => {
-					do {
-						if (element === candidate) {
-							return true;
-						}
-					} while (element = element.parent);
-
-					return false;
-				};
-
-				if (element && !e.payload.fromScroll && (!currentSelection || !isEqualOrParent(currentSelection, element))) {
+				if (element && !e.payload.fromScroll) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
+					this.settingsTree.domFocus();
 				}
 			}
 		}));

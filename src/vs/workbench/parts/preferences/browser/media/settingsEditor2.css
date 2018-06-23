@@ -147,16 +147,10 @@
 	height: 100%;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.odd:not(.focused):not(.selected):not(:hover),
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(:focus) .setting-item.focused.odd:not(.selected):not(:hover),
-.settings-editor > .settings-body > .settings-tree-container .monaco-tree:not(.focused) .setting-item.focused.odd:not(.selected):not(:hover) {
-	background-color: rgba(130, 130, 130, 0.04);
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item > .setting-item-left {
-	flex: 1;
-	padding-top: 3px;
-	padding-bottom: 12px;
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title {
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-title .setting-item-is-configured-label {
@@ -220,7 +214,7 @@
 	width: 16px;
 	border: 1px solid transparent;
 	border-radius: 3px;
-	margin-right: 3px;
+	margin-right: 4px;
 	margin-left: 0px;
 	margin-top: 4px;
 	padding: 0px;
@@ -262,7 +256,7 @@
 	padding-left: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .edit-in-settings-button + .setting-reset-button.monaco-button {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-type-complex + .reset-button-container > .setting-reset-button.monaco-button {
 	display: none;
 }
 
@@ -272,7 +266,7 @@
 	height: 26px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-reset-button.monaco-button {
+.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-reset-button.monaco-button {
 	text-align: left;
 	display: inline-block;
 	visibility: hidden;
@@ -281,7 +275,7 @@
 	padding-top: 2px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-item-value > .setting-reset-button.monaco-button {
+.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-reset-button.monaco-button {
 	visibility: visible;
 }
 
