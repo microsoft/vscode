@@ -35,6 +35,14 @@ interface ITreeNode<T> {
 	visibleCount: number;
 }
 
+function visibleCountReducer<T>(result: number, node: ITreeNode<T>): number {
+	return result + (node.collapsed ? 1 : node.visibleCount);
+}
+
+function getVisibleCount<T>(nodes: ITreeNode<T>[]): number {
+	return nodes.reduce(visibleCountReducer, 0);
+}
+
 function treeElementToNode<T>(treeElement: ITreeElement<T>, depth: number, visible: boolean, visibleElements: ITreeListElement<T>[]): ITreeNode<T> {
 	const { element, collapsed } = treeElement;
 
@@ -43,7 +51,7 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, depth: number, visib
 	}
 
 	const children = collect(map(treeElement.children, el => treeElementToNode(el, depth + 1, visible && !treeElement.collapsed, visibleElements)));
-	const visibleCount = children.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 1);
+	const visibleCount = 1 + getVisibleCount(children);
 
 	return { element, children, depth, collapsed, visibleCount };
 }
@@ -76,12 +84,12 @@ export class TreeModel<T> {
 		const listToInsert: ITreeListElement<T>[] = [];
 		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode.depth + 1, visible, listToInsert)));
 		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
+		const visibleDeleteCount = getVisibleCount(deletedNodes);
 
-		parentNode.visibleCount += nodesToInsert.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0) - deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0);
+		parentNode.visibleCount += getVisibleCount(nodesToInsert) - visibleDeleteCount;
 
 		if (visible) {
-			const listDeleteCount = deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0);
-			this.list.splice(listIndex, listDeleteCount, listToInsert);
+			this.list.splice(listIndex, visibleDeleteCount, listToInsert);
 		}
 
 		return map(iter(deletedNodes), treeNodeToElement);
