@@ -6,7 +6,7 @@
 'use strict';
 
 import { ISpliceable } from 'vs/base/common/sequence';
-import { IIterator, map, collect, iter } from 'vs/base/common/iterator';
+import { IIterator, map, collect, iter, empty } from 'vs/base/common/iterator';
 import { last } from 'vs/base/common/arrays';
 
 /**
@@ -67,32 +67,27 @@ export class TreeModel<T> {
 
 	constructor(private list: ISpliceable<ITreeListElement<T>>) { }
 
-	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>>): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
-		const { parentNode, parentListIndex, visible } = this.findParentNode(location);
+		const { parentNode, listIndex, visible } = this.findParentNode(location);
 		const listToInsert: ITreeListElement<T>[] = [];
 		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode.depth + 1, visible, listToInsert)));
-		const index = last(location);
-		const deletedNodes = parentNode.children.splice(index, deleteCount, ...nodesToInsert);
+		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
 
-		parentNode.visibleCount += nodesToInsert.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 1) - deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 1);
+		parentNode.visibleCount += nodesToInsert.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0) - deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0);
 
 		if (visible) {
-			const listDeleteCount = deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 1);
-			this.list.splice(parentListIndex + index, listDeleteCount, listToInsert);
+			const listDeleteCount = deletedNodes.reduce((r, c) => r + (c.collapsed ? 1 : c.visibleCount), 0);
+			this.list.splice(listIndex, listDeleteCount, listToInsert);
 		}
 
 		return map(iter(deletedNodes), treeNodeToElement);
 	}
 
-	private findParentNode(location: number[], node: ITreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: ITreeNode<T>; parentListIndex: number; visible: boolean; } {
-		if (location.length === 1) {
-			return { parentNode: node, parentListIndex: listIndex, visible };
-		}
-
+	private findParentNode(location: number[], node: ITreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: ITreeNode<T>; listIndex: number; visible: boolean; } {
 		const [i, ...rest] = location;
 		const limit = Math.min(i, node.children.length);
 
@@ -101,6 +96,12 @@ export class TreeModel<T> {
 			listIndex += node.children[j].visibleCount;
 		}
 
-		return this.findParentNode(rest, node.children[i], listIndex + 1, visible && !node.collapsed);
+		visible = visible && !node.collapsed;
+
+		if (rest.length === 0) {
+			return { parentNode: node, listIndex, visible };
+		}
+
+		return this.findParentNode(rest, node.children[i], listIndex + 1, visible);
 	}
 }
