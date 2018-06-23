@@ -226,11 +226,13 @@ export class CodeWindow implements ICodeWindow {
 			const { SetWindowCompositionAttribute, AccentState } = require.__$__nodeRequire('windows-swca') as any;
 
 			let attribValue = AccentState.ACCENT_DISABLED;
+			let color = 0x00000000;
 			switch (windowConfig.compositionAttribute) {
 				case 'acrylic':
 					// Fluent/acrylic flag was introduced in Windows 10 build 17063 (between FCU and April 2018 update)
 					if (parseInt(os.release().split('.')[2]) >= 17063) {
 						attribValue = AccentState.ACCENT_ENABLE_FLUENT;
+						color = 0x01000000; // using a small alpha because acrylic bugs out at full transparency.
 					}
 					break;
 
@@ -243,8 +245,7 @@ export class CodeWindow implements ICodeWindow {
 					break;
 			}
 
-			// using a small alpha because acrylic bugs out at full transparency.
-			SetWindowCompositionAttribute(this._win, attribValue, 0x01000000);
+			SetWindowCompositionAttribute(this._win, attribValue, color);
 		} else if (needsWinTransparency) {
 			const { DwmEnableBlurBehindWindow } = require.__$__nodeRequire('windows-blurbehind') as any;
 

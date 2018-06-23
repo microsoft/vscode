@@ -136,10 +136,12 @@ export class MinimapCharRenderer {
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
 		const backgroundB = backgroundColor.b;
+		const backgroundA = backgroundColor.a;
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
+		const deltaA = color.a - backgroundA;
 
 		const dest = target.data;
 		const sourceOffset = chIndex * Constants.x2_CHAR_HEIGHT * Constants.x2_CHAR_WIDTH;
@@ -149,12 +151,14 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 		{
 			const c = x2CharData[sourceOffset + 1] / 255;
 			dest[destOffset + 4] = backgroundR + deltaR * c;
 			dest[destOffset + 5] = backgroundG + deltaG * c;
 			dest[destOffset + 6] = backgroundB + deltaB * c;
+			dest[destOffset + 7] = backgroundA + deltaA * c;
 		}
 
 		destOffset += outWidth;
@@ -163,12 +167,14 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 		{
 			const c = x2CharData[sourceOffset + 3] / 255;
 			dest[destOffset + 4] = backgroundR + deltaR * c;
 			dest[destOffset + 5] = backgroundG + deltaG * c;
 			dest[destOffset + 6] = backgroundB + deltaB * c;
+			dest[destOffset + 7] = backgroundA + deltaA * c;
 		}
 
 		destOffset += outWidth;
@@ -177,12 +183,14 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 		{
 			const c = x2CharData[sourceOffset + 5] / 255;
 			dest[destOffset + 4] = backgroundR + deltaR * c;
 			dest[destOffset + 5] = backgroundG + deltaG * c;
 			dest[destOffset + 6] = backgroundB + deltaB * c;
+			dest[destOffset + 7] = backgroundA + deltaA * c;
 		}
 
 		destOffset += outWidth;
@@ -191,12 +199,14 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 		{
 			const c = x2CharData[sourceOffset + 7] / 255;
 			dest[destOffset + 4] = backgroundR + deltaR * c;
 			dest[destOffset + 5] = backgroundG + deltaG * c;
 			dest[destOffset + 6] = backgroundB + deltaB * c;
+			dest[destOffset + 7] = backgroundA + deltaA * c;
 		}
 	}
 
@@ -213,10 +223,12 @@ export class MinimapCharRenderer {
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
 		const backgroundB = backgroundColor.b;
+		const backgroundA = backgroundColor.a;
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
+		const deltaA = color.a - backgroundA;
 
 		const dest = target.data;
 		const sourceOffset = chIndex * Constants.x1_CHAR_HEIGHT * Constants.x1_CHAR_WIDTH;
@@ -226,6 +238,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 
 		destOffset += outWidth;
@@ -234,6 +247,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = backgroundR + deltaR * c;
 			dest[destOffset + 1] = backgroundG + deltaG * c;
 			dest[destOffset + 2] = backgroundB + deltaB * c;
+			dest[destOffset + 3] = backgroundA + deltaA * c;
 		}
 	}
 
@@ -250,14 +264,17 @@ export class MinimapCharRenderer {
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
 		const backgroundB = backgroundColor.b;
+		const backgroundA = backgroundColor.a;
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
+		const deltaA = color.a - backgroundA;
 
 		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
+		const colorA = backgroundA + deltaA * c;
 
 		const dest = target.data;
 		let destOffset = dy * outWidth + dx * Constants.RGBA_CHANNELS_CNT;
@@ -265,11 +282,13 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 		{
 			dest[destOffset + 4] = colorR;
 			dest[destOffset + 5] = colorG;
 			dest[destOffset + 6] = colorB;
+			dest[destOffset + 7] = colorA;
 		}
 
 		destOffset += outWidth;
@@ -277,11 +296,13 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 		{
 			dest[destOffset + 4] = colorR;
 			dest[destOffset + 5] = colorG;
 			dest[destOffset + 6] = colorB;
+			dest[destOffset + 7] = colorA;
 		}
 
 		destOffset += outWidth;
@@ -289,11 +310,13 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 		{
 			dest[destOffset + 4] = colorR;
 			dest[destOffset + 5] = colorG;
 			dest[destOffset + 6] = colorB;
+			dest[destOffset + 7] = colorA;
 		}
 
 		destOffset += outWidth;
@@ -301,11 +324,13 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 		{
 			dest[destOffset + 4] = colorR;
 			dest[destOffset + 5] = colorG;
 			dest[destOffset + 6] = colorB;
+			dest[destOffset + 7] = colorA;
 		}
 	}
 
@@ -322,14 +347,17 @@ export class MinimapCharRenderer {
 		const backgroundR = backgroundColor.r;
 		const backgroundG = backgroundColor.g;
 		const backgroundB = backgroundColor.b;
+		const backgroundA = backgroundColor.a;
 
 		const deltaR = color.r - backgroundR;
 		const deltaG = color.g - backgroundG;
 		const deltaB = color.b - backgroundB;
+		const deltaA = color.a - backgroundA;
 
 		const colorR = backgroundR + deltaR * c;
 		const colorG = backgroundG + deltaG * c;
 		const colorB = backgroundB + deltaB * c;
+		const colorA = backgroundA + deltaA * c;
 
 		const dest = target.data;
 
@@ -338,6 +366,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 
 		destOffset += outWidth;
@@ -345,6 +374,7 @@ export class MinimapCharRenderer {
 			dest[destOffset + 0] = colorR;
 			dest[destOffset + 1] = colorG;
 			dest[destOffset + 2] = colorB;
+			dest[destOffset + 3] = colorA;
 		}
 	}
 }

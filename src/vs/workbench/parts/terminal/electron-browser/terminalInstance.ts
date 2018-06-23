@@ -286,7 +286,8 @@ export class TerminalInstance implements ITerminalInstance {
 			rightClickSelectsWord: config.rightClickBehavior === 'selectWord',
 			// TODO: Guess whether to use canvas or dom better
 			rendererType: config.rendererType === 'auto' ? 'canvas' : config.rendererType,
-			experimentalCharAtlas: config.experimentalTextureCachingStrategy
+			experimentalCharAtlas: config.experimentalTextureCachingStrategy,
+			allowTransparency: true
 		});
 		if (this._shellLaunchConfig.initialText) {
 			this._xterm.writeln(this._shellLaunchConfig.initialText);
