@@ -22,7 +22,7 @@ const DefaultOptions: ITreeOptions<any> = {
 
 export class Tree<T> implements IDisposable {
 
-	private list: List<ITreeListElement<T>>;
+	private view: List<ITreeListElement<T>>;
 	private model: TreeModel<T>;
 
 	constructor(
@@ -36,8 +36,8 @@ export class Tree<T> implements IDisposable {
 		const listRenderers: IRenderer<ITreeListElement<T>, any>[] = [];
 		const listOptions: ITreeOptions<ITreeListElement<T>> = undefined;
 
-		this.list = new List(container, listDelegate, listRenderers, listOptions);
-		this.model = new TreeModel<T>(this.list);
+		this.view = new List(container, listDelegate, listRenderers, listOptions);
+		this.model = new TreeModel<T>(this.view);
 	}
 
 	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
@@ -45,6 +45,6 @@ export class Tree<T> implements IDisposable {
 	}
 
 	dispose(): void {
-		this.list.dispose();
+		this.view.dispose();
 	}
 }
