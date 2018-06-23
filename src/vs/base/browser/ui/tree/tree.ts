@@ -17,9 +17,6 @@ const DefaultOptions: ITreeOptions<any> = {
 	multipleSelectionSupport: true
 };
 
-// export type IDelegate<T> = IListDelegate<ITreeListElement<T>>;
-// export type IRenderer<T, TTemplateData> = IListRenderer<ITreeListElement<T>, TTemplateData>;
-
 export class Tree<T> implements IDisposable {
 
 	private view: List<ITreeListElement<T>>;
