@@ -11,7 +11,7 @@ import { last } from 'vs/base/common/arrays';
 
 export interface ITreeElement<T> {
 	readonly element: T;
-	readonly children?: IIterator<ITreeElement<T>>;
+	readonly children?: IIterator<ITreeElement<T>> | ITreeElement<T>[];
 	readonly collapsed?: boolean;
 }
 
@@ -49,6 +49,16 @@ function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[]
 	return result;
 }
 
+function getTreeElementIterator<T>(elements: IIterator<ITreeElement<T>> | ITreeElement<T>[] | undefined): IIterator<ITreeElement<T>> {
+	if (!elements) {
+		return empty();
+	} else if (Array.isArray(elements)) {
+		return iter(elements);
+	} else {
+		return elements;
+	}
+}
+
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsed } = treeElement;
@@ -58,7 +68,8 @@ function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTree
 		treeListElements.push(node);
 	}
 
-	node.children = collect(map(treeElement.children || empty<ITreeElement<T>>(), el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
+	const children = getTreeElementIterator(treeElement.children);
+	node.children = collect(map(children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
 	node.visibleCount = 1 + getVisibleCount(node.children);
 
 	return node;
@@ -84,14 +95,15 @@ export class TreeModel<T> {
 
 	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
-	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
+	splice(location: number[], deleteCount: number, toInsert?: IIterator<ITreeElement<T>> | ITreeElement<T>[]): IIterator<ITreeElement<T>> {
 		if (location.length === 0) {
 			throw new Error('Invalid tree location');
 		}
 
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
 		const treeListElementsToInsert: ITreeNode<T>[] = [];
-		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
+		const elementsToInsert = getTreeElementIterator(toInsert);
+		const nodesToInsert = collect(map(elementsToInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
 		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = getVisibleCount(deletedNodes);
 

@@ -35,17 +35,18 @@
 			};
 
 			const tree = new Tree(container, delegate, [renderer]);
-			tree.splice([0], 0, iter([
+			tree.splice([0], 0, [
 				{
-					element: '0', children: iter([
+					element: '0',
+					children: [
 						{ element: '10' },
 						{ element: '11' },
 						{ element: '12' },
-					])
+					]
 				},
 				{ element: '1' },
 				{ element: '2' }
-			]))
+			])
 		});
 	</script>
 </body>
