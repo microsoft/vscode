@@ -1818,10 +1818,11 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	protected addRecommendedExtensionToFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
 			.then(({ content }) => {
+				const extensionIdLowerCase = extensionId.toLowerCase();
 				const jsonContent: IExtensionsConfigContent = json.parse(content) || {};
 				const folderRecommendations = jsonContent.recommendations || [];
 
-				if (folderRecommendations.map(e => e.toLowerCase()).indexOf(extensionId.toLowerCase()) !== -1) {
+				if (folderRecommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
 					return TPromise.as(null);
 				}
 				folderRecommendations.push(extensionId);
@@ -1829,7 +1830,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				const folderUnwantedRecommedations = jsonContent.unwantedRecommendations || [];
 				let index = -1;
 				for (let i = 0; i < folderUnwantedRecommedations.length; i++) {
-					if (folderUnwantedRecommedations[i].toLowerCase() === extensionId.toLowerCase()) {
+					if (folderUnwantedRecommedations[i].toLowerCase() === extensionIdLowerCase) {
 						index = i;
 						break;
 					}
@@ -2043,7 +2044,8 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 				}
 				const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
 				return this.getFolderRecommendedExtensions(configurationFile).then(recommendations => {
-					if (recommendations.map(e => e.toLowerCase()).indexOf(extensionId.toLowerCase()) > -1) {
+					const extensionIdLowerCase = extensionId.toLowerCase();
+					if (recommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
 						this.notificationService.info(localize('AddToWorkspaceRecommendations.alreadyExists', 'This extension is already present in workspace recommendations.'));
 						return TPromise.as(null);
 					}
