@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, systemPreferences } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -272,6 +272,16 @@ export class CodeApplication {
 		// two icons in the taskbar for the same app.
 		if (platform.isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
+		}
+
+		// Fix native tabs on macOS 10.13
+		// macOS enables a compatibility patch for any bundle ID beginning with
+		// "com.microsoft.", which breaks native tabs for VS Code.
+		// Explicitly opt out of the patch here before creating any windows.
+		// https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+
+		if (platform.isMacintosh) {
+			systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
 		}
 
 		// Create Electron IPC Server
