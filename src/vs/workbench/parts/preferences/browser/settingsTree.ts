@@ -455,8 +455,9 @@ export class SettingsRenderer implements IRenderer {
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
 		const measureHelper = DOM.append(this.measureContainer, $('.setting-measure-helper'));
 
-		const template = this.renderSettingTemplate(tree, measureHelper);
-		this.renderSettingElement(tree, element, template);
+		const templateId = this.getTemplateId(tree, element);
+		const template = this.renderTemplate(tree, templateId, measureHelper);
+		this.renderElement(tree, element, templateId, template);
 
 		const height = this.measureContainer.offsetHeight;
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
