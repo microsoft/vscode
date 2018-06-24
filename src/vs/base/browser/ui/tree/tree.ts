@@ -9,7 +9,7 @@ import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } f
 import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { append, $ } from 'vs/base/browser/dom';
+import { append, $, toggleClass } from 'vs/base/browser/dom';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -78,7 +78,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 
 	renderElement(element: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		const { twistie } = templateData;
-		twistie.innerText = element.collapsed ? '▹' : '◢';
+		twistie.innerText = element.children.length === 0 ? '' : (element.collapsed ? '▹' : '◢');
 		twistie.style.width = `${10 + element.depth * 10}px`;
 
 		this.renderer.renderElement(element.element, index, templateData.templateData);
