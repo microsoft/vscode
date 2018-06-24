@@ -207,6 +207,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container > .setting-reset-button {
 	width: initial;
+	padding-left: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
