@@ -142,10 +142,12 @@ export class TreeModel<T> {
 				const deleteCount = getVisibleCount(node.children);
 
 				this.list.splice(listIndex, 1 + deleteCount, [node]);
+				node.visibleCount = 1;
 			} else {
 				const toInsert = [node, ...getVisibleNodes(node.children)];
 
 				this.list.splice(listIndex, 1, toInsert);
+				node.visibleCount = toInsert.length;
 			}
 		}
 	}
