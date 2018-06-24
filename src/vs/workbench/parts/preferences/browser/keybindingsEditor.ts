@@ -296,9 +296,10 @@ export class KeybindingsEditor extends BaseEditor implements IKeybindingsEditor 
 		this.sortByPrecedence = this._register(new Checkbox({
 			actionClassName: 'sort-by-precedence',
 			isChecked: false,
-			onChange: () => this.renderKeybindingsEntries(false),
 			title: localize('sortByPrecedene', "Sort by Precedence")
 		}));
+		this._register(
+			this.sortByPrecedence.onChange(() => this.renderKeybindingsEntries(false)));
 		searchContainer.appendChild(this.sortByPrecedence.domNode);
 
 		this.createOpenKeybindingsElement(this.headerContainer);

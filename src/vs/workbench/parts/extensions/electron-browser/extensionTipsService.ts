@@ -208,7 +208,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getWorkspaceRecommendations(): TPromise<string[]> {
-		if (!this.isEnabled) { return TPromise.as([]); }
+		if (!this.isEnabled()) { return TPromise.as([]); }
 
 		return this.fetchCombinedExtensionRecommendationConfig()
 			.then(content => {

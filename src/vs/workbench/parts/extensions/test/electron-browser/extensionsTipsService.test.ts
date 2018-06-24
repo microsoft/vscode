@@ -301,8 +301,11 @@ suite('ExtensionsTipsService Test', () => {
 	}
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations when galleryService is absent', () => {
-		instantiationService.stub(IExtensionGalleryService, 'isEnabled', false);
-		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions);
+		const galleryQuerySpy = sinon.spy();
+		instantiationService.stub(IExtensionGalleryService, { query: galleryQuerySpy, isEnabled: () => false });
+
+		return testNoPromptOrRecommendationsForValidRecommendations(mockTestData.validRecommendedExtensions)
+			.then(() => assert.ok(galleryQuerySpy.notCalled));
 	});
 
 	test('ExtensionTipsService: No Prompt for valid workspace recommendations during extension development', () => {

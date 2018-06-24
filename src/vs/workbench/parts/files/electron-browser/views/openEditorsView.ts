@@ -37,7 +37,7 @@ import { fillInContextMenuActions } from 'vs/platform/actions/browser/menuItemAc
 import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
 import { DirtyEditorContext, OpenEditorsGroupContext } from 'vs/workbench/parts/files/electron-browser/fileCommands';
 import { ResourceContextKey } from 'vs/workbench/common/resources';
-import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer } from 'vs/workbench/browser/dnd';
+import { fillResourceDataTransfers, ResourcesDropHandler, LocalSelectionTransfer, CodeDataTransfers } from 'vs/workbench/browser/dnd';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
 import { IViewletViewOptions } from 'vs/workbench/browser/parts/views/viewsViewlet';
 
@@ -506,6 +506,32 @@ class OpenEditorsDelegate implements IDelegate<OpenEditor | IEditorGroup> {
 	}
 }
 
+/**
+ * Check if the item being dragged is one of the supported types that can be dropped on an
+ * open editor or editor group. Fixes https://github.com/Microsoft/vscode/issues/52344.
+ * @param e
+ * @returns true if dropping is supported.
+ */
+function dropOnEditorSupported(e: DragEvent): boolean {
+	// DataTransfer types are automatically converted to lower case, except Files.
+	const supportedTransferTypes = {
+		openEditor: CodeDataTransfers.EDITORS.toLowerCase(),
+		externalFile: 'Files',
+		codeFile: CodeDataTransfers.FILES.toLowerCase()
+	};
+
+	if (
+		e.dataTransfer.types.indexOf(supportedTransferTypes.openEditor) !== -1 ||
+		e.dataTransfer.types.indexOf(supportedTransferTypes.externalFile) !== -1 ||
+		// All Code files should already register as normal files, but just to be safe:
+		e.dataTransfer.types.indexOf(supportedTransferTypes.codeFile) !== -1
+	) {
+		return true;
+	} else {
+		return false;
+	}
+}
+
 class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplateData> {
 	static readonly ID = 'editorgroup';
 
@@ -538,8 +564,10 @@ class EditorGroupRenderer implements IRenderer<IEditorGroup, IEditorGroupTemplat
 		editorGroupTemplate.actionBar.push(closeGroupAction, { icon: true, label: false, keybinding: closeGroupActionKey ? closeGroupActionKey.getLabel() : void 0 });
 
 		editorGroupTemplate.toDispose = [];
-		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
-			dom.addClass(container, 'focused');
+		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
+			if (dropOnEditorSupported(e)) {
+				dom.addClass(container, 'focused');
+			}
 		}));
 		editorGroupTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
 			dom.removeClass(container, 'focused');
@@ -624,8 +652,10 @@ class OpenEditorRenderer implements IRenderer<OpenEditor, IOpenEditorTemplateDat
 				this.instantiationService.invokeFunction(fillResourceDataTransfers, dragged.map(d => d.getResource()), e);
 			}
 		}));
-		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, () => {
-			dom.addClass(container, 'focused');
+		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_OVER, (e: DragEvent) => {
+			if (dropOnEditorSupported(e)) {
+				dom.addClass(container, 'focused');
+			}
 		}));
 		editorTemplate.toDispose.push(dom.addDisposableListener(container, dom.EventType.DRAG_LEAVE, () => {
 			dom.removeClass(container, 'focused');

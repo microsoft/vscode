@@ -25,6 +25,7 @@ export interface ITree {
 	onDidExpandItem: Event<IItemExpandEvent>;
 	onDidCollapseItem: Event<IItemCollapseEvent>;
 	onDidDispose: Event<void>;
+	onDidScroll: Event<void>;
 
 	/**
 	 * Returns the tree's DOM element.
@@ -147,6 +148,11 @@ export interface ITree {
 	 * Useful when calling `reveal(element, relativeTop)`.
 	 */
 	getRelativeTop(element: any): number;
+
+	/**
+	 * Returns the top-most visible element.
+	 */
+	getFirstVisibleElement(): any;
 
 	/**
 	 * Returns a number between 0 and 1 representing how much the tree is scroll down. 0 means all the way

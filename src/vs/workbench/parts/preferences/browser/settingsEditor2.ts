@@ -13,14 +13,14 @@ import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
-import { DefaultTreestyler } from 'vs/base/parts/tree/browser/treeDefaults';
+import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { WorkbenchTree } from 'vs/platform/list/browser/listService';
+import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
 import { ILogService } from 'vs/platform/log/common/log';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { editorBackground, foreground, listActiveSelectionBackground, listInactiveSelectionBackground } from 'vs/platform/theme/common/colorRegistry';
@@ -235,6 +235,7 @@ export class SettingsEditor2 extends BaseEditor {
 			<ITreeConfiguration>{
 				dataSource: tocDataSource,
 				renderer: tocRenderer,
+				controller: this.instantiationService.createInstance(WorkbenchTreeController, { openMode: OpenMode.DOUBLE_CLICK }),
 				filter: this.instantiationService.createInstance(SettingsTreeFilter, this.viewState)
 			},
 			{
@@ -249,21 +250,11 @@ export class SettingsEditor2 extends BaseEditor {
 				this.refreshTreeAndMaintainFocus();
 			} else if (this.settingsTreeModel) {
 				const element = e.selection[0];
-				const currentSelection = this.settingsTree.getSelection()[0];
-				const isEqualOrParent = (element: SettingsTreeElement, candidate: SettingsTreeElement) => {
-					do {
-						if (element === candidate) {
-							return true;
-						}
-					} while (element = element.parent);
-
-					return false;
-				};
-
-				if (element && (!currentSelection || !isEqualOrParent(currentSelection, element))) {
+				if (element && !e.payload.fromScroll) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
+					this.settingsTree.domFocus();
 				}
 			}
 		}));
@@ -336,14 +327,29 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
-		this._register(this.settingsTree.onDidChangeSelection(e => {
-			const element = e.selection[0] instanceof SettingsTreeSettingElement ? e.selection[0].parent :
-				e.selection[0] instanceof SettingsTreeGroupElement ? e.selection[0] :
+		this._register(this.settingsTree.onDidScroll(() => {
+			if (this.searchResultModel) {
+				return;
+			}
+
+			if (!this.tocTree.getInput()) {
+				return;
+			}
+
+			const topElement = this.settingsTree.getFirstVisibleElement();
+			const element = topElement instanceof SettingsTreeSettingElement ? topElement.parent :
+				topElement instanceof SettingsTreeGroupElement ? topElement :
 					null;
 
 			if (element && this.tocTree.getSelection()[0] !== element) {
-				this.tocTree.reveal(element, 0);
-				this.tocTree.setSelection([element]);
+				const elementTop = this.tocTree.getRelativeTop(element);
+				if (elementTop < 0) {
+					this.tocTree.reveal(element, 0);
+				} else if (elementTop > 1) {
+					this.tocTree.reveal(element, 1);
+				}
+
+				this.tocTree.setSelection([element], { fromScroll: true });
 				this.tocTree.setFocus(element);
 			}
 		}));
@@ -513,7 +519,7 @@ export class SettingsEditor2 extends BaseEditor {
 			.then(() => {
 				if (focusedRowId) {
 					const rowSelector = `.setting-item#${focusedRowId}`;
-					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a`);
+					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a, ${rowSelector} .monaco-custom-checkbox`);
 					if (inputElementToFocus) {
 						inputElementToFocus.focus();
 						if (typeof selection === 'number') {
@@ -672,8 +678,10 @@ export class SettingsEditor2 extends BaseEditor {
 	private layoutSettingsList(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
-		this.tocTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
-		this.tocTree.layout(listHeight, 200);
+
+		const tocHeight = listHeight - 5; // padding
+		this.tocTreeContainer.style.height = `${tocHeight}px`;
+		this.tocTree.layout(tocHeight, 175);
 	}
 }

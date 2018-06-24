@@ -293,47 +293,49 @@ export class FindInput extends Widget {
 		this.regex = this._register(new RegexCheckbox({
 			appendTitle: appendRegexLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
-			onKeyDown: (e) => {
-				this._onRegexKeyDown.fire(e);
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
+		this._register(this.regex.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+		this._register(this.regex.onKeyDown(e => {
+			this._onRegexKeyDown.fire(e);
+		}));
+
 		this.wholeWords = this._register(new WholeWordsCheckbox({
 			appendTitle: appendWholeWordsLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
 		}));
+		this._register(this.wholeWords.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+
 		this.caseSensitive = this._register(new CaseSensitiveCheckbox({
 			appendTitle: appendCaseSensitiveLabel,
 			isChecked: false,
-			onChange: (viaKeyboard) => {
-				this._onDidOptionChange.fire(viaKeyboard);
-				if (!viaKeyboard) {
-					this.inputBox.focus();
-				}
-				this.setInputWidth();
-				this.validate();
-			},
-			onKeyDown: (e) => {
-				this._onCaseSensitiveKeyDown.fire(e);
-			},
 			inputActiveOptionBorder: this.inputActiveOptionBorder
+		}));
+		this._register(this.caseSensitive.onChange(viaKeyboard => {
+			this._onDidOptionChange.fire(viaKeyboard);
+			if (!viaKeyboard) {
+				this.inputBox.focus();
+			}
+			this.setInputWidth();
+			this.validate();
+		}));
+		this._register(this.caseSensitive.onKeyDown(e => {
+			this._onCaseSensitiveKeyDown.fire(e);
 		}));
 
 		// Arrow-Key support to navigate between options
