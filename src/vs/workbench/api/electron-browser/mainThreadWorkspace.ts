@@ -128,12 +128,18 @@ export class MainThreadWorkspace implements MainThreadWorkspaceShape {
 			folderQueries,
 			type: QueryType.File,
 			maxResults,
-			includePattern: { [typeof includePattern === 'string' ? includePattern : undefined]: true },
-			excludePattern: { [typeof excludePatternOrDisregardExcludes === 'string' ? excludePatternOrDisregardExcludes : undefined]: true },
 			disregardExcludeSettings: excludePatternOrDisregardExcludes === false,
 			useRipgrep,
 			ignoreSymlinks
 		};
+		if (typeof includePattern === 'string') {
+			query.includePattern = { [includePattern]: true };
+		}
+
+		if (typeof excludePatternOrDisregardExcludes === 'string') {
+			query.excludePattern = { [excludePatternOrDisregardExcludes]: true };
+		}
+
 		this._searchService.extendQuery(query);
 
 		const search = this._searchService.search(query).then(result => {
