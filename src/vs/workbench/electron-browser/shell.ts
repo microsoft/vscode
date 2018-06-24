@@ -20,7 +20,6 @@ import { ContextViewService } from 'vs/platform/contextview/browser/contextViewS
 import { Workbench, IWorkbenchStartedInfo } from 'vs/workbench/electron-browser/workbench';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { NullTelemetryService, configurationTelemetry } from 'vs/platform/telemetry/common/telemetryUtils';
-import { IExperimentService, ExperimentService } from 'vs/platform/telemetry/common/experiments';
 import { ITelemetryAppenderChannel, TelemetryAppenderClient } from 'vs/platform/telemetry/common/telemetryIpc';
 import { TelemetryService, ITelemetryServiceConfig } from 'vs/platform/telemetry/common/telemetryService';
 import ErrorTelemetry from 'vs/platform/telemetry/browser/errorTelemetry';
@@ -125,7 +124,6 @@ export class WorkbenchShell {
 	private configurationService: IConfigurationService;
 	private contextService: IWorkspaceContextService;
 	private telemetryService: ITelemetryService;
-	private experimentService: IExperimentService;
 	private extensionService: ExtensionService;
 	private broadcastService: IBroadcastService;
 	private timerService: ITimerService;
@@ -254,7 +252,6 @@ export class WorkbenchShell {
 				"customKeybindingsCount": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
 				"theme": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"language": { "classification": "SystemMetaData", "purpose": "BusinessInsight" },
-				"experiments": { "${inline}": [ "${IExperiments}" ] },
 				"pinnedViewlets": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"restoredViewlet": { "classification": "SystemMetaData", "purpose": "FeatureInsight" },
 				"restoredEditors": { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true },
@@ -272,7 +269,6 @@ export class WorkbenchShell {
 			customKeybindingsCount: info.customKeybindingsCount,
 			theme: this.themeService.getColorTheme().id,
 			language: platform.language,
-			experiments: this.experimentService.getExperiments(),
 			pinnedViewlets: info.pinnedViewlets,
 			restoredViewlet: info.restoredViewlet,
 			restoredEditors: info.restoredEditorsCount,
@@ -366,10 +362,6 @@ export class WorkbenchShell {
 
 		// Hash
 		serviceCollection.set(IHashService, new SyncDescriptor(HashService));
-
-		// Experiments
-		this.experimentService = instantiationService.createInstance(ExperimentService);
-		serviceCollection.set(IExperimentService, this.experimentService);
 
 		// Telemetry
 		if (this.environmentService.isBuilt && !this.environmentService.isExtensionDevelopment && !this.environmentService.args['disable-telemetry'] && !!product.enableTelemetry) {

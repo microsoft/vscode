@@ -5,6 +5,7 @@
 
 'use strict';
 
+
 import { localize } from 'vs/nls';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { dispose } from 'vs/base/common/lifecycle';
@@ -36,6 +37,7 @@ import { WorkbenchPagedList } from 'vs/platform/list/browser/listService';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/views/panelViewlet';
+import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentSerivce';
 
 export class ExtensionsListView extends ViewletPanel {
 
@@ -58,7 +60,8 @@ export class ExtensionsListView extends ViewletPanel {
 		@IExtensionTipsService protected tipsService: IExtensionTipsService,
 		@IModeService private modeService: IModeService,
 		@ITelemetryService private telemetryService: ITelemetryService,
-		@IConfigurationService configurationService: IConfigurationService
+		@IConfigurationService configurationService: IConfigurationService,
+		@IExperimentService private experimentService: IExperimentService
 	) {
 		super({ ...(options as IViewletPanelOptions), ariaHeaderLabel: options.title }, keybindingService, contextMenuService, configurationService);
 	}
@@ -266,6 +269,10 @@ export class ExtensionsListView extends ViewletPanel {
 			return this.getRecommendationsModel(query, options);
 		}
 
+		if (/\bcurated:([^\s]+)\b/.test(query.value)) {
+			return this.getCuratedModel(query, options);
+		}
+
 		let text = query.value;
 		const extensionRegex = /\bext:([^\s]+)\b/g;
 
@@ -361,6 +368,21 @@ export class ExtensionsListView extends ViewletPanel {
 							});
 					});
 			});
+	}
+
+	private getCuratedModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
+		const value = query.value.replace(/curated:/g, '').trim();
+		return this.experimentService.getCuratedExtensionsList(value).then(names => {
+			if (Array.isArray(names) && names.length) {
+				options.source = `curated:${value}`;
+				return this.extensionsWorkbenchService.queryGallery(assign(options, { names, pageSize: names.length }))
+					.then(pager => {
+						this.sortFirstPage(pager, names);
+						return new PagedModel(pager || []);
+					});
+			}
+			return TPromise.as(new PagedModel([]));
+		});
 	}
 
 	private getRecommendationsModel(query: Query, options: IQueryOptions): TPromise<IPagedModel<IExtension>> {
