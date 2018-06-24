@@ -2053,8 +2053,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 					return this.addRecommendedExtensionToFolder(configurationFile, extensionId).then(() => {
 						this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was successfully added to workspace recommendations.'));
 					}, err => {
-						this.notificationService.error(err);
-						throw err;
+						this.notificationService.error(localize('AddToWorkspaceRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
 					});
 				});
 			});
