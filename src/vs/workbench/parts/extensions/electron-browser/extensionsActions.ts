@@ -17,7 +17,7 @@ import { IContextMenuService } from 'vs/platform/contextview/browser/contextView
 import { IDisposable, dispose, Disposable } from 'vs/base/common/lifecycle';
 import { IExtension, ExtensionState, IExtensionsWorkbenchService, VIEWLET_ID, IExtensionsViewlet, AutoUpdateConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionsConfigurationInitialContent } from 'vs/workbench/parts/extensions/common/extensionsFileTemplate';
-import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { LocalExtensionType, IExtensionEnablementService, IExtensionTipsService, EnablementState, ExtensionsLabel, IExtensionManagementServer, IExtensionManagementServerService, IExtensionManagementService, IExtensionsConfigContent } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { areSameExtensions } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService, ServicesAccessor } from 'vs/platform/instantiation/common/instantiation';
 import { ToggleViewletAction } from 'vs/workbench/browser/viewlet';
@@ -1777,24 +1777,43 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 	protected addRecommendedExtensionToFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
-			.then(({ created, content }) => {
-				const folderRecommendations: string[] = (<IExtensionsContent>json.parse(content)).recommendations || [];
+			.then(({ content }) => {
+				const jsonContent: IExtensionsConfigContent = json.parse(content) || {};
+				const folderRecommendations = jsonContent.recommendations || [];
 
 				if (folderRecommendations.map(e => e.toLowerCase()).indexOf(extensionId.toLowerCase()) !== -1) {
 					return TPromise.as(null);
 				}
-
 				folderRecommendations.push(extensionId);
 
-				// TODO:
-				// This will actually overwrite the contents of this key in the file,
-				// removing comments and any additional user modifications.
-				return this.jsonEditingService.write(extensionsFileResource,
-					{
-						key: 'recommendations',
-						value: folderRecommendations
-					},
-					true);
+				const folderUnwantedRecommedations = jsonContent.unwantedRecommendations || [];
+				let index = -1;
+				for (let i = 0; i < folderUnwantedRecommedations.length; i++) {
+					if (folderUnwantedRecommedations[i].toLowerCase() === extensionId.toLowerCase()) {
+						index = i;
+						break;
+					}
+				}
+
+				let removeFromUnwantedPromise = TPromise.wrap(null);
+				if (index > -1) {
+					folderUnwantedRecommedations.splice(index, 1);
+					removeFromUnwantedPromise = this.jsonEditingService.write(extensionsFileResource,
+						{
+							key: 'unwantedRecommendations',
+							value: folderUnwantedRecommedations
+						},
+						true);
+				}
+
+				return removeFromUnwantedPromise.then(() =>
+					this.jsonEditingService.write(extensionsFileResource,
+						{
+							key: 'recommendations',
+							value: folderRecommendations
+						},
+						true)
+				);
 			});
 	}
 
