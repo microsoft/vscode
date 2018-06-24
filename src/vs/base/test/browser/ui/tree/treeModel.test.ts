@@ -4,7 +4,7 @@
  *--------------------------------------------------------------------------------------------*/
 
 import * as assert from 'assert';
-import { ITreeListElement, TreeModel } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode } from 'vs/base/browser/ui/tree/treeModel';
 import { ISpliceable } from 'vs/base/browser/ui/list/splice';
 import { iter } from 'vs/base/common/iterator';
 
@@ -19,14 +19,14 @@ function toSpliceable<T>(arr: T[]): ISpliceable<T> {
 suite('TreeModel2', () => {
 
 	test('ctor', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 		assert(model);
 		assert.equal(list.length, 0);
 	});
 
 	test('insert', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -48,7 +48,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('deep insert', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -85,7 +85,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('deep insert collapsed', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -113,7 +113,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('delete', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -138,7 +138,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('nested delete', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -172,7 +172,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('deep delete', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -200,7 +200,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('hidden delete', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -225,7 +225,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('collapse', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
@@ -256,7 +256,7 @@ suite('TreeModel2', () => {
 	});
 
 	test('expand', () => {
-		const list = [] as ITreeListElement<number>[];
+		const list = [] as ITreeNode<number>[];
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([

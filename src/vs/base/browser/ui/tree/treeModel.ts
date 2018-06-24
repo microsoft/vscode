@@ -15,30 +15,29 @@ export interface ITreeElement<T> {
 	readonly collapsed: boolean;
 }
 
-export interface ITreeListElement<T> {
+export interface ITreeNode<T> {
+	readonly parent: IMutableTreeNode<T>;
 	readonly element: T;
-	readonly collapsed: boolean;
+	readonly children: IMutableTreeNode<T>[];
 	readonly depth: number;
+	readonly collapsed: boolean;
+	readonly visibleCount: number;
 }
 
-interface ITreeNode<T> {
-	readonly parent: ITreeNode<T>;
-	readonly element: T;
-	readonly children: ITreeNode<T>[];
-	readonly depth: number;
+interface IMutableTreeNode<T> extends ITreeNode<T> {
 	collapsed: boolean;
 	visibleCount: number;
 }
 
-function visibleCountReducer<T>(result: number, node: ITreeNode<T>): number {
+function visibleCountReducer<T>(result: number, node: IMutableTreeNode<T>): number {
 	return result + (node.collapsed ? 1 : node.visibleCount);
 }
 
-function getVisibleCount<T>(nodes: ITreeNode<T>[]): number {
+function getVisibleCount<T>(nodes: IMutableTreeNode<T>[]): number {
 	return nodes.reduce(visibleCountReducer, 0);
 }
 
-function getVisibleNodes<T>(nodes: ITreeNode<T>[], result: ITreeListElement<T>[] = []): ITreeListElement<T>[] {
+function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[] = []): ITreeNode<T>[] {
 	for (const node of nodes) {
 		result.push(node);
 
@@ -50,22 +49,22 @@ function getVisibleNodes<T>(nodes: ITreeNode<T>[], result: ITreeListElement<T>[]
 	return result;
 }
 
-function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: ITreeNode<T>, visible: boolean, treeListElements: ITreeListElement<T>[]): ITreeNode<T> {
+function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsed } = treeElement;
+	const node = { parent: undefined, element, children: [], depth, collapsed, visibleCount: 0 };
 
 	if (visible) {
-		treeListElements.push({ element, collapsed, depth });
+		treeListElements.push(node);
 	}
 
-	const node = { parent: undefined, element, children: [], depth, collapsed, visibleCount: 0 };
 	node.children = collect(map(treeElement.children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
 	node.visibleCount = 1 + getVisibleCount(node.children);
 
 	return node;
 }
 
-function treeNodeToElement<T>(node: ITreeNode<T>): ITreeElement<T> {
+function treeNodeToElement<T>(node: IMutableTreeNode<T>): ITreeElement<T> {
 	const { element, collapsed } = node;
 	const children = map(iter(node.children), treeNodeToElement);
 
@@ -74,7 +73,7 @@ function treeNodeToElement<T>(node: ITreeNode<T>): ITreeElement<T> {
 
 export class TreeModel<T> {
 
-	private root: ITreeNode<T> = {
+	private root: IMutableTreeNode<T> = {
 		parent: undefined,
 		element: undefined,
 		children: [],
@@ -83,7 +82,7 @@ export class TreeModel<T> {
 		visibleCount: 1
 	};
 
-	constructor(private list: ISpliceable<ITreeListElement<T>>) { }
+	constructor(private list: ISpliceable<ITreeNode<T>>) { }
 
 	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
 		if (location.length === 0) {
@@ -91,7 +90,7 @@ export class TreeModel<T> {
 		}
 
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
-		const treeListElementsToInsert: ITreeListElement<T>[] = [];
+		const treeListElementsToInsert: ITreeNode<T>[] = [];
 		const nodesToInsert = collect(map(toInsert, el => treeElementToNode(el, parentNode, visible, treeListElementsToInsert)));
 		const deletedNodes = parentNode.children.splice(last(location), deleteCount, ...nodesToInsert);
 		const visibleDeleteCount = getVisibleCount(deletedNodes);
@@ -117,9 +116,8 @@ export class TreeModel<T> {
 		if (visible) {
 			if (collapsed) {
 				const deleteCount = getVisibleCount(node.children);
-				const { element, depth } = node;
 
-				this.list.splice(listIndex, 1 + deleteCount, [{ element, collapsed, depth }]);
+				this.list.splice(listIndex, 1 + deleteCount, [node]);
 			} else {
 				const toInsert = [node, ...getVisibleNodes(node.children)];
 
@@ -133,7 +131,7 @@ export class TreeModel<T> {
 		return node.collapsed;
 	}
 
-	private findNode(location: number[]): { node: ITreeNode<T>, listIndex: number, visible: boolean } {
+	private findNode(location: number[]): { node: IMutableTreeNode<T>, listIndex: number, visible: boolean } {
 		const { parentNode, listIndex, visible } = this.findParentNode(location);
 		const index = last(location);
 
@@ -146,7 +144,7 @@ export class TreeModel<T> {
 		return { node, listIndex, visible };
 	}
 
-	private findParentNode(location: number[], node: ITreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: ITreeNode<T>; listIndex: number; visible: boolean; } {
+	private findParentNode(location: number[], node: IMutableTreeNode<T> = this.root, listIndex: number = 0, visible = true): { parentNode: IMutableTreeNode<T>; listIndex: number; visible: boolean; } {
 		const [index, ...rest] = location;
 
 		if (index < 0 || index > node.children.length) {

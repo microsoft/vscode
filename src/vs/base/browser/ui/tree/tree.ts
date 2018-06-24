@@ -6,24 +6,24 @@
 import 'vs/css!./tree';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
-import { TreeModel, ITreeListElement, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
+import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
 
 /**
- * Remove ITreeListElement and just use ITreeNode instead.
+ * Remove ITreeNode and just use ITreeNode instead.
  * We need ITreeNode live objects to associate them with the respective rendered
  * HTMLElement. That way we can find the right node when DOM events happen, eg click.
  */
 
-function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeListElement<T>> {
+function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
 		return undefined;
 	}
 
-	let identityProvider: IIdentityProvider<ITreeListElement<T>> | undefined = undefined;
-	let multipleSelectionController: IMultipleSelectionController<ITreeListElement<T>> | undefined = undefined;
+	let identityProvider: IIdentityProvider<ITreeNode<T>> | undefined = undefined;
+	let multipleSelectionController: IMultipleSelectionController<ITreeNode<T>> | undefined = undefined;
 
 	if (options.identityProvider) {
 		identityProvider = el => options.identityProvider(el.element);
@@ -47,15 +47,15 @@ function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeList
 	};
 }
 
-class TreeDelegate<T> implements IDelegate<ITreeListElement<T>> {
+class TreeDelegate<T> implements IDelegate<ITreeNode<T>> {
 
 	constructor(private delegate: IDelegate<T>) { }
 
-	getHeight(element: ITreeListElement<T>): number {
+	getHeight(element: ITreeNode<T>): number {
 		return this.delegate.getHeight(element.element);
 	}
 
-	getTemplateId(element: ITreeListElement<T>): string {
+	getTemplateId(element: ITreeNode<T>): string {
 		return this.delegate.getTemplateId(element.element);
 	}
 }
@@ -65,7 +65,7 @@ interface ITreeListTemplateData<T> {
 	templateData: T;
 }
 
-class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeListElement<T>, ITreeListTemplateData<TTemplateData>> {
+class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeListTemplateData<TTemplateData>> {
 
 	readonly templateId: string;
 
@@ -82,7 +82,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeListElement<T>, I
 		return { twistie, templateData };
 	}
 
-	renderElement(element: ITreeListElement<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
+	renderElement(element: ITreeNode<T>, index: number, templateData: ITreeListTemplateData<TTemplateData>): void {
 		const { twistie } = templateData;
 		twistie.innerText = element.collapsed ? '▹' : '◢';
 		twistie.style.width = `${10 + element.depth * 10}px`;
@@ -97,7 +97,7 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeListElement<T>, I
 
 export class Tree<T> implements IDisposable {
 
-	private view: List<ITreeListElement<T>>;
+	private view: List<ITreeNode<T>>;
 	private model: TreeModel<T>;
 
 	constructor(
