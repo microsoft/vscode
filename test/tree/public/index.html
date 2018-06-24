@@ -9,15 +9,19 @@
 			height: 600;
 			border: 1px solid black;
 		}
+
+		.monaco-scrollable-element>.scrollbar>.slider {
+			background: rgba(100, 100, 100, .4);
+		}
 	</style>
 </head>
 
 <body>
 	<div id="container"></div>
 
-	<script src="../out/vs/loader.js"></script>
+	<script src="/static/vs/loader.js"></script>
 	<script>
-		require.config({ baseUrl: '../out' });
+		require.config({ baseUrl: '/static' });
 
 		require(['vs/base/browser/ui/tree/tree', 'vs/base/common/iterator'], ({ Tree }, { iter }) => {
 			const delegate = {
@@ -35,18 +39,22 @@
 			};
 
 			const tree = new Tree(container, delegate, [renderer]);
-			tree.splice([0], 0, [
-				{
-					element: '0',
-					children: [
-						{ element: '10' },
-						{ element: '11' },
-						{ element: '12' },
-					]
-				},
-				{ element: '1' },
-				{ element: '2' }
-			])
+
+			const xhr = new XMLHttpRequest();
+			xhr.open('GET', '/api/ls?path=');
+			xhr.send();
+			xhr.onreadystatechange = function () {
+				if (this.readyState == 4 && this.status == 200) {
+					const data = JSON.parse(this.responseText);
+
+					performance.mark('before splice');
+					const start = performance.now();
+					tree.splice([0], 0, [data]);
+					console.log('splice took', performance.now() - start);
+					performance.mark('after splice');
+
+				}
+			};
 		});
 	</script>
 </body>
