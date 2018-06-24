@@ -9,7 +9,7 @@ import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } f
 import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
-import { append, $, toggleClass } from 'vs/base/browser/dom';
+import { append, $ } from 'vs/base/browser/dom';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
