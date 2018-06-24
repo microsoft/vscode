@@ -206,7 +206,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {
 					id: experiment.id,
-					enabled: experiment.enabled,
+					enabled: !!experiment.enabled,
 					runExperiment: false
 				};
 				if (experiment.action) {
