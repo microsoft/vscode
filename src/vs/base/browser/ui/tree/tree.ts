@@ -4,18 +4,12 @@
  *--------------------------------------------------------------------------------------------*/
 
 import 'vs/css!./tree';
-import { IDisposable } from 'vs/base/common/lifecycle';
+import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { IListOptions, List, IIdentityProvider, IMultipleSelectionController } from 'vs/base/browser/ui/list/listWidget';
 import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/treeModel';
 import { IIterator, empty } from 'vs/base/common/iterator';
-import { IDelegate, IRenderer } from 'vs/base/browser/ui/list/list';
+import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
-
-/**
- * Remove ITreeNode and just use ITreeNode instead.
- * We need ITreeNode live objects to associate them with the respective rendered
- * HTMLElement. That way we can find the right node when DOM events happen, eg click.
- */
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -95,10 +89,22 @@ class TreeRenderer<T, TTemplateData> implements IRenderer<ITreeNode<T>, ITreeLis
 	}
 }
 
+function getLocation<T>(node: ITreeNode<T>): number[] {
+	const location = [];
+
+	while (node.parent) {
+		location.push(node.parent.children.indexOf(node));
+		node = node.parent;
+	}
+
+	return location.reverse();
+}
+
 export class Tree<T> implements IDisposable {
 
 	private view: List<ITreeNode<T>>;
 	private model: TreeModel<T>;
+	private disposables: IDisposable[] = [];
 
 	constructor(
 		container: HTMLElement,
@@ -112,13 +118,24 @@ export class Tree<T> implements IDisposable {
 
 		this.view = new List(container, treeDelegate, treeRenderers, treeOptions);
 		this.model = new TreeModel<T>(this.view);
+
+		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
 	}
 
 	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
 		return this.model.splice(location, deleteCount, toInsert);
 	}
 
+	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
+		const node = e.element;
+		const location = getLocation(node);
+		this.model.toggleCollapsed(location);
+	}
+
 	dispose(): void {
+		this.disposables = dispose(this.disposables);
 		this.view.dispose();
+		this.view = null;
+		this.model = null;
 	}
 }

@@ -16,7 +16,7 @@ export interface ITreeElement<T> {
 }
 
 export interface ITreeNode<T> {
-	readonly parent: IMutableTreeNode<T>;
+	readonly parent: IMutableTreeNode<T> | undefined;
 	readonly element: T;
 	readonly children: IMutableTreeNode<T>[];
 	readonly depth: number;
@@ -52,7 +52,7 @@ function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[]
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsed } = treeElement;
-	const node = { parent: undefined, element, children: [], depth, collapsed, visibleCount: 0 };
+	const node = { parent, element, children: [], depth, collapsed, visibleCount: 0 };
 
 	if (visible) {
 		treeListElements.push(node);
@@ -105,7 +105,19 @@ export class TreeModel<T> {
 	}
 
 	setCollapsed(location: number[], collapsed: boolean): void {
+		this._setCollapsed(location, collapsed);
+	}
+
+	toggleCollapsed(location: number[]): void {
+		this._setCollapsed(location);
+	}
+
+	private _setCollapsed(location: number[], collapsed?: boolean | undefined): void {
 		const { node, listIndex, visible } = this.findNode(location);
+
+		if (typeof collapsed === 'undefined') {
+			collapsed = !node.collapsed;
+		}
 
 		if (node.collapsed === collapsed) {
 			return;
