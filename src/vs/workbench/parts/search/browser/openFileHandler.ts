@@ -26,7 +26,7 @@ import { EditorInput, IWorkbenchEditorConfiguration } from 'vs/workbench/common/
 import { IResourceInput } from 'vs/platform/editor/common/editor';
 import { IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
-import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery } from 'vs/platform/search/common/search';
+import { IQueryOptions, ISearchService, ISearchStats, ISearchQuery, ISearchComplete } from 'vs/platform/search/common/search';
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IRange } from 'vs/editor/common/core/range';
@@ -152,29 +152,44 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
-		return this.doResolveQueryOptions(query, cacheKey, maxSortedResults).then(queryOptions => {
-			let iconClass: string;
-			if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
-				iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
+		let iconClass: string;
+		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
+		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
+			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
+		}
+
+		return this.getAbsolutePathResult(query).then(result => {
+			// If the original search value is an existing file on disk, return it immediately and bypass the search service
+			if (result) {
+				return TPromise.wrap(<ISearchComplete>{ results: [{ resource: result }] });
+			} else {
+				return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions));
+			}
+		}).then(complete => {
+			const results: QuickOpenEntry[] = [];
+			for (let i = 0; i < complete.results.length; i++) {
+				const fileMatch = complete.results[i];
+
+				const label = paths.basename(fileMatch.resource.fsPath);
+				const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.environmentService, this.contextService);
+
+				results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
 			}
 
-			return this.searchService.search(this.queryBuilder.file(this.contextService.getWorkspace().folders.map(folder => folder.uri), queryOptions)).then(complete => {
-				const results: QuickOpenEntry[] = [];
-				for (let i = 0; i < complete.results.length; i++) {
-					const fileMatch = complete.results[i];
-
-					const label = paths.basename(fileMatch.resource.fsPath);
-					const description = labels.getPathLabel(resources.dirname(fileMatch.resource), this.environmentService, this.contextService);
-
-					results.push(this.instantiationService.createInstance(FileEntry, fileMatch.resource, label, description, iconClass));
-				}
-
-				return new FileQuickOpenModel(results, complete.stats);
-			});
+			return new FileQuickOpenModel(results, complete.stats);
 		});
 	}
 
-	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): TPromise<IQueryOptions> {
+	private getAbsolutePathResult(query: IPreparedQuery): TPromise<URI> {
+		if (paths.isAbsolute(query.original)) {
+			const resource = URI.file(query.original);
+			return this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
+		} else {
+			return TPromise.as(null);
+		}
+	}
+
+	private doResolveQueryOptions(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): IQueryOptions {
 		const queryOptions: IQueryOptions = {
 			extraFileResources: getOutOfWorkspaceEditorResources(this.editorService, this.contextService),
 			filePattern: query.value,
@@ -186,23 +201,7 @@ export class OpenFileHandler extends QuickOpenHandler {
 			queryOptions.sortByScore = true;
 		}
 
-		let queryIsAbsoluteFilePromise: TPromise<URI>;
-		if (paths.isAbsolute(query.original)) {
-			const resource = URI.file(query.original);
-			queryIsAbsoluteFilePromise = this.fileService.resolveFile(resource).then(stat => stat.isDirectory ? void 0 : resource, error => void 0);
-		} else {
-			queryIsAbsoluteFilePromise = TPromise.as(null);
-		}
-
-		return queryIsAbsoluteFilePromise.then(resource => {
-			if (resource) {
-				// if the original search value is an existing file on disk, add it to the
-				// extra file resources to consider (fixes https://github.com/Microsoft/vscode/issues/42726)
-				queryOptions.extraFileResources.push(resource);
-			}
-
-			return queryOptions;
-		});
+		return queryOptions;
 	}
 
 	public hasShortResponseTime(): boolean {
