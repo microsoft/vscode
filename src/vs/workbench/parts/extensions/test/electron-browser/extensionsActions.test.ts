@@ -1197,6 +1197,10 @@ suite('ExtensionsActions Test', () => {
 			});
 	});
 
+	test(`RecommendToFolderAction`, () => {
+		// TODO: Implement test
+	});
+
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {
 		const localExtension = <ILocalExtension>Object.create({ manifest: {} });
 		assign(localExtension, { type: LocalExtensionType.User, manifest: {}, location: URI.file(`pub.${name}`) }, properties);
