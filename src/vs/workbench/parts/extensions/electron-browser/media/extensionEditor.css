@@ -260,6 +260,7 @@
 
 .extension-editor > .body > .content table th {
 	text-align: left;
+	word-break: keep-all;
 }
 
 .extension-editor > .body > .content table code:not(:empty) {
@@ -326,6 +327,7 @@
 .extension-editor .subcontent .monaco-tree-row .dependency > .icon {
 	height: 40px;
 	width: 40px;
+	object-fit: contain;
 }
 
 .extension-editor .subcontent .monaco-tree-row .dependency > .details > .header > .name {
