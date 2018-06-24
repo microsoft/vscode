@@ -30,9 +30,9 @@ suite('TreeModel2', () => {
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
-			{ element: 0, collapsed: false, children: iter([]) },
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 0 },
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 3);
@@ -53,14 +53,14 @@ suite('TreeModel2', () => {
 
 		model.splice([0], 0, iter([
 			{
-				element: 0, collapsed: false, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+				element: 0, children: iter([
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 6);
@@ -91,13 +91,13 @@ suite('TreeModel2', () => {
 		model.splice([0], 0, iter([
 			{
 				element: 0, collapsed: true, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 3);
@@ -117,9 +117,9 @@ suite('TreeModel2', () => {
 		const model = new TreeModel<number>(toSpliceable(list));
 
 		model.splice([0], 0, iter([
-			{ element: 0, collapsed: false, children: iter([]) },
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 0 },
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 3);
@@ -143,14 +143,14 @@ suite('TreeModel2', () => {
 
 		model.splice([0], 0, iter([
 			{
-				element: 0, collapsed: false, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+				element: 0, children: iter([
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 6);
@@ -177,14 +177,14 @@ suite('TreeModel2', () => {
 
 		model.splice([0], 0, iter([
 			{
-				element: 0, collapsed: false, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+				element: 0, children: iter([
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 6);
@@ -206,13 +206,13 @@ suite('TreeModel2', () => {
 		model.splice([0], 0, iter([
 			{
 				element: 0, collapsed: true, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 3);
@@ -230,14 +230,14 @@ suite('TreeModel2', () => {
 
 		model.splice([0], 0, iter([
 			{
-				element: 0, collapsed: false, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+				element: 0, children: iter([
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 6);
@@ -262,13 +262,13 @@ suite('TreeModel2', () => {
 		model.splice([0], 0, iter([
 			{
 				element: 0, collapsed: true, children: iter([
-					{ element: 10, collapsed: false, children: iter([]) },
-					{ element: 11, collapsed: false, children: iter([]) },
-					{ element: 12, collapsed: false, children: iter([]) },
+					{ element: 10 },
+					{ element: 11 },
+					{ element: 12 },
 				])
 			},
-			{ element: 1, collapsed: false, children: iter([]) },
-			{ element: 2, collapsed: false, children: iter([]) }
+			{ element: 1 },
+			{ element: 2 }
 		]));
 
 		assert.deepEqual(list.length, 3);

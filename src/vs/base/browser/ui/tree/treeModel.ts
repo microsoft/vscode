@@ -11,8 +11,8 @@ import { last } from 'vs/base/common/arrays';
 
 export interface ITreeElement<T> {
 	readonly element: T;
-	readonly children: IIterator<ITreeElement<T>>;
-	readonly collapsed: boolean;
+	readonly children?: IIterator<ITreeElement<T>>;
+	readonly collapsed?: boolean;
 }
 
 export interface ITreeNode<T> {
@@ -52,13 +52,13 @@ function getVisibleNodes<T>(nodes: IMutableTreeNode<T>[], result: ITreeNode<T>[]
 function treeElementToNode<T>(treeElement: ITreeElement<T>, parent: IMutableTreeNode<T>, visible: boolean, treeListElements: ITreeNode<T>[]): IMutableTreeNode<T> {
 	const depth = parent.depth + 1;
 	const { element, collapsed } = treeElement;
-	const node = { parent, element, children: [], depth, collapsed, visibleCount: 0 };
+	const node = { parent, element, children: [], depth, collapsed: !!collapsed, visibleCount: 0 };
 
 	if (visible) {
 		treeListElements.push(node);
 	}
 
-	node.children = collect(map(treeElement.children, el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
+	node.children = collect(map(treeElement.children || empty<ITreeElement<T>>(), el => treeElementToNode(el, node, visible && !treeElement.collapsed, treeListElements)));
 	node.visibleCount = 1 + getVisibleCount(node.children);
 
 	return node;
