@@ -6179,6 +6179,9 @@ declare module 'vscode' {
 		 *
 		 * An extension can only register a single Uri handler in its entire activation lifetime.
 		 *
+		 * * *Note:* There is an activation event `onUri` that fires when a Uri directed for
+		 * the current extension is about to be handled.
+		 *
 		 * @param handler The Uri handler to register for this extension.
 		 */
 		export function registerUriHandler(handler: UriHandler): Disposable;
