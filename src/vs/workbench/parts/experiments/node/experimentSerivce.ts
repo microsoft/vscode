@@ -62,7 +62,7 @@ interface IRawExperiment {
 }
 
 export interface IExperimentActionPromptProperties {
-	prompt: string;
+	promptText: string;
 	commands: IExperimentActionPromptCommand[];
 }
 
