@@ -328,31 +328,12 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
+		this._register(this.settingsTree.onDidChangeSelection(() => {
+			this.updateTreeScrollSync();
+		}));
+
 		this._register(this.settingsTree.onDidScroll(() => {
-			if (this.searchResultModel) {
-				return;
-			}
-
-			if (!this.tocTree.getInput()) {
-				return;
-			}
-
-			const topElement = this.settingsTree.getFirstVisibleElement();
-			const element = topElement instanceof SettingsTreeSettingElement ? topElement.parent :
-				topElement instanceof SettingsTreeGroupElement ? topElement :
-					null;
-
-			if (element && this.tocTree.getSelection()[0] !== element) {
-				const elementTop = this.tocTree.getRelativeTop(element);
-				if (elementTop < 0) {
-					this.tocTree.reveal(element, 0);
-				} else if (elementTop > 1) {
-					this.tocTree.reveal(element, 1);
-				}
-
-				this.tocTree.setSelection([element], { fromScroll: true });
-				this.tocTree.setFocus(element);
-			}
+			this.updateTreeScrollSync();
 		}));
 	}
 
@@ -383,6 +364,41 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.pendingSettingUpdate = { key, value };
 		this.settingUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+	}
+
+	private updateTreeScrollSync(): void {
+		if (this.searchResultModel) {
+			return;
+		}
+
+		if (!this.tocTree.getInput()) {
+			return;
+		}
+
+		let elementToSync = this.settingsTree.getFirstVisibleElement();
+		const selection = this.settingsTree.getSelection()[0];
+		if (selection) {
+			const selectionPos = this.settingsTree.getRelativeTop(selection);
+			if (selectionPos >= 0 && selectionPos <= 1) {
+				elementToSync = selection;
+			}
+		}
+
+		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
+			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
+				null;
+
+		if (element && this.tocTree.getSelection()[0] !== element) {
+			const elementTop = this.tocTree.getRelativeTop(element);
+			if (elementTop < 0) {
+				this.tocTree.reveal(element, 0);
+			} else if (elementTop > 1) {
+				this.tocTree.reveal(element, 1);
+			}
+
+			this.tocTree.setSelection([element], { fromScroll: true });
+			this.tocTree.setFocus(element);
+		}
 	}
 
 	private updateChangedSetting(key: string, value: any): TPromise<void> {
