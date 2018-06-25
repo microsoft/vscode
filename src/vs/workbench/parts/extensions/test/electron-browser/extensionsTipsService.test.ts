@@ -38,9 +38,8 @@ import { assign } from 'vs/base/common/objects';
 import { getGalleryExtensionId } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
-import { IExtensionsWorkbenchService, ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
+import { ConfigurationKey } from 'vs/workbench/parts/extensions/common/extensions';
 import { ExtensionManagementService } from 'vs/platform/extensionManagement/node/extensionManagementService';
-import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import { TestExtensionEnablementService } from 'vs/platform/extensionManagement/test/common/extensionEnablementService.test';
 import { IURLService } from 'vs/platform/url/common/url';
 import product from 'vs/platform/node/product';
@@ -167,7 +166,6 @@ function aGalleryExtension(name: string, properties: any = {}, galleryExtensionP
 suite('ExtensionsTipsService Test', () => {
 	let workspaceService: IWorkspaceContextService;
 	let instantiationService: TestInstantiationService;
-	let extensionsWorkbenchService: IExtensionsWorkbenchService;
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExtensionTipsService;
 	let parentResource: string;
@@ -222,8 +220,6 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stubPromise(IExtensionManagementService, 'getInstalled', []);
 		instantiationService.stub(IExtensionGalleryService, 'isEnabled', true);
 		instantiationService.stubPromise(IExtensionGalleryService, 'query', aPage<IGalleryExtension>(...mockExtensionGallery));
-		extensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
-		instantiationService.stub(IExtensionsWorkbenchService, extensionsWorkbenchService);
 
 		prompted = false;
 
@@ -246,7 +242,6 @@ suite('ExtensionsTipsService Test', () => {
 
 	teardown(done => {
 		(<ExtensionTipsService>testObject).dispose();
-		(<ExtensionsWorkbenchService>extensionsWorkbenchService).dispose();
 		if (parentResource) {
 			extfs.del(parentResource, os.tmpdir(), () => { }, done);
 		} else {
