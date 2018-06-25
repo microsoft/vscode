@@ -424,17 +424,16 @@ suite('ExtensionsTipsService Test', () => {
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions, workspaceIgnoredRecommendations).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
 			return testObject.loadRecommendationsPromise.then(() => {
-				const recommendations = testObject.getAllIgnoredRecommendations();
-				assert.deepStrictEqual(recommendations,
-					{
-						global: ['mockpublisher2.mockextension2'],
-						workspace: ['ms-vscode.csharp']
-					});
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(recommendations['ms-python.python']);
+
+				assert.ok(!recommendations['mockpublisher2.mockextension2']);
+				assert.ok(!recommendations['ms-vscode.csharp']);
 			});
 		});
 	});
 
-	test('ExtensionTipsService: Able to dynamically ignore global recommendations', () => {
+	test('ExtensionTipsService: Able to dynamically ignore/unignore global recommendations', () => {
 		const storageGetterStub = (a, _, c) => {
 			const storedRecommendations = '["ms-vscode.csharp", "ms-python.python"]';
 			const globallyIgnoredRecommendations = '["mockpublisher2.mockextension2"]'; // ignore a workspace recommendation.
@@ -452,20 +451,27 @@ suite('ExtensionsTipsService Test', () => {
 		return setUpFolderWorkspace('myFolder', mockTestData.validRecommendedExtensions).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
 			return testObject.loadRecommendationsPromise.then(() => {
-				const recommendations = testObject.getAllIgnoredRecommendations();
-				assert.deepStrictEqual(recommendations,
-					{
-						global: ['mockpublisher2.mockextension2'],
-						workspace: []
-					});
-				return testObject.ignoreExtensionRecommendation('mockpublisher1.mockextension1');
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(recommendations['ms-python.python']);
+				assert.ok(recommendations['mockpublisher1.mockextension1']);
+
+				assert.ok(!recommendations['mockpublisher2.mockextension2']);
+
+				return testObject.toggleIgnoredRecommendation('mockpublisher1.mockextension1', true);
 			}).then(() => {
-				const recommendations = testObject.getAllIgnoredRecommendations();
-				assert.deepStrictEqual(recommendations,
-					{
-						global: ['mockpublisher2.mockextension2', 'mockpublisher1.mockextension1'],
-						workspace: []
-					});
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(recommendations['ms-python.python']);
+
+				assert.ok(!recommendations['mockpublisher1.mockextension1']);
+				assert.ok(!recommendations['mockpublisher2.mockextension2']);
+
+				return testObject.toggleIgnoredRecommendation('mockpublisher1.mockextension1', false);
+			}).then(() => {
+				const recommendations = testObject.getAllRecommendationsWithReason();
+				assert.ok(recommendations['ms-python.python']);
+
+				assert.ok(recommendations['mockpublisher1.mockextension1']);
+				assert.ok(!recommendations['mockpublisher2.mockextension2']);
 			});
 		});
 	});
@@ -484,7 +490,7 @@ suite('ExtensionsTipsService Test', () => {
 		return setUpFolderWorkspace('myFolder', []).then(() => {
 			testObject = instantiationService.createInstance(ExtensionTipsService);
 			testObject.onRecommendationChange(changeHandlerTarget);
-			testObject.ignoreExtensionRecommendation(ignoredExtensionId);
+			testObject.toggleIgnoredRecommendation(ignoredExtensionId, true);
 
 			assert.ok(changeHandlerTarget.calledOnce);
 			assert.ok(changeHandlerTarget.getCall(0).calledWithMatch({ extensionId: 'Some.Extension', isRecommended: false }));
