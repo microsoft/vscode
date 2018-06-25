@@ -24,12 +24,6 @@ import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/co
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { Emitter, Event } from 'vs/base/common/event';
 
-// TODO:
-
-// when offline dont evaluate
-// offline should not affect already resolved experiments - Tests needed
-// should support opt-out? not for phase 1
-
 
 export interface IExperimentStorageState {
 	enabled: boolean;
@@ -170,32 +164,23 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
-	protected loadExperiments(experiments?: IRawExperiment[]): TPromise<any> {
-		let rawExperimentsPromise = TPromise.as(experiments || null);
-		if (!experiments && product.experimentsUrl) {
-			rawExperimentsPromise = this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
-				if (context.res.statusCode !== 200) {
-					return TPromise.as(null);
-				}
-				return asJson(context).then(result => {
-					const experiments = Array.isArray(result['experiments']) ? result['experiments'] : [];
-					const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
-					const enabledExperiments = experiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
-					if (Array.isArray(allExperimentIdsFromStorage)) {
-						allExperimentIdsFromStorage.forEach(experiment => {
-							if (enabledExperiments.indexOf(experiment) === -1) {
-								this.storageService.remove('experiments.' + experiment);
-							}
-						});
-					}
-					this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
-
-					return experiments;
-				});
-			}, () => TPromise.as(null));
+	protected getExperiments(): TPromise<IRawExperiment[]> {
+		if (!product.experimentsUrl) {
+			return TPromise.as([]);
 		}
+		return this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
+			if (context.res.statusCode !== 200) {
+				return TPromise.as(null);
+			}
+			return asJson(context).then(result => {
+				return Array.isArray<IRawExperiment>(result['experiments']) ? result['experiments'] : [];
+			});
+		}, () => TPromise.as(null));
+	}
 
-		return rawExperimentsPromise.then(rawExperiments => {
+
+	private loadExperiments(): TPromise<any> {
+		return this.getExperiments().then(rawExperiments => {
 			if (!rawExperiments) {
 				const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
 				if (Array.isArray(allExperimentIdsFromStorage)) {
@@ -213,6 +198,18 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 				return TPromise.as(null);
 			}
+
+			const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
+			const enabledExperiments = rawExperiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
+			if (Array.isArray(allExperimentIdsFromStorage)) {
+				allExperimentIdsFromStorage.forEach(experiment => {
+					if (enabledExperiments.indexOf(experiment) === -1) {
+						this.storageService.remove('experiments.' + experiment);
+					}
+				});
+			}
+			this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {
 					id: experiment.id,
@@ -247,13 +244,13 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 
 				if (processedExperiment.state !== ExperimentState.Evaluating) {
-					this.storageService.store(storageKey, experimentState);
+					this.storageService.store(storageKey, JSON.stringify(experimentState));
 					return TPromise.as(null);
 				}
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
-					this.storageService.store(storageKey, experimentState);
+					this.storageService.store(storageKey, JSON.stringify(experimentState));
 
 					if (state === ExperimentState.Run && processedExperiment.action && processedExperiment.action.type === ExperimentActionType.Prompt) {
 						this._onExperimentEnabled.fire(processedExperiment);
@@ -389,7 +386,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 function safeParse(text: string, defaultObject: any) {
 	try {
-		return JSON.parse(text);
+		return JSON.parse(text) || defaultObject;
 	}
 	catch (e) {
 		return defaultObject;

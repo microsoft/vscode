@@ -45,8 +45,8 @@ function aLocalExtension(name: string = 'someext', manifest: any = {}, propertie
 }
 
 export class TestExperimentService extends ExperimentService {
-	public loadExperiments(experiments?: any[]): TPromise<any> {
-		return super.loadExperiments(experimentData.experiments);
+	public getExperiments(): TPromise<any[]> {
+		return TPromise.wrap(experimentData.experiments);
 	}
 }
 
@@ -395,88 +395,184 @@ suite('Experiment Service', () => {
 		});
 	});
 
-	// test('Experiment that is disabled or deleted should be removed from storage', () => {
-	// 	experimentData = {
-	// 		experiments: [
-	// 			{
-	// 				id: 'experiment1',
-	// 				enabled: false
-	// 			},
-	// 			{
-	// 				id: 'experiment2',
-	// 				enabled: false
-	// 			},
-	// 			{
-	// 				id: 'experiment3',
-	// 				enabled: true
-	// 			}
-	// 		]
-	// 	};
+	test('Experiment that is disabled or deleted should be removed from storage', () => {
+		experimentData = {
+			experiments: [
+				{
+					id: 'experiment1',
+					enabled: false
+				},
+				{
+					id: 'experiment3',
+					enabled: true
+				}
+			]
+		};
 
-	// 	let storageDataExperiment1 = { enabled: false };
-	// 	let storageDataExperiment2 = { enabled: false };
-	// 	let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3'];
-	// 	instantiationService.stub(IStorageService, {
-	// 		get: (a, b, c) => {
-	// 			switch (a) {
-	// 				case 'experiments.experiment1':
-	// 					return JSON.stringify(storageDataExperiment1);
-	// 				case 'experiments.experiment2':
-	// 					return JSON.stringify(storageDataExperiment2);
-	// 				case 'allExperiments':
-	// 					return JSON.stringify(storageDataAllExperiments);
-	// 				default:
-	// 					break;
-	// 			}
-	// 			return c;
-	// 		},
-	// 		store: (a, b, c) => {
-	// 			switch (a) {
-	// 				case 'experiments.experiment1':
-	// 					storageDataExperiment1 = JSON.parse(b);
-	// 					break;
-	// 				case 'experiments.experiment2':
-	// 					storageDataExperiment2 = JSON.parse(b);
-	// 					break;
-	// 				case 'allExperiments':
-	// 					storageDataAllExperiments = JSON.parse(b);
-	// 					break;
-	// 				default:
-	// 					break;
-	// 			}
-	// 		},
-	// 		remove: a => {
-	// 			switch (a) {
-	// 				case 'experiments.experiment1':
-	// 					storageDataExperiment1 = null;
-	// 					break;
-	// 				case 'experiments.experiment2':
-	// 					storageDataExperiment2 = null;
-	// 					break;
-	// 				case 'allExperiments':
-	// 					storageDataAllExperiments = null;
-	// 					break;
-	// 				default:
-	// 					break;
-	// 			}
-	// 		}
-	// 	});
+		let storageDataExperiment1 = { enabled: false };
+		let storageDataExperiment2 = { enabled: false };
+		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3'];
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment1':
+						return JSON.stringify(storageDataExperiment1);
+					case 'experiments.experiment2':
+						return JSON.stringify(storageDataExperiment2);
+					case 'allExperiments':
+						return JSON.stringify(storageDataAllExperiments);
+					default:
+						break;
+				}
+				return c;
+			},
+			store: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment1':
+						storageDataExperiment1 = JSON.parse(b);
+						break;
+					case 'experiments.experiment2':
+						storageDataExperiment2 = JSON.parse(b);
+						break;
+					case 'allExperiments':
+						storageDataAllExperiments = JSON.parse(b);
+						break;
+					default:
+						break;
+				}
+			},
+			remove: a => {
+				switch (a) {
+					case 'experiments.experiment1':
+						storageDataExperiment1 = null;
+						break;
+					case 'experiments.experiment2':
+						storageDataExperiment2 = null;
+						break;
+					case 'allExperiments':
+						storageDataAllExperiments = null;
+						break;
+					default:
+						break;
+				}
+			}
+		});
 
-	// 	testObject = instantiationService.createInstance(TestExperimentService);
-	// 	const disabledExperiment = testObject.getExperimentById('experiment1').then(result => {
-	// 		assert.equal(result.enabled, false);
-	// 		assert.equal(!!storageDataExperiment1, false);
-	// 	});
-	// 	const deletedExperiment = testObject.getExperimentById('experiment2').then(result => {
-	// 		assert.equal(!!result, false);
-	// 		assert.equal(!!storageDataExperiment2, false);
-	// 	});
-	// 	return TPromise.join([disabledExperiment, deletedExperiment]).then(() => {
-	// 		assert.equal(storageDataAllExperiments.length, 1);
-	// 		assert.equal(storageDataAllExperiments[0], 'experiment3');
-	// 	});
+		testObject = instantiationService.createInstance(TestExperimentService);
+		const disabledExperiment = testObject.getExperimentById('experiment1').then(result => {
+			assert.equal(result.enabled, false);
+			assert.equal(!!storageDataExperiment1, true);
+		});
+		const deletedExperiment = testObject.getExperimentById('experiment2').then(result => {
+			assert.equal(!!result, false);
+			assert.equal(!!storageDataExperiment2, false);
+		});
+		return TPromise.join([disabledExperiment, deletedExperiment]).then(() => {
+			assert.equal(storageDataAllExperiments.length, 1);
+			assert.equal(storageDataAllExperiments[0], 'experiment3');
+		});
 
-	// });
+	});
+
+	test('Offline mode', () => {
+		experimentData = {
+			experiments: null
+		};
+
+		let storageDataExperiment1 = { enabled: true, state: ExperimentState.Run };
+		let storageDataExperiment2 = { enabled: true, state: ExperimentState.NoRun };
+		let storageDataExperiment3 = { enabled: true, state: ExperimentState.Evaluating };
+		let storageDataExperiment4 = { enabled: true, state: ExperimentState.Complete };
+		let storageDataAllExperiments = ['experiment1', 'experiment2', 'experiment3', 'experiment4'];
+		instantiationService.stub(IStorageService, {
+			get: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment1':
+						return JSON.stringify(storageDataExperiment1);
+					case 'experiments.experiment2':
+						return JSON.stringify(storageDataExperiment2);
+					case 'experiments.experiment3':
+						return JSON.stringify(storageDataExperiment3);
+					case 'experiments.experiment4':
+						return JSON.stringify(storageDataExperiment4);
+					case 'allExperiments':
+						return JSON.stringify(storageDataAllExperiments);
+					default:
+						break;
+				}
+				return c;
+			},
+			store: (a, b, c) => {
+				switch (a) {
+					case 'experiments.experiment1':
+						storageDataExperiment1 = JSON.parse(b);
+						break;
+					case 'experiments.experiment2':
+						storageDataExperiment2 = JSON.parse(b);
+						break;
+					case 'experiments.experiment3':
+						storageDataExperiment3 = JSON.parse(b);
+						break;
+					case 'experiments.experiment4':
+						storageDataExperiment4 = JSON.parse(b);
+						break;
+					case 'allExperiments':
+						storageDataAllExperiments = JSON.parse(b);
+						break;
+					default:
+						break;
+				}
+			},
+			remove: a => {
+				switch (a) {
+					case 'experiments.experiment1':
+						storageDataExperiment1 = null;
+						break;
+					case 'experiments.experiment2':
+						storageDataExperiment2 = null;
+						break;
+					case 'experiments.experiment3':
+						storageDataExperiment3 = null;
+						break;
+					case 'experiments.experiment4':
+						storageDataExperiment4 = null;
+						break;
+					case 'allExperiments':
+						storageDataAllExperiments = null;
+						break;
+					default:
+						break;
+				}
+			}
+		});
+
+		testObject = instantiationService.createInstance(TestExperimentService);
+
+		const tests = [];
+		tests.push(testObject.getExperimentById('experiment1'));
+		tests.push(testObject.getExperimentById('experiment2'));
+		tests.push(testObject.getExperimentById('experiment3'));
+		tests.push(testObject.getExperimentById('experiment4'));
+
+		return TPromise.join(tests).then(results => {
+			assert.equal(results[0].id, 'experiment1');
+			assert.equal(results[0].enabled, true);
+			assert.equal(results[0].state, ExperimentState.Run);
+
+			assert.equal(results[1].id, 'experiment2');
+			assert.equal(results[1].enabled, true);
+			assert.equal(results[1].state, ExperimentState.NoRun);
+
+			assert.equal(results[2].id, 'experiment3');
+			assert.equal(results[2].enabled, true);
+			assert.equal(results[2].state, ExperimentState.Evaluating);
+
+			assert.equal(results[3].id, 'experiment4');
+			assert.equal(results[3].enabled, true);
+			assert.equal(results[3].state, ExperimentState.Complete);
+		});
+
+	});
 
 	test('getExperimentByType', () => {
 		const customProperties = {
