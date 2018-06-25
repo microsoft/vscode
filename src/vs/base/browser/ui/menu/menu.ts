@@ -8,7 +8,7 @@
 import 'vs/css!./menu';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { IActionRunner, IAction, Action } from 'vs/base/common/actions';
-import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { ActionBar, IActionItemProvider, ActionsOrientation, Separator, ActionItem, IActionItemOptions } from 'vs/base/browser/ui/actionbar/actionbar';
 import { ResolvedKeybinding, KeyCode } from 'vs/base/common/keyCodes';
 import { Event } from 'vs/base/common/event';
 import { addClass, EventType, EventHelper, EventLike } from 'vs/base/browser/dom';
@@ -55,11 +55,19 @@ export class Menu {
 
 		const getActionItem = (action: IAction) => {
 			if (action instanceof Separator) {
-				return new ActionItem(options.context, action);
+				return new MenuActionItem(options.context, action);
 			} else if (action instanceof SubmenuAction) {
-				return new SubmenuActionItem(action, action.entries, parentData);
+				return new SubmenuActionItem(action, action.entries, parentData, options);
 			} else {
-				return new ActionItem(options.context, action);
+				var menuItemOptions: IActionItemOptions = {};
+				if (options.getKeyBinding) {
+					const keybinding = options.getKeyBinding(action);
+					if (keybinding) {
+						menuItemOptions.keybinding = keybinding.getLabel();
+					}
+				}
+
+				return new MenuActionItem(options.context, action, menuItemOptions);
 			}
 		};
 
@@ -100,13 +108,48 @@ export class Menu {
 	}
 }
 
+class MenuActionItem extends ActionItem {
+	static MNEMONIC_REGEX: RegExp = /&&(.)/g;
+
+	constructor(ctx: any, action: IAction, options: IActionItemOptions = {}) {
+		options.isMenu = true;
+		super(action, action, options);
+	}
+
+	private _addMnemonic(action: IAction, actionItemElement: HTMLElement): void {
+		let matches = MenuActionItem.MNEMONIC_REGEX.exec(action.label);
+		if (matches && matches.length === 2) {
+			let mnemonic = matches[1];
+
+			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
+		}
+	}
+
+	public render(container: HTMLElement): void {
+		super.render(container);
+
+		this._addMnemonic(this.getAction(), container);
+	}
+
+	public _updateLabel(): void {
+		if (this.options.label) {
+			let label = this.getAction().label;
+			if (label && this.options.isMenu) {
+				label = label.replace(MenuActionItem.MNEMONIC_REGEX, '$1\u0332');
+			}
+			this.$e.text(label);
+		}
+	}
+}
+
 class SubmenuActionItem extends ActionItem {
 	private mysubmenu: Menu;
 
 	constructor(
 		action: IAction,
 		private submenuActions: IAction[],
-		private parentData: ISubMenuData
+		private parentData: ISubMenuData,
+		private submenuOptions?: IMenuOptions
 	) {
 		super(action, action, { label: true, isMenu: true });
 	}
@@ -170,7 +213,7 @@ class SubmenuActionItem extends ActionItem {
 				}
 			});
 
-			this.parentData.submenu = new Menu(submenuContainer.getHTMLElement(), this.submenuActions);
+			this.parentData.submenu = new Menu(submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
 			this.parentData.submenu.focus();
 
 			this.mysubmenu = this.parentData.submenu;
