@@ -99,7 +99,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.onConfigUpdate()));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.onConfigUpdate();
+
+			if (e.affectsConfiguration('workbench.settings.tocVisible')) {
+				this.updateTOCVisible();
+			}
+		}));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -259,6 +265,13 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			}
 		}));
+
+		this.updateTOCVisible();
+	}
+
+	private updateTOCVisible(): void {
+		const visible = !!this.configurationService.getValue('workbench.settings.tocVisible');
+		DOM.toggleClass(this.tocTreeContainer, 'hidden', !visible);
 	}
 
 	private createSettingsTree(parent: HTMLElement): void {

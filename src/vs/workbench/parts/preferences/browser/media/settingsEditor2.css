@@ -111,10 +111,11 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
+	padding-top: 5px;
 }
 
-.settings-editor > .settings-body .settings-toc-container {
-	padding-top: 5px;
+.settings-editor > .settings-body .settings-toc-container.hidden {
+	display: none;
 }
 
 .search-mode .settings-toc-container {

@@ -310,8 +310,13 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
 			'enum': ['hide', 'filter', 'show'],
-			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor TOC while searching."),
+			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
 			'default': 'hide'
+		},
+		'workbench.settings.tocVisible': {
+			'type': 'boolean',
+			'description': nls.localize('settingsTocVisible', "Controls whether the settings editor Table of Contents is visible."),
+			'default': true
 		}
 	}
 });
