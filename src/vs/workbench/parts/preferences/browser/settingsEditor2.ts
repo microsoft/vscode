@@ -11,7 +11,6 @@ import { CancellationToken } from 'vs/base/common/cancellation';
 import * as collections from 'vs/base/common/collections';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
-import { KeyCode } from 'vs/base/common/keyCodes';
 import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
@@ -34,7 +33,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -75,6 +74,8 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private viewState: ISettingsEditorViewState;
 	private searchResultModel: SearchResultModel;
+
+	private firstRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
@@ -99,6 +100,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
+		this.firstRowFocused = CONTEXT_SETTINGS_FIRST_ROW_FOCUS.bindTo(contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate();
@@ -138,6 +140,17 @@ export class SettingsEditor2 extends BaseEditor {
 		this.focusSearch();
 	}
 
+	focusSettings(): void {
+		const selection = this.settingsTree.getSelection();
+		if (selection && selection[0]) {
+			this.settingsTree.setFocus(selection[0]);
+		} else {
+			this.settingsTree.focusFirst();
+		}
+
+		this.settingsTree.domFocus();
+	}
+
 	focusSearch(): void {
 		this.searchWidget.focus();
 	}
@@ -164,12 +177,6 @@ export class SettingsEditor2 extends BaseEditor {
 			focusKey: this.searchFocusContextKey
 		}));
 		this._register(this.searchWidget.onDidChange(() => this.onSearchInputChanged()));
-		this._register(DOM.addStandardDisposableListener(this.searchWidget.domNode, 'keydown', e => {
-			if (e.keyCode === KeyCode.DownArrow) {
-				this.settingsTree.focusFirst();
-				this.settingsTree.domFocus();
-			}
-		}));
 
 		const advancedCustomization = DOM.append(this.headerContainer, $('.settings-advanced-customization'));
 		const advancedCustomizationLabel = DOM.append(advancedCustomization, $('span.settings-advanced-customization-label'));
@@ -344,8 +351,21 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
-		this._register(this.settingsTree.onDidChangeSelection(() => {
+		this._register(this.settingsTree.onDidChangeSelection(e => {
 			this.updateTreeScrollSync();
+
+			let firstRowFocused = false;
+			const selection: SettingsTreeElement = e.selection[0];
+			if (selection) {
+				if (this.searchResultModel) {
+					firstRowFocused = selection.id === this.searchResultModel.getChildren()[0].id;
+				} else {
+					const firstRowId = this.settingsTreeModel.root.children[0] && this.settingsTreeModel.root.children[0].id;
+					firstRowFocused = selection.id === firstRowId;
+				}
+			}
+
+			this.firstRowFocused.set(firstRowFocused);
 		}));
 
 		this._register(this.settingsTree.onDidScroll(() => {
@@ -683,7 +703,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 				const [result] = results;
 				if (!this.searchResultModel) {
-					this.searchResultModel = new SearchResultModel();
+					this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
 					this.tocTreeModel.currentSearchModel = this.searchResultModel;
 					this.toggleSearchMode();
 					this.settingsTree.setInput(this.searchResultModel);

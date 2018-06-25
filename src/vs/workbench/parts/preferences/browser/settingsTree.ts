@@ -105,7 +105,7 @@ export class SettingsTreeModel {
 		this.update(this._tocRoot);
 	}
 
-	get root(): SettingsTreeElement {
+	get root(): SettingsTreeGroupElement {
 		return this._root;
 	}
 
@@ -286,11 +286,6 @@ function getFlatSettings(settingsGroups: ISettingsGroup[]) {
 
 export class SettingsDataSource implements IDataSource {
 
-	constructor(
-		private viewState: ISettingsEditorViewState,
-		@IConfigurationService private configurationService: IConfigurationService
-	) { }
-
 	getId(tree: ITree, element: SettingsTreeElement): string {
 		return element.id;
 	}
@@ -307,18 +302,13 @@ export class SettingsDataSource implements IDataSource {
 		return false;
 	}
 
-	private getSearchResultChildren(searchResult: SearchResultModel): SettingsTreeSettingElement[] {
-		return searchResult.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, searchResult, this.viewState.settingsTarget, this.configurationService));
-	}
-
 	getChildren(tree: ITree, element: SettingsTreeElement): TPromise<any, any> {
 		return TPromise.as(this._getChildren(element));
 	}
 
 	private _getChildren(element: SettingsTreeElement): SettingsTreeElement[] {
 		if (element instanceof SearchResultModel) {
-			return this.getSearchResultChildren(element);
+			return element.getChildren();
 		} else if (element instanceof SettingsTreeGroupElement) {
 			return element.children;
 		} else {
@@ -866,8 +856,18 @@ export enum SearchResultIdx {
 export class SearchResultModel {
 	private rawSearchResults: ISearchResult[];
 	private cachedUniqueSearchResults: ISearchResult[];
+	private children: SettingsTreeSettingElement[];
 
 	readonly id = 'searchResultModel';
+
+	constructor(
+		private _viewState: ISettingsEditorViewState,
+		@IConfigurationService private _configurationService: IConfigurationService
+	) { }
+
+	getChildren(): SettingsTreeSettingElement[] {
+		return this.children;
+	}
 
 	getUniqueResults(): ISearchResult[] {
 		if (this.cachedUniqueSearchResults) {
@@ -901,9 +901,13 @@ export class SearchResultModel {
 		this.cachedUniqueSearchResults = null;
 		this.rawSearchResults = this.rawSearchResults || [];
 		this.rawSearchResults[type] = result;
+
+		// Recompute children
+		this.children = this.getFlatSettings()
+			.map(s => createSettingsTreeSettingElement(s, result, this._viewState.settingsTarget, this._configurationService));
 	}
 
-	getFlatSettings(): ISetting[] {
+	private getFlatSettings(): ISetting[] {
 		const flatSettings: ISetting[] = [];
 		this.getUniqueResults()
 			.filter(r => !!r)
