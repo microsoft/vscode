@@ -999,7 +999,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
 
 		this.refilterAllRecommendations();
-		this._onRecommendationChange.fire({ extensionId: extensionId, isRecommended: shouldIgnore });
+		this._onRecommendationChange.fire({ extensionId: extensionId, isRecommended: !shouldIgnore });
 	}
 
 	dispose() {
