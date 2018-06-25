@@ -82,8 +82,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
-	private _sessionIgnoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string } } = {};
-	private _sessionRestoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string } } = {};
+	private _sessionIgnoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason } } = {};
+	private _sessionRestoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason } } = {};
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
