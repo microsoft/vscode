@@ -1699,7 +1699,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 
 	static readonly ID = 'extensions.ignore';
 
-	private static readonly Class = 'extension-action ignore octicon octicon-x';
+	private static readonly Class = 'extension-action ignore';
 
 	private disposables: IDisposable[] = [];
 	extension: IExtension;
@@ -1707,7 +1707,7 @@ export class IgnoreExtensionRecommendationAction extends Action {
 	constructor(
 		@IExtensionTipsService private extensionsTipsService: IExtensionTipsService,
 	) {
-		super(IgnoreExtensionRecommendationAction.ID);
+		super(IgnoreExtensionRecommendationAction.ID, 'Ignore Recommendation');
 
 		this.class = IgnoreExtensionRecommendationAction.Class;
 		this.tooltip = localize('ignoreExtensionRecommendation', "Do not recommend this extension again");
@@ -1715,7 +1715,37 @@ export class IgnoreExtensionRecommendationAction extends Action {
 	}
 
 	public run(): TPromise<any> {
-		this.extensionsTipsService.ignoreExtensionRecommendation(this.extension.id);
+		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.id, true);
+		return TPromise.as(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class UndoIgnoreExtensionRecommendationAction extends Action {
+
+	static readonly ID = 'extensions.ignore';
+
+	private static readonly Class = 'extension-action undo-ignore';
+
+	private disposables: IDisposable[] = [];
+	extension: IExtension;
+
+	constructor(
+		@IExtensionTipsService private extensionsTipsService: IExtensionTipsService,
+	) {
+		super(UndoIgnoreExtensionRecommendationAction.ID, 'Undo');
+
+		this.class = UndoIgnoreExtensionRecommendationAction.Class;
+		this.tooltip = localize('undo', "Undo");
+		this.enabled = true;
+	}
+
+	public run(): TPromise<any> {
+		this.extensionsTipsService.toggleIgnoredRecommendation(this.extension.id, false);
 		return TPromise.as(null);
 	}
 

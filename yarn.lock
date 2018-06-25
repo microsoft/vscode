@@ -3974,9 +3974,9 @@ node-abi@^2.2.0:
   dependencies:
     semver "^5.4.1"
 
-node-pty@0.7.5:
-  version "0.7.5"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.5.tgz#dd7fa8df90a5bf7c5f5273ec5aeecabcbfbc921f"
+node-pty@0.7.6:
+  version "0.7.6"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.6.tgz#bff6148c9c5836ca7e73c7aaaec067dcbdac2f7b"
   dependencies:
     nan "2.10.0"
 

@@ -305,18 +305,21 @@ configurationRegistry.registerConfiguration({
 		'workbench.settings.enableNaturalLanguageSearch': {
 			'type': 'boolean',
 			'description': nls.localize('enableNaturalLanguageSettingsSearch', "Controls whether to enable the natural language search mode for settings."),
-			'default': true
+			'default': true,
+			'scope': ConfigurationScope.WINDOW
 		},
 		'workbench.settings.settingsSearchTocBehavior': {
 			'type': 'string',
 			'enum': ['hide', 'filter', 'show'],
 			'description': nls.localize('settingsSearchTocBehavior', "Controls the behavior of the settings editor Table of Contents while searching."),
-			'default': 'hide'
+			'default': 'hide',
+			'scope': ConfigurationScope.WINDOW
 		},
 		'workbench.settings.tocVisible': {
 			'type': 'boolean',
 			'description': nls.localize('settingsTocVisible', "Controls whether the settings editor Table of Contents is visible."),
-			'default': true
+			'default': true,
+			'scope': ConfigurationScope.WINDOW
 		}
 	}
 });

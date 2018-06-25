@@ -74,6 +74,10 @@
 	padding: 0.5em 2em;
 }
 
+.monaco-shell .monaco-menu .monaco-action-bar.vertical .submenu-indicator {
+	padding: 0.5em 1em;
+}
+
 /* START Keyboard Focus Indication Styles */
 
 .monaco-shell [tabindex="0"]:focus,
