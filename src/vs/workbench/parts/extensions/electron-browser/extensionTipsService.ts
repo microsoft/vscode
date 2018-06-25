@@ -52,6 +52,9 @@ interface IDynamicWorkspaceRecommendations {
 }
 
 function caseInsensitiveGet<T>(obj: { [key: string]: T }, key: string): T | undefined {
+	if (!obj) {
+		return undefined;
+	}
 	for (const _key in obj) {
 		if (obj.hasOwnProperty(_key) && _key.toLowerCase() === key.toLowerCase()) {
 			return obj[_key];
@@ -515,7 +518,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				let { key: pattern, value: ids } = entry;
 				if (match(pattern, uri.path)) {
 					for (let id of ids) {
-						if (Object.keys(product.extensionImportantTips || []).map(x => x.toLowerCase()).indexOf(id.toLowerCase()) > -1) {
+						if (caseInsensitiveGet(product.extensionImportantTips, id)) {
 							recommendationsToSuggest.push(id);
 						}
 						const filedBasedRecommendation = this._fileBasedRecommendations[id.toLowerCase()] || { recommendedTime: now, sources: [] };
@@ -543,7 +546,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 			const server = this.extensionManagementServiceService.getExtensionManagementServer(model.uri);
 			const importantTipsPromise = recommendationsToSuggest.length === 0 ? TPromise.as(null) : server.extensionManagementService.getInstalled(LocalExtensionType.User).then(local => {
-				recommendationsToSuggest = recommendationsToSuggest.filter(id => local.every(local => `${local.manifest.publisher}.${local.manifest.name}` !== id));
+				const localExtensions = local.map(e => `${e.manifest.publisher.toLowerCase()}.${e.manifest.name.toLowerCase()}`);
+				recommendationsToSuggest = recommendationsToSuggest.filter(id => localExtensions.every(local => local !== id.toLowerCase()));
 				if (!recommendationsToSuggest.length) {
 					return;
 				}
