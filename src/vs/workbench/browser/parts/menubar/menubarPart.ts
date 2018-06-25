@@ -566,8 +566,8 @@ export class MenubarPart extends Part {
 		});
 
 		let menuOptions: IMenuOptions = {
-			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id)
-			// actionRunner: this.actionRunner,
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
+			actionRunner: this.actionRunner,
 			// ariaLabel: 'File'
 			// actionItemProvider: (action) => { return this._getActionItem(action); }
 		};
