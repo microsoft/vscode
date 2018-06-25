@@ -267,74 +267,74 @@ export class StandardAutoClosingPairConditional {
 	 	*/
 		} else if (Array.isArray(source.onlyIn)) {
 			for (let i = 0, len = source.onlyIn.length; i < len; i++) {
-				let onlyIn = source.onlyIn[i];
-				/**
-				* Use a string variable (_onlyInOptions) to keep track of which scopes
-				* have (already) been listed. The 'other' option is not considered.
-				*/
-				this._onlyInOptions = '';
-				switch (onlyIn) {
-					case 'string':
-						if !(_onlyInOptions.includes(<string>StandardTokenType.String)) {
-							this._onlyInOptions += <string>StandardTokenType.String;
-						}
-						break;
-					case 'comment':
-						if !(_onlyInOptions.includes(<string>StandardTokenType.Comment)) {
-							this._onlyInOptions += <string>StandardTokenType.Comment;
-						}
-						break;
-					case 'regex':
-						if !(_onlyInOptions.includes(<string>StandardTokenType.RegEx)) {
-							this._onlyInOptions += <string>StandardTokenType.RegEx;
-						}
-						break;
-				}
+			  let onlyIn = source.onlyIn[i];
+			  /**
+			  * Use a string variable (_onlyInOptions) to keep track of which scopes
+			  * have (already) been listed. The 'other' option is not considered.
+			  */
+			  this._onlyInOptions = '';
+			  switch (onlyIn) {
+				case 'string':
+				  if (this._onlyInOptions.indexOf('2') != -1) {
+					this._onlyInOptions += '2';
+				  }
+				  break;
+				case 'comment':
+				  if (this._onlyInOptions.indexOf('1') != -1) {
+					this._onlyInOptions += '1';
+				  }
+				  break;
+				case 'regex':
+				  if (this._onlyInOptions.indexOf('4') != -1) {
+					this._onlyInOptions += '4';
+				  }
+				  break;
+			  }
 			}
-			this._value = <number>this._onlyInOptions
+			this._value = +this._onlyInOptions
 			this._optionSum = 0;
-			
+
 			/**
 			* Loop through each digit and add them all together to determine the case,
 			* i.e. '24' = ['string', 'regex']. Sum = 6, which is case 6.
 			*/
 			while (this._value > 0) {
-			   this._optionSum += this._value % 10;
-			   this._value = Math.floor(this._value / 10);
+			  this._optionSum += this._value % 10;
+			  this._value = Math.floor(this._value / 10);
 			}
 
 			switch (this._optionSum) {
-				case 1: // ['comment']
-					// AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
-					this._standardTokenMask = 6; 
-					break;
-				case 2: // ['string']
-					// AND result 0 only if standardToken = 'string' (2)
-					this._standardTokenMask = 5;
-					break;
-				case 3: // ['comment', 'string']
-					// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
-					this._standardTokenMask = 4; 
-					break;
-				case 4: // ['regex']
-					// AND result returns 0 only if standardToken 'regex' (4)
-					this._standardTokenMask = 3;
-					break;
-				case 5: // ['comment', 'regex']
-				    // AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
-					this._standardTokenMask = 2;
-					break;
-				case 6: // ['string', 'regex']
-					// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
-					this._standardTokenMask = 1;
-					break;
-				case 7: // ['comment', 'string', 'regex']
-					// AND result returns 0 for any given scope
-					this._standardTokenMask = 0;
-					break;
+			  case 1: // ['comment']
+				// AND result (in isOK) returns 0 only if standardToken = 'comment' (1)
+				this._standardTokenMask = 6;
+				break;
+			  case 2: // ['string']
+				// AND result 0 only if standardToken = 'string' (2)
+				this._standardTokenMask = 5;
+				break;
+			  case 3: // ['comment', 'string']
+				// AND result returns 0 only if standardToken = 'comment' (1) or 'string' (2)
+				this._standardTokenMask = 4;
+				break;
+			  case 4: // ['regex']
+				// AND result returns 0 only if standardToken 'regex' (4)
+				this._standardTokenMask = 3;
+				break;
+			  case 5: // ['comment', 'regex']
+				// AND result returns 0 only if standardToken 'comment' (1) or 'regex' (4)
+				this._standardTokenMask = 2;
+				break;
+			  case 6: // ['string', 'regex']
+				// AND result returns 0 only if standardToken 'string' (2) or 'regex' (4)
+				this._standardTokenMask = 1;
+				break;
+			  case 7: // ['comment', 'string', 'regex']
+				// AND result returns 0 for any given scope
+				this._standardTokenMask = 0;
+				break; 
 			}
 		}
-	}
+	  }
 
 	public isOK(standardToken: StandardTokenType): boolean {
 		return (this._standardTokenMask & <number>standardToken) === 0;
