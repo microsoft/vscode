@@ -114,7 +114,6 @@ function extractZip(zipfile: ZipFile, targetPath: string, options: IOptions, log
 		}, e));
 		zipfile.readEntry();
 		zipfile.on('entry', (entry: Entry) => {
-			logService.debug(targetPath, 'Found', entry.fileName);
 
 			if (isCanceled) {
 				return;
