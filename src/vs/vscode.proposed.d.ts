@@ -495,50 +495,6 @@ declare module 'vscode' {
 
 	//#endregion
 
-	//#region URLs
-
-	/**
-	 * A Uri handler is responsible for handling system-wide [Uris](#Uri).
-	 *
-	 * @see [window.registerUriHandler](#window.registerUriHandler).
-	 */
-	export interface UriHandler {
-
-		/**
-		 * Handle the provided system-wide [Uri](#Uri).
-		 *
-		 * @see [window.registerUriHandler](#window.registerUriHandler).
-		 */
-		handleUri(uri: Uri): ProviderResult<void>;
-	}
-
-	export namespace window {
-
-		/**
-		 * Registers a [Uri handler](#UriHandler) capable of handling system-wide [Uris](#Uri).
-		 * In case there are multiple windows open, the topmost window will handle the Uri.
-		 * A Uri handler is scoped to the extension it is contributed from; it will only
-		 * be able to handle Uris which are directed to the extension itself. The Uri format
-		 * is predetermined by the extension's identifier.
-		 *
-		 * For example, if the `vscode.git` extension registers a Uri handler, it will only
-		 * be allowed to handle Uris with the prefix `{scheme}://vscode.git`, in which `{scheme}`
-		 * is either `vscode` or `vscode-insiders`. All the following Uris are examples:
-		 *
-		 * - `vscode://vscode.git`
-		 * - `vscode://vscode.git/`
-		 * - `vscode-insiders://vscode.git/status`
-		 * - `vscode-insiders://vscode.git/clone?when=now`
-		 *
-		 * An extension can only register a single Uri handler in its entire activation lifetime.
-		 *
-		 * @param handler The Uri handler to register for this extension.
-		 */
-		export function registerUriHandler(handler: UriHandler): Disposable;
-	}
-
-	//#endregion
-
 	//#region Joh -> exclusive document filters
 
 	export interface DocumentFilter {
