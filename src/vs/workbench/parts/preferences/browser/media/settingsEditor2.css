@@ -35,7 +35,7 @@
 
 .settings-editor > .settings-header > .settings-advanced-customization {
 	opacity: .7;
-	margin-top: 10px;
+	margin-top: 8px;
 }
 
 .settings-editor > .settings-header > .settings-preview-header > .settings-preview-warning {
@@ -67,7 +67,7 @@
 }
 
 .settings-editor > .settings-header > .settings-header-controls {
-	margin-top: 2px;
+	margin-top: 3px;
 	height: 30px;
 	display: flex;
 }
