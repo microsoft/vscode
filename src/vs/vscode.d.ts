@@ -5687,14 +5687,14 @@ declare module 'vscode' {
 	}
 
 	/**
-	 * A Uri handler is responsible for handling system-wide [Uris](#Uri).
+	 * A uri handler is responsible for handling system-wide [uris](#Uri).
 	 *
 	 * @see [window.registerUriHandler](#window.registerUriHandler).
 	 */
 	export interface UriHandler {
 
 		/**
-		 * Handle the provided system-wide [Uri](#Uri).
+		 * Handle the provided system-wide [uri](#Uri).
 		 *
 		 * @see [window.registerUriHandler](#window.registerUriHandler).
 		 */
@@ -6162,27 +6162,31 @@ declare module 'vscode' {
 		export function createTreeView<T>(viewId: string, options: { treeDataProvider: TreeDataProvider<T> }): TreeView<T>;
 
 		/**
-		 * Registers a [Uri handler](#UriHandler) capable of handling system-wide [Uris](#Uri).
-		 * In case there are multiple windows open, the topmost window will handle the Uri.
-		 * A Uri handler is scoped to the extension it is contributed from; it will only
-		 * be able to handle Uris which are directed to the extension itself. The Uri format
-		 * is predetermined by the extension's identifier.
+		 * Registers a [uri handler](#UriHandler) capable of handling system-wide [uris](#Uri).
+		 * In case there are multiple windows open, the topmost window will handle the uri.
+		 * A uri handler is scoped to the extension it is contributed from; it will only
+		 * be able to handle uris which are directed to the extension itself. A uri must respect
+		 * the following rules:
 		 *
-		 * For example, if the `vscode.git` extension registers a Uri handler, it will only
-		 * be allowed to handle Uris with the prefix `{scheme}://vscode.git`, in which `{scheme}`
-		 * is either `vscode` or `vscode-insiders`. All the following Uris are examples:
+		 * - The uri-scheme must be the product name (eg. `vscode`);
+		 * - The uri-authority must be the extension id (eg. `vscode-git`);
+		 * - The uri-path, -query and -fragment parts are arbitrary.
+		 *
+		 * For example, if the `vscode.git` extension registers a uri handler, it will only
+		 * be allowed to handle uris with the prefix `{product}://vscode.git`. All the following
+		 * uris are examples:
 		 *
 		 * - `vscode://vscode.git`
 		 * - `vscode://vscode.git/`
-		 * - `vscode-insiders://vscode.git/status`
-		 * - `vscode-insiders://vscode.git/clone?when=now`
+		 * - `vscode://vscode.git/status`
+		 * - `vscode://vscode.git/clone?when=now`
 		 *
-		 * An extension can only register a single Uri handler in its entire activation lifetime.
+		 * An extension can only register a single uri handler in its entire activation lifetime.
 		 *
-		 * * *Note:* There is an activation event `onUri` that fires when a Uri directed for
+		 * * *Note:* There is an activation event `onUri` that fires when a uri directed for
 		 * the current extension is about to be handled.
 		 *
-		 * @param handler The Uri handler to register for this extension.
+		 * @param handler The uri handler to register for this extension.
 		 */
 		export function registerUriHandler(handler: UriHandler): Disposable;
 	}
