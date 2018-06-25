@@ -121,7 +121,12 @@ class MenuActionItem extends ActionItem {
 		if (matches && matches.length === 2) {
 			let mnemonic = matches[1];
 
+			let ariaLabel = action.label.replace(MenuActionItem.MNEMONIC_REGEX, mnemonic);
+
 			actionItemElement.accessKey = mnemonic.toLocaleLowerCase();
+			this.$e.attr('aria-label', ariaLabel);
+		} else {
+			this.$e.attr('aria-label', action.label);
 		}
 	}
 
@@ -129,6 +134,7 @@ class MenuActionItem extends ActionItem {
 		super.render(container);
 
 		this._addMnemonic(this.getAction(), container);
+		this.$e.attr('role', 'menuitem');
 	}
 
 	public _updateLabel(): void {
@@ -160,6 +166,7 @@ class SubmenuActionItem extends MenuActionItem {
 		this.builder = $(container);
 		$(this.builder).addClass('monaco-submenu-item');
 		$('span.submenu-indicator').text('\u25B6').appendTo(this.builder);
+		this.$e.attr('role', 'menu');
 
 		$(this.builder).on(EventType.KEY_UP, (e) => {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
