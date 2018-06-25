@@ -159,11 +159,21 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					TPromise.join([this.galleryService.getManifest(extensionToFetchTranslationsFrom), this.galleryService.getCoreTranslation(extensionToFetchTranslationsFrom, locale)])
 						.then(([manifest, translation]) => {
 							const loc = manifest && manifest.contributes && manifest.contributes.localizations && manifest.contributes.localizations.filter(x => x.languageId.toLowerCase() === locale)[0];
+							const languageName = loc ? (loc.languageName || locale) : locale;
 							const languageDisplayName = loc ? (loc.localizedLanguageName || loc.languageName || locale) : locale;
-							const translations = {
-								...minimumTranslatedStrings,
-								...(translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {})
-							};
+							const translationsFromPack = translation && translation.contents ? translation.contents['vs/platform/node/minimalTranslations'] : {};
+							const promptMessageKey = extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions';
+							const useEnglish = !translationsFromPack[promptMessageKey];
+
+							const translations = {};
+							Object.keys(minimumTranslatedStrings).forEach(key => {
+								if (!translationsFromPack[key] || useEnglish) {
+									translations[key] = minimumTranslatedStrings[key].replace('{0}', languageName);
+								} else {
+									translations[key] = `${translationsFromPack[key].replace('{0}', languageDisplayName)} (${minimumTranslatedStrings[key].replace('{0}', languageName)})`;
+								}
+							});
+
 							const logUserReaction = (userReaction: string) => {
 								/* __GDPR__
 									"languagePackSuggestion:popup" : {
@@ -195,8 +205,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 								}
 							};
 
-							const promptMessage = translations[extensionToInstall ? 'installAndRestartMessage' : 'showLanguagePackExtensions']
-								.replace('{0}', languageDisplayName);
+							const promptMessage = translations[promptMessageKey];
 
 							this.notificationService.prompt(
 								Severity.Info,
