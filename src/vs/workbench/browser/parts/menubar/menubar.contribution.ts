@@ -1378,7 +1378,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '1_welcome',
 		command: {
-			id: 'workbench.action.showCurrentReleaseNotes',
+			id: 'update.showCurrentReleaseNotes',
 			title: nls.localize({ key: 'miReleaseNotes', comment: ['&& denotes a mnemonic'] }, "&&Release Notes")
 		},
 		order: 4
@@ -1416,7 +1416,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openTwitterUrl',
+			id: 'workbench.action.openTwitterUrl',
 			title: nls.localize({ key: 'miTwitter', comment: ['&& denotes a mnemonic'] }, "&&Join us on Twitter")
 		},
 		order: 1
@@ -1425,7 +1425,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openUserVoiceUrl',
+			id: 'workbench.action.openRequestFeatureUrl',
 			title: nls.localize({ key: 'miUserVoice', comment: ['&& denotes a mnemonic'] }, "&&Search Feature Requests")
 		},
 		order: 2
@@ -1434,7 +1434,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '3_feedback',
 		command: {
-			id: 'openReportIssues',
+			id: 'workbench.action.openIssueReporter',
 			title: nls.localize({ key: 'miReportIssue', comment: ['&& denotes a mnemonic', 'Translate this to "Report Issue in English" in all languages please!'] }, "Report &&Issue")
 		},
 		order: 3
@@ -1444,7 +1444,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'openLicenseUrl',
+			id: 'workbench.action.openLicenseUrl',
 			title: nls.localize({ key: 'miLicense', comment: ['&& denotes a mnemonic'] }, "View &&License")
 		},
 		order: 1
@@ -1453,7 +1453,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '4_legal',
 		command: {
-			id: 'openPrivacyStatement',
+			id: 'workbench.action.openPrivacyStatementUrl',
 			title: nls.localize({ key: 'miPrivacyStatement', comment: ['&& denotes a mnemonic'] }, "&&Privacy Statement")
 		},
 		order: 2
@@ -1481,7 +1481,7 @@ function helpMenuRegistration() {
 	MenuRegistry.appendMenuItem(MenuId.MenubarHelpMenu, {
 		group: '5_tools',
 		command: {
-			id: 'accessibilityOptions',
+			id: 'workbench.action.showAccessibilityOptions',
 			title: nls.localize({ key: 'miAccessibilityOptions', comment: ['&& denotes a mnemonic'] }, "Accessibility &&Options")
 		},
 		order: 3
