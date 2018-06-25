@@ -123,78 +123,61 @@ export class FileWalker {
 		this.fileWalkStartTime = Date.now();
 
 		// Support that the file pattern is a full path to a file that exists
-		this.checkFilePatternAbsoluteMatch((exists, size) => {
-			if (this.isCanceled) {
-				return done(null, this.isLimitHit);
-			}
+		if (this.isCanceled) {
+			return done(null, this.isLimitHit);
+		}
 
-			// Report result from file pattern if matching
-			if (exists) {
-				this.resultCount++;
-				onResult({
-					relativePath: this.filePattern,
-					basename: path.basename(this.filePattern),
-					size
-				});
-
-				// Optimization: a match on an absolute path is a good result and we do not
-				// continue walking the entire root paths array for other matches because
-				// it is very unlikely that another file would match on the full absolute path
-				return done(null, this.isLimitHit);
-			}
-
-			// For each extra file
-			if (extraFiles) {
-				extraFiles.forEach(extraFilePath => {
-					const basename = path.basename(extraFilePath);
-					if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
-						return; // excluded
-					}
-
-					// File: Check for match on file pattern and include pattern
-					this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
-				});
-			}
-
-			let traverse = this.nodeJSTraversal;
-			if (!this.maxFilesize) {
-				if (this.useRipgrep) {
-					this.traversal = Traversal.Ripgrep;
-					traverse = this.cmdTraversal;
-				} else if (platform.isMacintosh) {
-					this.traversal = Traversal.MacFind;
-					traverse = this.cmdTraversal;
-					// Disable 'dir' for now (#11181, #11179, #11183, #11182).
-				} /* else if (platform.isWindows) {
-					this.traversal = Traversal.WindowsDir;
-					traverse = this.windowsDirTraversal;
-				} */ else if (platform.isLinux) {
-					this.traversal = Traversal.LinuxFind;
-					traverse = this.cmdTraversal;
+		// For each extra file
+		if (extraFiles) {
+			extraFiles.forEach(extraFilePath => {
+				const basename = path.basename(extraFilePath);
+				if (this.globalExcludePattern && this.globalExcludePattern(extraFilePath, basename)) {
+					return; // excluded
 				}
-			}
 
-			const isNodeTraversal = traverse === this.nodeJSTraversal;
-			if (!isNodeTraversal) {
-				this.cmdForkStartTime = Date.now();
-			}
-
-			// For each root folder
-			flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
-				this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
-					if (err) {
-						const errorMessage = toErrorMessage(err);
-						console.error(errorMessage);
-						this.errors.push(errorMessage);
-						rootFolderDone(err, undefined);
-					} else {
-						rootFolderDone(undefined, undefined);
-					}
-				});
-			}, (errors, result) => {
-				const err = errors ? errors.filter(e => !!e)[0] : null;
-				done(err, this.isLimitHit);
+				// File: Check for match on file pattern and include pattern
+				this.matchFile(onResult, { relativePath: extraFilePath /* no workspace relative path */, basename });
 			});
+		}
+
+		let traverse = this.nodeJSTraversal;
+		if (!this.maxFilesize) {
+			if (this.useRipgrep) {
+				this.traversal = Traversal.Ripgrep;
+				traverse = this.cmdTraversal;
+			} else if (platform.isMacintosh) {
+				this.traversal = Traversal.MacFind;
+				traverse = this.cmdTraversal;
+				// Disable 'dir' for now (#11181, #11179, #11183, #11182).
+			} /* else if (platform.isWindows) {
+				this.traversal = Traversal.WindowsDir;
+				traverse = this.windowsDirTraversal;
+			} */ else if (platform.isLinux) {
+				this.traversal = Traversal.LinuxFind;
+				traverse = this.cmdTraversal;
+			}
+		}
+
+		const isNodeTraversal = traverse === this.nodeJSTraversal;
+		if (!isNodeTraversal) {
+			this.cmdForkStartTime = Date.now();
+		}
+
+		// For each root folder
+		flow.parallel<IFolderSearch, void>(folderQueries, (folderQuery: IFolderSearch, rootFolderDone: (err: Error, result: void) => void) => {
+			this.call(traverse, this, folderQuery, onResult, onMessage, (err?: Error) => {
+				if (err) {
+					const errorMessage = toErrorMessage(err);
+					console.error(errorMessage);
+					this.errors.push(errorMessage);
+					rootFolderDone(err, undefined);
+				} else {
+					rootFolderDone(undefined, undefined);
+				}
+			});
+		}, (errors, result) => {
+			const err = errors ? errors.filter(e => !!e)[0] : null;
+			done(err, this.isLimitHit);
 		});
 	}
 
@@ -566,16 +549,6 @@ export class FileWalker {
 			cmdForkResultTime: this.cmdForkResultTime,
 			cmdResultCount: this.cmdResultCount
 		};
-	}
-
-	private checkFilePatternAbsoluteMatch(clb: (exists: boolean, size?: number) => void): void {
-		if (!this.filePattern || !path.isAbsolute(this.filePattern)) {
-			return clb(false);
-		}
-
-		return fs.stat(this.filePattern, (error, stat) => {
-			return clb(!error && !stat.isDirectory(), stat && stat.size); // only existing files
-		});
 	}
 
 	private checkFilePatternRelativeMatch(basePath: string, clb: (matchPath: string, size?: number) => void): void {

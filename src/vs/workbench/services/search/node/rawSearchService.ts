@@ -6,23 +6,22 @@
 'use strict';
 
 import * as fs from 'fs';
-import { isAbsolute, sep, join } from 'path';
-
 import * as gracefulFs from 'graceful-fs';
-gracefulFs.gracefulify(fs);
-
+import { join, sep } from 'path';
 import * as arrays from 'vs/base/common/arrays';
 import * as objects from 'vs/base/common/objects';
 import * as strings from 'vs/base/common/strings';
 import { PPromise, TPromise } from 'vs/base/common/winjs.base';
-import { FileWalker, Engine as FileSearchEngine } from 'vs/workbench/services/search/node/fileSearch';
+import { compareItemsByScore, IItemAccessor, prepareQuery, ScorerCache } from 'vs/base/parts/quickopen/common/quickOpenScorer';
 import { MAX_FILE_SIZE } from 'vs/platform/files/node/files';
+import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
+import { Engine as FileSearchEngine, FileWalker } from 'vs/workbench/services/search/node/fileSearch';
 import { RipgrepEngine } from 'vs/workbench/services/search/node/ripgrepTextSearch';
 import { Engine as TextSearchEngine } from 'vs/workbench/services/search/node/textSearch';
 import { TextSearchWorkerProvider } from 'vs/workbench/services/search/node/textSearchWorkerProvider';
-import { IRawSearchService, IRawSearch, IRawFileMatch, ISerializedFileMatch, ISerializedSearchProgressItem, ISerializedSearchComplete, ISearchEngine, IFileSearchProgressItem, ITelemetryEvent } from './search';
-import { ICachedSearchStats, IProgress } from 'vs/platform/search/common/search';
-import { compareItemsByScore, IItemAccessor, ScorerCache, prepareQuery } from 'vs/base/parts/quickopen/common/quickOpenScorer';
+import { IFileSearchProgressItem, IRawFileMatch, IRawSearch, IRawSearchService, ISearchEngine, ISerializedFileMatch, ISerializedSearchComplete, ISerializedSearchProgressItem, ITelemetryEvent } from './search';
+
+gracefulFs.gracefulify(fs);
 
 export class SearchService implements IRawSearchService {
 
@@ -271,10 +270,6 @@ export class SearchService implements IRawSearchService {
 	}
 
 	private getResultsFromCache(cache: Cache, searchValue: string): PPromise<[ISerializedSearchComplete, IRawFileMatch[], CacheStats], IProgress> {
-		if (isAbsolute(searchValue)) {
-			return null; // bypass cache if user looks up an absolute path where matching goes directly on disk
-		}
-
 		// Find cache entries by prefix of search value
 		const hasPathSep = searchValue.indexOf(sep) >= 0;
 		let cached: PPromise<[ISerializedSearchComplete, IRawFileMatch[]], IFileSearchProgressItem>;
