@@ -55,7 +55,7 @@ export class Menu {
 
 		const getActionItem = (action: IAction) => {
 			if (action instanceof Separator) {
-				return new MenuActionItem(options.context, action);
+				return new ActionItem(options.context, action, { icon: true });
 			} else if (action instanceof SubmenuAction) {
 				return new SubmenuActionItem(action, action.entries, parentData, options);
 			} else {
