@@ -85,7 +85,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: ConfigurationService,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
@@ -276,11 +276,11 @@ export class CodeApplication {
 
 		// Fix native tabs on macOS 10.13
 		// macOS enables a compatibility patch for any bundle ID beginning with
-		// "com.microsoft.", which breaks native tabs for VS Code.
+		// "com.microsoft.", which breaks native tabs for VS Code when using this
+		// identifier (from the official build).
 		// Explicitly opt out of the patch here before creating any windows.
-		// https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
-
-		if (platform.isMacintosh) {
+		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+		if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true) {
 			systemPreferences.registerDefaults({ NSUseImprovedLayoutPass: true });
 		}
 
