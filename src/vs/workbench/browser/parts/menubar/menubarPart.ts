@@ -369,9 +369,8 @@ export class MenubarPart extends Part {
 				titleElement: titleElement
 			});
 
-			// Update cached actions array for CustomMenus
-			const updateActions = () => {
-				this.customMenus[menuIndex].actions = [];
+			const updateActions = (menu: IMenu, target: IAction[]) => {
+				target.splice(0);
 				let groups = menu.getActions();
 				for (let group of groups) {
 					const [, actions] = group;
@@ -380,42 +379,24 @@ export class MenubarPart extends Part {
 						if (action instanceof SubmenuItemAction) {
 							const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 							const submenuActions = [];
-							let groups2 = submenu.getActions();
-							for (let group2 of groups2) {
-								const [, actions2] = group2;
-
-								for (let action2 of actions2) {
-									action2.label = this.calculateActionLabel(action2);
-									this.setCheckedStatus(action2);
-									submenuActions.push(action2);
-								}
-							}
-							submenu.dispose();
-
-							const action3 = new SubmenuAction(action.label, submenuActions);
-							action3.label = this.calculateActionLabel(action3);
-							this.setCheckedStatus(action3);
-							this.customMenus[menuIndex].actions.push(action3);
+							updateActions(submenu, submenuActions);
+							target.push(new SubmenuAction(action.label, submenuActions));
 						} else {
 							action.label = this.calculateActionLabel(action);
 							this.setCheckedStatus(action);
-							this.customMenus[menuIndex].actions.push(action);
+							target.push(action);
 						}
 					}
 
-					// actions.map((action: IAction) => {
-
-					// });
-
-					// this.customMenus[menuIndex].actions.push(...actions);
-					this.customMenus[menuIndex].actions.push(new Separator());
+					target.push(new Separator());
 				}
 
-				this.customMenus[menuIndex].actions.pop();
+				target.pop();
 			};
 
-			menu.onDidChange(updateActions);
-			updateActions();
+			this.customMenus[menuIndex].actions = [];
+			menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions));
+			updateActions(menu, this.customMenus[menuIndex].actions);
 
 			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, (event) => {
 				this.toggleCustomMenu(menuIndex);
