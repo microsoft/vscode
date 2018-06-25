@@ -133,6 +133,10 @@ export abstract class SimpleFindWidget extends Widget {
 		return this._findInput.getValue();
 	}
 
+	public get focusTracker(): dom.IFocusTracker {
+		return this._findInputFocusTracker;
+	}
+
 	public updateTheme(theme: ITheme): void {
 		const inputStyles = {
 			inputActiveOptionBorder: theme.getColor(inputActiveOptionBorder),
