@@ -509,7 +509,7 @@ declare module 'vscode' {
 		 *
 		 * @see [window.registerUriHandler](#window.registerUriHandler).
 		 */
-		handleUri(uri: Uri): void;
+		handleUri(uri: Uri): ProviderResult<void>;
 	}
 
 	export namespace window {

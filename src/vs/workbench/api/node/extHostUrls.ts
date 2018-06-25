@@ -8,6 +8,8 @@ import { MainContext, IMainContext, ExtHostUrlsShape, MainThreadUrlsShape } from
 import URI, { UriComponents } from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { toDisposable } from 'vs/base/common/lifecycle';
+import { asWinJsPromise } from 'vs/base/common/async';
+import { onUnexpectedError } from 'vs/base/common/errors';
 
 export class ExtHostUrls implements ExtHostUrlsShape {
 
@@ -47,7 +49,9 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 			return TPromise.as(null);
 		}
 
-		handler.handleUri(URI.revive(uri));
+		asWinJsPromise(_ => handler.handleUri(URI.revive(uri)))
+			.done(null, onUnexpectedError);
+
 		return TPromise.as(null);
 	}
 }
