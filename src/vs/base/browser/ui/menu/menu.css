@@ -5,6 +5,7 @@
 
 .monaco-menu .monaco-action-bar.vertical {
 	margin-left: 0;
+	overflow: visible;
 }
 
 .monaco-menu .monaco-action-bar.vertical .actions-container {

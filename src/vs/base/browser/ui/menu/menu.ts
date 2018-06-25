@@ -59,7 +59,7 @@ export class Menu {
 			} else if (action instanceof SubmenuAction) {
 				return new SubmenuActionItem(action, action.entries, parentData, options);
 			} else {
-				var menuItemOptions: IActionItemOptions = {};
+				const menuItemOptions: IActionItemOptions = {};
 				if (options.getKeyBinding) {
 					const keybinding = options.getKeyBinding(action);
 					if (keybinding) {
@@ -190,10 +190,10 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 
-		$(this.builder).getHTMLElement().onmouseleave = (evt: MouseEvent) => {
+		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
 			this.parentData.parent.focus();
 			this.cleanupExistingSubmenu(true);
-		};
+		});
 	}
 
 	public onClick(e: EventLike) {
