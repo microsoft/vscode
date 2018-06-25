@@ -3,7 +3,7 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-import { ChildProcess, fork } from 'child_process';
+import { ChildProcess, fork, ForkOptions } from 'child_process';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { Delayer } from 'vs/base/common/async';
@@ -125,7 +125,7 @@ export class Client implements IChannelClient, IDisposable {
 	private get client(): IPCClient {
 		if (!this._client) {
 			const args = this.options && this.options.args ? this.options.args : [];
-			const forkOpts = Object.create(null);
+			const forkOpts: ForkOptions = Object.create(null);
 
 			forkOpts.env = assign(deepClone(process.env), { 'VSCODE_PARENT_PID': String(process.pid) });
 
@@ -183,7 +183,7 @@ export class Client implements IChannelClient, IDisposable {
 				}
 
 				if (code !== 0 && signal !== 'SIGTERM') {
-					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code);
+					console.warn('IPC "' + this.options.serverName + '" crashed with exit code ' + code + ' and signal ' + signal);
 					this.disposeDelayer.cancel();
 					this.disposeClient();
 				}

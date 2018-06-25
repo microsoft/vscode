@@ -111,10 +111,11 @@
 .settings-editor > .settings-body .settings-toc-container {
 	width: 175px;
 	margin-right: 5px;
+	padding-top: 5px;
 }
 
-.settings-editor > .settings-body .settings-toc-container {
-	padding-top: 5px;
+.settings-editor > .settings-body .settings-toc-container.hidden {
+	display: none;
 }
 
 .search-mode .settings-toc-container {
@@ -207,6 +208,7 @@
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container > .setting-reset-button {
 	width: initial;
+	padding-left: 0px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {

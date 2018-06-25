@@ -720,4 +720,11 @@ suite('SnippetParser', () => {
 		const snippet = new SnippetParser().parse('${TM_DIRECTORY/.*src[\\/](.*)/$1/}');
 		assertMarker(snippet, Variable);
 	});
+
+	test('Variable transformation doesn\'t work if undefined variables are used in the same snippet #51769', function () {
+		let transform = new Transform();
+		transform.appendChild(new Text('bar'));
+		transform.regexp = new RegExp('foo', 'gi');
+		assert.equal(transform.toTextmateString(), '/foo/bar/ig');
+	});
 });

@@ -334,7 +334,7 @@ export class Transform extends Marker {
 	}
 
 	toTextmateString(): string {
-		return `/${Text.escape(this.regexp.source)}/${this.children.map(c => c.toTextmateString())}/${this.regexp.ignoreCase ? 'i' : ''}`;
+		return `/${Text.escape(this.regexp.source)}/${this.children.map(c => c.toTextmateString())}/${(this.regexp.ignoreCase ? 'i' : '') + (this.regexp.global ? 'g' : '')}`;
 	}
 
 	clone(): Transform {

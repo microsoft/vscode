@@ -18,6 +18,7 @@ export interface IProductConfiguration {
 	downloadUrl: string;
 	updateUrl?: string;
 	quality?: string;
+	target?: string;
 	commit?: string;
 	settingsSearchBuildId?: number;
 	settingsSearchUrl?: string;

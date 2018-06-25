@@ -38,16 +38,15 @@ export const ExtensionsConfigurationSchema: IJSONSchema = {
 
 export const ExtensionsConfigurationInitialContent: string = [
 	'{',
-	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846',
-	'\t// for the documentation about the extensions.json format',
+	'\t// See http://go.microsoft.com/fwlink/?LinkId=827846 to learn about workspace recommendations.',
+	'\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
+	'',
+	'\t// List of extensions which should be recommended for users of this workspace.',
 	'\t"recommendations": [',
-	'\t\t// List of extensions which should be recommended for users of this workspace.',
-	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t],',
+	'\t// List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These are extensions that you may consider to be irrelevant, redundant, or otherwise unwanted.',
 	'\t"unwantedRecommendations": [',
-	'\t\t// List of extensions that will be skipped from the recommendations that VS Code makes for the users of this workspace. These are extensions that you may consider to be irrelevant, redundant, or otherwise unwanted.',
-	'\t\t// Extension identifier format: ${publisher}.${name}. Example: vscode.csharp',
 	'\t\t',
 	'\t]',
 	'}'

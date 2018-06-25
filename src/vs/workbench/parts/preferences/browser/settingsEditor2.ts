@@ -6,6 +6,7 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import * as arrays from 'vs/base/common/arrays';
+import * as collections from 'vs/base/common/collections';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { Color } from 'vs/base/common/color';
@@ -30,7 +31,7 @@ import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
 import { tocData, commonlyUsedData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree, resolveExtensionsSettings } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -98,7 +99,13 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 
-		this._register(configurationService.onDidChangeConfiguration(() => this.onConfigUpdate()));
+		this._register(configurationService.onDidChangeConfiguration(e => {
+			this.onConfigUpdate();
+
+			if (e.affectsConfiguration('workbench.settings.tocVisible')) {
+				this.updateTOCVisible();
+			}
+		}));
 	}
 
 	createEditor(parent: HTMLElement): void {
@@ -258,6 +265,13 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			}
 		}));
+
+		this.updateTOCVisible();
+	}
+
+	private updateTOCVisible(): void {
+		const visible = !!this.configurationService.getValue('workbench.settings.tocVisible');
+		DOM.toggleClass(this.tocTreeContainer, 'hidden', !visible);
 	}
 
 	private createSettingsTree(parent: HTMLElement): void {
@@ -327,31 +341,12 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
+		this._register(this.settingsTree.onDidChangeSelection(() => {
+			this.updateTreeScrollSync();
+		}));
+
 		this._register(this.settingsTree.onDidScroll(() => {
-			if (this.searchResultModel) {
-				return;
-			}
-
-			if (!this.tocTree.getInput()) {
-				return;
-			}
-
-			const topElement = this.settingsTree.getFirstVisibleElement();
-			const element = topElement instanceof SettingsTreeSettingElement ? topElement.parent :
-				topElement instanceof SettingsTreeGroupElement ? topElement :
-					null;
-
-			if (element && this.tocTree.getSelection()[0] !== element) {
-				const elementTop = this.tocTree.getRelativeTop(element);
-				if (elementTop < 0) {
-					this.tocTree.reveal(element, 0);
-				} else if (elementTop > 1) {
-					this.tocTree.reveal(element, 1);
-				}
-
-				this.tocTree.setSelection([element], { fromScroll: true });
-				this.tocTree.setFocus(element);
-			}
+			this.updateTreeScrollSync();
 		}));
 	}
 
@@ -382,6 +377,41 @@ export class SettingsEditor2 extends BaseEditor {
 
 		this.pendingSettingUpdate = { key, value };
 		this.settingUpdateDelayer.trigger(() => this.updateChangedSetting(key, value));
+	}
+
+	private updateTreeScrollSync(): void {
+		if (this.searchResultModel) {
+			return;
+		}
+
+		if (!this.tocTree.getInput()) {
+			return;
+		}
+
+		let elementToSync = this.settingsTree.getFirstVisibleElement();
+		const selection = this.settingsTree.getSelection()[0];
+		if (selection) {
+			const selectionPos = this.settingsTree.getRelativeTop(selection);
+			if (selectionPos >= 0 && selectionPos <= 1) {
+				elementToSync = selection;
+			}
+		}
+
+		const element = elementToSync instanceof SettingsTreeSettingElement ? elementToSync.parent :
+			elementToSync instanceof SettingsTreeGroupElement ? elementToSync :
+				null;
+
+		if (element && this.tocTree.getSelection()[0] !== element) {
+			const elementTop = this.tocTree.getRelativeTop(element);
+			if (elementTop < 0) {
+				this.tocTree.reveal(element, 0);
+			} else if (elementTop > 1) {
+				this.tocTree.reveal(element, 1);
+			}
+
+			this.tocTree.setSelection([element], { fromScroll: true });
+			this.tocTree.setFocus(element);
+		}
 	}
 
 	private updateChangedSetting(key: string, value: any): TPromise<void> {
@@ -486,9 +516,12 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private onConfigUpdate(): TPromise<void> {
 		const groups = this.defaultSettingsEditorModel.settingsGroups.slice(1); // Without commonlyUsed
-		const resolvedSettingsRoot = resolveSettingsTree(tocData, groups);
-		const commonlyUsed = resolveSettingsTree(commonlyUsedData, groups);
+		const dividedGroups = collections.groupBy(groups, g => g.contributedByExtension ? 'extension' : 'core');
+		const resolvedSettingsRoot = resolveSettingsTree(tocData, dividedGroups.core);
+		const commonlyUsed = resolveSettingsTree(commonlyUsedData, dividedGroups.core);
 		resolvedSettingsRoot.children.unshift(commonlyUsed);
+
+		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
 
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);

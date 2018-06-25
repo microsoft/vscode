@@ -12,6 +12,7 @@ import { IPager } from 'vs/base/common/paging';
 import { createDecorator } from 'vs/platform/instantiation/common/instantiation';
 import { ILocalization } from 'vs/platform/localizations/common/localizations';
 import URI from 'vs/base/common/uri';
+import { IWorkspaceFolder, IWorkspace } from 'vs/platform/workspace/common/workspace';
 
 export const EXTENSION_IDENTIFIER_PATTERN = '^([a-z0-9A-Z][a-z0-9\-A-Z]*)\\.([a-z0-9A-Z][a-z0-9\-A-Z]*)$';
 export const EXTENSION_IDENTIFIER_REGEX = new RegExp(EXTENSION_IDENTIFIER_PATTERN);
@@ -392,15 +393,27 @@ export type RecommendationChangeNotification = {
 	isRecommended: boolean
 };
 
+export type DynamicRecommendation = 'dynamic';
+export type ExecutableRecommendation = 'executable';
+export type CachedRecommendation = 'cached';
+export type ApplicationRecommendation = 'application';
+export type ExtensionRecommendationSource = IWorkspace | IWorkspaceFolder | URI | DynamicRecommendation | ExecutableRecommendation | CachedRecommendation | ApplicationRecommendation;
+
+export interface IExtensionRecommendation {
+	extensionId: string;
+	sources: ExtensionRecommendationSource[];
+}
+
 export const IExtensionTipsService = createDecorator<IExtensionTipsService>('extensionTipsService');
 
 export interface IExtensionTipsService {
 	_serviceBrand: any;
 	getAllRecommendationsWithReason(): { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string }; };
-	getFileBasedRecommendations(): string[];
-	getOtherRecommendations(): TPromise<string[]>;
-	getWorkspaceRecommendations(): TPromise<string[]>;
-	getKeymapRecommendations(): string[];
+	getFileBasedRecommendations(): IExtensionRecommendation[];
+	getOtherRecommendations(): TPromise<IExtensionRecommendation[]>;
+	getWorkspaceRecommendations(): TPromise<IExtensionRecommendation[]>;
+	getKeymapRecommendations(): IExtensionRecommendation[];
+	getAllRecommendations(): TPromise<IExtensionRecommendation[]>;
 	getKeywordsForExtension(extension: string): string[];
 	getRecommendationsForExtension(extension: string): string[];
 	getAllIgnoredRecommendations(): IIgnoredRecommendations;

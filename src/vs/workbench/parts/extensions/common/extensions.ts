@@ -8,7 +8,7 @@ import { createDecorator } from 'vs/platform/instantiation/common/instantiation'
 import { Event } from 'vs/base/common/event';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IPager } from 'vs/base/common/paging';
-import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension } from 'vs/platform/extensionManagement/common/extensionManagement';
+import { IQueryOptions, IExtensionManifest, LocalExtensionType, EnablementState, ILocalExtension, IGalleryExtension, ExtensionRecommendationSource } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IViewContainersRegistry, ViewContainer, Extensions as ViewContainerExtensions } from 'vs/workbench/common/views';
 import { Registry } from 'vs/platform/registry/common/platform';
 
@@ -58,6 +58,7 @@ export interface IExtension {
 	locals?: ILocalExtension[];
 	gallery?: IGalleryExtension;
 	isMalicious: boolean;
+	recommendationSources: ExtensionRecommendationSource[];
 }
 
 export interface IExtensionDependencies {

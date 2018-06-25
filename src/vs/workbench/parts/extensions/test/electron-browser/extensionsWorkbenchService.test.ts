@@ -76,8 +76,7 @@ suite('ExtensionsWorkbenchService Test', () => {
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
-		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
+		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 
 		instantiationService.stub(INotificationService, { prompt: () => null });
 		instantiationService.stub(IDialogService, { show: () => TPromise.as(0) });
