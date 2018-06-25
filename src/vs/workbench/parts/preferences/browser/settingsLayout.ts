@@ -90,6 +90,11 @@ export const tocData: ITOCEntry = {
 					settings: ['workbench.editor.*']
 				},
 				{
+					id: 'workbench/settings',
+					label: localize('settings', "Settings Editor"),
+					settings: ['workbench.settings.*']
+				},
+				{
 					id: 'workbench/zenmode',
 					label: localize('zenMode', "Zen Mode"),
 					settings: ['zenmode.*']
