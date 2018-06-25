@@ -465,3 +465,21 @@ const editFocusedSettingCommand = new EditFocusedSettingCommand({
 	kbOpts: { primary: KeyMod.CtrlCmd | KeyCode.US_DOT }
 });
 KeybindingsRegistry.registerCommandAndKeybindingRule(editFocusedSettingCommand.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.editorContrib()));
+
+class EditFocusedSettingCommand2 extends SettingsCommand {
+
+	public runCommand(accessor: ServicesAccessor, args: any): void {
+		const preferencesEditor = this.getPreferencesEditor(accessor);
+		if (preferencesEditor instanceof SettingsEditor2) {
+			preferencesEditor.editSelectedSetting();
+		}
+	}
+
+}
+
+const editFocusedSettingCommand2 = new EditFocusedSettingCommand2({
+	id: SETTINGS_EDITOR_COMMAND_EDIT_FOCUSED_SETTING,
+	precondition: CONTEXT_SETTINGS_EDITOR,
+	kbOpts: { primary: KeyCode.Enter }
+});
+KeybindingsRegistry.registerCommandAndKeybindingRule(editFocusedSettingCommand2.toCommandAndKeybindingRule(KeybindingsRegistry.WEIGHT.workbenchContrib()));

@@ -155,6 +155,14 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchWidget.focus();
 	}
 
+	editSelectedSetting(): void {
+		const focus = this.settingsTree.getFocus();
+		if (focus instanceof SettingsTreeSettingElement) {
+			const itemId = focus.id.replace(/\./g, '_');
+			this.focusEditControlForRow(itemId);
+		}
+	}
+
 	clearSearchResults(): void {
 		this.searchWidget.clear();
 	}
@@ -585,19 +593,23 @@ export class SettingsEditor2 extends BaseEditor {
 		return this.settingsTree.refresh()
 			.then(() => {
 				if (focusedRowId) {
-					const rowSelector = `.setting-item#${focusedRowId}`;
-					const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a, ${rowSelector} .monaco-custom-checkbox`);
-					if (inputElementToFocus) {
-						inputElementToFocus.focus();
-						if (typeof selection === 'number') {
-							(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
-						}
-					}
+					this.focusEditControlForRow(focusedRowId, selection);
 				}
 			})
 			.then(() => {
 				return this.tocTree.refresh();
 			});
+	}
+
+	private focusEditControlForRow(id: string, selection?: number): void {
+		const rowSelector = `.setting-item#${id}`;
+		const inputElementToFocus: HTMLElement = this.settingsTreeContainer.querySelector(`${rowSelector} input, ${rowSelector} select, ${rowSelector} a, ${rowSelector} .monaco-custom-checkbox`);
+		if (inputElementToFocus) {
+			inputElementToFocus.focus();
+			if (typeof selection === 'number') {
+				(<HTMLInputElement>inputElementToFocus).setSelectionRange(selection, selection);
+			}
+		}
 	}
 
 	private onSearchInputChanged(): void {
