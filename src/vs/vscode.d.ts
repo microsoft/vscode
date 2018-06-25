@@ -6155,7 +6155,7 @@ declare module 'vscode' {
 		/**
 		 * Element that is expanded or collapsed.
 		 */
-		element: T;
+		readonly element: T;
 
 	}
 
@@ -6167,7 +6167,7 @@ declare module 'vscode' {
 		/**
 		 * Selected elements.
 		 */
-		selection: T[];
+		readonly selection: T[];
 
 	}
 
@@ -6179,7 +6179,7 @@ declare module 'vscode' {
 		/**
 		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
 		 */
-		visible: boolean;
+		readonly visible: boolean;
 
 	}
 

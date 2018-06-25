@@ -199,9 +199,9 @@ class ExtHostTreeView<T> extends Disposable {
 		const element = this.getExtensionElement(treeItemHandle);
 		if (element) {
 			if (expanded) {
-				this._onDidExpandElement.fire({ element });
+				this._onDidExpandElement.fire(Object.freeze({ element }));
 			} else {
-				this._onDidCollapseElement.fire({ element });
+				this._onDidCollapseElement.fire(Object.freeze({ element }));
 			}
 		}
 	}
@@ -209,14 +209,14 @@ class ExtHostTreeView<T> extends Disposable {
 	setSelection(treeItemHandles: TreeItemHandle[]): void {
 		if (!equals(this._selectedHandles, treeItemHandles)) {
 			this._selectedHandles = treeItemHandles;
-			this._onDidChangeSelection.fire({ selection: this.selectedElements });
+			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
 		}
 	}
 
 	setVisible(visible: boolean): void {
 		if (visible !== this._visible) {
 			this._visible = visible;
-			this._onDidChangeVisibility.fire({ visible: this._visible });
+			this._onDidChangeVisibility.fire(Object.freeze({ visible: this._visible }));
 		}
 	}
 
