@@ -51,6 +51,7 @@ import { IEditorService } from 'vs/workbench/services/editor/common/editorServic
 import { IEditorGroupsService } from 'vs/workbench/services/group/common/editorGroupsService';
 import { ExtensionsInput } from 'vs/workbench/parts/extensions/common/extensionsInput';
 import product from 'vs/platform/node/product';
+import { ContextSubMenu } from 'vs/base/browser/contextmenu';
 
 const promptDownloadManually = (extension: IGalleryExtension, message: string, instantiationService: IInstantiationService, notificationService: INotificationService, openerService: IOpenerService) => {
 	const downloadUrl = `${product.extensionsGallery.serviceUrl}/publishers/${extension.publisher}/vsextensions/${extension.name}/${extension.version}/vspackage`;
@@ -231,8 +232,8 @@ export class UninstallAction extends Action {
 export class CombinedInstallAction extends Action {
 
 	private static readonly NoExtensionClass = 'extension-action prominent install no-extension';
-	private installAction: InstallAction;
-	private uninstallAction: UninstallAction;
+	private installAction: MultiServerInstallAction | InstallAction;
+	private uninstallAction: MultiServerUninstallAction | UninstallAction;
 	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
@@ -243,12 +244,13 @@ export class CombinedInstallAction extends Action {
 	}
 
 	constructor(
-		@IInstantiationService instantiationService: IInstantiationService
+		@IInstantiationService instantiationService: IInstantiationService,
+		@IExtensionManagementServerService extensionManagementServerService: IExtensionManagementServerService
 	) {
 		super('extensions.combinedInstall', '', '', false);
 
-		this.installAction = instantiationService.createInstance(InstallAction);
-		this.uninstallAction = instantiationService.createInstance(UninstallAction);
+		this.installAction = extensionManagementServerService.extensionManagementServers.length > 1 ? instantiationService.createInstance(MultiServerInstallAction, false) : instantiationService.createInstance(InstallAction);
+		this.uninstallAction = extensionManagementServerService.extensionManagementServers.length > 1 ? instantiationService.createInstance(MultiServerUninstallAction) : instantiationService.createInstance(UninstallAction);
 		this.disposables.push(this.installAction, this.uninstallAction);
 
 		this.installAction.onDidChange(this.update, this, this.disposables);
@@ -403,6 +405,28 @@ export class InstallGalleryExtensionAction extends Action {
 	}
 }
 
+export class UninstallExtensionAction extends Action {
+
+	private _server: IExtensionManagementServer;
+	private _extension: ILocalExtension;
+	get extension(): ILocalExtension { return this._extension; }
+	set extension(extension: ILocalExtension) { this._extension = extension; this.enabled = !!this._extension; }
+
+	constructor(
+		id: string, label: string, server: IExtensionManagementServer,
+	) {
+		super(id, label, null, false);
+		this._server = server;
+	}
+
+	run(): TPromise<any> {
+		if (this.extension) {
+			return this._server.extensionManagementService.uninstall(this.extension);
+		}
+		return TPromise.as(null);
+	}
+}
+
 export class UpdateGalleryExtensionAction extends Action {
 
 	private server: IExtensionManagementServer;
@@ -449,25 +473,30 @@ export class MultiServerInstallAction extends Action {
 	private static readonly Class = 'extension-action multiserver prominent install';
 	private static readonly InstallingClass = 'extension-action multiserver install installing';
 
-	private _installActions: InstallGalleryExtensionAction[] = [];
+	private readonly disableWhenInstalled: boolean;
+
+	readonly actions: InstallGalleryExtensionAction[] = [];
 	private _actionItem: DropDownMenuActionItem;
 	get actionItem(): IActionItem { return this._actionItem; }
 
-	private disposables: IDisposable[] = [];
 	private _extension: IExtension;
 	get extension(): IExtension { return this._extension; }
 	set extension(extension: IExtension) { this._extension = extension; this.update(); }
 
+	private disposables: IDisposable[] = [];
+
 	constructor(
+		disableWhenInstalled: boolean,
 		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
 		@IInstantiationService private instantiationService: IInstantiationService,
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
 		@IWorkspaceContextService private contextService: IWorkspaceContextService
 	) {
 		super(MultiServerInstallAction.ID, MultiServerInstallAction.InstallLabel, MultiServerInstallAction.Class, false);
-		this._installActions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this._installActions]);
-		this.disposables.push(...[this._actionItem, ...this._installActions]);
+		this.disableWhenInstalled = disableWhenInstalled;
+		this.actions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this.actions]);
+		this.disposables.push(...[this._actionItem, ...this.actions]);
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.extension = this.extension ? this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] : this.extension));
 		this.update();
 	}
@@ -480,12 +509,19 @@ export class MultiServerInstallAction extends Action {
 			return;
 		}
 
+		const isInstalled = this.extension.locals.length > 0;
+
+		if (isInstalled && this.disableWhenInstalled) {
+			this.enabled = false;
+			return;
+		}
+
 		let isExtensionNotInstalledInRecommendedServer: boolean = false;
-		this._installActions.forEach((installAction, index) => {
+		this.actions.forEach((installAction, index) => {
 			const server = this.extensionManagementServerService.extensionManagementServers[index];
 			installAction.extension = this.extension.gallery;
 			installAction.label = localize('installInServer', "{0}", server.location.authority);
-			installAction.enabled = !this.extension.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location) === server);
+			installAction.enabled = this.extension.gallery && !this.extension.locals.some(local => this.extensionManagementServerService.getExtensionManagementServer(local.location) === server);
 			if (this.extension.recommendationSources && this.extension.recommendationSources.length) {
 				if (this.extension.recommendationSources.some(recommendationSource => getExtensionManagementServerForRecommendationSource(recommendationSource, this.extensionManagementServerService, this.contextService) === server)) {
 					installAction.label = localize('installInRecommendedServer', "{0} (Recommended)", server.location.authority);
@@ -510,6 +546,68 @@ export class MultiServerInstallAction extends Action {
 	public run(): TPromise<any> {
 		this._actionItem.showMenu();
 		return TPromise.wrap(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class MultiServerInstallSubMenuAction extends ContextSubMenu {
+
+	private readonly action: MultiServerInstallAction;
+	private disposables: IDisposable[] = [];
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.action.extension = extension; }
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super('', []);
+		this.action = instantiationService.createInstance(MultiServerInstallAction, false);
+		this.disposables.push(this.action);
+		this.entries = this.action.actions;
+		this.disposables.push(this.onDidChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.label = this.action.label;
+		this.enabled = this.action.enabled;
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class MultiServerUnInstallSubMenuAction extends ContextSubMenu {
+
+	private readonly action: MultiServerUninstallAction;
+	private disposables: IDisposable[] = [];
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.action.extension = extension; }
+
+	constructor(
+		@IInstantiationService instantiationService: IInstantiationService,
+	) {
+		super('', []);
+		this.action = instantiationService.createInstance(MultiServerUninstallAction);
+		this.disposables.push(this.action);
+		this.entries = this.action.actions;
+		this.disposables.push(this.onDidChange(() => this.update()));
+		this.update();
+	}
+
+	private update(): void {
+		this.label = this.action.label;
+		this.enabled = this.action.enabled;
 	}
 
 	dispose(): void {
@@ -557,6 +655,87 @@ export class MultiServerUpdateAction extends Action {
 			}
 		});
 		this.enabled = this._updateActions.some(action => action.enabled);
+	}
+
+	public run(): TPromise<any> {
+		this._actionItem.showMenu();
+		return TPromise.wrap(null);
+	}
+
+	dispose(): void {
+		super.dispose();
+		this.disposables = dispose(this.disposables);
+	}
+}
+
+export class MultiServerUninstallAction extends Action {
+
+	static ID: string = 'extensions.multiserver.uninstall';
+
+	private static readonly UninstallLabel = localize('uninstallAction', "Uninstall");
+	private static readonly UninstallingLabel = localize('Uninstalling', "Uninstalling");
+
+	private static readonly UninstallClass = 'extension-action uninstall';
+	private static readonly UnInstallingClass = 'extension-action uninstall uninstalling';
+
+	readonly actions: UninstallExtensionAction[] = [];
+	private _actionItem: DropDownMenuActionItem;
+	get actionItem(): IActionItem { return this._actionItem; }
+
+	private _extension: IExtension;
+	get extension(): IExtension { return this._extension; }
+	set extension(extension: IExtension) { this._extension = extension; this.update(); }
+
+	private disposables: IDisposable[] = [];
+
+	constructor(
+		@IExtensionManagementServerService private extensionManagementServerService: IExtensionManagementServerService,
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
+	) {
+		super(MultiServerUninstallAction.ID, MultiServerUninstallAction.UninstallLabel, MultiServerUninstallAction.UninstallClass, false);
+		this.actions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(UninstallExtensionAction, `extensions.uninstall.${server.location.authority}`, server.location.authority, server));
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this.actions]);
+		this.disposables.push(...[this._actionItem, ...this.actions]);
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.extension = this.extension ? this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] : this.extension));
+		this.update();
+	}
+
+	private update(): void {
+		if (!this.extension) {
+			this.enabled = false;
+		} else {
+			const state = this.extension.state;
+
+			if (state === ExtensionState.Uninstalling) {
+				this.label = MultiServerUninstallAction.UninstallingLabel;
+				this.class = MultiServerUninstallAction.UnInstallingClass;
+				this.enabled = false;
+				return;
+			}
+
+			this.label = MultiServerUninstallAction.UninstallLabel;
+			this.class = MultiServerUninstallAction.UninstallClass;
+
+			const installedExtensions = this.extensionsWorkbenchService.local.filter(e => e.id === this.extension.id);
+
+			if (!installedExtensions.length) {
+				this.enabled = false;
+				return;
+			}
+
+			if (installedExtensions[0].type !== LocalExtensionType.User) {
+				this.enabled = false;
+				return;
+			}
+
+			this.enabled = true;
+
+			this.actions.forEach((installAction, index) => {
+				const server = this.extensionManagementServerService.extensionManagementServers[index];
+				installAction.extension = this.extension.locals.filter(local => this.extensionManagementServerService.getExtensionManagementServer(local.location) === server)[0];
+			});
+		}
 	}
 
 	public run(): TPromise<any> {
@@ -628,35 +807,36 @@ export class ManageExtensionAction extends Action {
 
 	constructor(
 		@IExtensionsWorkbenchService private extensionsWorkbenchService: IExtensionsWorkbenchService,
-		@IInstantiationService private instantiationService: IInstantiationService
+		@IInstantiationService private instantiationService: IInstantiationService,
+		@IExtensionManagementServerService private extensionManagmentServerService: IExtensionManagementServerService
 	) {
 		super(ManageExtensionAction.ID);
 
-		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [
-			[
-				instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
-				instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
-			],
-			[
-				instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
-				instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
-			],
-			[
-				instantiationService.createInstance(UninstallAction)
-			]
-		]);
+		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, this.createMenuActionGroups());
 		this.disposables.push(this._actionItem);
 
 		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.update()));
 		this.update();
 	}
 
+	private createMenuActionGroups(): IAction[][] {
+		return [
+			[
+				this.instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
+				this.instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
+			],
+			[
+				this.instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
+				this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
+			],
+			this.extensionManagmentServerService.extensionManagementServers.length > 1 ? [this.instantiationService.createInstance(MultiServerInstallSubMenuAction)] : [],
+			[
+				this.extensionManagmentServerService.extensionManagementServers.length > 1 ? this.instantiationService.createInstance(MultiServerUnInstallSubMenuAction) : this.instantiationService.createInstance(UninstallAction)
+			]
+		];
+	}
+
 	private update(): void {
-		for (const actions of this._actionItem.menuActionGroups) {
-			for (const action of actions) {
-				(<IExtensionAction>action).extension = this.extension;
-			}
-		}
 		this.class = ManageExtensionAction.HideManageExtensionClass;
 		this.tooltip = '';
 		this.enabled = false;
@@ -666,6 +846,13 @@ export class ManageExtensionAction extends Action {
 			this.class = this.enabled || state === ExtensionState.Uninstalling ? ManageExtensionAction.Class : ManageExtensionAction.HideManageExtensionClass;
 			this.tooltip = state === ExtensionState.Uninstalling ? localize('ManageExtensionAction.uninstallingTooltip', "Uninstalling") : '';
 		}
+		const menuActionGroups = this.createMenuActionGroups();
+		for (const actions of menuActionGroups) {
+			for (const action of actions) {
+				(<IExtensionAction>action).extension = this.extension;
+			}
+		}
+		this._actionItem.menuActionGroups = menuActionGroups;
 	}
 
 	public run(): TPromise<any> {

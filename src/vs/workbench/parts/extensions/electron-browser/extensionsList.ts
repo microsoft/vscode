@@ -107,7 +107,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 		const maliciousStatusAction = this.instantiationService.createInstance(MaliciousStatusLabelAction, false);
 		const disabledStatusAction = this.instantiationService.createInstance(DisabledStatusLabelAction);
 		const installAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(InstallAction)
-			: this.instantiationService.createInstance(MultiServerInstallAction);
+			: this.instantiationService.createInstance(MultiServerInstallAction, true);
 		const updateAction = this.extensionManagementServerService.extensionManagementServers.length === 1 ? this.instantiationService.createInstance(UpdateAction)
 			: this.instantiationService.createInstance(MultiServerUpdateAction);
 		const reloadAction = this.instantiationService.createInstance(ReloadAction);
