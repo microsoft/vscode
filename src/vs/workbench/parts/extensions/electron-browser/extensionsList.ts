@@ -23,7 +23,6 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
-import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 
 export interface ITemplateData {
 	root: HTMLElement;
