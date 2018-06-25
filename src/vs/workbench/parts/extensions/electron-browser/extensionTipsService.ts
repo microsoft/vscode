@@ -213,7 +213,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		Object.keys(this._sessionRestoredRecommendations).forEach(x => output[x.toLowerCase()] = {
 			reasonId: this._sessionRestoredRecommendations[x].reasonId,
-			reasonText: localize('restoredRecommendation', "You will receive recommendations for this extension in your next VS Code session.")
+			reasonText: localize('restoredRecommendation', "You will receive recommendations for this extension in your future VS Code sessions.")
 		});
 
 		return output;
@@ -226,7 +226,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private fetchWorkspaceRecommendations(): TPromise<void> {
 		this._workspaceIgnoredRecommendations = [];
-		this._allWorkspaceRecommendedExtensions = [];
+		const tmpAllWorkspaceRecommendations = [];
 
 		if (!this.isEnabled) { return TPromise.as(null); }
 
@@ -255,10 +255,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							for (const r of contentsBySource.contents.recommendations) {
 								const extensionId = r.toLowerCase();
 								if (invalidExtensions.indexOf(extensionId) === -1) {
-									let recommendation = this._allWorkspaceRecommendedExtensions.filter(r => r.extensionId === extensionId)[0];
+									let recommendation = tmpAllWorkspaceRecommendations.filter(r => r.extensionId === extensionId)[0];
 									if (!recommendation) {
 										recommendation = { extensionId, sources: [] };
-										this._allWorkspaceRecommendedExtensions.push(recommendation);
+										tmpAllWorkspaceRecommendations.push(recommendation);
 									}
 									if (recommendation.sources.indexOf(contentsBySource.source) === -1) {
 										recommendation.sources.push(contentsBySource.source);
@@ -267,7 +267,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 							}
 						}
 					}
-
+					this._allWorkspaceRecommendedExtensions = tmpAllWorkspaceRecommendations;
 					this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
 					this.refilterAllRecommendations();
 				}));
