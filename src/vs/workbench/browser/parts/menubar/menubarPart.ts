@@ -11,18 +11,18 @@ import * as nls from 'vs/nls';
 import * as browser from 'vs/base/browser/browser';
 import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
-import { IMenuService, MenuId, IMenu } from 'vs/platform/actions/common/actions';
+import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { IWindowService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
-import { Separator, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
+import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType, Dimension, toggleClass } from 'vs/base/browser/dom';
 import { TITLE_BAR_ACTIVE_BACKGROUND, TITLE_BAR_ACTIVE_FOREGROUND } from 'vs/workbench/common/theme';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import { isWindows, isMacintosh } from 'vs/base/common/platform';
-import { Menu, IMenuOptions } from 'vs/base/browser/ui/menu/menu';
+import { Menu, IMenuOptions, SubmenuAction } from 'vs/base/browser/ui/menu/menu';
 import { KeyCode } from 'vs/base/common/keyCodes';
 import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
 import { IConfigurationService, IConfigurationChangeEvent } from 'vs/platform/configuration/common/configuration';
@@ -53,15 +53,13 @@ export class MenubarPart extends Part {
 	private topLevelMenus: {
 		'File': IMenu;
 		'Edit': IMenu;
-		'Recent': IMenu;
 		'Selection': IMenu;
 		'View': IMenu;
-		'Layout': IMenu;
 		'Go': IMenu;
+		'Terminal': IMenu;
 		'Debug': IMenu;
 		'Tasks': IMenu;
 		'Window'?: IMenu;
-		'Preferences': IMenu;
 		'Help': IMenu;
 		[index: string]: IMenu;
 	};
@@ -69,14 +67,12 @@ export class MenubarPart extends Part {
 	private topLevelTitles = {
 		'File': nls.localize({ key: 'mFile', comment: ['&& denotes a mnemonic'] }, "&&File"),
 		'Edit': nls.localize({ key: 'mEdit', comment: ['&& denotes a mnemonic'] }, "&&Edit"),
-		'Recent': nls.localize({ key: 'mRecent', comment: ['&& denotes a mnemonic'] }, "&&Recent"),
 		'Selection': nls.localize({ key: 'mSelection', comment: ['&& denotes a mnemonic'] }, "&&Selection"),
 		'View': nls.localize({ key: 'mView', comment: ['&& denotes a mnemonic'] }, "&&View"),
-		'Layout': nls.localize({ key: 'mLayout', comment: ['&& denotes a mnemonic'] }, "&&Layout"),
 		'Go': nls.localize({ key: 'mGoto', comment: ['&& denotes a mnemonic'] }, "&&Go"),
+		'Terminal': nls.localize({ key: 'mTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"),
 		'Debug': nls.localize({ key: 'mDebug', comment: ['&& denotes a mnemonic'] }, "&&Debug"),
 		'Tasks': nls.localize({ key: 'mTasks', comment: ['&& denotes a mnemonic'] }, "&&Tasks"),
-		'Preferences': nls.localize({ key: 'mPreferences', comment: ['&& denotes a mnemonic'] }, "&&Preferences"),
 		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
 
@@ -120,14 +116,12 @@ export class MenubarPart extends Part {
 		this.topLevelMenus = {
 			'File': this.menuService.createMenu(MenuId.MenubarFileMenu, this.contextKeyService),
 			'Edit': this.menuService.createMenu(MenuId.MenubarEditMenu, this.contextKeyService),
-			'Recent': this.menuService.createMenu(MenuId.MenubarRecentMenu, this.contextKeyService),
 			'Selection': this.menuService.createMenu(MenuId.MenubarSelectionMenu, this.contextKeyService),
 			'View': this.menuService.createMenu(MenuId.MenubarViewMenu, this.contextKeyService),
-			'Layout': this.menuService.createMenu(MenuId.MenubarLayoutMenu, this.contextKeyService),
 			'Go': this.menuService.createMenu(MenuId.MenubarGoMenu, this.contextKeyService),
+			'Terminal': this.menuService.createMenu(MenuId.MenubarTerminalMenu, this.contextKeyService),
 			'Debug': this.menuService.createMenu(MenuId.MenubarDebugMenu, this.contextKeyService),
 			'Tasks': this.menuService.createMenu(MenuId.MenubarTasksMenu, this.contextKeyService),
-			'Preferences': this.menuService.createMenu(MenuId.MenubarPreferencesMenu, this.contextKeyService),
 			'Help': this.menuService.createMenu(MenuId.MenubarHelpMenu, this.contextKeyService)
 		};
 
@@ -378,27 +372,34 @@ export class MenubarPart extends Part {
 				titleElement: titleElement
 			});
 
-			// Update cached actions array for CustomMenus
-			const updateActions = () => {
-				this.customMenus[menuIndex].actions = [];
+			const updateActions = (menu: IMenu, target: IAction[]) => {
+				target.splice(0);
 				let groups = menu.getActions();
 				for (let group of groups) {
 					const [, actions] = group;
 
-					actions.map((action: IAction) => {
-						action.label = this.calculateActionLabel(action);
-						this.setCheckedStatus(action);
-					});
+					for (let action of actions) {
+						if (action instanceof SubmenuItemAction) {
+							const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
+							const submenuActions = [];
+							updateActions(submenu, submenuActions);
+							target.push(new SubmenuAction(action.label, submenuActions));
+						} else {
+							action.label = this.calculateActionLabel(action);
+							this.setCheckedStatus(action);
+							target.push(action);
+						}
+					}
 
-					this.customMenus[menuIndex].actions.push(...actions);
-					this.customMenus[menuIndex].actions.push(new Separator());
+					target.push(new Separator());
 				}
 
-				this.customMenus[menuIndex].actions.pop();
+				target.pop();
 			};
 
-			menu.onDidChange(updateActions);
-			updateActions();
+			this.customMenus[menuIndex].actions = [];
+			menu.onDidChange(() => updateActions(menu, this.customMenus[menuIndex].actions));
+			updateActions(menu, this.customMenus[menuIndex].actions);
 
 			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, (event) => {
 				this.toggleCustomMenu(menuIndex);
@@ -537,14 +538,6 @@ export class MenubarPart extends Part {
 		this.toggleCustomMenu(0);
 	}
 
-	private _getActionItem(action: IAction): ActionItem {
-		const keybinding = this.keybindingService.lookupKeybinding(action.id);
-		if (keybinding) {
-			return new ActionItem(action, action, { label: true, keybinding: keybinding.getLabel(), isMenu: true });
-		}
-		return null;
-	}
-
 	private toggleCustomMenu(menuIndex: number): void {
 		const customMenu = this.customMenus[menuIndex];
 
@@ -573,9 +566,10 @@ export class MenubarPart extends Part {
 		});
 
 		let menuOptions: IMenuOptions = {
+			getKeyBinding: (action) => this.keybindingService.lookupKeybinding(action.id),
 			actionRunner: this.actionRunner,
-			ariaLabel: 'File',
-			actionItemProvider: (action) => { return this._getActionItem(action); }
+			// ariaLabel: 'File'
+			// actionItemProvider: (action) => { return this._getActionItem(action); }
 		};
 
 		let menuWidget = new Menu(menuHolder.getHTMLElement(), customMenu.actions, menuOptions);
