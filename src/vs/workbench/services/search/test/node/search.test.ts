@@ -578,29 +578,6 @@ suite('FileSearchEngine', () => {
 		});
 	});
 
-	test('Files: absolute path to file ignores excludes', function (done: () => void) {
-		this.timeout(testTimeout);
-		let engine = new FileSearchEngine({
-			folderQueries: ROOT_FOLDER_QUERY,
-			filePattern: path.normalize(path.join(require.toUrl('./fixtures'), 'site.css')),
-			excludePattern: { '**/*.css': true }
-		});
-
-		let count = 0;
-		let res: IRawFileMatch;
-		engine.search((result) => {
-			if (result) {
-				count++;
-			}
-			res = result;
-		}, () => { }, (error) => {
-			assert.ok(!error);
-			assert.equal(count, 1);
-			assert.equal(path.basename(res.relativePath), 'site.css');
-			done();
-		});
-	});
-
 	test('Files: relative path matched once', function (done: () => void) {
 		this.timeout(testTimeout);
 		let engine = new FileSearchEngine({
