@@ -5,8 +5,7 @@
 
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IExperimentService, IExperiment, ExperimentActionType, IExperimentStorageState, IExperimentActionPromptProperties, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
-import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
+import { IExperimentService, IExperiment, ExperimentActionType, IExperimentActionPromptProperties, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
@@ -19,7 +18,6 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 		@IExperimentService private experimentService: IExperimentService,
 		@IViewletService private viewletService: IViewletService,
 		@INotificationService private notificationService: INotificationService,
-		@IStorageService private storageService: IStorageService,
 		@ITelemetryService private telemetryService: ITelemetryService
 
 	) {
@@ -33,12 +31,6 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 
 	private showExperimentalPrompts(experiment: IExperiment): void {
 		if (!experiment || !experiment.enabled || !experiment.action || experiment.state !== ExperimentState.Run) {
-			return;
-		}
-
-		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		if (experimentState.state !== ExperimentState.Run) {
 			return;
 		}
 
@@ -96,14 +88,5 @@ export class ExperimentalPrompts extends Disposable implements IWorkbenchContrib
 
 	dispose() {
 		this._disposables = dispose(this._disposables);
-	}
-}
-
-function safeParse(text: string, defaultObject: any) {
-	try {
-		return JSON.parse(text);
-	}
-	catch (e) {
-		return defaultObject;
 	}
 }

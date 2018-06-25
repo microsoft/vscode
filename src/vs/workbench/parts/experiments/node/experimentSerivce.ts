@@ -25,7 +25,7 @@ import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { Emitter, Event } from 'vs/base/common/event';
 
 
-export interface IExperimentStorageState {
+interface IExperimentStorageState {
 	enabled: boolean;
 	state: ExperimentState;
 	editCount?: number;
@@ -87,7 +87,7 @@ export enum ExperimentActionType {
 	AddToRecommendations
 }
 
-export interface IExperimentAction {
+interface IExperimentAction {
 	type: ExperimentActionType;
 	properties: any;
 }
