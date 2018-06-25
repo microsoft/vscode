@@ -9,10 +9,8 @@ import * as assert from 'assert';
 import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IStorageService } from 'vs/platform/storage/common/storage';
-import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { TestLifecycleService } from 'vs/workbench/test/workbenchTestServices';
-import { ExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/node/extensionsWorkbenchService';
 import {
 	IExtensionManagementService, DidInstallExtensionEvent, DidUninstallExtensionEvent, InstallExtensionEvent, IExtensionIdentifier,
 	IExtensionEnablementService, ILocalExtension, LocalExtensionType
@@ -54,7 +52,6 @@ export class TestExperimentService extends ExperimentService {
 
 suite('Experiment Service', () => {
 	let instantiationService: TestInstantiationService;
-	let extensionsWorkbenchService: IExtensionsWorkbenchService;
 	let testConfigurationService: TestConfigurationService;
 	let testObject: ExperimentService;
 	let installEvent: Emitter<InstallExtensionEvent>,
@@ -82,8 +79,6 @@ suite('Experiment Service', () => {
 		instantiationService.stub(IConfigurationService, testConfigurationService);
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
-		extensionsWorkbenchService = instantiationService.createInstance(ExtensionsWorkbenchService);
-		instantiationService.stub(IExtensionsWorkbenchService, extensionsWorkbenchService);
 
 		setup(() => {
 			instantiationService.stub(IEnvironmentService, {});

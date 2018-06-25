@@ -11,23 +11,22 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { ILifecycleService, LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';
 
+import { IExtensionManagementService, LocalExtensionType } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IRequestService } from 'vs/platform/request/node/request';
 
 import { TPromise } from 'vs/base/common/winjs.base';
 import { language } from 'vs/base/common/platform';
 import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { match } from 'vs/base/common/glob';
-
 import { asJson } from 'vs/base/node/request';
 
-
-import { IExtensionsWorkbenchService } from 'vs/workbench/parts/extensions/common/extensions';
 import { ITextFileService, StateChange } from 'vs/workbench/services/textfile/common/textfiles';
 import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { Emitter, Event } from 'vs/base/common/event';
 
 // TODO:
 
+// when offline dont evaluate
 // offline should not affect already resolved experiments - Tests needed
 // should support opt-out? not for phase 1
 
@@ -123,7 +122,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	onExperimentEnabled: Event<IExperiment> = this._onExperimentEnabled.event;
 	constructor(
 		@IStorageService private storageService: IStorageService,
-		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService,
+		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
 		@ITextFileService private textFileService: ITextFileService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ITelemetryService private telemetryService: ITelemetryService,
@@ -307,16 +306,17 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 		let extensionsCheckPromise = TPromise.as(true);
 		if (experiment.condition.installedExtensions) {
-			extensionsCheckPromise = this.extensionWorkbenchService.queryLocal().then(locals => {
+			extensionsCheckPromise = this.extensionManagementService.getInstalled(LocalExtensionType.User).then(locals => {
 				let includesCheck = true;
 				let excludesCheck = true;
+				const localExtensions = locals.map(local => `${local.manifest.publisher.toLowerCase()}.${local.manifest.name.toLowerCase()}`);
 				if (Array.isArray(experiment.condition.installedExtensions.includes) && experiment.condition.installedExtensions.includes.length) {
 					const extensionIncludes = experiment.condition.installedExtensions.includes.map(e => e.toLowerCase());
-					includesCheck = locals.some(e => extensionIncludes.indexOf(e.id.toLowerCase()) > -1);
+					includesCheck = localExtensions.some(e => extensionIncludes.indexOf(e) > -1);
 				}
 				if (Array.isArray(experiment.condition.installedExtensions.excludes) && experiment.condition.installedExtensions.excludes.length) {
 					const extensionExcludes = experiment.condition.installedExtensions.excludes.map(e => e.toLowerCase());
-					excludesCheck = !locals.some(e => extensionExcludes.indexOf(e.id.toLowerCase()) > -1);
+					excludesCheck = !localExtensions.some(e => extensionExcludes.indexOf(e) > -1);
 				}
 				return includesCheck && excludesCheck;
 			});
