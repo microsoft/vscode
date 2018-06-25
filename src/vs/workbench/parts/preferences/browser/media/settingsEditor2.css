@@ -258,6 +258,7 @@
 .settings-editor > .settings-body > .settings-tree-container .group-title,
 .settings-editor > .settings-body > .settings-tree-container .setting-item {
 	padding-left: 10px;
+	padding-right: 10px;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title {

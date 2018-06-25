@@ -47,11 +47,13 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 });
 
 registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
+	// TODO@roblou Hacks! Make checkbox background themeable
 	const selectBackgroundColor = theme.getColor(selectBackground);
 	if (selectBackgroundColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { background-color: ${selectBackgroundColor} !important; }`);
 	}
 
+	// TODO@roblou Hacks! Use proper inputbox theming instead of !important
 	const selectBorderColor = theme.getColor(selectBorder);
 	if (selectBorderColor) {
 		collector.addRule(`.settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox { border-color: ${selectBorderColor} !important; }`);
@@ -96,18 +98,18 @@ export class SettingsTreeModel {
 	private _treeElementsById = new Map<string, SettingsTreeElement>();
 
 	constructor(
-		private viewState: ISettingsEditorViewState,
-		tocRoot: ITOCEntry,
-		@IConfigurationService private configurationService: IConfigurationService
+		private _viewState: ISettingsEditorViewState,
+		private _tocRoot: ITOCEntry,
+		@IConfigurationService private _configurationService: IConfigurationService
 	) {
-		this.update(tocRoot);
+		this.update(this._tocRoot);
 	}
 
 	get root(): SettingsTreeElement {
 		return this._root;
 	}
 
-	update(newTocRoot: ITOCEntry): void {
+	update(newTocRoot = this._tocRoot): void {
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
 		if (this._root) {
 			this._root.children = newRoot.children;
@@ -146,7 +148,7 @@ export class SettingsTreeModel {
 	}
 
 	private createSettingsTreeSettingElement(setting: ISetting, parent: SettingsTreeGroupElement): SettingsTreeSettingElement {
-		const element = createSettingsTreeSettingElement(setting, parent, this.viewState.settingsTarget, this.configurationService);
+		const element = createSettingsTreeSettingElement(setting, parent, this._viewState.settingsTarget, this._configurationService);
 		this._treeElementsById.set(element.id, element);
 		return element;
 	}

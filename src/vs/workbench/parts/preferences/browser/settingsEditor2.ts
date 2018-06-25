@@ -191,7 +191,9 @@ export class SettingsEditor2 extends BaseEditor {
 		this.settingsTargetsWidget.settingsTarget = ConfigurationTarget.USER;
 		this.settingsTargetsWidget.onDidTargetChange(() => {
 			this.viewState.settingsTarget = this.settingsTargetsWidget.settingsTarget;
-			this.settingsTree.refresh();
+
+			this.settingsTreeModel.update();
+			this.refreshTreeAndMaintainFocus();
 		});
 
 		this.createHeaderControls(headerControlsContainer);
