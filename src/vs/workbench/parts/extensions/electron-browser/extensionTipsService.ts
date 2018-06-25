@@ -208,7 +208,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
 		});
 
-		Object.keys(this._sessionRestoredRecommendations).forEach(x => output[x.toLowerCase()] = this._sessionRestoredRecommendations[x]);
+		Object.keys(this._sessionRestoredRecommendations).forEach(x => output[x.toLowerCase()] = {
+			reasonId: this._sessionRestoredRecommendations[x].reasonId,
+			reasonText: localize('restoredRecommendation', "This extension will be recommended again in the future.")
+		});
 
 		return output;
 	}
@@ -264,7 +267,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 					this._allIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, ...this._workspaceIgnoredRecommendations]);
 					this.refilterAllRecommendations();
-
 				}));
 	}
 
@@ -381,7 +383,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getFileBasedRecommendations(): IExtensionRecommendation[] {
-		let fileBased = Object.keys(this._fileBasedRecommendations)
+		return Object.keys(this._fileBasedRecommendations)
 			.sort((a, b) => {
 				if (this._fileBasedRecommendations[a].recommendedTime === this._fileBasedRecommendations[b].recommendedTime) {
 					if (!product.extensionImportantTips || caseInsensitiveGet(product.extensionImportantTips, a)) {
@@ -392,18 +394,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 					}
 				}
 				return this._fileBasedRecommendations[a].recommendedTime > this._fileBasedRecommendations[b].recommendedTime ? -1 : 1;
-			});
-		return [...fileBased, ...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.File)]
-			.map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: this._fileBasedRecommendations[extensionId].sources }));
+			}).map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: this._fileBasedRecommendations[extensionId].sources }));
 	}
 
 	getOtherRecommendations(): TPromise<IExtensionRecommendation[]> {
 		return this.fetchProactiveRecommendations().then(() => {
 			const others = distinct([
 				...Object.keys(this._exeBasedRecommendations),
-				...this._dynamicWorkspaceRecommendations,
-				...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.DynamicWorkspace),
-				...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.Executable)]);
+				...this._dynamicWorkspaceRecommendations]);
 			shuffle(others);
 			return others.map(extensionId => {
 				const sources: ExtensionRecommendationSource[] = [];
@@ -429,16 +427,6 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			this.getOtherRecommendations(),
 			TPromise.as(this.getKeymapRecommendations())
 		]).then(result => flatten(result));
-	}
-
-	getRestoredRecommendationsByReason(reasonId: ExtensionRecommendationReason): string[] {
-		let extensionIds = [];
-		Object.keys(this._sessionRestoredRecommendations).forEach(id => {
-			if (this._sessionRestoredRecommendations[id].reasonId === reasonId) {
-				extensionIds.push(id);
-			}
-		});
-		return extensionIds;
 	}
 
 	private _suggestFileBasedRecommendations() {
