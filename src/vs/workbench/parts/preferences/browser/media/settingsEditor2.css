@@ -202,15 +202,6 @@
 	display: flex;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container {
-	margin-top: 5px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item-bool > .reset-button-container > .setting-reset-button {
-	width: initial;
-	padding-left: 0px;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item-bool .setting-value-checkbox {
 	height: 16px;
 	width: 16px;
@@ -258,27 +249,10 @@
 	padding-left: 0px;
 }
 
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-item-value > .setting-type-complex + .reset-button-container > .setting-reset-button.monaco-button {
-	display: none;
-}
-
 .settings-editor > .settings-body > .settings-tree-container .setting-item .monaco-select-box {
 	width: initial;
 	font: inherit;
 	height: 26px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item .setting-reset-button.monaco-button {
-	text-align: left;
-	display: inline-block;
-	visibility: hidden;
-	width: initial;
-
-	padding-top: 2px;
-}
-
-.settings-editor > .settings-body > .settings-tree-container .setting-item.is-configured .setting-reset-button.monaco-button {
-	visibility: visible;
 }
 
 .settings-editor > .settings-body > .settings-tree-container .group-title,

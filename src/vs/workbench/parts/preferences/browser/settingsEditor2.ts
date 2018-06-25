@@ -6,18 +6,19 @@
 import * as DOM from 'vs/base/browser/dom';
 import { Button } from 'vs/base/browser/ui/button/button';
 import * as arrays from 'vs/base/common/arrays';
-import * as collections from 'vs/base/common/collections';
 import { Delayer, ThrottledDelayer } from 'vs/base/common/async';
 import { CancellationToken } from 'vs/base/common/cancellation';
+import * as collections from 'vs/base/common/collections';
 import { Color } from 'vs/base/common/color';
 import { getErrorMessage, isPromiseCanceledError } from 'vs/base/common/errors';
 import { KeyCode } from 'vs/base/common/keyCodes';
+import URI from 'vs/base/common/uri';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { ITree, ITreeConfiguration } from 'vs/base/parts/tree/browser/tree';
 import { DefaultTreestyler, OpenMode } from 'vs/base/parts/tree/browser/treeDefaults';
 import 'vs/css!./media/settingsEditor2';
 import { localize } from 'vs/nls';
-import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
+import { ConfigurationTarget, IConfigurationOverrides, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextKey, IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -30,8 +31,8 @@ import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant }
 import { BaseEditor } from 'vs/workbench/browser/parts/editor/baseEditor';
 import { EditorOptions, IEditor } from 'vs/workbench/common/editor';
 import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
-import { tocData, commonlyUsedData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
-import { ISettingsEditorViewState, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeModel, SettingsTreeSettingElement, SettingsTreeGroupElement, resolveSettingsTree, NonExpandableTree, resolveExtensionsSettings } from 'vs/workbench/parts/preferences/browser/settingsTree';
+import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
+import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
 import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
@@ -417,7 +418,18 @@ export class SettingsEditor2 extends BaseEditor {
 	private updateChangedSetting(key: string, value: any): TPromise<void> {
 		// ConfigurationService displays the error if this fails.
 		// Force a render afterwards because onDidConfigurationUpdate doesn't fire if the update doesn't result in an effective setting value change
-		return this.configurationService.updateValue(key, value, <ConfigurationTarget>this.settingsTargetsWidget.settingsTarget)
+		const settingsTarget = this.settingsTargetsWidget.settingsTarget;
+		const resource = URI.isUri(settingsTarget) ? settingsTarget : undefined;
+		const configurationTarget = <ConfigurationTarget>(resource ? undefined : settingsTarget);
+		const overrides: IConfigurationOverrides = { resource };
+
+		// If the user is changing the value back to the default, do a 'reset' instead
+		const inspected = this.configurationService.inspect(key, overrides);
+		if (inspected.default === value) {
+			value = undefined;
+		}
+
+		return this.configurationService.updateValue(key, value, overrides, configurationTarget)
 			.then(() => this.refreshTreeAndMaintainFocus())
 			.then(() => {
 				const reportModifiedProps = {

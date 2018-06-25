@@ -24,7 +24,7 @@ import { localize } from 'vs/nls';
 import { ConfigurationTarget, IConfigurationService } from 'vs/platform/configuration/common/configuration';
 import { IContextViewService } from 'vs/platform/contextview/browser/contextView';
 import { WorkbenchTree, WorkbenchTreeController } from 'vs/platform/list/browser/listService';
-import { editorActiveLinkForeground, registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
+import { registerColor, selectBackground, selectBorder } from 'vs/platform/theme/common/colorRegistry';
 import { attachButtonStyler, attachInputBoxStyler, attachSelectBoxStyler } from 'vs/platform/theme/common/styler';
 import { ICssStyleCollector, ITheme, IThemeService, registerThemingParticipant } from 'vs/platform/theme/common/themeService';
 import { SettingsTarget } from 'vs/workbench/parts/preferences/browser/preferencesWidgets';
@@ -405,7 +405,6 @@ interface ISettingItemTemplate extends IDisposableTemplate {
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	controlElement: HTMLElement;
-	resetButtonElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
@@ -419,7 +418,6 @@ interface ISettingBoolItemTemplate extends IDisposableTemplate {
 	labelElement: HTMLElement;
 	descriptionElement: HTMLElement;
 	checkbox: Checkbox;
-	resetButtonElement: HTMLElement;
 	isConfiguredElement: HTMLElement;
 	otherOverridesElement: HTMLElement;
 }
@@ -556,7 +554,6 @@ export class SettingsRenderer implements IRenderer {
 			labelElement,
 			descriptionElement,
 			controlElement,
-			resetButtonElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -589,8 +586,6 @@ export class SettingsRenderer implements IRenderer {
 		const controlElement = DOM.append(descriptionAndValueElement, $('.setting-item-bool-control'));
 		const descriptionElement = DOM.append(descriptionAndValueElement, $('.setting-item-description'));
 
-		const resetButtonElement = DOM.append(container, $('.reset-button-container'));
-
 		const toDispose = [];
 		const checkbox = new Checkbox({ actionClassName: 'setting-value-checkbox', isChecked: true, title: '', inputActiveOptionBorder: null });
 		controlElement.appendChild(checkbox.domNode);
@@ -610,7 +605,6 @@ export class SettingsRenderer implements IRenderer {
 			labelElement,
 			checkbox,
 			descriptionElement,
-			resetButtonElement,
 			isConfiguredElement,
 			otherOverridesElement
 		};
@@ -672,25 +666,6 @@ export class SettingsRenderer implements IRenderer {
 		template.descriptionElement.textContent = element.description;
 
 		this.renderValue(element, isSelected, <ISettingItemTemplate>template);
-
-		template.resetButtonElement.innerHTML = '';
-		const resetButton = new Button(template.resetButtonElement);
-		const resetText = localize('resetButtonTitle', "reset");
-		resetButton.label = resetText;
-		resetButton.element.title = resetText;
-		resetButton.element.classList.add('setting-reset-button');
-		resetButton.element.tabIndex = isSelected ? 0 : -1;
-
-		template.toDispose.push(attachButtonStyler(resetButton, this.themeService, {
-			buttonBackground: Color.transparent.toString(),
-			buttonHoverBackground: Color.transparent.toString(),
-			buttonForeground: editorActiveLinkForeground
-		}));
-
-		template.toDispose.push(resetButton.onDidClick(e => {
-			this._onDidChangeSetting.fire({ key: element.setting.key, value: undefined });
-		}));
-		template.toDispose.push(resetButton);
 
 		template.isConfiguredElement.textContent = element.isConfigured ? localize('configured', "Modified") : '';
 
