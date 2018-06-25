@@ -497,16 +497,42 @@ declare module 'vscode' {
 
 	//#region URLs
 
-	export interface ProtocolHandler {
+	/**
+	 * A Uri handler is responsible for handling system-wide [Uris](#Uri).
+	 *
+	 * @see [window.registerUriHandler](#window.registerUriHandler).
+	 */
+	export interface UriHandler {
+
+		/**
+		 * Handle the provided system-wide [Uri](#Uri).
+		 *
+		 * @see [window.registerUriHandler](#window.registerUriHandler).
+		 */
 		handleUri(uri: Uri): void;
 	}
 
 	export namespace window {
 
 		/**
-		 * Registers a protocol handler capable of handling system-wide URIs.
+		 * Registers a [Uri handler](#UriHandler) capable of handling system-wide [Uris](#Uri).
+		 * A Uri handler is scoped to the extension it is contributed from: it will only
+		 * be able to handle Uris which are directed to the extension itself.
+		 *
+		 * For example, if the `vscode.git` extension registers a Uri handler, it will only
+		 * be allowed to handle Uris with the prefix `{scheme}://vscode.git`, in which `{scheme}`
+		 * is either `vscode` or `vscode-insiders`. All the following Uris are examples:
+		 *
+		 * - `vscode://vscode.git`
+		 * - `vscode://vscode.git/`
+		 * - `vscode-insiders://vscode.git/status`
+		 * - `vscode-insiders://vscode.git/clone?url=foobar`
+		 *
+		 * An extension can only register a single Uri handler in its entire activation lifetime.
+		 *
+		 * @param handler The Uri handler to register for this extension.
 		 */
-		export function registerProtocolHandler(handler: ProtocolHandler): Disposable;
+		export function registerUriHandler(handler: UriHandler): Disposable;
 	}
 
 	//#endregion

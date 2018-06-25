@@ -15,7 +15,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 	private readonly _proxy: MainThreadUrlsShape;
 
 	private handles = new Set<string>();
-	private handlers = new Map<number, vscode.ProtocolHandler>();
+	private handlers = new Map<number, vscode.UriHandler>();
 
 	constructor(
 		mainContext: IMainContext
@@ -23,7 +23,7 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		this._proxy = mainContext.getProxy(MainContext.MainThreadUrls);
 	}
 
-	registerProtocolHandler(extensionId: string, handler: vscode.ProtocolHandler): vscode.Disposable {
+	registerUriHandler(extensionId: string, handler: vscode.UriHandler): vscode.Disposable {
 		if (this.handles.has(extensionId)) {
 			throw new Error(`Protocol handler already registered for extension ${extensionId}`);
 		}
@@ -31,12 +31,12 @@ export class ExtHostUrls implements ExtHostUrlsShape {
 		const handle = ExtHostUrls.HandlePool++;
 		this.handles.add(extensionId);
 		this.handlers.set(handle, handler);
-		this._proxy.$registerProtocolHandler(handle, extensionId);
+		this._proxy.$registerUriHandler(handle, extensionId);
 
 		return toDisposable(() => {
 			this.handles.delete(extensionId);
 			this.handlers.delete(handle);
-			this._proxy.$unregisterProtocolHandler(handle);
+			this._proxy.$unregisterUriHandler(handle);
 		});
 	}
 

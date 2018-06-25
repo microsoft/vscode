@@ -452,8 +452,8 @@ export function createApiFactory(
 			registerWebviewPanelSerializer: proposedApiFunction(extension, (viewType: string, serializer: vscode.WebviewPanelSerializer) => {
 				return extHostWebviews.registerWebviewPanelSerializer(viewType, serializer);
 			}),
-			registerProtocolHandler: proposedApiFunction(extension, (handler: vscode.ProtocolHandler) => {
-				return extHostUrls.registerProtocolHandler(extension.id, handler);
+			registerUriHandler: proposedApiFunction(extension, (handler: vscode.UriHandler) => {
+				return extHostUrls.registerUriHandler(extension.id, handler);
 			}),
 			get quickInputBackButton() {
 				return proposedApiFunction(extension, (): vscode.QuickInputButton => {
