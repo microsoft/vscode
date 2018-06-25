@@ -84,6 +84,7 @@ export interface IConfigurationNode {
 	allOf?: IConfigurationNode[];
 	overridable?: boolean;
 	scope?: ConfigurationScope;
+	contributedByExtension?: boolean;
 }
 
 export interface IDefaultConfigurationExtension {

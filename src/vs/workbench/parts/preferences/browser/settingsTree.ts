@@ -200,8 +200,31 @@ function inspectSetting(key: string, target: SettingsTarget, configurationServic
 	return { isConfigured, inspected, targetSelector };
 }
 
-export function resolveSettingsTree(tocData: ITOCEntry, settingsGroups: ISettingsGroup[]): ITOCEntry {
-	return _resolveSettingsTree(tocData, getFlatSettings(settingsGroups));
+export function resolveSettingsTree(tocData: ITOCEntry, coreSettingsGroups: ISettingsGroup[]): ITOCEntry {
+	return _resolveSettingsTree(tocData, getFlatSettings(coreSettingsGroups));
+}
+
+export function resolveExtensionsSettings(groups: ISettingsGroup[]): ITOCEntry {
+	const settingsGroupToEntry = (group: ISettingsGroup) => {
+		const flatSettings = arrays.flatten(
+			group.sections.map(section => section.settings));
+
+		return {
+			id: group.id,
+			label: group.title,
+			settings: flatSettings
+		};
+	};
+
+	const extGroups = groups
+		.sort((a, b) => a.title.localeCompare(b.title))
+		.map(g => settingsGroupToEntry(g));
+
+	return {
+		id: 'extensions',
+		label: localize('extensions', "Extensions"),
+		children: extGroups
+	};
 }
 
 function _resolveSettingsTree(tocData: ITOCEntry, allSettings: Set<ISetting>): ITOCEntry {
