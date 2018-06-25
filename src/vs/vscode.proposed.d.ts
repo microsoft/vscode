@@ -516,8 +516,10 @@ declare module 'vscode' {
 
 		/**
 		 * Registers a [Uri handler](#UriHandler) capable of handling system-wide [Uris](#Uri).
-		 * A Uri handler is scoped to the extension it is contributed from: it will only
-		 * be able to handle Uris which are directed to the extension itself.
+		 * In case there are multiple windows open, the topmost window will handle the Uri.
+		 * A Uri handler is scoped to the extension it is contributed from; it will only
+		 * be able to handle Uris which are directed to the extension itself. The Uri format
+		 * is predetermined by the extension's identifier.
 		 *
 		 * For example, if the `vscode.git` extension registers a Uri handler, it will only
 		 * be allowed to handle Uris with the prefix `{scheme}://vscode.git`, in which `{scheme}`
@@ -526,7 +528,7 @@ declare module 'vscode' {
 		 * - `vscode://vscode.git`
 		 * - `vscode://vscode.git/`
 		 * - `vscode-insiders://vscode.git/status`
-		 * - `vscode-insiders://vscode.git/clone?url=foobar`
+		 * - `vscode-insiders://vscode.git/clone?when=now`
 		 *
 		 * An extension can only register a single Uri handler in its entire activation lifetime.
 		 *
