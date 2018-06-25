@@ -23,6 +23,7 @@ import { IExtensionService } from 'vs/workbench/services/extensions/common/exten
 import { IExtensionTipsService, IExtensionManagementServerService } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
 import { INotificationService } from 'vs/platform/notification/common/notification';
+import { ExtensionTipsService } from 'vs/workbench/parts/extensions/electron-browser/extensionTipsService';
 
 export interface ITemplateData {
 	root: HTMLElement;
@@ -168,7 +169,7 @@ export class Renderer implements IPagedRenderer<IExtension, ITemplateData> {
 			data.icon.style.visibility = 'inherit';
 		}
 
-		this.updateRecommendationStatus(extension, data);
+		(this.extensionTipsService as ExtensionTipsService).loadRecommendationsPromise.then(() => this.updateRecommendationStatus(extension, data));
 		data.extensionDisposables.push(this.extensionTipsService.onRecommendationChange(change => {
 			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
 				this.updateRecommendationStatus(extension, data);
