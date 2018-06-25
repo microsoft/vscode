@@ -142,7 +142,7 @@ class MenuActionItem extends ActionItem {
 	}
 }
 
-class SubmenuActionItem extends ActionItem {
+class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
 
 	constructor(
