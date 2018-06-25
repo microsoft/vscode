@@ -54,6 +54,7 @@ export class ModesHoverController implements IEditorContribution {
 	private _isMouseDown: boolean;
 	private _hoverClicked: boolean;
 	private _isHoverEnabled: boolean;
+	private _isHoverSticky: boolean;
 
 	static get(editor: ICodeEditor): ModesHoverController {
 		return editor.getContribution<ModesHoverController>(ModesHoverController.ID);
@@ -83,7 +84,9 @@ export class ModesHoverController implements IEditorContribution {
 	private _hookEvents(): void {
 		const hideWidgetsEventHandler = () => this._hideWidgets();
 
-		this._isHoverEnabled = this._editor.getConfiguration().contribInfo.hover.enabled;
+		const hoverOpts = this._editor.getConfiguration().contribInfo.hover;
+		this._isHoverEnabled = hoverOpts.enabled;
+		this._isHoverSticky = hoverOpts.sticky;
 		if (this._isHoverEnabled) {
 			this._toUnhook.push(this._editor.onMouseDown((e: IEditorMouseEvent) => this._onEditorMouseDown(e)));
 			this._toUnhook.push(this._editor.onMouseUp((e: IEditorMouseEvent) => this._onEditorMouseUp(e)));
@@ -142,6 +145,7 @@ export class ModesHoverController implements IEditorContribution {
 	}
 
 	private _onEditorMouseMove(mouseEvent: IEditorMouseEvent): void {
+		// const this._editor.getConfiguration().contribInfo.hover.sticky;
 		let targetType = mouseEvent.target.type;
 		const hasStopKey = (platform.isMacintosh ? mouseEvent.event.metaKey : mouseEvent.event.ctrlKey);
 
@@ -149,12 +153,12 @@ export class ModesHoverController implements IEditorContribution {
 			return;
 		}
 
-		if (targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !hasStopKey) {
+		if (this._isHoverSticky && targetType === MouseTargetType.CONTENT_WIDGET && mouseEvent.target.detail === ModesContentHoverWidget.ID && !hasStopKey) {
 			// mouse moved on top of content hover widget
 			return;
 		}
 
-		if (targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !hasStopKey) {
+		if (this._isHoverSticky && targetType === MouseTargetType.OVERLAY_WIDGET && mouseEvent.target.detail === ModesGlyphHoverWidget.ID && !hasStopKey) {
 			// mouse moved on top of overlay hover widget
 			return;
 		}
