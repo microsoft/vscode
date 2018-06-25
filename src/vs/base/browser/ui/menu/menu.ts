@@ -170,6 +170,13 @@ class SubmenuActionItem extends ActionItem {
 			}
 		});
 
+		$(this.builder).on(EventType.KEY_DOWN, (e) => {
+			let event = new StandardKeyboardEvent(e as KeyboardEvent);
+			if (event.equals(KeyCode.RightArrow)) {
+				EventHelper.stop(e, true);
+			}
+		});
+
 		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
 			this.cleanupExistingSubmenu(false);
 			this.createSubmenu();
@@ -212,6 +219,14 @@ class SubmenuActionItem extends ActionItem {
 					this.parentData.submenu = null;
 				}
 			});
+
+			$(submenuContainer).on(EventType.KEY_DOWN, (e) => {
+				let event = new StandardKeyboardEvent(e as KeyboardEvent);
+				if (event.equals(KeyCode.LeftArrow)) {
+					EventHelper.stop(e, true);
+				}
+			});
+
 
 			this.parentData.submenu = new Menu(submenuContainer.getHTMLElement(), this.submenuActions, this.submenuOptions);
 			this.parentData.submenu.focus();
