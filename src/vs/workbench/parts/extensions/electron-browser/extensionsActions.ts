@@ -1876,7 +1876,8 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 
 	private workspaceContextKey = new RawContextKey<boolean>('workspaceRecommendations', true);
 	private workspaceFolderContextKey = new RawContextKey<boolean>('workspaceFolderRecommendations', true);
-	private addToRecommendationsContextKey = new RawContextKey<boolean>('addToRecommendations', false);
+	private addToWorkspaceRecommendationsContextKey = new RawContextKey<boolean>('addToWorkspaceRecommendations', false);
+	private addToWorkspaceFolderRecommendationsContextKey = new RawContextKey<boolean>('addToWorkspaceFolderRecommendations', false);
 
 	constructor(
 		@IContextKeyService contextKeyService: IContextKeyService,
@@ -1892,9 +1893,16 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 		boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0);
 		this._register(workspaceContextService.onDidChangeWorkspaceFolders(() => boundWorkspaceFolderContextKey.set(workspaceContextService.getWorkspace().folders.length > 0)));
 
-		const boundAddToRecommendationsContextKey = this.addToRecommendationsContextKey.bindTo(contextKeyService);
-		boundAddToRecommendationsContextKey.set(editorService.activeEditor instanceof ExtensionsInput);
-		this._register(editorService.onDidActiveEditorChange(() => boundAddToRecommendationsContextKey.set(editorService.activeEditor instanceof ExtensionsInput)));
+		const boundAddToWorkspaceRecommendationsContextKey = this.addToWorkspaceRecommendationsContextKey.bindTo(contextKeyService);
+		boundAddToWorkspaceRecommendationsContextKey.set(editorService.activeEditor instanceof ExtensionsInput && workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE);
+		this._register(editorService.onDidActiveEditorChange(() => boundAddToWorkspaceRecommendationsContextKey.set(
+			editorService.activeEditor instanceof ExtensionsInput && workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE)));
+		this._register(workspaceContextService.onDidChangeWorkbenchState(() => boundAddToWorkspaceRecommendationsContextKey.set(
+			editorService.activeEditor instanceof ExtensionsInput && workspaceContextService.getWorkbenchState() === WorkbenchState.WORKSPACE)));
+
+		const boundAddToWorkspaceFolderRecommendationsContextKey = this.addToWorkspaceFolderRecommendationsContextKey.bindTo(contextKeyService);
+		boundAddToWorkspaceFolderRecommendationsContextKey.set(editorService.activeEditor instanceof ExtensionsInput);
+		this._register(editorService.onDidActiveEditorChange(() => boundAddToWorkspaceFolderRecommendationsContextKey.set(editorService.activeEditor instanceof ExtensionsInput)));
 
 		this.registerCommands();
 	}
@@ -1922,22 +1930,29 @@ export class ConfigureRecommendedExtensionsCommandsContributor extends Disposabl
 			when: this.workspaceFolderContextKey
 		});
 
-		CommandsRegistry.registerCommand(AddToWorkspaceRecommendationsAction.ID, serviceAccesor => {
-			serviceAccesor.get(IInstantiationService).createInstance(AddToWorkspaceRecommendationsAction, AddToWorkspaceRecommendationsAction.ID, AddToWorkspaceRecommendationsAction.LABEL).run();
+		CommandsRegistry.registerCommand(AddToWorkspaceRecommendationsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(AddToWorkspaceRecommendationsAction, AddToWorkspaceRecommendationsAction.ID, AddToWorkspaceRecommendationsAction.LABEL).run();
 		});
 		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 			command: {
 				id: AddToWorkspaceRecommendationsAction.ID,
 				title: `${ExtensionsLabel}: ${AddToWorkspaceRecommendationsAction.LABEL}`
 			},
-			when: this.addToRecommendationsContextKey
+			when: this.addToWorkspaceRecommendationsContextKey
+		});
+
+		CommandsRegistry.registerCommand(AddToWorkspaceFolderRecommendationsAction.ID, serviceAccessor => {
+			serviceAccessor.get(IInstantiationService).createInstance(AddToWorkspaceFolderRecommendationsAction, AddToWorkspaceFolderRecommendationsAction.ID, AddToWorkspaceFolderRecommendationsAction.LABEL).run();
+		});
+		MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
+			command: {
+				id: AddToWorkspaceFolderRecommendationsAction.ID,
+				title: `${ExtensionsLabel}: ${AddToWorkspaceFolderRecommendationsAction.LABEL}`
+			},
+			when: this.addToWorkspaceFolderRecommendationsContextKey
 		});
 	}
 
-}
-
-interface IExtensionsContent {
-	recommendations: string[];
 }
 
 export abstract class AbstractConfigureRecommendedExtensionsAction extends Action {
@@ -1981,7 +1996,34 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			}));
 	}
 
-	protected addRecommendedExtensionToFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
+	protected addRecommendedExtensionToWorkspace(workspaceConfigurationFile: URI, extensionId: string) {
+		return this.getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile)
+			.then(content => {
+				const extensionIdLowerCase = extensionId.toLowerCase();
+				const workspaceExtensionsConfigContent: IExtensionsConfigContent = (json.parse(content.value) || {})['extensions'] || {};
+				const workspaceRecommendations = workspaceExtensionsConfigContent.recommendations || [];
+
+				if (workspaceRecommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
+					return TPromise.as(null);
+				}
+				workspaceRecommendations.push(extensionId);
+
+				const workspaceUnwantedRecommendations = workspaceExtensionsConfigContent.unwantedRecommendations || [];
+
+				return this.jsonEditingService.write(workspaceConfigurationFile,
+					{
+						key: 'extensions',
+						value: {
+							recommendations: workspaceRecommendations,
+							unwantedRecommendations: workspaceUnwantedRecommendations.filter(x => x.toLowerCase() !== extensionId.toLowerCase())
+						}
+					},
+					true);
+
+			});
+	}
+
+	protected addRecommendedExtensionToWorkspaceFolder(extensionsFileResource: URI, extensionId: string): TPromise<any> {
 		return this.getOrCreateExtensionsFile(extensionsFileResource)
 			.then(({ content }) => {
 				const extensionIdLowerCase = extensionId.toLowerCase();
@@ -1993,10 +2035,10 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 				}
 				folderRecommendations.push(extensionId);
 
-				const folderUnwantedRecommedations = jsonContent.unwantedRecommendations || [];
+				const folderUnwantedRecommendations = jsonContent.unwantedRecommendations || [];
 				let index = -1;
-				for (let i = 0; i < folderUnwantedRecommedations.length; i++) {
-					if (folderUnwantedRecommedations[i].toLowerCase() === extensionIdLowerCase) {
+				for (let i = 0; i < folderUnwantedRecommendations.length; i++) {
+					if (folderUnwantedRecommendations[i].toLowerCase() === extensionIdLowerCase) {
 						index = i;
 						break;
 					}
@@ -2004,11 +2046,11 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 
 				let removeFromUnwantedPromise = TPromise.wrap(null);
 				if (index > -1) {
-					folderUnwantedRecommedations.splice(index, 1);
+					folderUnwantedRecommendations.splice(index, 1);
 					removeFromUnwantedPromise = this.jsonEditingService.write(extensionsFileResource,
 						{
 							key: 'unwantedRecommendations',
-							value: folderUnwantedRecommedations
+							value: folderRecommendations.filter(x => x.toLowerCase() !== extensionId.toLowerCase())
 						},
 						true);
 				}
@@ -2024,10 +2066,18 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 			});
 	}
 
-	protected getFolderRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
+	protected getWorkspaceRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
 		return this.fileService.resolveContent(extensionsFileResource)
 			.then(content => {
-				const folderRecommendations = (<IExtensionsContent>json.parse(content.value));
+				const folderRecommendations: IExtensionsConfigContent = (json.parse(content.value) || {})['extensions'] || {};
+				return folderRecommendations.recommendations || [];
+			}, err => []);
+	}
+
+	protected getWorkspaceFolderRecommendedExtensions(extensionsFileResource: URI): TPromise<string[]> {
+		return this.fileService.resolveContent(extensionsFileResource)
+			.then(content => {
+				const folderRecommendations = (<IExtensionsConfigContent>json.parse(content.value));
 				return folderRecommendations.recommendations || [];
 			}, err => []);
 	}
@@ -2035,7 +2085,7 @@ export abstract class AbstractConfigureRecommendedExtensionsAction extends Actio
 	private getOrUpdateWorkspaceConfigurationFile(workspaceConfigurationFile: URI): TPromise<IContent> {
 		return this.fileService.resolveContent(workspaceConfigurationFile)
 			.then(content => {
-				const workspaceRecommendations = <IExtensionsContent>json.parse(content.value)['extensions'];
+				const workspaceRecommendations = <IExtensionsConfigContent>json.parse(content.value)['extensions'];
 				if (!workspaceRecommendations || !workspaceRecommendations.recommendations) {
 					return this.jsonEditingService.write(workspaceConfigurationFile, { key: 'extensions', value: { recommendations: [] } }, true)
 						.then(() => this.fileService.resolveContent(workspaceConfigurationFile));
@@ -2162,10 +2212,10 @@ export class ConfigureWorkspaceFolderRecommendedExtensionsAction extends Abstrac
 	}
 }
 
-export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecommendedExtensionsAction {
+export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigureRecommendedExtensionsAction {
 
-	static readonly ID = 'workbench.extensions.action.addToWorkspaceRecommendations';
-	static LABEL = localize('addToWorkspaceRecommendations', "Add to workspace recommendations");
+	static readonly ID = 'workbench.extensions.action.addToWorkspaceFolderRecommendations';
+	static LABEL = localize('addToWorkspaceFolderRecommendations', "Add to Recommendations (Workspace Folder)");
 
 	constructor(
 		id: string,
@@ -2178,15 +2228,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		@ICommandService private commandService: ICommandService,
 		@INotificationService private notificationService: INotificationService
 	) {
-		super(
-			id,
-			label,
-			contextService,
-			fileService,
-			editorService,
-			jsonEditingService,
-			textModelResolverService
-		);
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
 	}
 
 	run(): TPromise<void> {
@@ -2195,7 +2237,7 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 		}
 		const folders = this.contextService.getWorkspace().folders;
 		if (!folders || !folders.length) {
-			this.notificationService.info(localize('AddToWorkspaceRecommendations.noWorkspace', 'There is no workspace open to add recommendations.'));
+			this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.noWorkspace', 'There are no workspace folders open to add recommendations.'));
 			return TPromise.as(null);
 		}
 
@@ -2209,20 +2251,62 @@ export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecomm
 					return TPromise.as(null);
 				}
 				const configurationFile = workspaceFolder.toResource(paths.join('.vscode', 'extensions.json'));
-				return this.getFolderRecommendedExtensions(configurationFile).then(recommendations => {
+				return this.getWorkspaceFolderRecommendedExtensions(configurationFile).then(recommendations => {
 					const extensionIdLowerCase = extensionId.toLowerCase();
 					if (recommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
-						this.notificationService.info(localize('AddToWorkspaceRecommendations.alreadyExists', 'This extension is already present in workspace recommendations.'));
+						this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.alreadyExists', 'This extension is already present in this workspace folder\'s recommendations.'));
 						return TPromise.as(null);
 					}
 
-					return this.addRecommendedExtensionToFolder(configurationFile, extensionId).then(() => {
-						this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was successfully added to workspace recommendations.'));
+					return this.addRecommendedExtensionToWorkspaceFolder(configurationFile, extensionId).then(() => {
+						this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.success', 'The extension was successfully added to this workspace folder\'s recommendations.'));
 					}, err => {
-						this.notificationService.error(localize('AddToWorkspaceRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
+						this.notificationService.error(localize('AddToWorkspaceFolderRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
 					});
 				});
 			});
+	}
+}
+
+export class AddToWorkspaceRecommendationsAction extends AbstractConfigureRecommendedExtensionsAction {
+
+	static readonly ID = 'workbench.extensions.action.addToWorkspaceRecommendations';
+	static LABEL = localize('addToWorkspaceRecommendations', "Add to Recommendations (Workspace)");
+
+	constructor(
+		id: string,
+		label: string,
+		@IFileService fileService: IFileService,
+		@IWorkspaceContextService contextService: IWorkspaceContextService,
+		@IEditorService editorService: IEditorService,
+		@IJSONEditingService jsonEditingService: IJSONEditingService,
+		@ITextModelService textModelResolverService: ITextModelService,
+		@INotificationService private notificationService: INotificationService
+	) {
+		super(id, label, contextService, fileService, editorService, jsonEditingService, textModelResolverService);
+	}
+
+	run(): TPromise<void> {
+		if (!(this.editorService.activeEditor instanceof ExtensionsInput) || !this.editorService.activeEditor.extension) {
+			return TPromise.as(null);
+		}
+		const workspaceConfig = this.contextService.getWorkspace().configuration;
+
+		const extensionId = this.editorService.activeEditor.extension.id;
+
+		return this.getWorkspaceRecommendedExtensions(workspaceConfig).then(recommendations => {
+			const extensionIdLowerCase = extensionId.toLowerCase();
+			if (recommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
+				this.notificationService.info(localize('AddToWorkspaceRecommendations.alreadyExists', 'This extension is already present in workspace recommendations.'));
+				return TPromise.as(null);
+			}
+
+			return this.addRecommendedExtensionToWorkspace(workspaceConfig, extensionId).then(() => {
+				this.notificationService.info(localize('AddToWorkspaceRecommendations.success', 'The extension was successfully added to this workspace\'s recommendations.'));
+			}, err => {
+				this.notificationService.error(localize('AddToWorkspaceRecommendations.failure', 'Failed to write to extensions.json. {0}', err));
+			});
+		});
 	}
 }
 
