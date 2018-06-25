@@ -188,15 +188,16 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private createFilesExcludeCheckbox(container: HTMLElement): void {
-		this.filesExcludeFilter = new Checkbox({
+		this.filesExcludeFilter = this._register(new Checkbox({
 			actionClassName: 'markers-panel-filter-filesExclude',
 			title: this.itemOptions.useFilesExclude ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE,
-			isChecked: this.itemOptions.useFilesExclude,
-			onChange: () => {
-				this.filesExcludeFilter.domNode.title = this.filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
-				this._onDidChange.fire();
-			}
-		});
+			isChecked: this.itemOptions.useFilesExclude
+		}));
+		this._register(this.filesExcludeFilter.onChange(() => {
+			this.filesExcludeFilter.domNode.title = this.filesExcludeFilter.checked ? Messages.MARKERS_PANEL_ACTION_TOOLTIP_DO_NOT_USE_FILES_EXCLUDE : Messages.MARKERS_PANEL_ACTION_TOOLTIP_USE_FILES_EXCLUDE;
+			this._onDidChange.fire();
+		}));
+
 		this._register(attachCheckboxStyler(this.filesExcludeFilter, this.themeService));
 		container.appendChild(this.filesExcludeFilter.domNode);
 	}

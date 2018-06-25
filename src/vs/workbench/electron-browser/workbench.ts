@@ -712,7 +712,7 @@ export class Workbench extends Disposable implements IPartService {
 
 		// Restore Zen Mode if active
 		if (this.storageService.getBoolean(Workbench.zenModeActiveStorageKey, StorageScope.WORKSPACE, false)) {
-			this.toggleZenMode(true);
+			this.toggleZenMode(true, true);
 		}
 
 		// Restore Forced Editor Center Mode
@@ -1215,7 +1215,7 @@ export class Workbench extends Disposable implements IPartService {
 		return Identifiers.WORKBENCH_CONTAINER;
 	}
 
-	toggleZenMode(skipLayout?: boolean): void {
+	toggleZenMode(skipLayout?: boolean, restoring = false): void {
 		this.zenMode.active = !this.zenMode.active;
 		this.zenMode.transitionDisposeables = dispose(this.zenMode.transitionDisposeables);
 
@@ -1228,7 +1228,7 @@ export class Workbench extends Disposable implements IPartService {
 			const config = this.configurationService.getValue<IZenModeSettings>('zenMode');
 
 			toggleFullScreen = !browser.isFullscreen() && config.fullScreen;
-			this.zenMode.transitionedToFullScreen = toggleFullScreen;
+			this.zenMode.transitionedToFullScreen = restoring ? config.fullScreen : toggleFullScreen;
 			this.zenMode.transitionedToCenteredEditorLayout = !this.isEditorLayoutCentered() && config.centerLayout;
 			this.zenMode.wasSideBarVisible = this.isVisible(Parts.SIDEBAR_PART);
 			this.zenMode.wasPanelVisible = this.isVisible(Parts.PANEL_PART);

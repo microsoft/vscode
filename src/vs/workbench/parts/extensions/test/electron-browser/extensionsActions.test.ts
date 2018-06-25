@@ -74,8 +74,7 @@ suite('ExtensionsActions Test', () => {
 
 		instantiationService.stub(IExtensionEnablementService, new TestExtensionEnablementService(instantiationService));
 
-		instantiationService.stub(IExtensionTipsService, ExtensionTipsService);
-		instantiationService.stub(IExtensionTipsService, 'getKeymapRecommendations', () => []);
+		instantiationService.set(IExtensionTipsService, instantiationService.createInstance(ExtensionTipsService));
 		instantiationService.stub(IURLService, URLService);
 	});
 
@@ -1195,6 +1194,10 @@ suite('ExtensionsActions Test', () => {
 
 					});
 			});
+	});
+
+	test(`RecommendToFolderAction`, () => {
+		// TODO: Implement test
 	});
 
 	function aLocalExtension(name: string = 'someext', manifest: any = {}, properties: any = {}): ILocalExtension {

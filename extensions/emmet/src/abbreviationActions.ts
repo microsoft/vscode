@@ -96,6 +96,7 @@ function doWrapping(individualLines: boolean, args: any) {
 			const preceedingWhiteSpace = otherMatches ? otherMatches[1] : '';
 			textToWrapInPreview = rangeToReplace.isSingleLine ? [textToReplace] : ['\n\t' + textToReplace.split('\n' + preceedingWhiteSpace).join('\n\t') + '\n'];
 		}
+		textToWrapInPreview = textToWrapInPreview.map(e => e.replace(/(\$\d)/g, '\\$1'));
 
 		return {
 			previewRange: rangeToReplace,

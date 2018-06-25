@@ -151,6 +151,11 @@ export interface IEditorHoverOptions {
 	 * Defaults to 300.
 	 */
 	delay?: number;
+	/**
+	 * Is the hover sticky such that it can be clicked and its contents selected?
+	 * Defaults to true.
+	 */
+	sticky?: boolean;
 }
 
 /**
@@ -822,6 +827,7 @@ export interface InternalEditorFindOptions {
 export interface InternalEditorHoverOptions {
 	readonly enabled: boolean;
 	readonly delay: number;
+	readonly sticky: boolean;
 }
 
 export interface EditorWrappingInfo {
@@ -1216,6 +1222,7 @@ export class InternalEditorOptions {
 		return (
 			a.enabled === b.enabled
 			&& a.delay === b.delay
+			&& a.sticky === b.sticky
 		);
 	}
 
@@ -1702,7 +1709,8 @@ export class EditorOptionsValidator {
 
 		return {
 			enabled: _boolean(opts.enabled, defaults.enabled),
-			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000)
+			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
+			sticky: _boolean(opts.sticky, defaults.sticky)
 		};
 	}
 
@@ -2401,7 +2409,8 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		selectionClipboard: true,
 		hover: {
 			enabled: true,
-			delay: 300
+			delay: 300,
+			sticky: true
 		},
 		links: true,
 		contextmenu: true,

@@ -73,10 +73,12 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public dispose(): void {
-		if (this._widget) {
-			this._widget.dispose();
-			this._widget = null;
-		}
+		this._referenceSearchVisible.reset();
+		dispose(this._disposables);
+		dispose(this._widget);
+		dispose(this._model);
+		this._widget = null;
+		this._model = null;
 		this._editor = null;
 	}
 
@@ -189,16 +191,12 @@ export abstract class ReferencesController implements editorCommon.IEditorContri
 	}
 
 	public closeWidget(): void {
-		if (this._widget) {
-			this._widget.dispose();
-			this._widget = null;
-		}
+		dispose(this._widget);
+		this._widget = null;
 		this._referenceSearchVisible.reset();
 		this._disposables = dispose(this._disposables);
-		if (this._model) {
-			this._model.dispose();
-			this._model = null;
-		}
+		dispose(this._model);
+		this._model = null;
 		this._editor.focus();
 		this._requestIdPool += 1; // Cancel pending requests
 	}

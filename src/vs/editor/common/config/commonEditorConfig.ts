@@ -352,6 +352,11 @@ const editorConfiguration: IConfigurationNode = {
 			'default': EDITOR_DEFAULTS.contribInfo.hover.delay,
 			'description': nls.localize('hover.delay', "Controls the delay after which to show the hover")
 		},
+		'editor.hover.sticky': {
+			'type': 'boolean',
+			'default': EDITOR_DEFAULTS.contribInfo.hover.sticky,
+			'description': nls.localize('hover.sticky', "Controls if the hover should remain visible when mouse is moved over it")
+		},
 		'editor.find.seedSearchStringFromSelection': {
 			'type': 'boolean',
 			'default': EDITOR_DEFAULTS.contribInfo.find.seedSearchStringFromSelection,

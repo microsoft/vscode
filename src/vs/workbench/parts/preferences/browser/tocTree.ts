@@ -88,8 +88,9 @@ export class TOCDataSource implements IDataSource {
 	}
 
 	private _getChildren(element: TOCTreeElement): SettingsTreeElement[] {
+		// TODO@roblou hack. Clean up or remove this option
 		if (this.configService.getValue('workbench.settings.settingsSearchTocBehavior') === 'filter') {
-			const children = element.children as SettingsTreeElement[]; // ????
+			const children = element.children as SettingsTreeElement[]; // TS????
 			return children.filter(group => {
 				return (<any>group).count !== 0;
 			});

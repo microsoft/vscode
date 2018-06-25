@@ -647,8 +647,6 @@ export class OutlinePanel extends ViewletPanel {
 			await this._tree.reveal(item, .5);
 			this._tree.setFocus(item, this);
 			this._tree.setSelection([item], this);
-		} else {
-			this._tree.setSelection([], this);
 		}
 	}
 

@@ -6155,7 +6155,31 @@ declare module 'vscode' {
 		/**
 		 * Element that is expanded or collapsed.
 		 */
-		element: T;
+		readonly element: T;
+
+	}
+
+	/**
+	 * The event that is fired when there is a change in [tree view's selection](#TreeView.selection)
+	 */
+	export interface TreeViewSelectionChangeEvent<T> {
+
+		/**
+		 * Selected elements.
+		 */
+		readonly selection: T[];
+
+	}
+
+	/**
+	 * The event that is fired when there is a change in [tree view's visibility](#TreeView.visible)
+	 */
+	export interface TreeViewVisibilityChangeEvent {
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		readonly visible: boolean;
 
 	}
 
@@ -6177,18 +6201,35 @@ declare module 'vscode' {
 		/**
 		 * Currently selected elements.
 		 */
-		readonly selection: ReadonlyArray<T>;
+		readonly selection: T[];
 
 		/**
-		 * Reveal an element. By default revealed element is selected.
+		 * Event that is fired when the [selection](#TreeView.selection) has changed
+		 */
+		readonly onDidChangeSelection: Event<TreeViewSelectionChangeEvent<T>>;
+
+		/**
+		 * `true` if the [tree view](#TreeView) is visible otherwise `false`.
+		 */
+		readonly visible: boolean;
+
+		/**
+		 * Event that is fired when [visibility](TreeView.visible) has changed
+		 */
+		readonly onDidChangeVisibility: Event<TreeViewVisibilityChangeEvent>;
+
+		/**
+		 * Reveals the given element in the tree view.
+		 * If the tree view is not visible then the tree view is shown and element is revealed.
 		 *
+		 * By default revealed element is selected and not focused.
 		 * In order to not to select, set the option `select` to `false`.
+		 * In order to focus, set the option `focus` to `true`.
 		 *
 		 * **NOTE:** [TreeDataProvider](#TreeDataProvider) is required to implement [getParent](#TreeDataProvider.getParent) method to access this API.
 		 */
-		reveal(element: T, options?: { select?: boolean }): Thenable<void>;
+		reveal(element: T, options?: { select?: boolean, focus?: boolean }): Thenable<void>;
 	}
-
 
 	/**
 	 * A data provider that provides tree data
@@ -6263,7 +6304,7 @@ declare module 'vscode' {
 		tooltip?: string | undefined;
 
 		/**
-		 * The [command](#Command) which should be run when the tree item is selected.
+		 * The [command](#Command) that should be executed when the tree item is selected.
 		 */
 		command?: Command;
 

@@ -18,7 +18,7 @@ import { Selection } from 'vs/editor/common/core/selection';
 import { ITextModel, IWordAtPosition } from 'vs/editor/common/model';
 import { ISuggestSupport, StandardTokenType, SuggestContext, SuggestRegistry, SuggestTriggerKind } from 'vs/editor/common/modes';
 import { CompletionModel } from './completionModel';
-import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems } from './suggest';
+import { ISuggestionItem, getSuggestionComparator, provideSuggestionItems, getSnippetSuggestSupport } from './suggest';
 
 export interface ICancelEvent {
 	readonly retrigger: boolean;
@@ -180,6 +180,7 @@ export class SuggestModel implements IDisposable {
 				let set = supportsByTriggerCharacter[ch];
 				if (!set) {
 					set = supportsByTriggerCharacter[ch] = new Set();
+					set.add(getSnippetSuggestSupport());
 				}
 				set.add(support);
 			}

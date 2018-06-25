@@ -12,6 +12,7 @@ import { SnippetSession } from 'vs/editor/contrib/snippet/snippetSession';
 import { createTestCodeEditor } from 'vs/editor/test/browser/testCodeEditor';
 import { TextModel } from 'vs/editor/common/model/textModel';
 import { ICodeEditor } from 'vs/editor/browser/editorBrowser';
+import { SnippetParser } from 'vs/editor/contrib/snippet/snippetParser';
 
 suite('SnippetSession', function () {
 
@@ -41,8 +42,9 @@ suite('SnippetSession', function () {
 	test('normalize whitespace', function () {
 
 		function assertNormalized(position: IPosition, input: string, expected: string): void {
-			const actual = SnippetSession.adjustWhitespace(model, position, input);
-			assert.equal(actual, expected);
+			const snippet = new SnippetParser().parse(input);
+			SnippetSession.adjustWhitespace2(model, position, snippet);
+			assert.equal(snippet.toTextmateString(), expected);
 		}
 
 		assertNormalized(new Position(1, 1), 'foo', 'foo');
@@ -51,6 +53,9 @@ suite('SnippetSession', function () {
 		assertNormalized(new Position(2, 5), 'foo\r\tbar', 'foo\n        bar');
 		assertNormalized(new Position(2, 3), 'foo\r\tbar', 'foo\n      bar');
 		assertNormalized(new Position(2, 5), 'foo\r\tbar\nfoo', 'foo\n        bar\n    foo');
+
+		//Indentation issue with choice elements that span multiple lines #46266
+		assertNormalized(new Position(2, 5), 'a\nb${1|foo,\nbar|}', 'a\n    b${1|foo,\nbar|}');
 	});
 
 	test('adjust selection (overwrite[Before|After])', function () {

@@ -138,6 +138,7 @@ function moveActiveTab(args: ActiveEditorMoveArguments, control: IEditor, access
 
 function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEditor, accessor: ServicesAccessor): void {
 	const editorGroupService = accessor.get(IEditorGroupsService);
+	const configurationService = accessor.get(IConfigurationService);
 
 	const sourceGroup = control.group;
 	let targetGroup: IEditorGroup;
@@ -178,6 +179,9 @@ function moveActiveEditorToGroup(args: ActiveEditorMoveArguments, control: IEdit
 			break;
 		case 'next':
 			targetGroup = editorGroupService.findGroup({ location: GroupLocation.NEXT }, sourceGroup);
+			if (!targetGroup) {
+				targetGroup = editorGroupService.addGroup(sourceGroup, preferredSideBySideGroupDirection(configurationService));
+			}
 			break;
 		case 'center':
 			targetGroup = editorGroupService.getGroups(GroupsOrder.GRID_APPEARANCE)[(editorGroupService.count / 2) - 1];
