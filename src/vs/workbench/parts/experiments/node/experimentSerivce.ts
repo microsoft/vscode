@@ -27,19 +27,23 @@ import { WorkspaceStats } from 'vs/workbench/parts/stats/node/workspaceStats';
 import { Emitter, Event } from 'vs/base/common/event';
 
 // TODO:
-// Does changing user probability on the fly work?
-// display language: compare before stripping -
-// offline should not affect already resolved experiments
-// should support opt-out? user can figure out there is an evil scheming experimenter somehwere
-// setting for experiments? especially ui?
-// Dont show again in one Azure prompt should mean no more future prompts? (store a separate item in local storage and use that)
 
-export interface IExperimentState {
+// offline should not affect already resolved experiments - Tests needed
+// should support opt-out? not for phase 1
+
+
+export interface IExperimentStorageState {
 	enabled: boolean;
-	runExperiment: boolean;
+	state: ExperimentState;
 	editCount?: number;
 	lastEditedDate?: string;
-	isComplete?: boolean;
+}
+
+export enum ExperimentState {
+	Evaluating,
+	NoRun,
+	Run,
+	Complete
 }
 
 interface IRawExperiment {
@@ -80,7 +84,7 @@ interface IExperimentActionPromptCommand {
 export interface IExperiment {
 	id: string;
 	enabled: boolean;
-	runExperiment: boolean;
+	state: ExperimentState;
 	action?: IExperimentAction;
 }
 
@@ -101,8 +105,6 @@ export interface IExperimentService {
 	getEligibleExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]>;
 	getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]>;
 	markAsCompleted(experimentId: string): void;
-
-	snoozeExperiment(experimentId: string): void;
 
 	onExperimentEnabled: Event<IExperiment>;
 }
@@ -142,16 +144,19 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	public getEligibleExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]> {
 		return this._loadExperimentsPromise.then(() => {
 			if (type === ExperimentActionType.Custom) {
-				return this._experiments.filter(x => x.enabled && x.runExperiment && (!x.action || x.action.type === type));
+				return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && (!x.action || x.action.type === type));
 			}
-			return this._experiments.filter(x => x.enabled && x.runExperiment && x.action && x.action.type === type);
+			return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && x.action && x.action.type === type);
 		});
 	}
 
 	public getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]> {
 		return this._loadExperimentsPromise.then(() => {
 			for (let i = 0; i < this._experiments.length; i++) {
-				if (this._experiments[i].enabled && this._curatedMapping[this._experiments[i].id] && this._curatedMapping[this._experiments[i].id].curatedExtensionsKey === curatedExtensionsKey) {
+				if (this._experiments[i].enabled
+					&& this._experiments[i].state === ExperimentState.Run
+					&& this._curatedMapping[this._experiments[i].id]
+					&& this._curatedMapping[this._experiments[i].id].curatedExtensionsKey === curatedExtensionsKey) {
 					return this._curatedMapping[this._experiments[i].id].curatedExtensionsList;
 				}
 			}
@@ -161,54 +166,61 @@ export class ExperimentService extends Disposable implements IExperimentService 
 
 	public markAsCompleted(experimentId: string): void {
 		const storageKey = 'experiments.' + experimentId;
-		const experimentState: IExperimentState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		experimentState.isComplete = true;
-		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
-	}
-
-
-	public snoozeExperiment(experimentId: string): void {
-		const storageKey = 'experiments.' + experimentId;
-		const experimentState: IExperimentState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		if (experimentState.isComplete) {
-			return;
-		}
-		experimentState.editCount = 0;
-		experimentState.enabled = false;
+		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+		experimentState.state = ExperimentState.Complete;
 		this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
 	}
 
 	protected loadExperiments(experiments?: IRawExperiment[]): TPromise<any> {
-		let rawExperimentsPromise = TPromise.as(experiments || []);
+		let rawExperimentsPromise = TPromise.as(experiments || null);
 		if (!experiments && product.experimentsUrl) {
 			rawExperimentsPromise = this.requestService.request({ type: 'GET', url: product.experimentsUrl }).then(context => {
 				if (context.res.statusCode !== 200) {
-					return TPromise.as([]);
+					return TPromise.as(null);
 				}
 				return asJson(context).then(result => {
-					return Array.isArray(result['experiments']) ? result['experiments'] : [];
+					const experiments = Array.isArray(result['experiments']) ? result['experiments'] : [];
+					const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
+					const enabledExperiments = experiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
+					if (Array.isArray(allExperimentIdsFromStorage)) {
+						allExperimentIdsFromStorage.forEach(experiment => {
+							if (enabledExperiments.indexOf(experiment) === -1) {
+								this.storageService.remove('experiments.' + experiment);
+							}
+						});
+					}
+					this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
+
+					return experiments;
 				});
-			});
+			}, () => TPromise.as(null));
 		}
 
 		return rawExperimentsPromise.then(rawExperiments => {
-			const enabledExperiments = rawExperiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
-			const allExperiments = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
-			if (Array.isArray(allExperiments)) {
-				allExperiments.forEach(experiment => {
-					if (enabledExperiments.indexOf(experiment) === -1) {
-						this.storageService.remove('experiments.' + experiment);
-					}
-				});
+			if (!rawExperiments) {
+				const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
+				if (Array.isArray(allExperimentIdsFromStorage)) {
+					allExperimentIdsFromStorage.forEach(experimentId => {
+						const storageKey = 'experiments.' + experimentId;
+						const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), null);
+						if (experimentState) {
+							this._experiments.push({
+								id: experimentId,
+								enabled: experimentState.enabled,
+								state: experimentState.state
+							});
+						}
+					});
+				}
+				return TPromise.as(null);
 			}
-			this.storageService.store('allExperiments', JSON.stringify(enabledExperiments), StorageScope.GLOBAL);
-
 			const promises = rawExperiments.map(experiment => {
 				const processedExperiment: IExperiment = {
 					id: experiment.id,
 					enabled: !!experiment.enabled,
-					runExperiment: false
+					state: ExperimentState.Evaluating
 				};
+
 				if (experiment.action) {
 					processedExperiment.action = {
 						type: ExperimentActionType[experiment.action.type] || ExperimentActionType.Custom,
@@ -224,10 +236,27 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 				this._experiments.push(processedExperiment);
 
-				const runResult = this.shouldRunExperiment(experiment, processedExperiment);
-				return (typeof runResult === 'boolean' ? TPromise.as(runResult) : runResult).then(runit => {
-					processedExperiment.runExperiment = runit;
-					if (runit && processedExperiment.action && processedExperiment.action.type === ExperimentActionType.Prompt) {
+				const storageKey = 'experiments.' + experiment.id;
+				const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+				if (!experimentState.hasOwnProperty('enabled')) {
+					experimentState.enabled = processedExperiment.enabled;
+				}
+				if (!experimentState.hasOwnProperty('state')) {
+					experimentState.state = processedExperiment.enabled ? ExperimentState.Evaluating : ExperimentState.NoRun;
+				} else {
+					processedExperiment.state = experimentState.state;
+				}
+
+				if (processedExperiment.state !== ExperimentState.Evaluating) {
+					this.storageService.store(storageKey, experimentState);
+					return TPromise.as(null);
+				}
+
+				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
+					experimentState.state = processedExperiment.state = state;
+					this.storageService.store(storageKey, experimentState);
+
+					if (state === ExperimentState.Run && processedExperiment.action && processedExperiment.action.type === ExperimentActionType.Prompt) {
 						this._onExperimentEnabled.fire(processedExperiment);
 					}
 					return TPromise.as(null);
@@ -240,46 +269,40 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<boolean> | boolean {
+	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
 		if (!experiment.enabled) {
-			return false;
+			return TPromise.wrap(ExperimentState.NoRun);
 		}
 
 		if (!experiment.condition) {
-			return true;
+			return TPromise.wrap(ExperimentState.Run);
 		}
 
 		if (this.environmentService.appQuality === 'stable' && experiment.condition.insidersOnly === true) {
-			return false;
+			return TPromise.wrap(ExperimentState.NoRun);
 		}
 
 		if (typeof experiment.condition.displayLanguage === 'string') {
 			let localeToCheck = experiment.condition.displayLanguage.toLowerCase();
-			let displayLanguage = language;
-			const a = displayLanguage.indexOf('-');
-			const b = localeToCheck.indexOf('-');
-			if (a > -1) {
-				displayLanguage = displayLanguage.substr(0, a);
-			}
-			if (b > -1) {
-				localeToCheck = localeToCheck.substr(0, b);
-			}
-			if (displayLanguage !== localeToCheck) {
-				return false;
+			let displayLanguage = language.toLowerCase();
+
+			if (localeToCheck !== displayLanguage) {
+				const a = displayLanguage.indexOf('-');
+				const b = localeToCheck.indexOf('-');
+				if (a > -1) {
+					displayLanguage = displayLanguage.substr(0, a);
+				}
+				if (b > -1) {
+					localeToCheck = localeToCheck.substr(0, b);
+				}
+				if (displayLanguage !== localeToCheck) {
+					return TPromise.wrap(ExperimentState.NoRun);
+				}
 			}
 		}
 
 		if (!experiment.condition.userProbability) {
 			experiment.condition.userProbability = 1;
-		}
-
-		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		if (experimentState.isComplete) {
-			return false;
-		}
-		if (experiment.condition.evaluateOnlyOnce && (experimentState.runExperiment === true || experimentState.runExperiment === false)) {
-			return experimentState.runExperiment;
 		}
 
 		let extensionsCheckPromise = TPromise.as(true);
@@ -299,31 +322,30 @@ export class ExperimentService extends Disposable implements IExperimentService 
 			});
 		}
 
+		const storageKey = 'experiments.' + experiment.id;
+		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+
 		return extensionsCheckPromise.then(success => {
 			if (!success || !experiment.condition.fileEdits || typeof experiment.condition.fileEdits.minEditCount !== 'number') {
 				const runExperiment = success && Math.random() < experiment.condition.userProbability;
-				experimentState.runExperiment = runExperiment;
-				experimentState.enabled = true;
-				this.storageService.store(storageKey, JSON.stringify(experimentState), StorageScope.GLOBAL);
-				return runExperiment;
+				return runExperiment ? ExperimentState.Run : ExperimentState.NoRun;
 			}
 
 			experimentState.editCount = experimentState.editCount || 0;
 			if (experimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-				return true;
+				return ExperimentState.Run;
 			}
 
 			const onSaveHandler = this.textFileService.models.onModelsSaved(e => {
 				const date = new Date().toDateString();
-				const latestExperimentState: IExperimentState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-				if (latestExperimentState.isComplete) {
+				const latestExperimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+				if (latestExperimentState.state !== ExperimentState.Evaluating) {
 					onSaveHandler.dispose();
 					return;
 				}
 				e.forEach(event => {
 					if (event.kind !== StateChange.SAVED
-						|| latestExperimentState.runExperiment
-						|| latestExperimentState.isComplete
+						|| latestExperimentState.state !== ExperimentState.Evaluating
 						|| date === latestExperimentState.lastEditedDate
 						|| latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
 						return;
@@ -347,15 +369,15 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					}
 				});
 				if (latestExperimentState.editCount >= experiment.condition.fileEdits.minEditCount) {
-					processedExperiment.runExperiment = latestExperimentState.runExperiment = Math.random() < experiment.condition.userProbability;
+					processedExperiment.state = latestExperimentState.state = Math.random() < experiment.condition.userProbability ? ExperimentState.Run : ExperimentState.NoRun;
 					this.storageService.store(storageKey, JSON.stringify(latestExperimentState), StorageScope.GLOBAL);
-					if (latestExperimentState.runExperiment && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
+					if (latestExperimentState.state === ExperimentState.Run && ExperimentActionType[experiment.action.type] === ExperimentActionType.Prompt) {
 						this._onExperimentEnabled.fire(processedExperiment);
 					}
 				}
 			});
 			this._disposables.push(onSaveHandler);
-			return false;
+			return ExperimentState.Evaluating;
 		});
 	}
 

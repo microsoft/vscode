@@ -5,14 +5,17 @@
 
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
-import { IExperimentService, IExperiment, ExperimentActionType, IExperimentState, IExperimentActionPromptProperties } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { IExperimentService, IExperiment, ExperimentActionType, IExperimentStorageState, IExperimentActionPromptProperties, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IStorageService, StorageScope } from 'vs/platform/storage/common/storage';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IExtensionsWorkbenchService, IExtensionsViewlet } from 'vs/workbench/parts/extensions/common/extensions';
 import { IWorkbenchContribution } from 'vs/workbench/common/contributions';
+import { Disposable, IDisposable, dispose } from 'vs/base/common/lifecycle';
 
-export class ExperimentalPrompts implements IWorkbenchContribution {
+export class ExperimentalPrompts extends Disposable implements IWorkbenchContribution {
+	private _disposables: IDisposable[] = [];
+
 	constructor(
 		@IExperimentService private experimentService: IExperimentService,
 		@IViewletService private viewletService: IViewletService,
@@ -22,21 +25,22 @@ export class ExperimentalPrompts implements IWorkbenchContribution {
 		@IExtensionsWorkbenchService private extensionWorkbenchService: IExtensionsWorkbenchService
 
 	) {
+		super();
 		this.experimentService.onExperimentEnabled(e => {
-			if (e.action && e.action.type === ExperimentActionType.Prompt) {
+			if (e.action && e.action.type === ExperimentActionType.Prompt && e.state === ExperimentState.Run) {
 				this.showExperimentalPrompts(e);
 			}
-		});
+		}, this, this._disposables);
 	}
 
 	private showExperimentalPrompts(experiment: IExperiment): TPromise<any> {
-		if (!experiment || !experiment.enabled || !experiment.action) {
+		if (!experiment || !experiment.enabled || !experiment.action || experiment.state !== ExperimentState.Run) {
 			return TPromise.as(null);
 		}
 
 		const storageKey = 'experiments.' + experiment.id;
-		const experimentState: IExperimentState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
-		if (experimentState.isComplete) {
+		const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
+		if (experimentState.state !== ExperimentState.Run) {
 			return TPromise.as(null);
 		}
 
@@ -89,7 +93,6 @@ export class ExperimentalPrompts implements IWorkbenchContribution {
 						logTelemetry(command.text);
 						if (command.externalLink) {
 							window.open(command.externalLink);
-							this.experimentService.markAsCompleted(experiment.id);
 							return;
 						}
 						if (command.curatedExtensionsKey && Array.isArray(command.curatedExtensionsList)) {
@@ -100,19 +103,21 @@ export class ExperimentalPrompts implements IWorkbenchContribution {
 										viewlet.search('curated:' + command.curatedExtensionsKey);
 									}
 								});
-							this.experimentService.markAsCompleted(experiment.id);
 							return;
 						}
-						if (command.dontShowAgain) {
-							this.experimentService.markAsCompleted(experiment.id);
-						}
-						this.experimentService.snoozeExperiment(experiment.id);
+
+						this.experimentService.markAsCompleted(experiment.id);
+
 					}
 				};
 			});
 
 			this.notificationService.prompt(Severity.Info, experiment.action.properties.promptText, choices, logTelemetry);
 		});
+	}
+
+	dispose() {
+		this._disposables = dispose(this._disposables);
 	}
 }
 

@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 
-import { IExperiment, ExperimentActionType, IExperimentService } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';
@@ -26,11 +26,36 @@ import { TPromise } from 'vs/base/common/winjs.base';
 suite('Experimental Prompts', () => {
 	let instantiationService: TestInstantiationService;
 	let experimentService: TestExperimentService;
+	let experimentalPrompt: ExperimentalPrompts;
 	let onExperimentEnabledEvent: Emitter<IExperiment>;
+
+	let storageData = {};
+	const promptText = 'Hello there! Can you see this?';
+	const experiment: IExperiment =
+	{
+		id: 'experiment1',
+		enabled: true,
+		state: ExperimentState.Run,
+		action: {
+			type: ExperimentActionType.Prompt,
+			properties: {
+				promptText,
+				commands: [
+					{
+						text: 'Yes',
+						dontShowAgain: true
+					},
+					{
+						text: 'No'
+					}
+				]
+			}
+		}
+	};
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
+
 		instantiationService.stub(ILifecycleService, new TestLifecycleService());
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 
@@ -39,38 +64,7 @@ suite('Experimental Prompts', () => {
 	});
 
 	setup(() => {
-		instantiationService.stub(IStorageService, { get: (a, b, c) => c, getBoolean: (a, b, c) => c, store: () => { } });
-		instantiationService.stub(INotificationService, new TestNotificationService());
-	});
-
-
-	test('Show experimental prompt if experiment enabled. Choose Yes which marks experiment as complete', () => {
-
-		const promptText = 'Hello there! Can you see this?';
-		const experiment: IExperiment =
-		{
-			id: 'experiment1',
-			enabled: true,
-			runExperiment: true,
-			action: {
-				type: ExperimentActionType.Prompt,
-				properties: {
-					promptText,
-					commands: [
-						{
-							text: 'Yes',
-							dontShowAgain: true
-						},
-						{
-							text: 'No'
-						}
-					]
-				}
-			}
-		};
-
-		let storageData = {};
-
+		storageData = {};
 		instantiationService.stub(IStorageService, {
 			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
 			store: (a, b, c) => {
@@ -79,6 +73,28 @@ suite('Experimental Prompts', () => {
 				}
 			}
 		});
+		instantiationService.stub(INotificationService, new TestNotificationService());
+		experimentService = instantiationService.createInstance(TestExperimentService);
+		experimentService.onExperimentEnabled = onExperimentEnabledEvent.event;
+		instantiationService.stub(IExperimentService, experimentService);
+	});
+
+	teardown(() => {
+		if (experimentService) {
+			experimentService.dispose();
+		}
+		if (experimentalPrompt) {
+			experimentalPrompt.dispose();
+		}
+	});
+
+
+	test('Show experimental prompt if experiment should be run. Choosing an option should mark experiment as complete', () => {
+
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Run
+		};
 
 		instantiationService.stub(INotificationService, {
 			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
@@ -88,76 +104,59 @@ suite('Experimental Prompts', () => {
 			}
 		});
 
-		experimentService = instantiationService.createInstance(TestExperimentService);
-		experimentService.onExperimentEnabled = onExperimentEnabledEvent.event;
-
-		instantiationService.stub(IExperimentService, experimentService);
-
-		instantiationService.createInstance(ExperimentalPrompts);
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
 		return TPromise.as(null).then(result => {
-			assert.equal(storageData['isComplete'], true);
+			assert.equal(storageData['state'], ExperimentState.Complete);
 		});
 
 	});
 
-	test('Show experimental prompt if experiment enabled. Choose No which snoozes experiment.', () => {
-		const promptText = 'Hello there! Can you see this?';
-		const experiment: IExperiment =
-		{
-			id: 'experiment1',
+
+	test('Dont Show experimental prompt if experiment shouldnt be run even if run event is fired', () => {
+
+		storageData = {
 			enabled: true,
-			runExperiment: true,
-			action: {
-				type: ExperimentActionType.Prompt,
-				properties: {
-					promptText,
-					commands: [
-						{
-							text: 'Yes',
-							dontShowAgain: true
-						},
-						{
-							text: 'No'
-						}
-					]
-				}
-			}
+			state: ExperimentState.NoRun
 		};
-
-		let storageData = {};
-
-		instantiationService.stub(IStorageService, {
-			get: (a, b, c) => a === 'experiments.experiment1' ? JSON.stringify(storageData) : c,
-			store: (a, b, c) => {
-				if (a === 'experiments.experiment1') {
-					storageData = JSON.parse(b);
-				}
-			}
-		});
 
 		instantiationService.stub(INotificationService, {
 			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
-				assert.equal(b, promptText);
-				assert.equal(c.length, 2);
-				c[1].run();
+				assert.fail('Prompt shouldnt hve been shown');
 			}
 		});
 
-		experimentService = instantiationService.createInstance(TestExperimentService);
-		experimentService.onExperimentEnabled = onExperimentEnabledEvent.event;
-
-		instantiationService.stub(IExperimentService, experimentService);
-
-		instantiationService.createInstance(ExperimentalPrompts);
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
 		onExperimentEnabledEvent.fire(experiment);
 
 		return TPromise.as(null).then(result => {
-			assert.equal(!!storageData['isComplete'], false);
+			assert.equal(storageData['state'], ExperimentState.NoRun);
 		});
 
 	});
 
+
+	test('Dont Show experimental prompt if experiment is still being evaluated even if run event is fired', () => {
+
+		storageData = {
+			enabled: true,
+			state: ExperimentState.Evaluating
+		};
+
+		instantiationService.stub(INotificationService, {
+			prompt: (a: Severity, b: string, c: IPromptChoice[], d) => {
+				assert.fail('Prompt shouldnt hve been shown');
+			}
+		});
+
+		experimentalPrompt = instantiationService.createInstance(ExperimentalPrompts);
+		onExperimentEnabledEvent.fire(experiment);
+
+		return TPromise.as(null).then(result => {
+			assert.equal(storageData['state'], ExperimentState.Evaluating);
+		});
+
+	});
 
 });
