@@ -76,10 +76,6 @@ export class MenubarPart extends Part {
 		'Help': nls.localize({ key: 'mHelp', comment: ['&& denotes a mnemonic'] }, "&&Help")
 	};
 
-	private mnemonics: {
-		[index: number]: number;
-	} = {};
-
 	private focusedMenu: {
 		index: number;
 		holder: Builder;
@@ -428,12 +424,10 @@ export class MenubarPart extends Part {
 			let event = new StandardKeyboardEvent(e as KeyboardEvent);
 			let eventHandled = true;
 
-			if (event.equals(KeyCode.LeftArrow)) {
+			if (event.equals(KeyCode.LeftArrow) || (event.shiftKey && event.keyCode === KeyCode.Tab)) {
 				this.focusPrevious();
-			} else if (event.equals(KeyCode.RightArrow)) {
+			} else if (event.equals(KeyCode.RightArrow) || event.equals(KeyCode.Tab)) {
 				this.focusNext();
-			} else if (event.altKey && event.keyCode && this.mnemonics[event.keyCode] !== undefined && !this.focusedMenu) {
-				this.toggleCustomMenu(this.mnemonics[event.keyCode]);
 			} else {
 				eventHandled = false;
 			}
