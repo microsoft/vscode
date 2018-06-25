@@ -210,7 +210,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		Object.keys(this._sessionRestoredRecommendations).forEach(x => output[x.toLowerCase()] = {
 			reasonId: this._sessionRestoredRecommendations[x].reasonId,
-			reasonText: localize('restoredRecommendation', "This extension will be recommended again in the future.")
+			reasonText: localize('restoredRecommendation', "You will receive recommendations for this extension in your next VS Code session.")
 		});
 
 		return output;
