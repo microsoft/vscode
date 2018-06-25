@@ -439,6 +439,7 @@ export interface ISettingChangeEvent {
 export class SettingsRenderer implements IRenderer {
 
 	private static readonly SETTING_ROW_HEIGHT = 94;
+	private static readonly SETTING_BOOL_ROW_HEIGHT = 61;
 
 	private readonly _onDidChangeSetting: Emitter<ISettingChangeEvent> = new Emitter<ISettingChangeEvent>();
 	public readonly onDidChangeSetting: Event<ISettingChangeEvent> = this._onDidChangeSetting.event;
@@ -466,11 +467,19 @@ export class SettingsRenderer implements IRenderer {
 			if (isSelected) {
 				return this.measureSettingElementHeight(tree, element);
 			} else {
-				return SettingsRenderer.SETTING_ROW_HEIGHT;
+				return this._getUnexpandedSettingHeight(element);
 			}
 		}
 
 		return 0;
+	}
+
+	_getUnexpandedSettingHeight(element: SettingsTreeSettingElement): number {
+		if (element.valueType === 'boolean') {
+			return SettingsRenderer.SETTING_BOOL_ROW_HEIGHT;
+		} else {
+			return SettingsRenderer.SETTING_ROW_HEIGHT;
+		}
 	}
 
 	private measureSettingElementHeight(tree: ITree, element: SettingsTreeSettingElement): number {
@@ -482,7 +491,7 @@ export class SettingsRenderer implements IRenderer {
 
 		const height = this.measureContainer.offsetHeight;
 		this.measureContainer.removeChild(this.measureContainer.firstChild);
-		return Math.max(height, SettingsRenderer.SETTING_ROW_HEIGHT);
+		return Math.max(height, this._getUnexpandedSettingHeight(element));
 	}
 
 	getTemplateId(tree: ITree, element: SettingsTreeElement): string {
