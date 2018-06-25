@@ -152,8 +152,8 @@ export class OpenFileHandler extends QuickOpenHandler {
 	}
 
 	private doFindResults(query: IPreparedQuery, cacheKey?: string, maxSortedResults?: number): TPromise<FileQuickOpenModel> {
-		let iconClass: string;
 		const queryOptions = this.doResolveQueryOptions(query, cacheKey, maxSortedResults);
+		let iconClass: string;
 		if (this.options && this.options.forceUseIcons && !this.themeService.getFileIconTheme()) {
 			iconClass = 'file'; // only use a generic file icon if we are forced to use an icon and have no icon theme set otherwise
 		}
