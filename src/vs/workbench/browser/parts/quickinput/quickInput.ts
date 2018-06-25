@@ -285,8 +285,8 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _items: T[] = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
-	private _matchOnDescription = true;
-	private _matchOnDetail = true;
+	private _matchOnDescription = false;
+	private _matchOnDetail = false;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
 	private onDidChangeActiveEmitter = new Emitter<T[]>();
