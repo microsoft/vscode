@@ -208,7 +208,9 @@ export abstract class ViewContainerViewlet extends PanelViewlet implements IView
 		}
 		view = this.getView(id);
 		view.setExpanded(true);
-		view.focus();
+		if (focus) {
+			view.focus();
+		}
 		return TPromise.as(view);
 	}
 
