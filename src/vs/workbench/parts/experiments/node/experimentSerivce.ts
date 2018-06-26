@@ -56,7 +56,6 @@ interface IRawExperiment {
 			minEditCount: number;
 		},
 		userProbability?: number;
-		evaluateOnlyOnce?: boolean;
 	};
 	action?: { type: string; properties: any };
 }
@@ -243,16 +242,12 @@ export class ExperimentService extends Disposable implements IExperimentService 
 					processedExperiment.state = experimentState.state;
 				}
 
-				if (processedExperiment.state !== ExperimentState.Evaluating) {
-					this.storageService.store(storageKey, JSON.stringify(experimentState));
-					return TPromise.as(null);
-				}
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
 					this.storageService.store(storageKey, JSON.stringify(experimentState));
 
-					if (state === ExperimentState.Run && processedExperiment.action && processedExperiment.action.type === ExperimentActionType.Prompt) {
+					if (state === ExperimentState.Run) {
 						this._onExperimentEnabled.fire(processedExperiment);
 					}
 					return TPromise.as(null);
@@ -266,6 +261,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 	}
 
 	private shouldRunExperiment(experiment: IRawExperiment, processedExperiment: IExperiment): TPromise<ExperimentState> {
+		if (processedExperiment.state !== ExperimentState.Evaluating) {
+			return TPromise.wrap(processedExperiment.state);
+		}
+
 		if (!experiment.enabled) {
 			return TPromise.wrap(ExperimentState.NoRun);
 		}
