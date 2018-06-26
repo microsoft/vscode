@@ -2307,7 +2307,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 				return this.getWorkspaceFolderExtensionsConfigContent(configurationFile).then(content => {
 					const extensionIdLowerCase = extensionId.toLowerCase();
 					if (shouldRecommend) {
-						if (content.recommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
+						if ((content.recommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 							this.notificationService.info(localize('AddToWorkspaceFolderRecommendations.alreadyExists', 'This extension is already present in this workspace folder\'s recommendations.'));
 							return TPromise.as(null);
 						}
@@ -2319,7 +2319,7 @@ export class AddToWorkspaceFolderRecommendationsAction extends AbstractConfigure
 						});
 					}
 					else {
-						if (content.unwantedRecommendations.some(e => e.toLowerCase() === extensionIdLowerCase)) {
+						if ((content.unwantedRecommendations || []).some(e => e.toLowerCase() === extensionIdLowerCase)) {
 							this.notificationService.info(localize('AddToWorkspaceFolderIgnoredRecommendations.alreadyExists', 'This extension is already present in this workspace folder\'s unwanted recommendations.'));
 							return TPromise.as(null);
 						}
