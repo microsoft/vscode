@@ -946,7 +946,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	private getExperimentalRecommendations() {
-		this.experimentService.getEligibleExperimentsByType(ExperimentActionType.AddToRecommendations).then(experiments => {
+		this.experimentService.getExperimentsToRunByType(ExperimentActionType.AddToRecommendations).then(experiments => {
 			(experiments || []).forEach(experiment => {
 				if (experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
 					experiment.action.properties.recommendations.forEach(id => {

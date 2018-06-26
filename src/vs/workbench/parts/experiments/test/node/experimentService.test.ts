@@ -461,7 +461,7 @@ suite('Experiment Service', () => {
 		testObject = instantiationService.createInstance(TestExperimentService);
 		const disabledExperiment = testObject.getExperimentById('experiment1').then(result => {
 			assert.equal(result.enabled, false);
-			assert.equal(!!storageDataExperiment1, true);
+			assert.equal(!!storageDataExperiment1, false);
 		});
 		const deletedExperiment = testObject.getExperimentById('experiment2').then(result => {
 			assert.equal(!!result, false);
@@ -621,12 +621,12 @@ suite('Experiment Service', () => {
 		};
 
 		testObject = instantiationService.createInstance(TestExperimentService);
-		const custom = testObject.getEligibleExperimentsByType(ExperimentActionType.Custom).then(result => {
+		const custom = testObject.getExperimentsToRunByType(ExperimentActionType.Custom).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'simple-experiment');
 			assert.equal(result[1].id, 'custom-experiment');
 		});
-		const prompt = testObject.getEligibleExperimentsByType(ExperimentActionType.Prompt).then(result => {
+		const prompt = testObject.getExperimentsToRunByType(ExperimentActionType.Prompt).then(result => {
 			assert.equal(result.length, 2);
 			assert.equal(result[0].id, 'prompt-with-no-commands');
 			assert.equal(result[1].id, 'prompt-with-commands');

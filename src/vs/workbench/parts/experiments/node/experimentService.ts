@@ -94,7 +94,7 @@ interface IExperimentAction {
 export interface IExperimentService {
 	_serviceBrand: any;
 	getExperimentById(id: string): TPromise<IExperiment>;
-	getEligibleExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]>;
+	getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]>;
 	getCuratedExtensionsList(curatedExtensionsKey: string): TPromise<string[]>;
 	markAsCompleted(experimentId: string): void;
 
@@ -133,7 +133,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		});
 	}
 
-	public getEligibleExperimentsByType(type: ExperimentActionType): TPromise<IExperiment[]> {
+	public getExperimentsToRunByType(type: ExperimentActionType): TPromise<IExperiment[]> {
 		return this._loadExperimentsPromise.then(() => {
 			if (type === ExperimentActionType.Custom) {
 				return this._experiments.filter(x => x.enabled && x.state === ExperimentState.Run && (!x.action || x.action.type === type));
@@ -177,9 +177,9 @@ export class ExperimentService extends Disposable implements IExperimentService 
 		}, () => TPromise.as(null));
 	}
 
-
 	private loadExperiments(): TPromise<any> {
 		return this.getExperiments().then(rawExperiments => {
+			// Offline mode
 			if (!rawExperiments) {
 				const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
 				if (Array.isArray(allExperimentIdsFromStorage)) {
@@ -198,6 +198,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				return TPromise.as(null);
 			}
 
+			// Clear disbaled/deleted experiments from storage
 			const allExperimentIdsFromStorage = safeParse(this.storageService.get('allExperiments', StorageScope.GLOBAL), []);
 			const enabledExperiments = rawExperiments.filter(experiment => !!experiment.enabled).map(experiment => experiment.id.toLowerCase());
 			if (Array.isArray(allExperimentIdsFromStorage)) {
@@ -213,7 +214,7 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				const processedExperiment: IExperiment = {
 					id: experiment.id,
 					enabled: !!experiment.enabled,
-					state: ExperimentState.Evaluating
+					state: !!experiment.enabled ? ExperimentState.Evaluating : ExperimentState.NoRun
 				};
 
 				if (experiment.action) {
@@ -231,6 +232,10 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				}
 				this._experiments.push(processedExperiment);
 
+				if (!processedExperiment.enabled) {
+					return TPromise.as(null);
+				}
+
 				const storageKey = 'experiments.' + experiment.id;
 				const experimentState: IExperimentStorageState = safeParse(this.storageService.get(storageKey, StorageScope.GLOBAL), {});
 				if (!experimentState.hasOwnProperty('enabled')) {
@@ -241,7 +246,6 @@ export class ExperimentService extends Disposable implements IExperimentService 
 				} else {
 					processedExperiment.state = experimentState.state;
 				}
-
 
 				return this.shouldRunExperiment(experiment, processedExperiment).then((state: ExperimentState) => {
 					experimentState.state = processedExperiment.state = state;
