@@ -716,12 +716,14 @@ export class SettingsEditor2 extends BaseEditor {
 				const [result] = results;
 				if (!this.searchResultModel) {
 					this.searchResultModel = this.instantiationService.createInstance(SearchResultModel, this.viewState);
+					this.searchResultModel.setResult(type, result);
 					this.tocTreeModel.currentSearchModel = this.searchResultModel;
 					this.toggleSearchMode();
 					this.settingsTree.setInput(this.searchResultModel);
+				} else {
+					this.searchResultModel.setResult(type, result);
 				}
 
-				this.searchResultModel.setResult(type, result);
 				this.tocTreeModel.update();
 				resolve(this.refreshTreeAndMaintainFocus());
 			});

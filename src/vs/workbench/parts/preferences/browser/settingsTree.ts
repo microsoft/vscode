@@ -901,6 +901,11 @@ export class SearchResultModel {
 	setResult(type: SearchResultIdx, result: ISearchResult): void {
 		this.cachedUniqueSearchResults = null;
 		this.rawSearchResults = this.rawSearchResults || [];
+		if (!result) {
+			delete this.rawSearchResults[type];
+			return;
+		}
+
 		this.rawSearchResults[type] = result;
 
 		// Recompute children
