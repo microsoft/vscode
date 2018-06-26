@@ -121,7 +121,7 @@ class UntitledEditorInputFactory implements IEditorInputFactory {
 
 		let resource = untitledEditorInput.getResource();
 		if (untitledEditorInput.hasAssociatedFilePath) {
-			resource = URI.file(resource.fsPath); // untitled with associated file path use the file schema
+			resource = resource.with({ scheme: Schemas.file }); // untitled with associated file path use the file schema
 		}
 
 		const serialized: ISerializedUntitledEditorInput = {

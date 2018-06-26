@@ -138,6 +138,27 @@ export interface IEditorLightbulbOptions {
 }
 
 /**
+ * Configuration options for editor hover
+ */
+export interface IEditorHoverOptions {
+	/**
+	 * Enable the hover.
+	 * Defaults to true.
+	 */
+	enabled?: boolean;
+	/**
+	 * Delay for showing the hover.
+	 * Defaults to 300.
+	 */
+	delay?: number;
+	/**
+	 * Is the hover sticky such that it can be clicked and its contents selected?
+	 * Defaults to true.
+	 */
+	sticky?: boolean;
+}
+
+/**
  * Configuration map for codeActionsOnSave
  */
 export interface ICodeActionsOnSaveOptions {
@@ -367,10 +388,9 @@ export interface IEditorOptions {
 	 */
 	stopRenderingLineAfter?: number;
 	/**
-	 * Enable hover.
-	 * Defaults to true.
+	 * Configure the editor's hover.
 	 */
-	hover?: boolean;
+	hover?: boolean | IEditorHoverOptions;
 	/**
 	 * Enable detecting links and making them clickable.
 	 * Defaults to true.
@@ -549,9 +569,14 @@ export interface IEditorOptions {
 	renderControlCharacters?: boolean;
 	/**
 	 * Enable rendering of indent guides.
-	 * Defaults to false.
+	 * Defaults to true.
 	 */
 	renderIndentGuides?: boolean;
+	/**
+	 * Enable highlighting of the active indent guide.
+	 * Defaults to true.
+	 */
+	highlightActiveIndentGuide?: boolean;
 	/**
 	 * Enable rendering of current line highlight.
 	 * Defaults to all.
@@ -799,6 +824,12 @@ export interface InternalEditorFindOptions {
 	readonly globalFindClipboard: boolean;
 }
 
+export interface InternalEditorHoverOptions {
+	readonly enabled: boolean;
+	readonly delay: number;
+	readonly sticky: boolean;
+}
+
 export interface EditorWrappingInfo {
 	readonly inDiffEditor: boolean;
 	readonly isDominatedByLongLines: boolean;
@@ -845,6 +876,7 @@ export interface InternalEditorViewOptions {
 	readonly renderControlCharacters: boolean;
 	readonly fontLigatures: boolean;
 	readonly renderIndentGuides: boolean;
+	readonly highlightActiveIndentGuide: boolean;
 	readonly renderLineHighlight: 'none' | 'gutter' | 'line' | 'all';
 	readonly scrollbar: InternalEditorScrollbarOptions;
 	readonly minimap: InternalEditorMinimapOptions;
@@ -853,7 +885,7 @@ export interface InternalEditorViewOptions {
 
 export interface EditorContribOptions {
 	readonly selectionClipboard: boolean;
-	readonly hover: boolean;
+	readonly hover: InternalEditorHoverOptions;
 	readonly links: boolean;
 	readonly contextmenu: boolean;
 	readonly quickSuggestions: boolean | { other: boolean, comments: boolean, strings: boolean };
@@ -1131,6 +1163,7 @@ export class InternalEditorOptions {
 			&& a.renderControlCharacters === b.renderControlCharacters
 			&& a.fontLigatures === b.fontLigatures
 			&& a.renderIndentGuides === b.renderIndentGuides
+			&& a.highlightActiveIndentGuide === b.highlightActiveIndentGuide
 			&& a.renderLineHighlight === b.renderLineHighlight
 			&& this._equalsScrollbarOptions(a.scrollbar, b.scrollbar)
 			&& this._equalsMinimapOptions(a.minimap, b.minimap)
@@ -1174,12 +1207,22 @@ export class InternalEditorOptions {
 	/**
 	 * @internal
 	 */
-
 	private static _equalFindOptions(a: InternalEditorFindOptions, b: InternalEditorFindOptions): boolean {
 		return (
 			a.seedSearchStringFromSelection === b.seedSearchStringFromSelection
 			&& a.autoFindInSelection === b.autoFindInSelection
 			&& a.globalFindClipboard === b.globalFindClipboard
+		);
+	}
+
+	/**
+	 * @internal
+	 */
+	private static _equalsHoverOptions(a: InternalEditorHoverOptions, b: InternalEditorHoverOptions): boolean {
+		return (
+			a.enabled === b.enabled
+			&& a.delay === b.delay
+			&& a.sticky === b.sticky
 		);
 	}
 
@@ -1206,7 +1249,7 @@ export class InternalEditorOptions {
 	private static _equalsContribOptions(a: EditorContribOptions, b: EditorContribOptions): boolean {
 		return (
 			a.selectionClipboard === b.selectionClipboard
-			&& a.hover === b.hover
+			&& this._equalsHoverOptions(a.hover, b.hover)
 			&& a.links === b.links
 			&& a.contextmenu === b.contextmenu
 			&& InternalEditorOptions._equalsQuickSuggestions(a.quickSuggestions, b.quickSuggestions)
@@ -1652,6 +1695,25 @@ export class EditorOptionsValidator {
 		};
 	}
 
+	private static _santizeHoverOpts(_opts: boolean | IEditorHoverOptions, defaults: InternalEditorHoverOptions): InternalEditorHoverOptions {
+		let opts: IEditorHoverOptions;
+		if (typeof _opts === 'boolean') {
+			opts = {
+				enabled: _opts
+			};
+		} else if (typeof _opts === 'object') {
+			opts = _opts;
+		} else {
+			return defaults;
+		}
+
+		return {
+			enabled: _boolean(opts.enabled, defaults.enabled),
+			delay: _clampedInt(opts.delay, defaults.delay, 0, 10000),
+			sticky: _boolean(opts.sticky, defaults.sticky)
+		};
+	}
+
 	private static _sanitizeViewInfo(opts: IEditorOptions, defaults: InternalEditorViewOptions): InternalEditorViewOptions {
 
 		let rulers: number[] = [];
@@ -1748,6 +1810,7 @@ export class EditorOptionsValidator {
 			renderControlCharacters: _boolean(opts.renderControlCharacters, defaults.renderControlCharacters),
 			fontLigatures: fontLigatures,
 			renderIndentGuides: _boolean(opts.renderIndentGuides, defaults.renderIndentGuides),
+			highlightActiveIndentGuide: _boolean(opts.highlightActiveIndentGuide, defaults.highlightActiveIndentGuide),
 			renderLineHighlight: renderLineHighlight,
 			scrollbar: scrollbar,
 			minimap: minimap,
@@ -1769,7 +1832,7 @@ export class EditorOptionsValidator {
 		const find = this._santizeFindOpts(opts.find, defaults.find);
 		return {
 			selectionClipboard: _boolean(opts.selectionClipboard, defaults.selectionClipboard),
-			hover: _boolean(opts.hover, defaults.hover),
+			hover: this._santizeHoverOpts(opts.hover, defaults.hover),
 			links: _boolean(opts.links, defaults.links),
 			contextmenu: _boolean(opts.contextmenu, defaults.contextmenu),
 			quickSuggestions: quickSuggestions,
@@ -1862,6 +1925,7 @@ export class InternalEditorOptionsFactory {
 				renderControlCharacters: (accessibilityIsOn ? false : opts.viewInfo.renderControlCharacters), // DISABLED WHEN SCREEN READER IS ATTACHED
 				fontLigatures: (accessibilityIsOn ? false : opts.viewInfo.fontLigatures), // DISABLED WHEN SCREEN READER IS ATTACHED
 				renderIndentGuides: (accessibilityIsOn ? false : opts.viewInfo.renderIndentGuides), // DISABLED WHEN SCREEN READER IS ATTACHED
+				highlightActiveIndentGuide: opts.viewInfo.highlightActiveIndentGuide,
 				renderLineHighlight: opts.viewInfo.renderLineHighlight,
 				scrollbar: opts.viewInfo.scrollbar,
 				minimap: {
@@ -2315,6 +2379,7 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 		renderControlCharacters: false,
 		fontLigatures: false,
 		renderIndentGuides: true,
+		highlightActiveIndentGuide: true,
 		renderLineHighlight: 'line',
 		scrollbar: {
 			vertical: ScrollbarVisibility.Auto,
@@ -2342,7 +2407,11 @@ export const EDITOR_DEFAULTS: IValidatedEditorOptions = {
 
 	contribInfo: {
 		selectionClipboard: true,
-		hover: true,
+		hover: {
+			enabled: true,
+			delay: 300,
+			sticky: true
+		},
 		links: true,
 		contextmenu: true,
 		quickSuggestions: { other: true, comments: false, strings: false },

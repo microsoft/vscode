@@ -6,7 +6,7 @@
 
 import { localize } from 'vs/nls';
 import { ITextModel } from 'vs/editor/common/model';
-import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType } from 'vs/editor/common/modes';
+import { ISuggestSupport, ISuggestResult, ISuggestion, LanguageId, SuggestionType, SnippetType, SuggestContext } from 'vs/editor/common/modes';
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
 import { setSnippetSuggestSupport } from 'vs/editor/contrib/suggest/suggest';
 import { IModeService } from 'vs/editor/common/services/modeService';
@@ -321,7 +321,7 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 		//
 	}
 
-	provideCompletionItems(model: ITextModel, position: Position): Promise<ISuggestResult> {
+	provideCompletionItems(model: ITextModel, position: Position, context: SuggestContext): Promise<ISuggestResult> {
 
 		const languageId = this._getLanguageIdAtPosition(model, position);
 		return this._snippets.getSnippets(languageId).then(snippets => {
@@ -337,7 +337,12 @@ export class SnippetSuggestProvider implements ISuggestSupport {
 				let overwriteBefore = 0;
 				let accetSnippet = true;
 
-				if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
+				if (typeof context.triggerCharacter === 'string') {
+					// cheap match on the trigger-character
+					overwriteBefore = context.triggerCharacter.length;
+					accetSnippet = startsWith(lowPrefix, context.triggerCharacter.toLowerCase());
+
+				} else if (lowWordUntil.length > 0 && startsWith(lowPrefix, lowWordUntil)) {
 					// cheap match on the (none-empty) current word
 					overwriteBefore = lowWordUntil.length;
 					accetSnippet = true;

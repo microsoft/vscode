@@ -38,6 +38,7 @@ import { ILogService, getLogLevel } from 'vs/platform/log/common/log';
 import { isPromiseCanceledError } from 'vs/base/common/errors';
 import { IDialogService } from 'vs/platform/dialogs/common/dialogs';
 import { CommandLineDialogService } from 'vs/platform/dialogs/node/dialogService';
+import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 
 const notFound = (id: string) => localize('notFound', "Extension '{0}' not found.", id);
 const notInstalled = (id: string) => localize('notInstalled', "Extension '{0}' is not installed.", id);
@@ -175,7 +176,7 @@ class Main {
 		return sequence(extensions.map(extension => () => {
 			return getExtensionId(extension).then(id => {
 				return this.extensionManagementService.getInstalled(LocalExtensionType.User).then(installed => {
-					const [extension] = installed.filter(e => getId(e.manifest) === id);
+					const [extension] = installed.filter(e => areSameExtensions({ id: getGalleryExtensionIdFromLocal(e) }, { id }));
 
 					if (!extension) {
 						return TPromise.wrapError(new Error(`${notInstalled(id)}\n${useId}`));

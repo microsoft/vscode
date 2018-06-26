@@ -20,7 +20,7 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import * as paths from 'vs/base/common/paths';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
@@ -32,7 +32,7 @@ import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/serv
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
-import { webFrame } from 'electron';
+import { webFrame, shell } from 'electron';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -1541,6 +1541,121 @@ export class ToggleWindowTabsBar extends Action {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }
+
+export class OpenTwitterUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openTwitterUrl';
+	public static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.twitterUrl) {
+			return TPromise.as(shell.openExternal(product.twitterUrl));
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class OpenRequestFeatureUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openRequestFeatureUrl';
+	public static LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.requestFeatureUrl) {
+			return TPromise.as(shell.openExternal(product.requestFeatureUrl));
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class OpenLicenseUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openLicenseUrl';
+	public static LABEL = nls.localize('openLicenseUrl', "View License");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.licenseUrl) {
+			if (language) {
+				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+				return TPromise.as(shell.openExternal(`${product.licenseUrl}${queryArgChar}lang=${language}`));
+			} else {
+				return TPromise.as(shell.openExternal(product.licenseUrl));
+			}
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+
+export class OpenPrivacyStatementUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openPrivacyStatementUrl';
+	public static LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.privacyStatementUrl) {
+			if (language) {
+				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
+				return TPromise.as(shell.openExternal(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`));
+			} else {
+				return TPromise.as(shell.openExternal(product.privacyStatementUrl));
+			}
+		}
+
+
+		return TPromise.as(false);
+	}
+}
+
+export class ShowAccessibilityOptionsAction extends Action {
+
+	public static readonly ID = 'workbench.action.showAccessibilityOptions';
+	public static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.openAccessibilityOptions();
+	}
+}
+
 
 export class ShowAboutDialogAction extends Action {
 

@@ -14,7 +14,7 @@ import * as resources from 'vs/base/common/resources';
 import * as glob from 'vs/base/common/glob';
 import { Action, IAction } from 'vs/base/common/actions';
 import { memoize } from 'vs/base/common/decorators';
-import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceIsReadonlyContext } from 'vs/workbench/parts/files/common/files';
+import { IFilesConfiguration, ExplorerFolderContext, FilesExplorerFocusedContext, ExplorerFocusedContext, SortOrderConfiguration, SortOrder, IExplorerView, ExplorerRootContext, ExplorerResourceReadonlyContext } from 'vs/workbench/parts/files/common/files';
 import { FileOperation, FileOperationEvent, IResolveFileOptions, FileChangeType, FileChangesEvent, IFileService, FILES_EXCLUDE_CONFIG } from 'vs/platform/files/common/files';
 import { RefreshViewExplorerAction, NewFolderAction, NewFileAction } from 'vs/workbench/parts/files/electron-browser/fileActions';
 import { FileDragAndDrop, FileFilter, FileSorter, FileController, FileRenderer, FileDataSource, FileViewletState, FileAccessibilityProvider } from 'vs/workbench/parts/files/electron-browser/views/explorerViewer';
@@ -78,6 +78,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 	private settings: object;
 	private treeContainer: HTMLElement;
 	private dragHandler: DelayedDragHandler;
+	private decorationProvider: ExplorerDecorationsProvider;
 	private isDisposed: boolean;
 
 	constructor(
@@ -105,7 +106,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 
 		this.resourceContext = instantiationService.createInstance(ResourceContextKey);
 		this.folderContext = ExplorerFolderContext.bindTo(contextKeyService);
-		this.readonlyContext = ExplorerResourceIsReadonlyContext.bindTo(contextKeyService);
+		this.readonlyContext = ExplorerResourceReadonlyContext.bindTo(contextKeyService);
 		this.rootContext = ExplorerRootContext.bindTo(contextKeyService);
 
 		this.fileEventsFilter = instantiationService.createInstance(
@@ -114,7 +115,9 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			(event: IConfigurationChangeEvent) => event.affectsConfiguration(FILES_EXCLUDE_CONFIG)
 		);
 
-		decorationService.registerDecorationsProvider(new ExplorerDecorationsProvider(this.model, contextService));
+		this.decorationProvider = new ExplorerDecorationsProvider(this.model, contextService);
+		decorationService.registerDecorationsProvider(this.decorationProvider);
+		this.disposables.push(this.decorationProvider);
 	}
 
 	private getFileEventsExcludes(root?: URI): glob.IExpression {
@@ -782,7 +785,10 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			});
 		}
 
-		const promise = this.resolveRoots(targetsToResolve, targetsToExpand);
+		const promise = this.resolveRoots(targetsToResolve, targetsToExpand).then(result => {
+			this.decorationProvider.changed(targetsToResolve.map(t => t.root.resource));
+			return result;
+		});
 		this.progressService.showWhile(promise, this.partService.isCreated() ? 800 : 3200 /* less ugly initial startup */);
 
 		return promise;
@@ -798,7 +804,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 			mtime: 0,
 			etag: undefined,
 			isDirectory: true
-		}, root);
+		}, root, undefined, true);
 
 		const setInputAndExpand = (input: ExplorerItem | Model, statsToExpand: ExplorerItem[]) => {
 			// Make sure to expand all folders that where expanded in the previous session
@@ -842,7 +848,7 @@ export class ExplorerView extends TreeViewsViewletPanel implements IExplorerView
 		let delayer = new Delayer(100);
 		let delayerPromise: TPromise;
 		return TPromise.join(targetsToResolve.map((target, index) => this.fileService.resolveFile(target.resource, target.options)
-			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorFileStat(target.resource, target.root), err => errorFileStat(target.resource, target.root))
+			.then(result => result.isDirectory ? ExplorerItem.create(result, target.root, target.options.resolveTo) : errorFileStat(target.resource, target.root), () => errorFileStat(target.resource, target.root))
 			.then(modelStat => {
 				// Subsequent refresh: Merge stat into our local model and refresh tree
 				if (index < this.model.roots.length) {

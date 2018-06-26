@@ -8,7 +8,7 @@
 import * as assert from 'assert';
 import * as vscode from 'vscode';
 import { createRandomFile, deleteFile, closeAllEditors, pathEquals, rndName } from '../utils';
-import { join, basename, dirname } from 'path';
+import { join, posix, basename } from 'path';
 import * as fs from 'fs';
 import * as os from 'os';
 
@@ -569,7 +569,7 @@ suite('workspace-namespace', () => {
 	});
 
 	function nameWithUnderscore(uri: vscode.Uri) {
-		return uri.with({ path: join(dirname(uri.path), `_${basename(uri.path)}`) });
+		return uri.with({ path: posix.join(posix.dirname(uri.path), `_${posix.basename(uri.path)}`) });
 	}
 
 	test('WorkspaceEdit: applying edits before and after rename duplicates resource #42633', async function () {
@@ -630,7 +630,7 @@ suite('workspace-namespace', () => {
 		}
 
 		let docUri = await createRandomFile('', dir);
-		let docParent = docUri.with({ path: dirname(docUri.path) });
+		let docParent = docUri.with({ path: posix.dirname(docUri.path) });
 		let newParent = nameWithUnderscore(docParent);
 
 		let we = new vscode.WorkspaceEdit();
@@ -646,7 +646,7 @@ suite('workspace-namespace', () => {
 			assert.ok(true);
 		}
 
-		let newUri = newParent.with({ path: join(newParent.path, basename(docUri.path)) });
+		let newUri = newParent.with({ path: posix.join(newParent.path, posix.basename(docUri.path)) });
 		let doc = await vscode.workspace.openTextDocument(newUri);
 		assert.ok(doc);
 
@@ -665,5 +665,29 @@ suite('workspace-namespace', () => {
 
 		let doc = await vscode.workspace.openTextDocument(newUri);
 		assert.equal(doc.getText(), 'Hello');
+	});
+
+	test('WorkspaceEdit: create & override', async function () {
+
+		let docUri = await createRandomFile('before');
+
+		let we = new vscode.WorkspaceEdit();
+		we.createFile(docUri);
+		assert.ok(!await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
+
+		we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { overwrite: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		// todo@ben
+		// assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), '');
+	});
+
+	test('WorkspaceEdit: create & ignoreIfExists', async function () {
+		let docUri = await createRandomFile('before');
+		let we = new vscode.WorkspaceEdit();
+		we.createFile(docUri, { ignoreIfExists: true });
+		assert.ok(await vscode.workspace.applyEdit(we));
+		assert.equal((await vscode.workspace.openTextDocument(docUri)).getText(), 'before');
 	});
 });

@@ -3,6 +3,8 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
-.centered-view-layout {
-	height: 100%;
-}
+'use strict';
+
+import { rgPath } from 'vscode-ripgrep';
+
+export { rgPath };

@@ -43,9 +43,9 @@ function assertInvalidParse(input: string, expected: any, options?: ParseOptions
 	assert.deepEqual(actual, expected);
 }
 
-function assertTree(input: string, expected: any, expectedErrors: number[] = []): void {
+function assertTree(input: string, expected: any, expectedErrors: number[] = [], options?: ParseOptions): void {
 	var errors: ParseError[] = [];
-	var actual = parseTree(input, errors);
+	var actual = parseTree(input, errors, options);
 
 	assert.deepEqual(errors.map(e => e.error, expected), expectedErrors);
 	let checkParent = (node: Node) => {
@@ -203,7 +203,7 @@ suite('JSON', () => {
 
 	test('parse: objects with errors', () => {
 		assertInvalidParse('{,}', {});
-		assertInvalidParse('{ "foo": true, }', { foo: true });
+		assertInvalidParse('{ "foo": true, }', { foo: true }, { disallowTrailingComma: true });
 		assertInvalidParse('{ "bar": 8 "xoo": "foo" }', { bar: 8, xoo: 'foo' });
 		assertInvalidParse('{ ,"bar": 8 }', { bar: 8 });
 		assertInvalidParse('{ ,"bar": 8, "foo" }', { bar: 8 });
@@ -213,10 +213,10 @@ suite('JSON', () => {
 
 	test('parse: array with errors', () => {
 		assertInvalidParse('[,]', []);
-		assertInvalidParse('[ 1, 2, ]', [1, 2]);
+		assertInvalidParse('[ 1, 2, ]', [1, 2], { disallowTrailingComma: true });
 		assertInvalidParse('[ 1 2, 3 ]', [1, 2, 3]);
 		assertInvalidParse('[ ,1, 2, 3 ]', [1, 2, 3]);
-		assertInvalidParse('[ ,1, 2, 3, ]', [1, 2, 3]);
+		assertInvalidParse('[ ,1, 2, 3, ]', [1, 2, 3], { disallowTrailingComma: true });
 	});
 
 	test('parse: disallow commments', () => {
@@ -229,15 +229,19 @@ suite('JSON', () => {
 	});
 
 	test('parse: trailing comma', () => {
-		let options = { allowTrailingComma: true };
+		// default is allow
+		assertValidParse('{ "hello": [], }', { hello: [] });
+
+		let options = { disallowTrailingComma: false };
 		assertValidParse('{ "hello": [], }', { hello: [] }, options);
 		assertValidParse('{ "hello": [] }', { hello: [] }, options);
 		assertValidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
 		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
 		assertValidParse('{ "hello": [1,] }', { hello: [1] }, options);
 
-		assertInvalidParse('{ "hello": [], }', { hello: [] });
-		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} });
+		options = { disallowTrailingComma: true };
+		assertInvalidParse('{ "hello": [], }', { hello: [] }, options);
+		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
 	});
 
 	test('tree: literals', () => {
@@ -320,6 +324,6 @@ suite('JSON', () => {
 					}
 				]
 			}
-			, [ParseErrorCode.PropertyNameExpected, ParseErrorCode.ValueExpected]);
+			, [ParseErrorCode.PropertyNameExpected, ParseErrorCode.ValueExpected], { disallowTrailingComma: true });
 	});
 });

@@ -135,9 +135,9 @@ suite('MainThreadEditors', () => {
 	test(`applyWorkspaceEdit with only resource edit`, () => {
 		return editors.$tryApplyWorkspaceEdit({
 			edits: [
-				{ oldUri: resource, newUri: resource },
-				{ oldUri: undefined, newUri: resource },
-				{ oldUri: resource, newUri: undefined }
+				{ oldUri: resource, newUri: resource, options: undefined },
+				{ oldUri: undefined, newUri: resource, options: undefined },
+				{ oldUri: resource, newUri: undefined, options: undefined }
 			]
 		}).then((result) => {
 			assert.equal(result, true);

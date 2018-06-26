@@ -25,6 +25,7 @@ export interface ISettingsGroup {
 	title: string;
 	titleRange: IRange;
 	sections: ISettingsSection[];
+	contributedByExtension: boolean;
 }
 
 export interface ISettingsSection {

@@ -233,7 +233,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// it gets removed and then added back to the DOM (resetting scrollTop to 0).
 			// Upstream issue: https://github.com/sourcelair/xterm.js/issues/291
 			if (this._xterm) {
-				this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+				this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
 			}
 		}
 
@@ -461,7 +461,7 @@ export class TerminalInstance implements ITerminalInstance {
 
 	private _measureRenderTime(): void {
 		const frameTimes: number[] = [];
-		const textRenderLayer = (<any>this._xterm).renderer._renderLayers[0];
+		const textRenderLayer = this._xterm._core.renderer._renderLayers[0];
 		const originalOnGridChanged = textRenderLayer.onGridChanged;
 
 		const evaluateCanvasRenderer = () => {
@@ -576,7 +576,7 @@ export class TerminalInstance implements ITerminalInstance {
 			this._xtermElement = null;
 		}
 		if (this._xterm) {
-			const buffer = (<any>this._xterm.buffer);
+			const buffer = (<any>this._xterm._core.buffer);
 			this._sendLineData(buffer, buffer.ybase + buffer.y);
 			this._xterm.dispose();
 			this._xterm = null;
@@ -649,7 +649,7 @@ export class TerminalInstance implements ITerminalInstance {
 			// necessary if the number of rows in the terminal has decreased while it was in the
 			// background since scrollTop changes take no effect but the terminal's position does
 			// change since the number of visible rows decreases.
-			this._xterm.emit('scroll', this._xterm.buffer.ydisp);
+			this._xterm.emit('scroll', this._xterm._core.buffer.ydisp);
 			if (this._container && this._container.parentElement) {
 				// Force a layout when the instance becomes invisible. This is particularly important
 				// for ensuring that terminals that are created in the background by an extension will
@@ -849,7 +849,7 @@ export class TerminalInstance implements ITerminalInstance {
 	}
 
 	private _onLineFeed(): void {
-		const buffer = (<any>this._xterm.buffer);
+		const buffer = (<any>this._xterm._core.buffer);
 		const newLine = buffer.lines.get(buffer.ybase + buffer.y);
 		if (!newLine.isWrapped) {
 			this._sendLineData(buffer, buffer.ybase + buffer.y - 1);
@@ -975,7 +975,7 @@ export class TerminalInstance implements ITerminalInstance {
 				// on Winodws/Linux would fire an event saying that the terminal was not visible.
 				// This should only force a refresh if one is needed.
 				if (this._xterm.getOption('rendererType') === 'canvas') {
-					(<any>this._xterm).renderer.onIntersectionChange({ intersectionRatio: 1 });
+					this._xterm._core.renderer.onIntersectionChange({ intersectionRatio: 1 });
 				}
 			}
 		}
@@ -1070,6 +1070,7 @@ registerThemingParticipant((theme: ITheme, collector: ICssStyleCollector) => {
 	const scrollbarSliderBackgroundColor = theme.getColor(scrollbarSliderBackground);
 	if (scrollbarSliderBackgroundColor) {
 		collector.addRule(`
+			.monaco-workbench .panel.integrated-terminal .find-focused .xterm .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm.focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:focus .xterm-viewport,
 			.monaco-workbench .panel.integrated-terminal .xterm:hover .xterm-viewport { background-color: ${scrollbarSliderBackgroundColor} !important; }`

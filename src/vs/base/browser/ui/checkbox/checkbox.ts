@@ -5,21 +5,19 @@
 
 'use strict';
 
-import 'vs/css!./checkbox';
-
 import * as DOM from 'vs/base/browser/dom';
-import * as objects from 'vs/base/common/objects';
-import { KeyCode } from 'vs/base/common/keyCodes';
-import { Widget } from 'vs/base/browser/ui/widget';
 import { IKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { Widget } from 'vs/base/browser/ui/widget';
 import { Color } from 'vs/base/common/color';
+import { Emitter, Event } from 'vs/base/common/event';
+import { KeyCode } from 'vs/base/common/keyCodes';
+import * as objects from 'vs/base/common/objects';
+import 'vs/css!./checkbox';
 
 export interface ICheckboxOpts extends ICheckboxStyles {
 	readonly actionClassName: string;
 	readonly title: string;
 	readonly isChecked: boolean;
-	readonly onChange: (viaKeyboard: boolean) => void;
-	readonly onKeyDown?: (e: IKeyboardEvent) => void;
 }
 
 export interface ICheckboxStyles {
@@ -31,6 +29,12 @@ const defaultOpts = {
 };
 
 export class Checkbox extends Widget {
+
+	private readonly _onChange = this._register(new Emitter<boolean>());
+	public readonly onChange: Event<boolean /* via keyboard */> = this._onChange.event;
+
+	private readonly _onKeyDown = this._register(new Emitter<IKeyboardEvent>());
+	public readonly onKeyDown: Event<IKeyboardEvent> = this._onKeyDown.event;
 
 	private readonly _opts: ICheckboxOpts;
 	public readonly domNode: HTMLElement;
@@ -55,21 +59,19 @@ export class Checkbox extends Widget {
 
 		this.onclick(this.domNode, (ev) => {
 			this.checked = !this._checked;
-			this._opts.onChange(false);
+			this._onChange.fire(false);
 			ev.preventDefault();
 		});
 
 		this.onkeydown(this.domNode, (keyboardEvent) => {
 			if (keyboardEvent.keyCode === KeyCode.Space || keyboardEvent.keyCode === KeyCode.Enter) {
 				this.checked = !this._checked;
-				this._opts.onChange(true);
+				this._onChange.fire(true);
 				keyboardEvent.preventDefault();
 				return;
 			}
 
-			if (this._opts.onKeyDown) {
-				this._opts.onKeyDown(keyboardEvent);
-			}
+			this._onKeyDown.fire(keyboardEvent);
 		});
 	}
 

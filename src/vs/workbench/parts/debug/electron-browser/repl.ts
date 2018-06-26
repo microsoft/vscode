@@ -174,6 +174,8 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
+				// Disable history navigation because up and down are used to navigate through the suggest widget
+				historyNavigationEnablement.set(false);
 				const word = this.replInput.getModel().getWordAtPosition(position);
 				const overwriteBefore = word ? word.word.length : 0;
 				const text = this.replInput.getModel().getLineContent(position.lineNumber);
@@ -197,7 +199,6 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		this.toUnbind.push(this.replInput.onDidChangeModelContent(() => {
 			historyNavigationEnablement.set(this.replInput.getModel().getLineCount() === 1);
 		}));
-
 
 		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.FOCUS, () => dom.addClass(this.replInputContainer, 'synthetic-focus')));
 		this.toUnbind.push(dom.addStandardDisposableListener(this.replInputContainer, dom.EventType.BLUR, () => dom.removeClass(this.replInputContainer, 'synthetic-focus')));

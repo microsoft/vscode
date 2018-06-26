@@ -945,7 +945,7 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 			}
 
 			// Handle dropped files (only support FileStat as target)
-			else if (target instanceof ExplorerItem) {
+			else if (target instanceof ExplorerItem && !target.isReadonly) {
 				const addFilesAction = this.instantiationService.createInstance(AddFilesAction, tree, target, null);
 
 				return addFilesAction.run(droppedResources.map(res => res.resource));
@@ -1036,6 +1036,10 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		}
 
 		return tree.expand(target).then(() => {
+
+			if (target.isReadonly) {
+				return void 0;
+			}
 
 			// Reuse duplicate action if user copies
 			if (isCopy) {

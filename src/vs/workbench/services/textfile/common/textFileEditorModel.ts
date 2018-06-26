@@ -310,7 +310,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 					mtime: Date.now(),
 					etag: void 0,
 					value: createTextBufferFactory(''), /* will be filled later from backup */
-					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding)
+					encoding: this.fileService.encoding.getWriteEncoding(this.resource, this.preferredEncoding),
+					isReadonly: false
 				};
 
 				return this.loadWithContent(content, backup);
@@ -406,7 +407,8 @@ export class TextFileEditorModel extends BaseTextEditorModel implements ITextFil
 			etag: content.etag,
 			isDirectory: false,
 			isSymbolicLink: false,
-			children: void 0
+			children: void 0,
+			isReadonly: content.isReadonly
 		};
 		this.updateLastResolvedDiskStat(resolvedStat);
 

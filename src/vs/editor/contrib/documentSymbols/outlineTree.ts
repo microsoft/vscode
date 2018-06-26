@@ -9,7 +9,6 @@ import 'vs/css!./media/symbol-icons';
 import { IMouseEvent } from 'vs/base/browser/mouseEvent';
 import { HighlightedLabel } from 'vs/base/browser/ui/highlightedlabel/highlightedLabel';
 import { values } from 'vs/base/common/collections';
-import { onUnexpectedError } from 'vs/base/common/errors';
 import { createMatches } from 'vs/base/common/filters';
 import { TPromise } from 'vs/base/common/winjs.base';
 import { IDataSource, IFilter, IRenderer, ISorter, ITree } from 'vs/base/parts/tree/browser/tree';
@@ -307,35 +306,11 @@ export class OutlineTreeState {
 }
 
 export class OutlineController extends WorkbenchTreeController {
-
-	protected onLeftClick(tree: ITree, element: any, event: IMouseEvent, origin: string = 'mouse'): boolean {
-
-		const payload = { origin: origin, originalEvent: event, didClickElement: false };
-
-		if (tree.getInput() === element) {
-			tree.clearFocus(payload);
-			tree.clearSelection(payload);
+	protected shouldToggleExpansion(element: any, event: IMouseEvent, origin: string): boolean {
+		if (element instanceof OutlineElement) {
+			return this.isClickOnTwistie(event);
 		} else {
-			const isMouseDown = event && event.browserEvent && event.browserEvent.type === 'mousedown';
-			if (!isMouseDown) {
-				event.preventDefault(); // we cannot preventDefault onMouseDown because this would break DND otherwise
-			}
-			event.stopPropagation();
-
-			payload.didClickElement = element instanceof OutlineElement && !this.isClickOnTwistie(event);
-
-			tree.domFocus();
-			tree.setSelection([element], payload);
-			tree.setFocus(element, payload);
-
-			if (!payload.didClickElement) {
-				if (tree.isExpanded(element)) {
-					tree.collapse(element).then(null, onUnexpectedError);
-				} else {
-					tree.expand(element).then(null, onUnexpectedError);
-				}
-			}
+			return super.shouldToggleExpansion(element, event, origin);
 		}
-		return true;
 	}
 }

@@ -255,7 +255,7 @@ export class CollapseDeepestExpandedLevelAction extends Action {
 export class ClearSearchResultsAction extends Action {
 
 	static readonly ID: string = 'search.action.clearSearchResults';
-	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear");
+	static LABEL: string = nls.localize('ClearSearchResultsAction.label', "Clear Search Results");
 
 	constructor(id: string, label: string,
 		@IViewletService private viewletService: IViewletService,

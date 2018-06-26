@@ -40,16 +40,27 @@ import { ActionBar, ActionItem } from 'vs/base/browser/ui/actionbar/actionbar';
 import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
+import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 
 const $ = dom.$;
 
+const backButton = {
+	iconPath: {
+		dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/arrow-left.svg')),
+		light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/arrow-left.svg'))
+	},
+	tooltip: localize('quickInput.back', "Back"),
+	handle: -1 // TODO
+};
+
 interface QuickInputUI {
 	container: HTMLElement;
+	leftActionBar: ActionBar;
 	title: HTMLElement;
+	rightActionBar: ActionBar;
 	checkAll: HTMLInputElement;
 	inputBox: QuickInputBox;
 	count: CountBadge;
-	actionBar: ActionBar;
 	message: HTMLElement;
 	progressBar: ProgressBar;
 	list: QuickInputList;
@@ -205,7 +216,9 @@ class QuickInput implements IQuickInput {
 		if (this.busy && !this.busyDelay) {
 			this.busyDelay = TPromise.timeout(800);
 			this.busyDelay.then(() => {
-				this.ui.progressBar.infinite();
+				if (this.visible) {
+					this.ui.progressBar.infinite();
+				}
 			}, () => { /* ignore */ });
 		}
 		if (!this.busy && this.busyDelay) {
@@ -215,19 +228,28 @@ class QuickInput implements IQuickInput {
 		}
 		if (this.buttonsUpdated) {
 			this.buttonsUpdated = false;
-			this.ui.actionBar.clear();
-			this.ui.actionBar.push(this.buttons.map((button, index) => {
+			this.ui.leftActionBar.clear();
+			const leftButtons = this.buttons.filter(button => button === backButton);
+			this.ui.leftActionBar.push(leftButtons.map((button, index) => {
+				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
+				action.tooltip = button.tooltip;
+				return action;
+			}), { icon: true, label: false });
+			this.ui.rightActionBar.clear();
+			const rightButtons = this.buttons.filter(button => button !== backButton);
+			this.ui.rightActionBar.push(rightButtons.map((button, index) => {
 				const action = new Action(`id-${index}`, '', getIconClass(button.iconPath), true, () => this.onDidTriggerButtonEmitter.fire(button));
 				action.tooltip = button.tooltip;
 				return action;
 			}), { icon: true, label: false });
 		}
+		this.ui.ignoreFocusOut = this.ignoreFocusOut;
 		this.ui.setEnabled(this.enabled);
 	}
 
 	private getTitle() {
 		if (this.title && this.step) {
-			return `${this.title} ― ${this.getSteps()}`;
+			return `${this.title} (${this.getSteps()})`;
 		}
 		if (this.title) {
 			return this.title;
@@ -240,7 +262,7 @@ class QuickInput implements IQuickInput {
 
 	private getSteps() {
 		if (this.step && this.totalSteps) {
-			return localize('quickInput.steps', "{0} of {1}", this.step, this.totalSteps);
+			return localize('quickInput.steps', "{0}/{1}", this.step, this.totalSteps);
 		}
 		if (this.step) {
 			return String(this.step);
@@ -254,21 +276,23 @@ class QuickInput implements IQuickInput {
 	}
 }
 
-class QuickPick extends QuickInput implements IQuickPick {
+class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPick<T> {
 
 	private _value = '';
 	private _placeholder;
 	private onDidChangeValueEmitter = new Emitter<string>();
 	private onDidAcceptEmitter = new Emitter<string>();
-	private _items: IQuickPickItem[] = [];
+	private _items: T[] = [];
 	private itemsUpdated = false;
 	private _canSelectMany = false;
-	private _matchOnDescription = true;
-	private _matchOnDetail = true;
-	private _activeItems: IQuickPickItem[] = [];
-	private onDidChangeActiveEmitter = new Emitter<IQuickPickItem[]>();
-	private _selectedItems: IQuickPickItem[] = [];
-	private onDidChangeSelectionEmitter = new Emitter<IQuickPickItem[]>();
+	private _matchOnDescription = false;
+	private _matchOnDetail = false;
+	private _activeItems: T[] = [];
+	private activeItemsUpdated = false;
+	private onDidChangeActiveEmitter = new Emitter<T[]>();
+	private _selectedItems: T[] = [];
+	private selectedItemsUpdated = false;
+	private onDidChangeSelectionEmitter = new Emitter<T[]>();
 	private quickNavigate = false;
 
 	constructor(ui: QuickInputUI) {
@@ -307,7 +331,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._items;
 	}
 
-	set items(items: IQuickPickItem[]) {
+	set items(items: T[]) {
 		this._items = items;
 		this.itemsUpdated = true;
 		this.update();
@@ -344,10 +368,22 @@ class QuickPick extends QuickInput implements IQuickPick {
 		return this._activeItems;
 	}
 
+	set activeItems(activeItems: T[]) {
+		this._activeItems = activeItems;
+		this.activeItemsUpdated = true;
+		this.update();
+	}
+
 	onDidChangeActive = this.onDidChangeActiveEmitter.event;
 
 	get selectedItems() {
 		return this._selectedItems;
+	}
+
+	set selectedItems(selectedItems: T[]) {
+		this._selectedItems = selectedItems;
+		this.selectedItemsUpdated = true;
+		this.update();
 	}
 
 	onDidChangeSelection = this.onDidChangeSelectionEmitter.event;
@@ -390,12 +426,15 @@ class QuickPick extends QuickInput implements IQuickPick {
 					this.onDidAcceptEmitter.fire();
 				}),
 				this.ui.list.onDidChangeFocus(focusedItems => {
+					if (this.activeItemsUpdated) {
+						return; // Expect another event.
+					}
 					// Drop initial event.
 					if (!focusedItems.length && !this._activeItems.length) {
 						return;
 					}
-					this._activeItems = focusedItems;
-					this.onDidChangeActiveEmitter.fire(focusedItems);
+					this._activeItems = focusedItems as T[];
+					this.onDidChangeActiveEmitter.fire(focusedItems as T[]);
 				}),
 				this.ui.list.onDidChangeSelection(selectedItems => {
 					if (this.canSelectMany) {
@@ -405,16 +444,16 @@ class QuickPick extends QuickInput implements IQuickPick {
 					if (!selectedItems.length && !this._selectedItems.length) {
 						return;
 					}
-					this._selectedItems = selectedItems;
-					this.onDidChangeSelectionEmitter.fire(selectedItems);
+					this._selectedItems = selectedItems as T[];
+					this.onDidChangeSelectionEmitter.fire(selectedItems as T[]);
 					this.onDidAcceptEmitter.fire();
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
 					if (!this.canSelectMany) {
 						return;
 					}
-					this._selectedItems = checkedItems;
-					this.onDidChangeSelectionEmitter.fire(checkedItems);
+					this._selectedItems = checkedItems as T[];
+					this.onDidChangeSelectionEmitter.fire(checkedItems as T[]);
 				}),
 			);
 		}
@@ -433,6 +472,7 @@ class QuickPick extends QuickInput implements IQuickPick {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
 		}
 		if (this.itemsUpdated) {
+			this.itemsUpdated = false;
 			this.ui.list.setElements(this.items);
 			this.ui.list.filter(this.ui.inputBox.value);
 			this.ui.checkAll.checked = this.ui.list.getAllVisibleChecked();
@@ -440,7 +480,6 @@ class QuickPick extends QuickInput implements IQuickPick {
 			if (!this.canSelectMany) {
 				this.ui.list.focus('First');
 			}
-			this.itemsUpdated = false;
 		}
 		if (this.ui.container.classList.contains('show-checkboxes') !== this.canSelectMany) {
 			if (this.canSelectMany) {
@@ -449,7 +488,18 @@ class QuickPick extends QuickInput implements IQuickPick {
 				this.ui.list.focus('First');
 			}
 		}
-		this.ui.ignoreFocusOut = this.ignoreFocusOut;
+		if (this.activeItemsUpdated) {
+			this.activeItemsUpdated = false;
+			this.ui.list.setFocusedElements(this.activeItems);
+		}
+		if (this.selectedItemsUpdated) {
+			this.selectedItemsUpdated = false;
+			if (this.canSelectMany) {
+				this.ui.list.setCheckedElements(this.selectedItems);
+			} else {
+				this.ui.list.setSelectedElements(this.selectedItems);
+			}
+		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
 		this.ui.list.matchOnDetail = this.matchOnDetail;
 		this.ui.setVisibilities(this.canSelectMany ? { title: !!this.title || !!this.step, checkAll: true, inputBox: true, count: true, ok: true, list: true } : { title: !!this.title || !!this.step, inputBox: true, list: true });
@@ -511,7 +561,7 @@ class InputBox extends QuickInput implements IInputBox {
 
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]>;
-	private valueSelectionUpdated = true;
+	private valueSelectionUpdated = false;
 	private _placeholder: string;
 	private _password = false;
 	private _prompt: string;
@@ -612,7 +662,9 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (this.valueSelectionUpdated) {
 			this.valueSelectionUpdated = false;
-			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
+			this.ui.inputBox.select(this._valueSelection ?
+				{ start: this._valueSelection[0], end: this._valueSelection[1] } :
+				{ start: this.ui.inputBox.value.length, end: this.ui.inputBox.value.length });
 		}
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
@@ -661,6 +713,7 @@ export class QuickInputService extends Component implements IQuickInputService {
 		@IPartService private partService: IPartService,
 		@IQuickOpenService private quickOpenService: IQuickOpenService,
 		@IEditorGroupsService private editorGroupService: IEditorGroupsService,
+		@IKeybindingService private keybindingService: IKeybindingService,
 		@IContextKeyService contextKeyService: IContextKeyService,
 		@IThemeService themeService: IThemeService
 	) {
@@ -702,11 +755,15 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.titleBar = dom.append(container, $('.quick-input-titlebar'));
 
+		const leftActionBar = new ActionBar(this.titleBar);
+		leftActionBar.domNode.classList.add('quick-input-left-action-bar');
+		this.toUnbind.push(leftActionBar);
+
 		const title = dom.append(this.titleBar, $('.quick-input-title'));
 
-		const actionBar = new ActionBar(this.titleBar);
-		actionBar.domNode.classList.add('quick-input-action-bar');
-		this.toUnbind.push(actionBar);
+		const rightActionBar = new ActionBar(this.titleBar);
+		rightActionBar.domNode.classList.add('quick-input-right-action-bar');
+		this.toUnbind.push(rightActionBar);
 
 		const headerContainer = dom.append(container, $('.quick-input-header'));
 
@@ -788,8 +845,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 					break;
 				case KeyCode.Tab:
 					if (!event.altKey && !event.ctrlKey && !event.metaKey) {
-						const inputs = [].slice.call(container.querySelectorAll('input'))
-							.filter(input => input.style.display !== 'none');
+						const inputs = [].slice.call(container.querySelectorAll('.action-label.icon'));
+						if (container.classList.contains('show-checkboxes')) {
+							inputs.push(...[].slice.call(container.querySelectorAll('input')));
+						} else {
+							inputs.push(...[].slice.call(container.querySelectorAll('input[type=text]')));
+						}
 						if (event.shiftKey && event.target === inputs[0]) {
 							dom.EventHelper.stop(e, true);
 							inputs[inputs.length - 1].focus();
@@ -806,12 +867,13 @@ export class QuickInputService extends Component implements IQuickInputService {
 
 		this.ui = {
 			container,
+			leftActionBar,
 			title,
+			rightActionBar,
 			checkAll,
 			inputBox,
 			count,
 			message,
-			actionBar,
 			progressBar,
 			list,
 			onDidAccept: this.onDidAcceptEmitter.event,
@@ -831,12 +893,12 @@ export class QuickInputService extends Component implements IQuickInputService {
 				resolve(undefined);
 				return;
 			}
-			const input = this.createQuickPick();
+			const input = this.createQuickPick<T>();
 			const disposables = [
 				input,
 				input.onDidAccept(() => {
 					if (input.canSelectMany) {
-						resolve(<any>input.selectedItems); // TODO: generify interface to use T extends IQuickPickItem
+						resolve(<any>input.selectedItems.slice());
 						input.hide();
 					} else {
 						const result = input.activeItems[0];
@@ -878,6 +940,9 @@ export class QuickInputService extends Component implements IQuickInputService {
 			picks.then(items => {
 				input.busy = false;
 				input.items = items;
+				if (input.canSelectMany) {
+					input.selectedItems = items.filter(item => item.picked);
+				}
 			});
 			input.show();
 			picks.then(null, err => {
@@ -938,18 +1003,11 @@ export class QuickInputService extends Component implements IQuickInputService {
 		});
 	}
 
-	backButton = {
-		iconPath: {
-			dark: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/dark/back.svg')),
-			light: URI.parse(require.toUrl('vs/workbench/browser/parts/quickinput/media/light/back.svg'))
-		},
-		tooltip: localize('quickInput.back', "Back"),
-		handle: -1 // TODO
-	};
+	backButton = backButton;
 
-	createQuickPick(): IQuickPick {
+	createQuickPick<T extends IQuickPickItem>(): IQuickPick<T> {
 		this.create();
-		return new QuickPick(this.ui);
+		return new QuickPick<T>(this.ui);
 	}
 
 	createInputBox(): IInputBox {
@@ -967,20 +1025,24 @@ export class QuickInputService extends Component implements IQuickInputService {
 		}
 
 		this.setEnabled(true);
+		this.ui.leftActionBar.clear();
 		this.ui.title.textContent = '';
+		this.ui.rightActionBar.clear();
 		this.ui.checkAll.checked = false;
 		// this.ui.inputBox.value = ''; Avoid triggering an event.
 		this.ui.inputBox.placeholder = '';
 		this.ui.inputBox.password = false;
 		this.ui.inputBox.showDecoration(Severity.Ignore);
 		this.ui.count.setCount(0);
-		this.ui.actionBar.clear();
 		this.ui.message.textContent = '';
 		this.ui.progressBar.stop();
 		this.ui.list.setElements([]);
 		this.ui.list.matchOnDescription = false;
 		this.ui.list.matchOnDetail = false;
 		this.ui.ignoreFocusOut = false;
+
+		const keybinding = this.keybindingService.lookupKeybinding(BackAction.ID);
+		backButton.tooltip = keybinding ? localize('quickInput.backWithKeybinding', "Back ({0})", keybinding.getLabel()) : localize('quickInput.back', "Back");
 
 		this.inQuickOpen('quickInput', true);
 
@@ -1004,11 +1066,14 @@ export class QuickInputService extends Component implements IQuickInputService {
 	private setEnabled(enabled: boolean) {
 		if (enabled !== this.enabled) {
 			this.enabled = enabled;
-			this.ui.checkAll.disabled = !enabled;
-			this.ui.inputBox.enabled = enabled;
-			for (const item of this.ui.actionBar.items) {
+			for (const item of this.ui.leftActionBar.items) {
 				(item as ActionItem).getAction().enabled = enabled;
 			}
+			for (const item of this.ui.rightActionBar.items) {
+				(item as ActionItem).getAction().enabled = enabled;
+			}
+			this.ui.checkAll.disabled = !enabled;
+			// this.ui.inputBox.enabled = enabled; Avoid loosing focus.
 			this.ok.enabled = enabled;
 			this.ui.list.enabled = enabled;
 		}

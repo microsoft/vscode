@@ -52,7 +52,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	@memoize
 	get cachePath(): TPromise<string> {
-		const result = path.join(tmpdir(), `vscode-update-${process.arch}`);
+		const result = path.join(tmpdir(), `vscode-update-${product.target}-${process.arch}`);
 		return pfs.mkdirp(result, null).then(() => result);
 	}
 
@@ -72,7 +72,17 @@ export class Win32UpdateService extends AbstractUpdateService {
 			return false;
 		}
 
-		this.url = createUpdateURL(process.arch === 'x64' ? 'win32-x64' : 'win32', quality);
+		let platform = 'win32';
+
+		if (process.arch === 'x64') {
+			platform += '-x64';
+		}
+
+		if (product.target === 'user') {
+			platform += '-user';
+		}
+
+		this.url = createUpdateURL(platform, quality);
 		return true;
 	}
 
@@ -123,7 +133,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 						this.availableUpdate = { packagePath };
 
 						if (fastUpdatesEnabled && update.supportsFastUpdate) {
-							this.setState(State.Downloaded(update));
+							if (product.target === 'user') {
+								this.doApplyUpdate();
+							} else {
+								this.setState(State.Downloaded(update));
+							}
 						} else {
 							this.setState(State.Ready(update));
 						}
@@ -159,7 +173,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	protected doApplyUpdate(): TPromise<void> {
-		if (this.state.type !== StateType.Downloaded || !this.availableUpdate) {
+		if (this.state.type !== StateType.Downloaded && this.state.type !== StateType.Downloading) {
+			return TPromise.as(null);
+		}
+
+		if (!this.availableUpdate) {
 			return TPromise.as(null);
 		}
 

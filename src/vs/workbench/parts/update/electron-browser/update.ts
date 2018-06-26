@@ -349,7 +349,7 @@ export class UpdateContribution implements IGlobalActivity {
 		);
 	}
 
-	// windows fast updates
+	// windows fast updates (target === system)
 	private onUpdateDownloaded(update: IUpdate): void {
 		if (!this.shouldShowNotification()) {
 			return;
@@ -377,6 +377,11 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows fast updates
 	private onUpdateUpdating(update: IUpdate): void {
+		if (isWindows && product.target === 'user') {
+			return;
+		}
+
+		// windows fast updates (target === system)
 		const neverShowAgain = new NeverShowAgain('update/win32-fast-updates', this.storageService);
 
 		if (!neverShowAgain.shouldShow()) {
@@ -399,10 +404,11 @@ export class UpdateContribution implements IGlobalActivity {
 
 	// windows and mac
 	private onUpdateReady(update: IUpdate): void {
-		if (!isWindows && !this.shouldShowNotification()) {
+		if (!(isWindows && product.target !== 'user') && !this.shouldShowNotification()) {
 			return;
 		}
 
+		// windows user fast updates and mac
 		this.notificationService.prompt(
 			severity.Info,
 			nls.localize('updateAvailableAfterRestart', "Restart {0} to apply the latest update.", product.nameLong),

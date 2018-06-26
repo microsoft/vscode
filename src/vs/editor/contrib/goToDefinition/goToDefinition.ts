@@ -10,7 +10,7 @@ import { TPromise } from 'vs/base/common/winjs.base';
 import { ITextModel } from 'vs/editor/common/model';
 import { registerDefaultLanguageCommand } from 'vs/editor/browser/editorExtensions';
 import LanguageFeatureRegistry from 'vs/editor/common/modes/languageFeatureRegistry';
-import { DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, Location } from 'vs/editor/common/modes';
+import { DefinitionProviderRegistry, ImplementationProviderRegistry, TypeDefinitionProviderRegistry, Location, DefinitionLink } from 'vs/editor/common/modes';
 import { CancellationToken } from 'vs/base/common/cancellation';
 import { asWinJsPromise } from 'vs/base/common/async';
 import { Position } from 'vs/editor/common/core/position';
@@ -21,11 +21,11 @@ function getDefinitions<T>(
 	position: Position,
 	registry: LanguageFeatureRegistry<T>,
 	provide: (provider: T, model: ITextModel, position: Position, token: CancellationToken) => Location | Location[] | Thenable<Location | Location[]>
-): TPromise<Location[]> {
+): TPromise<DefinitionLink[]> {
 	const provider = registry.ordered(model);
 
 	// get results
-	const promises = provider.map((provider, idx): TPromise<Location | Location[]> => {
+	const promises = provider.map((provider): TPromise<DefinitionLink | DefinitionLink[]> => {
 		return asWinJsPromise((token) => {
 			return provide(provider, model, position, token);
 		}).then(undefined, err => {
@@ -39,7 +39,7 @@ function getDefinitions<T>(
 }
 
 
-export function getDefinitionsAtPosition(model: ITextModel, position: Position): TPromise<Location[]> {
+export function getDefinitionsAtPosition(model: ITextModel, position: Position): TPromise<DefinitionLink[]> {
 	return getDefinitions(model, position, DefinitionProviderRegistry, (provider, model, position, token) => {
 		return provider.provideDefinition(model, position, token);
 	});

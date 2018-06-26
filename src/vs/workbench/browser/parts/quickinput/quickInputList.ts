@@ -149,6 +149,7 @@ export class QuickInputList {
 	private container: HTMLElement;
 	private list: WorkbenchList<ListElement>;
 	private elements: ListElement[] = [];
+	private elementsToIndexes = new Map<IQuickPickItem, number>();
 	matchOnDescription = false;
 	matchOnDetail = false;
 	private _onChangedAllVisibleChecked = new Emitter<boolean>();
@@ -269,9 +270,14 @@ export class QuickInputList {
 		this.elements = elements.map((item, index) => new ListElement({
 			index,
 			item,
-			checked: !!item.picked
+			checked: false
 		}));
 		this.elementDisposables.push(...this.elements.map(element => element.onChecked(() => this.fireCheckedEvents())));
+
+		this.elementsToIndexes = this.elements.reduce((map, element, index) => {
+			map.set(element.item, index);
+			return map;
+		}, new Map<IQuickPickItem, number>());
 		this.list.splice(0, this.list.length, this.elements);
 		this.list.setFocus([]);
 	}
@@ -281,14 +287,42 @@ export class QuickInputList {
 			.map(e => e.item);
 	}
 
+	setFocusedElements(items: IQuickPickItem[]) {
+		this.list.setFocus(items
+			.filter(item => this.elementsToIndexes.has(item))
+			.map(item => this.elementsToIndexes.get(item)));
+	}
+
 	getSelectedElements() {
 		return this.list.getSelectedElements()
 			.map(e => e.item);
 	}
 
+	setSelectedElements(items: IQuickPickItem[]) {
+		this.list.setSelection(items
+			.filter(item => this.elementsToIndexes.has(item))
+			.map(item => this.elementsToIndexes.get(item)));
+	}
+
 	getCheckedElements() {
 		return this.elements.filter(e => e.checked)
 			.map(e => e.item);
+	}
+
+	setCheckedElements(items: IQuickPickItem[]) {
+		try {
+			this._fireCheckedEvents = false;
+			const checked = new Set();
+			for (const item of items) {
+				checked.add(item);
+			}
+			for (const element of this.elements) {
+				element.checked = checked.has(element.item);
+			}
+		} finally {
+			this._fireCheckedEvents = true;
+			this.fireCheckedEvents();
+		}
 	}
 
 	set enabled(value: boolean) {
@@ -368,6 +402,10 @@ export class QuickInputList {
 			return compareEntries(a, b, normalizedSearchValue);
 		});
 
+		this.elementsToIndexes = shownElements.reduce((map, element, index) => {
+			map.set(element.item, index);
+			return map;
+		}, new Map<IQuickPickItem, number>());
 		this.list.splice(0, this.list.length, shownElements);
 		this.list.setFocus([]);
 		this.list.layout();

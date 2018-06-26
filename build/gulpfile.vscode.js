@@ -508,6 +508,10 @@ gulp.task('generate-vscode-configuration', () => {
 			return reject(new Error('$AGENT_BUILDDIRECTORY not set'));
 		}
 
+		if (process.env.VSCODE_QUALITY !== 'insider' && process.env.VSCODE_QUALITY !== 'stable') {
+			return resolve();
+		}
+
 		const userDataDir = path.join(os.tmpdir(), 'tmpuserdata');
 		const extensionsDir = path.join(os.tmpdir(), 'tmpextdir');
 		const appName = process.env.VSCODE_QUALITY === 'insider' ? 'Visual\\ Studio\\ Code\\ -\\ Insiders.app' : 'Visual\\ Studio\\ Code.app';

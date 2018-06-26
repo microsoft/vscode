@@ -5,7 +5,7 @@
 
 'use strict';
 
-import { app, ipcMain as ipc } from 'electron';
+import { app, ipcMain as ipc, systemPreferences } from 'electron';
 import * as platform from 'vs/base/common/platform';
 import { WindowsManager } from 'vs/code/electron-main/windows';
 import { IWindowsService, OpenContext, ActiveWindowManager } from 'vs/platform/windows/common/windows';
@@ -85,7 +85,7 @@ export class CodeApplication {
 		@ILogService private logService: ILogService,
 		@IEnvironmentService private environmentService: IEnvironmentService,
 		@ILifecycleService private lifecycleService: ILifecycleService,
-		@IConfigurationService configurationService: ConfigurationService,
+		@IConfigurationService private configurationService: ConfigurationService,
 		@IStateService private stateService: IStateService,
 		@IHistoryMainService private historyMainService: IHistoryMainService
 	) {
@@ -272,6 +272,20 @@ export class CodeApplication {
 		// two icons in the taskbar for the same app.
 		if (platform.isWindows && product.win32AppUserModelId) {
 			app.setAppUserModelId(product.win32AppUserModelId);
+		}
+
+		// Fix native tabs on macOS 10.13
+		// macOS enables a compatibility patch for any bundle ID beginning with
+		// "com.microsoft.", which breaks native tabs for VS Code when using this
+		// identifier (from the official build).
+		// Explicitly opt out of the patch here before creating any windows.
+		// See: https://github.com/Microsoft/vscode/issues/35361#issuecomment-399794085
+		try {
+			if (platform.isMacintosh && this.configurationService.getValue<boolean>('window.nativeTabs') === true && !systemPreferences.getUserDefault('NSUseImprovedLayoutPass', 'boolean')) {
+				systemPreferences.setUserDefault('NSUseImprovedLayoutPass', 'boolean', true as any);
+			}
+		} catch (error) {
+			this.logService.error(error);
 		}
 
 		// Create Electron IPC Server

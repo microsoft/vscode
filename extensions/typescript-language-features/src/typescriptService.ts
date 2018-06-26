@@ -59,6 +59,7 @@ export interface ITypeScriptServiceClient {
 	execute(command: 'completionEntryDetails', args: Proto.CompletionDetailsRequestArgs, token?: CancellationToken): Promise<Proto.CompletionDetailsResponse>;
 	execute(command: 'signatureHelp', args: Proto.SignatureHelpRequestArgs, token?: CancellationToken): Promise<Proto.SignatureHelpResponse>;
 	execute(command: 'definition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionResponse>;
+	execute(command: 'definitionAndBoundSpan', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.DefinitionInfoAndBoundSpanReponse>;
 	execute(command: 'implementation', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ImplementationResponse>;
 	execute(command: 'typeDefinition', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.TypeDefinitionResponse>;
 	execute(command: 'references', args: Proto.FileLocationRequestArgs, token?: CancellationToken): Promise<Proto.ReferencesResponse>;

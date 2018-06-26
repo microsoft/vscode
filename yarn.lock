@@ -1798,7 +1798,7 @@ fast-levenshtein@~2.0.4:
   version "2.0.6"
   resolved "https://registry.yarnpkg.com/fast-levenshtein/-/fast-levenshtein-2.0.6.tgz#3d8a5c66883a16a30ca8643e851f19baa7797917"
 
-fast-plist@0.1.2, fast-plist@^0.1.2:
+fast-plist@0.1.2:
   version "0.1.2"
   resolved "https://registry.yarnpkg.com/fast-plist/-/fast-plist-0.1.2.tgz#a45aff345196006d406ca6cdcd05f69051ef35b8"
 
@@ -3920,6 +3920,10 @@ mute-stream@~0.0.4:
   version "0.0.7"
   resolved "https://registry.yarnpkg.com/mute-stream/-/mute-stream-0.0.7.tgz#3075ce93bc21b8fab43e1bc4da7e8115ed1e7bab"
 
+nan@2.10.0:
+  version "2.10.0"
+  resolved "https://registry.yarnpkg.com/nan/-/nan-2.10.0.tgz#96d0cd610ebd58d4b4de9cc0c6828cda99c7548f"
+
 nan@2.8.0, nan@^2.8.0:
   version "2.8.0"
   resolved "https://registry.yarnpkg.com/nan/-/nan-2.8.0.tgz#ed715f3fe9de02b57a5e6252d90a96675e1f085a"
@@ -3970,11 +3974,11 @@ node-abi@^2.2.0:
   dependencies:
     semver "^5.4.1"
 
-node-pty@0.7.4:
-  version "0.7.4"
-  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.4.tgz#07146b2b40b76e432e57ce6750bda40f0da5c99f"
+node-pty@0.7.6:
+  version "0.7.6"
+  resolved "https://registry.yarnpkg.com/node-pty/-/node-pty-0.7.6.tgz#bff6148c9c5836ca7e73c7aaaec067dcbdac2f7b"
   dependencies:
-    nan "^2.6.2"
+    nan "2.10.0"
 
 node-uuid@~1.4.0, node-uuid@~1.4.7:
   version "1.4.8"
@@ -6246,16 +6250,15 @@ vscode-ripgrep@^1.0.1:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/vscode-ripgrep/-/vscode-ripgrep-1.0.1.tgz#eff2f2b2a49921ac0acd3ff8dfecaaeebf0184cf"
 
-vscode-textmate@^4.0.0-next.2:
-  version "4.0.0-next.2"
-  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.0-next.2.tgz#03b6c1feb7d297cb70e24cc1166ce2d5c619e440"
+vscode-textmate@^4.0.1:
+  version "4.0.1"
+  resolved "https://registry.yarnpkg.com/vscode-textmate/-/vscode-textmate-4.0.1.tgz#6c36f28e9059ce12bc34907f7a33ea43166b26a8"
   dependencies:
-    fast-plist "^0.1.2"
     oniguruma "^7.0.0"
 
-vscode-xterm@3.5.0-beta12:
-  version "3.5.0-beta12"
-  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta12.tgz#853b9bd42ac7bee2ef3deac08d9199e4b7d5dcdb"
+vscode-xterm@3.5.0-beta17:
+  version "3.5.0-beta17"
+  resolved "https://registry.yarnpkg.com/vscode-xterm/-/vscode-xterm-3.5.0-beta17.tgz#9a7dd13cdd9a45257aacb815501f71ed788c2e48"
 
 vso-node-api@^6.1.2-preview:
   version "6.1.2-preview"

@@ -1,7 +1,7 @@
 {
   "name": "code-oss-dev",
   "version": "1.25.0",
-  "distro": "e781cd4cf9c4c77fa3c0fcb04017a3ba57cde7a2",
+  "distro": "4e28ae25f1ed59b39382085f04b3514c2b6202cc",
   "author": {
     "name": "Microsoft Corporation"
   },
@@ -11,11 +11,11 @@
     "test": "mocha",
     "preinstall": "node build/npm/preinstall.js",
     "postinstall": "node build/npm/postinstall.js",
-    "compile": "gulp compile --max_old_space_size=4096",
-    "watch": "gulp watch --max_old_space_size=4096",
+    "compile": "gulp compile --max_old_space_size=4095",
+    "watch": "gulp watch --max_old_space_size=4095",
     "monaco-editor-test": "mocha --only-monaco-editor",
     "precommit": "node build/gulpfile.hygiene.js",
-    "gulp": "gulp --max_old_space_size=4096",
+    "gulp": "gulp --max_old_space_size=4095",
     "7z": "7z",
     "update-grammars": "node build/npm/update-all-grammars.js",
     "update-localization-extension": "node build/npm/update-localization-extension.js",
@@ -39,7 +39,7 @@
     "native-is-elevated": "^0.2.1",
     "native-keymap": "1.2.5",
     "native-watchdog": "0.3.0",
-    "node-pty": "0.7.4",
+    "node-pty": "0.7.6",
     "semver": "^5.5.0",
     "spdlog": "0.6.0",
     "sudo-prompt": "8.2.0",
@@ -48,8 +48,8 @@
     "vscode-debugprotocol": "1.28.0",
     "vscode-nsfw": "1.0.17",
     "vscode-ripgrep": "^1.0.1",
-    "vscode-textmate": "^4.0.0-next.2",
-    "vscode-xterm": "3.5.0-beta12",
+    "vscode-textmate": "^4.0.1",
+    "vscode-xterm": "3.5.0-beta17",
     "yauzl": "^2.9.1"
   },
   "devDependencies": {
