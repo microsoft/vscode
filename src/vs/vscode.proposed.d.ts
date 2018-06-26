@@ -351,12 +351,12 @@ declare module 'vscode' {
 		/**
 		 * The number of columns in the terminal.
 		 */
-		columns: number;
+		readonly columns: number;
 
 		/**
 		 * The number of rows in the terminal.
 		 */
-		rows: number;
+		readonly rows: number;
 	}
 
 	/**
