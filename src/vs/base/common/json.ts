@@ -407,6 +407,7 @@ export function createScanner(text: string, ignoreTrivia: boolean = false): JSON
 			case CharacterCodes.doubleQuote:
 			case CharacterCodes.colon:
 			case CharacterCodes.comma:
+			case CharacterCodes.slash:
 				return false;
 		}
 		return true;
