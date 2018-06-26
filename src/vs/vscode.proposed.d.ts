@@ -447,30 +447,26 @@ declare module 'vscode' {
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
 		 */
-		onDidAcceptInput: Event<string>;
+		readonly onDidAcceptInput: Event<string>;
 
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
 		 * the terminal renderer change.
 		 */
-		onDidChangeMaximumDimensions: Event<TerminalDimensions>;
+		readonly onDidChangeMaximumDimensions: Event<TerminalDimensions>;
 	}
 
 	export namespace window {
 		/**
 		 * The currently opened terminals or an empty array.
-		 *
-		 * @readonly
 		 */
-		export let terminals: ReadonlyArray<Terminal>;
+		export const terminals: ReadonlyArray<Terminal>;
 
 		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
 		 * currently has focus or most recently had focus.
-		 *
-		 * @readonly
 		 */
-		export let activeTerminal: Terminal | undefined;
+		export const activeTerminal: Terminal | undefined;
 
 		/**
 		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
