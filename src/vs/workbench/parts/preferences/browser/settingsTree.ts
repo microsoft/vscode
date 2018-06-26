@@ -907,10 +907,12 @@ export class SearchResultModel {
 		}
 
 		this.rawSearchResults[type] = result;
+		this.updateChildren();
+	}
 
-		// Recompute children
+	updateChildren(): void {
 		this.children = this.getFlatSettings()
-			.map(s => createSettingsTreeSettingElement(s, result, this._viewState.settingsTarget, this._configurationService));
+			.map(s => createSettingsTreeSettingElement(s, this, this._viewState.settingsTarget, this._configurationService));
 	}
 
 	private getFlatSettings(): ISetting[] {

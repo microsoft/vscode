@@ -565,6 +565,10 @@ export class SettingsEditor2 extends BaseEditor {
 
 		resolvedSettingsRoot.children.push(resolveExtensionsSettings(dividedGroups.extension || []));
 
+		if (this.searchResultModel) {
+			this.searchResultModel.updateChildren();
+		}
+
 		if (this.settingsTreeModel) {
 			this.settingsTreeModel.update(resolvedSettingsRoot);
 		} else {
