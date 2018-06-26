@@ -179,7 +179,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		}
 		return {
 			rows: this._maximumDimensions.rows,
-			cols: this._maximumDimensions.cols
+			columns: this._maximumDimensions.columns
 		};
 	}
 
@@ -212,8 +212,8 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._onInput.fire(data);
 	}
 
-	public _setMaximumDimensions(cols: number, rows: number): void {
-		this._maximumDimensions = { cols, rows };
+	public _setMaximumDimensions(columns: number, rows: number): void {
+		this._maximumDimensions = { columns, rows };
 		this._onDidChangeMaximumDimensions.fire(this.maximumDimensions);
 	}
 }

@@ -351,7 +351,7 @@ declare module 'vscode' {
 		/**
 		 * The number of columns in the terminal.
 		 */
-		cols: number;
+		columns: number;
 
 		/**
 		 * The number of rows in the terminal.
