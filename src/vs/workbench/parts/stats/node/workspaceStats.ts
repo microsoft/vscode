@@ -314,29 +314,33 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			}
 
 			if (nameSet.has('package.json')) {
-				await TPromise.join(folders.map(async workspaceUri => {
+				const promises = [];
+				for (let i = 0; i < folders.length; i++) {
+					const workspaceUri = folders[i];
 					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					try {
-						const content = await this.fileService.resolveContent(uri, { acceptTextOnly: true });
-						const packageJsonContents = JSON.parse(content.value);
-						if (packageJsonContents['dependencies']) {
-							for (let module of ModulesToLookFor) {
-								if ('react-native' === module) {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.reactNative'] = true;
-									}
-								} else {
-									if (packageJsonContents['dependencies'][module]) {
-										tags['workspace.npm.' + module] = true;
+					promises.push(this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
+						try {
+							const packageJsonContents = JSON.parse(content.value);
+							if (packageJsonContents['dependencies']) {
+								for (let module of ModulesToLookFor) {
+									if ('react-native' === module) {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.reactNative'] = true;
+										}
+									} else {
+										if (packageJsonContents['dependencies'][module]) {
+											tags['workspace.npm.' + module] = true;
+										}
 									}
 								}
 							}
 						}
-					}
-					catch (e) {
-						// Ignore errors when resolving file or parsing file contents
-					}
-				}));
+						catch (e) {
+							// Ignore errors when resolving file or parsing file contents
+						}
+					}));
+				}
+				await TPromise.join(promises);
 			}
 		}
 		return TPromise.as(tags);
