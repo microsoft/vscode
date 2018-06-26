@@ -111,7 +111,7 @@ function save(resource: URI, isSaveAs: boolean, editorService: IEditorService, f
 			if (!isSaveAs && resource.scheme === Schemas.untitled && untitledEditorService.hasAssociatedFilePath(resource)) {
 				savePromise = textFileService.save(resource).then((result) => {
 					if (result) {
-						return URI.file(resource.fsPath);
+						return resource.with({ scheme: Schemas.file });
 					}
 
 					return null;

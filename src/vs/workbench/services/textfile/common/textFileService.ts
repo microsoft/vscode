@@ -439,16 +439,16 @@ export abstract class TextFileService implements ITextFileService {
 			for (let i = 0; i < untitledResources.length; i++) {
 				const untitled = untitledResources[i];
 				if (this.untitledEditorService.exists(untitled)) {
-					let targetPath: string;
+					let targetUri: URI;
 
 					// Untitled with associated file path don't need to prompt
 					if (this.untitledEditorService.hasAssociatedFilePath(untitled)) {
-						targetPath = untitled.fsPath;
+						targetUri = untitled.with({ scheme: Schemas.file });
 					}
 
 					// Otherwise ask user
 					else {
-						targetPath = await this.promptForPath(this.suggestFileName(untitled));
+						const targetPath = await this.promptForPath(this.suggestFileName(untitled));
 						if (!targetPath) {
 							return TPromise.as({
 								results: [...fileResources, ...untitledResources].map(r => {
@@ -458,9 +458,11 @@ export abstract class TextFileService implements ITextFileService {
 								})
 							});
 						}
+
+						targetUri = URI.file(targetPath);
 					}
 
-					targetsForUntitled.push(URI.file(targetPath));
+					targetsForUntitled.push(targetUri);
 				}
 			}
 
