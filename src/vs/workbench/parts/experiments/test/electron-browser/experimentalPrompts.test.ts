@@ -7,7 +7,7 @@
 
 import * as assert from 'assert';
 
-import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { IExperiment, ExperimentActionType, IExperimentService, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { Emitter } from 'vs/base/common/event';

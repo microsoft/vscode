@@ -5,7 +5,7 @@
 
 
 import { registerSingleton } from 'vs/platform/instantiation/common/extensions';
-import { IExperimentService, ExperimentService } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { IExperimentService, ExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 import { Registry } from 'vs/platform/registry/common/platform';
 import { IWorkbenchContributionsRegistry, Extensions as WorkbenchExtensions } from 'vs/workbench/common/contributions';
 import { LifecyclePhase } from 'vs/platform/lifecycle/common/lifecycle';

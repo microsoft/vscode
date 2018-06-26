@@ -6,7 +6,7 @@
 'use strict';
 
 import * as assert from 'assert';
-import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { ExperimentService, ExperimentActionType, ExperimentState } from 'vs/workbench/parts/experiments/node/experimentService';
 import { TestInstantiationService } from 'vs/platform/instantiation/test/common/instantiationServiceMock';
 import { IStorageService } from 'vs/platform/storage/common/storage';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';

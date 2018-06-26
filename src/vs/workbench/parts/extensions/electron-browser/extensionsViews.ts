@@ -40,7 +40,7 @@ import { ViewletPanel, IViewletPanelOptions } from 'vs/workbench/browser/parts/v
 import { IWorkspaceContextService } from 'vs/platform/workspace/common/workspace';
 import { distinct } from 'vs/base/common/arrays';
 import URI from 'vs/base/common/uri';
-import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentSerivce';
+import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
 
 export class ExtensionsListView extends ViewletPanel {
 
