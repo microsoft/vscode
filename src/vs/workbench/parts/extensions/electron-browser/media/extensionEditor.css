@@ -142,7 +142,7 @@
 	display: flex;
 	margin-top: 0;
 	font-size: 13px;
-	height: 25px;
+	height: 27px;
 	font-style: italic;
 }
 
@@ -150,6 +150,8 @@
 .extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar {
 	margin-left: 4px;
 	margin-top: 2px;
+	padding-top: 1px;
+	padding-bottom: 1px;
 	font-style: normal;
 }
 
