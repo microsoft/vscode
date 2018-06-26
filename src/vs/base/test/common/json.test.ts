@@ -229,15 +229,19 @@ suite('JSON', () => {
 	});
 
 	test('parse: trailing comma', () => {
-		let options = { allowTrailingComma: true };
+		// default is allow
+		assertValidParse('{ "hello": [], }', { hello: [] });
+
+		let options = { disallowTrailingComma: false };
 		assertValidParse('{ "hello": [], }', { hello: [] }, options);
 		assertValidParse('{ "hello": [] }', { hello: [] }, options);
 		assertValidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
 		assertValidParse('{ "hello": [], "world": {} }', { hello: [], world: {} }, options);
 		assertValidParse('{ "hello": [1,] }', { hello: [1] }, options);
 
-		assertInvalidParse('{ "hello": [], }', { hello: [] });
-		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} });
+		options = { disallowTrailingComma: true };
+		assertInvalidParse('{ "hello": [], }', { hello: [] }, options);
+		assertInvalidParse('{ "hello": [], "world": {}, }', { hello: [], world: {} }, options);
 	});
 
 	test('tree: literals', () => {

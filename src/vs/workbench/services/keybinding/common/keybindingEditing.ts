@@ -255,7 +255,7 @@ export class KeybindingsEditingService extends Disposable implements IKeybinding
 
 	private parse(model: ITextModel): { result: IUserFriendlyKeybinding[], parseErrors: json.ParseError[] } {
 		const parseErrors: json.ParseError[] = [];
-		const result = json.parse(model.getValue(), parseErrors, { allowTrailingComma: true });
+		const result = json.parse(model.getValue(), parseErrors);
 		return { result, parseErrors };
 	}
 
