@@ -226,11 +226,15 @@ export class UpdateImportsOnFileRenameHandler {
 		const edits: Proto.FileCodeEdits[] = [];
 		for (const edit of response.body) {
 			// Workaround for https://github.com/Microsoft/vscode/issues/52675
+			if ((edit as Proto.FileCodeEdits).fileName.match(/[\/\\]node_modules[\/\\]/gi)) {
+				continue;
+			}
 			for (const change of (edit as Proto.FileCodeEdits).textChanges) {
 				if (change.newText.match(/\/node_modules\//gi)) {
 					continue;
 				}
 			}
+
 			edits.push(await this.fixEdit(edit, isDirectoryRename, oldFile, newFile));
 		}
 		return typeConverters.WorkspaceEdit.fromFileCodeEdits(this.client, edits);

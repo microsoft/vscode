@@ -1,7 +1,7 @@
 [
 	{
 		"c": "{",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc punctuation.definition.dictionary.begin.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc punctuation.definition.dictionary.begin.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -12,7 +12,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -23,40 +23,40 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc punctuation.support.type.property-name.begin.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc punctuation.support.type.property-name.begin.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "compilerOptions",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc punctuation.support.type.property-name.end.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc punctuation.support.type.property-name.end.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc punctuation.separator.dictionary.key-value.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc punctuation.separator.dictionary.key-value.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -67,7 +67,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -78,7 +78,7 @@
 	},
 	{
 		"c": "{",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc punctuation.definition.dictionary.begin.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc punctuation.definition.dictionary.begin.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -89,7 +89,7 @@
 	},
 	{
 		"c": "\t\t",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -100,40 +100,40 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc punctuation.support.type.property-name.begin.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc punctuation.support.type.property-name.begin.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "target",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc string.json.jsonc support.type.property-name.json.jsonc punctuation.support.type.property-name.end.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc string.jsonc support.type.property-name.jsonc punctuation.support.type.property-name.end.jsonc",
 		"r": {
 			"dark_plus": "support.type.property-name: #9CDCFE",
-			"light_plus": "support.type.property-name.json: #0451A5",
+			"light_plus": "support.type.property-name.jsonc: #0451A5",
 			"dark_vs": "support.type.property-name: #9CDCFE",
-			"light_vs": "support.type.property-name.json: #0451A5",
+			"light_vs": "support.type.property-name.jsonc: #0451A5",
 			"hc_black": "support.type.property-name: #D4D4D4"
 		}
 	},
 	{
 		"c": ":",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc punctuation.separator.dictionary.key-value.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc punctuation.separator.dictionary.key-value.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -144,7 +144,7 @@
 	},
 	{
 		"c": " ",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -155,7 +155,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc string.quoted.double.json.jsonc punctuation.definition.string.begin.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc string.quoted.double.jsonc punctuation.definition.string.begin.jsonc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -166,7 +166,7 @@
 	},
 	{
 		"c": "es6",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc string.quoted.double.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc string.quoted.double.jsonc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -177,7 +177,7 @@
 	},
 	{
 		"c": "\"",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc string.quoted.double.json.jsonc punctuation.definition.string.end.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc string.quoted.double.jsonc punctuation.definition.string.end.jsonc",
 		"r": {
 			"dark_plus": "string: #CE9178",
 			"light_plus": "string: #A31515",
@@ -188,7 +188,7 @@
 	},
 	{
 		"c": "\t",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -199,7 +199,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc meta.structure.dictionary.value.json.jsonc meta.structure.dictionary.json.jsonc punctuation.definition.dictionary.end.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc meta.structure.dictionary.value.jsonc meta.structure.dictionary.jsonc punctuation.definition.dictionary.end.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",
@@ -210,7 +210,7 @@
 	},
 	{
 		"c": "}",
-		"t": "source.json.jsonc meta.structure.dictionary.json.jsonc punctuation.definition.dictionary.end.json.jsonc",
+		"t": "source.jsonc meta.structure.dictionary.jsonc punctuation.definition.dictionary.end.jsonc",
 		"r": {
 			"dark_plus": "default: #D4D4D4",
 			"light_plus": "default: #000000",

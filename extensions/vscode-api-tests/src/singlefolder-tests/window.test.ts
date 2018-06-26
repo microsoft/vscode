@@ -646,7 +646,7 @@ suite('window namespace tests', () => {
 			});
 			const renderer = window.createTerminalRenderer('foo');
 			const reg2 = renderer.onDidChangeMaximumDimensions(dimensions => {
-				assert.ok(dimensions.cols > 0);
+				assert.ok(dimensions.columns > 0);
 				assert.ok(dimensions.rows > 0);
 				reg2.dispose();
 				const reg3 = window.onDidCloseTerminal(() => {
