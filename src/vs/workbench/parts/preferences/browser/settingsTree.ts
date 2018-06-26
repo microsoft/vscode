@@ -702,7 +702,8 @@ export class SettingsRenderer implements IRenderer {
 			this.renderText(element, isSelected, template, valueControlElement, onChange);
 		} else if (element.valueType === 'number' || element.valueType === 'integer') {
 			valueControlElement.classList.add('setting-type-number');
-			this.renderText(element, isSelected, template, valueControlElement, value => onChange(parseInt(value)));
+			const parseFn = element.valueType === 'integer' ? parseInt : parseFloat;
+			this.renderText(element, isSelected, template, valueControlElement, value => onChange(parseFn(value)));
 		} else {
 			valueControlElement.classList.add('setting-type-complex');
 			this.renderEditInSettingsJson(element, isSelected, template, valueControlElement);
