@@ -60,7 +60,7 @@ function caseInsensitiveGet<T>(obj: { [key: string]: T }, key: string): T | unde
 		return undefined;
 	}
 	for (const _key in obj) {
-		if (obj.hasOwnProperty(_key) && _key.toLowerCase() === key.toLowerCase()) {
+		if (Object.hasOwnProperty.call(obj, _key) && _key.toLowerCase() === key.toLowerCase()) {
 			return obj[_key];
 		}
 	}
@@ -87,8 +87,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 	private readonly _onRecommendationChange: Emitter<RecommendationChangeNotification> = new Emitter<RecommendationChangeNotification>();
 	onRecommendationChange: Event<RecommendationChangeNotification> = this._onRecommendationChange.event;
-	private _sessionIgnoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason } } = {};
-	private _sessionRestoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason } } = {};
+	private _sessionIgnoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string, sources: ExtensionRecommendationSource[] } } = {};
+	private _sessionRestoredRecommendations: { [id: string]: { reasonId: ExtensionRecommendationReason, reasonText: string, sources: ExtensionRecommendationSource[] } } = {};
 
 	constructor(
 		@IExtensionGalleryService private readonly _galleryService: IExtensionGalleryService,
@@ -222,7 +222,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		Object.keys(this._sessionRestoredRecommendations).forEach(x => output[x.toLowerCase()] = {
 			reasonId: this._sessionRestoredRecommendations[x].reasonId,
-			reasonText: localize('restoredRecommendation', "You will receive recommendations for this extension in your future VS Code sessions.")
+			reasonText: this._sessionRestoredRecommendations[x].reasonText
 		});
 
 		return output;
@@ -395,18 +395,24 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getFileBasedRecommendations(): IExtensionRecommendation[] {
-		return Object.keys(this._fileBasedRecommendations)
-			.sort((a, b) => {
-				if (this._fileBasedRecommendations[a].recommendedTime === this._fileBasedRecommendations[b].recommendedTime) {
-					if (!product.extensionImportantTips || caseInsensitiveGet(product.extensionImportantTips, a)) {
-						return -1;
-					}
-					if (caseInsensitiveGet(product.extensionImportantTips, b)) {
-						return 1;
-					}
+		return [...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.File),
+		...Object.keys(this._fileBasedRecommendations).sort((a, b) => {
+			if (this._fileBasedRecommendations[a].recommendedTime === this._fileBasedRecommendations[b].recommendedTime) {
+				if (!product.extensionImportantTips || caseInsensitiveGet(product.extensionImportantTips, a)) {
+					return -1;
 				}
-				return this._fileBasedRecommendations[a].recommendedTime > this._fileBasedRecommendations[b].recommendedTime ? -1 : 1;
-			}).map(extensionId => (<IExtensionRecommendation>{ extensionId, sources: this._fileBasedRecommendations[extensionId].sources }));
+				if (caseInsensitiveGet(product.extensionImportantTips, b)) {
+					return 1;
+				}
+			}
+			return this._fileBasedRecommendations[a].recommendedTime > this._fileBasedRecommendations[b].recommendedTime ? -1 : 1;
+		})]
+			.map(extensionId => (<IExtensionRecommendation>{
+				extensionId, sources:
+					this._fileBasedRecommendations[extensionId] ? this._fileBasedRecommendations[extensionId].sources :
+						this._sessionRestoredRecommendations[extensionId.toLowerCase()] ? this._sessionRestoredRecommendations[extensionId.toLowerCase()].sources :
+							[]
+			}));
 	}
 
 	getOtherRecommendations(): TPromise<IExtensionRecommendation[]> {
@@ -414,19 +420,32 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			const others = distinct([
 				...Object.keys(this._exeBasedRecommendations),
 				...this._dynamicWorkspaceRecommendations,
-				...Object.keys(this._experimentalRecommendations)]);
+				...Object.keys(this._experimentalRecommendations),
+			]);
 			shuffle(others);
-			return others.map(extensionId => {
-				const sources: ExtensionRecommendationSource[] = [];
-				if (this._exeBasedRecommendations[extensionId]) {
-					sources.push('executable');
-				}
-				if (this._dynamicWorkspaceRecommendations[extensionId]) {
-					sources.push('dynamic');
-				}
-				return (<IExtensionRecommendation>{ extensionId, sources });
-			});
+			return [
+				...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.Executable),
+				...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.DynamicWorkspace),
+				...this.getRestoredRecommendationsByReason(ExtensionRecommendationReason.Experimental),
+				...others]
+				.map(extensionId => {
+					const sources: ExtensionRecommendationSource[] = [];
+					if (this._exeBasedRecommendations[extensionId]) {
+						sources.push('executable');
+					}
+					if (this._dynamicWorkspaceRecommendations[extensionId]) {
+						sources.push('dynamic');
+					}
+					if (this._sessionRestoredRecommendations[extensionId.toLowerCase()]) {
+						sources.push(...this._sessionRestoredRecommendations[extensionId.toLowerCase()].sources);
+					}
+					return (<IExtensionRecommendation>{ extensionId, sources });
+				});
 		});
+	}
+
+	private getRestoredRecommendationsByReason(reason: ExtensionRecommendationReason): string[] {
+		return Object.keys(this._sessionRestoredRecommendations).filter(key => this._sessionRestoredRecommendations[key].reasonId === reason);
 	}
 
 	getKeymapRecommendations(): IExtensionRecommendation[] {
@@ -1000,7 +1019,14 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				*/
 				this.telemetryService.publicLog('extensionsRecommendations:ignoreRecommendation', { id: extensionId, recommendationReason: reason.reasonId });
 			}
-			this._sessionIgnoredRecommendations[lowerId] = reason;
+			this._sessionIgnoredRecommendations[lowerId] = {
+				...reason, sources:
+					coalesce([
+						<'executable' | null>(caseInsensitiveGet(this._exeBasedRecommendations, lowerId) ? 'executable' : null),
+						...(() => { let a = caseInsensitiveGet(this._fileBasedRecommendations, lowerId); return a ? a.sources : null; })(),
+						<'dynamic' | null>(this._dynamicWorkspaceRecommendations.filter(x => x.toLowerCase() === lowerId).length > 0 ? 'dynamic' : null),
+					])
+			};
 			delete this._sessionRestoredRecommendations[lowerId];
 			this._globallyIgnoredRecommendations = distinct([...this._globallyIgnoredRecommendations, lowerId].map(id => id.toLowerCase()));
 		} else {
