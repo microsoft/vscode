@@ -462,7 +462,7 @@ declare module 'vscode' {
 		 *
 		 * @readonly
 		 */
-		export let terminals: Terminal[];
+		export let terminals: ReadonlyArray<Terminal>;
 
 		/**
 		 * The currently active terminal or `undefined`. The active terminal is the one that
