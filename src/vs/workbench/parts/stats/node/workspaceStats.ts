@@ -179,6 +179,8 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		this.reportCloudStats();
 	}
 
+	public static tags: Tags;
+
 	private searchArray(arr: string[], regEx: RegExp): boolean {
 		return arr.some(v => v.search(regEx) > -1) || undefined;
 	}
@@ -372,6 +374,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				}
 			*/
 			this.telemetryService.publicLog('workspce.tags', tags);
+			WorkspaceStats.tags = tags;
 		}, error => onUnexpectedError(error));
 	}
 

@@ -419,7 +419,8 @@ export enum ExtensionRecommendationReason {
 	Workspace,
 	File,
 	Executable,
-	DynamicWorkspace
+	DynamicWorkspace,
+	Experimental
 }
 
 export const ExtensionsLabel = localize('extensions', "Extensions");

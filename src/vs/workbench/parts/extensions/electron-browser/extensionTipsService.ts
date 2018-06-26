@@ -42,6 +42,7 @@ import { Emitter, Event } from 'vs/base/common/event';
 import { assign } from 'vs/base/common/objects';
 import URI from 'vs/base/common/uri';
 import { areSameExtensions, getGalleryExtensionIdFromLocal } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
+import { IExperimentService, ExperimentActionType } from 'vs/workbench/parts/experiments/node/experimentService';
 
 const empty: { [key: string]: any; } = Object.create(null);
 const milliSecondsInADay = 1000 * 60 * 60 * 24;
@@ -75,6 +76,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	private _availableRecommendations: { [pattern: string]: string[] } = Object.create(null);
 	private _allWorkspaceRecommendedExtensions: IExtensionRecommendation[] = [];
 	private _dynamicWorkspaceRecommendations: string[] = [];
+	private _experimentalRecommendations: { [id: string]: string } = Object.create(null);
 	private _allIgnoredRecommendations: string[] = [];
 	private _globallyIgnoredRecommendations: string[] = [];
 	private _workspaceIgnoredRecommendations: string[] = [];
@@ -104,7 +106,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		@IViewletService private viewletService: IViewletService,
 		@INotificationService private notificationService: INotificationService,
 		@IExtensionManagementService private extensionManagementService: IExtensionManagementService,
-		@IExtensionManagementServerService private extensionManagementServiceService: IExtensionManagementServerService
+		@IExtensionManagementServerService private extensionManagementServiceService: IExtensionManagementServerService,
+		@IExperimentService private experimentService: IExperimentService,
 	) {
 		super();
 
@@ -124,6 +127,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 				// these must be called after workspace configs have been refreshed.
 				this.getCachedDynamicWorkspaceRecommendations();
 				this._suggestFileBasedRecommendations();
+				this.getExperimentalRecommendations();
 				return this._suggestWorkspaceRecommendations();
 			}).then(() => {
 				this._modelService.onModelAdded(this._suggest, this, this._disposables);
@@ -187,6 +191,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		if (!this.proactiveRecommendationsFetched) {
 			return output;
 		}
+
+		forEach(this._experimentalRecommendations, entry => output[entry.key.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Experimental,
+			reasonText: entry.value
+		});
 
 		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
 			const currentRepo = this.contextService.getWorkspace().folders[0].name;
@@ -404,7 +413,8 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 		return this.fetchProactiveRecommendations().then(() => {
 			const others = distinct([
 				...Object.keys(this._exeBasedRecommendations),
-				...this._dynamicWorkspaceRecommendations]);
+				...this._dynamicWorkspaceRecommendations,
+				...Object.keys(this._experimentalRecommendations)]);
 			shuffle(others);
 			return others.map(extensionId => {
 				const sources: ExtensionRecommendationSource[] = [];
@@ -931,6 +941,20 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 						}
 					}
 				});
+			});
+		});
+	}
+
+	private getExperimentalRecommendations() {
+		this.experimentService.getExperimentsToRunByType(ExperimentActionType.AddToRecommendations).then(experiments => {
+			(experiments || []).forEach(experiment => {
+				if (experiment.action.properties && Array.isArray(experiment.action.properties.recommendations) && experiment.action.properties.recommendationReason) {
+					experiment.action.properties.recommendations.forEach(id => {
+						if (this.isExtensionAllowedToBeRecommended(id)) {
+							this._experimentalRecommendations[id] = experiment.action.properties.recommendationReason;
+						}
+					});
+				}
 			});
 		});
 	}

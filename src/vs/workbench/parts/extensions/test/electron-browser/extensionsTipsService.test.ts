@@ -48,6 +48,8 @@ import { IModelService } from 'vs/editor/common/services/modelService';
 import { ILifecycleService } from 'vs/platform/lifecycle/common/lifecycle';
 import { INotificationService, Severity, IPromptChoice } from 'vs/platform/notification/common/notification';
 import { URLService } from 'vs/platform/url/common/urlService';
+import { IExperimentService } from 'vs/workbench/parts/experiments/node/experimentService';
+import { TestExperimentService } from 'vs/workbench/parts/experiments/test/node/experimentService.test';
 
 const mockExtensionGallery: IGalleryExtension[] = [
 	aGalleryExtension('MockExtension1', {
@@ -175,6 +177,7 @@ suite('ExtensionsTipsService Test', () => {
 		didUninstallEvent: Emitter<DidUninstallExtensionEvent>;
 	let prompted: boolean;
 	let onModelAddedEvent: Emitter<ITextModel>;
+	let experimentService: TestExperimentService;
 
 	suiteSetup(() => {
 		instantiationService = new TestInstantiationService();
@@ -196,6 +199,9 @@ suite('ExtensionsTipsService Test', () => {
 		instantiationService.stub(ITelemetryService, NullTelemetryService);
 		instantiationService.stub(IURLService, URLService);
 
+		experimentService = instantiationService.createInstance(TestExperimentService);
+		instantiationService.stub(IExperimentService, experimentService);
+
 		onModelAddedEvent = new Emitter<ITextModel>();
 
 		product.extensionTips = {
@@ -213,6 +219,12 @@ suite('ExtensionsTipsService Test', () => {
 				'pattern': '{**/*.ps,**/*.ps1}'
 			}
 		};
+	});
+
+	suiteTeardown(() => {
+		if (experimentService) {
+			experimentService.dispose();
+		}
 	});
 
 	setup(() => {
