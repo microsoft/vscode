@@ -77,7 +77,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _pidPromiseComplete: (value: number) => any;
 
 	private readonly _onData: Emitter<string> = new Emitter<string>();
-	public get onData(): Event<string> {
+	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
 		this._proxy.$registerOnDataListener(this._id);
 		return this._onData && this._onData.event;
@@ -156,7 +156,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	}
 
 	private readonly _onInput: Emitter<string> = new Emitter<string>();
-	public get onInput(): Event<string> {
+	public get onDidAcceptInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
 		// Tell the main side to start sending data if it's not already

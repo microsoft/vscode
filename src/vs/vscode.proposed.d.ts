@@ -341,7 +341,7 @@ declare module 'vscode' {
 		 * provides access to the raw data stream from the process running within the terminal,
 		 * including VT sequences.
 		 */
-		onData: Event<string>;
+		onDidWriteData: Event<string>;
 	}
 
 	/**
@@ -368,10 +368,10 @@ declare module 'vscode' {
 	 * created with all its APIs available for use by extensions. When using the Terminal object
 	 * of a TerminalRenderer it acts just like normal only the extension that created the
 	 * TerminalRenderer essentially acts as a process. For example when an
-	 * [Terminal.onData](#Terminal.onData) listener is registered, that will fire when
-	 * [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
+	 * [Terminal.onDidWriteData](#Terminal.onDidWriteData) listener is registered, that will fire
+	 * when [TerminalRenderer.write](#TerminalRenderer.write) is called. Similarly when
 	 * [Terminal.sendText](#Terminal.sendText) is triggered that will fire the
-	 * [TerminalRenderer.onInput](#TerminalRenderer.onInput) event.
+	 * [TerminalRenderer.onDidAcceptInput](#TerminalRenderer.onDidAcceptInput) event.
 	 *
 	 * **Example:** Create a terminal renderer, show it and write hello world in red
 	 * ```typescript
@@ -441,13 +441,13 @@ declare module 'vscode' {
 		 * workbench command such as `workbench.action.terminal.runSelectedText`
 		 * ```typescript
 		 * const terminalRenderer = window.createTerminalRenderer('test');
-		 * terminalRenderer.onInput(data => {
+		 * terminalRenderer.onDidAcceptInput(data => {
 		 *   cosole.log(data); // 'Hello world'
 		 * });
 		 * terminalRenderer.terminal.then(t => t.sendText('Hello world'));
 		 * ```
 		 */
-		onInput: Event<string>;
+		onDidAcceptInput: Event<string>;
 
 		/**
 		 * An event which fires when the [maximum dimensions](#TerminalRenderer.maimumDimensions) of
