@@ -660,7 +660,7 @@ suite('window namespace tests', () => {
 		test('TerminalRenderer.write should fire Terminal.onData', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
-				const reg2 = terminal.onData(data => {
+				const reg2 = terminal.onDidWriteData(data => {
 					assert.equal(data, 'bar');
 					reg2.dispose();
 					const reg3 = window.onDidCloseTerminal(() => {
@@ -677,7 +677,7 @@ suite('window namespace tests', () => {
 		test('Terminal.sendText should fire Termnial.onInput', (done) => {
 			const reg1 = window.onDidOpenTerminal(terminal => {
 				reg1.dispose();
-				const reg2 = renderer.onInput(data => {
+				const reg2 = renderer.onDidAcceptInput(data => {
 					assert.equal(data, 'bar');
 					reg2.dispose();
 					const reg3 = window.onDidCloseTerminal(() => {
