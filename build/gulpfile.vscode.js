@@ -25,7 +25,7 @@ const buildfile = require('../src/buildfile');
 const common = require('./lib/optimize');
 const root = path.dirname(__dirname);
 const commit = util.getVersion(root);
-// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
+// @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file asdsa
 const packageJson = require('../package.json');
 // @ts-ignore Microsoft/TypeScript#21262 complains about a require of a JSON file
 const product = require('../product.json');
