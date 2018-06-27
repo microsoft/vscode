@@ -580,7 +580,7 @@ export class OutlinePanel extends ViewletPanel {
 			// first check if the document has changed and stop revealing the
 			// cursor position iff it has -> we will update/recompute the
 			// outline view then anyways
-			if (model.textModel.getVersionId() === versionIdThen) {
+			if (!model.textModel.isDisposed() && model.textModel.getVersionId() === versionIdThen) {
 				this._revealEditorSelection(model, e.selection);
 			}
 		}));
