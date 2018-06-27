@@ -14,7 +14,7 @@ import { ILifecycleService } from 'vs/platform/lifecycle/electron-main/lifecycle
 import { IRequestService } from 'vs/platform/request/node/request';
 import product from 'vs/platform/node/product';
 import { TPromise, Promise } from 'vs/base/common/winjs.base';
-import { State, IUpdate, StateType } from 'vs/platform/update/common/update';
+import { State, IUpdate, StateType, AvailableForDownload } from 'vs/platform/update/common/update';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 import { ILogService } from 'vs/platform/log/common/log';
@@ -23,6 +23,7 @@ import { download, asJson } from 'vs/base/node/request';
 import { checksum } from 'vs/base/node/crypto';
 import { tmpdir } from 'os';
 import { spawn } from 'child_process';
+import { shell } from 'electron';
 
 function pollUntil(fn: () => boolean, timeout = 1000): TPromise<void> {
 	return new TPromise<void>(c => {
@@ -43,12 +44,18 @@ interface IAvailableUpdate {
 	updateFilePath?: string;
 }
 
+enum UpdateType {
+	Automatic,
+	Manual
+}
+
 export class Win32UpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
 	private url: string | undefined;
 	private availableUpdate: IAvailableUpdate | undefined;
+	private updateType: UpdateType;
 
 	@memoize
 	get cachePath(): TPromise<string> {
@@ -65,13 +72,13 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService
 	) {
 		super(lifecycleService, configurationService, environmentService, logService);
+
+		this.updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+			? UpdateType.Automatic
+			: UpdateType.Manual;
 	}
 
 	protected setUpdateFeedUrl(quality: string): boolean {
-		if (!fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
-			return false;
-		}
-
 		let platform = 'win32';
 
 		if (process.arch === 'x64') {
@@ -96,7 +103,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 		this.requestService.request({ url: this.url })
 			.then<IUpdate>(asJson)
 			.then(update => {
-				if (!update || !update.url || !update.version) {
+				if (!update || !update.url || !update.version || !update.productVersion) {
 					/* __GDPR__
 							"update:notAvailable" : {
 								"explicit" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
@@ -105,6 +112,11 @@ export class Win32UpdateService extends AbstractUpdateService {
 					this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 
 					this.setState(State.Idle);
+					return TPromise.as(null);
+				}
+
+				if (this.updateType === UpdateType.Manual) {
+					this.setState(State.AvailableForDownload(update));
 					return TPromise.as(null);
 				}
 
@@ -154,6 +166,19 @@ export class Win32UpdateService extends AbstractUpdateService {
 				this.telemetryService.publicLog('update:notAvailable', { explicit: !!context });
 				this.setState(State.Idle);
 			});
+	}
+
+	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
+		// Use the download URL if available as we don't currently detect the package type that was
+		// installed and the website download page is more useful than the tarball generally.
+		if (product.downloadUrl && product.downloadUrl.length > 0) {
+			shell.openExternal(product.downloadUrl);
+		} else {
+			shell.openExternal(state.update.url);
+		}
+
+		this.setState(State.Idle);
+		return TPromise.as(null);
 	}
 
 	private getUpdatePackagePath(version: string): TPromise<string> {
