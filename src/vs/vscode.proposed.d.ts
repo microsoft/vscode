@@ -470,7 +470,7 @@ declare module 'vscode' {
 
 		/**
 		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active editor changes
+		 * has changed. *Note* that the event also fires when the active terminal changes
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
