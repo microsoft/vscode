@@ -13,8 +13,9 @@
 	opacity: 0.5; /* dimmed to indicate inactive state */
 }
 
-.monaco-workbench > .part.editor > .content .editor-group-container.empty.active {
-	opacity: 1; /* indicate active group through undimmed state */
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.active,
+.monaco-workbench > .part.editor > .content .editor-group-container.empty.dragged-over {
+	opacity: 1; /* indicate active/dragged-over group through undimmed state */
 }
 
 /* Letterpress */

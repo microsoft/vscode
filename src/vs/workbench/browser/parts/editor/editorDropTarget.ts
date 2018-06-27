@@ -57,8 +57,14 @@ class DropOverlay extends Themable {
 		this.container = document.createElement('div');
 		this.container.id = DropOverlay.OVERLAY_ID;
 		this.container.style.top = `${overlayOffsetHeight}px`;
+
+		// Parent
 		this.groupView.element.appendChild(this.container);
-		this._register(toDisposable(() => this.groupView.element.removeChild(this.container)));
+		addClass(this.groupView.element, 'dragged-over');
+		this._register(toDisposable(() => {
+			this.groupView.element.removeChild(this.container);
+			removeClass(this.groupView.element, 'dragged-over');
+		}));
 
 		// Overlay
 		this.overlay = document.createElement('div');
