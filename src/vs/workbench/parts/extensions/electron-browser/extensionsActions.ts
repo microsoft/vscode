@@ -497,7 +497,11 @@ export class MultiServerInstallAction extends Action {
 		this.actions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this.actions]);
 		this.disposables.push(...[this._actionItem, ...this.actions]);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.extension = this.extension ? this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] : this.extension));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => {
+			if (this.extension) {
+				this.extension = this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] || this.extension;
+			}
+		}));
 		this.update();
 	}
 
