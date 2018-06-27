@@ -1123,6 +1123,7 @@ export class TestWindowsService implements IWindowsService {
 	onWindowBlur: Event<number>;
 	onWindowMaximize: Event<number>;
 	onWindowUnmaximize: Event<number>;
+	onRecentlyOpenedChange: Event<void>;
 
 	isFocused(windowId: number): TPromise<boolean> {
 		return TPromise.as(false);

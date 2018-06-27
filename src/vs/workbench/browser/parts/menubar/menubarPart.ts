@@ -13,9 +13,9 @@ import { Part } from 'vs/workbench/browser/part';
 import { IMenubarService, IMenubarMenu, IMenubarMenuItemAction, IMenubarData } from 'vs/platform/menubar/common/menubar';
 import { IMenuService, MenuId, IMenu, SubmenuItemAction } from 'vs/platform/actions/common/actions';
 import { IThemeService } from 'vs/platform/theme/common/themeService';
-import { IWindowService, MenuBarVisibility } from 'vs/platform/windows/common/windows';
+import { IWindowService, MenuBarVisibility, IWindowsService } from 'vs/platform/windows/common/windows';
 import { IContextKeyService } from 'vs/platform/contextkey/common/contextkey';
-import { ActionRunner, IActionRunner, IAction } from 'vs/base/common/actions';
+import { ActionRunner, IActionRunner, IAction, Action } from 'vs/base/common/actions';
 import { Builder, $ } from 'vs/base/browser/builder';
 import { Separator } from 'vs/base/browser/ui/actionbar/actionbar';
 import { EventType, Dimension, toggleClass } from 'vs/base/browser/dom';
@@ -30,6 +30,10 @@ import { Color } from 'vs/base/common/color';
 import { Event, Emitter } from 'vs/base/common/event';
 import { IDisposable, dispose } from 'vs/base/common/lifecycle';
 import { domEvent } from 'vs/base/browser/event';
+import { IRecentlyOpened } from 'vs/platform/history/common/history';
+import { IWorkspaceIdentifier, ISingleFolderWorkspaceIdentifier, isSingleFolderWorkspaceIdentifier, getWorkspaceLabel } from 'vs/platform/workspaces/common/workspaces';
+import { getPathLabel } from 'vs/base/common/labels';
+import { IEnvironmentService } from 'vs/platform/environment/common/environment';
 
 interface CustomMenu {
 	title: string;
@@ -86,6 +90,7 @@ export class MenubarPart extends Part {
 
 	private actionRunner: IActionRunner;
 	private container: Builder;
+	private recentlyOpened: IRecentlyOpened;
 	private _modifierKeyStatus: IModifierKeyStatus;
 	private _isFocused: boolean;
 	private _onVisibilityChange: Emitter<Dimension>;
@@ -98,15 +103,19 @@ export class MenubarPart extends Part {
 		menubarFontSize?: number;
 	} = {};
 
+	private static MAX_MENU_RECENT_ENTRIES = 5;
+
 	constructor(
 		id: string,
 		@IThemeService themeService: IThemeService,
 		@IMenubarService private menubarService: IMenubarService,
 		@IMenuService private menuService: IMenuService,
 		@IWindowService private windowService: IWindowService,
+		@IWindowsService private windowsService: IWindowsService,
 		@IContextKeyService private contextKeyService: IContextKeyService,
 		@IKeybindingService private keybindingService: IKeybindingService,
-		@IConfigurationService private configurationService: IConfigurationService
+		@IConfigurationService private configurationService: IConfigurationService,
+		@IEnvironmentService private environmentService: IEnvironmentService
 	) {
 		super(id, { hasTitle: false }, themeService);
 
@@ -143,6 +152,10 @@ export class MenubarPart extends Part {
 		}
 
 		this.isFocused = false;
+
+		this.windowService.getRecentlyOpened().then((recentlyOpened) => {
+			this.recentlyOpened = recentlyOpened;
+		});
 
 		this.registerListeners();
 	}
@@ -253,6 +266,13 @@ export class MenubarPart extends Part {
 		}
 	}
 
+	private onRecentlyOpenedChange(): void {
+		this.windowService.getRecentlyOpened().then(recentlyOpened => {
+			this.recentlyOpened = recentlyOpened;
+			this.setupMenubar();
+		});
+	}
+
 	private registerListeners(): void {
 		browser.onDidChangeFullscreen(() => this.onDidChangeFullscreen());
 
@@ -261,6 +281,9 @@ export class MenubarPart extends Part {
 
 		// Listen to update service
 		// this.updateService.onStateChange(() => this.setupMenubar());
+
+		// Listen for changes in recently opened menu
+		this.windowsService.onRecentlyOpenedChange(() => { this.onRecentlyOpenedChange(); });
 
 		// Listen to keybindings change
 		this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar());
@@ -342,6 +365,68 @@ export class MenubarPart extends Part {
 		return this.currentEnableMenuBarMnemonics ? label : label.replace(/&&(.)/g, '$1');
 	}
 
+	private createOpenRecentMenuAction(workspace: IWorkspaceIdentifier | ISingleFolderWorkspaceIdentifier | string, commandId: string, isFile: boolean): IAction {
+
+		let label: string;
+		let path: string;
+
+		if (isSingleFolderWorkspaceIdentifier(workspace) || typeof workspace === 'string') {
+			label = getPathLabel(workspace, this.environmentService);
+			path = workspace;
+		} else {
+			label = getWorkspaceLabel(workspace, this.environmentService, { verbose: true });
+			path = workspace.configPath;
+		}
+
+		return new Action(commandId, label, undefined, undefined, (event) => {
+			const openInNewWindow = event && ((!isMacintosh && (event.ctrlKey || event.shiftKey)) || (isMacintosh && (event.metaKey || event.altKey)));
+
+			return this.windowService.openWindow([path], {
+				forceNewWindow: openInNewWindow,
+				forceOpenWorkspaceAsFile: isFile
+			});
+		});
+	}
+
+	private getOpenRecentActions(): IAction[] {
+		if (!this.recentlyOpened) {
+			return [];
+		}
+
+		const { workspaces, files } = this.recentlyOpened;
+
+		const result: IAction[] = [];
+
+		if (workspaces.length > 0) {
+			for (let i = 0; i < MenubarPart.MAX_MENU_RECENT_ENTRIES && i < workspaces.length; i++) {
+				result.push(this.createOpenRecentMenuAction(workspaces[i], 'openRecentWorkspace', false));
+			}
+
+			result.push(new Separator());
+		}
+
+		if (files.length > 0) {
+			for (let i = 0; i < MenubarPart.MAX_MENU_RECENT_ENTRIES && i < files.length; i++) {
+				result.push(this.createOpenRecentMenuAction(files[i], 'openRecentFile', false));
+			}
+
+			result.push(new Separator());
+		}
+
+		return result;
+	}
+
+	private insertActionsBefore(nextAction: IAction, target: IAction[]): void {
+		switch (nextAction.id) {
+			case 'workbench.action.openRecent':
+				target.push(...this.getOpenRecentActions());
+				break;
+
+			default:
+				break;
+		}
+	}
+
 	private setupCustomMenubar(): void {
 		this.container.empty();
 		this.container.attr('role', 'menubar');
@@ -381,6 +466,7 @@ export class MenubarPart extends Part {
 					const [, actions] = group;
 
 					for (let action of actions) {
+						this.insertActionsBefore(action, target);
 						if (action instanceof SubmenuItemAction) {
 							const submenu = this.menuService.createMenu(action.item.submenu, this.contextKeyService);
 							const submenuActions = [];
