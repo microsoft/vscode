@@ -727,4 +727,9 @@ suite('SnippetParser', () => {
 		transform.regexp = new RegExp('foo', 'gi');
 		assert.equal(transform.toTextmateString(), '/foo/bar/ig');
 	});
+
+	test('Snippet parser freeze #53144', function () {
+		let snippet = new SnippetParser().parse('${1/(void$)|(.+)/${1:?-\treturn nil;}/}');
+		assertMarker(snippet, Placeholder);
+	});
 });
