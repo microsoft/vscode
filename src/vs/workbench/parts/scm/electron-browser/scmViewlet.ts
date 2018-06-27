@@ -738,10 +738,6 @@ export class RepositoryPanel extends ViewletPanel {
 	private menus: SCMMenus;
 	private visibilityDisposables: IDisposable[] = [];
 
-	get onDidChangeTitle(): Event<void> {
-		return this.menus.onDidChangeTitle;
-	}
-
 	constructor(
 		id: string,
 		readonly repository: ISCMRepository,
@@ -760,6 +756,7 @@ export class RepositoryPanel extends ViewletPanel {
 	) {
 		super({ id, title: repository.provider.label }, keybindingService, contextMenuService, configurationService);
 		this.menus = instantiationService.createInstance(SCMMenus, repository.provider);
+		this.menus.onDidChangeTitle(this._onDidChangeTitleArea.fire, this._onDidChangeTitleArea, this.disposables);
 	}
 
 	render(): void {
@@ -1026,7 +1023,7 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 	private mainPanelDisposable: IDisposable = EmptyDisposable;
 	private _repositories: ISCMRepository[] = [];
 	private repositoryPanels: RepositoryPanel[] = [];
-	private singleRepositoryPanelTitleActionsDisposable: IDisposable = EmptyDisposable;
+	private singlePanelTitleActionsDisposable: IDisposable = EmptyDisposable;
 	private disposables: IDisposable[] = [];
 	private lastFocusedRepository: ISCMRepository | undefined;
 
@@ -1303,10 +1300,10 @@ export class SCMViewlet extends PanelViewlet implements IViewModel, IViewsViewle
 
 		// React to menu changes for single view mode
 		if (wasSingleView !== this.isSingleView()) {
-			this.singleRepositoryPanelTitleActionsDisposable.dispose();
+			this.singlePanelTitleActionsDisposable.dispose();
 
 			if (this.isSingleView()) {
-				this.singleRepositoryPanelTitleActionsDisposable = this.repositoryPanels[0].onDidChangeTitle(this.updateTitleArea, this);
+				this.singlePanelTitleActionsDisposable = this.panels[0].onDidChangeTitleArea(this.updateTitleArea, this);
 			}
 
 			this.updateTitleArea();
