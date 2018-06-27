@@ -197,12 +197,11 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 
 		if (this.contextService.getWorkspace().folders && this.contextService.getWorkspace().folders.length === 1) {
 			const currentRepo = this.contextService.getWorkspace().folders[0].name;
-			for (const id of this._dynamicWorkspaceRecommendations) {
-				output[id.toLowerCase()] = {
-					reasonId: ExtensionRecommendationReason.DynamicWorkspace,
-					reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
-				};
-			}
+
+			this._dynamicWorkspaceRecommendations.forEach(id => output[id.toLowerCase()] = {
+				reasonId: ExtensionRecommendationReason.DynamicWorkspace,
+				reasonText: localize('dynamicWorkspaceRecommendation', "This extension may interest you because it's popular among users of the {0} repository.", currentRepo)
+			});
 		}
 
 		forEach(this._exeBasedRecommendations, entry => output[entry.key.toLowerCase()] = {
@@ -215,12 +214,10 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
 		});
 
-		for (let id of this._allWorkspaceRecommendedExtensions) {
-			output[id.extensionId.toLowerCase()] = {
-				reasonId: ExtensionRecommendationReason.Workspace,
-				reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
-			};
-		}
+		this._allWorkspaceRecommendedExtensions.forEach(rec => output[rec.extensionId.toLowerCase()] = {
+			reasonId: ExtensionRecommendationReason.Workspace,
+			reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
+		});
 
 		for (const id of this._allIgnoredRecommendations) {
 			delete output[id];
