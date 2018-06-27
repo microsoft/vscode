@@ -362,9 +362,11 @@ export class MenubarPart extends Part {
 			titleElement.attr('aria-label', legibleTitle);
 			titleElement.attr('role', 'menu');
 
-			let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle])[1];
-			if (mnemonic && this.currentEnableMenuBarMnemonics) {
-				this.registerMnemonic(titleElement.getHTMLElement(), mnemonic);
+			if (this.currentEnableMenuBarMnemonics) {
+				let mnemonic = (/&&(.)/g).exec(this.topLevelTitles[menuTitle]);
+				if (mnemonic && mnemonic[1]) {
+					this.registerMnemonic(titleElement.getHTMLElement(), mnemonic[1]);
+				}
 			}
 
 			this.customMenus.push({
