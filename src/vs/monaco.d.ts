@@ -5191,6 +5191,7 @@ declare namespace monaco.languages {
 		options: {
 			overwrite?: boolean;
 			ignoreIfExists?: boolean;
+			recursive?: boolean;
 		};
 	}
 

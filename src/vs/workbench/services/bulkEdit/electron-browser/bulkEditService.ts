@@ -339,6 +339,7 @@ export class BulkEdit {
 			if (edit.newUri && edit.oldUri) {
 				await this._textFileService.move(edit.oldUri, edit.newUri, overwrite);
 			} else if (!edit.newUri && edit.oldUri) {
+				// let recrusive = edit.options && edit.options.recursive;
 				await this._textFileService.delete(edit.oldUri, true);
 			} else if (edit.newUri && !edit.oldUri) {
 				let ignoreIfExists = edit.options && edit.options.ignoreIfExists;

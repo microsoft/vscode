@@ -817,7 +817,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file that is to be deleted.
 		 */
-		deleteFile(uri: Uri): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
 
 		/**
 		 * Rename a file or folder.

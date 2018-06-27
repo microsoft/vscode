@@ -29,7 +29,7 @@ import { IConfig, IAdapterExecutable, ITerminalSettings } from 'vs/workbench/par
 import { IQuickPickItem, IPickOptions, IQuickInputButton } from 'vs/platform/quickinput/common/quickInput';
 import { SaveReason } from 'vs/workbench/services/textfile/common/textfiles';
 import { TextEditorCursorStyle } from 'vs/editor/common/config/editorOptions';
-import { EndOfLine, TextEditorLineNumbersStyle } from 'vs/workbench/api/node/extHostTypes';
+import { EndOfLine, TextEditorLineNumbersStyle, IFileOperationOptions } from 'vs/workbench/api/node/extHostTypes';
 
 
 import { TaskSet } from 'vs/workbench/parts/tasks/common/tasks';
@@ -774,7 +774,7 @@ export interface WorkspaceSymbolsDto extends IdObject {
 export interface ResourceFileEditDto {
 	oldUri: UriComponents;
 	newUri: UriComponents;
-	options: { overwrite?: boolean, ignoreIfExists?: boolean };
+	options: IFileOperationOptions;
 }
 
 export interface ResourceTextEditDto {
