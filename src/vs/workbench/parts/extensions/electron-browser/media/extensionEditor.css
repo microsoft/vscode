@@ -14,19 +14,12 @@
 
 .extension-editor > .header {
 	display: flex;
-	height: 134px;
 	padding-top: 20px;
 	padding-bottom: 14px;
 	padding-left: 20px;
 	padding-right: 20px;
 	overflow: hidden;
 	font-size: 14px;
-}
-
-.extension-editor > .header.recommended,
-.extension-editor > .header.recommendation-ignored
-{
-	height: 146px;
 }
 
 .extension-editor > .header > .icon {
@@ -36,7 +29,6 @@
 }
 
 .extension-editor > .header > .details {
-	flex: 1;
 	padding-left: 20px;
 	overflow: hidden;
 	user-select: text;
@@ -142,7 +134,6 @@
 	display: flex;
 	margin-top: 0;
 	font-size: 13px;
-	height: 27px;
 	font-style: italic;
 }
 
@@ -150,9 +141,8 @@
 .extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar {
 	margin-left: 4px;
 	margin-top: 2px;
-	padding-top: 1px;
-	padding-bottom: 1px;
 	font-style: normal;
+	flex-shrink: 0;
 }
 
 .extension-editor > .header > .details > .recommendation > .recommendation-text {
@@ -161,6 +151,8 @@
 .extension-editor > .header > .details > .recommendation > .monaco-action-bar .action-label {
 	margin-top: 4px;
 	margin-left: 4px;
+	padding-top: 0;
+	padding-bottom: 2px;
 }
 
 .extension-editor > .header.recommendation-ignored > .details > .recommendation > .monaco-action-bar .ignore {
