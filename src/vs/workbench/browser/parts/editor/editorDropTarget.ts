@@ -117,7 +117,7 @@ class DropOverlay extends Themable {
 				}
 
 				// Position overlay
-				this.positionOverlay(e.offsetX, e.offsetY);
+				this.positionOverlay(e.offsetX, e.offsetY, isDraggingGroup);
 			},
 
 			onDragLeave: e => this.dispose(),
@@ -254,12 +254,28 @@ class DropOverlay extends Themable {
 		return (e.ctrlKey && !isMacintosh) || (e.altKey && isMacintosh);
 	}
 
-	private positionOverlay(mousePosX: number, mousePosY: number): void {
+	private positionOverlay(mousePosX: number, mousePosY: number, isDraggingGroup: boolean): void {
+		const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
+
 		const groupViewWidth = this.groupView.element.clientWidth;
 		const groupViewHeight = this.groupView.element.clientHeight;
 
-		const edgeWidthThreshold = groupViewWidth * 0.2; 	// offer to split 20% around center width
-		const edgeHeightThreshold = groupViewHeight * 0.2; 	// offer to split 20% around center height
+		let edgeWidthThresholdFactor: number;
+		if (isDraggingGroup) {
+			edgeWidthThresholdFactor = preferSplitVertically ? 0.3 : 0.1; // give larger threshold when dragging group depending on preferred split direction
+		} else {
+			edgeWidthThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		}
+
+		let edgeHeightThresholdFactor: number;
+		if (isDraggingGroup) {
+			edgeHeightThresholdFactor = preferSplitVertically ? 0.1 : 0.3; // give larger threshold when dragging group depending on preferred split direction
+		} else {
+			edgeHeightThresholdFactor = 0.1; // 10% threshold to split if dragging editors
+		}
+
+		const edgeWidthThreshold = groupViewWidth * edgeWidthThresholdFactor;
+		const edgeHeightThreshold = groupViewHeight * edgeHeightThresholdFactor;
 
 		const splitWidthThreshold = groupViewWidth / 3;		// offer to split left/right at 33%
 		const splitHeightThreshold = groupViewHeight / 3;	// offer to split up/down at 33%
@@ -285,7 +301,6 @@ class DropOverlay extends Themable {
 			// | LEFT	|-----------------------|	RIGHT	|
 			// |		|		SPLIT DOWN		|			|
 			// ----------------------------------------------
-			const preferSplitVertically = this.accessor.partOptions.openSideBySideDirection === 'right';
 			if (preferSplitVertically) {
 				if (mousePosX < splitWidthThreshold) {
 					splitDirection = GroupDirection.LEFT;
