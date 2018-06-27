@@ -337,8 +337,8 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 			dom.addClass(data.breakpoint, 'disabled');
 		}
 
-		if (breakpoint.condition || breakpoint.hitCondition) {
-			data.breakpoint.title = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		if (breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage) {
+			data.breakpoint.title = breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage;
 		} else {
 			data.breakpoint.title = breakpoint.message || '';
 		}
