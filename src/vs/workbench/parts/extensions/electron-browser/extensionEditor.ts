@@ -164,7 +164,7 @@ export class ExtensionEditor extends BaseEditor {
 	private navbar: NavBar;
 	private content: HTMLElement;
 	private recommendation: HTMLElement;
-	private recommendationText: any;
+	private recommendationText: HTMLElement;
 	private ignoreActionbar: ActionBar;
 	private header: HTMLElement;
 
