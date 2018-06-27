@@ -833,6 +833,21 @@ declare module 'vscode' {
 		// deleteText(uri: Uri, range: Range): void;
 	}
 
+	export namespace workspace {
+		/**
+		 * Make changes to one or many resources as defined by the given
+		 * [workspace edit](#WorkspaceEdit).
+		 *
+		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
+		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
+		 * by this function resolves to `false`.
+		 *
+		 * @param edit A workspace edit.
+		 * @return A thenable that resolves when the edit could be applied.
+		 */
+		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
+	}
+
 	//#endregion
 
 	//#region mjbvz,joh: https://github.com/Microsoft/vscode/issues/43768
