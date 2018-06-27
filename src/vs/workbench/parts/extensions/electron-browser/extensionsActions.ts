@@ -513,6 +513,16 @@ export class MultiServerInstallAction extends Action {
 			return;
 		}
 
+		if (this.extension.state === ExtensionState.Installing) {
+			this.label = MultiServerInstallAction.InstallingLabel;
+			this.class = MultiServerInstallAction.InstallingClass;
+			this.tooltip = MultiServerInstallAction.InstallingLabel;
+		} else {
+			this.label = MultiServerInstallAction.InstallLabel;
+			this.class = MultiServerInstallAction.Class;
+			this.tooltip = MultiServerInstallAction.InstallLabel;
+		}
+
 		const isInstalled = this.extension.locals.length > 0;
 
 		if (isInstalled && this.disableWhenInstalled) {
@@ -535,16 +545,6 @@ export class MultiServerInstallAction extends Action {
 		});
 
 		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && (isExtensionNotInstalledInRecommendedServer || this.extension.locals.length === 0);
-
-		if (this.extension.state === ExtensionState.Installing) {
-			this.label = MultiServerInstallAction.InstallingLabel;
-			this.class = MultiServerInstallAction.InstallingClass;
-			this.tooltip = MultiServerInstallAction.InstallingLabel;
-		} else {
-			this.label = MultiServerInstallAction.InstallLabel;
-			this.class = MultiServerInstallAction.Class;
-			this.tooltip = MultiServerInstallAction.InstallLabel;
-		}
 	}
 
 	public run(): TPromise<any> {
