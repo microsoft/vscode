@@ -412,7 +412,7 @@ declare module 'vscode' {
 		/**
 		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
-		readonly terminal: Thenable<Terminal>;
+		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends

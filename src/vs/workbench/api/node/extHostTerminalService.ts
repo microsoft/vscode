@@ -62,7 +62,7 @@ export class BaseExtHostTerminal {
 		request.run(this._proxy, this._id);
 	}
 
-	protected _runQueuedRequests(id: number): void {
+	public _runQueuedRequests(id: number): void {
 		this._id = id;
 		this._idPromiseComplete(id);
 		this._queuedRequests.forEach((r) => {
@@ -188,18 +188,19 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		return this._onDidChangeMaximumDimensions && this._onDidChangeMaximumDimensions.event;
 	}
 
-	public get terminal(): Promise<ExtHostTerminal> {
-		return this._idPromise.then(id => this._fetchTerminal(id));
+	public get terminal(): ExtHostTerminal {
+		return this._terminal;
 	}
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
-		private _fetchTerminal: (id: number) => Promise<ExtHostTerminal>
+		private _terminal: ExtHostTerminal
 	) {
 		super(proxy);
 		this._proxy.$createTerminalRenderer(this._name).then(id => {
 			this._runQueuedRequests(id);
+			(<any>this._terminal)._runQueuedRequests(id);
 		});
 	}
 
@@ -258,8 +259,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
-		const renderer = new ExtHostTerminalRenderer(this._proxy, name, (id) => this._getTerminalByIdEventually(id));
+		const terminal = new ExtHostTerminal(this._proxy, name);
+		terminal._setProcessId(undefined);
+		this._terminals.push(terminal);
+
+		const renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal);
 		this._terminalRenderers.push(renderer);
+
 		return renderer;
 	}
 
