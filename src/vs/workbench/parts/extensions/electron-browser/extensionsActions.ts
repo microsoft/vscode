@@ -448,7 +448,7 @@ export class UpdateGalleryExtensionAction extends Action {
 
 	private update(): void {
 		this.enabled = this.local && this.gallery && this.local.type === LocalExtensionType.User && semver.gt(this.gallery.version, this.local.manifest.version);
-		this.label = this.enabled ? localize('updateToInServer', "Update to {0} ({1})", this.local.manifest.version, this.server.location.authority) : localize('updateLabelInServer', "Update ({0})", this.server.location.authority);
+		this.label = this.enabled ? localize('updateToInServer', "Update to {0} ({1})", this.gallery.version, this.server.location.authority) : localize('updateLabelInServer', "Update ({0})", this.server.location.authority);
 	}
 
 	run(): TPromise<any> {
