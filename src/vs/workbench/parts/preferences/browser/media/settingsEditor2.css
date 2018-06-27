@@ -118,7 +118,11 @@
 	display: none;
 }
 
-.search-mode .settings-toc-container {
+.settings-editor.search-mode .settings-toc-container {
+	display: none;
+}
+
+.settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
 }
 
@@ -134,6 +138,7 @@
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
+	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
 	border-spacing: 0;
 	border-collapse: separate;
 	position: relative;

@@ -33,7 +33,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -76,6 +76,7 @@ export class SettingsEditor2 extends BaseEditor {
 	private searchResultModel: SearchResultModel;
 
 	private firstRowFocused: IContextKey<boolean>;
+	private rowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
@@ -101,6 +102,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.inSettingsEditorContextKey = CONTEXT_SETTINGS_EDITOR.bindTo(contextKeyService);
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.firstRowFocused = CONTEXT_SETTINGS_FIRST_ROW_FOCUS.bindTo(contextKeyService);
+		this.rowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate();
@@ -133,7 +135,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.searchWidget.layout(dimension);
-		this.layoutSettingsList(dimension);
+		this.layoutTrees(dimension);
+
+		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
 	}
 
 	focus(): void {
@@ -359,12 +363,19 @@ export class SettingsEditor2 extends BaseEditor {
 			this.selectedElement = e.focus;
 		}));
 
+		this._register(this.settingsTree.onDidBlur(() => {
+			this.rowFocused.set(false);
+			this.firstRowFocused.set(false);
+		}));
+
 		this._register(this.settingsTree.onDidChangeSelection(e => {
 			this.updateTreeScrollSync();
 
 			let firstRowFocused = false;
+			let rowFocused = false;
 			const selection: SettingsTreeElement = e.selection[0];
 			if (selection) {
+				rowFocused = true;
 				if (this.searchResultModel) {
 					firstRowFocused = selection.id === this.searchResultModel.getChildren()[0].id;
 				} else {
@@ -373,6 +384,7 @@ export class SettingsEditor2 extends BaseEditor {
 				}
 			}
 
+			this.rowFocused.set(rowFocused);
 			this.firstRowFocused.set(firstRowFocused);
 		}));
 
@@ -760,7 +772,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private layoutSettingsList(dimension: DOM.Dimension): void {
+	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);
