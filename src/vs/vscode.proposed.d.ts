@@ -399,7 +399,7 @@ declare module 'vscode' {
 		 * };
 		 * ```
 		 */
-		dimensions: TerminalDimensions;
+		dimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The maximum dimensions of the terminal, this will be undefined immediately after a
@@ -407,7 +407,7 @@ declare module 'vscode' {
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
 		 */
-		readonly maximumDimensions: TerminalDimensions;
+		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
