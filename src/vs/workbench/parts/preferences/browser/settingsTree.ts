@@ -772,7 +772,6 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements IFilter {
 	constructor(
 		private viewState: ISettingsEditorViewState,
-		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
@@ -808,13 +807,12 @@ export class SettingsTreeFilter implements IFilter {
 	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {
 		for (let child of element.children) {
 			if (child instanceof SettingsTreeSettingElement) {
-				const { isConfigured } = inspectSetting(child.setting.key, this.viewState.settingsTarget, this.configurationService);
-				if (isConfigured) {
+				if (child.isConfigured) {
 					return true;
 				}
-			} else {
-				if (child instanceof SettingsTreeGroupElement) {
-					return this.groupHasConfiguredSetting(child);
+			} else if (child instanceof SettingsTreeGroupElement) {
+				if (this.groupHasConfiguredSetting(child)) {
+					return true;
 				}
 			}
 		}
