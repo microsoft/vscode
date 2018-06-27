@@ -291,8 +291,7 @@
 		},
 		{
 			"scope": [
-				"support.type.property-name.json",
-				"support.type.property-name.jsonc"
+				"support.type.property-name.json"
 			],
 			"settings": {
 				"foreground": "#0451a5"
