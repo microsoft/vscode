@@ -34,6 +34,7 @@ export class MainThreadTreeViews extends Disposable implements MainThreadTreeVie
 		if (viewer) {
 			viewer.dataProvider = dataProvider;
 			this.registerListeners(treeViewId, viewer);
+			this._proxy.$setVisible(treeViewId, viewer.visible);
 		} else {
 			this.notificationService.error('No view is registered with id: ' + treeViewId);
 		}
