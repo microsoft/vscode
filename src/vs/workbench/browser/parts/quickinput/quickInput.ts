@@ -41,6 +41,7 @@ import { Action } from 'vs/base/common/actions';
 import URI from 'vs/base/common/uri';
 import { IdGenerator } from 'vs/base/common/idGenerator';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
+import { equals } from 'vs/base/common/arrays';
 
 const $ = dom.$;
 
@@ -289,9 +290,11 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 	private _matchOnDetail = false;
 	private _activeItems: T[] = [];
 	private activeItemsUpdated = false;
+	private activeItemsToConfirm: T[] = [];
 	private onDidChangeActiveEmitter = new Emitter<T[]>();
 	private _selectedItems: T[] = [];
 	private selectedItemsUpdated = false;
+	private selectedItemsToConfirm: T[] = [];
 	private onDidChangeSelectionEmitter = new Emitter<T[]>();
 	private quickNavigate = false;
 
@@ -429,8 +432,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					if (this.activeItemsUpdated) {
 						return; // Expect another event.
 					}
-					// Drop initial event.
-					if (!focusedItems.length && !this._activeItems.length) {
+					if (this.activeItemsToConfirm !== this._activeItems && equals(focusedItems, this._activeItems, (a, b) => a === b)) {
 						return;
 					}
 					this._activeItems = focusedItems as T[];
@@ -440,8 +442,7 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 					if (this.canSelectMany) {
 						return;
 					}
-					// Drop initial event.
-					if (!selectedItems.length && !this._selectedItems.length) {
+					if (this.selectedItemsToConfirm !== this._selectedItems && equals(selectedItems, this._selectedItems, (a, b) => a === b)) {
 						return;
 					}
 					this._selectedItems = selectedItems as T[];
@@ -450,6 +451,9 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 				}),
 				this.ui.list.onChangedCheckedElements(checkedItems => {
 					if (!this.canSelectMany) {
+						return;
+					}
+					if (this.selectedItemsToConfirm !== this._selectedItems && equals(checkedItems, this._selectedItems, (a, b) => a === b)) {
 						return;
 					}
 					this._selectedItems = checkedItems as T[];
@@ -490,14 +494,22 @@ class QuickPick<T extends IQuickPickItem> extends QuickInput implements IQuickPi
 		}
 		if (this.activeItemsUpdated) {
 			this.activeItemsUpdated = false;
+			this.activeItemsToConfirm = this._activeItems;
 			this.ui.list.setFocusedElements(this.activeItems);
+			if (this.activeItemsToConfirm === this._activeItems) {
+				this.activeItemsToConfirm = null;
+			}
 		}
 		if (this.selectedItemsUpdated) {
 			this.selectedItemsUpdated = false;
+			this.selectedItemsToConfirm = this._selectedItems;
 			if (this.canSelectMany) {
 				this.ui.list.setCheckedElements(this.selectedItems);
 			} else {
 				this.ui.list.setSelectedElements(this.selectedItems);
+			}
+			if (this.selectedItemsToConfirm === this._selectedItems) {
+				this.selectedItemsToConfirm = null;
 			}
 		}
 		this.ui.list.matchOnDescription = this.matchOnDescription;
