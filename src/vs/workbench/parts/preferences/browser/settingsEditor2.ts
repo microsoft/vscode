@@ -135,7 +135,9 @@ export class SettingsEditor2 extends BaseEditor {
 
 	layout(dimension: DOM.Dimension): void {
 		this.searchWidget.layout(dimension);
-		this.layoutSettingsList(dimension);
+		this.layoutTrees(dimension);
+
+		DOM.toggleClass(this.rootElement, 'narrow', dimension.width < 600);
 	}
 
 	focus(): void {
@@ -770,7 +772,7 @@ export class SettingsEditor2 extends BaseEditor {
 			});
 	}
 
-	private layoutSettingsList(dimension: DOM.Dimension): void {
+	private layoutTrees(dimension: DOM.Dimension): void {
 		const listHeight = dimension.height - (DOM.getDomNodePagePosition(this.headerContainer).height + 12 /*padding*/);
 		this.settingsTreeContainer.style.height = `${listHeight}px`;
 		this.settingsTree.layout(listHeight, 800);

@@ -118,7 +118,11 @@
 	display: none;
 }
 
-.search-mode .settings-toc-container {
+.settings-editor.search-mode .settings-toc-container {
+	display: none;
+}
+
+.settings-editor.narrow > .settings-body .settings-toc-container {
 	display: none;
 }
 
