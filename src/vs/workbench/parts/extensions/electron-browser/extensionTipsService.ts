@@ -214,7 +214,7 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 			reasonText: localize('fileBasedRecommendation', "This extension is recommended based on the files you recently opened.")
 		});
 
-		this._allWorkspaceRecommendedExtensions.forEach(rec => output[rec.extensionId.toLowerCase()] = {
+		this._allWorkspaceRecommendedExtensions.forEach(({ extensionId }) => output[extensionId.toLowerCase()] = {
 			reasonId: ExtensionRecommendationReason.Workspace,
 			reasonText: localize('workspaceRecommendation', "This extension is recommended by users of the current workspace.")
 		});
