@@ -731,10 +731,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 	//#region Part
 
-	get minimumWidth(): number { return this.gridWidget ? this.gridWidget.minimumWidth : 0; }
-	get maximumWidth(): number { return this.gridWidget ? this.gridWidget.maximumWidth : Number.POSITIVE_INFINITY; }
-	get minimumHeight(): number { return this.gridWidget ? this.gridWidget.minimumHeight : 0; }
-	get maximumHeight(): number { return this.gridWidget ? this.gridWidget.maximumHeight : Number.POSITIVE_INFINITY; }
+	get minimumWidth(): number { return this.centeredLayoutWidget.minimumWidth; }
+	get maximumWidth(): number { return this.centeredLayoutWidget.maximumWidth; }
+	get minimumHeight(): number { return this.centeredLayoutWidget.minimumHeight; }
+	get maximumHeight(): number { return this.centeredLayoutWidget.maximumHeight; }
 
 	get preferredSize(): Dimension {
 		if (!this._preferredSize) {
