@@ -335,11 +335,12 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			dom.addClass(data.breakpoint, 'disabled');
-			if (breakpoint.message) {
-				data.breakpoint.title = breakpoint.message;
-			}
-		} else if (breakpoint.condition || breakpoint.hitCondition) {
+		}
+
+		if (breakpoint.condition || breakpoint.hitCondition) {
 			data.breakpoint.title = breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition;
+		} else {
+			data.breakpoint.title = breakpoint.message || '';
 		}
 	}
 
