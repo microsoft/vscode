@@ -74,7 +74,7 @@ function buildWin32Setup(arch, target) {
 			DirName: product.win32DirName,
 			Version: pkg.version,
 			RawVersion: pkg.version.replace(/-\w+$/, ''),
-			NameVersion: product.win32NameVersion,
+			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
