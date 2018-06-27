@@ -573,7 +573,7 @@ class InputBox extends QuickInput implements IInputBox {
 
 	private _value = '';
 	private _valueSelection: Readonly<[number, number]>;
-	private valueSelectionUpdated = false;
+	private valueSelectionUpdated = true;
 	private _placeholder: string;
 	private _password = false;
 	private _prompt: string;
@@ -674,9 +674,7 @@ class InputBox extends QuickInput implements IInputBox {
 		}
 		if (this.valueSelectionUpdated) {
 			this.valueSelectionUpdated = false;
-			this.ui.inputBox.select(this._valueSelection ?
-				{ start: this._valueSelection[0], end: this._valueSelection[1] } :
-				{ start: this.ui.inputBox.value.length, end: this.ui.inputBox.value.length });
+			this.ui.inputBox.select(this._valueSelection && { start: this._valueSelection[0], end: this._valueSelection[1] });
 		}
 		if (this.ui.inputBox.placeholder !== (this.placeholder || '')) {
 			this.ui.inputBox.placeholder = (this.placeholder || '');
