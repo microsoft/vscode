@@ -271,13 +271,13 @@ export class SearchWidget extends Widget {
 		this.searchInput.setCaseSensitive(!!options.isCaseSensitive);
 		this.searchInput.setWholeWords(!!options.isWholeWords);
 		this._register(this.onSearchSubmit(() => {
-			this.searchInput.inputBox.addToHistory(this.searchInput.getValue());
+			this.searchInput.inputBox.addToHistory();
 		}));
 		this.searchInput.onCaseSensitiveKeyDown((keyboardEvent: IKeyboardEvent) => this.onCaseSensitiveKeyDown(keyboardEvent));
 		this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent));
 
 		this._register(this.onReplaceValueChanged(() => {
-			this._replaceHistoryDelayer.trigger(() => this.replaceInput.addToHistory(this.replaceInput.value));
+			this._replaceHistoryDelayer.trigger(() => this.replaceInput.addToHistory());
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
@@ -288,7 +288,7 @@ export class SearchWidget extends Widget {
 			if (!this.ignoreGlobalFindBufferOnNextFocus && useGlobalFindBuffer) {
 				const globalBufferText = this.clipboardServce.readFindText();
 				if (this.previousGlobalFindBufferValue !== globalBufferText) {
-					this.searchInput.inputBox.addToHistory(this.searchInput.getValue());
+					this.searchInput.inputBox.addToHistory();
 					this.searchInput.setValue(globalBufferText);
 					this.searchInput.select();
 				}
