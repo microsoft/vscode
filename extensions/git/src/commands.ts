@@ -1445,6 +1445,32 @@ export class CommandCenter {
 		await repository.pushTo(pick.label, branchName);
 	}
 
+	@command('git.pushForce', { repository: true })
+	async pushForce(repository: Repository): Promise<void> {
+		const remotes = repository.remotes;
+
+		if (remotes.length === 0) {
+			window.showWarningMessage(localize('no remotes to push', "Your repository has no remotes configured to push to."));
+			return;
+		}
+
+		if (!repository.HEAD || !repository.HEAD.name) {
+			window.showWarningMessage(localize('nobranch', "Please check out a branch to push to a remote."));
+			return;
+		}
+
+		const branchName = repository.HEAD.name;
+		const message = localize('confirm push (force)', "Are you sure you want to force push to '{0}'? This is dangerous and you should better know what you are doing!", branchName);
+		const yes = localize('ok-force-push', "OK (Force Push)");
+		const pick = await window.showWarningMessage(message, { modal: true }, yes);
+
+		if (pick !== yes) {
+			return;
+		}
+
+		await repository.pushForce(repository.HEAD);
+	}
+
 	private async _sync(repository: Repository, rebase: boolean): Promise<void> {
 		const HEAD = repository.HEAD;
 

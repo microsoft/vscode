@@ -40,6 +40,7 @@
 	"command.push": "Push",
 	"command.pushTo": "Push to...",
 	"command.pushWithTags": "Push With Tags",
+	"command.pushForce": "Push (Force)",
 	"command.sync": "Sync",
 	"command.syncRebase": "Sync (Rebase)",
 	"command.publish": "Publish Branch",
