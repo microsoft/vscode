@@ -307,14 +307,19 @@ export class ExtensionEditor extends BaseEditor {
 		this.description.textContent = extension.description;
 
 		removeClass(this.header, 'recommendation-ignored');
+		removeClass(this.header, 'recommended');
+
 		const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 		let recommendationsData = {};
 		if (extRecommendations[extension.id.toLowerCase()]) {
 			addClass(this.header, 'recommended');
 			this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
 			recommendationsData = { recommendationReason: extRecommendations[extension.id.toLowerCase()].reasonId };
-		} else {
-			removeClass(this.header, 'recommended');
+		} else if (this.extensionTipsService.getAllIgnoredRecommendations().global.indexOf(extension.id.toLowerCase()) !== -1) {
+			addClass(this.header, 'recommendation-ignored');
+			this.recommendationText.textContent = localize('recommendationHasBeenIgnored', "You have chosen not to receive recommendations for this extension.");
+		}
+		else {
 			this.recommendationText.textContent = '';
 		}
 
