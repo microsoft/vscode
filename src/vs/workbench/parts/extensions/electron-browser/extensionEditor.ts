@@ -401,9 +401,9 @@ export class ExtensionEditor extends BaseEditor {
 		this.extensionTipsService.onRecommendationChange(change => {
 			if (change.extensionId.toLowerCase() === extension.id.toLowerCase()) {
 				if (change.isRecommended) {
+					removeClass(this.header, 'recommendation-ignored');
 					const extRecommendations = this.extensionTipsService.getAllRecommendationsWithReason();
 					if (extRecommendations[extension.id.toLowerCase()]) {
-						removeClass(this.header, 'recommendation-ignored');
 						addClass(this.header, 'recommended');
 						this.recommendationText.textContent = extRecommendations[extension.id.toLowerCase()].reasonText;
 					}
