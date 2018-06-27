@@ -330,17 +330,11 @@ class BreakpointsRenderer implements IRenderer<IBreakpoint, IBreakpointTemplateD
 
 		const { message, className } = getBreakpointMessageAndClassName(this.debugService, this.textFileService, breakpoint);
 		data.icon.className = className + ' icon';
-		data.icon.title = message ? message : '';
+		data.breakpoint.title = breakpoint.message || message || '';
 
 		const debugActive = this.debugService.state === State.Running || this.debugService.state === State.Stopped;
 		if (debugActive && !breakpoint.verified) {
 			dom.addClass(data.breakpoint, 'disabled');
-		}
-
-		if (breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage) {
-			data.breakpoint.title = breakpoint.condition || breakpoint.hitCondition || breakpoint.logMessage;
-		} else {
-			data.breakpoint.title = breakpoint.message || '';
 		}
 	}
 
@@ -593,21 +587,20 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 		};
 	}
 
-	if (breakpoint.logMessage) {
-		if (session && !session.raw.capabilities.supportsLogPoints) {
-			return {
-				className: 'debug-breakpoint-unsupported',
-				message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
-			};
+
+	if (breakpoint.logMessage || breakpoint.condition || breakpoint.hitCondition) {
+		const messages = [];
+		if (breakpoint.logMessage) {
+			if (session && !session.raw.capabilities.supportsLogPoints) {
+				return {
+					className: 'debug-breakpoint-unsupported',
+					message: nls.localize('logBreakpointUnsupported', "Logpoints not supported by this debug type"),
+				};
+			}
+
+			messages.push(nls.localize('logMessage', "Log Message: {0}", breakpoint.logMessage));
 		}
 
-		return {
-			className: 'debug-breakpoint-log',
-			message: appendMessage(breakpoint.logMessage)
-		};
-	}
-
-	if (breakpoint.condition || breakpoint.hitCondition) {
 		if (session && breakpoint.condition && !session.raw.capabilities.supportsConditionalBreakpoints) {
 			return {
 				className: 'debug-breakpoint-unsupported',
@@ -621,16 +614,16 @@ export function getBreakpointMessageAndClassName(debugService: IDebugService, te
 			};
 		}
 
-		if (breakpoint.condition && breakpoint.hitCondition) {
-			return {
-				className: 'debug-breakpoint-conditional',
-				message: appendMessage(`Expression: ${breakpoint.condition}\nHitCount: ${breakpoint.hitCondition}`)
-			};
+		if (breakpoint.condition) {
+			messages.push(nls.localize('expression', "Expression: {0}", breakpoint.condition));
+		}
+		if (breakpoint.hitCondition) {
+			messages.push(nls.localize('hitCount', "Hit Count: {0}", breakpoint.hitCondition));
 		}
 
 		return {
-			className: 'debug-breakpoint-conditional',
-			message: appendMessage(breakpoint.condition ? breakpoint.condition : breakpoint.hitCondition)
+			className: breakpoint.logMessage ? 'debug-breakpoint-log' : 'debug-breakpoint-conditional',
+			message: appendMessage(messages.join('\n'))
 		};
 	}
 
