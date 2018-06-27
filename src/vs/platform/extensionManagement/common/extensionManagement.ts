@@ -410,8 +410,8 @@ export interface IExtensionTipsService {
 	getKeymapRecommendations(): IExtensionRecommendation[];
 	getAllRecommendations(): TPromise<IExtensionRecommendation[]>;
 	getKeywordsForExtension(extension: string): string[];
-	getRecommendationsForExtension(extension: string): string[];
 	toggleIgnoredRecommendation(extensionId: string, shouldIgnore: boolean): void;
+	getAllIgnoredRecommendations(): { global: string[], workspace: string[] };
 	onRecommendationChange: Event<RecommendationChangeNotification>;
 }
 
