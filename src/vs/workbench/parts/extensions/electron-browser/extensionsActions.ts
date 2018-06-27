@@ -820,20 +820,22 @@ export class ManageExtensionAction extends Action {
 	}
 
 	private createMenuActionGroups(): IAction[][] {
-		return [
-			[
-				this.instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
-				this.instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
-			],
-			[
-				this.instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
-				this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
-			],
-			this.extensionManagmentServerService.extensionManagementServers.length > 1 ? [this.instantiationService.createInstance(MultiServerInstallSubMenuAction)] : [],
-			[
-				this.extensionManagmentServerService.extensionManagementServers.length > 1 ? this.instantiationService.createInstance(MultiServerUnInstallSubMenuAction) : this.instantiationService.createInstance(UninstallAction)
-			]
-		];
+		const groups: IAction[][] = [];
+		groups.push([
+			this.instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
+			this.instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
+		]);
+		groups.push([
+			this.instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
+			this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
+		]);
+		if (this.extensionManagmentServerService.extensionManagementServers.length > 1) {
+			groups.push([this.instantiationService.createInstance(MultiServerInstallSubMenuAction)]);
+			groups.push([this.instantiationService.createInstance(MultiServerUnInstallSubMenuAction)]);
+		} else {
+			groups.push([this.instantiationService.createInstance(UninstallAction)]);
+		}
+		return groups;
 	}
 
 	private update(): void {
