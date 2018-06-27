@@ -778,6 +778,19 @@ export class Repository implements Disposable {
 		await this.run(Operation.Push, () => this.repository.push(remote, branch));
 	}
 
+	@throttle
+	async pushForce(head: Branch): Promise<void> {
+		let remote: string | undefined;
+		let branch: string | undefined;
+
+		if (head && head.name && head.upstream) {
+			remote = head.upstream.remote;
+			branch = `${head.name}:${head.upstream.name}`;
+		}
+
+		await this.run(Operation.Push, () => this.repository.push(remote, branch, false, false, true));
+	}
+
 	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
 		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
 	}
