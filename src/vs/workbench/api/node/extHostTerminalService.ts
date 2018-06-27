@@ -214,6 +214,9 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	}
 
 	public _setMaximumDimensions(columns: number, rows: number): void {
+		if (this._maximumDimensions && this._maximumDimensions.columns === columns && this._maximumDimensions.rows === rows) {
+			return;
+		}
 		this._maximumDimensions = { columns, rows };
 		this._onDidChangeMaximumDimensions.fire(this.maximumDimensions);
 	}
