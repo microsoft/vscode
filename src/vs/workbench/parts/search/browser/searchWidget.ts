@@ -32,6 +32,7 @@ import { IConfigurationService } from 'vs/platform/configuration/common/configur
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { ISearchConfigurationProperties } from 'vs/platform/search/common/search';
 import { ContextScopedFindInput, ContextScopedHistoryInputBox } from 'vs/platform/widget/browser/contextScopedHistoryWidget';
+import { Delayer } from 'vs/base/common/async';
 
 export interface ISearchWidgetOptions {
 	value?: string;
@@ -94,6 +95,7 @@ export class SearchWidget extends Widget {
 	private replaceActionBar: ActionBar;
 	public replaceInputFocusTracker: dom.IFocusTracker;
 	private replaceInputBoxFocused: IContextKey<boolean>;
+	private _replaceHistoryDelayer: Delayer<void>;
 
 	private ignoreGlobalFindBufferOnNextFocus = false;
 	private previousGlobalFindBufferValue: string;
@@ -133,6 +135,7 @@ export class SearchWidget extends Widget {
 		this.replaceActive = Constants.ReplaceActiveKey.bindTo(this.contextKeyService);
 		this.searchInputBoxFocused = Constants.SearchInputBoxFocusedKey.bindTo(this.contextKeyService);
 		this.replaceInputBoxFocused = Constants.ReplaceInputBoxFocusedKey.bindTo(this.contextKeyService);
+		this._replaceHistoryDelayer = new Delayer<void>(500);
 		this.render(container, options);
 	}
 
@@ -274,7 +277,7 @@ export class SearchWidget extends Widget {
 		this.searchInput.onRegexKeyDown((keyboardEvent: IKeyboardEvent) => this.onRegexKeyDown(keyboardEvent));
 
 		this._register(this.onReplaceValueChanged(() => {
-			this.replaceInput.addToHistory(this.replaceInput.value);
+			this._replaceHistoryDelayer.trigger(() => this.replaceInput.addToHistory(this.replaceInput.value));
 		}));
 
 		this.searchInputFocusTracker = this._register(dom.trackFocus(this.searchInput.inputBox.inputElement));
