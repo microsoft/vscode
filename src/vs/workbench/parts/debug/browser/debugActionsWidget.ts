@@ -235,6 +235,7 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 
 	private show(): void {
 		if (this.isVisible) {
+			this.setCoordinates();
 			return;
 		}
 		if (!this.isBuilt) {
