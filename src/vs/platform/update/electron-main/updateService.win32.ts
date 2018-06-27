@@ -85,7 +85,9 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-x64';
 		}
 
-		if (product.target === 'user') {
+		if (this.updateType === UpdateType.Manual) {
+			platform += '-archive';
+		} else if (product.target === 'user') {
 			platform += '-user';
 		}
 
@@ -169,14 +171,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 	}
 
 	protected doDownloadUpdate(state: AvailableForDownload): TPromise<void> {
-		// Use the download URL if available as we don't currently detect the package type that was
-		// installed and the website download page is more useful than the tarball generally.
-		if (product.downloadUrl && product.downloadUrl.length > 0) {
-			shell.openExternal(product.downloadUrl);
-		} else {
-			shell.openExternal(state.update.url);
-		}
-
+		shell.openExternal(state.update.url);
 		this.setState(State.Idle);
 		return TPromise.as(null);
 	}
