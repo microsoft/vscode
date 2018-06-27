@@ -412,7 +412,10 @@ export class EditorPart extends Part implements EditorGroupsServiceImpl, IEditor
 
 		// Prepare grid descriptor to create new grid from
 		const gridDescriptor = createSerializedGrid({
-			orientation: this.toGridViewOrientation(layout.orientation, this.gridWidget.orientation),
+			orientation: this.toGridViewOrientation(
+				layout.orientation,
+				(this.gridWidget.orientation === Orientation.VERTICAL) ? Orientation.HORIZONTAL : Orientation.VERTICAL // fix https://github.com/Microsoft/vscode/issues/52975
+			),
 			groups: layout.groups
 		});
 
