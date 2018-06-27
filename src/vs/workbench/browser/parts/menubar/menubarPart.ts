@@ -86,6 +86,7 @@ export class MenubarPart extends Part {
 
 	private actionRunner: IActionRunner;
 	private container: Builder;
+	private _modifierKeyStatus: IModifierKeyStatus;
 	private _isFocused: boolean;
 	private _onVisibilityChange: Emitter<Dimension>;
 
@@ -227,14 +228,17 @@ export class MenubarPart extends Part {
 		this.container.style('visibility', null);
 	}
 
-	private onAltKeyToggled(altKeyDown: boolean): void {
+	private onModifierKeyToggled(modiferKeyStatus: IModifierKeyStatus): void {
 		if (this.currentMenubarVisibility === 'toggle') {
-			if (altKeyDown) {
+			const altKeyPressed = (!this._modifierKeyStatus || !this._modifierKeyStatus.altKey) && modiferKeyStatus.altKey;
+			if (altKeyPressed && !modiferKeyStatus.ctrlKey && !modiferKeyStatus.shiftKey) {
 				this.showMenubar();
 			} else if (!this.isFocused) {
 				this.hideMenubar();
 			}
 		}
+
+		this._modifierKeyStatus = modiferKeyStatus;
 
 		if (this.currentEnableMenuBarMnemonics && this.customMenus) {
 			this.customMenus.forEach(customMenu => {
@@ -242,7 +246,7 @@ export class MenubarPart extends Part {
 				if (child) {
 					let grandChild = child.child();
 					if (grandChild) {
-						grandChild.style('text-decoration', altKeyDown ? 'underline' : null);
+						grandChild.style('text-decoration', modiferKeyStatus.altKey ? 'underline' : null);
 					}
 				}
 			});
@@ -261,7 +265,7 @@ export class MenubarPart extends Part {
 		// Listen to keybindings change
 		this.keybindingService.onDidUpdateKeybindings(() => this.setupMenubar());
 
-		AlternativeKeyEmitter.getInstance().event(this.onAltKeyToggled, this);
+		ModifierKeyEmitter.getInstance().event(this.onModifierKeyToggled, this);
 	}
 
 	private setupMenubar(): void {
@@ -398,6 +402,10 @@ export class MenubarPart extends Part {
 			updateActions(menu, this.customMenus[menuIndex].actions);
 
 			this.customMenus[menuIndex].titleElement.on(EventType.CLICK, (event) => {
+				if (this._modifierKeyStatus && (this._modifierKeyStatus.shiftKey || this._modifierKeyStatus.ctrlKey)) {
+					return; // supress keyboard shortcuts that shouldn't conflict
+				}
+
 				this.toggleCustomMenu(menuIndex);
 				this.isFocused = !this.isFocused;
 			});
@@ -684,65 +692,82 @@ export class MenubarPart extends Part {
 	}
 }
 
-class AlternativeKeyEmitter extends Emitter<boolean> {
+interface IModifierKeyStatus {
+	altKey: boolean;
+	shiftKey: boolean;
+	ctrlKey: boolean;
+}
+
+class ModifierKeyEmitter extends Emitter<IModifierKeyStatus> {
 
 	private _subscriptions: IDisposable[] = [];
-	private _isPressed: boolean;
-	private static instance: AlternativeKeyEmitter;
-	private _suppressAltKeyUp: boolean = false;
+	private _isPressed: IModifierKeyStatus;
+	private static instance: ModifierKeyEmitter;
 
 	private constructor() {
 		super();
 
+		this._isPressed = {
+			altKey: false,
+			shiftKey: false,
+			ctrlKey: false
+		};
+
 		this._subscriptions.push(domEvent(document.body, 'keydown')(e => {
-			if (e.altKey) {
-				this.isPressed = true;
+			if (e.altKey || e.shiftKey || e.ctrlKey) {
+				this.isPressed = {
+					altKey: e.altKey,
+					ctrlKey: e.ctrlKey,
+					shiftKey: e.shiftKey
+				};
 			}
 		}));
 		this._subscriptions.push(domEvent(document.body, 'keyup')(e => {
-			if (this.isPressed && !e.altKey) {
-				if (this._suppressAltKeyUp) {
-					e.preventDefault();
-				}
+			if ((!e.altKey && this.isPressed.altKey) ||
+				(!e.shiftKey && this.isPressed.shiftKey) ||
+				(!e.ctrlKey && this.isPressed.ctrlKey)
+			) {
 
-				this._suppressAltKeyUp = false;
-				this.isPressed = false;
-			}
-		}));
-		this._subscriptions.push(domEvent(document.body, 'mouseleave')(e => {
-			if (this.isPressed) {
-				this.isPressed = false;
+				this.isPressed = {
+					altKey: e.altKey,
+					shiftKey: e.shiftKey,
+					ctrlKey: e.ctrlKey
+				};
 			}
 		}));
 
 		this._subscriptions.push(domEvent(document.body, 'blur')(e => {
-			if (this.isPressed) {
-				this.isPressed = false;
+			if (this.isPressed.altKey || this.isPressed.shiftKey || this.isPressed.ctrlKey) {
+				this.isPressed = {
+					altKey: false,
+					shiftKey: false,
+					ctrlKey: false
+				};
 			}
 		}));
 	}
 
-	get isPressed(): boolean {
+	get isPressed(): IModifierKeyStatus {
 		return this._isPressed;
 	}
 
-	set isPressed(value: boolean) {
+	set isPressed(value: IModifierKeyStatus) {
+		if (this._isPressed.altKey === value.altKey &&
+			this._isPressed.shiftKey === value.shiftKey &&
+			this._isPressed.ctrlKey === value.ctrlKey) {
+			return;
+		}
+
 		this._isPressed = value;
 		this.fire(this._isPressed);
 	}
 
-	suppressAltKeyUp() {
-		// Sometimes the native alt behavior needs to be suppresed since the alt was already used as an alternative key
-		// Example: windows behavior to toggle tha top level menu #44396
-		this._suppressAltKeyUp = true;
-	}
-
 	static getInstance() {
-		if (!AlternativeKeyEmitter.instance) {
-			AlternativeKeyEmitter.instance = new AlternativeKeyEmitter();
+		if (!ModifierKeyEmitter.instance) {
+			ModifierKeyEmitter.instance = new ModifierKeyEmitter();
 		}
 
-		return AlternativeKeyEmitter.instance;
+		return ModifierKeyEmitter.instance;
 	}
 
 	dispose() {
