@@ -34,7 +34,6 @@ import { IDisposable } from 'vs/base/common/lifecycle';
 
 const DEBUG_ACTIONS_WIDGET_POSITION_KEY = 'debug.actionswidgetposition';
 const DEBUG_ACTIONS_WIDGET_Y_KEY = 'debug.actionswidgety';
-const HEIGHT = 32;
 
 export const debugToolBarBackground = registerColor('debugToolBar.background', {
 	dark: '#333333',
@@ -220,10 +219,11 @@ export class DebugActionsWidget extends Themable implements IWorkbenchContributi
 		if (y === undefined) {
 			y = this.storageService.getInteger(DEBUG_ACTIONS_WIDGET_Y_KEY, StorageScope.GLOBAL, 0);
 		}
-		if ((y < HEIGHT / 2) || (y > HEIGHT + HEIGHT / 2)) {
-			const moveToTop = y < HEIGHT;
-			this.setYCoordinate(moveToTop ? 0 : HEIGHT);
-			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * HEIGHT, StorageScope.GLOBAL);
+		const titleAreaHeight = 35;
+		if ((y < titleAreaHeight / 2) || (y > titleAreaHeight + titleAreaHeight / 2)) {
+			const moveToTop = y < titleAreaHeight;
+			this.setYCoordinate(moveToTop ? 0 : titleAreaHeight);
+			this.storageService.store(DEBUG_ACTIONS_WIDGET_Y_KEY, moveToTop ? 0 : 2 * titleAreaHeight, StorageScope.GLOBAL);
 		}
 	}
 
