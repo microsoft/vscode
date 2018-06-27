@@ -78,6 +78,10 @@
 	padding: 0.5em 1em;
 }
 
+.monaco-shell .monaco-menu .action-item {
+	cursor: default;
+}
+
 /* START Keyboard Focus Indication Styles */
 
 .monaco-shell [tabindex="0"]:focus,
