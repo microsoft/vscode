@@ -971,27 +971,33 @@ export class QuickInputService extends Component implements IQuickInputService {
 			const input = this.createInputBox();
 			const validateInput = options.validateInput || (() => TPromise.as(undefined));
 			const onDidValueChange = debounceEvent(input.onDidChangeValue, (last, cur) => cur, 100);
-			let validationValue: string;
-			let validation = TPromise.as('');
+			let validationValue = options.value || '';
+			let validation = TPromise.wrap(validateInput(validationValue));
 			const disposables = [
 				input,
 				onDidValueChange(value => {
 					if (value !== validationValue) {
 						validation = TPromise.wrap(validateInput(value));
+						validationValue = value;
 					}
 					validation.then(result => {
-						input.validationMessage = result;
+						if (value === validationValue) {
+							input.validationMessage = result;
+						}
 					});
 				}),
 				input.onDidAccept(() => {
 					const value = input.value;
 					if (value !== validationValue) {
 						validation = TPromise.wrap(validateInput(value));
+						validationValue = value;
 					}
 					validation.then(result => {
 						if (!result) {
 							resolve(value);
 							input.hide();
+						} else if (value === validationValue) {
+							input.validationMessage = result;
 						}
 					});
 				}),
