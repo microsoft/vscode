@@ -225,10 +225,6 @@ export function registerCommands(): void {
 		id: INLINE_BREAKPOINT_COMMAND_ID,
 		handler: inlineBreakpointHandler
 	});
-	CommandsRegistry.registerCommand({
-		id: 'editor.debug.action.toggleColumnBreakpoint',
-		handler: inlineBreakpointHandler
-	});
 
 	MenuRegistry.appendMenuItem(MenuId.CommandPalette, {
 		command: {
