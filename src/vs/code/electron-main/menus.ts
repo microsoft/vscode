@@ -658,7 +658,7 @@ export class CodeMenu {
 		// Panels
 		const output = this.createMenuItem(nls.localize({ key: 'miToggleOutput', comment: ['&& denotes a mnemonic'] }, "&&Output"), 'workbench.action.output.toggleOutput');
 		const debugConsole = this.createMenuItem(nls.localize({ key: 'miToggleDebugConsole', comment: ['&& denotes a mnemonic'] }, "De&&bug Console"), 'workbench.debug.action.toggleRepl');
-		const integratedTerminal = this.createMenuItem(nls.localize({ key: 'miToggleIntegratedTerminal', comment: ['&& denotes a mnemonic'] }, "&&Integrated Terminal"), 'workbench.action.terminal.toggleTerminal');
+		const terminal = this.createMenuItem(nls.localize({ key: 'miToggleTerminal', comment: ['&& denotes a mnemonic'] }, "&&Terminal"), 'workbench.action.terminal.toggleTerminal');
 		const problems = this.createMenuItem(nls.localize({ key: 'miMarker', comment: ['&& denotes a mnemonic'] }, "&&Problems"), 'workbench.actions.view.problems');
 
 		const fullscreen = new MenuItem(this.withKeybinding('workbench.action.toggleFullScreen', { label: this.mnemonicLabel(nls.localize({ key: 'miToggleFullScreen', comment: ['&& denotes a mnemonic'] }, "Toggle &&Full Screen")), click: () => this.windowsMainService.getLastActiveWindow().toggleFullScreen(), enabled: this.windowsMainService.getWindowCount() > 0 }));
@@ -759,7 +759,7 @@ export class CodeMenu {
 			output,
 			problems,
 			debugConsole,
-			integratedTerminal,
+			terminal,
 			__separator__(),
 			fullscreen,
 			toggleZenMode,
