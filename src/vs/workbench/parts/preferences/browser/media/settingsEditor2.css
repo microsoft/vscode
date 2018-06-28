@@ -285,6 +285,10 @@
 	font-size: 20px;
 }
 
+.settings-editor > .settings-body > .settings-tree-container .settings-group-level-1.settings-group-first {
+	padding-top: 7px;
+}
+
 .settings-editor > .settings-body .settings-feedback-button {
 	color: rgb(255, 255, 255);
 	background-color: rgb(14, 99, 156);

@@ -70,6 +70,7 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
 	label: string;
 	level: number;
+	isFirstGroup: boolean;
 }
 
 export class SettingsTreeSettingElement extends SettingsTreeElement {
@@ -111,6 +112,8 @@ export class SettingsTreeModel {
 
 	update(newTocRoot = this._tocRoot): void {
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
+		(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
+
 		if (this._root) {
 			this._root.children = newRoot.children;
 		} else {
@@ -451,6 +454,10 @@ export class SettingsRenderer implements IRenderer {
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
+			if (element.isFirstGroup) {
+				return 31;
+			}
+
 			return 40 + (7 * element.level);
 		}
 
@@ -642,6 +649,10 @@ export class SettingsRenderer implements IRenderer {
 		const labelElement = DOM.append(template.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.level}`);
 		labelElement.textContent = (<SettingsTreeGroupElement>element).label;
+
+		if (element.isFirstGroup) {
+			labelElement.classList.add('settings-group-first');
+		}
 	}
 
 	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
