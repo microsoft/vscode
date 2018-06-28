@@ -276,18 +276,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const original = this._activeTerminal;
 		if (id === null) {
 			this._activeTerminal = undefined;
-		} else {
-			const terminal = this._getTerminalById(id);
-			if (terminal) {
-				this._activeTerminal = terminal;
+			if (original !== this._activeTerminal) {
+				this._onDidChangeActiveTerminal.fire(this._activeTerminal);
 			}
 		}
-		if (original !== this._activeTerminal) {
-			this._onDidChangeActiveTerminal.fire(this._activeTerminal);
-		}
+		this._performTerminalIdAction(id, terminal => {
+			if (terminal) {
+				this._activeTerminal = terminal;
+				if (original !== this._activeTerminal) {
+					this._onDidChangeActiveTerminal.fire(this._activeTerminal);
+				}
+			}
+		});
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
+		// TODO: Queue requests, currently the first 100ms of data may get missed
 		const terminal = this._getTerminalById(id);
 		if (terminal) {
 			terminal._fireOnData(data);
@@ -331,16 +335,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
-		let terminal = this._getTerminalById(id);
+		this._performTerminalIdAction(id, terminal => terminal._setProcessId(processId));
+	}
 
+	private _performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
+		let terminal = this._getTerminalById(id);
 		if (terminal) {
-			terminal._setProcessId(processId);
+			callback(terminal);
 		} else {
 			// Retry one more time in case the terminal has not yet been initialized.
 			setTimeout(() => {
 				terminal = this._getTerminalById(id);
 				if (terminal) {
-					terminal._setProcessId(processId);
+					callback(terminal);
 				}
 			}, EXT_HOST_CREATION_DELAY);
 		}
