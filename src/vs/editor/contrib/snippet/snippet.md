@@ -85,7 +85,6 @@ tabstop     ::= '$' int
                 | '${' int '}'
                 | '${' int  transform '}'
 placeholder ::= '${' int ':' any '}'
-                | '${' int ':' any transform '}'
 choice      ::= '${' int '|' text (',' text)* '|}'
                 | '${' int '|' text (',' text)* '|' transform '}'
 variable    ::= '$' var | '${' var }'

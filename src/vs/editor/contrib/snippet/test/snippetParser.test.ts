@@ -254,14 +254,6 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
 	});
 
-	test('Parser, placeholder with defaults and transformation', () => {
-		assertTextAndMarker('${1:value/foo/bar/}', 'value', Placeholder);
-		assertTextAndMarker('${1:bar${2:foo}bar/foo/bar/}', 'barfoobar', Placeholder);
-
-		// incomplete
-		assertTextAndMarker('${1:bar${2:foobar}/foo/bar/', '${1:barfoobar/foo/bar/', Text, Placeholder, Text);
-	});
-
 	test('Parser, placeholder with choice and transformation', () => {
 		assertTextAndMarker('${1|one,two,three|/foo/bar/}', 'one', Placeholder);
 		assertTextAndMarker('${1|one|/foo/bar/}', 'one', Placeholder);
@@ -408,32 +400,37 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, transform example', () => {
-		let marker = new SnippetParser().parse('${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
-		let childs = marker.children;
+		let { children } = new SnippetParser().parse('${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 
-		assert.ok(childs[0] instanceof Placeholder);
-		assert.equal(childs[0].children.length, 1);
-		assert.equal(childs[0].children[0].toString(), 'name');
-		assert.equal((<Placeholder>childs[0]).transform, undefined);
-		assert.ok(childs[1] instanceof Text);
-		assert.equal(childs[1].toString(), ' : ');
-		assert.ok(childs[2] instanceof Placeholder);
-		assert.equal(childs[2].children.length, 1);
-		assert.equal(childs[2].children[0].toString(), 'type');
-		assert.ok(childs[3] instanceof Placeholder);
-		assert.equal(childs[3].children.length, 1);
-		assert.equal(childs[3].children[0].toString(), ' :=');
-		assert.notEqual((<Placeholder>childs[3]).transform, undefined);
-		let t = (<Placeholder>childs[3]).transform;
-		assert.equal(t.regexp, '/\\s:=(.*)/');
-		assert.equal(t.children.length, 2);
-		assert.ok(t.children[0] instanceof FormatString);
-		assert.equal((<FormatString>t.children[0]).index, 1);
-		assert.equal((<FormatString>t.children[0]).ifValue, ' :=');
-		assert.ok(t.children[1] instanceof FormatString);
-		assert.equal((<FormatString>t.children[1]).index, 1);
-		assert.ok(childs[4] instanceof Text);
-		assert.equal(childs[4].toString(), ';\n');
+		//${1:name}
+		assert.ok(children[0] instanceof Placeholder);
+		assert.equal(children[0].children.length, 1);
+		assert.equal(children[0].children[0].toString(), 'name');
+		assert.equal((<Placeholder>children[0]).transform, undefined);
+
+		// :
+		assert.ok(children[1] instanceof Text);
+		assert.equal(children[1].toString(), ' : ');
+
+		//${2:type}
+		assert.ok(children[2] instanceof Placeholder);
+		assert.equal(children[2].children.length, 1);
+		assert.equal(children[2].children[0].toString(), 'type');
+
+		//${3/\\s:=(.*)/${1:+ :=}${1}/}
+		assert.ok(children[3] instanceof Placeholder);
+		assert.equal(children[3].children.length, 0);
+		assert.notEqual((<Placeholder>children[3]).transform, undefined);
+		let transform = (<Placeholder>children[3]).transform;
+		assert.equal(transform.regexp, '/\\s:=(.*)/');
+		assert.equal(transform.children.length, 2);
+		assert.ok(transform.children[0] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[0]).index, 1);
+		assert.equal((<FormatString>transform.children[0]).ifValue, ' :=');
+		assert.ok(transform.children[1] instanceof FormatString);
+		assert.equal((<FormatString>transform.children[1]).index, 1);
+		assert.ok(children[4] instanceof Text);
+		assert.equal(children[4].toString(), ';\n');
 
 	});
 
@@ -453,20 +450,6 @@ suite('SnippetParser', () => {
 	});
 
 	test('Parser, default placeholder values and one transform', () => {
-
-		assertMarker('errorContext: `${1:err/err/ok/}`, error: $1', Text, Placeholder, Text, Placeholder);
-
-		const [, p1, , p2] = new SnippetParser().parse('errorContext: `${1:err/err/ok/}`, error:$1').children;
-
-		assert.equal((<Placeholder>p1).index, '1');
-		assert.equal((<Placeholder>p1).children.length, '1');
-		assert.equal((<Text>(<Placeholder>p1).children[0]), 'err');
-		assert.notEqual((<Placeholder>p1).transform, undefined);
-
-		assert.equal((<Placeholder>p2).index, '1');
-		assert.equal((<Placeholder>p2).children.length, '1');
-		assert.equal((<Text>(<Placeholder>p2).children[0]), 'err');
-		assert.equal((<Placeholder>p2).transform, undefined);
 
 		assertMarker('errorContext: `${1:err}`, error: ${1/err/ok/}', Text, Placeholder, Text, Placeholder);
 
@@ -731,5 +714,9 @@ suite('SnippetParser', () => {
 	test('Snippet parser freeze #53144', function () {
 		let snippet = new SnippetParser().parse('${1/(void$)|(.+)/${1:?-\treturn nil;}/}');
 		assertMarker(snippet, Placeholder);
+	});
+
+	test('snippets variable not resolved in JSON proposal #52931', function () {
+		assertTextAndMarker('FOO${1:/bin/bash}', 'FOO/bin/bash', Text, Placeholder);
 	});
 });

@@ -472,7 +472,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -483,7 +483,7 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'std_logic' });
 		session.next();
 
-		assertSelections(editor, new Selection(1, 16, 1, 19));
+		assertSelections(editor, new Selection(1, 16, 1, 16));
 		session.next();
 
 		assert.equal(model.getValue(), 'clk : std_logic;\n');
@@ -534,7 +534,7 @@ suite('SnippetSession', function () {
 	test('snippets, transform example hit if', function () {
 		editor.getModel().setValue('');
 		editor.setSelection(new Selection(1, 1, 1, 1));
-		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3: :=/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
+		const session = new SnippetSession(editor, '${1:name} : ${2:type}${3/\\s:=(.*)/${1:+ :=}${1}/};\n$0');
 		session.insert();
 
 		assertSelections(editor, new Selection(1, 1, 1, 5));
@@ -545,7 +545,7 @@ suite('SnippetSession', function () {
 		editor.trigger('test', 'type', { text: 'std_logic' });
 		session.next();
 
-		assertSelections(editor, new Selection(1, 16, 1, 19));
+		assertSelections(editor, new Selection(1, 16, 1, 16));
 		editor.trigger('test', 'type', { text: ' := \'1\'' });
 		session.next();
 
