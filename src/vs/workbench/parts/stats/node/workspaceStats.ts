@@ -228,7 +228,7 @@ export class WorkspaceStats implements IWorkbenchContribution {
 			"workspace.reactNative" : { "classification": "SystemMetaData", "purpose": "FeatureInsight", "isMeasurement": true }
 		}
 	*/
-	private async getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
+	private getWorkspaceTags(configuration: IWindowConfiguration): TPromise<Tags> {
 		const tags: Tags = Object.create(null);
 
 		const state = this.contextService.getWorkbenchState();
@@ -258,9 +258,11 @@ export class WorkspaceStats implements IWorkbenchContribution {
 		tags['workspace.empty'] = isEmpty;
 
 		const folders = !isEmpty ? workspace.folders.map(folder => folder.uri) : this.environmentService.appQuality !== 'stable' && this.findFolders(configuration);
-		if (folders && folders.length && this.fileService) {
-			//return
-			const files: IResolveFileResult[] = await this.fileService.resolveFiles(folders.map(resource => ({ resource })));
+		if (!folders || !folders.length || !this.fileService) {
+			return TPromise.as(tags);
+		}
+
+		return this.fileService.resolveFiles(folders.map(resource => ({ resource }))).then((files: IResolveFileResult[]) => {
 			const names = (<IFileStat[]>[]).concat(...files.map(result => result.success ? (result.stat.children || []) : [])).map(c => c.name);
 			const nameSet = names.reduce((s, n) => s.add(n.toLowerCase()), new Set());
 
@@ -313,12 +315,10 @@ export class WorkspaceStats implements IWorkbenchContribution {
 				tags['workspace.android.cpp'] = true;
 			}
 
-			if (nameSet.has('package.json')) {
-				const promises = [];
-				for (let i = 0; i < folders.length; i++) {
-					const workspaceUri = folders[i];
-					const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
-					promises.push(this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
+			const packageJsonPromises = !nameSet.has('package.json') ? [] : folders.map(workspaceUri => {
+				const uri = workspaceUri.with({ path: `${workspaceUri.path !== '/' ? workspaceUri.path : ''}/package.json` });
+				return this.fileService.resolveFile(uri).then(() => {
+					return this.fileService.resolveContent(uri, { acceptTextOnly: true }).then(content => {
 						try {
 							const packageJsonContents = JSON.parse(content.value);
 							if (packageJsonContents['dependencies']) {
@@ -338,12 +338,13 @@ export class WorkspaceStats implements IWorkbenchContribution {
 						catch (e) {
 							// Ignore errors when resolving file or parsing file contents
 						}
-					}));
-				}
-				await TPromise.join(promises);
-			}
-		}
-		return TPromise.as(tags);
+					});
+				}, err => {
+					// Ignore missing file
+				});
+			});
+			return TPromise.join(packageJsonPromises).then(() => tags);
+		});
 	}
 
 	private findFolders(configuration: IWindowConfiguration): URI[] {
