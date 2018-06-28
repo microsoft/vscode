@@ -272,18 +272,16 @@ export class SettingsEditor2 extends BaseEditor {
 				twistiePixels: 15
 			});
 
-		this._register(this.tocTree.onDidChangeSelection(e => {
+		this._register(this.tocTree.onDidChangeFocus(e => {
+			const element = e.focus;
 			if (this.searchResultModel) {
-				const element = e.selection[0];
 				this.viewState.filterToCategory = element;
 				this.refreshTreeAndMaintainFocus();
 			} else if (this.settingsTreeModel) {
-				const element = e.selection[0];
 				if (element && !e.payload.fromScroll) {
 					this.settingsTree.reveal(element, 0);
 					this.settingsTree.setSelection([element]);
 					this.settingsTree.setFocus(element);
-					this.settingsTree.domFocus();
 				}
 			}
 		}));
@@ -452,8 +450,8 @@ export class SettingsEditor2 extends BaseEditor {
 				this.tocTree.reveal(element, 1);
 			}
 
-			this.tocTree.setSelection([element], { fromScroll: true });
-			this.tocTree.setFocus(element);
+			this.tocTree.setSelection([element]);
+			this.tocTree.setFocus(element, { fromScroll: true });
 		}
 	}
 
