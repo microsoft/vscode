@@ -687,6 +687,8 @@ export class SettingsRenderer implements IRenderer {
 				localize('configuredIn', "Modified in");
 
 			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
+		} else {
+			template.otherOverridesElement.textContent = '';
 		}
 	}
 
