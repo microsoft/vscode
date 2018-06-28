@@ -746,13 +746,6 @@ export class SnippetParser {
 							parent.appendChild(placeholder);
 							return true;
 						}
-						if (this._accept(TokenType.Forwardslash)) {
-							// ...|/<regex>/<format>/<options>} -> transform
-							if (this._parseTransform(placeholder)) {
-								parent.appendChild(placeholder);
-								return true;
-							}
-						}
 					}
 				}
 

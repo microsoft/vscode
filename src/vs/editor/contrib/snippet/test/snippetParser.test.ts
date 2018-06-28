@@ -254,13 +254,6 @@ suite('SnippetParser', () => {
 		assertTextAndMarker('${1/regex/format/options', '${1/regex/format/options', Text);
 	});
 
-	test('Parser, placeholder with choice and transformation', () => {
-		assertTextAndMarker('${1|one,two,three|/foo/bar/}', 'one', Placeholder);
-		assertTextAndMarker('${1|one|/foo/bar/}', 'one', Placeholder);
-		assertTextAndMarker('${1|one,two,three,|/foo/bar/}', '${1|one,two,three,|/foo/bar/}', Text);
-		assertTextAndMarker('${1|one,/foo/bar/', '${1|one,/foo/bar/', Text);
-	});
-
 	test('No way to escape forward slash in snippet regex #36715', function () {
 		assertMarker('${TM_DIRECTORY/src\\//$1/}', Variable);
 	});

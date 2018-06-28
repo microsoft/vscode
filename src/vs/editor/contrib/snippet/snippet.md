@@ -86,7 +86,6 @@ tabstop     ::= '$' int
                 | '${' int  transform '}'
 placeholder ::= '${' int ':' any '}'
 choice      ::= '${' int '|' text (',' text)* '|}'
-                | '${' int '|' text (',' text)* '|' transform '}'
 variable    ::= '$' var | '${' var }'
                 | '${' var ':' any '}'
                 | '${' var transform '}'
@@ -102,5 +101,3 @@ var         ::= [_a-zA-Z] [_a-zA-Z0-9]*
 int         ::= [0-9]+
 text        ::= .*
 ```
-
-Transformations for placeholders and choices are an extension to the TextMate snippet grammar and only support by Visual Studio Code.
