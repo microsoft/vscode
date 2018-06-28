@@ -26,7 +26,7 @@ import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
@@ -1197,20 +1197,22 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
-		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup);
-		if (nextGroup) {
-			nextGroup.focus();
+		return this.doNavigateToEditorGroup({ direction });
+	}
+
+	protected navigateToEditorGroup(location: GroupLocation): TPromise<boolean> {
+		return this.doNavigateToEditorGroup({ location });
+	}
+
+	private doNavigateToEditorGroup(scope: IFindGroupScope): TPromise<boolean> {
+		const targetGroup = this.editorGroupService.findGroup(scope, this.editorGroupService.activeGroup);
+		if (targetGroup) {
+			targetGroup.focus();
 
 			return TPromise.as(true);
 		}
 
 		return TPromise.as(false);
-	}
-
-	protected navigateToActiveEditorGroup(): TPromise<boolean> {
-		this.editorGroupService.activeGroup.focus();
-
-		return TPromise.as(true);
 	}
 }
 
@@ -1251,7 +1253,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		}
 
 		if (!isPanelPositionDown) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
@@ -1259,7 +1261,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 
 	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (!isSidebarPositionLeft) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
@@ -1311,7 +1313,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 
 	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isSidebarPositionLeft) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.FIRST);
 		}
 
 		return TPromise.as(false);
@@ -1340,7 +1342,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isPanelPositionDown) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
