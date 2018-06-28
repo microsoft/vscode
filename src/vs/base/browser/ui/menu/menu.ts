@@ -53,27 +53,9 @@ export class Menu {
 			parent: this
 		};
 
-		const getActionItem = (action: IAction) => {
-			if (action instanceof Separator) {
-				return new ActionItem(options.context, action, { icon: true });
-			} else if (action instanceof SubmenuAction) {
-				return new SubmenuActionItem(action, action.entries, parentData, options);
-			} else {
-				const menuItemOptions: IActionItemOptions = {};
-				if (options.getKeyBinding) {
-					const keybinding = options.getKeyBinding(action);
-					if (keybinding) {
-						menuItemOptions.keybinding = keybinding.getLabel();
-					}
-				}
-
-				return new MenuActionItem(options.context, action, menuItemOptions);
-			}
-		};
-
 		this.actionBar = new ActionBar(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
-			actionItemProvider: options.actionItemProvider ? options.actionItemProvider : getActionItem,
+			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
 			actionRunner: options.actionRunner,
 			isMenu: true,
@@ -81,6 +63,24 @@ export class Menu {
 		});
 
 		this.actionBar.push(actions, { icon: true, label: true, isMenu: true });
+	}
+
+	private doGetActionItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): ActionItem {
+		if (action instanceof Separator) {
+			return new ActionItem(options.context, action, { icon: true });
+		} else if (action instanceof SubmenuAction) {
+			return new SubmenuActionItem(action, action.entries, parentData, options);
+		} else {
+			const menuItemOptions: IActionItemOptions = {};
+			if (options.getKeyBinding) {
+				const keybinding = options.getKeyBinding(action);
+				if (keybinding) {
+					menuItemOptions.keybinding = keybinding.getLabel();
+				}
+			}
+
+			return new MenuActionItem(options.context, action, menuItemOptions);
+		}
 	}
 
 	public get onDidCancel(): Event<void> {
