@@ -5,7 +5,7 @@
 
 .settings-editor {
 	padding-top: 11px;
-	max-width: 1000px;
+	max-width: 1100px;
 	margin: auto;
 }
 
@@ -101,7 +101,8 @@
 .settings-editor > .settings-body {
 	display: flex;
 	margin: auto;
-	max-width: 1000px;
+	max-width: 1100px;
+	justify-content: space-between;
 }
 
 .settings-editor > .settings-body .settings-tree-container .monaco-tree::before {
@@ -138,6 +139,7 @@
 
 .settings-editor > .settings-body .settings-tree-container {
 	flex: 1;
+	max-width: 875px;
 	margin-right: 1px; /* So the item doesn't blend into the edge of the view container  */
 	border-spacing: 0;
 	border-collapse: separate;
