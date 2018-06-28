@@ -524,7 +524,7 @@ export class RemoteFileService extends FileService {
 			return super.del(resource, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return provider.delete(resource).then(() => {
+				return provider.delete(resource, { recursive: options && options.recursive }).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});

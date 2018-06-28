@@ -159,6 +159,10 @@ export interface FileWriteOptions {
 	create: boolean;
 }
 
+export interface FileDeleteOptions {
+	recursive: boolean;
+}
+
 export enum FileType {
 	Unknown = 0,
 	File = 1,
@@ -197,7 +201,7 @@ export interface IFileSystemProvider {
 	stat(resource: URI): TPromise<IStat>;
 	mkdir(resource: URI): TPromise<void>;
 	readdir(resource: URI): TPromise<[string, FileType][]>;
-	delete(resource: URI): TPromise<void>;
+	delete(resource: URI, opts: FileDeleteOptions): TPromise<void>;
 
 	rename(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;
 	copy?(from: URI, to: URI, opts: FileOverwriteOptions): TPromise<void>;

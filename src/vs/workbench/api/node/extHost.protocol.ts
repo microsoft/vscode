@@ -42,7 +42,7 @@ import { ITreeItem } from 'vs/workbench/common/views';
 import { ThemeColor } from 'vs/platform/theme/common/themeService';
 import { IDisposable } from 'vs/base/common/lifecycle';
 import { SerializedError } from 'vs/base/common/errors';
-import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileWriteOptions, FileType, FileOverwriteOptions } from 'vs/platform/files/common/files';
+import { IStat, FileChangeType, IWatchOptions, FileSystemProviderCapabilities, FileWriteOptions, FileType, FileOverwriteOptions, FileDeleteOptions } from 'vs/platform/files/common/files';
 import { ConfigurationScope } from 'vs/platform/configuration/common/configurationRegistry';
 import { CommentRule, CharacterPair, EnterAction } from 'vs/editor/common/modes/languageConfiguration';
 import { ISingleEditOperation } from 'vs/editor/common/model';
@@ -681,7 +681,7 @@ export interface ExtHostFileSystemShape {
 	$rename(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
 	$copy(handle: number, resource: UriComponents, target: UriComponents, opts: FileOverwriteOptions): TPromise<void>;
 	$mkdir(handle: number, resource: UriComponents): TPromise<void>;
-	$delete(handle: number, resource: UriComponents): TPromise<void>;
+	$delete(handle: number, resource: UriComponents, opts: FileDeleteOptions): TPromise<void>;
 	$watch(handle: number, session: number, resource: UriComponents, opts: IWatchOptions): void;
 	$unwatch(handle: number, session: number): void;
 }
