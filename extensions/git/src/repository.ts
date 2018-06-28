@@ -15,7 +15,7 @@ import * as path from 'path';
 import * as nls from 'vscode-nls';
 import * as fs from 'fs';
 import { StatusBarCommands } from './statusbar';
-import { Branch, Ref, Remote, RefType, GitErrorCodes } from './api/git';
+import { Branch, Ref, Remote, RefType, GitErrorCodes, ForcePushMode } from './api/git';
 
 const timeout = (millis: number) => new Promise(c => setTimeout(c, millis));
 
@@ -895,7 +895,7 @@ export class Repository implements Disposable {
 	}
 
 	@throttle
-	async push(head: Branch): Promise<void> {
+	async push(head: Branch, forcePushMode?: ForcePushMode): Promise<void> {
 		let remote: string | undefined;
 		let branch: string | undefined;
 
@@ -904,15 +904,15 @@ export class Repository implements Disposable {
 			branch = `${head.name}:${head.upstream.name}`;
 		}
 
-		await this.run(Operation.Push, () => this.repository.push(remote, branch));
+		await this.run(Operation.Push, () => this.repository.push(remote, branch, undefined, undefined, forcePushMode));
 	}
 
-	async pushTo(remote?: string, name?: string, setUpstream: boolean = false): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream));
+	async pushTo(remote?: string, name?: string, setUpstream: boolean = false, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, name, setUpstream, undefined, forcePushMode));
 	}
 
-	async pushTags(remote?: string): Promise<void> {
-		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true));
+	async pushTags(remote?: string, forcePushMode?: ForcePushMode): Promise<void> {
+		await this.run(Operation.Push, () => this.repository.push(remote, undefined, false, true, forcePushMode));
 	}
 
 	@throttle

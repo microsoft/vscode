@@ -276,13 +276,28 @@
         "category": "Git"
       },
       {
+        "command": "git.pushForce",
+        "title": "%command.pushForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushTo",
         "title": "%command.pushTo%",
         "category": "Git"
       },
       {
+        "command": "git.pushToForce",
+        "title": "%command.pushToForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.pushWithTags",
         "title": "%command.pushWithTags%",
+        "category": "Git"
+      },
+      {
+        "command": "git.pushWithTagsForce",
+        "title": "%command.pushWithTagsForce%",
         "category": "Git"
       },
       {
@@ -494,12 +509,24 @@
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.pushForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pushTo",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {
+          "command": "git.pushToForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
+        },
+        {
           "command": "git.pushWithTags",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushWithTagsForce",
+          "when": "config.git.enabled && config.git.allowForcePush && gitOpenRepositoryCount != 0"
         },
         {
           "command": "git.sync",
@@ -1045,6 +1072,21 @@
           "default": [],
           "scope": "window",
           "description": "%config.ignoredRepositories%"
+        },
+        "git.allowForcePush": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.allowForcePush%"
+        },
+        "git.useForceWithLease": {
+          "type": "boolean",
+          "default": true,
+          "description": "%config.useForceWithLease%"
+        },
+        "git.dontAskForcePushConfirmation": {
+          "type": "boolean",
+          "default": false,
+          "description": "%config.dontAskForcePushConfirmation%"
         }
       }
     },
