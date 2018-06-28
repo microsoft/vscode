@@ -177,6 +177,6 @@ export abstract class AbstractUpdateService implements IUpdateService {
 		// noop
 	}
 
-	protected abstract buildUpdateFeedUrl(quality: string): string;
+	protected abstract buildUpdateFeedUrl(quality: string): string | undefined;
 	protected abstract doCheckForUpdates(context: any): void;
 }
