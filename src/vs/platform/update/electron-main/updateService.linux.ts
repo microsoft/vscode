@@ -22,22 +22,19 @@ export class LinuxUpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
-	private url: string | undefined;
-
 	constructor(
 		@ILifecycleService lifecycleService: ILifecycleService,
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
+		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleService, configurationService, environmentService, requestService, logService);
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
-		this.url = createUpdateURL(`linux-${process.arch}`, quality);
-		return true;
+	protected buildUpdateFeedUrl(quality: string): string {
+		return createUpdateURL(`linux-${process.arch}`, quality);
 	}
 
 	protected doCheckForUpdates(context: any): void {

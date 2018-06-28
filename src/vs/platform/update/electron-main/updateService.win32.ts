@@ -47,7 +47,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
-	private url: string | undefined;
 	private availableUpdate: IAvailableUpdate | undefined;
 
 	@memoize
@@ -61,15 +60,15 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@IConfigurationService configurationService: IConfigurationService,
 		@ITelemetryService private telemetryService: ITelemetryService,
 		@IEnvironmentService environmentService: IEnvironmentService,
-		@IRequestService private requestService: IRequestService,
+		@IRequestService requestService: IRequestService,
 		@ILogService logService: ILogService
 	) {
-		super(lifecycleService, configurationService, environmentService, logService);
+		super(lifecycleService, configurationService, environmentService, requestService, logService);
 	}
 
-	protected setUpdateFeedUrl(quality: string): boolean {
+	protected buildUpdateFeedUrl(quality: string): string | undefined {
 		if (!fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))) {
-			return false;
+			return undefined;
 		}
 
 		let platform = 'win32';
@@ -82,8 +81,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-user';
 		}
 
-		this.url = createUpdateURL(platform, quality);
-		return true;
+		return createUpdateURL(platform, quality);
 	}
 
 	protected doCheckForUpdates(context: any): void {
