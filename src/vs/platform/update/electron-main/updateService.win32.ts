@@ -49,13 +49,23 @@ enum UpdateType {
 	Manual
 }
 
+let _updateType: UpdateType | undefined = undefined;
+function getUpdateType(): UpdateType {
+	if (typeof _updateType === 'undefined') {
+		_updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
+			? UpdateType.Automatic
+			: UpdateType.Manual;
+	}
+
+	return _updateType;
+}
+
 export class Win32UpdateService extends AbstractUpdateService {
 
 	_serviceBrand: any;
 
 	private url: string | undefined;
 	private availableUpdate: IAvailableUpdate | undefined;
-	private updateType: UpdateType;
 
 	@memoize
 	get cachePath(): TPromise<string> {
@@ -72,10 +82,6 @@ export class Win32UpdateService extends AbstractUpdateService {
 		@ILogService logService: ILogService
 	) {
 		super(lifecycleService, configurationService, environmentService, logService);
-
-		this.updateType = fs.existsSync(path.join(path.dirname(process.execPath), 'unins000.exe'))
-			? UpdateType.Automatic
-			: UpdateType.Manual;
 	}
 
 	protected setUpdateFeedUrl(quality: string): boolean {
@@ -85,7 +91,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 			platform += '-x64';
 		}
 
-		if (this.updateType === UpdateType.Manual) {
+		if (getUpdateType() === UpdateType.Manual) {
 			platform += '-archive';
 		} else if (product.target === 'user') {
 			platform += '-user';
@@ -117,7 +123,7 @@ export class Win32UpdateService extends AbstractUpdateService {
 					return TPromise.as(null);
 				}
 
-				if (this.updateType === UpdateType.Manual) {
+				if (getUpdateType() === UpdateType.Manual) {
 					this.setState(State.AvailableForDownload(update));
 					return TPromise.as(null);
 				}
