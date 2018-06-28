@@ -501,7 +501,7 @@ export class TitlebarPart extends Part implements ITitleService {
 			if (menubarToggled && this.menubarWidth) {
 				this.title.style('visibility', 'hidden');
 
-				// Hack to fix issue with layered webkit-app-region elements appearing under cursor
+				// Hack to fix issue #52522 with layered webkit-app-region elements appearing under cursor
 				this.titleContainer.addClass('menu-toggling');
 				setTimeout(() => {
 					this.titleContainer.removeClass('menu-toggling');

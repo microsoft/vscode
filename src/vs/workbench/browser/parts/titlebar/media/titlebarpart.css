@@ -30,6 +30,7 @@
 	-webkit-app-region: drag;
 }
 
+/* Hack to fix #52522 */
 .monaco-workbench > .part.titlebar.menu-toggling::before {
 	height: 0px;
 }
