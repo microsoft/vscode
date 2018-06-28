@@ -963,8 +963,26 @@ var
 begin
   Result := True;
 
-  if IsWin64 then begin
-    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleAppId}', 2, 38) + '_is1';
+  #if "user" == InstallTarget
+    #if "ia32" == Arch
+      #define IncompatibleArchRootKey "HKLM32"
+    #else
+      #define IncompatibleArchRootKey "HKLM64"
+    #endif
+
+    if not WizardSilent() then begin
+      RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
+
+      if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
+        if MsgBox('{#NameShort} is already installed on this system for all users. Are you sure you want to install it for this user?', mbConfirmation, MB_YESNO) = IDNO then begin
+          Result := false;
+        end;
+      end;
+    end;
+  #endif
+
+  if Result and IsWin64 then begin
+    RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleArchAppId}', 2, 38) + '_is1';
 
     if '{#Arch}' = 'ia32' then begin
       Result := not RegKeyExists({#Uninstall64RootKey}, RegKey);
