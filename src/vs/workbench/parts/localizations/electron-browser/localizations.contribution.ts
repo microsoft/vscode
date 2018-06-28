@@ -150,7 +150,7 @@ export class LocalizationWorkbenchContribution extends Disposable implements IWo
 					}
 
 					const extensionToInstall = ceintlResult.total === 1 ? ceintlResult.firstPage[0] : tagResult.total === 1 ? tagResult.firstPage[0] : null;
-					const extensionToFetchTranslationsFrom = extensionToInstall || tagResult.total > 0 ? tagResult.firstPage[0] : null;
+					const extensionToFetchTranslationsFrom = extensionToInstall || (tagResult.total > 0 ? tagResult.firstPage[0] : null);
 
 					if (!extensionToFetchTranslationsFrom || !extensionToFetchTranslationsFrom.assets.manifest) {
 						return;
