@@ -92,7 +92,9 @@ export class Menu {
 	}
 
 	public focus() {
-		this.actionBar.focus(true);
+		if (this.actionBar) {
+			this.actionBar.focus(true);
+		}
 	}
 
 	public dispose() {
@@ -150,6 +152,7 @@ class MenuActionItem extends ActionItem {
 
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
+	private mouseOver: boolean;
 
 	constructor(
 		action: IAction,
@@ -185,14 +188,30 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
-			this.cleanupExistingSubmenu(false);
-			this.createSubmenu();
+			if (!this.mouseOver) {
+				this.mouseOver = true;
+
+				setTimeout(() => {
+					if (this.mouseOver) {
+						this.cleanupExistingSubmenu(false);
+						this.createSubmenu();
+					}
+				}, 250);
+
+			}
 		});
 
 
 		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
-			this.parentData.parent.focus();
-			this.cleanupExistingSubmenu(true);
+			this.mouseOver = false;
+
+			setTimeout(() => {
+				if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
+					this.parentData.parent.focus();
+					this.cleanupExistingSubmenu(true);
+				}
+
+			}, 750);
 		});
 	}
 
