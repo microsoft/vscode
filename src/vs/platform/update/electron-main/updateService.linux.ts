@@ -81,8 +81,8 @@ export class LinuxUpdateService extends AbstractUpdateService {
 		} else {
 			shell.openExternal(state.update.url);
 		}
-		this.setState(State.Idle);
 
+		this.setState(State.Idle);
 		return TPromise.as(null);
 	}
 }
