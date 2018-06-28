@@ -33,7 +33,7 @@ import { SearchWidget, SettingsTarget, SettingsTargetsWidget } from 'vs/workbenc
 import { commonlyUsedData, tocData } from 'vs/workbench/parts/preferences/browser/settingsLayout';
 import { ISettingsEditorViewState, NonExpandableTree, resolveExtensionsSettings, resolveSettingsTree, SearchResultIdx, SearchResultModel, SettingsAccessibilityProvider, SettingsDataSource, SettingsRenderer, SettingsTreeController, SettingsTreeElement, SettingsTreeFilter, SettingsTreeGroupElement, SettingsTreeModel, SettingsTreeSettingElement } from 'vs/workbench/parts/preferences/browser/settingsTree';
 import { TOCDataSource, TOCRenderer, TOCTreeModel } from 'vs/workbench/parts/preferences/browser/tocTree';
-import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
+import { CONTEXT_SETTINGS_EDITOR, CONTEXT_SETTINGS_FIRST_ROW_FOCUS, CONTEXT_SETTINGS_SEARCH_FOCUS, IPreferencesSearchService, ISearchProvider, CONTEXT_SETTINGS_ROW_FOCUS, CONTEXT_TOC_ROW_FOCUS } from 'vs/workbench/parts/preferences/common/preferences';
 import { IPreferencesService, ISearchResult, ISettingsEditorModel } from 'vs/workbench/services/preferences/common/preferences';
 import { SettingsEditor2Input } from 'vs/workbench/services/preferences/common/preferencesEditorInput';
 import { DefaultSettingsEditorModel } from 'vs/workbench/services/preferences/common/preferencesModels';
@@ -77,6 +77,7 @@ export class SettingsEditor2 extends BaseEditor {
 
 	private firstRowFocused: IContextKey<boolean>;
 	private rowFocused: IContextKey<boolean>;
+	private tocRowFocused: IContextKey<boolean>;
 	private inSettingsEditorContextKey: IContextKey<boolean>;
 	private searchFocusContextKey: IContextKey<boolean>;
 
@@ -103,6 +104,7 @@ export class SettingsEditor2 extends BaseEditor {
 		this.searchFocusContextKey = CONTEXT_SETTINGS_SEARCH_FOCUS.bindTo(contextKeyService);
 		this.firstRowFocused = CONTEXT_SETTINGS_FIRST_ROW_FOCUS.bindTo(contextKeyService);
 		this.rowFocused = CONTEXT_SETTINGS_ROW_FOCUS.bindTo(contextKeyService);
+		this.tocRowFocused = CONTEXT_TOC_ROW_FOCUS.bindTo(contextKeyService);
 
 		this._register(configurationService.onDidChangeConfiguration(e => {
 			this.onConfigUpdate();
@@ -284,6 +286,15 @@ export class SettingsEditor2 extends BaseEditor {
 					this.settingsTree.setFocus(element);
 				}
 			}
+
+		}));
+
+		this._register(this.tocTree.onDidFocus(() => {
+			this.tocRowFocused.set(true);
+		}));
+
+		this._register(this.tocTree.onDidBlur(() => {
+			this.tocRowFocused.set(false);
 		}));
 
 		this.updateTOCVisible();
