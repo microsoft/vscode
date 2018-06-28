@@ -239,7 +239,7 @@ KeybindingsRegistry.registerCommandAndKeybindingRule({
 	weight: KeybindingsRegistry.WEIGHT.workbenchContrib(),
 	when: ContextKeyExpr.and(CONTEXT_KEYBINDINGS_EDITOR, CONTEXT_KEYBINDING_FOCUS),
 	primary: KeyMod.CtrlCmd | KeyCode.KEY_F,
-	handler: (accessor, args: any) => (accessor.get(IEditorService).activeControl as IKeybindingsEditor).search('')
+	handler: (accessor, args: any) => (accessor.get(IEditorService).activeControl as IKeybindingsEditor).focusSearch()
 });
 
 KeybindingsRegistry.registerCommandAndKeybindingRule({

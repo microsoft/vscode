@@ -55,7 +55,7 @@ interface Modifiers {
 	shiftKey?: boolean;
 }
 
-suite('Keybindings Editing', () => {
+suite('KeybindingsEditing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
@@ -216,6 +216,14 @@ suite('Keybindings Editing', () => {
 
 	test('reset a removed keybinding', () => {
 		writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
+		return testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }))
+			.then(() => assert.deepEqual(getUserKeybindings(), []));
+	});
+
+	test('reset mulitple removed keybindings', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
+		writeToKeybindingsFile({ key: 'alt+shift+c', command: '-b' });
+		writeToKeybindingsFile({ key: 'escape', command: '-b' });
 		return testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }))
 			.then(() => assert.deepEqual(getUserKeybindings(), []));
 	});

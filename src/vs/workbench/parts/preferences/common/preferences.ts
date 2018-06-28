@@ -48,6 +48,7 @@ export interface IKeybindingsEditor extends IEditor {
 	activeKeybindingEntry: IKeybindingItemEntry;
 
 	search(filter: string): void;
+	focusSearch(): void;
 	clearSearchResults(): void;
 	focusKeybindings(): void;
 	defineKeybinding(keybindingEntry: IKeybindingItemEntry): TPromise<any>;
