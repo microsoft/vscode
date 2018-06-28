@@ -228,6 +228,13 @@ suite('KeybindingsEditing', () => {
 			.then(() => assert.deepEqual(getUserKeybindings(), []));
 	});
 
+	test('add a new keybinding to unassigned keybinding', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a' }];
+		return testObject.editKeybinding('shift+alt+c', aResolvedKeybindingItem({ command: 'a', isDefault: false }))
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
+	});
+
 	function writeToKeybindingsFile(...keybindings: IUserFriendlyKeybinding[]) {
 		fs.writeFileSync(keybindingsFile, JSON.stringify(keybindings || []));
 	}
