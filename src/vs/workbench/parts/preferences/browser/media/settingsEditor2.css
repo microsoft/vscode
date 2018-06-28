@@ -3,6 +3,10 @@
  *  Licensed under the MIT License. See License.txt in the project root for license information.
  *--------------------------------------------------------------------------------------------*/
 
+.editor-instance#workbench\.editor\.settings2:focus {
+	outline: none;
+}
+
 .settings-editor {
 	padding-top: 11px;
 	max-width: 1100px;
