@@ -519,12 +519,12 @@ export class RemoteFileService extends FileService {
 
 	// --- delete
 
-	del(resource: URI, useTrash?: boolean): TPromise<void> {
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		if (resource.scheme === Schemas.file) {
-			return super.del(resource, useTrash);
+			return super.del(resource, options);
 		} else {
 			return this._withProvider(resource).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
-				return provider.delete(resource).then(() => {
+				return provider.delete(resource, { recursive: options && options.recursive }).then(() => {
 					this._onAfterOperation.fire(new FileOperationEvent(resource, FileOperation.DELETE));
 				});
 			});
@@ -561,7 +561,7 @@ export class RemoteFileService extends FileService {
 	private _doMoveWithInScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 
 		const prepare = overwrite
-			? this.del(target).then(undefined, err => { /*ignore*/ })
+			? this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ })
 			: TPromise.as(null);
 
 		return prepare.then(() => this._withProvider(source)).then(RemoteFileService._throwIfFileSystemIsReadonly).then(provider => {
@@ -582,7 +582,7 @@ export class RemoteFileService extends FileService {
 
 	private _doMoveAcrossScheme(source: URI, target: URI, overwrite?: boolean): TPromise<IFileStat> {
 		return this.copyFile(source, target, overwrite).then(() => {
-			return this.del(source);
+			return this.del(source, { recursive: true });
 		}).then(() => {
 			return this.resolveFile(target);
 		}).then(fileStat => {
@@ -615,7 +615,7 @@ export class RemoteFileService extends FileService {
 			}
 
 			const prepare = overwrite
-				? this.del(target).then(undefined, err => { /*ignore*/ })
+				? this.del(target, { recursive: true }).then(undefined, err => { /*ignore*/ })
 				: TPromise.as(null);
 
 			return prepare.then(() => {
