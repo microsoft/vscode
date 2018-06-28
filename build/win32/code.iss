@@ -957,7 +957,6 @@ Root: {#EnvironmentRootKey}; Subkey: "{#EnvironmentKey}"; ValueType: expandsz; V
 // Don't allow installing conflicting architectures
 function InitializeSetup(): Boolean;
 var
-  RegRootKey: String;
   RegKey: String;
   ThisArch: String;
   AltArch: String;
@@ -965,10 +964,15 @@ begin
   Result := True;
 
 #if "user" == InstallTarget
-  if '{#Arch}' = 'ia32' then RegRootKey := 'HKLM32' else RegRootKey := 'HKLM64';
+  #if "ia32" == Arch
+    #define IncompatibleArchRootKey "HKLM32"
+      #else
+    #define IncompatibleArchRootKey "HKLM64"
+  #endif
+
   RegKey := 'SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\' + copy('{#IncompatibleTargetAppId}', 2, 38) + '_is1';
 
-  if RegKeyExists(RegRootKey, RegKey) then begin
+  if RegKeyExists({#IncompatibleArchRootKey}, RegKey) then begin
     if MsgBox('{#NameShort} is already installed on this system for all users. Are you sure you want to install it for this user?', mbConfirmation, MB_YESNO) = IDNO then begin
       Result := false;
     end;
