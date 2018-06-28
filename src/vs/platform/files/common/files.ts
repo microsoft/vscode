@@ -128,10 +128,11 @@ export interface IFileService {
 	createFolder(resource: URI): TPromise<IFileStat>;
 
 	/**
-	 * Deletes the provided file.  The optional useTrash parameter allows to
-	 * move the file to trash.
+	 * Deletes the provided file. The optional useTrash parameter allows to
+	 * move the file to trash. The optional recursive parameter allows to delete
+	 * non-empty folders recursively.
 	 */
-	del(resource: URI, useTrash?: boolean): TPromise<void>;
+	del(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void>;
 
 	/**
 	 * Allows to start a watcher that reports file change events on the provided resource.
