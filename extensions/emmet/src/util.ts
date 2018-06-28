@@ -285,7 +285,7 @@ function findClosingCommentAfterPosition(document: vscode.TextDocument, position
 /**
  * Returns node corresponding to given position in the given root node
  */
-export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false) {
+export function getNode(root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = true) {
 	if (!root) {
 		return null;
 	}
@@ -310,7 +310,7 @@ export function getNode(root: Node | undefined, position: vscode.Position, inclu
 	return foundNode;
 }
 
-export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = false): HtmlNode | undefined {
+export function getHtmlNode(document: vscode.TextDocument, root: Node | undefined, position: vscode.Position, includeNodeBoundary: boolean = true): HtmlNode | undefined {
 	let currentNode = <HtmlNode>getNode(root, position, includeNodeBoundary);
 	if (!currentNode) { return; }
 
