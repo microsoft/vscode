@@ -154,7 +154,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 		if (!visible) {
 			dispose(this.model);
 		} else {
-			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:input`), true);
+			this.model = this.modelService.createModel('', null, uri.parse(`${DEBUG_SCHEME}:replinput`), true);
 			this.replInput.setModel(this.model);
 		}
 
@@ -173,7 +173,7 @@ export class Repl extends Panel implements IPrivateReplService, IHistoryNavigati
 			[IContextKeyService, scopedContextKeyService], [IPrivateReplService, this]));
 		this.replInput = scopedInstantiationService.createInstance(CodeEditorWidget, this.replInputContainer, SimpleDebugEditor.getEditorOptions(), SimpleDebugEditor.getCodeEditorWidgetOptions());
 
-		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, hasAccessToAllModels: true }, {
+		modes.SuggestRegistry.register({ scheme: DEBUG_SCHEME, pattern: '**/replinput', hasAccessToAllModels: true }, {
 			triggerCharacters: ['.'],
 			provideCompletionItems: (model: ITextModel, position: Position, _context: modes.SuggestContext, token: CancellationToken): Thenable<modes.ISuggestResult> => {
 				// Disable history navigation because up and down are used to navigate through the suggest widget
