@@ -334,6 +334,10 @@ export class OutlinePanel extends ViewletPanel {
 				if (this.upKeyBindingDispatcher.has(event.keyCode)) {
 					return false;
 				}
+				if (event.ctrlKey || event.metaKey) {
+					// ignore ctrl/cmd-combination but not shift/alt-combinatios
+					return false;
+				}
 				// crazy -> during keydown focus moves to the input box
 				// and because of that the keyup event is handled by the
 				// input field
