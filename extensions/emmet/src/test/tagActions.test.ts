@@ -66,6 +66,30 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+	test('update tag with entire node selected', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul>
+			<li><section>Hello</section></li>
+			<li><span>There</span></li>
+			<section><li><span>Bye</span></li></section>
+		</ul>
+		<span/>
+	</div>
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 7, 3, 25),
+				new Selection(5, 3, 5, 39),
+			];
+
+			return updateTag('section')!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
 	test('update tag with template', () => {
 		const expectedContents = `
 	<script type="text/template">
@@ -107,6 +131,31 @@ suite('Tests for Emmet actions on html tags', () => {
 				new Selection(3, 17, 3, 17), // cursor inside tags
 				new Selection(4, 5, 4, 5), // cursor inside opening tag
 				new Selection(5, 35, 5, 35), // cursor inside closing tag
+			];
+
+			return removeTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('remove tag with boundary conditions', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul>
+			<li>Hello</li>
+			<li><span>There</span></li>
+			<li><span>Bye</span></li>
+		</ul>
+		<span/>
+	</div>
+	`;
+
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 7, 3, 25),
+				new Selection(5, 3, 5, 39),
 			];
 
 			return removeTag()!.then(() => {
