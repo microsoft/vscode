@@ -281,6 +281,11 @@
         "category": "Git"
       },
       {
+        "command": "git.pushForce",
+        "title": "%command.pushForce%",
+        "category": "Git"
+      },
+      {
         "command": "git.sync",
         "title": "%command.sync%",
         "category": "Git"
@@ -490,6 +495,10 @@
         },
         {
           "command": "git.pushWithTags",
+          "when": "config.git.enabled && gitOpenRepositoryCount != 0"
+        },
+        {
+          "command": "git.pushForce",
           "when": "config.git.enabled && gitOpenRepositoryCount != 0"
         },
         {

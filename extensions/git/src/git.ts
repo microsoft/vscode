@@ -1050,7 +1050,7 @@ export class Repository {
 		}
 	}
 
-	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false): Promise<void> {
+	async push(remote?: string, name?: string, setUpstream: boolean = false, tags = false, force: boolean = false): Promise<void> {
 		const args = ['push'];
 
 		if (setUpstream) {
@@ -1059,6 +1059,10 @@ export class Repository {
 
 		if (tags) {
 			args.push('--tags');
+		}
+
+		if (force) {
+			args.push('-f');
 		}
 
 		if (remote) {
