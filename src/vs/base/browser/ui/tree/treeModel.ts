@@ -120,15 +120,15 @@ export class TreeModel<T> {
 		return map(iter(deletedNodes), treeNodeToElement);
 	}
 
-	setCollapsed(location: number[], collapsed: boolean): void {
-		this._setCollapsed(location, collapsed);
+	setCollapsed(location: number[], collapsed: boolean): boolean {
+		return this._setCollapsed(location, collapsed);
 	}
 
 	toggleCollapsed(location: number[]): void {
 		this._setCollapsed(location);
 	}
 
-	private _setCollapsed(location: number[], collapsed?: boolean | undefined): void {
+	private _setCollapsed(location: number[], collapsed?: boolean | undefined): boolean {
 		const { node, listIndex, visible } = this.findNode(location);
 
 		if (typeof collapsed === 'undefined') {
@@ -136,7 +136,7 @@ export class TreeModel<T> {
 		}
 
 		if (node.collapsed === collapsed) {
-			return;
+			return false;
 		}
 
 		node.collapsed = collapsed;
@@ -165,6 +165,8 @@ export class TreeModel<T> {
 
 			this._onDidChangeCollapseState.fire(node);
 		}
+
+		return true;
 	}
 
 	isCollapsed(location: number[]): boolean {

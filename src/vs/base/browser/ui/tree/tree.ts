@@ -10,7 +10,10 @@ import { TreeModel, ITreeNode, ITreeElement } from 'vs/base/browser/ui/tree/tree
 import { IIterator, empty } from 'vs/base/common/iterator';
 import { IDelegate, IRenderer, IListMouseEvent } from 'vs/base/browser/ui/list/list';
 import { append, $ } from 'vs/base/browser/dom';
-import { Event, Relay } from 'vs/base/common/event';
+import { Event, Relay, chain } from 'vs/base/common/event';
+import { domEvent } from 'vs/base/browser/event';
+import { StandardKeyboardEvent } from 'vs/base/browser/keyboardEvent';
+import { KeyCode } from 'vs/base/common/keyCodes';
 
 function toTreeListOptions<T>(options?: IListOptions<T>): IListOptions<ITreeNode<T>> {
 	if (!options) {
@@ -127,6 +130,10 @@ function getLocation<T>(node: ITreeNode<T>): number[] {
 	return location.reverse();
 }
 
+function isInputElement(e: HTMLElement): boolean {
+	return e.tagName === 'INPUT' || e.tagName === 'TEXTAREA';
+}
+
 export class Tree<T> implements IDisposable {
 
 	private view: List<ITreeNode<T>>;
@@ -152,6 +159,14 @@ export class Tree<T> implements IDisposable {
 		onDidChangeCollapseStateRelay.input = this.model.onDidChangeCollapseState;
 
 		this.view.onMouseClick(this.onMouseClick, this, this.disposables);
+
+		const onKeyDown = chain(this.view.onKeyDown)
+			.filter(e => !isInputElement(e.target as HTMLElement))
+			.map(e => new StandardKeyboardEvent(e));
+
+		onKeyDown.filter(e => e.keyCode === KeyCode.LeftArrow).on(this.onLeftArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.RightArrow).on(this.onRightArrow, this, this.disposables);
+		onKeyDown.filter(e => e.keyCode === KeyCode.Space).on(this.onSpace, this, this.disposables);
 	}
 
 	splice(location: number[], deleteCount: number, toInsert: IIterator<ITreeElement<T>> = empty()): IIterator<ITreeElement<T>> {
@@ -160,6 +175,57 @@ export class Tree<T> implements IDisposable {
 
 	private onMouseClick(e: IListMouseEvent<ITreeNode<T>>): void {
 		const node = e.element;
+		const location = getLocation(node);
+
+		this.model.toggleCollapsed(location);
+	}
+
+	private onLeftArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const nodes = this.view.getFocusedElements();
+
+		if (nodes.length === 0) {
+			return;
+		}
+
+		const node = nodes[0];
+		const location = getLocation(node);
+		const didCollapse = this.model.setCollapsed(location, true);
+
+		if (!didCollapse) {
+			console.log('should focus parent');
+			// this.view.setFocus([]);
+		}
+	}
+
+	private onRightArrow(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const nodes = this.view.getFocusedElements();
+
+		if (nodes.length === 0) {
+			return;
+		}
+
+		const node = nodes[0];
+		const location = getLocation(node);
+		this.model.setCollapsed(location, false);
+	}
+
+	private onSpace(e: StandardKeyboardEvent): void {
+		e.preventDefault();
+		e.stopPropagation();
+
+		const nodes = this.view.getFocusedElements();
+
+		if (nodes.length === 0) {
+			return;
+		}
+
+		const node = nodes[0];
 		const location = getLocation(node);
 		this.model.toggleCollapsed(location);
 	}
