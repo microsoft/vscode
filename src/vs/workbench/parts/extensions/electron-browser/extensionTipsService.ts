@@ -426,12 +426,15 @@ export class ExtensionTipsService extends Disposable implements IExtensionTipsSe
 	}
 
 	getAllRecommendations(): TPromise<IExtensionRecommendation[]> {
+		if (!this.proactiveRecommendationsFetched) {
+			return TPromise.as([]);
+		}
 		return TPromise.join([
 			this.getWorkspaceRecommendations(),
 			TPromise.as(this.getFileBasedRecommendations()),
 			this.getOtherRecommendations(),
 			TPromise.as(this.getKeymapRecommendations())
-		]).then(result => flatten(result));
+		]).then(result => flatten(result).filter(e => this.isExtensionAllowedToBeRecommended(e.extensionId)));
 	}
 
 	private fetchFileBasedRecommendations() {
