@@ -66,6 +66,7 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+	// #region update tag
 	test('update tag with entire node selected', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -113,8 +114,9 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+	// #endregion
 
-
+	// #region remove tag
 	test('remove tag with mutliple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -188,7 +190,9 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+	// #endregion
 
+	// #region split/join tag
 	test('split/join tag with mutliple cursors', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -204,6 +208,30 @@ suite('Tests for Emmet actions on html tags', () => {
 			editor.selections = [
 				new Selection(3, 17, 3, 17), // join tag
 				new Selection(7, 5, 7, 5), // split tag
+			];
+
+			return splitJoinTag()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('split/join tag with boundary selection', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul>
+			<li><span/></li>
+			<li><span>There</span></li>
+			<div><li><span>Bye</span></li></div>
+		</ul>
+		<span></span>
+	</div>
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(3, 7, 3, 25), // join tag
+				new Selection(7, 2, 7, 9), // split tag
 			];
 
 			return splitJoinTag()!.then(() => {
@@ -263,7 +291,9 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+	// #endregion
 
+	// #region match tag
 	test('match tag with mutliple cursors', () => {
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [
@@ -314,6 +344,9 @@ suite('Tests for Emmet actions on html tags', () => {
 		});
 	});
 
+	// #endregion
+
+	// #region merge lines
 	test('merge lines of tag with children when empty selection', () => {
 		const expectedContents = `
 	<div class="hello">
@@ -324,6 +357,25 @@ suite('Tests for Emmet actions on html tags', () => {
 		return withRandomFileEditor(contents, 'html', (editor, doc) => {
 			editor.selections = [
 				new Selection(2, 3, 2, 3)
+			];
+
+			return mergeLines()!.then(() => {
+				assert.equal(doc.getText(), expectedContents);
+				return Promise.resolve();
+			});
+		});
+	});
+
+	test('merge lines of tag with children when full node selection', () => {
+		const expectedContents = `
+	<div class="hello">
+		<ul><li><span>Hello</span></li><li><span>There</span></li><div><li><span>Bye</span></li></div></ul>
+		<span/>
+	</div>
+	`;
+		return withRandomFileEditor(contents, 'html', (editor, doc) => {
+			editor.selections = [
+				new Selection(2, 3, 6, 7)
 			];
 
 			return mergeLines()!.then(() => {
@@ -347,5 +399,6 @@ suite('Tests for Emmet actions on html tags', () => {
 			});
 		});
 	});
+	// #endregion
 });
 
