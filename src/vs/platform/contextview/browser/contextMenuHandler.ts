@@ -105,7 +105,8 @@ export class ContextMenuHandler {
 					let menu = new Menu(container, actions, {
 						actionItemProvider: delegate.getActionItem,
 						context: delegate.getActionsContext ? delegate.getActionsContext() : null,
-						actionRunner: this.actionRunner
+						actionRunner: this.actionRunner,
+						getKeyBinding: delegate.getKeyBinding
 					});
 
 					let listener1 = menu.onDidCancel(() => {

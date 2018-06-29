@@ -27,7 +27,7 @@ export interface ISearchService {
 	search(query: ISearchQuery): PPromise<ISearchComplete, ISearchProgressItem>;
 	extendQuery(query: ISearchQuery): void;
 	clearCache(cacheKey: string): TPromise<void>;
-	registerSearchResultProvider(provider: ISearchResultProvider): IDisposable;
+	registerSearchResultProvider(scheme: string, provider: ISearchResultProvider): IDisposable;
 }
 
 export interface ISearchHistoryValues {

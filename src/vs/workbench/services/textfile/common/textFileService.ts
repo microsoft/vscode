@@ -707,10 +707,10 @@ export abstract class TextFileService implements ITextFileService {
 		});
 	}
 
-	public delete(resource: URI, useTrash?: boolean): TPromise<void> {
+	public delete(resource: URI, options?: { useTrash?: boolean, recursive?: boolean }): TPromise<void> {
 		const dirtyFiles = this.getDirty().filter(dirty => isEqualOrParent(dirty, resource, !platform.isLinux /* ignorecase */));
 
-		return this.revertAll(dirtyFiles, { soft: true }).then(() => this.fileService.del(resource, useTrash));
+		return this.revertAll(dirtyFiles, { soft: true }).then(() => this.fileService.del(resource, options));
 	}
 
 	public move(source: URI, target: URI, overwrite?: boolean): TPromise<void> {

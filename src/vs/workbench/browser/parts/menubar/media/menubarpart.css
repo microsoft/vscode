@@ -27,8 +27,7 @@
 	box-sizing: border-box;
 	padding: 0px 5px;
 	position: relative;
-	z-index: 10;
-	cursor: pointer;
+	cursor: default;
 	-webkit-app-region: no-drag;
 	zoom: 1;
 }

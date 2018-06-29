@@ -332,6 +332,8 @@ suite('ExtHostLanguageFeatureCommands', function () {
 			return commands.executeCommand<vscode.SymbolInformation[]>('vscode.executeDocumentSymbolProvider', model.uri).then(values => {
 				assert.equal(values.length, 2);
 				let [first, second] = values;
+				assert.ok(first instanceof types.SymbolInformation);
+				assert.ok(second instanceof types.SymbolInformation);
 				assert.equal(first.name, 'testing2');
 				assert.equal(second.name, 'testing1');
 			});

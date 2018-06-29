@@ -448,7 +448,7 @@ export class UpdateGalleryExtensionAction extends Action {
 
 	private update(): void {
 		this.enabled = this.local && this.gallery && this.local.type === LocalExtensionType.User && semver.gt(this.gallery.version, this.local.manifest.version);
-		this.label = this.enabled ? localize('updateToInServer', "Update to {0} ({1})", this.local.manifest.version, this.server.location.authority) : localize('updateLabelInServer', "Update ({0})", this.server.location.authority);
+		this.label = this.enabled ? localize('updateToInServer', "Update to {0} ({1})", this.gallery.version, this.server.location.authority) : localize('updateLabelInServer', "Update ({0})", this.server.location.authority);
 	}
 
 	run(): TPromise<any> {
@@ -497,7 +497,11 @@ export class MultiServerInstallAction extends Action {
 		this.actions = this.extensionManagementServerService.extensionManagementServers.map(server => this.instantiationService.createInstance(InstallGalleryExtensionAction, `extensions.install.${server.location.authority}`, localize('installInServer', "{0}", server.location.authority), server));
 		this._actionItem = this.instantiationService.createInstance(DropDownMenuActionItem, this, [this.actions]);
 		this.disposables.push(...[this._actionItem, ...this.actions]);
-		this.disposables.push(this.extensionsWorkbenchService.onChange(() => this.extension = this.extension ? this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] : this.extension));
+		this.disposables.push(this.extensionsWorkbenchService.onChange(() => {
+			if (this.extension) {
+				this.extension = this.extensionsWorkbenchService.local.filter(l => areSameExtensions({ id: l.id }, { id: this.extension.id }))[0] || this.extension;
+			}
+		}));
 		this.update();
 	}
 
@@ -507,6 +511,16 @@ export class MultiServerInstallAction extends Action {
 			this.class = MultiServerInstallAction.Class;
 			this.label = MultiServerInstallAction.InstallLabel;
 			return;
+		}
+
+		if (this.extension.state === ExtensionState.Installing) {
+			this.label = MultiServerInstallAction.InstallingLabel;
+			this.class = MultiServerInstallAction.InstallingClass;
+			this.tooltip = MultiServerInstallAction.InstallingLabel;
+		} else {
+			this.label = MultiServerInstallAction.InstallLabel;
+			this.class = MultiServerInstallAction.Class;
+			this.tooltip = MultiServerInstallAction.InstallLabel;
 		}
 
 		const isInstalled = this.extension.locals.length > 0;
@@ -531,16 +545,6 @@ export class MultiServerInstallAction extends Action {
 		});
 
 		this.enabled = this.extensionsWorkbenchService.canInstall(this.extension) && (isExtensionNotInstalledInRecommendedServer || this.extension.locals.length === 0);
-
-		if (this.extension.state === ExtensionState.Installing) {
-			this.label = MultiServerInstallAction.InstallingLabel;
-			this.class = MultiServerInstallAction.InstallingClass;
-			this.tooltip = MultiServerInstallAction.InstallingLabel;
-		} else {
-			this.label = MultiServerInstallAction.InstallLabel;
-			this.class = MultiServerInstallAction.Class;
-			this.tooltip = MultiServerInstallAction.InstallLabel;
-		}
 	}
 
 	public run(): TPromise<any> {
@@ -820,20 +824,22 @@ export class ManageExtensionAction extends Action {
 	}
 
 	private createMenuActionGroups(): IAction[][] {
-		return [
-			[
-				this.instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
-				this.instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
-			],
-			[
-				this.instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
-				this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
-			],
-			this.extensionManagmentServerService.extensionManagementServers.length > 1 ? [this.instantiationService.createInstance(MultiServerInstallSubMenuAction)] : [],
-			[
-				this.extensionManagmentServerService.extensionManagementServers.length > 1 ? this.instantiationService.createInstance(MultiServerUnInstallSubMenuAction) : this.instantiationService.createInstance(UninstallAction)
-			]
-		];
+		const groups: IAction[][] = [];
+		groups.push([
+			this.instantiationService.createInstance(EnableGloballyAction, EnableGloballyAction.LABEL),
+			this.instantiationService.createInstance(EnableForWorkspaceAction, EnableForWorkspaceAction.LABEL)
+		]);
+		groups.push([
+			this.instantiationService.createInstance(DisableGloballyAction, DisableGloballyAction.LABEL),
+			this.instantiationService.createInstance(DisableForWorkspaceAction, DisableForWorkspaceAction.LABEL)
+		]);
+		if (this.extensionManagmentServerService.extensionManagementServers.length > 1) {
+			groups.push([this.instantiationService.createInstance(MultiServerInstallSubMenuAction)]);
+			groups.push([this.instantiationService.createInstance(MultiServerUnInstallSubMenuAction)]);
+		} else {
+			groups.push([this.instantiationService.createInstance(UninstallAction)]);
+		}
+		return groups;
 	}
 
 	private update(): void {

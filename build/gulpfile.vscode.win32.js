@@ -74,14 +74,15 @@ function buildWin32Setup(arch, target) {
 			DirName: product.win32DirName,
 			Version: pkg.version,
 			RawVersion: pkg.version.replace(/-\w+$/, ''),
-			NameVersion: product.win32NameVersion,
+			NameVersion: product.win32NameVersion + (target === 'user' ? ' (User)' : ''),
 			ExeBasename: product.nameShort,
 			RegValueName: product.win32RegValueName,
 			ShellNameShort: product.win32ShellNameShort,
 			AppMutex: product.win32MutexName,
 			Arch: arch,
 			AppId: arch === 'ia32' ? ia32AppId : x64AppId,
-			IncompatibleAppId: arch === 'ia32' ? x64AppId : ia32AppId,
+			IncompatibleTargetAppId: arch === 'ia32' ? product.win32AppId : product.win32x64AppId,
+			IncompatibleArchAppId: arch === 'ia32' ? x64AppId : ia32AppId,
 			AppUserId: product.win32AppUserModelId,
 			ArchitecturesAllowed: arch === 'ia32' ? '' : 'x64',
 			ArchitecturesInstallIn64BitMode: arch === 'ia32' ? '' : 'x64',
@@ -108,7 +109,7 @@ defineWin32SetupTasks('x64', 'user');
 
 function archiveWin32Setup(arch) {
 	return cb => {
-		const args = ['a', '-tzip', zipPath(arch), '.', '-r'];
+		const args = ['a', '-tzip', zipPath(arch), '-x!CodeSignSummary*.md', '.', '-r'];
 
 		cp.spawn(_7z, args, { stdio: 'inherit', cwd: buildPath(arch) })
 			.on('error', cb)

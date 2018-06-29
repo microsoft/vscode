@@ -201,9 +201,7 @@ export abstract class SimpleFindWidget extends Widget {
 	}
 
 	protected _updateHistory() {
-		if (this.inputValue) {
-			this._findInput.inputBox.addToHistory(this._findInput.getValue());
-		}
+		this._findInput.inputBox.addToHistory();
 	}
 }
 

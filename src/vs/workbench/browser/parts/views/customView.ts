@@ -242,7 +242,12 @@ export class CustomTreeViewer extends Disposable implements ITreeViewer {
 		return this._hasIconForLeafNode;
 	}
 
+	get visible(): boolean {
+		return this.isVisible;
+	}
+
 	setVisibility(isVisible: boolean): void {
+		isVisible = !!isVisible;
 		if (this.isVisible === isVisible) {
 			return;
 		}

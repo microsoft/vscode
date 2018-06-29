@@ -399,7 +399,7 @@ declare module 'vscode' {
 		 * };
 		 * ```
 		 */
-		dimensions: TerminalDimensions;
+		dimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The maximum dimensions of the terminal, this will be undefined immediately after a
@@ -407,12 +407,12 @@ declare module 'vscode' {
 		 * Listen to [onDidChangeMaximumDimensions](TerminalRenderer.onDidChangeMaximumDimensions)
 		 * to get notified when this value changes.
 		 */
-		readonly maximumDimensions: TerminalDimensions;
+		readonly maximumDimensions: TerminalDimensions | undefined;
 
 		/**
 		 * The corressponding [Terminal](#Terminal) for this TerminalRenderer.
 		 */
-		readonly terminal: Thenable<Terminal>;
+		readonly terminal: Terminal;
 
 		/**
 		 * Write text to the terminal. Unlike [Terminal.sendText](#Terminal.sendText) which sends
@@ -470,7 +470,7 @@ declare module 'vscode' {
 
 		/**
 		 * An [event](#Event) which fires when the [active terminal](#window.activeTerminal)
-		 * has changed. *Note* that the event also fires when the active editor changes
+		 * has changed. *Note* that the event also fires when the active terminal changes
 		 * to `undefined`.
 		 */
 		export const onDidChangeActiveTerminal: Event<Terminal | undefined>;
@@ -532,7 +532,8 @@ declare module 'vscode' {
 		 * of items of type T.
 		 *
 		 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-		 * is easier to use.
+		 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+		 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 		 *
 		 * @return A new [QuickPick](#QuickPick).
 		 */
@@ -542,7 +543,8 @@ declare module 'vscode' {
 		 * Creates a [InputBox](#InputBox) to let the user enter some text input.
 		 *
 		 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-		 * is easier to use.
+		 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+		 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 		 *
 		 * @return A new [InputBox](#InputBox).
 		 */
@@ -646,7 +648,8 @@ declare module 'vscode' {
 	 * selecting multiple items.
 	 *
 	 * Note that in many cases the more convenient [window.showQuickPick](#window.showQuickPick)
-	 * is easier to use.
+	 * is easier to use. [window.createQuickPick](#window.createQuickPick) should be used,
+	 * when [window.showQuickPick](#window.showQuickPick) does not offer the required flexibility.
 	 */
 	export interface QuickPick<T extends QuickPickItem> extends QuickInput {
 
@@ -725,7 +728,8 @@ declare module 'vscode' {
 	 * A concrete [QuickInput](#QuickInput) to let the user input a text value.
 	 *
 	 * Note that in many cases the more convenient [window.showInputBox](#window.showInputBox)
-	 * is easier to use.
+	 * is easier to use. [window.createInputBox](#window.createInputBox) should be used,
+	 * when [window.showInputBox](#window.showInputBox) does not offer the required flexibility.
 	 */
 	export interface InputBox extends QuickInput {
 
@@ -817,7 +821,7 @@ declare module 'vscode' {
 		 *
 		 * @param uri The uri of the file that is to be deleted.
 		 */
-		deleteFile(uri: Uri): void;
+		deleteFile(uri: Uri, options?: { recursive?: boolean }): void;
 
 		/**
 		 * Rename a file or folder.
@@ -831,6 +835,21 @@ declare module 'vscode' {
 		// replaceText(uri: Uri, range: Range, newText: string): void;
 		// insertText(uri: Uri, position: Position, newText: string): void;
 		// deleteText(uri: Uri, range: Range): void;
+	}
+
+	export namespace workspace {
+		/**
+		 * Make changes to one or many resources as defined by the given
+		 * [workspace edit](#WorkspaceEdit).
+		 *
+		 * The editor implements an 'all-or-nothing'-strategy and that means failure to modify,
+		 * delete, rename, or create one file will abort the operation. In that case, the thenable returned
+		 * by this function resolves to `false`.
+		 *
+		 * @param edit A workspace edit.
+		 * @return A thenable that resolves when the edit could be applied.
+		 */
+		export function applyEdit(edit: WorkspaceEdit): Thenable<boolean>;
 	}
 
 	//#endregion

@@ -476,7 +476,7 @@ suite('FileService', () => {
 		});
 	});
 
-	test('deleteFolder', function () {
+	test('deleteFolder (recursive)', function () {
 		let event: FileOperationEvent;
 		const toDispose = service.onAfterOperation(e => {
 			event = e;
@@ -484,13 +484,24 @@ suite('FileService', () => {
 
 		const resource = uri.file(path.join(testDir, 'deep'));
 		return service.resolveFile(resource).then(source => {
-			return service.del(source.resource).then(() => {
+			return service.del(source.resource, { recursive: true }).then(() => {
 				assert.equal(fs.existsSync(source.resource.fsPath), false);
 
 				assert.ok(event);
 				assert.equal(event.resource.fsPath, resource.fsPath);
 				assert.equal(event.operation, FileOperation.DELETE);
 				toDispose.dispose();
+			});
+		});
+	});
+
+	test('deleteFolder (non recursive)', function () {
+		const resource = uri.file(path.join(testDir, 'deep'));
+		return service.resolveFile(resource).then(source => {
+			return service.del(source.resource).then(() => {
+				return TPromise.wrapError(new Error('Unexpected'));
+			}, error => {
+				return TPromise.as(true);
 			});
 		});
 	});

@@ -963,7 +963,7 @@ export class TerminalInstance implements ITerminalInstance {
 				this._safeSetOption('drawBoldTextInBrightColors', config.drawBoldTextInBrightColors);
 			}
 
-			if (cols !== this._xterm.getOption('cols') || rows !== this._xterm.getOption('rows')) {
+			if (cols !== this._xterm.cols || rows !== this._xterm.rows) {
 				this._onDimensionsChanged.fire();
 			}
 

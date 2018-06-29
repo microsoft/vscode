@@ -203,10 +203,7 @@ export class MarkersFilterActionItem extends BaseActionItem {
 	}
 
 	private onDidInputChange() {
-		const filterText = this.filterInputBox.value;
-		if (filterText) {
-			this.filterInputBox.addToHistory(filterText);
-		}
+		this.filterInputBox.addToHistory();
 		this._onDidChange.fire();
 		this.reportFilteringUsed();
 	}

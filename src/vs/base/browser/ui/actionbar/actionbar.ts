@@ -154,7 +154,7 @@ export class BaseActionItem implements IActionItem {
 		DOM.EventHelper.stop(event, true);
 
 		let context: any;
-		if (types.isUndefinedOrNull(this._context)) {
+		if (types.isUndefinedOrNull(this._context) || !types.isObject(this._context)) {
 			context = event;
 		} else {
 			context = this._context;
@@ -640,10 +640,12 @@ export class ActionBar implements IActionRunner {
 
 	public focus(selectFirst?: boolean): void {
 		if (selectFirst && typeof this.focusedItem === 'undefined') {
-			this.focusedItem = 0;
+			// Focus the first enabled item
+			this.focusedItem = this.items.length - 1;
+			this.focusNext();
+		} else {
+			this.updateFocus();
 		}
-
-		this.updateFocus();
 	}
 
 	private focusNext(): void {

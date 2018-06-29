@@ -33,7 +33,7 @@ function adaptJSON(grammar, replacementScope) {
 
 var tsGrammarRepo = 'Microsoft/vscode-JSON.tmLanguage';
 updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSON.tmLanguage.json');
-updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSONC.tmLanguage.json', grammar => adaptJSON(grammar, '.jsonc'));
+updateGrammar.update(tsGrammarRepo, 'JSON.tmLanguage', './syntaxes/JSONC.tmLanguage.json', grammar => adaptJSON(grammar, '.json.comments'));
 
 
 

@@ -229,6 +229,8 @@ export interface ITreeViewer extends IDisposable {
 
 	readonly onDidChangeVisibility: Event<boolean>;
 
+	readonly visible: boolean;
+
 	refresh(treeItems?: ITreeItem[]): TPromise<void>;
 
 	setVisibility(visible: boolean): void;

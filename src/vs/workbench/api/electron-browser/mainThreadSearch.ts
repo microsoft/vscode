@@ -86,7 +86,7 @@ class RemoteSearchProvider implements ISearchResultProvider {
 		private readonly _handle: number,
 		private readonly _proxy: ExtHostSearchShape
 	) {
-		this._registrations = [searchService.registerSearchResultProvider(this)];
+		this._registrations = [searchService.registerSearchResultProvider(this._scheme, this)];
 	}
 
 	dispose(): void {

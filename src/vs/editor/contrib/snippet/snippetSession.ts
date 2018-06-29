@@ -98,10 +98,12 @@ export class OneSnippet {
 					const range = this._editor.getModel().getDecorationRange(id);
 					const currentValue = this._editor.getModel().getValueInRange(range);
 
-					operations.push({ range: range, text: placeholder.transform.resolve(currentValue) });
+					operations.push(EditOperation.replaceMove(range, placeholder.transform.resolve(currentValue)));
 				}
 			}
-			this._editor.getModel().applyEdits(operations);
+			if (operations.length > 0) {
+				this._editor.executeEdits('snippet.placeholderTransform', operations);
+			}
 		}
 
 		if (fwd === true && this._placeholderGroupsIdx < this._placeholderGroups.length - 1) {

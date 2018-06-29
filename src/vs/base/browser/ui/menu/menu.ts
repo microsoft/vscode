@@ -53,27 +53,9 @@ export class Menu {
 			parent: this
 		};
 
-		const getActionItem = (action: IAction) => {
-			if (action instanceof Separator) {
-				return new ActionItem(options.context, action, { icon: true });
-			} else if (action instanceof SubmenuAction) {
-				return new SubmenuActionItem(action, action.entries, parentData, options);
-			} else {
-				const menuItemOptions: IActionItemOptions = {};
-				if (options.getKeyBinding) {
-					const keybinding = options.getKeyBinding(action);
-					if (keybinding) {
-						menuItemOptions.keybinding = keybinding.getLabel();
-					}
-				}
-
-				return new MenuActionItem(options.context, action, menuItemOptions);
-			}
-		};
-
 		this.actionBar = new ActionBar(menuContainer, {
 			orientation: ActionsOrientation.VERTICAL,
-			actionItemProvider: options.actionItemProvider ? options.actionItemProvider : getActionItem,
+			actionItemProvider: action => this.doGetActionItem(action, options, parentData),
 			context: options.context,
 			actionRunner: options.actionRunner,
 			isMenu: true,
@@ -81,6 +63,24 @@ export class Menu {
 		});
 
 		this.actionBar.push(actions, { icon: true, label: true, isMenu: true });
+	}
+
+	private doGetActionItem(action: IAction, options: IMenuOptions, parentData: ISubMenuData): ActionItem {
+		if (action instanceof Separator) {
+			return new ActionItem(options.context, action, { icon: true });
+		} else if (action instanceof SubmenuAction) {
+			return new SubmenuActionItem(action, action.entries, parentData, options);
+		} else {
+			const menuItemOptions: IActionItemOptions = {};
+			if (options.getKeyBinding) {
+				const keybinding = options.getKeyBinding(action);
+				if (keybinding) {
+					menuItemOptions.keybinding = keybinding.getLabel();
+				}
+			}
+
+			return new MenuActionItem(options.context, action, menuItemOptions);
+		}
 	}
 
 	public get onDidCancel(): Event<void> {
@@ -92,7 +92,9 @@ export class Menu {
 	}
 
 	public focus() {
-		this.actionBar.focus(true);
+		if (this.actionBar) {
+			this.actionBar.focus(true);
+		}
 	}
 
 	public dispose() {
@@ -150,6 +152,7 @@ class MenuActionItem extends ActionItem {
 
 class SubmenuActionItem extends MenuActionItem {
 	private mysubmenu: Menu;
+	private mouseOver: boolean;
 
 	constructor(
 		action: IAction,
@@ -185,14 +188,30 @@ class SubmenuActionItem extends MenuActionItem {
 		});
 
 		$(this.builder).on(EventType.MOUSE_OVER, (e) => {
-			this.cleanupExistingSubmenu(false);
-			this.createSubmenu();
+			if (!this.mouseOver) {
+				this.mouseOver = true;
+
+				setTimeout(() => {
+					if (this.mouseOver) {
+						this.cleanupExistingSubmenu(false);
+						this.createSubmenu();
+					}
+				}, 250);
+
+			}
 		});
 
 
 		$(this.builder).on(EventType.MOUSE_LEAVE, (e) => {
-			this.parentData.parent.focus();
-			this.cleanupExistingSubmenu(true);
+			this.mouseOver = false;
+
+			setTimeout(() => {
+				if (!this.mouseOver && this.parentData.submenu === this.mysubmenu) {
+					this.parentData.parent.focus();
+					this.cleanupExistingSubmenu(true);
+				}
+
+			}, 750);
 		});
 	}
 

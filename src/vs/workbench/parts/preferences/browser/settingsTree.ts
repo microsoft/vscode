@@ -70,6 +70,7 @@ export class SettingsTreeGroupElement extends SettingsTreeElement {
 	children: (SettingsTreeGroupElement | SettingsTreeSettingElement)[];
 	label: string;
 	level: number;
+	isFirstGroup: boolean;
 }
 
 export class SettingsTreeSettingElement extends SettingsTreeElement {
@@ -111,6 +112,8 @@ export class SettingsTreeModel {
 
 	update(newTocRoot = this._tocRoot): void {
 		const newRoot = this.createSettingsTreeGroupElement(newTocRoot);
+		(<SettingsTreeGroupElement>newRoot.children[0]).isFirstGroup = true;
+
 		if (this._root) {
 			this._root.children = newRoot.children;
 		} else {
@@ -451,6 +454,10 @@ export class SettingsRenderer implements IRenderer {
 
 	getHeight(tree: ITree, element: SettingsTreeElement): number {
 		if (element instanceof SettingsTreeGroupElement) {
+			if (element.isFirstGroup) {
+				return 31;
+			}
+
 			return 40 + (7 * element.level);
 		}
 
@@ -642,6 +649,10 @@ export class SettingsRenderer implements IRenderer {
 		const labelElement = DOM.append(template.parent, $('div.settings-group-title-label'));
 		labelElement.classList.add(`settings-group-level-${element.level}`);
 		labelElement.textContent = (<SettingsTreeGroupElement>element).label;
+
+		if (element.isFirstGroup) {
+			labelElement.classList.add('settings-group-first');
+		}
 	}
 
 	private elementIsSelected(tree: ITree, element: SettingsTreeElement): boolean {
@@ -676,6 +687,8 @@ export class SettingsRenderer implements IRenderer {
 				localize('configuredIn', "Modified in");
 
 			template.otherOverridesElement.textContent = `(${otherOverridesLabel}: ${element.overriddenScopeList.join(', ')})`;
+		} else {
+			template.otherOverridesElement.textContent = '';
 		}
 	}
 
@@ -772,7 +785,6 @@ function escapeInvisibleChars(enumValue: string): string {
 export class SettingsTreeFilter implements IFilter {
 	constructor(
 		private viewState: ISettingsEditorViewState,
-		@IConfigurationService private configurationService: IConfigurationService
 	) { }
 
 	isVisible(tree: ITree, element: SettingsTreeElement): boolean {
@@ -808,13 +820,12 @@ export class SettingsTreeFilter implements IFilter {
 	private groupHasConfiguredSetting(element: SettingsTreeGroupElement): boolean {
 		for (let child of element.children) {
 			if (child instanceof SettingsTreeSettingElement) {
-				const { isConfigured } = inspectSetting(child.setting.key, this.viewState.settingsTarget, this.configurationService);
-				if (isConfigured) {
+				if (child.isConfigured) {
 					return true;
 				}
-			} else {
-				if (child instanceof SettingsTreeGroupElement) {
-					return this.groupHasConfiguredSetting(child);
+			} else if (child instanceof SettingsTreeGroupElement) {
+				if (this.groupHasConfiguredSetting(child)) {
+					return true;
 				}
 			}
 		}

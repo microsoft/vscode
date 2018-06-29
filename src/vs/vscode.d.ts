@@ -5565,7 +5565,8 @@ declare module 'vscode' {
 	 * setState({ value: oldState.value + 1 })
 	 * ```
 	 *
-	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown, VS Code will save off the state from `setState` of all webviews that have a serializer. When the
+	 * A `WebviewPanelSerializer` extends this persistence across restarts of VS Code. When the editor is shutdown,
+	 * VS Code will save off the state from `setState` of all webviews that have a serializer. When the
 	 * webview first becomes visible after the restart, this state is passed to `deserializeWebviewPanel`.
 	 * The extension can then restore the old `WebviewPanel` from this state.
 	 */
@@ -5575,8 +5576,9 @@ declare module 'vscode' {
 		 *
 		 * Called when a serialized webview first becomes visible.
 		 *
-		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel.
-		 * @param state Persisted state.
+		 * @param webviewPanel Webview panel to restore. The serializer should take ownership of this panel. The
+		 * serializer must restore the webview's `.html` and hook up all webview events.
+		 * @param state Persisted state from the webview content.
 		 *
 		 * @return Thanble indicating that the webview has been fully restored.
 		 */
@@ -6193,7 +6195,7 @@ declare module 'vscode' {
 		/**
 		 * Registers a webview panel serializer.
 		 *
-		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation method and
+		 * Extensions that support reviving should have an `"onWebviewPanel:viewType"` activation event and
 		 * make sure that [registerWebviewPanelSerializer](#registerWebviewPanelSerializer) is called during activation.
 		 *
 		 * Only a single serializer may be registered at a time for a given `viewType`.

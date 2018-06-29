@@ -58,7 +58,7 @@
       },
       {
         "language": "jsonc",
-        "scopeName": "source.jsonc",
+        "scopeName": "source.json.comments",
         "path": "./syntaxes/JSONC.tmLanguage.json"
       }
     ],
