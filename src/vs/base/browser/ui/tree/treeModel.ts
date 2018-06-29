@@ -160,8 +160,7 @@ export class TreeModel<T> {
 	}
 
 	isCollapsed(location: number[]): boolean {
-		const { node } = this.findNode(location);
-		return node.collapsed;
+		return this.findNode(location).node.collapsed;
 	}
 
 	private findNode(location: number[]): { node: IMutableTreeNode<T>, listIndex: number, visible: boolean } {
