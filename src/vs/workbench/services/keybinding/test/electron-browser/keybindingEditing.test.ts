@@ -55,7 +55,7 @@ interface Modifiers {
 	shiftKey?: boolean;
 }
 
-suite('Keybindings Editing', () => {
+suite('KeybindingsEditing', () => {
 
 	let instantiationService: TestInstantiationService;
 	let testObject: KeybindingsEditingService;
@@ -218,6 +218,21 @@ suite('Keybindings Editing', () => {
 		writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
 		return testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }))
 			.then(() => assert.deepEqual(getUserKeybindings(), []));
+	});
+
+	test('reset mulitple removed keybindings', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-b' });
+		writeToKeybindingsFile({ key: 'alt+shift+c', command: '-b' });
+		writeToKeybindingsFile({ key: 'escape', command: '-b' });
+		return testObject.resetKeybinding(aResolvedKeybindingItem({ command: 'b', isDefault: false }))
+			.then(() => assert.deepEqual(getUserKeybindings(), []));
+	});
+
+	test('add a new keybinding to unassigned keybinding', () => {
+		writeToKeybindingsFile({ key: 'alt+c', command: '-a' });
+		const expected: IUserFriendlyKeybinding[] = [{ key: 'alt+c', command: '-a' }, { key: 'shift+alt+c', command: 'a' }];
+		return testObject.editKeybinding('shift+alt+c', aResolvedKeybindingItem({ command: 'a', isDefault: false }))
+			.then(() => assert.deepEqual(getUserKeybindings(), expected));
 	});
 
 	function writeToKeybindingsFile(...keybindings: IUserFriendlyKeybinding[]) {

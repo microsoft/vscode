@@ -197,10 +197,33 @@ export class OutlineGroup extends TreeElement {
 export class OutlineModel extends TreeElement {
 
 	private static readonly _requests = new LRUCache<string, { promiseCnt: number, promise: TPromise<any>, model: OutlineModel }>(9, .75);
+	private static readonly _keys = new class {
+
+		private _counter = 1;
+		private _data = new WeakMap<DocumentSymbolProvider, number>();
+
+		for(textModel: ITextModel): string {
+			return `${textModel.id}/${textModel.getVersionId()}/${this._hash(DocumentSymbolProviderRegistry.all(textModel))}`;
+		}
+
+		private _hash(providers: DocumentSymbolProvider[]): string {
+			let result = '';
+			for (const provider of providers) {
+				let n = this._data.get(provider);
+				if (typeof n === 'undefined') {
+					n = this._counter++;
+					this._data.set(provider, n);
+				}
+				result += n;
+			}
+			return result;
+		}
+	};
+
 
 	static create(textModel: ITextModel): TPromise<OutlineModel> {
 
-		let key = `${textModel.id}/${textModel.getVersionId()}/${DocumentSymbolProviderRegistry.all(textModel).length}`;
+		let key = this._keys.for(textModel);
 		let data = OutlineModel._requests.get(key);
 
 		if (!data) {

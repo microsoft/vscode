@@ -21,6 +21,7 @@ import { isCodeEditor } from 'vs/editor/browser/editorBrowser';
 import { isFalsyOrEmpty } from 'vs/base/common/arrays';
 import { ILogService } from 'vs/platform/log/common/log';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
+import { IUpdateService } from 'vs/platform/update/common/update';
 
 class StartupTimings implements IWorkbenchContribution {
 
@@ -34,6 +35,7 @@ class StartupTimings implements IWorkbenchContribution {
 		@ITelemetryService private readonly _telemetryService: ITelemetryService,
 		@ILifecycleService private readonly _lifecycleService: ILifecycleService,
 		@IExtensionService private readonly _extensionService: IExtensionService,
+		@IUpdateService private readonly _updateService: IUpdateService,
 	) {
 
 		this._reportVariedStartupTimes().then(undefined, onUnexpectedError);
@@ -87,7 +89,10 @@ class StartupTimings implements IWorkbenchContribution {
 			this._logService.info('no standard startup: not using cached data');
 			return;
 		}
-
+		if (!await this._updateService.isLatestVersion()) {
+			this._logService.info('no standard startup: not running latest version');
+			return;
+		}
 		// wait only know so that can check the restored state as soon as possible
 		await TPromise.join([
 			this._extensionService.whenInstalledExtensionsRegistered(),

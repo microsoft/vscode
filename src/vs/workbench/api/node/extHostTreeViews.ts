@@ -17,6 +17,7 @@ import { ExtHostCommands, CommandsConverter } from 'vs/workbench/api/node/extHos
 import { asWinJsPromise } from 'vs/base/common/async';
 import { TreeItemCollapsibleState, ThemeIcon } from 'vs/workbench/api/node/extHostTypes';
 import { isUndefinedOrNull } from 'vs/base/common/types';
+import { equals } from 'vs/base/common/arrays';
 
 type TreeItemHandle = string;
 
@@ -52,7 +53,10 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 			get onDidCollapseElement() { return treeView.onDidCollapseElement; },
 			get onDidExpandElement() { return treeView.onDidExpandElement; },
 			get selection() { return treeView.selectedElements; },
-			reveal: (element: T, options?: { select?: boolean }): Thenable<void> => {
+			get onDidChangeSelection() { return treeView.onDidChangeSelection; },
+			get visible() { return treeView.visible; },
+			get onDidChangeVisibility() { return treeView.onDidChangeVisibility; },
+			reveal: (element: T, options?: { select?: boolean, focus?: boolean }): Thenable<void> => {
 				return treeView.reveal(element, options);
 			},
 			dispose: () => {
@@ -86,6 +90,14 @@ export class ExtHostTreeViews implements ExtHostTreeViewsShape {
 		treeView.setSelection(treeItemHandles);
 	}
 
+	$setVisible(treeViewId: string, isVisible: boolean): void {
+		const treeView = this.treeViews.get(treeViewId);
+		if (!treeView) {
+			throw new Error(localize('treeView.notRegistered', 'No tree view with id \'{0}\' registered.', treeViewId));
+		}
+		treeView.setVisible(isVisible);
+	}
+
 	private createExtHostTreeViewer<T>(id: string, dataProvider: vscode.TreeDataProvider<T>): ExtHostTreeView<T> {
 		const treeView = new ExtHostTreeView<T>(id, dataProvider, this._proxy, this.commands.converter);
 		this.treeViews.set(id, treeView);
@@ -113,14 +125,23 @@ class ExtHostTreeView<T> extends Disposable {
 	private elements: Map<TreeItemHandle, T> = new Map<TreeItemHandle, T>();
 	private nodes: Map<T, TreeNode> = new Map<T, TreeNode>();
 
-	private _selectedElements: T[] = [];
-	get selectedElements(): T[] { return this._selectedElements; }
+	private _visible: boolean = false;
+	get visible(): boolean { return this._visible; }
+
+	private _selectedHandles: TreeItemHandle[] = [];
+	get selectedElements(): T[] { return this._selectedHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element)); }
 
 	private _onDidExpandElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidExpandElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidExpandElement.event;
 
 	private _onDidCollapseElement: Emitter<vscode.TreeViewExpansionEvent<T>> = this._register(new Emitter<vscode.TreeViewExpansionEvent<T>>());
 	readonly onDidCollapseElement: Event<vscode.TreeViewExpansionEvent<T>> = this._onDidCollapseElement.event;
+
+	private _onDidChangeSelection: Emitter<vscode.TreeViewSelectionChangeEvent<T>> = this._register(new Emitter<vscode.TreeViewSelectionChangeEvent<T>>());
+	readonly onDidChangeSelection: Event<vscode.TreeViewSelectionChangeEvent<T>> = this._onDidChangeSelection.event;
+
+	private _onDidChangeVisibility: Emitter<vscode.TreeViewVisibilityChangeEvent> = this._register(new Emitter<vscode.TreeViewVisibilityChangeEvent>());
+	readonly onDidChangeVisibility: Event<vscode.TreeViewVisibilityChangeEvent> = this._onDidChangeVisibility.event;
 
 	private refreshPromise: TPromise<void> = TPromise.as(null);
 
@@ -160,29 +181,43 @@ class ExtHostTreeView<T> extends Disposable {
 		return this.elements.get(treeItemHandle);
 	}
 
-	reveal(element: T, options?: { select?: boolean }): TPromise<void> {
+	reveal(element: T, options?: { select?: boolean, focus?: boolean }): TPromise<void> {
+		options = options ? options : { select: true, focus: false };
+		const select = isUndefinedOrNull(options.select) ? true : options.select;
+		const focus = isUndefinedOrNull(options.focus) ? false : options.focus;
+
 		if (typeof this.dataProvider.getParent !== 'function') {
 			return TPromise.wrapError(new Error(`Required registered TreeDataProvider to implement 'getParent' method to access 'reveal' method`));
 		}
 		return this.refreshPromise
 			.then(() => this.resolveUnknownParentChain(element))
 			.then(parentChain => this.resolveTreeNode(element, parentChain[parentChain.length - 1])
-				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), options)));
+				.then(treeNode => this.proxy.$reveal(this.viewId, treeNode.item, parentChain.map(p => p.item), { select, focus })));
 	}
 
 	setExpanded(treeItemHandle: TreeItemHandle, expanded: boolean): void {
 		const element = this.getExtensionElement(treeItemHandle);
 		if (element) {
 			if (expanded) {
-				this._onDidExpandElement.fire({ element });
+				this._onDidExpandElement.fire(Object.freeze({ element }));
 			} else {
-				this._onDidCollapseElement.fire({ element });
+				this._onDidCollapseElement.fire(Object.freeze({ element }));
 			}
 		}
 	}
 
 	setSelection(treeItemHandles: TreeItemHandle[]): void {
-		this._selectedElements = treeItemHandles.map(handle => this.getExtensionElement(handle)).filter(element => !isUndefinedOrNull(element));
+		if (!equals(this._selectedHandles, treeItemHandles)) {
+			this._selectedHandles = treeItemHandles;
+			this._onDidChangeSelection.fire(Object.freeze({ selection: this.selectedElements }));
+		}
+	}
+
+	setVisible(visible: boolean): void {
+		if (visible !== this._visible) {
+			this._visible = visible;
+			this._onDidChangeVisibility.fire(Object.freeze({ visible: this._visible }));
+		}
 	}
 
 	private resolveUnknownParentChain(element: T): TPromise<TreeNode[]> {

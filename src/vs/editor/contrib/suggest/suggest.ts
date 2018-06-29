@@ -37,6 +37,10 @@ export type SnippetConfig = 'top' | 'bottom' | 'inline' | 'none';
 
 let _snippetSuggestSupport: ISuggestSupport;
 
+export function getSnippetSuggestSupport(): ISuggestSupport {
+	return _snippetSuggestSupport;
+}
+
 export function setSnippetSuggestSupport(support: ISuggestSupport): ISuggestSupport {
 	const old = _snippetSuggestSupport;
 	_snippetSuggestSupport = support;

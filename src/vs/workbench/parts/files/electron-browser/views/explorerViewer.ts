@@ -885,6 +885,9 @@ export class FileDragAndDrop extends SimpleFileResourceDragAndDrop {
 		// All (target = file/folder)
 		else {
 			if (target.isDirectory) {
+				if (target.isReadonly) {
+					return DRAG_OVER_REJECT;
+				}
 				return fromDesktop || isCopy ? DRAG_OVER_ACCEPT_BUBBLE_DOWN_COPY(true) : DRAG_OVER_ACCEPT_BUBBLE_DOWN(true);
 			}
 

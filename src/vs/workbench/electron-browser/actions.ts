@@ -20,19 +20,19 @@ import { IEnvironmentService } from 'vs/platform/environment/common/environment'
 import { IConfigurationService, ConfigurationTarget } from 'vs/platform/configuration/common/configuration';
 import { IWorkspaceConfigurationService } from 'vs/workbench/services/configuration/common/configuration';
 import * as paths from 'vs/base/common/paths';
-import { isMacintosh, isLinux } from 'vs/base/common/platform';
+import { isMacintosh, isLinux, language } from 'vs/base/common/platform';
 import { IQuickOpenService, IFilePickOpenEntry, ISeparator, IPickOpenAction, IPickOpenItem } from 'vs/platform/quickOpen/common/quickOpen';
 import * as browser from 'vs/base/browser/browser';
 import { IIntegrityService } from 'vs/platform/integrity/common/integrity';
 import { IEntryRunContext } from 'vs/base/parts/quickopen/common/quickOpen';
 import { ITimerService, IStartupMetrics } from 'vs/workbench/services/timer/common/timerService';
-import { IEditorGroupsService, GroupDirection } from 'vs/workbench/services/group/common/editorGroupsService';
+import { IEditorGroupsService, GroupDirection, GroupLocation, IFindGroupScope } from 'vs/workbench/services/group/common/editorGroupsService';
 import { IPanelService } from 'vs/workbench/services/panel/common/panelService';
 import { IPartService, Parts, Position as PartPosition } from 'vs/workbench/services/part/common/partService';
 import { IViewletService } from 'vs/workbench/services/viewlet/browser/viewlet';
 import { IKeybindingService } from 'vs/platform/keybinding/common/keybinding';
 import * as os from 'os';
-import { webFrame } from 'electron';
+import { webFrame, shell } from 'electron';
 import { getPathLabel, getBaseLabel } from 'vs/base/common/labels';
 import { IViewlet } from 'vs/workbench/common/viewlet';
 import { IPanel } from 'vs/workbench/common/panel';
@@ -1197,20 +1197,22 @@ export abstract class BaseNavigationAction extends Action {
 	}
 
 	protected navigateAcrossEditorGroup(direction: GroupDirection): TPromise<boolean> {
-		const nextGroup = this.editorGroupService.findGroup({ direction }, this.editorGroupService.activeGroup);
-		if (nextGroup) {
-			nextGroup.focus();
+		return this.doNavigateToEditorGroup({ direction });
+	}
+
+	protected navigateToEditorGroup(location: GroupLocation): TPromise<boolean> {
+		return this.doNavigateToEditorGroup({ location });
+	}
+
+	private doNavigateToEditorGroup(scope: IFindGroupScope): TPromise<boolean> {
+		const targetGroup = this.editorGroupService.findGroup(scope, this.editorGroupService.activeGroup);
+		if (targetGroup) {
+			targetGroup.focus();
 
 			return TPromise.as(true);
 		}
 
 		return TPromise.as(false);
-	}
-
-	protected navigateToActiveEditorGroup(): TPromise<boolean> {
-		this.editorGroupService.activeGroup.focus();
-
-		return TPromise.as(true);
 	}
 }
 
@@ -1251,7 +1253,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 		}
 
 		if (!isPanelPositionDown) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
@@ -1259,7 +1261,7 @@ export class NavigateLeftAction extends BaseNavigationAction {
 
 	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (!isSidebarPositionLeft) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
@@ -1311,7 +1313,7 @@ export class NavigateRightAction extends BaseNavigationAction {
 
 	protected navigateOnSidebarFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isSidebarPositionLeft) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.FIRST);
 		}
 
 		return TPromise.as(false);
@@ -1340,7 +1342,7 @@ export class NavigateUpAction extends BaseNavigationAction {
 
 	protected navigateOnPanelFocus(isSidebarPositionLeft: boolean, isPanelPositionDown: boolean): TPromise<boolean> {
 		if (isPanelPositionDown) {
-			return this.navigateToActiveEditorGroup();
+			return this.navigateToEditorGroup(GroupLocation.LAST);
 		}
 
 		return TPromise.as(false);
@@ -1541,6 +1543,121 @@ export class ToggleWindowTabsBar extends Action {
 		return this.windowsService.toggleWindowTabsBar().then(() => true);
 	}
 }
+
+export class OpenTwitterUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openTwitterUrl';
+	public static LABEL = nls.localize('openTwitterUrl', "Join us on Twitter", product.applicationName);
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.twitterUrl) {
+			return TPromise.as(shell.openExternal(product.twitterUrl));
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class OpenRequestFeatureUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openRequestFeatureUrl';
+	public static LABEL = nls.localize('openUserVoiceUrl', "Search Feature Requests");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.requestFeatureUrl) {
+			return TPromise.as(shell.openExternal(product.requestFeatureUrl));
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+export class OpenLicenseUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openLicenseUrl';
+	public static LABEL = nls.localize('openLicenseUrl', "View License");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.licenseUrl) {
+			if (language) {
+				const queryArgChar = product.licenseUrl.indexOf('?') > 0 ? '&' : '?';
+				return TPromise.as(shell.openExternal(`${product.licenseUrl}${queryArgChar}lang=${language}`));
+			} else {
+				return TPromise.as(shell.openExternal(product.licenseUrl));
+			}
+		}
+
+		return TPromise.as(false);
+	}
+}
+
+
+export class OpenPrivacyStatementUrlAction extends Action {
+
+	public static readonly ID = 'workbench.action.openPrivacyStatementUrl';
+	public static LABEL = nls.localize('openPrivacyStatement', "Privacy Statement");
+
+	constructor(
+		id: string,
+		label: string
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<boolean> {
+		if (product.privacyStatementUrl) {
+			if (language) {
+				const queryArgChar = product.privacyStatementUrl.indexOf('?') > 0 ? '&' : '?';
+				return TPromise.as(shell.openExternal(`${product.privacyStatementUrl}${queryArgChar}lang=${language}`));
+			} else {
+				return TPromise.as(shell.openExternal(product.privacyStatementUrl));
+			}
+		}
+
+
+		return TPromise.as(false);
+	}
+}
+
+export class ShowAccessibilityOptionsAction extends Action {
+
+	public static readonly ID = 'workbench.action.showAccessibilityOptions';
+	public static LABEL = nls.localize('accessibilityOptions', "Accessibility Options");
+
+	constructor(
+		id: string,
+		label: string,
+		@IWindowsService private windowsService: IWindowsService
+	) {
+		super(id, label);
+	}
+
+	run(): TPromise<void> {
+		return this.windowsService.openAccessibilityOptions();
+	}
+}
+
 
 export class ShowAboutDialogAction extends Action {
 

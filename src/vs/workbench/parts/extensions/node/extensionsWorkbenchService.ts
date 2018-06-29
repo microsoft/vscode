@@ -18,7 +18,7 @@ import { IPager, mapPager, singlePagePager } from 'vs/base/common/paging';
 import { ITelemetryService } from 'vs/platform/telemetry/common/telemetry';
 import {
 	IExtensionManagementService, IExtensionGalleryService, ILocalExtension, IGalleryExtension, IQueryOptions, IExtensionManifest,
-	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState,
+	InstallExtensionEvent, DidInstallExtensionEvent, LocalExtensionType, DidUninstallExtensionEvent, IExtensionEnablementService, IExtensionIdentifier, EnablementState, IExtensionTipsService, ExtensionRecommendationSource, IExtensionRecommendation
 } from 'vs/platform/extensionManagement/common/extensionManagement';
 import { getGalleryExtensionIdFromLocal, getGalleryExtensionTelemetryData, getLocalExtensionTelemetryData, areSameExtensions, getMaliciousExtensionsSet } from 'vs/platform/extensionManagement/common/extensionManagementUtil';
 import { IInstantiationService } from 'vs/platform/instantiation/common/instantiation';
@@ -48,6 +48,7 @@ class Extension implements IExtension {
 
 	public get local(): ILocalExtension { return this.locals[0]; }
 	public enablementState: EnablementState = EnablementState.Enabled;
+	public recommendationSources: ExtensionRecommendationSource[];
 
 	constructor(
 		private galleryService: IExtensionGalleryService,
@@ -350,7 +351,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		@IWindowService private windowService: IWindowService,
 		@ILogService private logService: ILogService,
 		@IProgressService2 private progressService: IProgressService2,
-		@IExtensionService private runtimeExtensionService: IExtensionService
+		@IExtensionService private runtimeExtensionService: IExtensionService,
+		@IExtensionTipsService private extensionTipsService: IExtensionTipsService
 	) {
 		this.stateProvider = ext => this.getExtensionState(ext);
 
@@ -385,8 +387,8 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	queryLocal(): TPromise<IExtension[]> {
-		return this.extensionService.getInstalled()
-			.then(installed => this.getDistinctInstalledExtensions(installed)
+		return TPromise.join([this.extensionService.getInstalled(), this.extensionTipsService.getAllRecommendations()])
+			.then(([installed, allRecommendations]) => this.getDistinctInstalledExtensions(installed)
 				.then(distinctInstalled => {
 					const installedById = index(this.installed, e => e.local.identifier.id);
 					const groupById = groupBy(installed, i => getGalleryExtensionIdFromLocal(i));
@@ -397,6 +399,10 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 						const extension = installedById[local.identifier.id] || new Extension(this.galleryService, this.stateProvider, locals, null, this.telemetryService);
 						extension.locals = locals;
 						extension.enablementState = this.extensionEnablementService.getEnablementState(local);
+						const recommendation = allRecommendations.filter(r => areSameExtensions({ id: r.extensionId }, { id: extension.id }))[0];
+						if (recommendation) {
+							extension.recommendationSources = recommendation.sources || [];
+						}
 						return extension;
 					});
 
@@ -406,19 +412,20 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 	}
 
 	queryGallery(options: IQueryOptions = {}): TPromise<IPager<IExtension>> {
-		return this.extensionService.getExtensionsReport().then(report => {
-			const maliciousSet = getMaliciousExtensionsSet(report);
+		return TPromise.join([this.extensionTipsService.getAllRecommendations(), this.extensionService.getExtensionsReport()])
+			.then(([allRecommendations, report]) => {
+				const maliciousSet = getMaliciousExtensionsSet(report);
 
-			return this.galleryService.query(options)
-				.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet)))
-				.then(null, err => {
-					if (/No extension gallery service configured/.test(err.message)) {
-						return TPromise.as(singlePagePager([]));
-					}
+				return this.galleryService.query(options)
+					.then(result => mapPager(result, gallery => this.fromGallery(gallery, maliciousSet, allRecommendations)))
+					.then(null, err => {
+						if (/No extension gallery service configured/.test(err.message)) {
+							return TPromise.as(singlePagePager([]));
+						}
 
-					return TPromise.wrapError<IPager<IExtension>>(err);
-				});
-		});
+						return TPromise.wrapError<IPager<IExtension>>(err);
+					});
+			});
 	}
 
 	loadDependencies(extension: IExtension): TPromise<IExtensionDependencies> {
@@ -426,20 +433,21 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 			return TPromise.wrap<IExtensionDependencies>(null);
 		}
 
-		return this.extensionService.getExtensionsReport().then(report => {
-			const maliciousSet = getMaliciousExtensionsSet(report);
+		return TPromise.join([this.extensionTipsService.getAllRecommendations(), this.extensionService.getExtensionsReport()])
+			.then(([allRecommendations, report]) => {
+				const maliciousSet = getMaliciousExtensionsSet(report);
 
-			return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
-				.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet)))
-				.then(extensions => [...this.local, ...extensions])
-				.then(extensions => {
-					const map = new Map<string, IExtension>();
-					for (const extension of extensions) {
-						map.set(extension.id, extension);
-					}
-					return new ExtensionDependencies(extension, extension.id, map);
-				});
-		});
+				return this.galleryService.loadAllDependencies((<Extension>extension).dependencies.map(id => <IExtensionIdentifier>{ id }))
+					.then(galleryExtensions => galleryExtensions.map(galleryExtension => this.fromGallery(galleryExtension, maliciousSet, allRecommendations)))
+					.then(extensions => [...this.local, ...extensions])
+					.then(extensions => {
+						const map = new Map<string, IExtension>();
+						for (const extension of extensions) {
+							map.set(extension.id, extension);
+						}
+						return new ExtensionDependencies(extension, extension.id, map);
+					});
+			});
 	}
 
 	open(extension: IExtension, sideByside: boolean = false): TPromise<any> {
@@ -498,7 +506,7 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 		return false;
 	}
 
-	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>): Extension {
+	private fromGallery(gallery: IGalleryExtension, maliciousExtensionSet: Set<string>, allRecommendations: IExtensionRecommendation[]): Extension {
 		let result = this.getInstalledExtensionMatchingGallery(gallery);
 
 		if (result) {
@@ -516,6 +524,11 @@ export class ExtensionsWorkbenchService implements IExtensionsWorkbenchService, 
 
 		if (maliciousExtensionSet.has(result.id)) {
 			result.isMalicious = true;
+		}
+
+		const recommendation = allRecommendations.filter(r => areSameExtensions({ id: r.extensionId }, { id: result.id }))[0];
+		if (recommendation) {
+			result.recommendationSources = recommendation.sources || [];
 		}
 
 		return result;

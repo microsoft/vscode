@@ -62,7 +62,7 @@ export class BaseExtHostTerminal {
 		request.run(this._proxy, this._id);
 	}
 
-	protected _runQueuedRequests(id: number): void {
+	public _runQueuedRequests(id: number): void {
 		this._id = id;
 		this._idPromiseComplete(id);
 		this._queuedRequests.forEach((r) => {
@@ -77,7 +77,7 @@ export class ExtHostTerminal extends BaseExtHostTerminal implements vscode.Termi
 	private _pidPromiseComplete: (value: number) => any;
 
 	private readonly _onData: Emitter<string> = new Emitter<string>();
-	public get onData(): Event<string> {
+	public get onDidWriteData(): Event<string> {
 		// Tell the main side to start sending data if it's not already
 		this._proxy.$registerOnDataListener(this._id);
 		return this._onData && this._onData.event;
@@ -156,7 +156,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 	}
 
 	private readonly _onInput: Emitter<string> = new Emitter<string>();
-	public get onInput(): Event<string> {
+	public get onDidAcceptInput(): Event<string> {
 		this._checkDisposed();
 		this._queueApiRequest(this._proxy.$terminalRendererRegisterOnInputListener, [this._id]);
 		// Tell the main side to start sending data if it's not already
@@ -179,7 +179,7 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		}
 		return {
 			rows: this._maximumDimensions.rows,
-			cols: this._maximumDimensions.cols
+			columns: this._maximumDimensions.columns
 		};
 	}
 
@@ -188,18 +188,19 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		return this._onDidChangeMaximumDimensions && this._onDidChangeMaximumDimensions.event;
 	}
 
-	public get terminal(): Promise<ExtHostTerminal> {
-		return this._idPromise.then(id => this._fetchTerminal(id));
+	public get terminal(): ExtHostTerminal {
+		return this._terminal;
 	}
 
 	constructor(
 		proxy: MainThreadTerminalServiceShape,
 		private _name: string,
-		private _fetchTerminal: (id: number) => Promise<ExtHostTerminal>
+		private _terminal: ExtHostTerminal
 	) {
 		super(proxy);
 		this._proxy.$createTerminalRenderer(this._name).then(id => {
 			this._runQueuedRequests(id);
+			(<any>this._terminal)._runQueuedRequests(id);
 		});
 	}
 
@@ -212,8 +213,11 @@ export class ExtHostTerminalRenderer extends BaseExtHostTerminal implements vsco
 		this._onInput.fire(data);
 	}
 
-	public _setMaximumDimensions(cols: number, rows: number): void {
-		this._maximumDimensions = { cols, rows };
+	public _setMaximumDimensions(columns: number, rows: number): void {
+		if (this._maximumDimensions && this._maximumDimensions.columns === columns && this._maximumDimensions.rows === rows) {
+			return;
+		}
+		this._maximumDimensions = { columns, rows };
 		this._onDidChangeMaximumDimensions.fire(this.maximumDimensions);
 	}
 }
@@ -258,8 +262,13 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public createTerminalRenderer(name: string): vscode.TerminalRenderer {
-		const renderer = new ExtHostTerminalRenderer(this._proxy, name, (id) => this._getTerminalByIdEventually(id));
+		const terminal = new ExtHostTerminal(this._proxy, name);
+		terminal._setProcessId(undefined);
+		this._terminals.push(terminal);
+
+		const renderer = new ExtHostTerminalRenderer(this._proxy, name, terminal);
 		this._terminalRenderers.push(renderer);
+
 		return renderer;
 	}
 
@@ -267,18 +276,22 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 		const original = this._activeTerminal;
 		if (id === null) {
 			this._activeTerminal = undefined;
-		} else {
-			const terminal = this._getTerminalById(id);
-			if (terminal) {
-				this._activeTerminal = terminal;
+			if (original !== this._activeTerminal) {
+				this._onDidChangeActiveTerminal.fire(this._activeTerminal);
 			}
 		}
-		if (original !== this._activeTerminal) {
-			this._onDidChangeActiveTerminal.fire(this._activeTerminal);
-		}
+		this._performTerminalIdAction(id, terminal => {
+			if (terminal) {
+				this._activeTerminal = terminal;
+				if (original !== this._activeTerminal) {
+					this._onDidChangeActiveTerminal.fire(this._activeTerminal);
+				}
+			}
+		});
 	}
 
 	public $acceptTerminalProcessData(id: number, data: string): void {
+		// TODO: Queue requests, currently the first 100ms of data may get missed
 		const terminal = this._getTerminalById(id);
 		if (terminal) {
 			terminal._fireOnData(data);
@@ -322,16 +335,19 @@ export class ExtHostTerminalService implements ExtHostTerminalServiceShape {
 	}
 
 	public $acceptTerminalProcessId(id: number, processId: number): void {
-		let terminal = this._getTerminalById(id);
+		this._performTerminalIdAction(id, terminal => terminal._setProcessId(processId));
+	}
 
+	private _performTerminalIdAction(id: number, callback: (terminal: ExtHostTerminal) => void): void {
+		let terminal = this._getTerminalById(id);
 		if (terminal) {
-			terminal._setProcessId(processId);
+			callback(terminal);
 		} else {
 			// Retry one more time in case the terminal has not yet been initialized.
 			setTimeout(() => {
 				terminal = this._getTerminalById(id);
 				if (terminal) {
-					terminal._setProcessId(processId);
+					callback(terminal);
 				}
 			}, EXT_HOST_CREATION_DELAY);
 		}

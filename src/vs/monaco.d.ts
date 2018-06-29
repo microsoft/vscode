@@ -2502,6 +2502,11 @@ declare namespace monaco.editor {
 		 * Defaults to 300.
 		 */
 		delay?: number;
+		/**
+		 * Is the hover sticky such that it can be clicked and its contents selected?
+		 * Defaults to true.
+		 */
+		sticky?: boolean;
 	}
 
 	/**
@@ -3102,6 +3107,7 @@ declare namespace monaco.editor {
 	export interface InternalEditorHoverOptions {
 		readonly enabled: boolean;
 		readonly delay: number;
+		readonly sticky: boolean;
 	}
 
 	export interface EditorWrappingInfo {
@@ -5185,6 +5191,7 @@ declare namespace monaco.languages {
 		options: {
 			overwrite?: boolean;
 			ignoreIfExists?: boolean;
+			recursive?: boolean;
 		};
 	}
 

@@ -89,4 +89,6 @@ export interface IUpdateService {
 	downloadUpdate(): TPromise<void>;
 	applyUpdate(): TPromise<void>;
 	quitAndInstall(): TPromise<void>;
+
+	isLatestVersion(): TPromise<boolean | undefined>;
 }

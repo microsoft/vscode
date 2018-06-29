@@ -70,7 +70,7 @@ export const tocData: ITOCEntry = {
 				},
 				{
 					id: 'editor/editor',
-					label: localize('editor', "Editor"),
+					label: localize('textEditor', "Text Editor"),
 					settings: ['editor.*']
 				}
 			]
@@ -88,6 +88,11 @@ export const tocData: ITOCEntry = {
 					id: 'workbench/editor',
 					label: localize('editorManagement', "Editor Management"),
 					settings: ['workbench.editor.*']
+				},
+				{
+					id: 'workbench/settings',
+					label: localize('settings', "Settings Editor"),
+					settings: ['workbench.settings.*']
 				},
 				{
 					id: 'workbench/zenmode',
@@ -184,11 +189,6 @@ export const tocData: ITOCEntry = {
 					settings: ['telemetry.*']
 				}
 			]
-		},
-		{
-			id: 'extensions',
-			label: localize('extensions', "Extensions"),
-			settings: ['*']
 		}
 	]
 };

@@ -246,12 +246,12 @@ export class ElectronWindow extends Themable {
 		if (e.target instanceof HTMLElement) {
 			const target = <HTMLElement>e.target;
 			if (target.nodeName && (target.nodeName.toLowerCase() === 'input' || target.nodeName.toLowerCase() === 'textarea')) {
-				e.preventDefault();
-				e.stopPropagation();
+				DOM.EventHelper.stop(e, true);
 
 				this.contextMenuService.showContextMenu({
 					getAnchor: () => e,
-					getActions: () => TPromise.as(TextInputActions)
+					getActions: () => TPromise.as(TextInputActions),
+					onHide: () => target.focus() // fixes https://github.com/Microsoft/vscode/issues/52948
 				});
 			}
 		}

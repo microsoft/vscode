@@ -23,7 +23,6 @@ import { ContextKeyExpr } from 'vs/platform/contextkey/common/contextkey';
 import { openBreakpointSource } from 'vs/workbench/parts/debug/browser/breakpointsView';
 import { INotificationService } from 'vs/platform/notification/common/notification';
 import { InputFocusedContext } from 'vs/platform/workbench/common/contextkeys';
-import { CommandsRegistry } from 'vs/platform/commands/common/commands';
 import { ServicesAccessor } from 'vs/editor/browser/editorExtensions';
 
 export function registerCommands(): void {
@@ -223,10 +222,6 @@ export function registerCommands(): void {
 		primary: KeyMod.Shift | KeyCode.F9,
 		when: EditorContextKeys.editorTextFocus,
 		id: INLINE_BREAKPOINT_COMMAND_ID,
-		handler: inlineBreakpointHandler
-	});
-	CommandsRegistry.registerCommand({
-		id: 'editor.debug.action.toggleColumnBreakpoint',
 		handler: inlineBreakpointHandler
 	});
 

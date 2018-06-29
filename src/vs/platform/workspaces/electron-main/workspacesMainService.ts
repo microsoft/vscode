@@ -96,12 +96,7 @@ export class WorkspacesMainService implements IWorkspacesMainService {
 	private doParseStoredWorkspace(path: string, contents: string): IStoredWorkspace {
 
 		// Parse workspace file
-		let storedWorkspace: IStoredWorkspace;
-		try {
-			storedWorkspace = json.parse(contents); // use fault tolerant parser
-		} catch (error) {
-			throw new Error(`${path} cannot be parsed as JSON file (${error}).`);
-		}
+		let storedWorkspace: IStoredWorkspace = json.parse(contents); // use fault tolerant parser
 
 		// Filter out folders which do not have a path or uri set
 		if (Array.isArray(storedWorkspace.folders)) {

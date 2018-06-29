@@ -625,10 +625,6 @@ export class SideBySideEditorInput extends EditorInput {
 		return this.description;
 	}
 
-	public supportsSplitEditor(): boolean {
-		return false;
-	}
-
 	public matches(otherInput: any): boolean {
 		if (super.matches(otherInput) === true) {
 			return true;

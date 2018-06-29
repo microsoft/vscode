@@ -166,15 +166,18 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		if (!this._variableResolver) {
 			this._variableResolver = new ExtHostVariableResolverService(this._workspaceService, this._editorsService, this._configurationService);
 		}
+		let ws: IWorkspaceFolder;
 		const folder = this.getFolder(folderUri);
-		let ws: IWorkspaceFolder = {
-			uri: folder.uri,
-			name: folder.name,
-			index: folder.index,
-			toResource: () => {
-				throw new Error('Not implemented');
-			}
-		};
+		if (folder) {
+			ws = {
+				uri: folder.uri,
+				name: folder.name,
+				index: folder.index,
+				toResource: () => {
+					throw new Error('Not implemented');
+				}
+			};
+		}
 		return asWinJsPromise(token => this._variableResolver.resolveAny(ws, config));
 	}
 
@@ -524,7 +527,7 @@ export class ExtHostDebugService implements ExtHostDebugServiceShape {
 		this._onDidReceiveDebugSessionCustomEvent.fire(ee);
 	}
 
-	private getFolder(_folderUri: UriComponents | undefined): vscode.WorkspaceFolder {
+	private getFolder(_folderUri: UriComponents | undefined): vscode.WorkspaceFolder | undefined {
 		if (_folderUri) {
 			const folderURI = URI.revive(_folderUri);
 			return this._workspaceService.resolveWorkspaceFolder(folderURI);
